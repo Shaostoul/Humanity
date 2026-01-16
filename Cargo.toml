@@ -1,0 +1,55 @@
+[package]
+name = "humanity"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "project_universe"
+path = "source/lib.rs"
+
+[[bin]]
+name = "project_universe"
+path = "source/main.rs"
+
+[dependencies]
+egui = "0.26.0"
+egui-wgpu = "0.26.0"
+winit = "0.29.0"
+wgpu = "0.19.0"
+chrono = "0.4.0"
+lazy_static = "1.4.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+ron = "0.8.0"
+anyhow = "1.0.79"
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.11"
+egui-winit = "0.26.2"
+egui_extras = { version = "0.26.0", features = ["image"] }
+glam = { version = "0.25.0", features = ["serde"] }
+noise = "0.8"
+rand = "0.8"
+hecs = { version = "0.10", features = ["serde"] }
+kira = "0.8"
+rapier3d = "0.17"
+quinn = "0.10"
+tokio = { version = "1.36.0", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"
+pollster = "0.3"
+image = "0.24"
+display-info = "0.4"
+winapi = { version = "0.3", features = ["winuser"] }
+once_cell = "1.19"
+csv = "1.3"
+gltf = "0.16"
+cgmath = "0.18"
+nalgebra = "0.32"
+openvdb = "0.1"
+eframe = "0.27"
+rayon = "1.10"
+crossbeam = "0.8"
+bytemuck = { version = "1.15.0", features = ["derive"] }
+time = { version = "0.3", features = ["formatting", "parsing", "macros", "local-offset"] }
