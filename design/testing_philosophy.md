@@ -1,261 +1,202 @@
-# testing_philosophy.md — Verification as Truth Enforcement
+# testing_philosophy.md
 
-This document defines **what must be tested, why it must be tested, and what failure means** in Project Universe.
+## Purpose
 
-Testing is not primarily for bugs. Testing is for **truth preservation**.
+This document defines what must be tested, why it must be tested, and what failure means.
 
-If a system teaches something false, the build must fail.
+Testing is not primarily for “bugs.”  
+Testing is for **truth preservation**.
 
----
-
-## 1. Testing principles
-
-1. **Correctness outranks balance** — balanced falsehood is still falsehood.
-2. **Determinism is mandatory** — nondeterministic failures are treated as defects.
-3. **Constraints are law** — any violation of `realism_constraints.md` is a hard failure.
-4. **Education is testable** — explanations must match causes.
-5. **Regression is unacceptable** — once a truth is encoded, it cannot silently change.
+If a system teaches something false, hides causality, violates constraints, or breaks determinism, the build must fail.
 
 ---
 
-## 2. Test categories
+## Authority
 
-### 2.1 Unit tests
+Testing enforces the authority chain:
 
-Purpose:
+`accord/` → `design/` → `data/` → `engine/`
 
-* Validate small deterministic rules.
+Testing must enforce `design/accord_constraints.md`, `design/simulation_laws.md`, and `design/realism_constraints.md`.
+
+---
+
+## Testing Principles
+
+1. **Correctness outranks convenience**  
+   Convenient falsehood is still falsehood.
+
+2. **Determinism is mandatory**  
+   Nondeterministic outcomes are treated as defects unless explicitly modeled and bounded.
+
+3. **Constraints are law**  
+   Any violation of realism constraints or conservation is a hard failure.
+
+4. **Explanations must match causes**  
+   If the system explains an outcome, the explanation must match the causal trace.
+
+5. **Regression is unacceptable**  
+   Once a truth is encoded and tested, it cannot silently change.
+
+---
+
+## Test Categories
+
+### Unit Tests
+Validate small deterministic rules.
 
 Examples:
-
-* unit conversions
-* nutrient accounting
-* spoilage rate functions
+- unit conversions
+- nutrient accounting functions
+- spoilage functions
 
 ---
 
-### 2.2 Property-based tests
-
-Purpose:
-
-* Verify invariants across large input space.
+### Property-Based Tests
+Verify invariants across wide input spaces.
 
 Examples:
-
-* conservation of mass across recipes
-* calories in/out accounting
-* monotonic decay functions
+- conservation across transformations
+- monotonic decay functions
+- bounds on fatigue/error relationships
 
 ---
 
-### 2.3 Simulation replay tests
-
-Purpose:
-
-* Prove determinism.
+### Simulation Replay Tests
+Prove determinism.
 
 Method:
-
-* run a simulation with seed + action log
-* replay
-* assert identical state hashes at milestones
-
----
-
-### 2.4 Data validation tests
-
-Purpose:
-
-* Ensure data is lawful.
-
-Fail build if:
-
-* missing units
-* unresolved references
-* missing failure cases
-* impossible values
+- run simulation with seed + action log
+- replay
+- assert identical state hashes at milestones
 
 ---
 
-### 2.5 Integration tests
+### Data Validation Tests
+Ensure data is lawful.
 
-Purpose:
+Fail the build if:
+- missing units
+- invalid ranges
+- unresolved references
+- broken schema invariants
+- impossible values
 
-* Verify domain interactions.
+---
+
+### Integration Tests
+Verify domain interactions.
 
 Examples:
-
-* crop growth depends on soil + water + temperature
-* fatigue increases error rate
-* preservation trades time/energy for reduced spoilage
+- growth depends on soil + water + temperature
+- fatigue increases error rate
+- preservation trades time/energy for reduced spoilage
 
 ---
 
-### 2.6 Education correctness tests
-
-Purpose:
-
-* Ensure teaching matches reality.
+### Explanation Correctness Tests
+Ensure explanations match reality.
 
 Requirements:
-
-* every failure reason returned by validation must map to:
-
-  * a constraint
-  * a practice mistake
-  * a failure case
-
-The game must be able to say:
-
-* what happened
-* why it happened
-* what could prevent it
+- every reported failure reason maps to:
+  - a constraint
+  - a violated requirement
+  - a defined failure case
+- the system can always say:
+  - what happened
+  - why it happened
+  - what would prevent it
 
 ---
 
-### 2.7 Performance tests
-
-Purpose:
-
-* Ensure low-power viability.
+### Performance Tests
+Ensure low-power viability.
 
 Rules:
-
-* complexity should scale linearly with active entities
-* performance improvements must not change outcomes
-
----
-
-## 3. What must always be tested
-
-### 3.1 Determinism
-
-* identical inputs ⇒ identical outputs
-* no floating drift between supported platforms
+- complexity scales ~linearly with active entities
+- performance improvements must not change outcomes
 
 ---
 
-### 3.2 Conservation
+## Always-Test Requirements
 
-* mass conservation across transformations
-* energy conservation in energy systems
-* nutrition conservation in diets and labor
+### Determinism
+- identical inputs ⇒ identical outputs
+- no cross-platform drift within supported configurations
 
----
+### Conservation
+- matter, energy, nutrients must balance within declared models
 
-### 3.3 Time cost
+### Time Cost
+- every process declares time
+- no zero-time production
 
-* every process declares time
-* no zero-time production
-
----
-
-### 3.4 Failure cases
-
-* every major system must fail in defined ways
-* failure must produce causal explanations
+### Failure Cases
+- every major process must fail in defined ways
+- failures must be explainable
 
 ---
 
-## 4. Test artifacts and fixtures
+## Test Artifacts
 
-### 4.1 Golden replays
-
-* Store canonical seed + action logs for reference scenarios.
-* These are treated as constitutional fixtures.
+### Golden Replays
+Canonical seed + action logs for reference scenarios. Treated as constitutional fixtures.
 
 Examples:
+- basic week scenario
+- nutrient stress scenario
+- maintenance neglect scenario
 
-* basic homestead week
-* crop cycle with nutrient stress
-* machine maintenance neglect scenario
-
----
-
-### 4.2 Scenario packs
-
-* Small, curated scenarios representing common real-world situations.
-* Used for education, regression, and demonstration.
+### Scenario Packs
+Curated small scenarios representing common real-world conditions. Used for regression and demonstration.
 
 ---
 
-## 5. Failure policy
+## Failure Policy
 
 A test failure means:
+- truth was violated
+- determinism was broken
+- constraints were bypassed
+- explanations no longer match causality
 
-* truth was violated
-* determinism was broken
-* educational explanation no longer matches causality
-
-Response is to:
-
-* fix the bug
-* or explicitly update design + data + tests together
+Response:
+- fix the defect
+- or explicitly update design + data + tests together
 
 Silent changes are forbidden.
 
 ---
 
-## 6. Balance policy
+## Balance Policy
 
-Balance is measured *after* correctness.
-
-Rules:
-
-* If realism makes something hard, difficulty is not a bug.
-* If realism makes something too easy, ease is not a bug.
-
-Balance changes must:
-
-* preserve constraints
-* remain explainable
-
----
-
-## 7. Multiplayer test stance
-
-Even if multiplayer is optional:
-
-* simulation must remain deterministic under synchronized actions
-* desync is treated as a correctness failure
-
----
-
-## 8. Mod stance (open source)
-
-Project Universe is open source. Testing therefore serves as the immune system.
+Balance is evaluated only after correctness.
 
 Rules:
+- difficulty caused by reality constraints is not a defect
+- ease caused by reality constraints is not a defect
 
-* forks may do anything, but the mainline remains constraint-correct
-* contributions that violate constraints are rejected by tests
-
-Testing replaces trust.
-
----
-
-## 9. Minimal required test suite
-
-The following suite must run on every change:
-
-* schema/unit validation
-* conservation properties
-* replay determinism
-* failure explanation mapping
-
-Optional but recommended:
-
-* performance regressions
+Any tuning must:
+- preserve constraints
+- remain explainable
 
 ---
 
-## 10. Design intent restated
+## Collaboration Stance
 
-Project Universe must remain:
+Open collaboration increases the need for strong tests.
 
-* deterministic
-* explainable
-* educationally correct
-* grounded in reality
+Tests replace trust by making violations unmergeable.
 
-Testing is how reality remains enforceable.
+---
+
+## Minimal Required Suite
+
+Must run on every change:
+- schema/unit validation
+- conservation properties
+- replay determinism
+- explanation mapping
+
+Recommended:
+- performance regressions

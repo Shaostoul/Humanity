@@ -1,418 +1,287 @@
-# data_model.md — Project Universe Canonical Data Model
+# data_model.md
 
-This document defines the **schemas, invariants, units, and validation rules** for Project Universe data. Data is the canonical description of reality. Code must interpret data; it must not redefine it.
+## Purpose
 
-Design intent:
+This document defines how reality is represented as structured data.
 
-* Deterministic simulation
-* AI-readable truth
-* Mod-safe extensibility
-* Educational traceability (why success/failure occurs)
+Data is the **canonical description of state**.  
+Design defines behavior.  
+The engine executes behavior over data.
 
----
+Code may interpret data.  
+Code may not redefine data.
 
-## 1) Data principles
-
-### 1.1 Canonical identifiers
-
-* Every definable thing has a stable ID: `Namespace:Category:Name`
-
-  * Example: `core:flora:potato`
-* IDs are case-insensitive for lookups, but stored normalized (lowercase, snake_case).
-
-### 1.2 Separation of concerns
-
-* **definitions/**: what a thing *is*
-* **recipes/**: how things *transform*
-* **practices/**: how actions are correctly performed (with failure cases)
-* **equations/**: formal relationships and models
-* **constraints/**: global non-negotiables
-* **failure_cases/**: explicit causal error models
-
-### 1.3 Deterministic loading
-
-* Data load order is deterministic.
-* All references are resolved at load time.
-* Missing references are hard errors.
-
-### 1.4 Units are mandatory
-
-* Every numeric field has units.
-* Units are validated.
-* Conversions are centralized and explicit.
+This document exists to prevent ambiguity, hidden authority, and silent corruption.
 
 ---
 
-## 2) Directory layout
+## Authority Relationship
 
-```
-data/
-├─ README.md
-├─ definitions/
-│  ├─ flora/
-│  ├─ fauna/
-│  ├─ materials/
-│  ├─ tools/
-│  ├─ machines/
-│  ├─ structures/
-│  ├─ vehicles/
-│  ├─ ship_modules/
-│  ├─ chemicals/
-│  ├─ nutrients/
-│  ├─ diseases/
-│  └─ skills/
-├─ recipes/
-│  ├─ crafting/
-│  ├─ cooking/
-│  ├─ manufacturing/
-│  └─ construction/
-├─ practices/
-│  ├─ agriculture/
-│  ├─ animal_husbandry/
-│  ├─ food_preservation/
-│  ├─ water/
-│  ├─ energy/
-│  └─ maintenance/
-├─ equations/
-│  ├─ growth/
-│  ├─ nutrition/
-│  ├─ energy_balance/
-│  ├─ heat_transfer/
-│  └─ economics/
-├─ constraints/
-│  ├─ realism_constraints.ron
-│  └─ unit_system.ron
-├─ failure_cases/
-│  ├─ agriculture/
-│  ├─ health/
-│  ├─ machines/
-│  └─ storage/
-├─ glossaries/
-│  ├─ terms.ron
-│  └─ labels.en.ron
-└─ localization/
-   ├─ en/
-   └─ ...
-```
+The data model is constrained by:
+
+- the Humanity Accord
+- design law (`design/`)
+- accord constraints (`design/accord_constraints.md`)
+
+Data does not encode ethics or behavior.  
+It encodes **facts, properties, quantities, and relationships**.
 
 ---
 
-## 3) File formats
+## Foundational Principle
 
-### 3.1 Preferred formats
+If a concept cannot be represented as data, it cannot reliably exist in the system.
 
-* **RON** (`.ron`) for structured data (Rust-native, readable).
-* **Markdown** (`.md`) for narrative explanations and teaching notes.
+If a concept is represented as data, it must be:
+- explicit
+- inspectable
+- validated
+- versioned
 
-### 3.2 Prohibited formats for canonical truth
-
-* Binary-only formats as canonical rule sources.
-* Spreadsheets as canonical truth.
-
-### 3.3 Naming conventions
-
-* Files: `snake_case.ron`
-* IDs inside files: `namespace:category:name`
-* One primary definition per file.
+There is no hidden state.
 
 ---
 
-## 4) Core schema building blocks
+## What Data Is
 
-### 4.1 Common header (all definitions)
+Data represents:
 
-Every definition includes:
+- entities
+- resources
+- structures
+- processes
+- conditions
+- events
 
-* `id: DefId`
-* `version: SemVer`
-* `name_key: LocKey` (localization key)
-* `description_key: LocKey`
-* `tags: [Tag]`
-* `sources: [SourceRef]` (where this knowledge comes from)
-* `invariants: [Invariant]` (validation rules)
-
-#### SourceRef
-
-* `title`
-* `publisher`
-* `year`
-* `url` (optional)
-* `notes` (optional)
-
-Purpose: educational audit trail and conflict resolution.
+Data describes **what exists**, not **what happens**.
 
 ---
 
-## 5) Unit system
+## What Data Is Not
 
-### 5.1 Canonical units
+Data does not represent:
 
-* Length: `m`
-* Area: `m2`
-* Volume: `m3`, `L`
-* Mass: `kg`, `g`
-* Time: `s`, `min`, `h`, `day`
-* Temperature: `C`, `K`
-* Energy: `J`, `kWh`
-* Power: `W`
-* Pressure: `Pa`
-* Flow: `L_per_min`, `m3_per_s`
-* Nutrition: `kcal`, `g_protein`, `g_fat`, `g_carbs`, `mg_micronutrient`
+- intent
+- ethics
+- rules
+- decisions
+- authority
+- narrative
 
-### 5.2 Quantity type
-
-All numeric fields use:
-
-* `Qty { value: f64, unit: UnitId }`
-
-Rules:
-
-* No bare floats in definitions.
-* Unit conversions occur only in the unit library.
+Those belong to higher layers.
 
 ---
 
-## 6) Definition schemas (canonical)
+## Data Categories
 
-### 6.1 FloraDef (plants)
+### Entities
 
-Required fields:
-
-* `taxonomy` (optional but preferred)
-* `growth_model: GrowthModelRef`
-* `soil_requirements: SoilReq`
-* `water_requirements: WaterReq`
-* `light_requirements: LightReq`
-* `temperature_range: TempRange`
-* `seasonality: SeasonProfile`
-* `labor_profile: LaborProfile`
-* `yields: [YieldDef]`
-* `pest_susceptibility: [RiskRef]`
-* `disease_susceptibility: [RiskRef]`
-* `failure_modes: [FailureCaseRef]`
-
-Purpose: a plant is defined by constraints and failure, not only by reward.
-
-### 6.2 FaunaDef (animals/humans)
-
-Required fields:
-
-* `needs: NeedsProfile` (water, calories, shelter)
-* `diet: DietProfile`
-* `health_model: HealthModelRef`
-* `reproduction` (optional)
-* `labor_capability` (for humans and working animals)
-* `products: [YieldDef]` (milk, eggs, wool)
-* `risk_profile` (stress, disease)
-* `failure_modes: [FailureCaseRef]`
-
-### 6.3 MaterialDef
-
-Required fields:
-
-* `state` (solid/liquid/gas)
-* `density`
-* `strength` (when applicable)
-* `thermal_properties`
-* `chemical_properties` (when applicable)
-* `toxicity` (when applicable)
-* `failure_modes` (corrosion, spoilage, contamination)
-
-### 6.4 ToolDef
-
-Required fields:
-
-* `function_tags` (cutting, digging, fastening)
-* `efficiency_modifiers` (bounded)
-* `durability_model`
-* `maintenance_requirements`
-* `failure_modes`
-
-Rule: tools modify labor and feasibility; they do not create impossible outcomes.
-
-### 6.5 StructureDef
-
-Required fields:
-
-* `footprint_area`
-* `volume`
-* `capacity` (storage, occupancy)
-* `thermal_envelope` (if relevant)
-* `load_limits` (if relevant)
-* `maintenance`
-* `failure_modes`
-
-### 6.6 MachineDef
-
-Required fields:
-
-* `inputs` (materials/energy)
-* `outputs`
-* `efficiency`
-* `heat_waste`
-* `maintenance`
-* `safety_risks`
-* `failure_modes`
-
-### 6.7 SkillDef
-
-Required fields:
-
-* `domain_tags`
-* `learning_curve_model`
-* `prerequisites`
-* `assessment_methods`
-
-Rule: skills do not grant magic bonuses; they reduce error and waste within constraints.
-
----
-
-## 7) Recipes (transformations)
-
-A recipe is a deterministic transformation:
-
-* `id`
-* `inputs: [ItemStack]`
-* `tools_required: [ToolTag]`
-* `stations_required: [StationTag]` (optional)
-* `time_required: Qty(time)`
-* `energy_required: Qty(energy)` (optional)
-* `outputs: [ItemStack]`
-* `byproducts: [ItemStack]` (optional)
-* `skill_requirements: [SkillReq]`
-* `failure_behavior: FailureBehaviorRef`
-
-Rule: recipes must declare time and labor/energy costs.
-
----
-
-## 8) Practices (how to do things correctly)
-
-A practice defines the **correct method** and why.
-
-Fields:
-
-* `id`
-* `scope_tags`
-* `steps: [PracticeStep]`
-* `constraints: [ConstraintRef]`
-* `required_tools`
-* `required_conditions` (soil moisture range, temperature)
-* `common_mistakes: [MistakeDef]`
-* `failure_modes: [FailureCaseRef]`
-* `success_metrics: [MetricDef]`
-
-Purpose: practices power education, mentor dialogue, and procedural quest generation.
-
----
-
-## 9) Failure cases (causality)
-
-A failure case is a structured explanation of what goes wrong.
-
-Fields:
-
-* `id`
-* `trigger_conditions` (expressed as predicates)
-* `symptoms` (state changes)
-* `diagnosis_steps`
-* `consequences` (yield reduction, illness, breakdown)
-* `mitigations`
-* `preventions`
-
-Rule: Every major system must have explicit failure cases.
-
----
-
-## 10) Constraints (global non-negotiables)
-
-Constraints define hard limits (physics, biology, labor).
-
-Fields:
-
-* `id`
-* `predicate`
-* `severity` (error/warn)
-* `message_key`
+Entities are discrete, identifiable actors or objects.
 
 Examples:
+- humans
+- animals
+- plants
+- machines
+- tools
 
-* Calories in must cover calories out.
-* Storage temperature above threshold increases spoilage rate.
-* Labor exceeds human capacity produces fatigue and error.
-
----
-
-## 11) Localization model
-
-### 11.1 Keys
-
-* `name_key` and `description_key` are required.
-* Human-visible strings are never embedded in definitions.
-
-### 11.2 Labels
-
-* `data/glossaries/labels.en.ron` provides short UI labels.
-* Full educational text lives in `education/` markdown.
+Entity data includes:
+- identifiers
+- physical properties
+- capacities and limits
+- current state
 
 ---
 
-## 12) Asset references (representation pointers)
+### Resources
 
-Definitions may reference assets via stable paths, but assets are never authoritative.
+Resources are consumable or transformable quantities.
 
-### 12.1 Canonical asset pointers
+Examples:
+- water
+- food
+- materials
+- energy
+- time
 
-* `model_glb: AssetPath` (optional)
-* `icon_png: AssetPath` (optional)
-* `textures: [TextureRef]` (optional)
-* `audio_cues: [AudioRef]` (optional)
+Resource data includes:
+- units
+- availability
+- constraints
+- regeneration or depletion characteristics
 
-Rules:
-
-* Missing assets are warnings (unless required by UI).
-* Assets may not carry mechanics metadata.
-
----
-
-## 13) Validation rules (must fail build)
-
-The build must fail if:
-
-* A definition is missing units on numeric fields.
-* A referenced ID does not resolve.
-* A practice is missing failure modes.
-* A recipe is missing time and required tools.
-* A mod overrides a protected constraint.
-* Localization keys are missing for any shipped language.
+Resources are finite unless explicitly modeled otherwise.
 
 ---
 
-## 14) Mod extension rules
+### Structures
 
-Mods may add:
+Structures are persistent assemblies of entities and resources.
 
-* new definitions
-* new recipes
-* new practices
-* new failure cases
+Examples:
+- shelters
+- machines
+- infrastructure
+- habitats
 
-Mods may not:
-
-* remove or weaken global constraints
-* change unit system
-* redefine existing canonical IDs without explicit namespacing
+Structure data includes:
+- components
+- capacities
+- maintenance requirements
+- failure thresholds
 
 ---
 
-## 15) Minimal examples (conceptual)
+### Processes
 
-### Flora example: potato
+Processes describe potential transformations.
 
-* Definition includes: soil pH, days to maturity, temperature range, water needs, yield ranges, common diseases, failure cases.
+Examples:
+- growth
+- decay
+- production
+- repair
 
-### Practice example: seed planting
+Processes are defined as **data describing possibility**, not execution.
 
-* Steps include: soil preparation, depth, spacing, watering schedule, and measurable success metrics.
+Execution belongs to systems.
 
-These examples must be implemented in actual `.ron` files under `data/`.
+---
+
+### Conditions
+
+Conditions describe environmental or systemic context.
+
+Examples:
+- temperature
+- pressure
+- contamination
+- damage states
+
+Conditions influence system behavior but do not cause action directly.
+
+---
+
+### Events
+
+Events record notable state transitions.
+
+Examples:
+- breakdowns
+- injuries
+- harvests
+- depletion
+- recovery
+
+Events must be:
+- timestamped
+- attributable
+- traceable to causes
+
+---
+
+## Units and Invariants
+
+All quantitative data must specify:
+- units
+- valid ranges
+- invariants
+
+Unit mismatch is an error condition.
+
+Invariants must be enforced through validation.
+
+---
+
+## Versioning and Evolution
+
+Data schemas are versioned.
+
+Changes to data structure must:
+- be explicit
+- preserve backward compatibility where possible
+- include migration paths
+
+Silent schema drift is forbidden.
+
+---
+
+## Validation
+
+Validation occurs at multiple stages:
+- authoring
+- loading
+- runtime (optional assertions)
+
+Invalid data must:
+- be rejected or quarantined
+- produce explicit error messages
+- never be silently corrected
+
+---
+
+## Transparency and Traceability
+
+Every data element must be:
+- human-readable
+- machine-parseable
+- inspectable through tools
+
+Data changes must be attributable to:
+- system execution
+- validated input
+- authorized modification
+
+---
+
+## Failure and Degradation
+
+Data may represent failure states.
+
+Failure must be:
+- explicit
+- explainable
+- recoverable where possible
+
+Irreversible failure requires justification at the system level.
+
+---
+
+## Security and Authority Boundaries
+
+No system or tool may:
+- inject hidden data
+- modify data outside validation
+- infer unrepresented state as fact
+
+All authority over data mutation must be explicit and logged.
+
+---
+
+## Relationship to Knowledge
+
+Knowledge informs data modeling.
+
+Data is not raw knowledge.
+
+Knowledge is:
+- interpretive
+- contextual
+- revisable
+
+Data is:
+- explicit
+- structured
+- authoritative within the system
+
+---
+
+## Closing Statement
+
+Data is the ground truth the system stands on.
+
+When data is explicit, reality remains understandable.
+
+When data is corrupted or hidden, power becomes invisible.
+
+The data model exists to keep reality honest.

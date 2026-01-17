@@ -1,330 +1,141 @@
-# economy_model.md — Scarcity, Labor, and Distribution
+# economy_model.md
 
-This document defines the **economic model** of Project Universe. Economy here is not currency-first; it is **material flow under constraint**. Poverty is modeled as a systemic failure of access, knowledge, time, and distribution—not as a lack of points.
+## Purpose
 
-This model is subordinate only to philosophy and `realism_constraints.md` and must comply with `simulation_laws.md`, `data_model.md`, and `education_model.md`.
+This document defines how economic reality is modeled as a **system of constrained flows**, not as abstract numbers or optimization games.
 
----
+The economy exists to satisfy human needs under finite conditions:
+- limited resources
+- limited energy
+- limited time
+- limited labor
 
-## 1. Economic principles
-
-1. **Scarcity is real** — resources are finite in time and space.
-2. **Labor is primary** — value originates from time, effort, and skill.
-3. **Production precedes exchange** — nothing is traded before it exists.
-4. **Distribution matters** — misallocation causes poverty even amid abundance.
-5. **Failure is instructive** — economic collapse has explainable causes.
+Economic design prioritizes stability, dignity, and continuity over maximization.
 
 ---
 
-## 2. Economic layers
+## Foundational Premise
 
-### 2.1 Physical economy (base layer)
+Poverty is not a moral failure.  
+It is a systemic failure.
 
-The physical economy tracks:
-
-* matter flows (inputs, outputs, waste)
-* energy flows (work, losses)
-* time allocation
-
-All higher economic layers must reconcile with the physical layer.
+An economy that produces widespread deprivation under known constraints is improperly designed.
 
 ---
 
-### 2.2 Labor economy
+## Core Economic Quantities
 
-Labor is modeled explicitly:
+The economy is modeled using concrete, conserved quantities:
 
-* finite hours per entity
-* fatigue and recovery
-* skill-modified efficiency (bounded)
+- material
+- energy
+- labor time
+- skill and competence
+- infrastructure capacity
 
-Rules:
+All quantities:
+- are finite
+- have acquisition costs
+- impose opportunity tradeoffs
 
-* One unit of labor cannot be used twice.
-* Skill reduces waste and error, not time to zero.
-
----
-
-### 2.3 Knowledge economy
-
-Knowledge affects:
-
-* planning accuracy
-* failure rates
-* resource utilization
-
-Knowledge does not:
-
-* create resources
-* remove labor requirements
+No quantity is infinite or free.
 
 ---
 
-### 2.4 Exchange economy
+## Labor and Time
 
-Exchange mechanisms include:
+Human labor is embodied and finite.
 
-* barter
-* shared storage
-* mediated trade (currency, credits)
+Economic systems must:
+- respect physical and cognitive limits
+- account for rest and recovery
+- prevent extraction that degrades agency
 
-Exchange never violates physical or labor constraints.
-
----
-
-## 3. Value definition
-
-### 3.1 Use value
-
-Value is first defined by **use**:
-
-* sustenance
-* shelter
-* tools
-* stability
-
-An item with no use has no inherent value.
+Systems that rely on exhaustion or coercion are invalid.
 
 ---
 
-### 3.2 Labor-embedded value
+## Production and Consumption
 
-Value increases with:
+Production transforms inputs into outputs under constraint.
 
-* labor invested
-* skill required
-* time delayed
+Consumption represents irreversible use.
 
-This value is contextual, not absolute.
+Economic design must:
+- surface true costs
+- expose dependencies
+- make waste visible
 
----
-
-### 3.3 Market value (derived)
-
-Market value:
-
-* emerges from scarcity and demand
-* fluctuates
-* is never authoritative over physical constraints
+Hidden externalization of cost constitutes harm.
 
 ---
 
-## 4. Poverty modeling
+## Scarcity and Allocation
 
-Poverty is defined as **persistent inability to meet essential needs** despite available effort.
+Scarcity is real and unavoidable.
 
-### 4.1 Causes of poverty
+Ethical allocation:
+- minimizes preventable harm
+- prioritizes basic needs
+- avoids concentration through domination
 
-Modeled causes include:
-
-* lack of access to resources
-* insufficient knowledge
-* time traps (overwork with low return)
-* distribution bottlenecks
-* environmental constraints
+Scarcity does not justify exploitation.
 
 ---
 
-### 4.2 Poverty indicators
+## Feedback and Failure
 
-Indicators tracked:
+Economic systems must include feedback loops.
 
-* unmet caloric needs
-* inadequate shelter
-* unsustainable labor load
-* recurring failure loops
+Indicators of failure include:
+- unmet basic needs
+- systemic dependency
+- irreversible loss
+- concentration of power
 
----
-
-### 4.3 Poverty feedback loops
-
-Negative loops:
-
-* fatigue → errors → lower yield → more labor
-* spoilage → scarcity → hoarding → further spoilage
-
-Breaking loops requires systemic change, not rewards.
+Failure must be detectable and correctable.
 
 ---
 
-## 5. Production systems
+## Growth and Expansion
 
-### 5.1 Primary production
+Growth is not assumed.
 
-* agriculture
-* animal husbandry
-* resource gathering
+Expansion is valid only when:
+- underlying systems remain stable
+- ecological limits are respected
+- future viability is preserved
 
-Outputs depend on:
-
-* environment
-* labor
-* skill
-* time
+Short-term gain that degrades long-term capacity is invalid.
 
 ---
 
-### 5.2 Secondary production
+## Repair and Resilience
 
-* processing
-* manufacturing
-* construction
+Economic systems must support:
+- recovery from shocks
+- redistribution under failure
+- repair of infrastructure and trust
 
-Adds durability, usability, or longevity at cost.
-
----
-
-### 5.3 Maintenance economy
-
-Neglect incurs debt:
-
-* tools degrade
-* structures fail
-* productivity drops
-
-Maintenance is mandatory and consumes resources.
+Irreversible economic punishment undermines cooperation.
 
 ---
 
-## 6. Distribution systems
+## Transparency
 
-### 6.1 Storage
+All economic mechanisms must be:
+- inspectable
+- explainable
+- auditable
 
-Storage mediates time:
-
-* buffers abundance and scarcity
-* introduces spoilage risk
-
----
-
-### 6.2 Transport
-
-Transport mediates space:
-
-* costs energy and time
-* introduces loss risk
+Opaque economies concentrate power and erode trust.
 
 ---
 
-### 6.3 Allocation
+## Closing Statement
 
-Allocation choices:
+An economy is not a scoreboard.
 
-* determine survival outcomes
-* reflect governance and culture
+It is a living system whose purpose is to allow humans to live, learn, and contribute without degradation.
 
----
-
-## 7. Currency and abstraction
-
-### 7.1 Currency role
-
-Currency:
-
-* simplifies exchange
-* does not create value
-
----
-
-### 7.2 Inflation and distortion
-
-Inflation occurs when:
-
-* currency grows faster than production
-
-Currency systems that decouple from production create instability.
-
----
-
-## 8. Cooperation and specialization
-
-### 8.1 Cooperation benefits
-
-Cooperation enables:
-
-* specialization
-* risk sharing
-* efficiency gains
-
----
-
-### 8.2 Specialization limits
-
-Specialization introduces fragility:
-
-* dependency chains
-* failure cascades
-
-Balanced generalism improves resilience.
-
----
-
-## 9. Economic failure modes
-
-Explicit failure cases include:
-
-* starvation amid surplus
-* collapse due to maintenance neglect
-* trade dependency collapse
-* labor exhaustion
-
-Each failure must:
-
-* have identifiable causes
-* have possible mitigations
-
----
-
-## 10. Education and economy
-
-Economic understanding is teachable:
-
-* cost-benefit analysis
-* opportunity cost
-* planning under constraint
-
-Education systems surface:
-
-* why choices succeeded or failed
-* which constraints dominated
-
----
-
-## 11. AI boundaries
-
-AI may:
-
-* explain economic outcomes
-* visualize flows
-* suggest alternatives
-
-AI may not:
-
-* optimize beyond constraints
-* invent resources
-* guarantee outcomes
-
----
-
-## 12. Validation rules
-
-The build must fail if:
-
-* resources appear without production
-* labor is double-counted
-* exchange violates physical constraints
-* poverty states lack causal explanation
-
----
-
-## 13. Design intent restated
-
-The economic model exists to:
-
-* make poverty understandable
-* make cooperation meaningful
-* reward planning, not exploitation
-
-There is no winning the economy.
-
-There is only sustaining life under reality.
+Economic design succeeds when dignity remains intact under stress.

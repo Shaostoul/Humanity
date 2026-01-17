@@ -1,280 +1,176 @@
-# realism_constraints.md — Non‑Negotiable Reality Limits
+# realism_constraints.md
 
-This document defines the **hard constraints of reality** enforced by Project Universe.
+## Purpose
 
-These constraints are **absolute**. They outrank all other design documents except philosophy. Any system, mechanic, mod, asset, UI, narrative, or AI output that violates these constraints is invalid.
+This document defines non-negotiable reality constraints.
 
-The purpose is not difficulty. The purpose is **truth preservation**.
+These constraints preserve:
+- truth
+- consequence
+- learning integrity
+- resistance to domination through abstraction
 
----
-
-## 1. Constraint philosophy
-
-1. Reality has limits.
-2. Limits create meaning.
-3. Learning requires consequence.
-4. Consequence requires failure.
-
-Project Universe does not simulate fantasy. It simulates *life under constraint*.
+They apply to all systems, data, assets, tools, and explanations.
 
 ---
 
-## 2. Conservation laws
+## Authority
 
-### 2.1 Matter conservation
+These constraints derive authority from:
+- the Humanity Accord
+- `design/accord_constraints.md`
 
-* Matter cannot be created or destroyed.
-* Transformations must account for:
-
-  * inputs
-  * outputs
-  * byproducts
-  * waste
-
-Violations:
-
-* Creating items from nothing
-* Disappearing waste without a sink
+No design decision may violate these constraints for convenience.
 
 ---
 
-### 2.2 Energy conservation
+## Conservation Laws
 
-* Energy inputs must cover energy outputs and losses.
-* Perpetual motion systems are forbidden.
+### Matter
 
-Examples:
+Matter cannot be created or destroyed.
 
-* Food calories → human labor
-* Fuel → heat + work
-* Electricity → work + waste heat
-
----
-
-### 2.3 Nutritional conservation
-
-* Calories, macronutrients, and micronutrients must balance.
-* Deficiencies accumulate over time.
-* Excess does not eliminate deficiency elsewhere.
+All transformations must account for:
+- inputs
+- outputs
+- byproducts
+- waste
 
 ---
 
-## 3. Time constraints
+### Energy
 
-### 3.1 Time is non‑compressible
+Energy must balance.
 
-* Processes take real time.
-* Skill does not eliminate time, only waste.
-
-Forbidden:
-
-* Instant growth
-* Zero‑time crafting
+No perpetual motion.
+No free work.
 
 ---
 
-### 3.2 Parallel labor limits
+### Nutrition
 
-* A human can perform only one focused task at a time.
-* Multitasking increases error and fatigue.
+Calories and nutrients must balance over time.
 
----
-
-## 4. Biological constraints
-
-### 4.1 Human limits
-
-* Humans require:
-
-  * water
-  * calories
-  * rest
-  * shelter
-* Ignoring needs causes degradation, not stasis.
+Deficiencies accumulate.
+Excess does not substitute.
 
 ---
 
-### 4.2 Fatigue and injury
+## Time Constraints
 
-* Labor causes fatigue.
-* Fatigue increases error rate.
-* Injury reduces capacity and requires recovery time.
+Time is non-compressible.
 
----
+Processes take time.
+Skill reduces waste, not duration.
 
-### 4.3 Skill realism
-
-* Skills reduce error and waste.
-* Skills do not create impossible outcomes.
-
-Example:
-
-* No skill allows farming without water.
+Parallel labor is limited by human capacity.
 
 ---
 
-## 5. Ecological constraints
+## Biological Constraints
 
-### 5.1 Soil limits
+Humans require:
+- water
+- calories
+- rest
+- shelter
 
-* Soil nutrients deplete.
-* Soil recovers only through known processes (rotation, composting, time).
+Ignoring needs causes degradation.
 
----
-
-### 5.2 Climate dependence
-
-* Temperature and seasonality affect growth and survival.
-* Environments cannot be ignored.
-
----
-
-### 5.3 Biodiversity effects
-
-* Monoculture increases failure risk.
-* Diversity increases resilience, not yield certainty.
+Fatigue increases error.
+Injury reduces capacity.
 
 ---
 
-## 6. Mechanical constraints
+## Ecological Constraints
 
-### 6.1 Wear and degradation
+Soil depletes.
+Climate matters.
+Biodiversity affects resilience.
 
-* Tools and machines degrade with use.
-* Maintenance consumes time and materials.
-
----
-
-### 6.2 Load and stress
-
-* Structures have load limits.
-* Exceeding limits causes damage or collapse.
+Recovery requires known processes and time.
 
 ---
 
-## 7. Storage and preservation constraints
+## Mechanical Constraints
 
-### 7.1 Spoilage
+Tools degrade.
+Structures have load limits.
+Maintenance consumes resources.
 
-* Food spoils unless preserved.
-* Preservation methods trade time, energy, and nutrients.
-
----
-
-### 7.2 Storage conditions
-
-* Temperature, humidity, and pests affect stored goods.
+Ignoring wear causes failure.
 
 ---
 
-## 8. Knowledge constraints
+## Storage Constraints
 
-### 8.1 Knowledge is learned
+Food spoils.
+Preservation trades time, energy, and nutrients.
 
-* Knowledge must be acquired through education, practice, or observation.
-* No spontaneous knowledge acquisition.
-
----
-
-### 8.2 Teaching limits
-
-* Teaching requires time and capable teachers.
-* Learners progress at bounded rates.
+Storage conditions matter.
 
 ---
 
-## 9. Economic constraints
+## Knowledge Constraints
 
-### 9.1 Scarcity
+Knowledge is learned, not granted.
 
-* Resources are finite at any given time and place.
+Teaching consumes time.
+Understanding progresses at bounded rates.
 
----
-
-### 9.2 Labor value
-
-* Labor has opportunity cost.
-* Time spent producing one thing cannot produce another.
+No omniscience.
 
 ---
 
-## 10. Spatial constraints
+## Economic Constraints
 
-### 10.1 Space is finite
+Scarcity is real.
+Labor has opportunity cost.
 
-* Homesteads, ships, and structures have bounded volume and area.
-
----
-
-### 10.2 Transport cost
-
-* Moving mass costs time and energy.
+Every choice excludes others.
 
 ---
 
-## 11. Information constraints
+## Spatial Constraints
 
-### 11.1 No omniscience
+Space is finite.
+Transport costs time and energy.
 
-* Players and NPCs only know what they have learned or observed.
-
----
-
-### 11.2 Uncertainty
-
-* Measurements have error.
-* Outcomes have variance within bounded models.
+Distance matters.
 
 ---
 
-## 12. AI constraints
+## Information Constraints
 
-### 12.1 AI is advisory
+Measurements have error.
+Outcomes vary within bounded models.
 
-* AI may explain systems.
-* AI may interpret state.
-* AI may not override simulation.
-
----
-
-### 12.2 Low‑power requirement
-
-* The game must function fully without AI.
-* AI is an optional interpreter, not a dependency.
+Uncertainty must be surfaced.
 
 ---
 
-## 13. Enforcement rules
+## AI Constraints
 
-A build must fail if:
+AI may explain and analyze.
+AI may not override simulation or constraints.
 
-* Any mechanic violates a conservation law.
-* Any process lacks declared time cost.
-* Any definition lacks failure cases.
-* Any system creates resources without inputs.
+The system must function without AI.
 
 ---
 
-## 14. Design intent restated
+## Enforcement
 
-These constraints exist to ensure:
+A system is invalid if it:
+- creates resources without inputs
+- removes consequences
+- hides failure
+- violates conservation
 
-* poverty is understood systemically
-* effort matters
-* cooperation is meaningful
-* knowledge has weight
+---
+
+## Closing Statement
 
 Reality is not optional.
 
----
-
-## 15. Summary (non‑exhaustive)
-
-* No free matter.
-* No free energy.
-* No free time.
-* No free knowledge.
-* No free labor.
-* No free space.
-
-Only tradeoffs.
+Constraints create meaning.
+Meaning enables learning.

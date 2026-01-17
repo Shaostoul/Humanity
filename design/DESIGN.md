@@ -1,150 +1,98 @@
-# DESIGN.md — Project Universe Design Authority
+# DESIGN.md
 
-This directory contains the **authoritative design corpus** for Project Universe.
+## Purpose
 
-Design is law. Code is an implementation detail.
+This document defines what **design** means within Humanity.
 
-If implementation conflicts with design, implementation is wrong.
+Design is binding technical law.  
+It translates human principles into enforceable structure.
 
----
-
-## Purpose of this directory
-
-The `design/` directory exists to:
-
-* Declare **what must be true** about Project Universe
-* Prevent architectural drift over time
-* Provide a stable source of truth for:
-
-  * human contributors
-  * automated tooling
-  * low-power AI systems
-  * future maintainers
-
-This directory is intentionally:
-
-* human-readable
-* machine-ingestible
-* stable
-* version-controlled
+Design does not describe aspirations.  
+Design defines what is allowed, what is constrained, and what is forbidden.
 
 ---
 
-## Authority hierarchy
+## Authority
 
-From highest to lowest authority:
+Design inherits authority from the Humanity Accord.
 
-1. **philosophy/** (intent and ethics)
-2. **design/** (constraints and structure)
-3. **data/** (canonical facts)
-4. **engine/** (universal mechanics)
-5. **domain systems** (world, life, society, industry, etc.)
-6. **ui / narrative / assets** (representation only)
+All design documents are constrained by:
+- human dignity
+- non-domination
+- harm minimization
+- transparency
+- repair-first responsibility
 
-Nothing below may violate anything above.
+These constraints are formally defined in:
+- `design/accord_constraints.md`
 
----
-
-## Design corpus overview
-
-Each document in this directory exists to prevent a specific class of failure.
-
-### game_design.md
-
-* Defines *what exists* in the game and *why*
-* Maps real-world domains to game systems
-* Explains repository structure and responsibilities
-
-### architecture.md
-
-* Defines system boundaries and allowed dependencies
-* Establishes deterministic simulation and action pipeline
-* Prevents logic leakage into UI, narrative, or assets
-
-### data_model.md
-
-* Defines canonical schemas, units, and invariants
-* Establishes data as the source of truth
-* Enables AI reasoning and educational traceability
-
-### realism_constraints.md
-
-* Declares non-negotiable physical, biological, and labor limits
-* Highest enforcement authority
-
-### simulation_laws.md
-
-* Defines tick order, causality, determinism, replay
-* Required for multiplayer correctness and verification
-
-### education_model.md
-
-* Formalizes learning, mastery, decay, and assessment
-* Prevents grind-based or fictional progression
-
-### economy_model.md
-
-* Models scarcity, labor value, distribution, and failure
-* Encodes poverty as a solvable systemic problem
-
-### ai_interface.md
-
-* Defines how AI may read and explain the game
-* Explicitly forbids AI authority over truth
-
-### modding_contract.md
-
-* Defines how mods may extend the game
-* Prevents corruption of canonical reality
-
-### asset_rules.md
-
-* Declares assets as representation only
-* Prevents mechanics from hiding in models or textures
-
-### testing_philosophy.md
-
-* Defines what must be tested and why
-* Enforces educational correctness
-
-### glossary.md
-
-* Defines shared language for humans and machines
-* Prevents semantic drift
+No design decision may bypass or reinterpret those constraints.
 
 ---
 
-## Rules for contributors and tools
+## Role of Design
 
-* No gameplay system may be added without a corresponding design reference.
-* No data schema may be changed without updating `data_model.md`.
-* No mechanic may violate `realism_constraints.md`.
-* UI, narrative, and assets may not encode authoritative rules.
-* Mods must comply with `modding_contract.md`.
+Design exists to ensure that:
 
-Automated checks are expected to enforce these rules.
+- reality is modeled honestly
+- causality is explicit
+- systems are understandable
+- power is bounded
+- failure is visible and correctable
 
----
-
-## Stability and change
-
-Design documents are intentionally slow to change.
-
-* Changes require justification in terms of reality, education, or determinism.
-* Refactors must preserve meaning.
-* Version history must remain intelligible.
+Design is the layer where ambiguity is removed.
 
 ---
 
-## Final statement
+## What Design Is
 
-Project Universe is not a game about abstraction or power fantasy.
+Design is:
+- deterministic
+- inspectable
+- testable
+- constrained
+- explainable
 
-It is a simulation intended to:
+Design defines:
+- how systems behave
+- how data is interpreted
+- how time advances
+- how failure manifests
 
-* teach reality
-* preserve knowledge
-* enable cooperation
-* scale from a single human to a united civilization
+---
 
-This directory exists to ensure that purpose is never lost.
+## What Design Is Not
+
+Design is not:
+- narrative
+- ideology
+- aspiration
+- persuasion
+- entertainment framing
+
+Design does not:
+- define ethics
+- define values
+- define meaning
+
+Those belong to the Accord.
+
+---
+
+## Relationship to Other Design Documents
+
+- `design/README.md` defines scope and structure
+- `accord_constraints.md` defines ethical and human limits
+- `architecture.md` defines authority separation and execution flow
+- system documents define bounded behavior
+- schemas define data shape
+
+DESIGN.md exists to assert **design as law**, not to enumerate content.
+
+---
+
+## Closing Statement
+
+Good design prevents abuse by making abuse impossible to hide.
+
+Design is restraint applied deliberately, so freedom remains real.

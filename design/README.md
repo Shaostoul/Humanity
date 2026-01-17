@@ -1,38 +1,41 @@
-# Design
+# design/README.md
 
 This folder defines the **authoritative technical law** of Humanity.
 
 Where the Humanity Accord defines human principles, this folder defines how those principles are enforced through structure, constraint, and determinism.
 
 Documents here are written for builders, maintainers, and systems.
-They are not aspirational. They are binding.
+They are binding.
 
 ---
 
 ## How to Use This Folder
 
-- If you are deciding **what must exist**, read the root design documents.
-- If you are defining **how a system behaves**, read `systems/`.
-- If you are defining **what shape data must take**, read `schemas/`.
+- For authority boundaries and flow: `architecture.md`
+- For simulation truth constraints: `simulation_laws.md` and `realism_constraints.md`
+- For data representation rules: `data_model.md`
+- For system behavior specs: `systems/`
+- For data shape contracts: `schemas/`
+- For tests as truth enforcement: `testing_philosophy.md`
+- For bounded AI assistance rules: `ai_interface.md`
+- For asset non-authority rules: `asset_rules.md`
 
-No system, data file, or implementation may contradict the documents listed here.
+Design must comply with `accord_constraints.md`.
 
 ---
 
 ## Canonical Design Documents
 
-The following documents constitute the **minimum required design corpus**.
-All are expected to exist and remain consistent.
-
 ### Foundational Design Law (root)
 
-These documents apply to *all* systems.
-
 - **DESIGN.md**  
-  High-level design intent and non-negotiable principles.
+  Design as binding technical law.
+
+- **accord_constraints.md**  
+  How the Humanity Accord constrains design and implementation.
 
 - **architecture.md**  
-  Module boundaries, authority separation, and structural layout.
+  Authority separation, data flow, and execution structure.
 
 - **simulation_laws.md**  
   Determinism, causality, time progression, and conservation rules.
@@ -58,47 +61,42 @@ These documents apply to *all* systems.
 - **testing_philosophy.md**  
   What correctness means and how it is verified.
 
----
+- **system_inventory.md**  
+  Non-binding catalog of candidate systems and their boundaries.
 
-### System Specifications (`systems/`)
-
-Each file here defines a **bounded system**.
-Systems must obey all foundational design law.
-
-Expected systems include (not exhaustive):
-
-- **construction.md**
-- **farming.md**
-- **health.md**
-- **energy.md**
-- **storage.md**
-- **transport.md**
-- **ecology.md**
-- **population.md**
-
-Each system document should define:
-- purpose
-- inputs and outputs
-- constraints
-- failure modes
-- interactions with other systems
+- **terminology.md**  
+  Technical terms used across design and simulation.
 
 ---
 
-### Data Schemas (`schemas/`)
+## System Specifications (`systems/`)
+
+Each file defines a **bounded system** and must obey foundational design law.
+
+Examples (not exhaustive):
+- construction
+- farming
+- health
+- energy
+- storage
+- transport
+- ecology
+- population
+
+---
+
+## Data Schemas (`schemas/`)
 
 Schemas define **data shape contracts** consumed by systems.
 
-Expected schema categories include:
+Expected categories:
+- entities
+- resources
+- structures
+- processes
+- events
 
-- **entities** (people, animals, plants)
-- **resources** (materials, energy, food)
-- **structures** (buildings, machines)
-- **processes** (growth, decay, production)
-- **events** (failures, transitions)
-
-Schemas define structure, units, and invariants.
-They do not define behavior.
+Schemas define structure and invariants, not behavior.
 
 ---
 
@@ -106,30 +104,8 @@ They do not define behavior.
 
 - `accord/` defines human principles and ethics
 - `design/` defines enforceable system law
-- `knowledge/` provides real-world reference material
+- `knowledge/` provides real-world references
 - `data/` contains canonical structured truth
 - `engine/` executes design deterministically
 
 Design translates meaning into machinery.
-
----
-
-## Status and Evolution
-
-This folder is expected to grow, but not drift.
-
-When adding a new design document, ask:
-- Does this define global law or a specific system?
-- Does it introduce new constraints?
-- Does it conflict with existing documents?
-
-Unnecessary design is worse than missing design.
-
----
-
-## Closing Note
-
-Good design makes failure visible and abuse difficult.
-
-Design is not about enabling everything.
-It is about preventing the wrong things from becoming easy.

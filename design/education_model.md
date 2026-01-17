@@ -1,245 +1,135 @@
-# education_model.md — Learning as a First-Class System
+# education_model.md
 
-This document defines **how learning, skill acquisition, assessment, and knowledge transfer work** in Project Universe.
+## Purpose
 
-Education is not content delivery. Education is **measurable capability change under constraint**.
+This document defines how learning and competence are represented and validated within the system.
 
-This model exists to ensure the game teaches reality, not memorization or grind.
+Education is treated as **capability development**, not information transfer.
 
----
-
-## 1. Educational principles
-
-1. **Learning requires action** — knowledge without practice is incomplete.
-2. **Failure is instructional** — mistakes are data, not punishment.
-3. **Mastery is gradual** — expertise emerges over time under varied conditions.
-4. **Context matters** — skills are domain- and environment-sensitive.
-5. **Transfer is limited** — learning in one domain only partially applies to others.
+The goal is to produce understanding that survives contact with reality.
 
 ---
 
-## 2. Knowledge types
+## Foundational Premise
 
-Project Universe distinguishes multiple kinds of knowledge:
+Knowledge without application is fragile.
 
-### 2.1 Declarative knowledge ("knowing that")
+Understanding emerges through:
+- action
+- consequence
+- reflection
+- correction
 
-* Facts, concepts, definitions
-* Examples: soil pH ranges, nutrient names
-
-Stored in:
-
-* `education/concepts/`
-* `data/glossaries/`
+Education must remain grounded in reality and feedback.
 
 ---
 
-### 2.2 Procedural knowledge ("knowing how")
+## Learning Representation
 
-* Step-by-step practices
-* Examples: planting seeds, preserving food
+Learning is represented as:
+- demonstrated competence
+- repeatable outcomes
+- transferable understanding
 
-Stored in:
-
-* `data/practices/`
-* `education/lessons/`
-
----
-
-### 2.3 Experiential knowledge ("knowing when")
-
-* Judgment under uncertainty
-* Pattern recognition
-* Tradeoff evaluation
-
-Emerges from:
-
-* repeated action
-* varied conditions
-* failure analysis
+Learning is not represented as:
+- abstract completion
+- symbolic progression
+- irreversible unlocks
 
 ---
 
-## 3. Skills
+## Skill Acquisition
 
-### 3.1 Skill definition
+Skills develop through:
+- practice under constraint
+- exposure to variation
+- failure and correction
 
-A skill represents **reduced error and waste**, not superhuman ability.
+Progression is non-linear.
 
-Skills:
-
-* do not bypass constraints
-* do not remove time costs
-* do not guarantee success
-
----
-
-### 3.2 Skill levels
-
-Skill progression is continuous, not discrete tiers.
-
-Effects of skill increase:
-
-* narrower error margins
-* reduced resource waste
-* improved diagnosis of failure
-* better planning accuracy
+Regression is possible and expected.
 
 ---
 
-### 3.3 Skill decay
+## Knowledge Transfer
 
-* Unused skills decay slowly.
-* Decay represents loss of precision, not loss of basic knowledge.
+Knowledge transfer must:
+- preserve causality
+- expose assumptions
+- distinguish models from reality
 
----
-
-## 4. Learning mechanisms
-
-### 4.1 Practice-based learning
-
-* Performing actions contributes to learning.
-* Learning rate depends on:
-
-  * task difficulty
-  * current skill
-  * environmental stress
+Magical or instantaneous knowledge transfer is invalid.
 
 ---
 
-### 4.2 Instruction-based learning
+## Failure as Feedback
 
-* Mentors, manuals, and lessons accelerate learning.
-* Instruction cannot replace practice.
+Failure is informational.
 
----
+Educational systems must:
+- allow failure
+- explain causes
+- enable retry
+- avoid punitive lockout
 
-### 4.3 Observation-based learning
-
-* Observing others provides partial learning.
-* Observation is less effective than direct action.
-
----
-
-## 5. Failure-driven education
-
-### 5.1 Failure analysis
-
-When failure occurs, the system records:
-
-* triggering conditions
-* violated constraints
-* incorrect assumptions
-
-These feed:
-
-* educational prompts
-* mentor dialogue
-* assessment generation
+Failure without explanation is harm.
 
 ---
 
-### 5.2 Safe failure
+## Assessment
 
-* Early learning environments allow reversible failure.
-* Advanced environments enforce full consequences.
+Assessment evaluates:
+- capability
+- understanding
+- judgment under constraint
 
----
-
-## 6. Assessments
-
-### 6.1 Assessment types
-
-Assessments measure capability, not memory:
-
-* Outcome-based (Did the crop survive?)
-* Process-based (Were steps followed?)
-* Diagnostic (Can the cause be identified?)
+Assessment does not evaluate:
+- conformity
+- speed alone
+- symbolic completion
 
 ---
 
-### 6.2 Assessment validity
+## Interdisciplinary Learning
 
-An assessment is valid only if:
+Reality is interconnected.
 
-* it reflects real constraints
-* success cannot be faked
-* failure provides explanation
+Educational systems must:
+- link disciplines
+- expose tradeoffs
+- prevent siloed understanding
 
----
-
-## 7. Apprenticeships
-
-### 7.1 Long-form learning
-
-Apprenticeships:
-
-* span long durations
-* expose learners to variability
-* require sustained performance
+Understanding improves at boundaries.
 
 ---
 
-### 7.2 Mentor role
+## AI and Assistance
 
-Mentors:
-
-* explain observed outcomes
-* suggest corrective actions
-* cannot override constraints
-
----
-
-## 8. Knowledge transfer limits
-
-* Skills are domain-specific.
-* Transfer between domains is partial.
-
-Example:
-
-* Farming skill partially transfers to gardening, not to metallurgy.
-
----
-
-## 9. Educational pacing
-
-* Learning speed is bounded.
-* Skipping prerequisites increases failure rate.
-
----
-
-## 10. AI in education
-
-AI may:
-
-* explain failures
-* summarize lessons
-* highlight constraints
+AI may assist education by:
+- explaining outcomes
+- highlighting constraints
+- comparing scenarios
 
 AI may not:
-
-* grant knowledge
-* bypass practice
-* accelerate mastery beyond bounds
-
----
-
-## 11. Validation rules
-
-The build must fail if:
-
-* skills bypass constraints
-* learning occurs without action or instruction
-* assessments can be gamed
+- bypass learning
+- replace competence
+- fabricate understanding
 
 ---
 
-## 12. Design intent restated
+## Transparency
 
-Education in Project Universe exists to:
+Learners must be able to see:
+- why outcomes occurred
+- what rules applied
+- what data mattered
 
-* build real competence
-* encourage experimentation
-* normalize failure as feedback
+Hidden grading or progression undermines trust.
 
-Learning is not a reward track. It is the core loop.
+---
+
+## Closing Statement
+
+Education succeeds when humans can act competently in unfamiliar conditions.
+
+Learning that only functions in controlled environments is incomplete.

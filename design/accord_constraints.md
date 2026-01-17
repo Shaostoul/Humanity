@@ -1,261 +1,246 @@
-# testing_philosophy.md — Verification as Truth Enforcement
+# Accord Constraints
 
-This document defines **what must be tested, why it must be tested, and what failure means** in Project Universe.
+## Purpose
 
-Testing is not primarily for bugs. Testing is for **truth preservation**.
+This document defines how the Humanity Accord constrains design, systems, and implementation.
 
-If a system teaches something false, the build must fail.
+It exists to translate human-facing principles into enforceable technical obligations without reinterpretation, dilution, or omission.
 
----
-
-## 1. Testing principles
-
-1. **Correctness outranks balance** — balanced falsehood is still falsehood.
-2. **Determinism is mandatory** — nondeterministic failures are treated as defects.
-3. **Constraints are law** — any violation of `realism_constraints.md` is a hard failure.
-4. **Education is testable** — explanations must match causes.
-5. **Regression is unacceptable** — once a truth is encoded, it cannot silently change.
+Design does not invent values.
+Design operationalizes them.
 
 ---
 
-## 2. Test categories
+## Authority Relationship
 
-### 2.1 Unit tests
+The Humanity Accord is the highest authority.
 
-Purpose:
+All design documents, systems, schemas, data, and implementations:
 
-* Validate small deterministic rules.
+* inherit constraints from the Accord
+* may not contradict Accord principles
+* may not redefine ethical meaning
 
-Examples:
+Where ambiguity exists, interpretation must err toward:
 
-* unit conversions
-* nutrient accounting
-* spoilage rate functions
-
----
-
-### 2.2 Property-based tests
-
-Purpose:
-
-* Verify invariants across large input space.
-
-Examples:
-
-* conservation of mass across recipes
-* calories in/out accounting
-* monotonic decay functions
+* protection of dignity
+* reduction of harm
+* preservation of agency
 
 ---
 
-### 2.3 Simulation replay tests
+## Constraint Categories
 
-Purpose:
+Accord constraints apply across multiple dimensions of design.
 
-* Prove determinism.
-
-Method:
-
-* run a simulation with seed + action log
-* replay
-* assert identical state hashes at milestones
+They are grouped here for clarity, not hierarchy.
 
 ---
 
-### 2.4 Data validation tests
+## Dignity Constraints
 
-Purpose:
+Derived from:
 
-* Ensure data is lawful.
+* Humanity Accord
+* Ethical Principles
+* Harm and Responsibility
 
-Fail build if:
+Design must:
 
-* missing units
-* unresolved references
-* missing failure cases
-* impossible values
+* avoid mechanics that require humiliation or degradation
+* avoid systems that normalize exploitation
+* ensure individuals are never treated solely as resources
 
----
-
-### 2.5 Integration tests
-
-Purpose:
-
-* Verify domain interactions.
-
-Examples:
-
-* crop growth depends on soil + water + temperature
-* fatigue increases error rate
-* preservation trades time/energy for reduced spoilage
+Any system requiring routine dignity violation is invalid by design.
 
 ---
 
-### 2.6 Education correctness tests
+## Non-Domination Constraints
 
-Purpose:
+Derived from:
 
-* Ensure teaching matches reality.
+* Ethical Principles
+* Governance Models
 
-Requirements:
+Design must:
 
-* every failure reason returned by validation must map to:
+* avoid irreversible power concentration
+* provide meaningful recourse and exit paths
+* make authority scopes explicit and limited
 
-  * a constraint
-  * a practice mistake
-  * a failure case
-
-The game must be able to say:
-
-* what happened
-* why it happened
-* what could prevent it
+Hidden or unchallengeable authority constitutes domination.
 
 ---
 
-### 2.7 Performance tests
+## Consent Constraints
 
-Purpose:
+Derived from:
 
-* Ensure low-power viability.
+* Ethical Principles
+* Harm and Responsibility
 
-Rules:
+Design must:
 
-* complexity should scale linearly with active entities
-* performance improvements must not change outcomes
+* avoid coercive progression
+* avoid forced participation through deprivation
+* ensure participation is informed and reversible where possible
 
----
-
-## 3. What must always be tested
-
-### 3.1 Determinism
-
-* identical inputs ⇒ identical outputs
-* no floating drift between supported platforms
+Systems that remove choice under threat invalidate consent.
 
 ---
 
-### 3.2 Conservation
+## Transparency Constraints
 
-* mass conservation across transformations
-* energy conservation in energy systems
-* nutrition conservation in diets and labor
+Derived from:
 
----
+* Humanity Accord
+* Knowledge Sources
 
-### 3.3 Time cost
+Design must:
 
-* every process declares time
-* no zero-time production
+* make system logic inspectable
+* expose cause-and-effect relationships
+* avoid deceptive presentation or dark patterns
 
----
-
-### 3.4 Failure cases
-
-* every major system must fail in defined ways
-* failure must produce causal explanations
+Opacity is permitted only where it prevents harm and must be documented.
 
 ---
 
-## 4. Test artifacts and fixtures
+## Harm Minimization Constraints
 
-### 4.1 Golden replays
+Derived from:
 
-* Store canonical seed + action logs for reference scenarios.
-* These are treated as constitutional fixtures.
+* Harm and Responsibility
+* Conflict Resolution
 
-Examples:
+Design must:
 
-* basic homestead week
-* crop cycle with nutrient stress
-* machine maintenance neglect scenario
+* surface foreseeable harm
+* prefer reversible failure over irreversible loss
+* provide warning before catastrophic outcomes
 
----
-
-### 4.2 Scenario packs
-
-* Small, curated scenarios representing common real-world situations.
-* Used for education, regression, and demonstration.
+Predictable harm without mitigation is a design failure.
 
 ---
 
-## 5. Failure policy
+## Repair-First Constraints
 
-A test failure means:
+Derived from:
 
-* truth was violated
-* determinism was broken
-* educational explanation no longer matches causality
+* Ethical Principles
+* Conflict Resolution
 
-Response is to:
+Design must:
 
-* fix the bug
-* or explicitly update design + data + tests together
+* prioritize recovery paths over permanent punishment
+* allow learning from failure
+* avoid systems that trap individuals in irrecoverable states
 
-Silent changes are forbidden.
-
----
-
-## 6. Balance policy
-
-Balance is measured *after* correctness.
-
-Rules:
-
-* If realism makes something hard, difficulty is not a bug.
-* If realism makes something too easy, ease is not a bug.
-
-Balance changes must:
-
-* preserve constraints
-* remain explainable
+Irreversibility requires explicit justification.
 
 ---
 
-## 7. Multiplayer test stance
+## Power-Asymmetry Constraints
 
-Even if multiplayer is optional:
+Derived from:
 
-* simulation must remain deterministic under synchronized actions
-* desync is treated as a correctness failure
+* Ethical Principles
+* Harm and Responsibility
 
----
+Design must:
 
-## 8. Mod stance (open source)
+* scale responsibility with power
+* expose leverage and influence
+* prevent abuse through asymmetry
 
-Project Universe is open source. Testing therefore serves as the immune system.
-
-Rules:
-
-* forks may do anything, but the mainline remains constraint-correct
-* contributions that violate constraints are rejected by tests
-
-Testing replaces trust.
+Neutral design in asymmetric contexts favors harm.
 
 ---
 
-## 9. Minimal required test suite
+## Epistemic Integrity Constraints
 
-The following suite must run on every change:
+Derived from:
 
-* schema/unit validation
-* conservation properties
-* replay determinism
-* failure explanation mapping
+* Scope Boundaries
+* Knowledge Sources
 
-Optional but recommended:
+Design must:
 
-* performance regressions
+* distinguish reality, model, and fiction
+* label abstractions clearly
+* prevent speculative systems from masquerading as fact
+
+Confusion between domains undermines trust and learning.
 
 ---
 
-## 10. Design intent restated
+## Human Needs Alignment
 
-Project Universe must remain:
+Derived from:
 
-* deterministic
-* explainable
-* educationally correct
-* grounded in reality
+* Human Needs
 
-Testing is how reality remains enforceable.
+Design must:
+
+* respect survival, agency, and meaning
+* avoid systems that require chronic deprivation
+* ensure progress does not undermine basic needs
+
+Systems optimized against human needs are unstable.
+
+---
+
+## Conflict Constraints
+
+Derived from:
+
+* Conflict Resolution
+
+Design must:
+
+* provide non-violent resolution mechanisms
+* avoid incentivizing domination
+* make escalation proportional and reviewable
+
+Violence is containment of last resort, not a mechanic.
+
+---
+
+## Design Review Obligations
+
+All major design decisions must document:
+
+* which Accord principles apply
+* what tradeoffs are accepted
+* what harms are possible
+* how correction is enabled
+
+Silence is not neutrality.
+
+---
+
+## Evolution and Revision
+
+Accord constraints are stable but not immutable.
+
+Design updates may:
+
+* refine enforcement
+* improve clarity
+* reduce harm
+
+Design updates may not:
+
+* bypass Accord principles
+* redefine ethical meaning
+* introduce domination through convenience
+
+---
+
+## Closing Statement
+
+The Accord defines what humanity refuses to sacrifice.
+
+Design exists to make those refusals operational.
+
+Any system that cannot uphold the Accord must be redesigned—or not built.

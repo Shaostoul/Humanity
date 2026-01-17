@@ -1,222 +1,202 @@
-# ai_interface.md — Artificial Intelligence Interaction Contract
+# ai_interface.md
 
-This document defines how AI systems may interact with Project Universe.
+## Purpose
 
-AI is a **reader, interpreter, and educator**. AI is **never an authority**. Reality is defined by data, constraints, and simulation—not by AI output.
+This document defines the allowable interface between AI systems and Humanity.
 
-This contract exists to preserve determinism, low-power viability, and truth fidelity.
+AI is permitted only as a bounded tool for:
+- explanation
+- navigation
+- analysis
+- authoring assistance
 
----
-
-## 1. Core principles
-
-1. **AI is optional** — the game must function fully without AI.
-2. **AI is advisory** — it may explain, not decide.
-3. **AI is bounded** — it may not override constraints or simulation results.
-4. **AI is replaceable** — no design may depend on a specific model or vendor.
-5. **AI is auditable** — inputs and outputs must be inspectable.
+AI is not an authority.
+AI does not define truth.
+AI does not override constraints.
 
 ---
 
-## 2. Allowed AI roles
+## Authority and Constraints
 
-AI systems may:
+AI operates under the same authority chain as all components:
 
-* Explain game state and outcomes using canonical data
-* Translate simulation results into natural language
-* Teach concepts, practices, and failure causes
-* Help players plan within known constraints
-* Summarize action logs and replay causality
-* Assist with documentation and mod authoring (non-authoritative)
-
-AI systems may not:
-
-* Change simulation state
-* Generate resources
-* Bypass time, labor, or energy costs
-* Override failure outcomes
-* Introduce new rules or facts
-
----
-
-## 3. AI inputs (read-only)
-
-AI may read the following sources:
-
-* `design/` documents
-* `data/` definitions, recipes, practices, equations
-* `realism_constraints.md`
-* Current world state snapshots (read-only)
-* Action logs and replay traces
-* Validation error reports
-* Localization and glossary entries
-
-All AI inputs must be explicitly provided. AI may not infer hidden state.
-
----
-
-## 4. AI outputs (non-binding)
-
-AI outputs are **informational artifacts**, not commands.
-
-Permitted output types:
-
-* Explanations ("Your crop failed because…")
-* Diagnoses ("Symptoms match nitrogen deficiency")
-* Recommendations ("Given constraints, consider…")
-* Educational summaries
-* Planning suggestions with tradeoff disclosure
-
-All recommendations must:
-
-* Reference underlying constraints
-* Acknowledge uncertainty
-* Avoid certainty claims about stochastic outcomes
-
----
-
-## 5. Prohibited AI behaviors
-
-The following are forbidden:
-
-* Hallucinating mechanics or rules
-* Inferring hidden game data
-* Masking failure causes
-* Providing success guarantees
-* Acting as an oracle or narrator of truth
-
-If AI output contradicts simulation or data, AI output is wrong.
-
----
-
-## 6. Low-power and offline requirement
-
-* No AI system is required to run the game.
-* AI integrations must degrade gracefully to:
-
-  * static documentation
-  * rule-based explanations
-  * pre-authored educational content
-
-AI must never be a hard dependency for:
-
-* gameplay
-* progression
-* learning outcomes
-
----
-
-## 7. Determinism and reproducibility
-
-AI must not introduce nondeterminism into simulation.
-
-Rules:
-
-* AI cannot generate random values used by the simulation.
-* AI suggestions must not affect authoritative state.
-* Any AI-assisted planning must reference deterministic evaluation tools.
-
-Replay of a session must produce identical results regardless of AI presence.
-
----
-
-## 8. Educational integrity
-
-AI explanations must:
-
-* Align with `education_model.md`
-* Reference real failure cases and constraints
-* Explain *why* an outcome occurred
+`accord/` → `design/` → `data/` → `engine/` → `ui/tools`
 
 AI may not:
+- redefine ethics or harm boundaries
+- rewrite design law without human review
+- change data without validation
+- bypass engine determinism
 
-* Simplify reality beyond correctness
-* Replace practice with narration
-* Skip prerequisite knowledge
-
----
-
-## 9. Interface boundaries
-
-### 9.1 Explicit API surface
-
-AI may interact only through:
-
-* structured data exports (JSON/RON)
-* read-only query APIs
-* text-based explanation channels
-
-AI may not:
-
-* hook directly into engine loops
-* intercept or modify actions
-* bypass validation layers
+All AI interaction must uphold `design/accord_constraints.md`.
 
 ---
 
-## 10. Model neutrality
+## Allowed AI Roles
 
-Project Universe does not endorse or require:
+### 1. Explanation
+AI may explain:
+- why an outcome occurred
+- which rules applied
+- what data contributed
+- what tradeoffs exist
 
-* a specific LLM
-* cloud connectivity
-* proprietary inference engines
+Explanations must be grounded in:
+- engine traces
+- system specs
+- validated data
 
-Any AI implementation must be swappable without design change.
-
----
-
-## 11. Modding and AI
-
-Mods may:
-
-* add AI-readable educational content
-* add domain explanations
-
-Mods may not:
-
-* embed AI authority
-* alter AI contract rules
-
-AI behavior must remain consistent across modded and unmodded states.
+If the AI cannot cite the governing rule or data path, it must not claim certainty.
 
 ---
 
-## 12. Failure handling
+### 2. Navigation and Retrieval
+AI may help locate:
+- documents
+- definitions
+- systems
+- schemas
+- data entries
 
-If AI output is:
-
-* missing
-* incorrect
-* contradictory
-
-The game must:
-
-* continue functioning
-* fall back to canonical documentation
-* surface authoritative explanations from data
-
-AI failure must never block learning or play.
+Navigation must preserve:
+- source boundaries
+- provenance
+- version awareness
 
 ---
 
-## 13. Compliance requirements
+### 3. Analysis
+AI may analyze:
+- resource flows
+- risk conditions
+- constraint violations
+- scenario comparisons
 
-AI integrations must be validated to ensure:
-
-* no write access to simulation
-* no dependency on AI availability
-* no contradiction of realism constraints
-
-Non-compliant AI integrations are invalid.
+Analysis must:
+- state assumptions
+- surface uncertainty
+- avoid presenting speculation as fact
 
 ---
 
-## 14. Summary
+### 4. Authoring Assistance
+AI may assist humans to draft:
+- data entries
+- schemas
+- system specs
+- documentation
 
-* AI explains reality; it does not define it.
-* AI assists learning; it does not replace practice.
-* AI is optional, bounded, and auditable.
-* Reality remains deterministic and authoritative.
+All AI-produced artifacts must:
+- pass schema validation
+- pass tests where applicable
+- be reviewable and explainable
 
-AI is a lens, not a law.
+---
+
+## Prohibited AI Roles
+
+AI must not:
+- act as hidden decision-maker
+- manipulate humans through deception or coercion
+- optimize outcomes by violating dignity or consent
+- introduce dark patterns or dependency
+- fabricate sources or traces
+- claim authority over human values
+
+Any AI behavior that functions as domination is invalid.
+
+---
+
+## Transparency Requirements
+
+All AI outputs must be labeled as AI-generated.
+
+When making claims about system behavior, AI must provide:
+- the relevant system document reference
+- the relevant schema or data reference
+- the relevant trace or causal explanation
+
+If these cannot be provided, output must be framed as:
+- hypothesis
+- suggestion
+- uncertainty
+
+---
+
+## Determinism Requirements
+
+AI must not become part of the deterministic simulation core.
+
+The simulation must remain valid:
+- with AI disabled
+- offline
+- on low-power hardware
+
+AI may assist humans, but the engine must remain self-sufficient.
+
+---
+
+## Failure Modes and Safe Defaults
+
+If AI fails, is unavailable, or produces uncertainty:
+- the system remains usable
+- explanations fall back to deterministic logs
+- authoring falls back to human-only tools
+- no core function becomes blocked
+
+AI must never be a single point of failure.
+
+---
+
+## Knowledge Boundaries
+
+AI must distinguish between:
+- observed reality
+- modeled reality
+- speculation
+- fiction
+
+AI must not collapse domains.
+
+When uncertain, AI must:
+- surface uncertainty
+- request validation through evidence
+- avoid confident claims without grounding
+
+---
+
+## Privacy and Data Minimization
+
+AI interfaces must minimize sensitive retention.
+
+AI must not:
+- infer identity attributes
+- profile humans for manipulation
+- store unnecessary personal history
+
+AI should operate on:
+- the smallest sufficient context
+- explicit inputs
+- validated data
+
+---
+
+## Review and Accountability
+
+AI interfaces must be testable and auditable.
+
+Required:
+- logging of AI prompts and outputs where feasible
+- versioning of AI behavior policies
+- documentation of failure cases
+- ability to disable AI fully
+
+---
+
+## Closing Statement
+
+AI is permitted as a tool of comprehension.
+
+It is forbidden as a tool of domination.
+
+Humanity remains human-governed, constraint-governed, and reality-governed—whether AI is present or not.
