@@ -49,6 +49,7 @@ This project is built by volunteers, but infrastructure costs money.
 
 If you believe in the mission and want to help keep it running:
 
+- **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
 - **Patreon:** [patreon.com/Shaostoul](https://www.patreon.com/c/Shaostoul)
 - **CashApp:** $Shaostoul
 
