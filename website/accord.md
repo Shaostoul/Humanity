@@ -1,3 +1,8 @@
+---
+layout: default
+title: The Humanity Accord
+---
+
 # The Humanity Accord
 
 *A Cooperative Path Toward a Shared Destiny*

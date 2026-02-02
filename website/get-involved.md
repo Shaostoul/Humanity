@@ -1,3 +1,8 @@
+---
+layout: default
+title: Get Involved
+---
+
 # Get Involved
 
 This is an open project. It belongs to everyone. Here's how you can help.

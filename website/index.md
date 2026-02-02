@@ -1,3 +1,8 @@
+---
+layout: default
+title: Home
+---
+
 # Humanity
 
 **A cooperative path toward a shared destiny.**
