@@ -21,11 +21,11 @@ This isn't ideology. It doesn't require faith or allegiance. It's a practical fr
 
 **The Humanity Accord**  
 A living document defining how humans can cooperate at scale while preserving dignity, agency, and shared responsibility.  
-→ [Read the Accord](accord.md)
+→ [Read the Accord](accord)
 
 **Project Universe**  
 A free, open-source game teaching practical skills—homesteading, building, survival—so anyone, anywhere, can learn to provide for themselves and their community.  
-→ [Learn more](about.md)
+→ [Learn more](about)
 
 **Open Infrastructure**  
 Everything here is public domain (CC0). Use it, modify it, build on it. No permission needed.
@@ -49,7 +49,7 @@ This is an open project. We need:
 - Educators and subject matter experts
 - People who believe in the mission
 
-→ [How to contribute](get-involved.md)
+→ [How to contribute](get-involved)
 
 ---
 

@@ -31,7 +31,7 @@ Humanity speaks many languages. The mission should too.
 ## Where to Start
 
 1. **Read the Accord** — understand the principles  
-   → [humanity_accord.md](accord.md)
+   → [The Humanity Accord](accord)
 
 2. **Explore the repo** — see what exists, what's planned  
    → [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
@@ -49,8 +49,8 @@ This project is built by volunteers, but infrastructure costs money.
 
 If you believe in the mission and want to help keep it running:
 
-- **Ko-fi:** [ko-fi.com/shaostoul](https://ko-fi.com/shaostoul)
-- **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
+- **Patreon:** [patreon.com/Shaostoul](https://www.patreon.com/c/Shaostoul)
+- **CashApp:** $Shaostoul
 
 Every dollar goes toward development, hosting, and keeping the team fed while we build.
 
