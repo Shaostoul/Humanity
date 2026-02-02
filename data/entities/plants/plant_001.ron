@@ -1,0 +1,34 @@
+// data/entities/plants/plant_001.ron
+(
+  plant_id: "plant_001",
+  species_id: "potato_basic",
+  cultivar_id: None,
+  plot_id: "plot_001",
+
+  stage: "seed",
+  age_ticks: 0,
+  stage_progress: 0.0,
+
+  biomass_index: 0.0,
+  root_index: 0.0,
+  canopy_index: 0.0,
+
+  water_stress: 0.0,
+  nutrient_stress: 0.0,
+  temperature_stress: 0.0,
+  light_stress: 0.0,
+  space_stress: 0.0,
+  health_stress: 0.0,
+
+  health: 1.0,
+  damage_flags: [],
+  disease_state: "none",
+  pest_pressure: 0.0,
+
+  reproductive_index: 0.0,
+  yield_potential: 1.0,
+  harvest_ready: false,
+
+  contamination_flags: [],
+  edibility_state: "safe",
+)
