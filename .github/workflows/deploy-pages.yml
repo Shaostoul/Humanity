@@ -30,6 +30,12 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
+      - name: Copy canonical Accord into Jekyll includes
+        run: |
+            mkdir -p website/_includes
+            cp accord/humanity_accord.md website/_includes/humanity_accord.md
+
+      
       - name: Build with Jekyll
         run: |
           cd website
