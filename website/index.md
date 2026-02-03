@@ -21,7 +21,7 @@ This isn't ideology. It doesn't require faith or allegiance. It's a practical fr
 
 **The Humanity Accord**  
 A living document defining how humans can cooperate at scale while preserving dignity, agency, and shared responsibility.  
-→ [Read the Accord](accord)
+→ [Read the Accord](https://github.com/Shaostoul/Humanity/blob/main/accord/humanity_accord.md)
 
 **Project Universe**  
 A free, open-source game teaching practical skills—homesteading, building, survival—so anyone, anywhere, can learn to provide for themselves and their community.  

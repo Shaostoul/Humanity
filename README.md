@@ -4,9 +4,9 @@
 
 Humanity is a shared world focused on cooperation, learning, and long-term survival.
 
-It explores how individuals and communities can live well together, scale peacefully, and build a future without domination, exploitation, or violence as default tools. Peace is treated as infrastructure. Education is treated as capability. Realism is treated as a foundation for understanding, not a limitation on imagination. :contentReference[oaicite:0]{index=0}
+It explores how individuals and communities can live well together, scale peacefully, and build a future without domination, exploitation, or violence as default tools. Peace is treated as infrastructure. Education is treated as capability. Realism is treated as a foundation for understanding, not a limitation on imagination.
 
-Humanity is open, revisable, and built to endure change without losing coherence. :contentReference[oaicite:1]{index=1}
+Humanity is open, revisable, and built to endure change without losing coherence.
 
 ---
 
@@ -16,9 +16,9 @@ Humanity is:
 - a living world
 - an educational environment
 - a cooperative simulation
-- an experiment in civilizational design :contentReference[oaicite:2]{index=2}
+- an experiment in civilizational design
 
-It is not a manifesto, an ideology, or a belief system. It does not require faith, allegiance, or conformity. :contentReference[oaicite:3]{index=3}
+It is not a manifesto, an ideology, or a belief system. It does not require faith, allegiance, or conformity.
 
 ---
 
@@ -38,7 +38,29 @@ This project is structured by authority and purpose:
 - `engine/`  
   Deterministic simulation implementation (planned; may be empty during spec/data-first phases).
 
-Other directories may contain world content, tools, and interfaces. No lower layer overrides a higher layer. :contentReference[oaicite:4]{index=4}
+Other directories may contain world content, tools, and interfaces. No lower layer overrides or redefines a higher layer.
+
+---
+
+## Authority model (read before contributing)
+
+This repository is organized by a strict authority stack.
+
+From highest authority to lowest:
+
+1. `accord/` — human-facing civilizational principles  
+2. `design/` — technical constraints, system laws, schemas  
+3. `data/` — concrete instances that must validate against schemas  
+4. `engine/`, `tools/`, `website/`, `assets/` — implementations and presentations
+
+Rules:
+
+- Lower layers may not contradict higher layers.
+- Presentation layers may not redefine meaning.
+- Tools and interfaces may explain, render, or assist, but never override.
+- If two files disagree, the higher layer is correct.
+
+This structure exists to prevent silent drift over time.
 
 ---
 
@@ -70,7 +92,7 @@ Python (or other tooling) may be used for authoring/validation utilities, but mu
 The ethical and civilizational principles guiding this world are defined in the Humanity Accord.
 
 Start here:
-- `accord/humanity_accord.md` :contentReference[oaicite:5]{index=5}
+- `accord/humanity_accord.md`
 
 ---
 
@@ -78,7 +100,7 @@ Start here:
 
 This work is released into the public domain under the Creative Commons Zero (CC0) dedication, for the benefit of humanity—present and future.
 
-No permission or attribution is required. :contentReference[oaicite:6]{index=6}
+No permission or attribution is required.
 
 ---
 
@@ -90,4 +112,4 @@ This project is designed to change without collapsing, correct itself without de
 
 The future is not guaranteed.
 
-It is constructed—by those who choose to have humanity. :contentReference[oaicite:7]{index=7}
+It is constructed—by those who choose to have humanity.

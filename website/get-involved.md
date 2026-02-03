@@ -31,7 +31,7 @@ Humanity speaks many languages. The mission should too.
 ## Where to Start
 
 1. **Read the Accord** — understand the principles  
-   → [The Humanity Accord](accord)
+   → [The Humanity Accord](https://github.com/Shaostoul/Humanity/blob/main/accord/humanity_accord.md)
 
 2. **Explore the repo** — see what exists, what's planned  
    → [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
