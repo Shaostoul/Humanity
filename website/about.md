@@ -49,7 +49,7 @@ The **Humanity Accord** is a living framework for how humans can cooperate at sc
 - Systems must be understandable
 - The future belongs to those who build for it
 
-→ [Read the Accord](https://github.com/Shaostoul/Humanity/blob/main/accord/humanity_accord.md)
+→ [Read the Accord](accord)
 
 ---
 
