@@ -28,9 +28,11 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
+          bundler-cache: true
 
-      # Mirror canonical docs into the website source tree so Jekyll can include them.
-      # Do not treat website/_canon as authoritative; it is build material only.
+      - name: Install Jekyll
+        run: gem install jekyll bundler
+
       - name: Mirror canonical docs into website/_canon
         run: |
           rm -rf website/_canon
@@ -38,17 +40,10 @@ jobs:
           cp -v accord/*.md website/_canon/accord/
           cp -v design/*.md website/_canon/design/
 
-
-      # Optional drift guard: if the copy step fails or paths change, fail early.
       - name: Verify canon mirror
-      run: |
+        run: |
           test -f website/_canon/accord/humanity_accord.md
           test -f website/_canon/design/asset_rules.md
-
-
-      - name: Install Jekyll
-        run: |
-          gem install jekyll bundler
 
       - name: Build with Jekyll
         run: |
