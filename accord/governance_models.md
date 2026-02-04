@@ -1,251 +1,172 @@
-# governance_models.md — Scalable Governance for a Cooperative Humanity
+# Governance Models — Coordination Without Domination
 
-This document defines **how humans coordinate decision making at scale** without sacrificing dignity, autonomy, or long-term stability.
+This document defines how humans coordinate decision-making at scale
+without sacrificing dignity, autonomy, or long-term stability.
 
-It is written for humanity, not for a state, corporation, ideology, or era.
-
-The goal of governance is not control. The goal is **coordination under constraint**.
-
----
-
-## 1. First principles of governance
-
-1. Governance exists to solve coordination problems, not to dominate people.
-2. All power must be accountable, limited, and revocable.
-3. Governance must scale without concentrating irreversible authority.
-4. Governance must serve individuals *and* the collective simultaneously.
-
-A system that only works for small groups, short timelines, or compliant populations is not a viable civilizational model.
+Governance exists to solve coordination problems,
+not to rule people.
 
 ---
 
-## 2. Rejection of false binaries
+## 1. First Principles of Governance
+
+1. Governance exists to coordinate, not dominate.
+2. All authority must be accountable, limited, and revocable.
+3. Governance must scale without concentrating irreversible power.
+4. Governance must preserve both individual agency and collective viability.
+5. Safety and consent constrain all governance action.
+
+---
+
+## 2. Rejection of False Binaries
 
 Human history is burdened by false choices:
+- authoritarianism vs chaos
+- individual freedom vs collective good
+- centralization vs fragmentation
 
-* authoritarianism vs chaos
-* individual freedom vs collective good
-* centralization vs fragmentation
-
-These are not natural laws. They are **design failures**.
+These are design failures.
 
 Effective governance balances:
-
-* autonomy and coordination
-* freedom and responsibility
-* decentralization and coherence
+- autonomy and coordination
+- freedom and responsibility
+- decentralization and coherence
 
 ---
 
-## 3. Scale-aware governance
+## 3. Scale-Aware Governance
 
 No single governance model works at all scales.
 
-### 3.1 Personal scale
+### 3.1 Individual Scale
 
-At the individual level:
-
-* autonomy is primary
-* consent is explicit
-* coercion is invalid
+- autonomy is primary
+- consent is explicit
+- coercion is invalid
 
 Individuals govern themselves by default.
 
 ---
 
-### 3.2 Community scale
+### 3.2 Community Scale
 
-At the community level:
+- decisions affect shared resources
+- participation is direct or delegated
+- transparency is mandatory
 
-* decisions affect shared resources
-* participation is direct or delegated
-* transparency is mandatory
-
-Small communities favor:
-
-* consensus where possible
-* supermajority where necessary
+Consensus is preferred.
+Supermajority is acceptable.
+Opacity is not.
 
 ---
 
-### 3.3 Regional scale
+### 3.3 Regional Scale
 
-At larger scales:
+- delegation becomes necessary
+- representation must be recallable
+- scopes of authority must be explicit
 
-* delegation becomes necessary
-* representation must be recallable
-* decision scopes must be explicit
-
-Representatives are **temporary instruments**, not rulers.
+Representatives are instruments, not rulers.
 
 ---
 
-### 3.4 Civilizational scale
+### 3.4 Civilizational Scale
 
-At the largest scale:
+- governance sets boundaries, not micromanagement
+- local autonomy is preserved
+- enforcement power is minimized
 
-* governance focuses on standards, coordination, and conflict prevention
-* local autonomy is preserved
-* enforcement power is minimized
-
-Civilizational governance sets boundaries, not micromanagement.
+Civilizational governance exists to prevent harm,
+not to enforce uniformity.
 
 ---
 
-## 4. Authority design
+## 4. Authority Design
 
-### 4.1 Authority is conditional
+### 4.1 Authority Is Conditional
 
-Authority exists only while:
-
-* it performs its defined function
-* it remains accountable
-* it respects constraints
+Authority exists only while it:
+- fulfills its declared function
+- respects consent boundaries
+- remains transparent and accountable
 
 Authority without conditions becomes tyranny.
 
 ---
 
-### 4.2 Authority must be legible
+### 4.2 Authority Must Be Legible
 
 People must be able to understand:
+- who holds power
+- what that power can do
+- how it can be revoked
 
-* who has power
-* what that power can do
-* how it can be revoked
-
-Opaque power structures inevitably decay.
-
----
-
-## 5. Decision-making mechanisms
-
-### 5.1 Consent over coercion
-
-Decisions should rely on:
-
-* informed consent
-* aligned incentives
-* voluntary participation
-
-Coercion indicates a design failure upstream.
+Opaque power structures are illegitimate.
 
 ---
 
-### 5.2 Evidence-based decisions
+## 5. Decision-Making Standards
 
-Decisions must reference:
-
-* observable reality
-* measurable consequences
-* reversible experiments where possible
+Decisions must be:
+- evidence-based
+- reversible where possible
+- transparent in reasoning
+- bounded in scope
 
 Belief alone is insufficient justification.
 
 ---
 
-## 6. Power distribution
+## 6. Power Distribution
 
-### 6.1 Decentralization by default
+### 6.1 Decentralization by Default
 
-Power should reside as close as possible to those affected by it.
+Power should reside as close as possible
+to those affected by it.
 
-Centralization is allowed only when:
-
-* coordination requires it
-* decentralization fails demonstrably
+Centralization requires justification
+and must remain temporary.
 
 ---
 
-### 6.2 No permanent concentration
-
-Permanent, unchallengeable power is incompatible with human fallibility.
+### 6.2 No Permanent Concentration
 
 Safeguards must include:
+- term limits
+- recall mechanisms
+- role rotation
 
-* term limits
-* recall mechanisms
-* role rotation
-
----
-
-## 7. Conflict of interest handling
-
-Conflicts of interest are inevitable.
-
-They must be:
-
-* declared
-* constrained
-* managed transparently
-
-Hidden conflicts corrode trust faster than open disagreement.
+Permanent authority is incompatible with human fallibility.
 
 ---
 
-## 8. Law as a tool, not a weapon
+## 7. Conflict and Failure Handling
 
-Laws exist to:
-
-* set boundaries
-* prevent harm
-* resolve disputes
-
-Laws must be:
-
-* understandable
-* enforceable
-* revisable
-
-A law that cannot be understood by those bound by it is invalid.
-
----
-
-## 9. Governance failure modes
-
-Common failures include:
-
-* power hoarding
-* decision opacity
-* incentive misalignment
-* enforcement without legitimacy
-
-Failure must trigger:
-
-* review
-* correction
-* restructuring
+Governance failure must trigger:
+- review
+- correction
+- restructuring
 
 Not denial.
+Not escalation.
 
 ---
 
-## 10. Governance and peace
+## 8. Governance and Peace
 
 Sustainable peace requires:
+- predictable systems
+- fair participation
+- nonviolent dispute resolution
 
-* fair participation
-* predictable systems
-* nonviolent dispute resolution
-
-Violence indicates governance breakdown.
-
----
-
-## 11. Continuous improvement
-
-Governance systems must:
-
-* evolve with conditions
-* incorporate feedback
-* remain adaptable
-
-Stagnant governance guarantees collapse.
+Violence indicates governance failure.
 
 ---
 
-## 12. Final statement
+## Final Statement
 
 Governance is not about ruling humans.
 
-It is about **helping humans rule themselves together**, across time, scale, and difference.
+It is about helping humans
+rule themselves together
+across time, scale, and difference.

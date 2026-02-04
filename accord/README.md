@@ -1,108 +1,174 @@
 # The Humanity Accord
 
-The Humanity Accord is a collection of human-facing documents that articulate how humans may live together with dignity, cooperation, and long-term continuity.
+## Purpose
 
-These documents are secular, revisable, and project-agnostic.  
-They are written for humans, not for institutions, governments, or systems.
+The Humanity Accord defines the foundational principles by which humans
+may live together with dignity, safety, cooperation, and continuity.
 
-The Accord defines **principles and understanding**, not enforcement mechanisms.
+It is a secular civilizational framework intended to:
+- prevent domination and atrocity
+- preserve human agency and consent
+- enable peaceful scalability
+- endure technological and cultural change
 
----
-
-## How to Read the Accord
-
-These documents are related but independent.  
-They may be read in any order, though earlier documents provide broader context.
-
-No document here assumes the existence of any particular technology, platform, or era.
-
----
-
-## Documents
-
-### humanity_accord.md  
-The core civilizational agreement.
-
-This document establishes shared principles for human dignity, cooperation, power, peace, and continuity. It is the moral and structural center of the Accord.
+The Accord defines **what must never be violated**,
+**what legitimacy requires**, and
+**what happens when those conditions fail**.
 
 ---
 
-### governance_models.md  
-How humans coordinate decision-making at scale.
+## Scope
 
-Explores governance as coordination rather than domination, addressing authority, accountability, decentralization, and scalability across communities and civilizations.
+The Humanity Accord is:
 
----
+- human-facing
+- principle-driven
+- non-ideological
+- non-religious
+- culturally non-exclusive
+- revision-aware
 
-### scope_boundaries.md  
-How humans distinguish reality, models, speculation, and fiction.
-
-Defines epistemic boundaries necessary for education, trust, and responsible decision-making, ensuring that imagination does not override consequence.
-
----
-
-### knowledge_sources.md  
-How humans evaluate and revise knowledge.
-
-Establishes principles for assessing evidence, tradition, research, practice, and theory, emphasizing humility, correction, and epistemic responsibility.
+It does **not** prescribe specific laws, punishments, or institutions.
+It defines constraints that all such systems must respect.
 
 ---
 
-### human_needs.md  
-What humans require to live with dignity and agency.
+## Structure and Authority
 
-Provides a practical framework for understanding survival, safety, autonomy, social connection, meaning, infrastructure, governance, and ecological foundations.
+The Accord operates at the highest authority level.
 
----
+All governance models, technical systems, social structures,
+and implementations must conform to these documents.
 
-### curriculum.md  
-How humans learn and develop competence over time.
-
-Defines learning as a layered, experiential process that builds capability, judgment, and stewardship rather than rote knowledge or compliance.
+No lower layer may override the Accord.
 
 ---
 
-### glossary.md  
-Shared definitions for Accord terms.
+## Core Documents
 
-Locks the meaning of key words and concepts used across the Accord to prevent drift, ambiguity, or manipulation.
+### Humanity Accord (Foundational Charter)
 
----
+- **`humanity_accord.md`**  
+  The core charter defining dignity, agency, transparency, consent,
+  non-domination, stewardship, education, and revisability.
 
-## Relationship to Other Folders
-
-The Humanity Accord defines **principles**.
-
-Other folders may:
-- implement systems
-- encode data
-- simulate environments
-- teach skills
-
-But they do not redefine the Accord.
-
-The Accord constrains systems; systems do not constrain the Accord.
+This document establishes the moral and civilizational baseline.
 
 ---
 
-## Revision
+### Rights and Responsibilities
 
-The Accord is not immutable.
+- **`rights_and_responsibilities.md`**  
+  A concise summary of fundamental human rights and shared responsibilities,
+  balancing individual agency with collective trust.
 
-Revisions should:
-- preserve core principles
-- improve clarity
-- respond to new understanding
-- avoid introducing authority through obscurity
-
-Continuity matters more than perfection.
+Defines what humans are entitled to
+and what they owe one another.
 
 ---
 
-## Closing Note
+### Absolute Prohibitions
 
-The Humanity Accord exists to make cooperation intelligible, dignity non-negotiable, and the future navigable.
+- **`absolute_prohibitions.md`**  
+  Explicit, non-negotiable prohibitions against acts that destroy
+  human dignity, agency, safety, or continuity.
 
-It does not promise utopia.
+Includes:
+- sexual violence
+- exploitation of children
+- murder and human sacrifice
+- abuse and torture
+- slavery and trafficking
+- theft and systemic misappropriation
+- institutionalized harm
 
-It offers a shared starting point for having humanity.
+These prohibitions admit no cultural, religious, political,
+or emergency-based exceptions.
+
+---
+
+### Failure of Legitimacy
+
+- **`failure_of_legitimacy.md`**  
+  Defines when individuals, institutions, or systems forfeit legitimacy
+  by violating foundational constraints.
+
+Establishes:
+- when authority becomes invalid
+- when compliance is no longer morally required
+- when intervention and resistance become justified
+- conditions for restoration of legitimacy
+
+---
+
+### Irreversible Actions
+
+- **`irreversible_actions.md`**  
+  Governs actions that permanently eliminate life, liberty, or agency,
+  including extreme containment measures such as capital punishment.
+
+Irreversible actions are treated as civilizational failure modes,
+not instruments of justice or power.
+
+---
+
+### Ethical Principles
+
+- **`ethical_principles.md`**  
+  Articulates the ethical foundations underpinning the Accord,
+  including restraint, accountability, dignity, and harm minimization.
+
+These principles inform interpretation without overriding explicit constraints.
+
+---
+
+### Governance Models
+
+- **`governance_models.md`**  
+  Explores how authority may be structured, delegated, constrained,
+  and revoked while remaining legitimate under the Accord.
+
+Governance exists to coordinate, not dominate.
+
+---
+
+## Relationship to Other Layers
+
+- **Design documents** translate Accord principles into enforceable system constraints.
+- **Technical systems** must embody these constraints by construction.
+- **Local laws and institutions** must remain compatible with Accord limits.
+
+The Accord defines legitimacy.
+Lower layers implement it.
+
+---
+
+## Revisability
+
+No generation is infallible.
+
+The Humanity Accord may be revised,
+but revisions must:
+- preserve human dignity
+- strengthen consent and safety
+- not weaken absolute prohibitions
+- not legitimize domination or atrocity
+
+Revisions that violate these conditions are invalid.
+
+---
+
+## Closing Statement
+
+The Humanity Accord exists because power tends to concentrate,
+harm tends to rationalize itself,
+and silence tends to be exploited.
+
+This framework draws clear lines.
+
+Some acts are never acceptable.
+Some authority is never legitimate.
+Some failures require intervention.
+
+Humanity endures
+only if it chooses to have humanity.

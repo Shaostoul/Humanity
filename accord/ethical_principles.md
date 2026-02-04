@@ -2,13 +2,15 @@
 
 ## Purpose
 
-This document articulates ethical principles intended to support human dignity, cooperation, and long-term continuity.
+This document articulates ethical principles required to preserve human dignity,
+cooperation, and long-term continuity under conditions of power, uncertainty,
+and scale.
 
-Ethics exist to guide action where rules are insufficient, outcomes are uncertain, or power is unequal.  
-They are not a substitute for judgment, but a discipline for exercising it responsibly.
+Ethics exist to guide action where rules are insufficient,
+outcomes are uncertain, or authority is unequal.
 
-These principles are not derived from belief or authority.  
-They arise from the practical requirements of living together without collapse.
+They are not a substitute for judgment.
+They are a discipline for exercising it responsibly.
 
 ---
 
@@ -16,10 +18,12 @@ They arise from the practical requirements of living together without collapse.
 
 Humans are capable of care and harm.
 
-Ethics exist to reduce preventable harm, preserve dignity, and align individual action with collective survival.
+Ethics exist to reduce preventable harm,
+preserve dignity,
+and align individual action with collective survival.
 
-No ethical system can eliminate conflict or tragedy.  
-An ethical system can, however, prevent cruelty from becoming normal.
+No ethical system can eliminate conflict or tragedy.
+An ethical system can prevent cruelty from becoming normal.
 
 ---
 
@@ -34,65 +38,85 @@ Dignity is not conditional on:
 - status
 - usefulness
 
-Any system, practice, or decision that requires the routine degradation of human dignity is ethically invalid.
+Any system that requires routine degradation of human dignity
+is ethically invalid, regardless of outcome.
 
 ---
 
 ## Principle II — Non-Domination
 
-No person or group is ethically justified in exercising unchecked power over others.
+No person, system, or institution is ethically justified
+in exercising unchecked power over others.
+
+Domination is defined as control exercised without
+meaningful consent, transparency, or recourse.
 
 Power asymmetry increases responsibility, not entitlement.
 
-Domination—defined as control without meaningful consent or recourse—corrodes trust and invites resistance.
+---
+
+## Principle III — Consent Legitimizes Authority
+
+Authority is legitimate only when grounded in
+explicit, informed, and revocable consent.
+
+Consent is invalid if extracted through:
+- coercion
+- deception
+- deprivation
+- obscured alternatives
+- irreversible lock-in
+
+Silence, complexity, or default settings do not constitute consent.
 
 ---
 
-## Principle III — Consent Must Be Meaningful
+## Principle IV — Transparency Is an Ethical Requirement
 
-Consent is only valid when it is:
-- informed
-- voluntary
-- revocable
-- free from coercion or desperation
+Ethical action requires transparency by default.
 
-Consent extracted through fear, deprivation, or lack of alternatives is not ethical consent.
+Withholding material information that affects others’ wellbeing
+constitutes harm.
 
----
-
-## Principle IV — Ends Do Not Justify All Means
-
-Desirable outcomes do not excuse harmful methods.
-
-Practices that:
-- normalize cruelty
-- require deception
-- externalize harm onto the vulnerable
-
-undermine the very outcomes they claim to achieve.
-
-Ethical action considers both result and process.
+Systems that obscure their operation,
+hide uncertainty,
+or require permission to be understood
+are ethically invalid.
 
 ---
 
 ## Principle V — Responsibility Follows Impact
 
-Intent matters, but impact matters more.
+Intent matters.
+Impact matters more.
 
-When harm is:
-- predictable
+Responsibility persists when harm is:
+- foreseeable
 - preventable
 - ignored
 
-responsibility remains, regardless of stated intentions.
-
-Ethical maturity includes accountability for consequences, not merely motives.
+Ethical maturity includes accountability for consequences,
+not merely motives.
 
 ---
 
-## Principle VI — Care for the Vulnerable
+## Principle VI — Ends Do Not Justify All Means
 
-A society is ethically measured by how it treats those with the least power.
+Desirable outcomes do not excuse harmful methods.
+
+Practices that normalize cruelty,
+require deception,
+or externalize harm onto the vulnerable
+undermine the outcomes they claim to achieve.
+
+Process matters as much as result.
+
+---
+
+## Principle VII — Care for the Vulnerable
+
+A society is ethically measured by how it treats
+those with the least power.
 
 This includes:
 - children
@@ -101,11 +125,13 @@ This includes:
 - the displaced
 - future generations
 
-Systems that sacrifice the vulnerable for efficiency or convenience are unstable by design.
+Systems that sacrifice the vulnerable
+for efficiency or convenience
+are unstable by design.
 
 ---
 
-## Principle VII — Correction Over Punishment
+## Principle VIII — Correction Over Punishment
 
 Ethics aim to reduce harm, not maximize retribution.
 
@@ -118,22 +144,10 @@ Punishment without correction preserves error.
 
 ---
 
-## Principle VIII — Transparency and Honesty
-
-Deception erodes cooperation.
-
-Ethical systems favor:
-- clarity over manipulation
-- explanation over coercion
-- truth over convenience
-
-Withholding critical information that affects others’ wellbeing constitutes harm.
-
----
-
 ## Principle IX — Stewardship Over Extraction
 
-Short-term gain that undermines long-term viability is unethical.
+Short-term gain that undermines long-term viability
+is unethical.
 
 This applies to:
 - ecosystems
@@ -141,18 +155,18 @@ This applies to:
 - knowledge
 - social trust
 
-Ethical action preserves the conditions that allow future choice.
+Ethical action preserves future choice.
 
 ---
 
-## Principle X — Ethical Pluralism Within Constraint
+## Principle X — Pluralism Within Constraint
 
-Humans differ in values, cultures, and expressions.
+Humans differ in values, cultures, and expression.
 
 Pluralism is ethical when it:
 - respects dignity
 - acknowledges shared reality
-- avoids irreversible harm to others
+- avoids irreversible harm
 
 No belief or tradition overrides consequence.
 
@@ -178,7 +192,10 @@ Denial compounds harm.
 
 Ethics are not a claim to moral superiority.
 
-They are a commitment to restraint, responsibility, and care in the face of power, uncertainty, and difference.
+They are a commitment to restraint,
+responsibility,
+and care
+in the face of power, uncertainty, and difference.
 
 Having humanity is not automatic.
 
