@@ -24,33 +24,44 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-          bundler-cache: true
-
-      - name: Install Jekyll
-        run: gem install jekyll bundler
-
+      # Mirror canonical docs into website/_canon (generated build material)
       - name: Mirror canonical docs into website/_canon
+        shell: bash
         run: |
+          set -euo pipefail
           rm -rf website/_canon
-          mkdir -p website/_canon/accord website/_canon/design
-          cp -v accord/*.md website/_canon/accord/
-          cp -v design/*.md website/_canon/design/
+          mkdir -p website/_canon
+          rsync -a --delete accord/ website/_canon/accord/
+          rsync -a --delete design/ website/_canon/design/
 
+
+      # Hard fail early if the expected include targets are missing.
       - name: Verify canon mirror
+        shell: bash
         run: |
+          set -euo pipefail
           test -f website/_canon/accord/humanity_accord.md
+          # Only keep this second check if design/asset_rules.md exists in your repo.
           test -f website/_canon/design/asset_rules.md
 
-      - name: Build with Jekyll
+      # Debug dump: if the build fails, you can see what Jekyll actually had.
+      - name: Dump website tree (debug)
+        shell: bash
         run: |
-          cd website
-          jekyll build --destination ../_site
-        env:
-          JEKYLL_ENV: production
+          set -euo pipefail
+          echo "=== website/_layouts ==="
+          ls -la website/_layouts || true
+          echo "=== website root ==="
+          ls -la website
+          echo "=== website/_canon ==="
+          find website/_canon -maxdepth 3 -type f -print
+
+      # Official GitHub Pages Jekyll build action
+      - name: Build with Jekyll (Pages)
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: website
+          destination: ./_site
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
