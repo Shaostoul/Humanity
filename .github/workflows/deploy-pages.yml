@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages
   cancel-in-progress: false
 
 jobs:
@@ -20,41 +20,50 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
-          bundler-cache: true
-      
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      
-      - name: Copy canonical Accord into Jekyll includes
-        run: |
-            mkdir -p website/_includes
-            cp accord/humanity_accord.md website/_includes/humanity_accord.md
+          ruby-version: "3.2"
 
-      
+      # Mirror canonical docs into the website source tree so Jekyll can include them.
+      # Do not treat website/_canon as authoritative; it is build material only.
+      - name: Mirror canonical docs into website/_canon
+        run: |
+          rm -rf website/_canon
+          mkdir -p website/_canon/accord
+          cp -v accord/*.md website/_canon/accord/
+
+      # Optional drift guard: if the copy step fails or paths change, fail early.
+      - name: Verify mirrored Accord exists
+        run: |
+          test -f website/_canon/accord/humanity_accord.md
+
+      - name: Install Jekyll
+        run: |
+          gem install jekyll bundler
+
       - name: Build with Jekyll
         run: |
           cd website
-          gem install jekyll bundler
           jekyll build --destination ../_site
         env:
           JEKYLL_ENV: production
-      
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './_site'
+          path: ./_site
 
   deploy:
+    runs-on: ubuntu-latest
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

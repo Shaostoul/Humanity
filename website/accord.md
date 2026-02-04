@@ -4,4 +4,4 @@ title: The Humanity Accord
 permalink: /accord
 ---
 
-{% include humanity_accord.md %}
+{% include_relative _canon/accord/humanity_accord.md %}
