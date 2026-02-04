@@ -34,13 +34,17 @@ jobs:
       - name: Mirror canonical docs into website/_canon
         run: |
           rm -rf website/_canon
-          mkdir -p website/_canon/accord
+          mkdir -p website/_canon/accord website/_canon/design
           cp -v accord/*.md website/_canon/accord/
+          cp -v design/*.md website/_canon/design/
+
 
       # Optional drift guard: if the copy step fails or paths change, fail early.
-      - name: Verify mirrored Accord exists
-        run: |
+      - name: Verify canon mirror
+      run: |
           test -f website/_canon/accord/humanity_accord.md
+          test -f website/_canon/design/asset_rules.md
+
 
       - name: Install Jekyll
         run: |
