@@ -49,6 +49,20 @@ Acceptable (temporary):
 
 ---
 
+## Generated Mirror
+
+During the Pages build, canonical docs are copied into:
+
+website/_canon/
+
+Files under `_canon/` are generated build material:
+- must not be edited by hand
+- must match canonical sources exactly
+- may be deleted and regenerated at any time
+
+
+---
+
 ## Why This Exists
 
 This structure prevents:
