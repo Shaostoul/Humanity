@@ -4,4 +4,4 @@ title: Glossary
 permalink: /accord/glossary
 ---
 
-{% include_relative ../_canon/accord/glossary.md %}
+{% include canon/accord/glossary.md %}

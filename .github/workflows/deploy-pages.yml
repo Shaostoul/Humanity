@@ -24,25 +24,24 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      # Mirror canonical docs into website/_canon (generated build material)
-      - name: Mirror canonical docs into website/_canon
+      # Mirror canonical docs into website/_includes/canon (generated build material)
+      - name: Mirror canonical docs into website/_includes/canon
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf website/_canon
-          mkdir -p website/_canon
-          rsync -a --delete accord/ website/_canon/accord/
-          rsync -a --delete design/ website/_canon/design/
-
+          rm -rf website/_includes/canon
+          mkdir -p website/_includes/canon
+          rsync -a --delete accord/ website/_includes/canon/accord/
+          rsync -a --delete design/ website/_includes/canon/design/
 
       # Hard fail early if the expected include targets are missing.
       - name: Verify canon mirror
         shell: bash
         run: |
           set -euo pipefail
-          test -f website/_canon/accord/humanity_accord.md
-          # Only keep this second check if design/asset_rules.md exists in your repo.
-          test -f website/_canon/design/asset_rules.md
+          test -f website/_includes/canon/accord/humanity_accord.md
+          test -f website/_includes/canon/design/asset_rules.md
+
 
       # Debug dump: if the build fails, you can see what Jekyll actually had.
       - name: Dump website tree (debug)
@@ -53,8 +52,9 @@ jobs:
           ls -la website/_layouts || true
           echo "=== website root ==="
           ls -la website
-          echo "=== website/_canon ==="
-          find website/_canon -maxdepth 3 -type f -print
+          echo "=== website/_includes/canon ==="
+          find website/_includes/canon -maxdepth 3 -type f -print
+
 
       # Official GitHub Pages Jekyll build action
       - name: Build with Jekyll (Pages)
