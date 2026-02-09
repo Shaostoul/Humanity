@@ -21,6 +21,15 @@ pub struct Peer {
 /// Maximum message history to keep in memory.
 const MAX_HISTORY: usize = 500;
 
+/// Webhook configuration for notifying external services of new messages.
+#[derive(Debug, Clone)]
+pub struct WebhookConfig {
+    /// URL to POST to when a human sends a message.
+    pub url: String,
+    /// Optional bearer token for authentication.
+    pub token: Option<String>,
+}
+
 /// Shared relay state.
 pub struct RelayState {
     /// Connected peers by public key hex.
@@ -29,15 +38,33 @@ pub struct RelayState {
     pub broadcast_tx: broadcast::Sender<RelayMessage>,
     /// Recent message history (for API polling).
     pub history: RwLock<Vec<RelayMessage>>,
+    /// Optional webhook for new-message notifications.
+    pub webhook: Option<WebhookConfig>,
+    /// HTTP client for webhook calls.
+    http_client: reqwest::Client,
 }
 
 impl RelayState {
     pub fn new() -> Self {
+        // Read webhook config from environment.
+        let webhook = std::env::var("WEBHOOK_URL").ok().map(|url| {
+            WebhookConfig {
+                url,
+                token: std::env::var("WEBHOOK_TOKEN").ok(),
+            }
+        });
+
+        if let Some(ref wh) = webhook {
+            info!("Webhook configured: {}", wh.url);
+        }
+
         let (broadcast_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         Self {
             peers: RwLock::new(HashMap::new()),
             broadcast_tx,
             history: RwLock::new(Vec::new()),
+            webhook,
+            http_client: reqwest::Client::new(),
         }
     }
 
@@ -55,6 +82,38 @@ impl RelayState {
         }
         // Broadcast to WebSocket clients.
         let _ = self.broadcast_tx.send(msg);
+    }
+
+    /// Fire webhook notification for a human message (non-bot).
+    /// This is fire-and-forget — we don't block on the response.
+    pub fn notify_webhook(&self, from_name: &str, content: &str) {
+        let Some(ref webhook) = self.webhook else { return };
+
+        let url = webhook.url.clone();
+        let token = webhook.token.clone();
+        let body = serde_json::json!({
+            "text": format!("[Humanity Relay] {} says: {}", from_name, content),
+            "mode": "now"
+        });
+        let client = self.http_client.clone();
+
+        // Spawn fire-and-forget task.
+        tokio::spawn(async move {
+            let mut req = client.post(&url).json(&body);
+            if let Some(t) = token {
+                req = req.header("Authorization", format!("Bearer {t}"));
+            }
+            match req.send().await {
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        tracing::warn!("Webhook returned {}", resp.status());
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Webhook failed: {e}");
+                }
+            }
+        });
     }
 }
 
@@ -203,14 +262,23 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .get(&my_key_for_recv)
                                     .cloned();
 
+                                let display = peer.as_ref()
+                                    .and_then(|p| p.display_name.clone())
+                                    .unwrap_or_else(|| "Anonymous".to_string());
+
                                 let chat = RelayMessage::Chat {
                                     from: my_key_for_recv.clone(),
-                                    from_name: peer.and_then(|p| p.display_name),
-                                    content,
+                                    from_name: Some(display.clone()),
+                                    content: content.clone(),
                                     timestamp,
                                 };
 
                                 state_clone.broadcast_and_store(chat).await;
+
+                                // Notify webhook for human messages (non-bot keys).
+                                if !my_key_for_recv.starts_with("bot_") {
+                                    state_clone.notify_webhook(&display, &content);
+                                }
                             }
                             _ => {
                                 // Ignore other message types from clients.
