@@ -9,13 +9,16 @@
       --bg: #0d0d0d;
       --bg-secondary: #1a1a1a;
       --bg-input: #222;
+      --bg-hover: #252525;
       --text: #e0e0e0;
       --text-muted: #888;
       --accent: #e07020;
       --accent-hover: #ff8c40;
+      --accent-dim: rgba(224,112,32,0.15);
       --border: #333;
       --success: #4a9;
       --danger: #c44;
+      --warning: #ca3;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,78 +32,116 @@
       flex-direction: column;
     }
 
+    /* ── Header ── */
     header {
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border);
-      padding: 0.75rem 1rem;
+      padding: 0.6rem 1rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      min-height: 48px;
     }
 
+    .header-left { display: flex; align-items: center; gap: 0.75rem; }
+
     header h1 {
-      font-size: 1.1rem;
+      font-size: 1rem;
       color: var(--accent);
       font-weight: 600;
     }
 
-    #status {
-      font-size: 0.8rem;
+    #stats {
+      font-size: 0.7rem;
       color: var(--text-muted);
     }
 
-    #status.connected { color: var(--success); }
-    #status.disconnected { color: var(--danger); }
+    #status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
 
+    #status .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--danger);
+      display: inline-block;
+    }
+
+    #status.connected .dot { background: var(--success); }
+    #status.reconnecting .dot { background: var(--warning); animation: pulse 1s infinite; }
+
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+    /* ── Layout ── */
     .main {
       flex: 1;
       display: flex;
       overflow: hidden;
     }
 
+    /* ── Sidebar ── */
     #sidebar {
-      width: 220px;
+      width: 200px;
       background: var(--bg-secondary);
       border-right: 1px solid var(--border);
-      padding: 1rem;
+      padding: 0.75rem;
       overflow-y: auto;
+      flex-shrink: 0;
     }
 
     #sidebar h3 {
-      font-size: 0.75rem;
+      font-size: 0.65rem;
       text-transform: uppercase;
       color: var(--text-muted);
       margin-bottom: 0.5rem;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.08em;
     }
 
     .peer {
-      font-size: 0.85rem;
-      padding: 0.25rem 0;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.4rem;
       color: var(--text);
+      border-radius: 4px;
     }
 
+    .peer:hover { background: var(--bg-hover); }
+
     .peer .key {
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       color: var(--text-muted);
       font-family: monospace;
     }
 
+    .peer.is-you { color: var(--accent); }
+
+    /* ── Chat ── */
     #chat-area {
       flex: 1;
       display: flex;
       flex-direction: column;
+      min-width: 0;
     }
 
     #messages {
       flex: 1;
       overflow-y: auto;
-      padding: 1rem;
+      padding: 0.75rem 1rem;
+      scroll-behavior: smooth;
     }
 
     .message {
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.5rem;
       line-height: 1.5;
+      padding: 0.3rem 0;
+    }
+
+    .message .meta {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
     }
 
     .message .author {
@@ -109,28 +150,65 @@
       font-size: 0.85rem;
     }
 
+    .message .author.bot { color: #7aa4d8; }
+    .message .author.you { color: var(--success); }
+
     .message .time {
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       color: var(--text-muted);
-      margin-left: 0.5rem;
     }
 
     .message .body {
       font-size: 0.9rem;
-      margin-top: 0.15rem;
+      margin-top: 0.1rem;
+      word-wrap: break-word;
+      white-space: pre-wrap;
     }
 
     .message.system {
       color: var(--text-muted);
       font-style: italic;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
+      padding: 0.15rem 0;
+      margin-bottom: 0.25rem;
     }
 
+    .date-separator {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      padding: 0.75rem 0 0.5rem;
+      position: relative;
+    }
+
+    .date-separator::before,
+    .date-separator::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 30%;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .date-separator::before { left: 5%; }
+    .date-separator::after { right: 5%; }
+
+    #history-notice {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      padding: 0.5rem;
+      font-style: italic;
+    }
+
+    /* ── Input ── */
     #input-area {
       border-top: 1px solid var(--border);
-      padding: 0.75rem 1rem;
+      padding: 0.6rem 0.75rem;
       display: flex;
       gap: 0.5rem;
+      background: var(--bg-secondary);
     }
 
     #msg-input {
@@ -138,30 +216,31 @@
       background: var(--bg-input);
       border: 1px solid var(--border);
       color: var(--text);
-      padding: 0.6rem 0.75rem;
+      padding: 0.55rem 0.75rem;
       border-radius: 6px;
       font-size: 0.9rem;
       outline: none;
+      font-family: inherit;
     }
 
-    #msg-input:focus {
-      border-color: var(--accent);
-    }
+    #msg-input:focus { border-color: var(--accent); }
 
-    button {
+    #send-btn {
       background: var(--accent);
       color: #fff;
       border: none;
-      padding: 0.6rem 1.2rem;
+      padding: 0.55rem 1rem;
       border-radius: 6px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       cursor: pointer;
       font-weight: 600;
+      white-space: nowrap;
     }
 
-    button:hover { background: var(--accent-hover); }
+    #send-btn:hover { background: var(--accent-hover); }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* Login screen */
+    /* ── Login ── */
     #login-screen {
       display: flex;
       flex-direction: column;
@@ -169,18 +248,20 @@
       justify-content: center;
       height: 100vh;
       gap: 1rem;
+      padding: 1rem;
     }
 
     #login-screen h1 {
       color: var(--accent);
-      font-size: 2rem;
+      font-size: 1.8rem;
     }
 
     #login-screen p {
       color: var(--text-muted);
-      max-width: 400px;
+      max-width: 420px;
       text-align: center;
       line-height: 1.6;
+      font-size: 0.9rem;
     }
 
     #login-screen input {
@@ -190,17 +271,45 @@
       padding: 0.6rem 0.75rem;
       border-radius: 6px;
       font-size: 1rem;
-      width: 300px;
+      width: 280px;
       text-align: center;
       outline: none;
     }
 
     #login-screen input:focus { border-color: var(--accent); }
 
+    #login-screen button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.6rem 2rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    #login-screen button:hover { background: var(--accent-hover); }
+
+    .subtitle {
+      font-size: 0.72rem !important;
+      color: var(--text-muted) !important;
+      margin-top: 0.5rem;
+    }
+
     #chat-screen { display: none; height: 100vh; flex-direction: column; }
 
-    @media (max-width: 600px) {
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+    /* ── Mobile ── */
+    @media (max-width: 640px) {
       #sidebar { display: none; }
+      header h1 { font-size: 0.9rem; }
+      #msg-input { font-size: 16px; } /* Prevent iOS zoom */
     }
   </style>
 </head>
@@ -208,20 +317,21 @@
 
   <!-- Login Screen -->
   <div id="login-screen">
-    <h1>Humanity Network</h1>
-    <p>A cooperative communication platform.<br>No accounts. No servers watching. Just people.</p>
+    <h1>🌍 Humanity Network</h1>
+    <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
     <input type="text" id="name-input" placeholder="Your name" autofocus>
     <button onclick="connect()">Enter</button>
-    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1rem;">
-      MVP — messages are not yet encrypted or signed
-    </p>
+    <p class="subtitle">MVP — messages are stored but not yet signed or encrypted</p>
   </div>
 
   <!-- Chat Screen -->
   <div id="chat-screen">
     <header>
-      <h1>Humanity Network</h1>
-      <span id="status" class="disconnected">Disconnected</span>
+      <div class="header-left">
+        <h1>🌍 Humanity</h1>
+        <span id="stats"></span>
+      </div>
+      <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
     </header>
     <div class="main">
       <div id="sidebar">
@@ -231,44 +341,114 @@
       <div id="chat-area">
         <div id="messages"></div>
         <div id="input-area">
-          <input type="text" id="msg-input" placeholder="Type a message..." autofocus>
-          <button onclick="sendMessage()">Send</button>
+          <input type="text" id="msg-input" placeholder="Type a message…" disabled>
+          <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
         </div>
       </div>
     </div>
   </div>
 
   <script>
+    // ── State ──
     let ws = null;
     let myKey = '';
     let myName = '';
+    let reconnectTimer = null;
+    let reconnectDelay = 1000;
+    const MAX_RECONNECT_DELAY = 30000;
+    let seenTimestamps = new Set(); // Deduplicate messages
 
-    // Generate a simple identity (random hex key for MVP).
-    // In production this will be Ed25519 keypair via WebCrypto.
-    function generateKey() {
-      const bytes = new Uint8Array(32);
-      crypto.getRandomValues(bytes);
-      return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    // Persist name across sessions.
+    const savedName = localStorage.getItem('humanity_name');
+    if (savedName) document.getElementById('name-input').value = savedName;
+
+    // Persist key across sessions (stable identity).
+    function getOrCreateKey() {
+      let key = localStorage.getItem('humanity_key');
+      if (!key) {
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
+        key = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem('humanity_key', key);
+      }
+      return key;
     }
 
+    // ── Connect ──
     function connect() {
       myName = document.getElementById('name-input').value.trim() || 'Anonymous';
-      myKey = generateKey();
+      localStorage.setItem('humanity_name', myName);
+      myKey = getOrCreateKey();
 
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('chat-screen').style.display = 'flex';
+
+      // Load history from API before connecting WebSocket.
+      loadHistory().then(() => {
+        openSocket();
+      });
+    }
+
+    // ── History ──
+    async function loadHistory() {
+      try {
+        const resp = await fetch('/api/messages?limit=100');
+        const data = await resp.json();
+        if (data.messages && data.messages.length > 0) {
+          const notice = document.createElement('div');
+          notice.id = 'history-notice';
+          notice.textContent = `── ${data.messages.length} earlier messages ──`;
+          document.getElementById('messages').appendChild(notice);
+
+          let lastDate = '';
+          for (const msg of data.messages) {
+            const msgDate = new Date(msg.timestamp).toLocaleDateString();
+            if (msgDate !== lastDate) {
+              addDateSeparator(msgDate);
+              lastDate = msgDate;
+            }
+            const key = msg.from + ':' + msg.timestamp;
+            seenTimestamps.add(key);
+            addChatMessage(
+              msg.from_name || shortKey(msg.from),
+              msg.content,
+              msg.timestamp,
+              msg.from,
+              true // isHistory
+            );
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load history:', e);
+      }
+    }
+
+    // ── WebSocket ──
+    function openSocket() {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
 
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${proto}//${location.host}/ws`);
 
       ws.onopen = () => {
         setStatus('connected', 'Connected');
+        reconnectDelay = 1000;
+        clearTimeout(reconnectTimer);
+
         ws.send(JSON.stringify({
           type: 'identify',
           public_key: myKey,
           display_name: myName,
         }));
-        addSystemMessage('Connected to Humanity Network');
+
+        document.getElementById('msg-input').disabled = false;
+        document.getElementById('send-btn').disabled = false;
+        document.getElementById('msg-input').focus();
+
+        addSystemMessage('Connected');
+        updateStats();
       };
 
       ws.onmessage = (event) => {
@@ -278,32 +458,47 @@
 
       ws.onclose = () => {
         setStatus('disconnected', 'Disconnected');
-        addSystemMessage('Disconnected from relay');
+        document.getElementById('msg-input').disabled = true;
+        document.getElementById('send-btn').disabled = true;
+        scheduleReconnect();
       };
 
       ws.onerror = () => {
-        setStatus('disconnected', 'Connection error');
+        // onclose will fire after this.
       };
-
-      document.getElementById('msg-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') sendMessage();
-      });
     }
 
+    function scheduleReconnect() {
+      clearTimeout(reconnectTimer);
+      setStatus('reconnecting', `Reconnecting in ${Math.round(reconnectDelay/1000)}s…`);
+      reconnectTimer = setTimeout(() => {
+        setStatus('reconnecting', 'Reconnecting…');
+        openSocket();
+        reconnectDelay = Math.min(reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+      }, reconnectDelay);
+    }
+
+    // ── Message Handling ──
     function handleMessage(msg) {
       switch (msg.type) {
-        case 'chat':
-          addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp);
+        case 'chat': {
+          const key = msg.from + ':' + msg.timestamp;
+          if (seenTimestamps.has(key)) return; // Deduplicate
+          seenTimestamps.add(key);
+          addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false);
           break;
+        }
         case 'peer_joined':
           addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} joined`);
-          // Refresh peer list — request not needed, we get broadcasts
+          updateStats();
           break;
         case 'peer_left':
-          addSystemMessage(`${shortKey(msg.public_key)} left`);
+          addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} left`);
+          updateStats();
           break;
         case 'peer_list':
           updatePeerList(msg.peers);
+          updateStats();
           break;
         case 'system':
           addSystemMessage(msg.message);
@@ -314,69 +509,148 @@
     function sendMessage() {
       const input = document.getElementById('msg-input');
       const content = input.value.trim();
-      if (!content || !ws) return;
+      if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
 
+      const timestamp = Date.now();
       ws.send(JSON.stringify({
         type: 'chat',
         from: myKey,
         from_name: myName,
         content: content,
-        timestamp: Date.now(),
+        timestamp: timestamp,
       }));
 
-      // Show our own message locally.
-      addChatMessage(myName + ' (you)', content, Date.now());
+      const key = myKey + ':' + timestamp;
+      seenTimestamps.add(key);
+      addChatMessage(myName, content, timestamp, myKey, false);
       input.value = '';
+      input.focus();
     }
 
-    function addChatMessage(author, body, timestamp) {
+    // ── Rendering ──
+    function addChatMessage(author, body, timestamp, fromKey, isHistory) {
       const el = document.createElement('div');
       el.className = 'message';
-      const time = new Date(timestamp).toLocaleTimeString();
-      el.innerHTML = `<span class="author">${esc(author)}</span><span class="time">${time}</span><div class="body">${esc(body)}</div>`;
+
+      const time = formatTime(timestamp);
+      const isMe = fromKey === myKey;
+      const isBot = fromKey && fromKey.startsWith('bot_');
+
+      let authorClass = '';
+      let displayAuthor = author;
+      if (isMe) {
+        authorClass = ' you';
+        displayAuthor = author;
+      } else if (isBot) {
+        authorClass = ' bot';
+      }
+
+      el.innerHTML = `
+        <div class="meta">
+          <span class="author${authorClass}">${esc(displayAuthor)}</span>
+          <span class="time">${time}</span>
+        </div>
+        <div class="body">${formatBody(body)}</div>
+      `;
+
       appendMessage(el);
     }
 
     function addSystemMessage(text) {
       const el = document.createElement('div');
       el.className = 'message system';
-      el.textContent = text;
+      el.textContent = `• ${text}`;
       appendMessage(el);
+    }
+
+    function addDateSeparator(dateStr) {
+      const el = document.createElement('div');
+      el.className = 'date-separator';
+      el.textContent = dateStr;
+      document.getElementById('messages').appendChild(el);
     }
 
     function appendMessage(el) {
       const container = document.getElementById('messages');
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
       container.appendChild(el);
-      container.scrollTop = container.scrollHeight;
+      if (isNearBottom) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
 
     function updatePeerList(peers) {
       const list = document.getElementById('peer-list');
-      list.innerHTML = peers.map(p =>
-        `<div class="peer">${esc(p.display_name || 'Anonymous')}<div class="key">${shortKey(p.public_key)}</div></div>`
-      ).join('');
+      list.innerHTML = peers.map(p => {
+        const isMe = p.public_key === myKey;
+        const name = p.display_name || 'Anonymous';
+        return `<div class="peer${isMe ? ' is-you' : ''}">
+          ${esc(name)}${isMe ? ' (you)' : ''}
+          <div class="key">${shortKey(p.public_key)}</div>
+        </div>`;
+      }).join('');
     }
 
+    async function updateStats() {
+      try {
+        const resp = await fetch('/api/stats');
+        const data = await resp.json();
+        document.getElementById('stats').textContent =
+          `${data.total_messages} msgs · ${data.connected_peers} online`;
+      } catch (e) { /* ignore */ }
+    }
+
+    // ── Utilities ──
     function setStatus(cls, text) {
       const el = document.getElementById('status');
       el.className = cls;
-      el.textContent = text;
+      document.getElementById('status-text').textContent = text;
+    }
+
+    function formatTime(ts) {
+      const d = new Date(ts);
+      const now = new Date();
+      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (d.toDateString() !== now.toDateString()) {
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
+      }
+      return time;
+    }
+
+    function formatBody(text) {
+      // Basic: escape HTML, convert URLs to links.
+      let safe = esc(text);
+      safe = safe.replace(
+        /(https?:\/\/[^\s<]+)/g,
+        '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>'
+      );
+      return safe;
     }
 
     function shortKey(hex) {
+      if (!hex) return '???';
       return hex.substring(0, 8) + '…';
     }
 
     function esc(str) {
       const d = document.createElement('div');
-      d.textContent = str;
+      d.textContent = str || '';
       return d.innerHTML;
     }
 
-    // Allow Enter on login screen.
+    // ── Key Bindings ──
     document.getElementById('name-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') connect();
     });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && document.getElementById('chat-screen').style.display === 'flex') {
+        sendMessage();
+      }
+    });
+
+    // Update stats every 30s.
+    setInterval(updateStats, 30000);
   </script>
 </body>
 </html>
