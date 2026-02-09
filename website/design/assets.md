@@ -1,8 +1,7 @@
 ---
 layout: default
 title: Asset Rules
-permalink: /design/asset-rules
+permalink: /design/assets
 ---
 
 {% include canon/design/asset_rules.md %}
-
