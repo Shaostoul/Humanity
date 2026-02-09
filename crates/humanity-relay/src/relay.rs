@@ -18,12 +18,17 @@ pub struct Peer {
     pub display_name: Option<String>,
 }
 
+/// Maximum message history to keep in memory.
+const MAX_HISTORY: usize = 500;
+
 /// Shared relay state.
 pub struct RelayState {
     /// Connected peers by public key hex.
     pub peers: RwLock<HashMap<String, Peer>>,
     /// Broadcast channel for messages.
     pub broadcast_tx: broadcast::Sender<RelayMessage>,
+    /// Recent message history (for API polling).
+    pub history: RwLock<Vec<RelayMessage>>,
 }
 
 impl RelayState {
@@ -32,7 +37,24 @@ impl RelayState {
         Self {
             peers: RwLock::new(HashMap::new()),
             broadcast_tx,
+            history: RwLock::new(Vec::new()),
         }
+    }
+
+    /// Add a message to history and broadcast it.
+    pub async fn broadcast_and_store(&self, msg: RelayMessage) {
+        // Store in history.
+        {
+            let mut history = self.history.write().await;
+            history.push(msg.clone());
+            // Trim if too long.
+            if history.len() > MAX_HISTORY {
+                let excess = history.len() - MAX_HISTORY;
+                history.drain(..excess);
+            }
+        }
+        // Broadcast to WebSocket clients.
+        let _ = self.broadcast_tx.send(msg);
     }
 }
 
@@ -188,7 +210,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     timestamp,
                                 };
 
-                                let _ = state_clone.broadcast_tx.send(chat);
+                                state_clone.broadcast_and_store(chat).await;
                             }
                             _ => {
                                 // Ignore other message types from clients.

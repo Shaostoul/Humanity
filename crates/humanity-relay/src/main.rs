@@ -5,10 +5,11 @@
 //! architecture (design/architecture_decisions/hybrid_network.md).
 
 mod relay;
+mod api;
 
 use axum::{
     Router,
-    routing::get,
+    routing::{get, post},
     extract::ws::{WebSocket, WebSocketUpgrade},
     response::IntoResponse,
 };
@@ -33,6 +34,10 @@ async fn main() {
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .route("/health", get(health))
+        // Bot HTTP API
+        .route("/api/send", post(api::send_message))
+        .route("/api/messages", get(api::get_messages))
+        .route("/api/peers", get(api::get_peers))
         .fallback_service(
             tower_http::services::ServeDir::new("client")
                 .fallback(tower_http::services::ServeFile::new("client/index.html")),
@@ -44,6 +49,7 @@ async fn main() {
     tracing::info!("Humanity relay listening on {addr}");
     tracing::info!("Web client: http://localhost:3210");
     tracing::info!("WebSocket:  ws://localhost:3210/ws");
+    tracing::info!("Bot API:    http://localhost:3210/api/");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
