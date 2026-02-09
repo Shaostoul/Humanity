@@ -8,6 +8,8 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use tracing::info;
 
+use crate::storage::Storage;
+
 /// Maximum broadcast channel capacity.
 const BROADCAST_CAPACITY: usize = 256;
 
@@ -36,8 +38,10 @@ pub struct RelayState {
     pub peers: RwLock<HashMap<String, Peer>>,
     /// Broadcast channel for messages.
     pub broadcast_tx: broadcast::Sender<RelayMessage>,
-    /// Recent message history (for API polling).
+    /// In-memory recent history (fast access for WebSocket clients).
     pub history: RwLock<Vec<RelayMessage>>,
+    /// Persistent storage (SQLite).
+    pub db: Storage,
     /// Optional webhook for new-message notifications.
     pub webhook: Option<WebhookConfig>,
     /// HTTP client for webhook calls.
@@ -45,7 +49,7 @@ pub struct RelayState {
 }
 
 impl RelayState {
-    pub fn new() -> Self {
+    pub fn new(db: Storage) -> Self {
         // Read webhook config from environment.
         let webhook = std::env::var("WEBHOOK_URL").ok().map(|url| {
             WebhookConfig {
@@ -58,19 +62,32 @@ impl RelayState {
             info!("Webhook configured: {}", wh.url);
         }
 
+        // Load recent history from database.
+        let history = db.load_recent_messages(MAX_HISTORY).unwrap_or_default();
+        let history_count = history.len();
+        if history_count > 0 {
+            info!("Loaded {history_count} messages from database");
+        }
+
         let (broadcast_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         Self {
             peers: RwLock::new(HashMap::new()),
             broadcast_tx,
-            history: RwLock::new(Vec::new()),
+            history: RwLock::new(history),
+            db,
             webhook,
             http_client: reqwest::Client::new(),
         }
     }
 
-    /// Add a message to history and broadcast it.
+    /// Add a message to history, persist to DB, and broadcast it.
     pub async fn broadcast_and_store(&self, msg: RelayMessage) {
-        // Store in history.
+        // Persist to SQLite.
+        if let Err(e) = self.db.store_message(&msg) {
+            tracing::error!("Failed to persist message: {e}");
+        }
+
+        // Store in memory.
         {
             let mut history = self.history.write().await;
             history.push(msg.clone());

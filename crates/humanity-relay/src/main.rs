@@ -6,6 +6,7 @@
 
 mod relay;
 mod api;
+mod storage;
 
 use axum::{
     Router,
@@ -29,7 +30,19 @@ async fn main() {
         )
         .init();
 
-    let state = Arc::new(RelayState::new());
+    // Initialize persistent storage.
+    let db_path = std::env::var("DB_PATH")
+        .unwrap_or_else(|_| "data/relay.db".to_string());
+    let db_dir = std::path::Path::new(&db_path).parent().unwrap_or(std::path::Path::new("."));
+    std::fs::create_dir_all(db_dir).expect("Failed to create database directory");
+
+    let db = storage::Storage::open(std::path::Path::new(&db_path))
+        .expect("Failed to open database");
+
+    let msg_count = db.message_count().unwrap_or(0);
+    tracing::info!("Database has {msg_count} stored messages");
+
+    let state = Arc::new(RelayState::new(db));
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
@@ -38,6 +51,7 @@ async fn main() {
         .route("/api/send", post(api::send_message))
         .route("/api/messages", get(api::get_messages))
         .route("/api/peers", get(api::get_peers))
+        .route("/api/stats", get(api::get_stats))
         .fallback_service(
             tower_http::services::ServeDir::new("client")
                 .fallback(tower_http::services::ServeFile::new("client/index.html")),

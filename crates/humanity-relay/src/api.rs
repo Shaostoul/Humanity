@@ -76,25 +76,54 @@ pub async fn send_message(
     StatusCode::OK
 }
 
-/// GET /api/messages — poll recent messages.
+/// GET /api/messages — poll recent messages from the database.
+///
+/// The `after` parameter is now a database row ID (not an array index).
+/// Use the returned `cursor` as the `after` value for subsequent polls.
 pub async fn get_messages(
     State(state): State<Arc<RelayState>>,
     Query(params): Query<MessagesQuery>,
 ) -> Json<MessagesResponse> {
-    let history = state.history.read().await;
-    let after = params.after.unwrap_or(0);
+    let after = params.after.unwrap_or(0) as i64;
     let limit = params.limit.unwrap_or(50).min(200);
 
-    let messages: Vec<RelayMessage> = history
-        .iter()
-        .skip(after)
-        .take(limit)
-        .cloned()
-        .collect();
+    match state.db.load_messages_after(after, limit) {
+        Ok((messages, cursor)) => {
+            Json(MessagesResponse { messages, cursor: cursor as usize })
+        }
+        Err(e) => {
+            tracing::error!("Failed to load messages: {e}");
+            // Fall back to in-memory.
+            let history = state.history.read().await;
+            let messages: Vec<RelayMessage> = history
+                .iter()
+                .skip(after as usize)
+                .take(limit)
+                .cloned()
+                .collect();
+            let cursor = after as usize + messages.len();
+            Json(MessagesResponse { messages, cursor })
+        }
+    }
+}
 
-    let cursor = after + messages.len();
+/// Response for GET /api/stats.
+#[derive(Debug, Serialize)]
+pub struct StatsResponse {
+    pub total_messages: i64,
+    pub connected_peers: usize,
+}
 
-    Json(MessagesResponse { messages, cursor })
+/// GET /api/stats — relay statistics.
+pub async fn get_stats(
+    State(state): State<Arc<RelayState>>,
+) -> Json<StatsResponse> {
+    let total = state.db.message_count().unwrap_or(0);
+    let peers = state.peers.read().await.len();
+    Json(StatsResponse {
+        total_messages: total,
+        connected_peers: peers,
+    })
 }
 
 /// GET /api/peers — list connected peers.
