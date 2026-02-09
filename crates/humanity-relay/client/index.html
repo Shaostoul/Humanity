@@ -643,9 +643,67 @@
       if (e.key === 'Enter') connect();
     });
 
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && document.getElementById('chat-screen').style.display === 'flex') {
-        sendMessage();
+    // Enter to send is handled on #msg-input directly (see below).
+
+    // ── Notifications ──
+    let windowFocused = true;
+    let unreadCount = 0;
+    const originalTitle = document.title;
+
+    window.addEventListener('focus', () => {
+      windowFocused = true;
+      unreadCount = 0;
+      document.title = originalTitle;
+    });
+
+    window.addEventListener('blur', () => {
+      windowFocused = false;
+    });
+
+    function notifyNewMessage(author, content) {
+      if (windowFocused) return;
+      unreadCount++;
+      document.title = `(${unreadCount}) ${originalTitle}`;
+
+      // Browser notification (if permitted).
+      if (Notification.permission === 'granted') {
+        new Notification(author, { body: content, icon: '🌍', tag: 'humanity-msg' });
+      }
+    }
+
+    // Request notification permission (non-blocking).
+    if ('Notification' in window && Notification.permission === 'default') {
+      // We'll ask on first message send so it's not jarring on page load.
+    }
+
+    function requestNotifications() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    // Patch sendMessage to request notification permission on first use.
+    const _origSend = sendMessage;
+    sendMessage = function() {
+      requestNotifications();
+      sendMessage = _origSend; // Only ask once.
+      _origSend();
+    };
+
+    // Hook into message rendering to trigger notifications.
+    const _origHandleMessage = handleMessage;
+    handleMessage = function(msg) {
+      _origHandleMessage(msg);
+      if (msg.type === 'chat' && msg.from !== myKey) {
+        notifyNewMessage(msg.from_name || 'Someone', msg.content);
+      }
+    };
+
+    // ── Enter to send (on the input field) ──
+    document.getElementById('msg-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        _origSend();
       }
     });
 

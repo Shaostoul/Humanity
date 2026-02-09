@@ -19,6 +19,7 @@ use tracing_subscriber::EnvFilter;
 use std::sync::Arc;
 
 use relay::RelayState;
+use serde_json;
 
 #[tokio::main]
 async fn main() {
@@ -69,8 +70,18 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn health() -> &'static str {
-    "ok"
+async fn health(
+    state: axum::extract::State<Arc<RelayState>>,
+) -> axum::Json<serde_json::Value> {
+    let uptime = state.start_time.elapsed().as_secs();
+    let msg_count = state.db.message_count().unwrap_or(0);
+    let peers = state.peers.read().await.len();
+    axum::Json(serde_json::json!({
+        "status": "ok",
+        "uptime_seconds": uptime,
+        "total_messages": msg_count,
+        "connected_peers": peers,
+    }))
 }
 
 async fn ws_handler(

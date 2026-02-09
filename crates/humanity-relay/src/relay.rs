@@ -42,6 +42,8 @@ pub struct RelayState {
     pub history: RwLock<Vec<RelayMessage>>,
     /// Persistent storage (SQLite).
     pub db: Storage,
+    /// Server start time (for uptime reporting).
+    pub start_time: std::time::Instant,
     /// Optional webhook for new-message notifications.
     pub webhook: Option<WebhookConfig>,
     /// HTTP client for webhook calls.
@@ -75,6 +77,7 @@ impl RelayState {
             broadcast_tx,
             history: RwLock::new(history),
             db,
+            start_time: std::time::Instant::now(),
             webhook,
             http_client: reqwest::Client::new(),
         }
