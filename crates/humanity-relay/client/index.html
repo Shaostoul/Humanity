@@ -344,6 +344,11 @@
     </header>
     <div class="main">
       <div id="sidebar">
+        <h3>Your Identity</h3>
+        <div id="my-identity" style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.75rem; word-break:break-all;">
+          <div id="my-key-display" style="font-family:monospace; font-size:0.6rem;"></div>
+          <div id="my-sign-status" style="margin-top:0.2rem;"></div>
+        </div>
         <h3>Online</h3>
         <div id="peer-list"></div>
       </div>
@@ -384,6 +389,12 @@
 
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('chat-screen').style.display = 'flex';
+
+      // Show identity in sidebar.
+      document.getElementById('my-key-display').textContent = myKey;
+      document.getElementById('my-sign-status').innerHTML = myIdentity.canSign
+        ? '<span style="color:var(--success)">✓ Signing enabled</span>'
+        : '<span style="color:var(--warning)">⚠ Unsigned mode</span>';
 
       // Load history from API before connecting WebSocket.
       loadHistory().then(() => {
