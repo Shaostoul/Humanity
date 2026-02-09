@@ -1,0 +1,29 @@
+[package]
+name = "humanity-core"
+version = "0.1.0"
+edition = "2024"
+description = "Core types, canonical CBOR encoding, BLAKE3 hashing, and Ed25519 signing for the Humanity Network"
+license = "CC0-1.0"
+
+[dependencies]
+# Canonical CBOR encoding/decoding
+ciborium = "0.2"
+
+# BLAKE3 hashing (object_id, block_id)
+blake3 = "1"
+
+# Ed25519 signatures
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+
+# Serialization framework
+serde = { version = "1", features = ["derive"] }
+
+# Error handling
+thiserror = "2"
+
+# Cryptographic RNG (key generation, nonces)
+rand = "0.8"
+
+[dev-dependencies]
+# Hex encoding for test vectors
+hex = "0.4"
