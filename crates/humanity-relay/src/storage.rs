@@ -33,6 +33,7 @@ impl Storage {
                 from_name TEXT,
                 content   TEXT,
                 timestamp INTEGER NOT NULL,
+                signature TEXT,
                 raw_json  TEXT NOT NULL
             );
 
@@ -56,11 +57,11 @@ impl Storage {
         let raw = serde_json::to_string(msg).unwrap_or_default();
 
         match msg {
-            RelayMessage::Chat { from, from_name, content, timestamp } => {
+            RelayMessage::Chat { from, from_name, content, timestamp, signature } => {
                 conn.execute(
-                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, raw_json)
-                     VALUES ('chat', ?1, ?2, ?3, ?4, ?5)",
-                    params![from, from_name, content, timestamp, raw],
+                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json)
+                     VALUES ('chat', ?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![from, from_name, content, timestamp, signature, raw],
                 )?;
             }
             RelayMessage::System { message } => {

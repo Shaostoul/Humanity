@@ -69,6 +69,7 @@ pub async fn send_message(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64,
+        signature: None, // Bot messages are unsigned for now.
     };
 
     state.broadcast_and_store(chat).await;

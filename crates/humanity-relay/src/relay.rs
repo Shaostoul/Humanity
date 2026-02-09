@@ -151,13 +151,16 @@ pub enum RelayMessage {
         display_name: Option<String>,
     },
 
-    /// A chat message (signed in the future, plaintext for MVP).
+    /// A chat message, optionally Ed25519-signed.
     #[serde(rename = "chat")]
     Chat {
         from: String,
         from_name: Option<String>,
         content: String,
         timestamp: u64,
+        /// Ed25519 signature hex (signs "{content}\n{timestamp}").
+        #[serde(skip_serializing_if = "Option::is_none")]
+        signature: Option<String>,
     },
 
     /// Server announces a peer joined.
@@ -274,7 +277,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 Message::Text(text) => {
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
                         match relay_msg {
-                            RelayMessage::Chat { content, timestamp, .. } => {
+                            RelayMessage::Chat { content, timestamp, signature, .. } => {
                                 let peer = state_clone
                                     .peers
                                     .read()
@@ -291,6 +294,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     from_name: Some(display.clone()),
                                     content: content.clone(),
                                     timestamp,
+                                    signature,
                                 };
 
                                 state_clone.broadcast_and_store(chat).await;

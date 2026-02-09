@@ -153,6 +153,15 @@
     .message .author.bot { color: #7aa4d8; }
     .message .author.you { color: var(--success); }
 
+    .sig-badge {
+      font-size: 0.65rem;
+      color: var(--success);
+      background: rgba(68,170,153,0.15);
+      padding: 0 0.3rem;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+
     .message .time {
       font-size: 0.65rem;
       color: var(--text-muted);
@@ -321,7 +330,7 @@
     <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
     <input type="text" id="name-input" placeholder="Your name" autofocus>
     <button onclick="connect()">Enter</button>
-    <p class="subtitle">MVP — messages are stored but not yet signed or encrypted</p>
+    <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>
   </div>
 
   <!-- Chat Screen -->
@@ -348,11 +357,13 @@
     </div>
   </div>
 
+  <script src="crypto.js"></script>
   <script>
     // ── State ──
     let ws = null;
     let myKey = '';
     let myName = '';
+    let myIdentity = null; // { publicKeyHex, privateKey, publicKey, canSign }
     let reconnectTimer = null;
     let reconnectDelay = 1000;
     const MAX_RECONNECT_DELAY = 30000;
@@ -362,23 +373,14 @@
     const savedName = localStorage.getItem('humanity_name');
     if (savedName) document.getElementById('name-input').value = savedName;
 
-    // Persist key across sessions (stable identity).
-    function getOrCreateKey() {
-      let key = localStorage.getItem('humanity_key');
-      if (!key) {
-        const bytes = new Uint8Array(32);
-        crypto.getRandomValues(bytes);
-        key = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-        localStorage.setItem('humanity_key', key);
-      }
-      return key;
-    }
-
     // ── Connect ──
-    function connect() {
+    async function connect() {
       myName = document.getElementById('name-input').value.trim() || 'Anonymous';
       localStorage.setItem('humanity_name', myName);
-      myKey = getOrCreateKey();
+
+      // Initialize Ed25519 identity.
+      myIdentity = await getOrCreateIdentity();
+      myKey = myIdentity.publicKeyHex;
 
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('chat-screen').style.display = 'flex';
@@ -414,7 +416,8 @@
               msg.content,
               msg.timestamp,
               msg.from,
-              true // isHistory
+              true, // isHistory
+              !!msg.signature
             );
           }
         }
@@ -485,7 +488,15 @@
           const key = msg.from + ':' + msg.timestamp;
           if (seenTimestamps.has(key)) return; // Deduplicate
           seenTimestamps.add(key);
-          addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false);
+          const hasSig = !!msg.signature;
+          // If message has a signature, verify it client-side.
+          if (hasSig && msg.signature && msg.from && !msg.from.startsWith('bot_')) {
+            verifyMessage(msg.from, msg.signature, msg.content, msg.timestamp).then(valid => {
+              addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, valid);
+            });
+          } else {
+            addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, hasSig);
+          }
           break;
         }
         case 'peer_joined':
@@ -506,29 +517,41 @@
       }
     }
 
-    function sendMessage() {
+    async function sendMessage() {
       const input = document.getElementById('msg-input');
       const content = input.value.trim();
       if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
 
       const timestamp = Date.now();
-      ws.send(JSON.stringify({
+
+      // Sign the message if Ed25519 is available.
+      let signature = null;
+      if (myIdentity && myIdentity.canSign) {
+        signature = await signMessage(myIdentity.privateKey, content, timestamp);
+      }
+
+      const msg = {
         type: 'chat',
         from: myKey,
         from_name: myName,
         content: content,
         timestamp: timestamp,
-      }));
+      };
+      if (signature) {
+        msg.signature = signature;
+      }
+
+      ws.send(JSON.stringify(msg));
 
       const key = myKey + ':' + timestamp;
       seenTimestamps.add(key);
-      addChatMessage(myName, content, timestamp, myKey, false);
+      addChatMessage(myName, content, timestamp, myKey, false, !!signature);
       input.value = '';
       input.focus();
     }
 
     // ── Rendering ──
-    function addChatMessage(author, body, timestamp, fromKey, isHistory) {
+    function addChatMessage(author, body, timestamp, fromKey, isHistory, signed) {
       const el = document.createElement('div');
       el.className = 'message';
 
@@ -537,17 +560,20 @@
       const isBot = fromKey && fromKey.startsWith('bot_');
 
       let authorClass = '';
-      let displayAuthor = author;
       if (isMe) {
         authorClass = ' you';
-        displayAuthor = author;
       } else if (isBot) {
         authorClass = ' bot';
       }
 
+      const sigBadge = signed
+        ? '<span class="sig-badge" title="Ed25519 signed">✓</span>'
+        : '';
+
       el.innerHTML = `
         <div class="meta">
-          <span class="author${authorClass}">${esc(displayAuthor)}</span>
+          <span class="author${authorClass}">${esc(author)}</span>
+          ${sigBadge}
           <span class="time">${time}</span>
         </div>
         <div class="body">${formatBody(body)}</div>
@@ -683,11 +709,14 @@
     }
 
     // Patch sendMessage to request notification permission on first use.
-    const _origSend = sendMessage;
-    sendMessage = function() {
-      requestNotifications();
-      sendMessage = _origSend; // Only ask once.
-      _origSend();
+    let notifRequested = false;
+    const _origSendMessage = sendMessage;
+    sendMessage = async function() {
+      if (!notifRequested) {
+        requestNotifications();
+        notifRequested = true;
+      }
+      await _origSendMessage();
     };
 
     // Hook into message rendering to trigger notifications.
@@ -703,9 +732,22 @@
     document.getElementById('msg-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        _origSend();
+        sendMessage();
       }
     });
+
+    // ── Crypto status check ──
+    (async () => {
+      const has = await supportsEd25519();
+      const el = document.getElementById('crypto-status');
+      if (has) {
+        el.textContent = '✓ Ed25519 signatures enabled — messages will be cryptographically signed';
+        el.style.color = 'var(--success)';
+      } else {
+        el.textContent = '⚠ Ed25519 not supported in this browser — messages will not be signed';
+        el.style.color = 'var(--warning)';
+      }
+    })();
 
     // Update stats every 30s.
     setInterval(updateStats, 30000);
