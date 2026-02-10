@@ -1428,7 +1428,8 @@
         const formData = new FormData();
         formData.append('file', file);
 
-        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+        const uploadUrl = myKey ? `/api/upload?key=${encodeURIComponent(myKey)}` : '/api/upload';
+        const resp = await fetch(uploadUrl, { method: 'POST', body: formData });
         if (!resp.ok) {
           const text = await resp.text();
           addSystemMessage(`Upload failed: ${text}`);
