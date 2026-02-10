@@ -57,10 +57,18 @@ This is an open project. It belongs to everyone.
 - **Chat:** [chat.united-humanity.us](https://chat.united-humanity.us) — no account needed
 - **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
 - **GitHub:** [Explore the repo](https://github.com/Shaostoul/Humanity)
-- **YouTube:** [@Shaostoul](https://youtube.com/@Shaostoul)
+- **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)
+
+### Find Us Everywhere
+
+**Video:** [YouTube](https://youtube.com/@Shaostoul) · [Twitch](https://twitch.tv/Shaostoul) · [Rumble](https://rumble.com/user/Shaostoul)
+
+**Social:** [X / Twitter](https://x.com/Shaostoul) · [Instagram](https://instagram.com/shaostoul) · [Bluesky](https://bsky.app/profile/shaostoul.bsky.social) · [Reddit](https://reddit.com/user/Shaostoul) · [Facebook](https://www.facebook.com/2571477392923654)
+
+**Gaming:** [Steam](https://steamcommunity.com/id/Shaostoul) · [Nexus Mods](https://www.nexusmods.com/profile/Shaostoul) · [itch.io](https://shaostoul.itch.io)
 
 **Support the mission:**
-[GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul)
+[GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul) · [Patreon](https://www.patreon.com/c/Shaostoul)
 
 Every dollar goes toward development, hosting, and keeping the team fed while we build.
 

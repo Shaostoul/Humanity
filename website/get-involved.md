@@ -61,8 +61,25 @@ If you believe in the mission and want to help keep it running:
 
 - **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
 - **Ko-fi:** [ko-fi.com/shaostoul](https://ko-fi.com/shaostoul)
+- **Patreon:** [patreon.com/Shaostoul](https://www.patreon.com/c/Shaostoul)
 
 Every dollar goes toward development, hosting, and keeping the team fed while we build.
+
+---
+
+## Follow & Connect
+
+Find us everywhere — follow, share, and help spread the word.
+
+**Video:**
+- 🎥 [YouTube](https://youtube.com/@Shaostoul) · 📺 [Twitch](https://twitch.tv/Shaostoul) · 🟢 [Rumble](https://rumble.com/user/Shaostoul)
+
+**Social:**
+- 𝕏 [X / Twitter](https://x.com/Shaostoul) · 📷 [Instagram](https://instagram.com/shaostoul) · 🔵 [Bluesky](https://bsky.app/profile/shaostoul.bsky.social)
+- 🟠 [Reddit](https://reddit.com/user/Shaostoul) · 👤 [Facebook](https://www.facebook.com/2571477392923654)
+
+**Gaming:**
+- 🎮 [Steam](https://steamcommunity.com/id/Shaostoul) · 🎯 [Nexus Mods](https://www.nexusmods.com/profile/Shaostoul) · 🕹️ [itch.io](https://shaostoul.itch.io)
 
 ---
 

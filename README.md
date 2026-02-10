@@ -96,9 +96,31 @@ No permission required. No attribution required. This belongs to humanity — pr
 
 ## Links
 
+### Project
 - 🌐 **Website:** [united-humanity.us](https://united-humanity.us)
-- 💬 **Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
+- 💬 **Humanity Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
 - 📖 **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)
-- 💜 **Discord:** [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC)
+- 📦 **GitHub:** [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
+
+### Video
 - 🎥 **YouTube:** [@Shaostoul](https://youtube.com/@Shaostoul)
-- ❤️ **Sponsor:** [GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul)
+- 📺 **Twitch:** [twitch.tv/Shaostoul](https://twitch.tv/Shaostoul)
+- 🟢 **Rumble:** [rumble.com/user/Shaostoul](https://rumble.com/user/Shaostoul)
+
+### Social
+- 𝕏 **X / Twitter:** [x.com/Shaostoul](https://x.com/Shaostoul)
+- 📷 **Instagram:** [instagram.com/shaostoul](https://instagram.com/shaostoul)
+- 🔵 **Bluesky:** [shaostoul.bsky.social](https://bsky.app/profile/shaostoul.bsky.social)
+- 🟠 **Reddit:** [reddit.com/user/Shaostoul](https://reddit.com/user/Shaostoul)
+- 💜 **Discord:** [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC)
+- 👤 **Facebook:** [facebook.com/Shaostoul](https://www.facebook.com/2571477392923654)
+
+### Gaming
+- 🎮 **Steam:** [steamcommunity.com/id/Shaostoul](https://steamcommunity.com/id/Shaostoul)
+- 🎯 **Nexus Mods:** [nexusmods.com/profile/Shaostoul](https://www.nexusmods.com/profile/Shaostoul)
+- 🕹️ **itch.io:** [shaostoul.itch.io](https://shaostoul.itch.io)
+
+### Support
+- ❤️ **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
+- ☕ **Ko-fi:** [ko-fi.com/shaostoul](https://ko-fi.com/shaostoul)
+- 🎭 **Patreon:** [patreon.com/Shaostoul](https://www.patreon.com/c/Shaostoul)

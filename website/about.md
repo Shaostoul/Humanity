@@ -77,13 +77,33 @@ That's what I'm here to do.
 
 ## Connect
 
-- **Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
-- **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
-- **GitHub:** [Shaostoul](https://github.com/Shaostoul)
-- **YouTube:** [@Shaostoul](https://youtube.com/@Shaostoul)
+### Project
+- 💬 **Humanity Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
+- 📖 **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)
+- 📦 **GitHub:** [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
+- 💜 **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
 
-**Support the mission:**
-[GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul)
+### Video
+- 🎥 **YouTube:** [@Shaostoul](https://youtube.com/@Shaostoul)
+- 📺 **Twitch:** [twitch.tv/Shaostoul](https://twitch.tv/Shaostoul)
+- 🟢 **Rumble:** [rumble.com/user/Shaostoul](https://rumble.com/user/Shaostoul)
+
+### Social
+- 𝕏 **X / Twitter:** [x.com/Shaostoul](https://x.com/Shaostoul)
+- 📷 **Instagram:** [instagram.com/shaostoul](https://instagram.com/shaostoul)
+- 🔵 **Bluesky:** [shaostoul.bsky.social](https://bsky.app/profile/shaostoul.bsky.social)
+- 🟠 **Reddit:** [reddit.com/user/Shaostoul](https://reddit.com/user/Shaostoul)
+- 👤 **Facebook:** [facebook.com/Shaostoul](https://www.facebook.com/2571477392923654)
+
+### Gaming
+- 🎮 **Steam:** [steamcommunity.com/id/Shaostoul](https://steamcommunity.com/id/Shaostoul)
+- 🎯 **Nexus Mods:** [nexusmods.com/profile/Shaostoul](https://www.nexusmods.com/profile/Shaostoul)
+- 🕹️ **itch.io:** [shaostoul.itch.io](https://shaostoul.itch.io)
+
+### Support the Mission
+- ❤️ **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
+- ☕ **Ko-fi:** [ko-fi.com/shaostoul](https://ko-fi.com/shaostoul)
+- 🎭 **Patreon:** [patreon.com/Shaostoul](https://www.patreon.com/c/Shaostoul)
 
 ---
 
