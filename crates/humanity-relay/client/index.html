@@ -321,6 +321,16 @@
       #msg-input { font-size: 16px; } /* Prevent iOS zoom */
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+  <style>
+    img.emoji {
+      height: 1.2em;
+      width: 1.2em;
+      margin: 0 .05em 0 .1em;
+      vertical-align: -0.2em;
+      display: inline-block;
+    }
+  </style>
 </head>
 <body>
 
@@ -364,6 +374,11 @@
 
   <script src="crypto.js"></script>
   <script>
+    // Parse static emoji on page load (login screen, header)
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.twemoji) twemoji.parse(document.body);
+    });
+
     // ── State ──
     let ws = null;
     let myKey = '';
@@ -591,6 +606,7 @@
       `;
 
       appendMessage(el);
+      if (window.twemoji) twemoji.parse(el);
     }
 
     function addSystemMessage(text) {
@@ -626,6 +642,7 @@
           <div class="key">${shortKey(p.public_key)}</div>
         </div>`;
       }).join('');
+      if (window.twemoji) twemoji.parse(list);
     }
 
     async function updateStats() {
