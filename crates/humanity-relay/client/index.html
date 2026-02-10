@@ -230,6 +230,11 @@
       font-size: 0.9rem;
       outline: none;
       font-family: inherit;
+      resize: none;
+      min-height: 38px;
+      max-height: 150px;
+      overflow-y: auto;
+      line-height: 1.4;
     }
 
     #msg-input:focus { border-color: var(--accent); }
@@ -451,7 +456,7 @@
         <div id="messages"></div>
         <div id="typing-indicator"></div>
         <div id="input-area">
-          <input type="text" id="msg-input" placeholder="Type a message…" disabled>
+          <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
         </div>
       </div>
@@ -732,6 +737,7 @@
       seenTimestamps.add(key);
       addChatMessage(myName, content, timestamp, myKey, false, !!signature);
       input.value = '';
+      input.style.height = 'auto'; // Reset textarea height after sending.
       input.focus();
     }
 
@@ -779,8 +785,11 @@
         e.stopPropagation();
         const input = document.getElementById('msg-input');
         const shortBody = body.length > 100 ? body.substring(0, 100) + '…' : body;
-        input.value = '> ' + shortBody.replace(/\n/g, '\n> ') + '\n';
+        input.value = '> ' + shortBody.replace(/\n/g, '\n> ') + '\n\n';
         input.focus();
+        // Place cursor at the end (after the blank line).
+        input.selectionStart = input.selectionEnd = input.value.length;
+        autoResizeTextarea(input);
       });
 
       // Click delete button → send delete request.
@@ -824,12 +833,22 @@
 
     function updatePeerList(peers) {
       const list = document.getElementById('peer-list');
-      list.innerHTML = peers.map(p => {
-        const isMe = p.public_key === myKey;
+
+      // Merge peers with the same display name (multi-device users).
+      const byName = {};
+      for (const p of peers) {
         const name = p.display_name || 'Anonymous';
-        return `<div class="peer${isMe ? ' is-you' : ''}">
-          ${esc(name)}${isMe ? ' (you)' : ''}
-          <div class="key">${shortKey(p.public_key)}</div>
+        if (!byName[name]) {
+          byName[name] = { name, keys: [], isMe: false };
+        }
+        byName[name].keys.push(p.public_key);
+        if (p.public_key === myKey) byName[name].isMe = true;
+      }
+
+      list.innerHTML = Object.values(byName).map(g => {
+        const deviceCount = g.keys.length > 1 ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${g.keys.length} devices)</span>` : '';
+        return `<div class="peer${g.isMe ? ' is-you' : ''}">
+          ${esc(g.name)}${g.isMe ? ' (you)' : ''}${deviceCount}
         </div>`;
       }).join('');
       if (window.twemoji) twemoji.parse(list);
@@ -1033,7 +1052,13 @@
       }
     };
 
-    // ── Enter to send + typing indicator on the input field ──
+    // ── Auto-resize textarea to fit content ──
+    function autoResizeTextarea(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+    }
+
+    // ── Enter to send + Shift+Enter for newline + typing indicator ──
     document.getElementById('msg-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -1042,6 +1067,11 @@
         // Any other key → send typing indicator (throttled).
         sendTypingIndicator();
       }
+    });
+
+    // Auto-resize on input.
+    document.getElementById('msg-input').addEventListener('input', (e) => {
+      autoResizeTextarea(e.target);
     });
 
     // ── Crypto status check ──
