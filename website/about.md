@@ -53,6 +53,16 @@ The **Humanity Accord** is a living framework for how humans can cooperate at sc
 
 ---
 
+## The Network
+
+Communication comes first. If people can't talk to each other freely and privately, nothing else gets built.
+
+The **Humanity Network** is an E2E encrypted, peer-to-peer, federated communication protocol. No accounts. No tracking. Ed25519 cryptographic identity — you own your keys, not us.
+
+**It's live now:** [chat.united-humanity.us](https://chat.united-humanity.us)
+
+---
+
 ## The Mission
 
 **End poverty by building capability.**
@@ -67,9 +77,13 @@ That's what I'm here to do.
 
 ## Connect
 
+- **Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
+- **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
 - **GitHub:** [Shaostoul](https://github.com/Shaostoul)
 - **YouTube:** [@Shaostoul](https://youtube.com/@Shaostoul)
-- **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
+
+**Support the mission:**
+[GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul)
 
 ---
 

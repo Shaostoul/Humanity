@@ -1,115 +1,104 @@
-# README.md
-
 # Humanity
 
-Humanity is a shared world focused on cooperation, learning, and long-term survival.
-
-It explores how individuals and communities can live well together, scale peacefully, and build a future without domination, exploitation, or violence as default tools. Peace is treated as infrastructure. Education is treated as capability. Realism is treated as a foundation for understanding, not a limitation on imagination.
-
-Humanity is open, revisable, and built to endure change without losing coherence.
+**Wholesomely aiding humanity's betterment.**
 
 ---
 
-## What this is
+## What is this?
 
-Humanity is:
-- a living world
-- an educational environment
-- a cooperative simulation
-- an experiment in civilizational design
+Humanity is a cooperative project to end poverty through education and technology. Not charity — capability. We build open-source tools that help people learn to provide for themselves and their communities.
 
-It is not a manifesto, an ideology, or a belief system. It does not require faith, allegiance, or conformity.
+The premise is simple: life is finite and sacred. We exist to exist. That means removing barriers to living — poverty, ignorance, isolation — is the work. Not because of ideology, but because it's practical. People who can feed themselves, build shelter, stay healthy, and communicate freely don't need to be saved. They need tools and knowledge. That's what we're building.
+
+This project started in 2019 when Michael Boisson, after a near-death experience in 2017, decided to stop asking "what should I do?" and start building what actually matters. Everything here is open source, public domain, and built by volunteers. No venture capital. No shareholders. No exit strategy. Just people building for people.
 
 ---
 
-## Repository structure
+## What's live now
 
-This project is structured by authority and purpose:
+**[chat.united-humanity.us](https://chat.united-humanity.us)** — The Humanity Chat is live and running.
 
-- `accord/`  
-  Human-facing civilizational principles: how humans choose to live together, resolve conflict, and scale peacefully.
+- No accounts required
+- No tracking, no analytics
+- Ed25519 cryptographic identity — you own your keys, not us
+- Encrypted by design
 
-- `design/`  
-  Binding technical law: architecture, constraints, systems specifications, schemas, and test philosophy.
-
-- `data/`  
-  Canonical structured truth: definitions and instance state that must validate against schemas.
-
-- `engine/`  
-  Deterministic simulation implementation (planned; may be empty during spec/data-first phases).
-
-Other directories may contain world content, tools, and interfaces. No lower layer overrides or redefines a higher layer.
+We're building the communication layer first. If people can't talk to each other freely and privately, nothing else matters. Come say hello.
 
 ---
 
-## Authority model (read before contributing)
+## What we're building
 
-This repository is organized by a strict authority stack.
+### The Humanity Accord
+Civilizational principles for how humans can cooperate at scale — across cultures, distances, and generations — without domination, exploitation, or violence as default tools. Not a manifesto. A living, revisable framework.
+→ [Read the Accord](accord/humanity_accord.md)
 
-From highest authority to lowest:
+### The Humanity Network
+An E2E encrypted, peer-to-peer, federated communication protocol. No central servers owning your data. No accounts. Cryptographic identity (Ed25519) means you prove who you are with math, not with a password stored on someone else's computer. The chat at [chat.united-humanity.us](https://chat.united-humanity.us) is the first implementation.
 
-1. `accord/` — human-facing civilizational principles  
-2. `design/` — technical constraints, system laws, schemas  
-3. `data/` — concrete instances that must validate against schemas  
-4. `engine/`, `tools/`, `website/`, `assets/` — implementations and presentations
-
-Rules:
-
-- Lower layers may not contradict higher layers.
-- Presentation layers may not redefine meaning.
-- Tools and interfaces may explain, render, or assist, but never override.
-- If two files disagree, the higher layer is correct.
-
-This structure exists to prevent silent drift over time.
+### Project Universe
+A free, open-source game teaching practical skills — homesteading, building, agriculture, health, survival — so anyone, anywhere, can learn to provide for themselves and their community. Think Minecraft meets real-world education. The game won't replace doing the real thing, but it can teach you how before you need to.
 
 ---
 
-## Current phase: spec-first, data-first
+## Architecture
 
-The repository is intentionally valid without implementation code.
+This repository is organized by a strict authority stack. Higher layers govern lower layers. This prevents drift over time — principles stay principles, specs stay specs, and code serves both.
 
-- Design documents define what must be true.
-- Schemas define what data must look like.
-- Data slices instantiate a minimal lawful world.
-- Replays define deterministic expectations.
+```
+accord/   → Human-facing civilizational principles (highest authority)
+design/   → Technical constraints, schemas, system specifications
+data/     → Canonical structured data that must validate against schemas
+engine/   → Deterministic simulation implementation (Rust)
+```
 
-Implementation is added only after the above chain is coherent.
-
----
-
-## Implementation stance
-
-Primary implementation language target: Rust.
-
-`Cargo.toml` is intentionally present even if no `.rs` files exist yet. It marks the future engine/tooling entrypoint and keeps the project oriented toward deterministic, high-performance execution.
-
-Python (or other tooling) may be used for authoring/validation utilities, but must not become an authority layer.
+Lower layers may not contradict higher layers. If two files disagree, the higher layer is correct. This structure exists so the project can grow without losing coherence.
 
 ---
 
-## The Humanity Accord
+## Tech stack
 
-The ethical and civilizational principles guiding this world are defined in the Humanity Accord.
-
-Start here:
-- `accord/humanity_accord.md`
-
----
-
-## Public Domain
-
-This work is released into the public domain under the Creative Commons Zero (CC0) dedication, for the benefit of humanity—present and future.
-
-No permission or attribution is required.
+| Component | Technology |
+|-----------|-----------|
+| Language | Rust |
+| Identity | Ed25519 |
+| Hashing | BLAKE3 |
+| Encryption | XChaCha20-Poly1305 |
+| Serialization | CBOR |
+| Transport | WebSocket relay |
+| Storage | SQLite |
 
 ---
 
-## Openness and revision
+## Get involved
 
-No generation is infallible. Understanding evolves.
+**Chat with us** — The fastest way to get involved. No account needed.
+→ [chat.united-humanity.us](https://chat.united-humanity.us)
 
-This project is designed to change without collapsing, correct itself without denial, and grow without losing its core.
+**Join the Discord** — Longer-form discussion, community, and coordination.
+→ [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC)
 
-The future is not guaranteed.
+**Contribute** — Writers, designers, developers, educators, translators. Check the issues or just show up and ask what needs doing.
+→ [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 
-It is constructed—by those who choose to have humanity.
+**Donate** — This project is built by volunteers, but servers and infrastructure cost money. Every dollar goes toward development and hosting.
+→ [GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul)
+
+---
+
+## License
+
+This work is released into the **public domain** under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+No permission required. No attribution required. This belongs to humanity — present and future.
+
+---
+
+## Links
+
+- 🌐 **Website:** [united-humanity.us](https://united-humanity.us)
+- 💬 **Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
+- 📖 **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)
+- 💜 **Discord:** [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC)
+- 🎥 **YouTube:** [@Shaostoul](https://youtube.com/@Shaostoul)
+- ❤️ **Sponsor:** [GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul)

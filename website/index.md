@@ -5,60 +5,67 @@ title: Home
 
 # Humanity
 
-**A cooperative path toward a shared destiny.**
+**Wholesomely aiding humanity's betterment.**
 
 ---
 
-We share one world, one future, and one set of consequences.
+We build open-source tools and education to end poverty — not through handouts, but through capability. Life is finite and sacred. Removing barriers to living is the work.
 
-Humanity is an open project exploring how we can live together—across cultures, distances, and generations—without domination, exploitation, or violence as default tools.
+Everything we build is **public domain**. No accounts. No tracking. No gatekeeping. Just tools and knowledge for anyone, anywhere, forever.
 
-This isn't ideology. It doesn't require faith or allegiance. It's a practical framework: principles we can build on, test, revise, and scale.
+---
+
+## Live Now: Humanity Chat
+
+**[chat.united-humanity.us](https://chat.united-humanity.us)**
+
+The communication layer comes first. Our chat is live — no accounts, no tracking, Ed25519 cryptographic identity, encrypted by design. You own your keys, not us.
+
+Come say hello.
 
 ---
 
 ## What We're Building
 
-**The Humanity Accord**  
-A living document defining how humans can cooperate at scale while preserving dignity, agency, and shared responsibility.  
+**The Humanity Accord**
+Civilizational principles for how humans cooperate at scale — across cultures, distances, and generations — without domination or exploitation as defaults.
 → [Read the Accord](accord)
 
-**Project Universe**  
-A free, open-source game teaching practical skills—homesteading, building, survival—so anyone, anywhere, can learn to provide for themselves and their community.  
-→ [Learn more](about)
+**The Humanity Network**
+An E2E encrypted, peer-to-peer, federated communication protocol. No central servers. No passwords. Cryptographic identity means you prove who you are with math.
 
-**Open Infrastructure**  
-Everything here is public domain (CC0). Use it, modify it, build on it. No permission needed.
+**Project Universe**
+A free, open-source game teaching practical skills — homesteading, agriculture, building, health, survival. Learn to provide for yourself and your community.
+→ [Learn more](about)
 
 ---
 
 ## Why This Exists
 
-Poverty isn't just lack of money—it's lack of capability. People trapped in systems they can't escape, knowledge they can't access, skills they never learned.
+Poverty isn't just lack of money — it's lack of capability. People trapped in systems they can't escape, knowledge they can't access, skills they never learned.
 
-We believe education is the foundation. Not just facts, but *capability*: how to grow food, build shelter, maintain health, cooperate with others.
+In 2017, Michael Boisson nearly died. That experience stripped away the noise and left one clear answer: help people become capable of helping themselves. By 2019, that answer had a name and a plan.
 
-A game can teach this. A framework can guide it. A community can build it.
+Education is the foundation. Tools are the path. Community is the engine.
 
 ---
 
 ## Get Involved
 
-This is an open project. We need:
-- Writers, designers, developers
-- Educators and subject matter experts
-- People who believe in the mission
+This is an open project. It belongs to everyone.
 
-→ [How to contribute](get-involved)
+- **Chat:** [chat.united-humanity.us](https://chat.united-humanity.us) — no account needed
+- **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
+- **GitHub:** [Explore the repo](https://github.com/Shaostoul/Humanity)
+- **YouTube:** [@Shaostoul](https://youtube.com/@Shaostoul)
+
+**Support the mission:**
+[GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul)
+
+Every dollar goes toward development, hosting, and keeping the team fed while we build.
+
+→ [More ways to help](get-involved)
 
 ---
 
-## Public Domain
-
-This work belongs to humanity—present and future.
-
-Released under [CC0](https://creativecommons.org/publicdomain/zero/1.0/). No permission or attribution required.
-
----
-
-*The future is not guaranteed. It is constructed—by those who choose to have humanity.*
+*Public domain. No permission needed. This belongs to humanity — present and future.*
