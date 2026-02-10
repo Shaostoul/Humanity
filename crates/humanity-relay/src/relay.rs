@@ -5,6 +5,7 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
 use tracing::info;
 
@@ -12,6 +13,26 @@ use crate::storage::Storage;
 
 /// Maximum broadcast channel capacity.
 const BROADCAST_CAPACITY: usize = 256;
+
+/// Fibonacci delay sequence in seconds (capped at 21s).
+const FIB_DELAYS: [u64; 8] = [1, 1, 2, 3, 5, 8, 13, 21];
+
+/// Duration after which a new identity is no longer considered "new" (10 minutes).
+const NEW_ACCOUNT_WINDOW_SECS: u64 = 600;
+
+/// Flat rate limit for new accounts (seconds).
+const NEW_ACCOUNT_DELAY_SECS: u64 = 5;
+
+/// Per-key rate limit tracking state.
+#[derive(Debug, Clone)]
+pub struct RateLimitState {
+    /// When the key was first seen (for new-account slow mode).
+    pub first_seen: Instant,
+    /// When the last message was sent.
+    pub last_message_time: Instant,
+    /// Current position in the Fibonacci delay sequence.
+    pub fib_index: usize,
+}
 
 /// A connected peer, identified by their public key hex.
 #[derive(Debug, Clone)]
@@ -48,6 +69,8 @@ pub struct RelayState {
     pub webhook: Option<WebhookConfig>,
     /// HTTP client for webhook calls.
     http_client: reqwest::Client,
+    /// Per-key rate limiting state (Fibonacci backoff).
+    pub rate_limits: RwLock<HashMap<String, RateLimitState>>,
 }
 
 impl RelayState {
@@ -80,6 +103,7 @@ impl RelayState {
             start_time: std::time::Instant::now(),
             webhook,
             http_client: reqwest::Client::new(),
+            rate_limits: RwLock::new(HashMap::new()),
         }
     }
 
@@ -452,13 +476,64 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .unwrap_or_else(|| "Anonymous".to_string());
 
                                 // Check if user is muted.
-                                if state_clone.db.get_role(&my_key_for_recv).unwrap_or_default() == "muted" {
+                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if user_role == "muted" {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
                                         message: "You are muted and cannot send messages.".to_string(),
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
+                                }
+
+                                // Rate limiting: skip for bots and admins.
+                                if !my_key_for_recv.starts_with("bot_") && user_role != "admin" {
+                                    let now = Instant::now();
+                                    let mut rate_limits = state_clone.rate_limits.write().await;
+                                    let rl = rate_limits.entry(my_key_for_recv.clone()).or_insert_with(|| {
+                                        RateLimitState {
+                                            first_seen: now,
+                                            last_message_time: now - std::time::Duration::from_secs(60), // allow first message
+                                            fib_index: 0,
+                                        }
+                                    });
+
+                                    let elapsed = now.duration_since(rl.last_message_time).as_secs();
+
+                                    // Determine required delay: Fibonacci backoff.
+                                    let fib_delay = FIB_DELAYS[rl.fib_index];
+
+                                    // New-account slow mode: if first seen < 10 min ago, min 5s delay.
+                                    let account_age = now.duration_since(rl.first_seen).as_secs();
+                                    let new_account_delay = if account_age < NEW_ACCOUNT_WINDOW_SECS {
+                                        NEW_ACCOUNT_DELAY_SECS
+                                    } else {
+                                        0
+                                    };
+
+                                    // Use whichever delay is longer.
+                                    let required_delay = fib_delay.max(new_account_delay);
+
+                                    if elapsed < required_delay {
+                                        let wait = required_delay - elapsed;
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: format!("⏳ Slow down! Please wait {} more second{}.", wait, if wait == 1 { "" } else { "s" }),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
+
+                                    // User waited long enough — check if we should reset or advance.
+                                    if elapsed > required_delay {
+                                        // User waited longer than needed — reset to position 0.
+                                        rl.fib_index = 0;
+                                    } else {
+                                        // User sent exactly at the boundary — advance Fibonacci.
+                                        rl.fib_index = (rl.fib_index + 1).min(FIB_DELAYS.len() - 1);
+                                    }
+
+                                    rl.last_message_time = now;
                                 }
 
                                 // Enforce max message length (2000 chars for user text).

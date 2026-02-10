@@ -135,9 +135,19 @@ pub async fn get_stats(
     })
 }
 
+/// Query params for POST /api/upload (optional user key for FIFO tracking).
+#[derive(Debug, Deserialize)]
+pub struct UploadQuery {
+    /// Public key of the uploader (optional — if absent, no FIFO enforcement).
+    pub key: Option<String>,
+}
+
 /// POST /api/upload — upload a file (images only, max 5MB).
 /// Returns a JSON object with the file URL.
+/// If `?key=<public_key>` is provided, enforces a per-user 4-image FIFO.
 pub async fn upload_file(
+    State(state): State<Arc<RelayState>>,
+    Query(query): Query<UploadQuery>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     const MAX_SIZE: usize = 5 * 1024 * 1024; // 5MB
@@ -188,6 +198,26 @@ pub async fn upload_file(
         std::fs::write(&file_path, &data).map_err(|e| {
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}"))
         })?;
+
+        // Track upload per user (FIFO: keep max 4 images per key).
+        if let Some(ref public_key) = query.key {
+            match state.db.record_upload(public_key, &unique_name) {
+                Ok(old_files) => {
+                    // Delete old files from disk.
+                    for old_file in &old_files {
+                        let old_path = upload_dir.join(old_file);
+                        if let Err(e) = std::fs::remove_file(&old_path) {
+                            tracing::warn!("Failed to delete old upload {}: {e}", old_file);
+                        } else {
+                            tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to record upload: {e}");
+                }
+            }
+        }
 
         let url = format!("/uploads/{}", unique_name);
         return Ok(Json(serde_json::json!({ "url": url, "filename": unique_name, "size": data.len() })));
