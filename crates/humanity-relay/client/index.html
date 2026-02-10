@@ -350,6 +350,40 @@
       font-size: 0.85em;
     }
 
+    /* ── Reply bar ── */
+    #reply-bar {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      padding: 0.4rem 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      cursor: pointer;
+    }
+    #reply-preview {
+      flex: 1;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    #reply-preview .reply-author {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    #reply-cancel {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 0.1rem 0.3rem;
+    }
+    #reply-cancel:hover { color: var(--text); }
+
     /* ── Typing indicator ── */
     #typing-indicator {
       font-size: 0.72rem;
@@ -455,6 +489,10 @@
       <div id="chat-area">
         <div id="messages"></div>
         <div id="typing-indicator"></div>
+        <div id="reply-bar" style="display:none;">
+          <div id="reply-preview"></div>
+          <button id="reply-cancel" title="Cancel reply">✕</button>
+        </div>
         <div id="input-area">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
@@ -486,6 +524,41 @@
 
     let pendingLinkCode = null;
     let identityConfirmed = false;
+    let replyTarget = null; // { author, body, fromKey, timestamp, element }
+
+    // ── Reply Bar ──
+    function setReplyTarget(author, body, fromKey, timestamp, element) {
+      const shortBody = body.length > 80 ? body.substring(0, 80) + '…' : body;
+      replyTarget = { author, body, fromKey, timestamp, element };
+      const bar = document.getElementById('reply-bar');
+      document.getElementById('reply-preview').innerHTML =
+        `<span class="reply-author">${esc(author)}</span> ${esc(shortBody)}`;
+      bar.style.display = 'flex';
+      if (window.twemoji) twemoji.parse(bar);
+    }
+
+    function clearReplyTarget() {
+      replyTarget = null;
+      document.getElementById('reply-bar').style.display = 'none';
+      document.getElementById('reply-preview').innerHTML = '';
+    }
+
+    // Click reply preview → scroll to the original message.
+    document.getElementById('reply-preview').addEventListener('click', () => {
+      if (replyTarget && replyTarget.element) {
+        replyTarget.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Brief highlight effect.
+        replyTarget.element.style.background = 'var(--accent-dim)';
+        setTimeout(() => { replyTarget.element.style.background = ''; }, 1500);
+      }
+    });
+
+    // Cancel reply.
+    document.getElementById('reply-cancel').addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearReplyTarget();
+      document.getElementById('msg-input').focus();
+    });
 
     // ── Connect ──
     async function connect() {
@@ -709,12 +782,22 @@
 
     async function sendMessage() {
       const input = document.getElementById('msg-input');
-      const content = input.value.trim();
+      let content = input.value.trim();
       if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+      // Prepend quote from reply bar if active.
+      if (replyTarget) {
+        const quotedBody = replyTarget.body.length > 150
+          ? replyTarget.body.substring(0, 150) + '…'
+          : replyTarget.body;
+        const quoteLines = quotedBody.split('\n').map(l => '> ' + l).join('\n');
+        content = quoteLines + '\n' + content;
+        clearReplyTarget();
+      }
 
       const timestamp = Date.now();
 
-      // Sign the message if Ed25519 is available.
+      // Sign the full content (including quote) if Ed25519 is available.
       let signature = null;
       if (myIdentity && myIdentity.canSign) {
         signature = await signMessage(myIdentity.privateKey, content, timestamp);
@@ -780,16 +863,11 @@
         ${actions}
       `;
 
-      // Click reply button → quote this message in the input.
+      // Click reply button → show reply preview bar above input.
       el.querySelector('.reply-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        const input = document.getElementById('msg-input');
-        const shortBody = body.length > 100 ? body.substring(0, 100) + '…' : body;
-        input.value = '> ' + shortBody.replace(/\n/g, '\n> ') + '\n\n';
-        input.focus();
-        // Place cursor at the end (after the blank line).
-        input.selectionStart = input.selectionEnd = input.value.length;
-        autoResizeTextarea(input);
+        setReplyTarget(author, body, fromKey, timestamp, el);
+        document.getElementById('msg-input').focus();
       });
 
       // Click delete button → send delete request.
