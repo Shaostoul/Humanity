@@ -196,6 +196,14 @@ pub enum RelayMessage {
     NameTaken {
         message: String,
     },
+
+    /// Private system message — only delivered to a specific peer.
+    /// The `to` field is checked by the send loop; it's stripped before sending.
+    #[serde(rename = "private")]
+    Private {
+        to: String,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -322,6 +330,20 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 continue;
             }
 
+            // Private messages: only deliver to the targeted peer.
+            if let RelayMessage::Private { ref to, ref message } = msg {
+                if to != &my_key_for_broadcast {
+                    continue; // Not for us
+                }
+                // Convert to a regular system message before sending.
+                let sys = RelayMessage::System { message: message.clone() };
+                let json = serde_json::to_string(&sys).unwrap();
+                if ws_tx.send(Message::Text(json.into())).await.is_err() {
+                    break;
+                }
+                continue;
+            }
+
             let json = serde_json::to_string(&msg).unwrap();
             if ws_tx.send(Message::Text(json.into())).await.is_err() {
                 break;
@@ -354,22 +376,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 if content.trim().eq_ignore_ascii_case("/link") {
                                     match state_clone.db.create_link_code(&display, &my_key_for_recv) {
                                         Ok(code) => {
-                                            let sys = RelayMessage::System {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
                                                 message: format!(
                                                     "🔗 Link code: {}  — Enter this on your other device within 5 minutes. It can only be used once.",
                                                     code
                                                 ),
                                             };
-                                            // Send only to this client via broadcast
-                                            // (they'll see it because it's a system message).
-                                            let _ = state_clone.broadcast_tx.send(sys);
+                                            let _ = state_clone.broadcast_tx.send(private);
                                         }
                                         Err(e) => {
                                             tracing::error!("Failed to create link code: {e}");
-                                            let sys = RelayMessage::System {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
                                                 message: "Failed to generate link code.".to_string(),
                                             };
-                                            let _ = state_clone.broadcast_tx.send(sys);
+                                            let _ = state_clone.broadcast_tx.send(private);
                                         }
                                     }
                                     continue; // Don't broadcast /link as a chat message
