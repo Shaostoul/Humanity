@@ -149,6 +149,9 @@ pub enum RelayMessage {
     Identify {
         public_key: String,
         display_name: Option<String>,
+        /// Optional link code for registering a new device under an existing name.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        link_code: Option<String>,
     },
 
     /// A chat message, optionally Ed25519-signed.
@@ -187,6 +190,12 @@ pub enum RelayMessage {
     System {
         message: String,
     },
+
+    /// Name is taken — client should pick a different name.
+    #[serde(rename = "name_taken")]
+    NameTaken {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -204,19 +213,71 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     // Wait for the identify message first.
     while let Some(Ok(msg)) = ws_rx.next().await {
         if let Message::Text(text) = msg {
-            if let Ok(RelayMessage::Identify { public_key, display_name }) =
+            if let Ok(RelayMessage::Identify { public_key, display_name, link_code }) =
                 serde_json::from_str::<RelayMessage>(&text)
             {
+                let mut final_name = display_name.clone();
+
+                // Handle link code redemption.
+                if let Some(ref code) = link_code {
+                    match state.db.redeem_link_code(code, &public_key) {
+                        Ok(Some(linked_name)) => {
+                            info!("Link code redeemed: {public_key} linked to name '{linked_name}'");
+                            final_name = Some(linked_name);
+                        }
+                        Ok(None) => {
+                            let err = RelayMessage::System {
+                                message: "Invalid or expired link code.".to_string(),
+                            };
+                            let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                            continue; // Let them retry
+                        }
+                        Err(e) => {
+                            tracing::error!("Link code error: {e}");
+                        }
+                    }
+                }
+
+                // Check name registration (skip for bot keys).
+                if !public_key.starts_with("bot_") {
+                    if let Some(ref name) = final_name {
+                        match state.db.check_name(name, &public_key) {
+                            Ok(None) => {
+                                // Name is free — register it.
+                                if let Err(e) = state.db.register_name(name, &public_key) {
+                                    tracing::error!("Failed to register name: {e}");
+                                }
+                                info!("Name '{name}' registered to {public_key}");
+                            }
+                            Ok(Some(true)) => {
+                                // Key is authorized for this name — all good.
+                                info!("Name '{name}' authorized for {public_key}");
+                            }
+                            Ok(Some(false)) => {
+                                // Name taken by someone else!
+                                let err = RelayMessage::NameTaken {
+                                    message: format!("The name '{}' is already registered to another identity. Please choose a different name or use a link code from the owner.", name),
+                                };
+                                let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                                continue; // Let them retry with a different name
+                            }
+                            Err(e) => {
+                                tracing::error!("Name check error: {e}");
+                            }
+                        }
+                    }
+                }
+
                 let peer = Peer {
                     public_key_hex: public_key.clone(),
-                    display_name: display_name.clone(),
+                    display_name: final_name.clone(),
                 };
 
                 // Register peer.
                 state.peers.write().await.insert(public_key.clone(), peer);
                 peer_key = Some(public_key.clone());
 
-                info!("Peer connected: {public_key} ({:?})", display_name);
+                info!("Peer connected: {public_key} ({:?})", final_name);
 
                 // Send current peer list to the new peer.
                 let peers: Vec<PeerInfo> = state
@@ -236,7 +297,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 // Announce to everyone.
                 let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
                     public_key,
-                    display_name,
+                    display_name: final_name,
                 });
 
                 break;
@@ -288,6 +349,31 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 let display = peer.as_ref()
                                     .and_then(|p| p.display_name.clone())
                                     .unwrap_or_else(|| "Anonymous".to_string());
+
+                                // Handle /link command — generate a device link code.
+                                if content.trim().eq_ignore_ascii_case("/link") {
+                                    match state_clone.db.create_link_code(&display, &my_key_for_recv) {
+                                        Ok(code) => {
+                                            let sys = RelayMessage::System {
+                                                message: format!(
+                                                    "🔗 Link code: {}  — Enter this on your other device within 5 minutes. It can only be used once.",
+                                                    code
+                                                ),
+                                            };
+                                            // Send only to this client via broadcast
+                                            // (they'll see it because it's a system message).
+                                            let _ = state_clone.broadcast_tx.send(sys);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to create link code: {e}");
+                                            let sys = RelayMessage::System {
+                                                message: "Failed to generate link code.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(sys);
+                                        }
+                                    }
+                                    continue; // Don't broadcast /link as a chat message
+                                }
 
                                 let chat = RelayMessage::Chat {
                                     from: my_key_for_recv.clone(),

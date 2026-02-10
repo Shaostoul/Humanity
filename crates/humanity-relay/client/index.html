@@ -339,7 +339,9 @@
     <h1>🌍 Humanity Network</h1>
     <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
     <input type="text" id="name-input" placeholder="Your name" autofocus>
+    <input type="text" id="link-code-input" placeholder="Link code (optional, for linking devices)" style="margin-top:0.5rem; display:block;">
     <button onclick="connect()">Enter</button>
+    <p class="subtitle" id="login-error" style="color:#e74c3c; display:none;"></p>
     <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>
   </div>
 
@@ -393,9 +395,12 @@
     const savedName = localStorage.getItem('humanity_name');
     if (savedName) document.getElementById('name-input').value = savedName;
 
+    let pendingLinkCode = null;
+
     // ── Connect ──
     async function connect() {
       myName = document.getElementById('name-input').value.trim() || 'Anonymous';
+      pendingLinkCode = document.getElementById('link-code-input').value.trim() || null;
       localStorage.setItem('humanity_name', myName);
 
       // Initialize Ed25519 identity.
@@ -466,11 +471,16 @@
         reconnectDelay = 1000;
         clearTimeout(reconnectTimer);
 
-        ws.send(JSON.stringify({
+        const identifyMsg = {
           type: 'identify',
           public_key: myKey,
           display_name: myName,
-        }));
+        };
+        if (pendingLinkCode) {
+          identifyMsg.link_code = pendingLinkCode;
+          pendingLinkCode = null;
+        }
+        ws.send(JSON.stringify(identifyMsg));
 
         document.getElementById('msg-input').disabled = false;
         document.getElementById('send-btn').disabled = false;
@@ -539,6 +549,15 @@
           break;
         case 'system':
           addSystemMessage(msg.message);
+          break;
+        case 'name_taken':
+          // Go back to login screen with error.
+          document.getElementById('chat-screen').style.display = 'none';
+          document.getElementById('login-screen').style.display = 'flex';
+          const errEl = document.getElementById('login-error');
+          errEl.textContent = msg.message;
+          errEl.style.display = 'block';
+          if (ws) { ws.close(); ws = null; }
           break;
       }
     }
@@ -714,10 +733,36 @@
       windowFocused = false;
     });
 
+    // ── Notification Sound (synthesized chime) ──
+    let audioCtx = null;
+    function playNotificationChime() {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = audioCtx.currentTime;
+
+        // Two-tone warm chime: C5 then E5
+        const frequencies = [523.25, 659.25];
+        frequencies.forEach((freq, i) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0.15, now + i * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + i * 0.12);
+          osc.stop(now + i * 0.12 + 0.6);
+        });
+      } catch (e) { /* Audio not available */ }
+    }
+
     function notifyNewMessage(author, content) {
       if (windowFocused) return;
       unreadCount++;
       document.title = `(${unreadCount}) ${originalTitle}`;
+
+      playNotificationChime();
 
       // Browser notification (if permitted).
       if (Notification.permission === 'granted') {

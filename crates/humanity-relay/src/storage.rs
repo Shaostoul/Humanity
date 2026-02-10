@@ -44,6 +44,24 @@ impl Storage {
                 public_key  TEXT PRIMARY KEY,
                 display_name TEXT,
                 last_seen   INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS registered_names (
+                name        TEXT NOT NULL COLLATE NOCASE,
+                public_key  TEXT NOT NULL,
+                registered_at INTEGER NOT NULL,
+                PRIMARY KEY (name, public_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_registered_names_name
+                ON registered_names(name COLLATE NOCASE);
+
+            CREATE TABLE IF NOT EXISTS link_codes (
+                code        TEXT PRIMARY KEY,
+                name        TEXT NOT NULL COLLATE NOCASE,
+                created_by  TEXT NOT NULL,
+                created_at  INTEGER NOT NULL,
+                expires_at  INTEGER NOT NULL
             );"
         )?;
 
@@ -161,6 +179,101 @@ impl Storage {
             params![public_key, display_name, timestamp],
         )?;
         Ok(())
+    }
+
+    /// Check if a name is registered and whether the given key is authorized for it.
+    /// Returns: Ok(None) if name is free, Ok(Some(true)) if key is authorized,
+    /// Ok(Some(false)) if name is taken by other keys.
+    pub fn check_name(&self, name: &str, public_key: &str) -> Result<Option<bool>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM registered_names WHERE name = ?1 COLLATE NOCASE",
+            params![name],
+            |row| row.get(0),
+        )?;
+        if count == 0 {
+            return Ok(None); // Name is free
+        }
+        let authorized: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM registered_names WHERE name = ?1 COLLATE NOCASE AND public_key = ?2",
+            params![name, public_key],
+            |row| row.get(0),
+        )?;
+        Ok(Some(authorized > 0))
+    }
+
+    /// Register a name for a public key.
+    pub fn register_name(&self, name: &str, public_key: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        conn.execute(
+            "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
+            params![name, public_key, now],
+        )?;
+        Ok(())
+    }
+
+    /// Create a link code for adding a new device to an existing name.
+    /// Returns the generated code.
+    pub fn create_link_code(&self, name: &str, created_by: &str) -> Result<String, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let expires = now + 5 * 60 * 1000; // 5 minutes
+
+        // Simple random 6-char code from timestamp + key (no extra deps).
+        let raw = format!("{}{}{}", now, created_by, name);
+        let mut hash: u64 = 0;
+        for b in raw.bytes() {
+            hash = hash.wrapping_mul(31).wrapping_add(b as u64);
+        }
+        let code = format!("{:06X}", hash % 0xFFFFFF);
+
+        // Clean up expired codes first.
+        conn.execute("DELETE FROM link_codes WHERE expires_at < ?1", params![now])?;
+
+        conn.execute(
+            "INSERT INTO link_codes (code, name, created_by, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![code, name, created_by, now, expires],
+        )?;
+
+        Ok(code)
+    }
+
+    /// Redeem a link code: if valid, register the new key under the name.
+    /// Returns Ok(Some(name)) on success, Ok(None) if code is invalid/expired.
+    pub fn redeem_link_code(&self, code: &str, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+
+        let result = conn.query_row(
+            "SELECT name FROM link_codes WHERE code = ?1 COLLATE NOCASE AND expires_at > ?2",
+            params![code, now],
+            |row| row.get::<_, String>(0),
+        );
+
+        match result {
+            Ok(name) => {
+                // Delete the used code.
+                conn.execute("DELETE FROM link_codes WHERE code = ?1 COLLATE NOCASE", params![code])?;
+                // Register the new key.
+                conn.execute(
+                    "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
+                    params![name, public_key, now],
+                )?;
+                Ok(Some(name))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 
     /// Get total message count.
