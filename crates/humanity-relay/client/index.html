@@ -969,6 +969,9 @@
       <div class="cmd"><code>/revoke &lt;key_prefix&gt;</code> — Remove a lost/stolen device from your name</div>
       <div class="cmd"><code>/users</code> — List all registered users (online/offline)</div>
       <div class="cmd"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+      <div class="cmd"><code>/block &lt;name&gt;</code> — Block a user (hides their messages)</div>
+      <div class="cmd"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
+      <div class="cmd"><code>/blocklist</code> — Show your blocked users</div>
 
       <h4>✍️ Formatting</h4>
       <div class="cmd"><code>**bold**</code> → <strong>bold</strong></div>
@@ -1453,6 +1456,9 @@
 
     // ── Rendering ──
     function addChatMessage(author, body, timestamp, fromKey, isHistory, signed) {
+      // Skip messages from blocked users entirely.
+      if (author && isBlocked(author)) return;
+
       const el = document.createElement('div');
       el.className = 'message';
       el.dataset.from = fromKey;
@@ -1587,9 +1593,11 @@
         const escapedName = esc(u.name);
         const escapedKey = esc(u.public_key);
         const deviceCount = u.key_count > 1 ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
-        const dimStyle = u.online ? '' : ' style="opacity:0.5"';
+        const blocked = isBlocked(u.name);
+        const blockIndicator = blocked ? ' <span class="block-indicator" title="Blocked" style="font-size:0.65rem;">🚫</span>' : '';
+        const dimStyle = u.online ? (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : '') : (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : ' style="opacity:0.5"');
         return `<div class="peer${isMe ? ' is-you' : ''}" data-username="${escapedName}" data-pubkey="${escapedKey}"${dimStyle}>
-          ${icon} ${escapedName}${badge}${isMe ? ' (you)' : ''}${deviceCount}
+          ${icon} ${escapedName}${badge}${isMe ? ' (you)' : ''}${deviceCount}${blockIndicator}
         </div>`;
       }
 
@@ -1909,6 +1917,8 @@
     let lastTypingSent = 0;  // throttle outbound typing events
 
     function showTypingIndicator(name) {
+      // Suppress typing indicators from blocked users.
+      if (isBlocked(name)) return;
       // Track who is typing, clear after 3 seconds of no updates.
       const key = name;
       typingNames[key] = name;
@@ -2236,6 +2246,12 @@
       html += `<div class="ctx-item" onclick="viewProfileFromCtx()">👤 View Profile</div>`;
       html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
       if (name !== myName) {
+        // Block/unblock toggle.
+        if (isBlocked(name)) {
+          html += `<div class="ctx-item" onclick="unblockFromCtx()">✅ Unblock</div>`;
+        } else {
+          html += `<div class="ctx-item" onclick="blockFromCtx()">🚫 Block</div>`;
+        }
         html += `<div class="ctx-item" onclick="reportUser()">🚩 Report</div>`;
         html += '<div class="ctx-sep"></div>';
         html += `<div class="ctx-item" onclick="ctxCommand('/kick')">👢 Kick</div>`;
@@ -2302,6 +2318,20 @@
         timestamp: timestamp,
         channel: activeChannel,
       }));
+    }
+
+    function blockFromCtx() {
+      if (!ctxMenuTarget) return;
+      const name = ctxMenuTarget.name;
+      hideContextMenu();
+      blockUser(name);
+    }
+
+    function unblockFromCtx() {
+      if (!ctxMenuTarget) return;
+      const name = ctxMenuTarget.name;
+      hideContextMenu();
+      unblockUser(name);
     }
 
     function viewProfileFromCtx() {
@@ -2530,8 +2560,107 @@
       pendingProfileView = null;
     }
 
-    // Handle /profile command.
-    // Patching into the existing sendMessage to intercept /profile.
+    // ── Block List (client-side) ──
+    function getBlockList() {
+      try { return JSON.parse(localStorage.getItem('humanity_blocks') || '[]'); }
+      catch { return []; }
+    }
+    function setBlockList(list) {
+      localStorage.setItem('humanity_blocks', JSON.stringify(list));
+    }
+    function isBlocked(name) {
+      return getBlockList().some(b => b.toLowerCase() === name.toLowerCase());
+    }
+
+    function blockUser(name) {
+      if (name.toLowerCase() === myName.toLowerCase()) {
+        addSystemMessage("You can't block yourself.");
+        return;
+      }
+      const list = getBlockList();
+      if (list.some(b => b.toLowerCase() === name.toLowerCase())) {
+        addSystemMessage(`${name} is already blocked.`);
+        return;
+      }
+      list.push(name);
+      setBlockList(list);
+      addSystemMessage(`🚫 Blocked ${name}. Their messages are now hidden.`);
+      reRenderMessagesForBlockChange();
+      rerenderUserList();
+    }
+
+    function unblockUser(name) {
+      const list = getBlockList();
+      const idx = list.findIndex(b => b.toLowerCase() === name.toLowerCase());
+      if (idx === -1) {
+        addSystemMessage(`${name} is not blocked.`);
+        return;
+      }
+      list.splice(idx, 1);
+      setBlockList(list);
+      addSystemMessage(`✅ Unblocked ${name}.`);
+      reRenderMessagesForBlockChange();
+      rerenderUserList();
+    }
+
+    function showBlockList() {
+      const list = getBlockList();
+      if (list.length === 0) {
+        addSystemMessage('No blocked users.');
+      } else {
+        addSystemMessage('🚫 Blocked users: ' + list.join(', '));
+      }
+    }
+
+    // Re-filter visible messages after block/unblock change.
+    function reRenderMessagesForBlockChange() {
+      const container = document.getElementById('messages');
+      const msgs = container.querySelectorAll('.message[data-from]');
+      msgs.forEach(el => {
+        const authorEl = el.querySelector('.author');
+        if (!authorEl) return;
+        const authorName = authorEl.dataset.username;
+        if (authorName && isBlocked(authorName)) {
+          el.style.display = 'none';
+        } else {
+          el.style.display = '';
+        }
+      });
+    }
+
+    // Force re-render user list with updated block indicators.
+    function rerenderUserList() {
+      // Trigger a full_user_list refresh if we have cached data.
+      // The user list is already rendered from updateUserList; just re-render peer-list.
+      const list = document.getElementById('peer-list');
+      const peers = list.querySelectorAll('.peer[data-username]');
+      peers.forEach(el => {
+        const name = el.dataset.username;
+        if (!name) return;
+        const blocked = isBlocked(name);
+        // Add/remove blocked indicator.
+        let indicator = el.querySelector('.block-indicator');
+        if (blocked && !indicator) {
+          const span = document.createElement('span');
+          span.className = 'block-indicator';
+          span.textContent = ' 🚫';
+          span.title = 'Blocked';
+          span.style.fontSize = '0.65rem';
+          el.appendChild(span);
+          el.style.textDecoration = 'line-through';
+          el.style.opacity = '0.5';
+        } else if (!blocked && indicator) {
+          indicator.remove();
+          el.style.textDecoration = '';
+          el.style.opacity = el.classList.contains('is-you') ? '' : '';
+          // Restore original opacity from online/offline status.
+          if (el.style.opacity === '') el.removeAttribute('style');
+        }
+      });
+    }
+
+    // Handle /profile, /block, /unblock, /blocklist commands.
+    // Patching into the existing sendMessage to intercept client-side commands.
     const _origSendMessage2 = sendMessage;
     sendMessage = async function() {
       const input = document.getElementById('msg-input');
@@ -2540,6 +2669,27 @@
         input.value = '';
         openEditProfileModal();
         return;
+      }
+      if (val === '/blocklist') {
+        input.value = '';
+        showBlockList();
+        return;
+      }
+      if (val.startsWith('/block ') && !val.startsWith('/blocklist')) {
+        const name = val.substring(7).trim();
+        if (name) {
+          input.value = '';
+          blockUser(name);
+          return;
+        }
+      }
+      if (val.startsWith('/unblock ')) {
+        const name = val.substring(9).trim();
+        if (name) {
+          input.value = '';
+          unblockUser(name);
+          return;
+        }
       }
       await _origSendMessage2();
     };

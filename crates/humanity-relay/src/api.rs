@@ -298,14 +298,33 @@ pub struct GitHubCommit {
     pub url: Option<String>,
 }
 
-/// POST /api/github-webhook — receive GitHub push events and announce them (requires API_SECRET auth).
+/// Query params for GitHub webhook (secret as query param since GitHub can't send custom headers).
+#[derive(Debug, Deserialize)]
+pub struct WebhookQuery {
+    /// API secret passed as ?secret=... in the webhook URL.
+    #[serde(default)]
+    pub secret: String,
+}
+
+/// POST /api/github-webhook — receive GitHub push events and announce them.
+/// Accepts auth via either:
+///   1. Authorization: Bearer <token> header (bot API style)
+///   2. ?secret=<token> query param (GitHub webhook style)
 pub async fn github_webhook(
     State(state): State<Arc<RelayState>>,
     headers: HeaderMap,
+    Query(query): Query<WebhookQuery>,
     Json(payload): Json<GitHubPushEvent>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Authenticate.
-    check_api_auth(&headers)?;
+    // Authenticate via header OR query param.
+    let header_ok = check_api_auth(&headers).is_ok();
+    let query_ok = {
+        let expected = std::env::var("API_SECRET").unwrap_or_default();
+        !expected.is_empty() && !query.secret.is_empty() && query.secret == expected
+    };
+    if !header_ok && !query_ok {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing API token.".into()));
+    }
     let repo = payload.repository
         .as_ref()
         .and_then(|r| r.full_name.as_deref())
