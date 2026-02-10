@@ -6,6 +6,7 @@
 //! for signed, tamper-evident objects.
 
 use rusqlite::{Connection, params};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 use tracing::info;
@@ -102,7 +103,15 @@ impl Storage {
             );
 
             CREATE INDEX IF NOT EXISTS idx_user_uploads_key
-                ON user_uploads(public_key, id);"
+                ON user_uploads(public_key, id);
+
+            CREATE TABLE IF NOT EXISTS reports (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_key TEXT NOT NULL,
+                reported_name TEXT NOT NULL,
+                reason      TEXT NOT NULL DEFAULT '',
+                created_at  INTEGER NOT NULL
+            );"
         )?;
 
         // Migration: add channel_id column to messages if missing.
@@ -119,6 +128,15 @@ impl Storage {
         // Create index on channel_id for efficient per-channel queries.
         conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, id);"
+        )?;
+
+        // Migration: profiles table for user bios and social links.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS profiles (
+                name    TEXT PRIMARY KEY COLLATE NOCASE,
+                bio     TEXT NOT NULL DEFAULT '',
+                socials TEXT NOT NULL DEFAULT '{}'
+            );"
         )?;
 
         // Migration: add read_only column to channels if missing.
@@ -869,5 +887,147 @@ impl Storage {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
             Err(e) => Err(e),
         }
+    }
+
+    // ── Report methods ──
+
+    /// Add a report.
+    pub fn add_report(&self, reporter_key: &str, reported_name: &str, reason: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        conn.execute(
+            "INSERT INTO reports (reporter_key, reported_name, reason, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params![reporter_key, reported_name, reason, now],
+        )?;
+        Ok(())
+    }
+
+    /// Get recent reports (newest first).
+    pub fn get_reports(&self, limit: usize) -> Result<Vec<(i64, String, String, String, i64)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, reporter_key, reported_name, reason, created_at FROM reports ORDER BY id DESC LIMIT ?1"
+        )?;
+        let reports = stmt.query_map(params![limit], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(reports)
+    }
+
+    /// Count reports from a specific key since a given timestamp.
+    pub fn count_recent_reports(&self, reporter_key: &str, since_ms: i64) -> Result<usize, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM reports WHERE reporter_key = ?1 AND created_at > ?2",
+            params![reporter_key, since_ms],
+            |row| row.get(0),
+        )?;
+        Ok(count as usize)
+    }
+
+    /// Clear all reports. Returns number deleted.
+    pub fn clear_reports(&self) -> Result<usize, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute("DELETE FROM reports", [])?;
+        Ok(rows)
+    }
+
+    // ── Profile methods ──
+
+    /// Upsert a user profile (bio + socials JSON).
+    /// Validates: bio max 280 chars, socials must be valid JSON and max 1024 chars.
+    pub fn save_profile(&self, name: &str, bio: &str, socials: &str) -> Result<(), rusqlite::Error> {
+        // Validate bio length.
+        if bio.len() > 280 {
+            return Err(rusqlite::Error::QueryReturnedNoRows); // abuse as validation error
+        }
+        // Validate socials is valid JSON and within size limit.
+        if socials.len() > 1024 || serde_json::from_str::<serde_json::Value>(socials).is_err() {
+            return Err(rusqlite::Error::QueryReturnedNoRows);
+        }
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO profiles (name, bio, socials) VALUES (?1, ?2, ?3)
+             ON CONFLICT(name) DO UPDATE SET bio = ?2, socials = ?3",
+            params![name, bio, socials],
+        )?;
+        Ok(())
+    }
+
+    /// Get a user's profile. Returns (bio, socials) or None.
+    pub fn get_profile(&self, name: &str) -> Result<Option<(String, String)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT bio, socials FROM profiles WHERE name = ?1 COLLATE NOCASE",
+            params![name],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        ) {
+            Ok(profile) => Ok(Some(profile)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Bulk fetch profiles for a list of names.
+    pub fn get_profiles_batch(&self, names: &[String]) -> Result<HashMap<String, (String, String)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut result = HashMap::new();
+        // SQLite doesn't support array params, so we query one at a time.
+        // For typical user counts (<1000) this is fine.
+        let mut stmt = conn.prepare(
+            "SELECT name, bio, socials FROM profiles WHERE name = ?1 COLLATE NOCASE"
+        )?;
+        for name in names {
+            if let Ok(row) = stmt.query_row(params![name], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            }) {
+                result.insert(row.0.to_lowercase(), (row.1, row.2));
+            }
+        }
+        Ok(result)
+    }
+
+    /// List all registered users with their first public key.
+    /// Returns Vec<(name, first_key, role, key_count)> sorted alphabetically.
+    pub fn list_all_users_with_keys(&self) -> Result<Vec<(String, String, String, usize)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT rn.name, rn.public_key, COALESCE(ur.role, '') as role
+             FROM registered_names rn
+             LEFT JOIN user_roles ur ON rn.public_key = ur.public_key
+             ORDER BY rn.name COLLATE NOCASE, rn.registered_at ASC"
+        )?;
+        let rows: Vec<(String, String, String)> = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?.filter_map(|r| r.ok()).collect();
+
+        // Group by name, take highest role and first key.
+        let mut users: std::collections::BTreeMap<String, (String, String, usize)> = std::collections::BTreeMap::new();
+        let role_priority = |r: &str| -> u8 {
+            match r { "admin" => 4, "mod" => 3, "donor" => 2, "verified" => 1, _ => 0 }
+        };
+        for (name, key, role) in &rows {
+            let lower_name = name.to_lowercase();
+            let entry = users.entry(lower_name).or_insert((key.clone(), String::new(), 0));
+            entry.2 += 1; // key count
+            if role_priority(role) > role_priority(&entry.1) {
+                entry.1 = role.clone();
+            }
+        }
+        // Collect with original-case name from first occurrence.
+        let mut result = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for (name, _key, _role) in &rows {
+            let lower = name.to_lowercase();
+            if seen.insert(lower.clone()) {
+                if let Some((first_key, role, count)) = users.get(&lower) {
+                    result.push((name.clone(), first_key.clone(), role.clone(), *count));
+                }
+            }
+        }
+        Ok(result)
     }
 }

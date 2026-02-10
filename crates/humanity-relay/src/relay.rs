@@ -285,6 +285,33 @@ pub enum RelayMessage {
         from: String,
         from_name: Option<String>,
     },
+
+    /// Full user list (online + offline) for sidebar.
+    #[serde(rename = "full_user_list")]
+    FullUserList {
+        users: Vec<UserInfo>,
+    },
+
+    /// Client sends a profile update (bio + socials).
+    #[serde(rename = "profile_update")]
+    ProfileUpdate {
+        bio: String,
+        socials: String,
+    },
+
+    /// Server sends profile data for a specific user.
+    #[serde(rename = "profile_data")]
+    ProfileData {
+        name: String,
+        bio: String,
+        socials: String,
+    },
+
+    /// Client requests another user's profile.
+    #[serde(rename = "profile_request")]
+    ProfileRequest {
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -293,6 +320,16 @@ pub struct PeerInfo {
     pub display_name: Option<String>,
     #[serde(default)]
     pub role: String,
+}
+
+/// Info about a registered user (online or offline) for the full user list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserInfo {
+    pub name: String,
+    pub public_key: String,
+    pub role: String,
+    pub online: bool,
+    pub key_count: usize,
 }
 
 /// Handle a single WebSocket connection.
@@ -437,6 +474,39 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 let list_msg = serde_json::to_string(&RelayMessage::PeerList { peers }).unwrap();
                 let _ = ws_tx.send(Message::Text(list_msg.into())).await;
 
+                // Send full user list (online + offline) to the new peer.
+                if let Ok(all_users) = state.db.list_all_users_with_keys() {
+                    let online_names: std::collections::HashSet<String> = state
+                        .peers
+                        .read()
+                        .await
+                        .values()
+                        .filter_map(|p| p.display_name.clone())
+                        .map(|n| n.to_lowercase())
+                        .collect();
+                    let users: Vec<UserInfo> = all_users
+                        .into_iter()
+                        .map(|(name, first_key, role, key_count)| {
+                            let online = online_names.contains(&name.to_lowercase());
+                            UserInfo { name, public_key: first_key, role, online, key_count }
+                        })
+                        .collect();
+                    let ful_msg = serde_json::to_string(&RelayMessage::FullUserList { users }).unwrap();
+                    let _ = ws_tx.send(Message::Text(ful_msg.into())).await;
+                }
+
+                // Send the user's own profile data if it exists.
+                if let Some(ref name) = final_name {
+                    if let Ok(Some((bio, socials))) = state.db.get_profile(name) {
+                        let profile_msg = serde_json::to_string(&RelayMessage::ProfileData {
+                            name: name.clone(),
+                            bio,
+                            socials,
+                        }).unwrap();
+                        let _ = ws_tx.send(Message::Text(profile_msg.into())).await;
+                    }
+                }
+
                 // Send channel list.
                 if let Ok(channels) = state.db.list_channels() {
                     let channel_infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| {
@@ -453,6 +523,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     display_name: final_name,
                     role: peer_role.clone(),
                 });
+
+                // Broadcast updated full user list to all clients.
+                broadcast_full_user_list(&state).await;
 
                 // Auto-unlock: if an admin/mod connects and lockdown was auto-set, lift it.
                 if peer_role == "admin" || peer_role == "mod" {
@@ -519,6 +592,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     // Read incoming messages from the client.
     let state_clone = state.clone();
     let my_key_for_recv = my_key.clone();
+    let mut last_profile_update: Option<Instant> = None;
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_rx.next().await {
             match msg {
@@ -645,11 +719,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 "  /help — Show this message".to_string(),
                                                 "  /link — Generate a code to link another device".to_string(),
                                                 "  /revoke <key_prefix> — Remove a stolen/lost device from your name".to_string(),
+                                                "  /users — List all registered users (online/offline)".to_string(),
+                                                "  /report <name> [reason] — Report a user".to_string(),
                                             ];
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("".to_string());
                                                 help_text.push("🛡️ Moderator commands:".to_string());
-                                                help_text.push("  /users — List all registered users (online/offline)".to_string());
                                                 help_text.push("  /kick <name> — Disconnect a user".to_string());
                                                 help_text.push("  /mute <name> — Mute a user".to_string());
                                                 help_text.push("  /unmute <name> — Unmute a user".to_string());
@@ -677,6 +752,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /channel-readonly <name> — Toggle read-only on a channel".to_string());
                                                 help_text.push("  /channel-reorder <name> <pos> — Set channel sort order (lower = higher)".to_string());
                                                 help_text.push("  /name-release <name> — Release a name (for account recovery)".to_string());
+                                                help_text.push("  /reports — View recent reports".to_string());
+                                                help_text.push("  /reports-clear — Clear all reports".to_string());
                                             }
                                             help_text.push("".to_string());
                                             help_text.push("💡 Tips:".to_string());
@@ -921,6 +998,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                             // Broadcast updated peer list so badges refresh.
                                                             broadcast_peer_list(&state_clone).await;
+                                                            broadcast_full_user_list(&state_clone).await;
                                                         }
                                                         _ => {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
@@ -951,6 +1029,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("💎 {} is now a donor. Thank you!", target_name) };
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                             broadcast_peer_list(&state_clone).await;
+                                                            broadcast_full_user_list(&state_clone).await;
                                                         }
                                                         _ => {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
@@ -981,6 +1060,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("{} is no longer verified.", target_name) };
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                             broadcast_peer_list(&state_clone).await;
+                                                            broadcast_full_user_list(&state_clone).await;
                                                         }
                                                         _ => {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
@@ -1050,11 +1130,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             }
                                         }
                                         "/users" => {
-                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" && role != "mod" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can list users.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
+                                            {
                                                 match state_clone.db.list_all_users() {
                                                     Ok(users) => {
                                                         let online_names: std::collections::HashSet<String> = state_clone.peers.read().await.values()
@@ -1137,6 +1213,120 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 let _ = state_clone.broadcast_tx.send(private);
                                                 // Refresh peer list after role/status changes.
                                                 broadcast_peer_list(&state_clone).await;
+                                                broadcast_full_user_list(&state_clone).await;
+                                            }
+                                        }
+                                        "/report" => {
+                                            // /report <name> [reason] — available to all users.
+                                            let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
+                                            let target_name = parts.get(1).unwrap_or(&"").to_string();
+                                            let reason = parts.get(2).unwrap_or(&"").to_string();
+                                            if target_name.is_empty() {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /report <name> [reason]".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else if target_name.eq_ignore_ascii_case(&display) {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "You can't report yourself.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                // Check target exists.
+                                                match state_clone.db.keys_for_name(&target_name) {
+                                                    Ok(keys) if !keys.is_empty() => {
+                                                        // Rate limit check.
+                                                        let now_ms = std::time::SystemTime::now()
+                                                            .duration_since(std::time::UNIX_EPOCH)
+                                                            .unwrap_or_default()
+                                                            .as_millis() as i64;
+                                                        let one_hour_ago = now_ms - 3_600_000;
+                                                        let recent_count = state_clone.db.count_recent_reports(&my_key_for_recv, one_hour_ago).unwrap_or(0);
+                                                        let reporter_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                                        let max_reports: usize = if reporter_role == "verified" || reporter_role == "donor" { 5 } else { 3 };
+                                                        if recent_count >= max_reports {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("You've reached the report limit ({} per hour). Please wait.", max_reports) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        } else {
+                                                            // Store report.
+                                                            if let Err(e) = state_clone.db.add_report(&my_key_for_recv, &target_name, &reason) {
+                                                                tracing::error!("Failed to add report: {e}");
+                                                            }
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("✅ Report submitted for {}.", target_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                            // Notify all online admins.
+                                                            let reason_display = if reason.is_empty() { "(no reason)".to_string() } else { reason.clone() };
+                                                            let peers = state_clone.peers.read().await;
+                                                            for p in peers.values() {
+                                                                let pr = state_clone.db.get_role(&p.public_key_hex).unwrap_or_default();
+                                                                if pr == "admin" || pr == "mod" {
+                                                                    let notif = RelayMessage::Private {
+                                                                        to: p.public_key_hex.clone(),
+                                                                        message: format!("⚠️ New report: {} reported {} — {}", display, target_name, reason_display),
+                                                                    };
+                                                                    let _ = state_clone.broadcast_tx.send(notif);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    _ => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/reports" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" && role != "mod" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can view reports.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.get_reports(20) {
+                                                    Ok(reports) if reports.is_empty() => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "No reports.".to_string() };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Ok(reports) => {
+                                                        let now_ms = std::time::SystemTime::now()
+                                                            .duration_since(std::time::UNIX_EPOCH)
+                                                            .unwrap_or_default()
+                                                            .as_millis() as i64;
+                                                        let mut lines = vec!["📋 Recent reports:".to_string()];
+                                                        for (id, reporter_key, reported_name, reason, created_at) in &reports {
+                                                            let ago_secs = ((now_ms - created_at) / 1000).max(0);
+                                                            let time_ago = if ago_secs < 60 { format!("{}s ago", ago_secs) }
+                                                                else if ago_secs < 3600 { format!("{}m ago", ago_secs / 60) }
+                                                                else if ago_secs < 86400 { format!("{}h ago", ago_secs / 3600) }
+                                                                else { format!("{}d ago", ago_secs / 86400) };
+                                                            let reporter_short = if reporter_key.len() > 8 { &reporter_key[..8] } else { reporter_key };
+                                                            let reason_display = if reason.is_empty() { "(no reason)" } else { reason.as_str() };
+                                                            lines.push(format!("  {} | {}… → {} | {} | {}", id, reporter_short, reported_name, reason_display, time_ago));
+                                                        }
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: lines.join("\n") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Failed to get reports: {e}");
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/reports-clear" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can clear reports.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.clear_reports() {
+                                                    Ok(count) => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("🧹 Cleared {} report(s).", count) };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Failed to clear reports: {e}");
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                }
                                             }
                                         }
                                         _ => {
@@ -1237,6 +1427,113 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 };
                                 let _ = state_clone.broadcast_tx.send(del);
                             }
+                            // Profile update — save and broadcast.
+                            RelayMessage::ProfileUpdate { bio, socials } => {
+                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
+                                let display = peer.as_ref().and_then(|p| p.display_name.clone());
+                                if let Some(ref name) = display {
+                                    // Rate limit: max 1 profile update per 30 seconds.
+                                    let now = Instant::now();
+                                    if let Some(last) = last_profile_update {
+                                        if now.duration_since(last).as_secs() < 30 {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "⏳ Profile update rate limited. Please wait 30 seconds between updates.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                            continue;
+                                        }
+                                    }
+
+                                    // Sanitize: strip HTML tags from bio.
+                                    let clean_bio: String = {
+                                        let mut result = String::new();
+                                        let mut in_tag = false;
+                                        for ch in bio.chars() {
+                                            match ch {
+                                                '<' => in_tag = true,
+                                                '>' => { in_tag = false; }
+                                                _ if !in_tag => result.push(ch),
+                                                _ => {}
+                                            }
+                                        }
+                                        result
+                                    };
+
+                                    // Validate bio length.
+                                    if clean_bio.len() > 280 {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Bio too long (max 280 characters).".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
+
+                                    // Validate socials JSON.
+                                    if socials.len() > 1024 || serde_json::from_str::<serde_json::Value>(&socials).is_err() {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Invalid socials data.".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
+
+                                    // Save to DB.
+                                    match state_clone.db.save_profile(name, &clean_bio, &socials) {
+                                        Ok(()) => {
+                                            last_profile_update = Some(now);
+                                            // Broadcast profile data to all peers.
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
+                                                name: name.clone(),
+                                                bio: clean_bio,
+                                                socials,
+                                            });
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to save profile: {e}");
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Failed to save profile.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                    }
+                                } else {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You must have a registered name to set a profile.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                }
+                            }
+                            // Profile request — look up and send back privately.
+                            RelayMessage::ProfileRequest { name } => {
+                                match state_clone.db.get_profile(&name) {
+                                    Ok(Some((bio, socials))) => {
+                                        let pd = RelayMessage::ProfileData {
+                                            name: name.clone(),
+                                            bio,
+                                            socials,
+                                        };
+                                        // Profile data is public — broadcast to all. The requesting
+                                        // client will pick it up and display it.
+                                        let _ = state_clone.broadcast_tx.send(pd);
+                                    }
+                                    Ok(None) => {
+                                        // Send empty profile.
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
+                                            name: name.clone(),
+                                            bio: String::new(),
+                                            socials: "{}".to_string(),
+                                        });
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to get profile: {e}");
+                                    }
+                                }
+                            }
                             _ => {
                                 // Ignore other message types from clients.
                             }
@@ -1262,6 +1559,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
         public_key: my_key,
     });
+
+    // Broadcast updated full user list to all clients.
+    broadcast_full_user_list(&state).await;
 
     // Auto-lockdown: if no admins/mods remain, enable lockdown automatically.
     if disconnected_role == "admin" || disconnected_role == "mod" {
@@ -1304,6 +1604,30 @@ async fn broadcast_peer_list(state: &Arc<RelayState>) {
         })
         .collect();
     let _ = state.broadcast_tx.send(RelayMessage::PeerList { peers });
+}
+
+/// Broadcast the full user list (online + offline) to all connected clients.
+async fn broadcast_full_user_list(state: &Arc<RelayState>) {
+    if let Ok(all_users) = state.db.list_all_users_with_keys() {
+        let online_names: std::collections::HashSet<String> = state
+            .peers
+            .read()
+            .await
+            .values()
+            .filter_map(|p| p.display_name.clone())
+            .map(|n| n.to_lowercase())
+            .collect();
+
+        let users: Vec<UserInfo> = all_users
+            .into_iter()
+            .map(|(name, first_key, role, key_count)| {
+                let online = online_names.contains(&name.to_lowercase());
+                UserInfo { name, public_key: first_key, role, online, key_count }
+            })
+            .collect();
+
+        let _ = state.broadcast_tx.send(RelayMessage::FullUserList { users });
+    }
 }
 
 /// Handle moderation commands. Returns a status message for the caller.

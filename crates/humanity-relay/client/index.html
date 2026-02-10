@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Humanity Network</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <style>
     :root {
       --bg: #0d0d0d;
@@ -710,6 +712,173 @@
       header h1 { font-size: 0.9rem; }
       #msg-input { font-size: 16px; } /* Prevent iOS zoom */
     }
+
+    /* ── Profile Modals ── */
+    .profile-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 150;
+      align-items: center;
+      justify-content: center;
+    }
+    .profile-modal-overlay.open { display: flex; }
+
+    .profile-modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-width: 480px;
+      width: 90%;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 1.2rem;
+      position: relative;
+    }
+
+    .profile-modal h2 {
+      font-size: 1rem;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .profile-modal label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.2rem;
+      margin-top: 0.6rem;
+    }
+
+    .profile-modal textarea,
+    .profile-modal input[type="text"] {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.45rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      outline: none;
+      resize: vertical;
+    }
+
+    .profile-modal textarea:focus,
+    .profile-modal input[type="text"]:focus { border-color: var(--accent); }
+
+    .profile-modal .bio-counter {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-align: right;
+      margin-top: 0.1rem;
+    }
+    .profile-modal .bio-counter.warn { color: var(--warning); }
+    .profile-modal .bio-counter.over { color: var(--danger); font-weight: 600; }
+
+    .profile-modal .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      justify-content: flex-end;
+    }
+
+    .profile-modal .btn-save {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.45rem 1.2rem;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .profile-modal .btn-save:hover { background: var(--accent-hover); }
+
+    .profile-modal .btn-cancel {
+      background: var(--bg-input);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 0.45rem 1.2rem;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .profile-modal .btn-cancel:hover { color: var(--text); border-color: var(--text-muted); }
+
+    .profile-modal .close-btn {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.8rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    .profile-modal .close-btn:hover { color: var(--text); }
+
+    /* ── View Profile Card ── */
+    .profile-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .profile-card-header .identicon-large {
+      width: 64px;
+      height: 64px;
+      border-radius: 6px;
+    }
+    .profile-card-header .profile-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .profile-card-bio {
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.5;
+      margin-bottom: 0.75rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .profile-card-socials {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.75rem;
+    }
+    .profile-card-socials a {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.8rem;
+    }
+    .profile-card-socials a:hover { text-decoration: underline; }
+    .profile-card-socials .social-item {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .profile-card-socials .social-label {
+      color: var(--text-muted);
+      min-width: 70px;
+      display: inline-block;
+    }
+    .profile-card-key {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-family: monospace;
+      cursor: pointer;
+      word-break: break-all;
+    }
+    .profile-card-key:hover { color: var(--accent); }
+    .profile-card-empty {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-style: italic;
+      margin: 0.75rem 0;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
@@ -749,7 +918,7 @@
         <span id="stats"></span>
       </div>
       <div style="display:flex;align-items:center;gap:0.5rem;">
-        <button id="people-toggle" onclick="document.getElementById('right-sidebar').classList.toggle('open')" title="Online users">👤</button>
+        <button id="people-toggle" onclick="document.getElementById('right-sidebar').classList.toggle('open')" title="Users">👤</button>
         <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
       </div>
     </header>
@@ -759,6 +928,7 @@
         <div id="my-identity" style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.75rem; word-break:break-all;">
           <div id="my-key-display" style="font-family:monospace; font-size:0.6rem;"></div>
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
+          <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
         </div>
         <h3>Channels</h3>
         <div id="channel-list"></div>
@@ -780,7 +950,7 @@
         </div>
       </div>
       <div id="right-sidebar">
-        <h3>Online</h3>
+        <h3>Users</h3>
         <div id="peer-list"></div>
       </div>
     </div>
@@ -794,8 +964,11 @@
 
       <h4>💬 Basic Commands</h4>
       <div class="cmd"><code>/help</code> — Show available commands</div>
+      <div class="cmd"><code>/profile</code> — Open your profile editor (bio &amp; socials)</div>
       <div class="cmd"><code>/link</code> — Generate a code to link another device</div>
       <div class="cmd"><code>/revoke &lt;key_prefix&gt;</code> — Remove a lost/stolen device from your name</div>
+      <div class="cmd"><code>/users</code> — List all registered users (online/offline)</div>
+      <div class="cmd"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
 
       <h4>✍️ Formatting</h4>
       <div class="cmd"><code>**bold**</code> → <strong>bold</strong></div>
@@ -826,11 +999,48 @@
       <div class="cmd"><code>/channel-reorder &lt;name&gt; &lt;pos&gt;</code> — Set channel sort position (lower = higher)</div>
       <div class="cmd"><code>/invite</code> — Generate an invite code for lockdown bypass</div>
       <div class="cmd"><code>/name-release &lt;name&gt;</code> — Release a name for re-registration</div>
+      <div class="cmd"><code>/reports</code> — View recent reports</div>
+      <div class="cmd"><code>/reports-clear</code> — Clear all reports</div>
     </div>
   </div>
 
   <!-- User Context Menu -->
   <div id="user-context-menu"></div>
+
+  <!-- Edit Profile Modal -->
+  <div id="edit-profile-overlay" class="profile-modal-overlay" onclick="closeEditProfileModal(event)">
+    <div class="profile-modal" onclick="event.stopPropagation()">
+      <button class="close-btn" onclick="closeEditProfileOverlay()">✕</button>
+      <h2>✏️ Edit Profile</h2>
+      <label for="profile-bio">Bio</label>
+      <textarea id="profile-bio" rows="3" maxlength="280" placeholder="Tell people about yourself…"></textarea>
+      <div class="bio-counter" id="bio-counter">0 / 280</div>
+      <label for="profile-website">🌐 Website</label>
+      <input type="text" id="profile-website" maxlength="200" placeholder="https://yoursite.com">
+      <label for="profile-discord">💬 Discord</label>
+      <input type="text" id="profile-discord" maxlength="100" placeholder="username">
+      <label for="profile-twitter">𝕏 X / Twitter</label>
+      <input type="text" id="profile-twitter" maxlength="100" placeholder="handle (without @)">
+      <label for="profile-youtube">▶️ YouTube</label>
+      <input type="text" id="profile-youtube" maxlength="200" placeholder="https://youtube.com/@channel or channel name">
+      <label for="profile-github">🐙 GitHub</label>
+      <input type="text" id="profile-github" maxlength="200" placeholder="username">
+      <div class="btn-row">
+        <button class="btn-cancel" onclick="closeEditProfileOverlay()">Cancel</button>
+        <button class="btn-save" onclick="saveProfile()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Profile Modal -->
+  <div id="view-profile-overlay" class="profile-modal-overlay" onclick="closeViewProfileModal(event)">
+    <div class="profile-modal" id="view-profile-card" onclick="event.stopPropagation()">
+      <button class="close-btn" onclick="closeViewProfileOverlay()">✕</button>
+      <div id="view-profile-content">
+        <div style="color:var(--text-muted);font-style:italic;">Loading profile…</div>
+      </div>
+    </div>
+  </div>
 
   <script src="crypto.js"></script>
   <script>
@@ -951,6 +1161,9 @@
       document.getElementById('my-sign-status').innerHTML = myIdentity.canSign
         ? '<span style="color:var(--success)">✓ Signing enabled</span>'
         : '<span style="color:var(--warning)">⚠ Unsigned mode</span>';
+
+      // Sync profile to server on connect.
+      try { syncProfileOnConnect(); } catch (e) { console.warn('Profile sync error:', e); }
 
       // Don't load history here — wait for channel_list to arrive,
       // then switchChannel will load it.
@@ -1133,6 +1346,9 @@
           }
           updatePeerList(msg.peers);
           break;
+        case 'full_user_list':
+          updateUserList(msg.users || []);
+          break;
         case 'typing': {
           // Show "X is typing…" indicator, clear after 3 seconds.
           const typerName = msg.from_name || shortKey(msg.from);
@@ -1147,6 +1363,29 @@
           // Remove the deleted message from the DOM.
           const msgs = document.querySelectorAll('.message[data-from="' + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
           msgs.forEach(m => m.remove());
+          break;
+        }
+        case 'profile_data': {
+          // Cache profile data and show if we were waiting for it.
+          if (msg.name) {
+            profileCache[msg.name.toLowerCase()] = { bio: msg.bio || '', socials: msg.socials || '{}' };
+            // If we have a pending view for this user, show it.
+            if (pendingProfileView && pendingProfileView.name.toLowerCase() === msg.name.toLowerCase()) {
+              showViewProfileCard(pendingProfileView.name, pendingProfileView.publicKey, msg.bio || '', msg.socials || '{}');
+              pendingProfileView = null;
+            }
+            // If this is our own profile data on connect, update local storage.
+            if (msg.name.toLowerCase() === myName.toLowerCase()) {
+              try {
+                const socials = JSON.parse(msg.socials || '{}');
+                // Only overwrite local if server has data and local is empty.
+                const local = loadProfileLocal();
+                if ((!local.bio && !local.socials) || (Object.keys(local.socials || {}).length === 0 && !local.bio)) {
+                  saveProfileLocal(msg.bio || '', socials);
+                }
+              } catch {}
+            }
+          }
           break;
         }
         case 'system':
@@ -1324,40 +1563,46 @@
     }
 
     function updatePeerList(peers) {
-      const list = document.getElementById('peer-list');
-
-      // Store peer data globally for context menu.
-      peerData = {};
+      // Update peerData from peer_list (online peers only — for backwards compat).
       for (const p of peers) {
         peerData[p.public_key] = p;
       }
+    }
 
-      // Merge peers with the same display name (multi-device users).
-      const byName = {};
-      for (const p of peers) {
-        const name = p.display_name || 'Anonymous';
-        if (!byName[name]) {
-          byName[name] = { name, keys: [], isMe: false, role: p.role || '' };
-        }
-        byName[name].keys.push(p.public_key);
-        if (p.public_key === myKey) byName[name].isMe = true;
-        // Use the highest role among devices.
-        const rolePriority = { admin: 4, mod: 3, verified: 2, donor: 1 };
-        if ((rolePriority[p.role] || 0) > (rolePriority[byName[name].role] || 0)) {
-          byName[name].role = p.role;
-        }
+    function updateUserList(users) {
+      const list = document.getElementById('peer-list');
+
+      // Update peerData from full user list.
+      for (const u of users) {
+        peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '' };
       }
 
-      list.innerHTML = Object.values(byName).map(g => {
-        const deviceCount = g.keys.length > 1 ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${g.keys.length} devices)</span>` : '';
-        const icon = g.keys[0] && !g.keys[0].startsWith('bot_') ? `<img src="${generateIdenticon(g.keys[0], 16)}" class="identicon" style="width:14px;height:14px;">` : '';
-        const badge = roleBadge(g.role);
-        const escapedName = esc(g.name);
-        const escapedKey = esc(g.keys[0]);
-        return `<div class="peer${g.isMe ? ' is-you' : ''}" data-username="${escapedName}" data-pubkey="${escapedKey}">
-          ${icon} ${escapedName}${badge}${g.isMe ? ' (you)' : ''}${deviceCount}
+      const online = users.filter(u => u.online);
+      const offline = users.filter(u => !u.online);
+
+      function renderUser(u) {
+        const isMe = u.name === myName;
+        const icon = u.public_key && !u.public_key.startsWith('bot_') ? `<img src="${generateIdenticon(u.public_key, 16)}" class="identicon" style="width:14px;height:14px;">` : '';
+        const badge = roleBadge(u.role);
+        const escapedName = esc(u.name);
+        const escapedKey = esc(u.public_key);
+        const deviceCount = u.key_count > 1 ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
+        const dimStyle = u.online ? '' : ' style="opacity:0.5"';
+        return `<div class="peer${isMe ? ' is-you' : ''}" data-username="${escapedName}" data-pubkey="${escapedKey}"${dimStyle}>
+          ${icon} ${escapedName}${badge}${isMe ? ' (you)' : ''}${deviceCount}
         </div>`;
-      }).join('');
+      }
+
+      let html = '';
+      html += `<div style="font-size:0.6rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">Online (${online.length})</div>`;
+      html += online.map(renderUser).join('');
+      if (offline.length > 0) {
+        html += `<div style="height:1px;background:var(--border);margin:0.5rem 0;"></div>`;
+        html += `<div style="font-size:0.6rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">Offline (${offline.length})</div>`;
+        html += offline.map(renderUser).join('');
+      }
+
+      list.innerHTML = html;
       if (window.twemoji) twemoji.parse(list);
     }
 
@@ -1988,8 +2233,10 @@
       ctxMenuTarget = { name, publicKey };
 
       let html = '';
+      html += `<div class="ctx-item" onclick="viewProfileFromCtx()">👤 View Profile</div>`;
       html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
       if (name !== myName) {
+        html += `<div class="ctx-item" onclick="reportUser()">🚩 Report</div>`;
         html += '<div class="ctx-sep"></div>';
         html += `<div class="ctx-item" onclick="ctxCommand('/kick')">👢 Kick</div>`;
         html += `<div class="ctx-item" onclick="ctxCommand('/mute')">🔇 Mute</div>`;
@@ -2039,6 +2286,32 @@
       hideContextMenu();
     }
 
+    function reportUser() {
+      if (!ctxMenuTarget || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const targetName = ctxMenuTarget.name;
+      hideContextMenu();
+      const reason = prompt(`Report ${targetName}?\nEnter a reason (optional):`);
+      if (reason === null) return; // User cancelled
+      const content = reason ? `/report ${targetName} ${reason}` : `/report ${targetName}`;
+      const timestamp = Date.now();
+      ws.send(JSON.stringify({
+        type: 'chat',
+        from: myKey,
+        from_name: myName,
+        content: content,
+        timestamp: timestamp,
+        channel: activeChannel,
+      }));
+    }
+
+    function viewProfileFromCtx() {
+      if (!ctxMenuTarget) return;
+      const name = ctxMenuTarget.name;
+      const pk = ctxMenuTarget.publicKey;
+      hideContextMenu();
+      requestViewProfile(name, pk);
+    }
+
     // Close context menu on click outside.
     document.addEventListener('click', (e) => {
       if (!ctxMenu.contains(e.target)) hideContextMenu();
@@ -2054,6 +2327,222 @@
 
     // Store peer data (with roles) for context menu lookups.
     let peerData = {};
+
+    // ── Profile System ──
+    let profileCache = {}; // name (lowercase) → { bio, socials }
+    let lastProfileUpdateSent = 0;
+    let pendingProfileView = null; // name we're waiting for profile_data on
+
+    // Local storage for offline profile editing.
+    function saveProfileLocal(bio, socials) {
+      localStorage.setItem('humanity_profile', JSON.stringify({ bio, socials }));
+    }
+    function loadProfileLocal() {
+      try {
+        return JSON.parse(localStorage.getItem('humanity_profile') || '{}');
+      } catch { return {}; }
+    }
+
+    // ── Edit Profile Modal ──
+    function openEditProfileModal() {
+      const overlay = document.getElementById('edit-profile-overlay');
+      const local = loadProfileLocal();
+      const socials = local.socials || {};
+      document.getElementById('profile-bio').value = local.bio || '';
+      document.getElementById('profile-website').value = socials.website || '';
+      document.getElementById('profile-discord').value = socials.discord || '';
+      document.getElementById('profile-twitter').value = socials.twitter || '';
+      document.getElementById('profile-youtube').value = socials.youtube || '';
+      document.getElementById('profile-github').value = socials.github || '';
+      updateBioCounter();
+      overlay.classList.add('open');
+    }
+
+    function closeEditProfileModal(e) {
+      if (e.target === document.getElementById('edit-profile-overlay')) {
+        closeEditProfileOverlay();
+      }
+    }
+    function closeEditProfileOverlay() {
+      document.getElementById('edit-profile-overlay').classList.remove('open');
+    }
+
+    function updateBioCounter() {
+      const bio = document.getElementById('profile-bio').value;
+      const counter = document.getElementById('bio-counter');
+      counter.textContent = bio.length + ' / 280';
+      counter.className = 'bio-counter' + (bio.length > 280 ? ' over' : bio.length > 240 ? ' warn' : '');
+    }
+
+    document.getElementById('profile-bio').addEventListener('input', updateBioCounter);
+
+    function saveProfile() {
+      const bio = document.getElementById('profile-bio').value.trim().substring(0, 280);
+      const socials = {
+        website: document.getElementById('profile-website').value.trim().substring(0, 200),
+        discord: document.getElementById('profile-discord').value.trim().substring(0, 100),
+        twitter: document.getElementById('profile-twitter').value.trim().substring(0, 100),
+        youtube: document.getElementById('profile-youtube').value.trim().substring(0, 200),
+        github: document.getElementById('profile-github').value.trim().substring(0, 200),
+      };
+
+      // Remove empty fields.
+      const cleanSocials = {};
+      for (const [k, v] of Object.entries(socials)) {
+        if (v) cleanSocials[k] = v;
+      }
+
+      saveProfileLocal(bio, cleanSocials);
+
+      // Send to server if connected.
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const now = Date.now();
+        if (now - lastProfileUpdateSent < 30000) {
+          addSystemMessage('⏳ Please wait 30 seconds between profile updates.');
+        } else {
+          lastProfileUpdateSent = now;
+          ws.send(JSON.stringify({
+            type: 'profile_update',
+            bio: bio,
+            socials: JSON.stringify(cleanSocials),
+          }));
+          addSystemMessage('Profile saved.');
+        }
+      } else {
+        addSystemMessage('Profile saved locally. It will sync when you connect.');
+      }
+
+      closeEditProfileOverlay();
+    }
+
+    // Send stored profile on connect.
+    function syncProfileOnConnect() {
+      const local = loadProfileLocal();
+      if (local.bio || (local.socials && Object.keys(local.socials).length > 0)) {
+        const socialsStr = JSON.stringify(local.socials || {});
+        ws.send(JSON.stringify({
+          type: 'profile_update',
+          bio: local.bio || '',
+          socials: socialsStr,
+        }));
+        lastProfileUpdateSent = Date.now();
+      }
+    }
+
+    // ── View Profile Modal ──
+    function requestViewProfile(name, publicKey) {
+      pendingProfileView = { name, publicKey };
+      // Check cache first.
+      const cached = profileCache[name.toLowerCase()];
+      if (cached) {
+        showViewProfileCard(name, publicKey, cached.bio, cached.socials);
+        return;
+      }
+      // Request from server.
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'profile_request', name: name }));
+        // Show loading state.
+        document.getElementById('view-profile-content').innerHTML =
+          '<div style="color:var(--text-muted);font-style:italic;">Loading profile…</div>';
+        document.getElementById('view-profile-overlay').classList.add('open');
+      }
+    }
+
+    function showViewProfileCard(name, publicKey, bio, socialsStr) {
+      let socials = {};
+      try { socials = JSON.parse(socialsStr || '{}'); } catch {}
+
+      const identiconSrc = publicKey && !publicKey.startsWith('bot_')
+        ? generateIdenticon(publicKey, 64) : '';
+      const identiconHtml = identiconSrc
+        ? '<img src="' + identiconSrc + '" class="identicon-large" alt="">' : '';
+
+      // Look up role.
+      const peerRole = (peerData[publicKey] && peerData[publicKey].role) ? peerData[publicKey].role : '';
+      const badge = roleBadge(peerRole);
+
+      let html = '<div class="profile-card-header">';
+      html += identiconHtml;
+      html += '<div><div class="profile-name">' + esc(name) + badge + '</div></div>';
+      html += '</div>';
+
+      const hasBio = bio && bio.trim().length > 0;
+      const hasSocials = Object.values(socials).some(v => v && v.trim());
+
+      if (!hasBio && !hasSocials) {
+        html += '<div class="profile-card-empty">This user hasn\'t set up their profile yet.</div>';
+      } else {
+        if (hasBio) {
+          html += '<div class="profile-card-bio">' + esc(bio) + '</div>';
+        }
+        if (hasSocials) {
+          html += '<div class="profile-card-socials">';
+          if (socials.website) {
+            const url = socials.website;
+            if (url.startsWith('https://')) {
+              html += '<div class="social-item"><span class="social-label">🌐 Website</span> <a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a></div>';
+            } else {
+              html += '<div class="social-item"><span class="social-label">🌐 Website</span> ' + esc(url) + '</div>';
+            }
+          }
+          if (socials.discord) {
+            html += '<div class="social-item"><span class="social-label">💬 Discord</span> ' + esc(socials.discord) + '</div>';
+          }
+          if (socials.twitter) {
+            const handle = socials.twitter.replace(/^@/, '');
+            html += '<div class="social-item"><span class="social-label">𝕏 Twitter</span> <a href="https://x.com/' + esc(handle) + '" target="_blank" rel="noopener">@' + esc(handle) + '</a></div>';
+          }
+          if (socials.youtube) {
+            const yt = socials.youtube;
+            if (yt.startsWith('https://')) {
+              html += '<div class="social-item"><span class="social-label">▶️ YouTube</span> <a href="' + esc(yt) + '" target="_blank" rel="noopener">' + esc(yt) + '</a></div>';
+            } else {
+              const ytUrl = 'https://youtube.com/@' + yt;
+              html += '<div class="social-item"><span class="social-label">▶️ YouTube</span> <a href="' + esc(ytUrl) + '" target="_blank" rel="noopener">@' + esc(yt) + '</a></div>';
+            }
+          }
+          if (socials.github) {
+            const gh = socials.github.replace(/^@/, '');
+            html += '<div class="social-item"><span class="social-label">🐙 GitHub</span> <a href="https://github.com/' + esc(gh) + '" target="_blank" rel="noopener">' + esc(gh) + '</a></div>';
+          }
+          html += '</div>';
+        }
+      }
+
+      // Public key (click to copy).
+      if (publicKey) {
+        const shortPk = publicKey.length > 24 ? publicKey.substring(0, 24) + '…' : publicKey;
+        html += '<div class="profile-card-key" onclick="navigator.clipboard.writeText(\'' + esc(publicKey) + '\').then(()=>addSystemMessage(\'Public key copied.\'))" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
+      }
+
+      document.getElementById('view-profile-content').innerHTML = html;
+      if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
+      document.getElementById('view-profile-overlay').classList.add('open');
+    }
+
+    function closeViewProfileModal(e) {
+      if (e.target === document.getElementById('view-profile-overlay')) {
+        closeViewProfileOverlay();
+      }
+    }
+    function closeViewProfileOverlay() {
+      document.getElementById('view-profile-overlay').classList.remove('open');
+      pendingProfileView = null;
+    }
+
+    // Handle /profile command.
+    // Patching into the existing sendMessage to intercept /profile.
+    const _origSendMessage2 = sendMessage;
+    sendMessage = async function() {
+      const input = document.getElementById('msg-input');
+      const val = input.value.trim();
+      if (val === '/profile') {
+        input.value = '';
+        openEditProfileModal();
+        return;
+      }
+      await _origSendMessage2();
+    };
   </script>
 </body>
 </html>
