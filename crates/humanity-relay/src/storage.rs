@@ -596,6 +596,16 @@ impl Storage {
         Ok(rows)
     }
 
+    /// Delete all messages in a specific channel.
+    pub fn wipe_channel_messages(&self, channel_id: &str) -> Result<usize, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "DELETE FROM messages WHERE channel_id = ?1",
+            params![channel_id],
+        )?;
+        Ok(rows)
+    }
+
     /// Garbage collect inactive names.
     /// Finds names where no messages exist from any of the name's keys in the
     /// last `days` days AND all keys have role "" or "user" (not privileged).

@@ -667,7 +667,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /unverify <name> — Remove verified status".to_string());
                                                 help_text.push("  /lockdown — Toggle registration lockdown".to_string());
                                                 help_text.push("  /invite — Generate invite code for lockdown bypass".to_string());
-                                                help_text.push("  /wipe — Delete all chat history".to_string());
+                                                help_text.push("  /wipe — Clear current channel's history".to_string());
+                                                help_text.push("  /wipe-all — Clear ALL channels' history".to_string());
                                                 help_text.push("  /gc — Garbage collect inactive names (90 days)".to_string());
                                                 help_text.push("  /channel-create <name> [--readonly] [desc] — Create a channel".to_string());
                                                 help_text.push("  /channel-delete <name> — Delete a channel".to_string());
@@ -958,6 +959,42 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             }
                                         }
                                         "/wipe" => {
+                                            // Wipes messages in the CURRENT channel only.
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can wipe messages.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let wipe_ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                match state_clone.db.wipe_channel_messages(&wipe_ch) {
+                                                    Ok(count) => {
+                                                        // Clear in-memory history for this channel.
+                                                        {
+                                                            let mut history = state_clone.history.write().await;
+                                                            history.retain(|m| {
+                                                                if let RelayMessage::Chat { channel: ch, .. } = m {
+                                                                    ch != &wipe_ch
+                                                                } else {
+                                                                    true
+                                                                }
+                                                            });
+                                                        }
+                                                        let sys = RelayMessage::System {
+                                                            message: format!("💥 #{} history cleared by admin ({} messages).", wipe_ch, count),
+                                                        };
+                                                        let _ = state_clone.broadcast_tx.send(sys);
+                                                        info!("Admin wiped {} messages from #{}", count, wipe_ch);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Wipe failed: {e}");
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Wipe failed: {e}") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/wipe-all" => {
+                                            // Nuclear option: wipes ALL channels.
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                             if role != "admin" {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can wipe messages.".to_string() };
@@ -965,16 +1002,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             } else {
                                                 match state_clone.db.wipe_messages() {
                                                     Ok(count) => {
-                                                        // Clear in-memory history.
                                                         state_clone.history.write().await.clear();
                                                         let sys = RelayMessage::System {
-                                                            message: "💥 Chat history cleared by admin.".to_string(),
+                                                            message: format!("💥 All chat history cleared by admin ({} messages).", count),
                                                         };
                                                         let _ = state_clone.broadcast_tx.send(sys);
-                                                        info!("Admin wiped {} messages", count);
+                                                        info!("Admin wiped ALL {} messages", count);
                                                     }
                                                     Err(e) => {
-                                                        tracing::error!("Wipe failed: {e}");
+                                                        tracing::error!("Wipe-all failed: {e}");
                                                         let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Wipe failed: {e}") };
                                                         let _ = state_clone.broadcast_tx.send(private);
                                                     }
