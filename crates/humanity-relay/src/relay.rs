@@ -204,6 +204,20 @@ pub enum RelayMessage {
         to: String,
         message: String,
     },
+
+    /// Typing indicator — broadcast to show who is composing a message.
+    #[serde(rename = "typing")]
+    Typing {
+        from: String,
+        from_name: Option<String>,
+    },
+
+    /// Delete a message — identified by sender key + timestamp.
+    #[serde(rename = "delete")]
+    Delete {
+        from: String,
+        timestamp: u64,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -321,9 +335,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     let my_key_for_broadcast = my_key.clone();
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = broadcast_rx.recv().await {
-            // Don't echo chat messages back to the sender.
+            // Don't echo chat/typing/delete messages back to the sender.
             let should_skip = match &msg {
                 RelayMessage::Chat { from, .. } => from == &my_key_for_broadcast,
+                RelayMessage::Typing { from, .. } => from == &my_key_for_broadcast,
+                RelayMessage::Delete { from, .. } => from == &my_key_for_broadcast,
                 _ => false,
             };
             if should_skip {
@@ -372,29 +388,55 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .and_then(|p| p.display_name.clone())
                                     .unwrap_or_else(|| "Anonymous".to_string());
 
-                                // Handle /link command — generate a device link code.
-                                if content.trim().eq_ignore_ascii_case("/link") {
-                                    match state_clone.db.create_link_code(&display, &my_key_for_recv) {
-                                        Ok(code) => {
+                                // Handle slash commands.
+                                let trimmed = content.trim();
+                                if trimmed.starts_with('/') {
+                                    let cmd = trimmed.split_whitespace().next().unwrap_or("").to_lowercase();
+                                    match cmd.as_str() {
+                                        "/link" => {
+                                            // Generate a one-time device link code (private, only sender sees it).
+                                            match state_clone.db.create_link_code(&display, &my_key_for_recv) {
+                                                Ok(code) => {
+                                                    let private = RelayMessage::Private {
+                                                        to: my_key_for_recv.clone(),
+                                                        message: format!(
+                                                            "🔗 Link code: {}  — Enter this on your other device within 5 minutes. One-time use.",
+                                                            code
+                                                        ),
+                                                    };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!("Failed to create link code: {e}");
+                                                }
+                                            }
+                                        }
+                                        "/help" => {
+                                            // List available commands (private, only sender sees it).
+                                            let help_text = [
+                                                "📖 Available commands:",
+                                                "  /help — Show this message",
+                                                "  /link — Generate a code to link another device to your name",
+                                                "",
+                                                "💡 Tips:",
+                                                "  • Click any message to quote/reply to it",
+                                                "  • **bold**, *italic*, `code`, ~~strikethrough~~ for formatting",
+                                            ].join("\n");
                                             let private = RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
-                                                message: format!(
-                                                    "🔗 Link code: {}  — Enter this on your other device within 5 minutes. It can only be used once.",
-                                                    code
-                                                ),
+                                                message: help_text,
                                             };
                                             let _ = state_clone.broadcast_tx.send(private);
                                         }
-                                        Err(e) => {
-                                            tracing::error!("Failed to create link code: {e}");
+                                        _ => {
                                             let private = RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
-                                                message: "Failed to generate link code.".to_string(),
+                                                message: format!("Unknown command: {}. Type /help for available commands.", cmd),
                                             };
                                             let _ = state_clone.broadcast_tx.send(private);
                                         }
                                     }
-                                    continue; // Don't broadcast /link as a chat message
+                                    continue; // Commands are never broadcast as chat.
                                 }
 
                                 let chat = RelayMessage::Chat {
@@ -411,6 +453,34 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 if !my_key_for_recv.starts_with("bot_") {
                                     state_clone.notify_webhook(&display, &content);
                                 }
+                            }
+                            // Typing indicator — broadcast to other peers.
+                            RelayMessage::Typing { .. } => {
+                                let peer = state_clone
+                                    .peers
+                                    .read()
+                                    .await
+                                    .get(&my_key_for_recv)
+                                    .cloned();
+                                let display = peer.as_ref()
+                                    .and_then(|p| p.display_name.clone());
+                                let typing = RelayMessage::Typing {
+                                    from: my_key_for_recv.clone(),
+                                    from_name: display,
+                                };
+                                let _ = state_clone.broadcast_tx.send(typing);
+                            }
+                            // Delete own message — broadcast removal to all peers.
+                            RelayMessage::Delete { timestamp, .. } => {
+                                // Only allow deleting your own messages.
+                                if let Err(e) = state_clone.db.delete_message(&my_key_for_recv, timestamp) {
+                                    tracing::error!("Failed to delete message: {e}");
+                                }
+                                let del = RelayMessage::Delete {
+                                    from: my_key_for_recv.clone(),
+                                    timestamp,
+                                };
+                                let _ = state_clone.broadcast_tx.send(del);
                             }
                             _ => {
                                 // Ignore other message types from clients.

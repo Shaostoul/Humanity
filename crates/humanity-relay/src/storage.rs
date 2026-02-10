@@ -276,6 +276,16 @@ impl Storage {
         }
     }
 
+    /// Delete a message by sender key and timestamp (only your own messages).
+    pub fn delete_message(&self, from_key: &str, timestamp: u64) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "DELETE FROM messages WHERE from_key = ?1 AND timestamp = ?2",
+            params![from_key, timestamp as i64],
+        )?;
+        Ok(rows > 0)
+    }
+
     /// Get total message count.
     pub fn message_count(&self) -> Result<i64, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();

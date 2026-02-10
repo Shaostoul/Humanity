@@ -314,9 +314,91 @@
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #555; }
 
+    /* ── Message hover actions ── */
+    .message { position: relative; cursor: pointer; border-radius: 4px; padding: 0.3rem 0.4rem; }
+    .message:hover { background: var(--bg-hover); }
+    .message .msg-actions {
+      display: none;
+      position: absolute;
+      right: 0.5rem;
+      top: 0.2rem;
+      gap: 0.3rem;
+    }
+    .message:hover .msg-actions { display: flex; }
+    .msg-actions button {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .msg-actions button:hover { color: var(--text); border-color: var(--accent); }
+
+    /* ── Quote/reply styling ── */
+    .body blockquote, .body .quote {
+      border-left: 3px solid var(--accent);
+      padding-left: 0.5rem;
+      margin: 0.2rem 0;
+      color: var(--text-muted);
+      font-size: 0.85em;
+    }
+
+    /* ── Typing indicator ── */
+    #typing-indicator {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 0.2rem 0.75rem;
+      min-height: 1.2rem;
+    }
+
+    /* ── Inline code & bold/italic from markdown ── */
+    .body code {
+      background: var(--bg-hover);
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      font-size: 0.85em;
+      font-family: monospace;
+    }
+
+    /* ── New messages divider ── */
+    .new-messages-divider {
+      text-align: center;
+      color: var(--danger);
+      font-size: 0.7rem;
+      padding: 0.5rem 0;
+      position: relative;
+    }
+    .new-messages-divider::before,
+    .new-messages-divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 30%;
+      height: 1px;
+      background: var(--danger);
+    }
+    .new-messages-divider::before { left: 5%; }
+    .new-messages-divider::after { right: 5%; }
+
+    /* ── Hamburger menu for mobile ── */
+    #hamburger {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 1.3rem;
+      cursor: pointer;
+      padding: 0.2rem;
+    }
+
     /* ── Mobile ── */
     @media (max-width: 640px) {
-      #sidebar { display: none; }
+      #sidebar { display: none; position: fixed; left: 0; top: 48px; bottom: 0; z-index: 10; width: 220px; }
+      #sidebar.open { display: block; }
+      #hamburger { display: block; }
       header h1 { font-size: 0.9rem; }
       #msg-input { font-size: 16px; } /* Prevent iOS zoom */
     }
@@ -349,6 +431,7 @@
   <div id="chat-screen">
     <header>
       <div class="header-left">
+        <button id="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
         <h1>🌍 Humanity</h1>
         <span id="stats"></span>
       </div>
@@ -366,6 +449,7 @@
       </div>
       <div id="chat-area">
         <div id="messages"></div>
+        <div id="typing-indicator"></div>
         <div id="input-area">
           <input type="text" id="msg-input" placeholder="Type a message…" disabled>
           <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
@@ -447,6 +531,10 @@
           notice.textContent = `── ${data.messages.length} earlier messages ──`;
           document.getElementById('messages').appendChild(notice);
 
+          // "New messages" divider: show where user left off last time.
+          const lastSeen = parseInt(localStorage.getItem('humanity_last_seen') || '0');
+          let newMsgDividerShown = false;
+
           let lastDate = '';
           for (const msg of data.messages) {
             const msgDate = new Date(msg.timestamp).toLocaleDateString();
@@ -454,6 +542,16 @@
               addDateSeparator(msgDate);
               lastDate = msgDate;
             }
+
+            // Insert "New messages" divider before first unseen message.
+            if (!newMsgDividerShown && lastSeen > 0 && msg.timestamp > lastSeen && msg.from !== myKey) {
+              const divider = document.createElement('div');
+              divider.className = 'new-messages-divider';
+              divider.textContent = 'New messages';
+              document.getElementById('messages').appendChild(divider);
+              newMsgDividerShown = true;
+            }
+
             const key = msg.from + ':' + msg.timestamp;
             seenTimestamps.add(key);
             addChatMessage(
@@ -465,6 +563,10 @@
               !!msg.signature
             );
           }
+
+          // Update last-seen to the newest message timestamp.
+          const newest = data.messages[data.messages.length - 1];
+          if (newest) localStorage.setItem('humanity_last_seen', String(newest.timestamp));
         }
       } catch (e) {
         console.warn('Failed to load history:', e);
@@ -573,6 +675,18 @@
           }
           updatePeerList(msg.peers);
           break;
+        case 'typing': {
+          // Show "X is typing…" indicator, clear after 3 seconds.
+          const typerName = msg.from_name || shortKey(msg.from);
+          showTypingIndicator(typerName);
+          break;
+        }
+        case 'delete': {
+          // Remove the deleted message from the DOM.
+          const msgs = document.querySelectorAll('.message[data-from="' + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
+          msgs.forEach(m => m.remove());
+          break;
+        }
         case 'system':
           addSystemMessage(msg.message);
           break;
@@ -625,6 +739,8 @@
     function addChatMessage(author, body, timestamp, fromKey, isHistory, signed) {
       const el = document.createElement('div');
       el.className = 'message';
+      el.dataset.from = fromKey;
+      el.dataset.timestamp = timestamp;
 
       const time = formatTime(timestamp);
       const isMe = fromKey === myKey;
@@ -641,6 +757,13 @@
         ? '<span class="sig-badge" title="Ed25519 signed">✓</span>'
         : '';
 
+      // Action buttons: reply for all, delete for own messages.
+      let actions = '<div class="msg-actions"><button class="reply-btn" title="Reply">↩</button>';
+      if (isMe) {
+        actions += '<button class="delete-btn" title="Delete">✕</button>';
+      }
+      actions += '</div>';
+
       el.innerHTML = `
         <div class="meta">
           <span class="author${authorClass}">${esc(author)}</span>
@@ -648,7 +771,29 @@
           <span class="time">${time}</span>
         </div>
         <div class="body">${formatBody(body)}</div>
+        ${actions}
       `;
+
+      // Click reply button → quote this message in the input.
+      el.querySelector('.reply-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const input = document.getElementById('msg-input');
+        const shortBody = body.length > 100 ? body.substring(0, 100) + '…' : body;
+        input.value = '> ' + shortBody.replace(/\n/g, '\n> ') + '\n';
+        input.focus();
+      });
+
+      // Click delete button → send delete request.
+      const delBtn = el.querySelector('.delete-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'delete', from: myKey, timestamp: Number(timestamp) }));
+            el.remove(); // Remove locally immediately.
+          }
+        });
+      }
 
       appendMessage(el);
       if (window.twemoji) twemoji.parse(el);
@@ -717,12 +862,27 @@
     }
 
     function formatBody(text) {
-      // Basic: escape HTML, convert URLs to links.
+      // Escape HTML first, then apply markdown-like formatting.
       let safe = esc(text);
+
+      // URLs → clickable links.
       safe = safe.replace(
         /(https?:\/\/[^\s<]+)/g,
         '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>'
       );
+
+      // Markdown-like formatting (order matters: bold before italic).
+      // **bold**
+      safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      // *italic*
+      safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      // ~~strikethrough~~
+      safe = safe.replace(/~~(.+?)~~/g, '<del>$1</del>');
+      // `inline code`
+      safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // > quote lines (at start of line)
+      safe = safe.replace(/(^|\n)&gt; (.+)/g, '$1<blockquote>$2</blockquote>');
+
       return safe;
     }
 
@@ -735,6 +895,47 @@
       const d = document.createElement('div');
       d.textContent = str || '';
       return d.innerHTML;
+    }
+
+    // ── Typing Indicator ──
+    let typingTimers = {};   // key → timeout id
+    let typingNames = {};    // key → display name
+    let lastTypingSent = 0;  // throttle outbound typing events
+
+    function showTypingIndicator(name) {
+      // Track who is typing, clear after 3 seconds of no updates.
+      const key = name;
+      typingNames[key] = name;
+      clearTimeout(typingTimers[key]);
+      typingTimers[key] = setTimeout(() => {
+        delete typingNames[key];
+        delete typingTimers[key];
+        renderTypingIndicator();
+      }, 3000);
+      renderTypingIndicator();
+    }
+
+    function renderTypingIndicator() {
+      const el = document.getElementById('typing-indicator');
+      const names = Object.values(typingNames);
+      if (names.length === 0) {
+        el.textContent = '';
+      } else if (names.length === 1) {
+        el.textContent = names[0] + ' is typing…';
+      } else if (names.length === 2) {
+        el.textContent = names[0] + ' and ' + names[1] + ' are typing…';
+      } else {
+        el.textContent = 'Several people are typing…';
+      }
+    }
+
+    function sendTypingIndicator() {
+      // Throttle: send at most once every 2 seconds.
+      const now = Date.now();
+      if (now - lastTypingSent < 2000) return;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      lastTypingSent = now;
+      ws.send(JSON.stringify({ type: 'typing', from: myKey, from_name: myName }));
     }
 
     // ── Key Bindings ──
@@ -818,20 +1019,28 @@
       await _origSendMessage();
     };
 
-    // Hook into message rendering to trigger notifications.
+    // Hook into message rendering to trigger notifications and update last-seen.
     const _origHandleMessage = handleMessage;
     handleMessage = function(msg) {
       _origHandleMessage(msg);
-      if (msg.type === 'chat' && msg.from !== myKey) {
-        notifyNewMessage(msg.from_name || 'Someone', msg.content);
+      if (msg.type === 'chat') {
+        // Update last-seen timestamp.
+        localStorage.setItem('humanity_last_seen', String(msg.timestamp));
+        // Notify if from someone else and tab not focused.
+        if (msg.from !== myKey) {
+          notifyNewMessage(msg.from_name || 'Someone', msg.content);
+        }
       }
     };
 
-    // ── Enter to send (on the input field) ──
+    // ── Enter to send + typing indicator on the input field ──
     document.getElementById('msg-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
+      } else {
+        // Any other key → send typing indicator (throttled).
+        sendTypingIndicator();
       }
     });
 
