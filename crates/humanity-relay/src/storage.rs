@@ -399,6 +399,20 @@ impl Storage {
     }
 
     /// Check if a channel is read-only.
+    /// Check if a channel exists.
+    pub fn channel_exists(&self, id: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT 1 FROM channels WHERE id = ?1",
+            params![id],
+            |_row| Ok(()),
+        ) {
+            Ok(_) => Ok(true),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
     pub fn is_channel_read_only(&self, id: &str) -> Result<bool, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         match conn.query_row(

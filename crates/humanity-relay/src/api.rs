@@ -11,13 +11,30 @@
 use axum::{
     Json,
     extract::{Query, State},
-    http::StatusCode,
-    response::IntoResponse,
+    http::{StatusCode, HeaderMap},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::relay::{RelayMessage, RelayState, Peer, PeerInfo};
+
+/// Verify the `Authorization: Bearer <token>` header against the `API_SECRET` env var.
+/// Fails closed: if `API_SECRET` is unset or empty, ALL requests are rejected.
+fn check_api_auth(headers: &HeaderMap) -> Result<(), (StatusCode, String)> {
+    let expected = std::env::var("API_SECRET").unwrap_or_default();
+    if expected.is_empty() {
+        return Err((StatusCode::UNAUTHORIZED, "API authentication not configured (API_SECRET not set).".into()));
+    }
+    let provided = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+    if provided != expected {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing API token.".into()));
+    }
+    Ok(())
+}
 
 /// Request body for POST /api/send.
 #[derive(Debug, Deserialize)]
@@ -52,11 +69,32 @@ pub struct MessagesResponse {
     pub cursor: usize,
 }
 
-/// POST /api/send — send a message as a bot.
+/// POST /api/send — send a message as a bot (requires API_SECRET auth).
 pub async fn send_message(
     State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
     Json(req): Json<SendRequest>,
-) -> impl IntoResponse {
+) -> Result<StatusCode, (StatusCode, String)> {
+    // Authenticate.
+    check_api_auth(&headers)?;
+
+    // Enforce message length limit (same 2000-char cap as WebSocket users).
+    if req.content.len() > 2000 {
+        return Err((StatusCode::BAD_REQUEST, format!("Message too long ({} chars, max 2000).", req.content.len())));
+    }
+
+    let channel = if req.channel.is_empty() { "general".to_string() } else { req.channel };
+
+    // Validate channel exists.
+    if !state.db.channel_exists(&channel).unwrap_or(false) {
+        return Err((StatusCode::BAD_REQUEST, format!("Channel '{}' does not exist.", channel)));
+    }
+
+    // Respect read-only channels for bot messages.
+    if state.db.is_channel_read_only(&channel).unwrap_or(false) {
+        return Err((StatusCode::FORBIDDEN, format!("Channel '{}' is read-only.", channel)));
+    }
+
     let bot_key = format!("bot_{}", req.from_name.to_lowercase().replace(' ', "_"));
 
     // Ensure bot appears as a peer.
@@ -68,7 +106,6 @@ pub async fn send_message(
         });
     }
 
-    let channel = if req.channel.is_empty() { "general".to_string() } else { req.channel };
     let chat = RelayMessage::Chat {
         from: bot_key,
         from_name: Some(req.from_name),
@@ -87,7 +124,7 @@ pub async fn send_message(
     }
     let _ = state.broadcast_tx.send(chat);
 
-    StatusCode::OK
+    Ok(StatusCode::OK)
 }
 
 /// GET /api/messages — poll recent messages from the database.
@@ -261,11 +298,14 @@ pub struct GitHubCommit {
     pub url: Option<String>,
 }
 
-/// POST /api/github-webhook — receive GitHub push events and announce them.
+/// POST /api/github-webhook — receive GitHub push events and announce them (requires API_SECRET auth).
 pub async fn github_webhook(
     State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
     Json(payload): Json<GitHubPushEvent>,
-) -> impl IntoResponse {
+) -> Result<StatusCode, (StatusCode, String)> {
+    // Authenticate.
+    check_api_auth(&headers)?;
     let repo = payload.repository
         .as_ref()
         .and_then(|r| r.full_name.as_deref())
@@ -277,7 +317,7 @@ pub async fn github_webhook(
     let commit_count = payload.commits.len();
 
     if commit_count == 0 {
-        return StatusCode::OK;
+        return Ok(StatusCode::OK);
     }
 
     let mut lines = vec![
@@ -331,7 +371,7 @@ pub async fn github_webhook(
     }
     let _ = state.broadcast_tx.send(chat);
 
-    StatusCode::OK
+    Ok(StatusCode::OK)
 }
 
 /// GET /api/peers — list connected peers.

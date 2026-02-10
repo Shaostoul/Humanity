@@ -893,6 +893,20 @@
       document.getElementById('msg-input').focus();
     });
 
+    // Event delegation: handle clicks on image placeholders (data-img-url).
+    document.getElementById('messages').addEventListener('click', function(e) {
+      const placeholder = e.target.closest('[data-img-url]');
+      if (placeholder) {
+        loadImage(placeholder, placeholder.dataset.imgUrl);
+        return;
+      }
+      // Handle clicks on reaction badges (data-target-from).
+      const badge = e.target.closest('[data-target-from]');
+      if (badge) {
+        sendReaction(badge.dataset.targetFrom, Number(badge.dataset.targetTs), badge.dataset.emoji);
+      }
+    });
+
     // ── Connect ──
     async function connect() {
       myName = document.getElementById('name-input').value.trim() || 'Anonymous';
@@ -1339,7 +1353,7 @@
         const badge = roleBadge(g.role);
         const escapedName = esc(g.name);
         const escapedKey = esc(g.keys[0]);
-        return `<div class="peer${g.isMe ? ' is-you' : ''}" data-username="${escapedName}" data-pubkey="${escapedKey}" onclick="showUserContextMenu(event, '${escapedName}', '${escapedKey}')">
+        return `<div class="peer${g.isMe ? ' is-you' : ''}" data-username="${escapedName}" data-pubkey="${escapedKey}">
           ${icon} ${escapedName}${badge}${g.isMe ? ' (you)' : ''}${deviceCount}
         </div>`;
       }).join('');
@@ -1435,13 +1449,13 @@
       // Escape HTML first, then apply markdown-like formatting.
       let safe = esc(text);
 
-      // Image URLs → collapsed image placeholders (click to load).
+      // Image URLs → collapsed image placeholders (click to load via event delegation).
       safe = safe.replace(
         /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:png|jpe?g|gif|webp)(?:\?[^\s<]*)?)/gi,
-        '<span class="img-placeholder" onclick="loadImage(this, \'$1\')">🖼️ Image (click to load)</span>'
+        '<span class="img-placeholder" data-img-url="$1">🖼️ Image (click to load)</span>'
       );
 
-      // Other URLs → clickable links.
+      // Other URLs → clickable links (exclude javascript: protocol).
       safe = safe.replace(
         /(?<!["=])(https?:\/\/[^\s<]+)(?![^<]*<\/a>|[^<]*<\/span>)/g,
         '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>'
@@ -1508,7 +1522,7 @@
     function esc(str) {
       const d = document.createElement('div');
       d.textContent = str || '';
-      return d.innerHTML;
+      return d.innerHTML.replace(/'/g, '&#39;');
     }
 
     // ── Identicon Generator ──
@@ -1638,7 +1652,7 @@
 
       msgEl.innerHTML = Object.entries(reactions).map(([emoji, users]) => {
         const isMine = users.has(myKey);
-        return `<span class="reaction-badge${isMine ? ' mine' : ''}" onclick="sendReaction('${targetFrom}', ${targetTs}, '${emoji}')">${emoji} <span class="count">${users.size}</span></span>`;
+        return `<span class="reaction-badge${isMine ? ' mine' : ''}" data-target-from="${esc(targetFrom)}" data-target-ts="${targetTs}" data-emoji="${esc(emoji)}">${esc(emoji)} <span class="count">${users.size}</span></span>`;
       }).join('');
       if (window.twemoji) twemoji.parse(msgEl);
     }
@@ -2027,6 +2041,14 @@
     // Close context menu on click outside.
     document.addEventListener('click', (e) => {
       if (!ctxMenu.contains(e.target)) hideContextMenu();
+    });
+
+    // Event delegation for peer list context menu clicks.
+    document.getElementById('peer-list').addEventListener('click', function(e) {
+      const peerEl = e.target.closest('.peer[data-username]');
+      if (peerEl) {
+        showUserContextMenu(e, peerEl.dataset.username, peerEl.dataset.pubkey);
+      }
     });
 
     // Store peer data (with roles) for context menu lookups.

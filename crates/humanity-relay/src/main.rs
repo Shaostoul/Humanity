@@ -15,6 +15,7 @@ use axum::{
     response::IntoResponse,
 };
 use tower_http::cors::CorsLayer;
+use axum::http;
 use tracing_subscriber::EnvFilter;
 use std::sync::Arc;
 
@@ -90,7 +91,15 @@ async fn main() {
             tower_http::services::ServeDir::new("client")
                 .fallback(tower_http::services::ServeFile::new("client/index.html")),
         )
-        .layer(CorsLayer::permissive())
+        .layer(
+            CorsLayer::new()
+                .allow_origin([
+                    "https://chat.united-humanity.us".parse::<http::HeaderValue>().unwrap(),
+                    "http://localhost:3210".parse::<http::HeaderValue>().unwrap(),
+                ])
+                .allow_methods([http::Method::GET, http::Method::POST])
+                .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
+        )
         .with_state(state);
 
     let addr = "0.0.0.0:3210";
@@ -121,7 +130,9 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     state: axum::extract::State<Arc<RelayState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state.0))
+    ws.max_frame_size(65_536)       // 64KB max frame
+      .max_message_size(131_072)    // 128KB max message
+      .on_upgrade(move |socket| handle_socket(socket, state.0))
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {

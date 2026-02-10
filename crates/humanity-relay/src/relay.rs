@@ -1163,6 +1163,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             // Reaction — broadcast to all peers.
                             RelayMessage::Reaction { target_from, target_timestamp, emoji, .. } => {
+                                // Validate emoji: only short strings, no HTML/JS special chars.
+                                if emoji.len() > 32
+                                    || emoji.contains('\'')
+                                    || emoji.contains('"')
+                                    || emoji.contains('<')
+                                    || emoji.contains('>')
+                                    || emoji.contains('\\')
+                                    || emoji.contains('&')
+                                {
+                                    continue; // Silently drop invalid reactions
+                                }
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
                                 let reaction = RelayMessage::Reaction {
