@@ -567,7 +567,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
                                     // New-account slow mode: if first seen < 10 min ago, min 5s delay.
                                     // Skip for verified, mod, and admin users.
-                                    let is_trusted = user_role == "verified" || user_role == "mod" || user_role == "admin";
+                                    let is_trusted = user_role == "verified" || user_role == "donor" || user_role == "mod" || user_role == "admin";
                                     let account_age = now.duration_since(rl.first_seen).as_secs();
                                     let new_account_delay = if !is_trusted && account_age < NEW_ACCOUNT_WINDOW_SECS {
                                         NEW_ACCOUNT_DELAY_SECS
@@ -664,6 +664,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /mod <name> — Make a user a moderator".to_string());
                                                 help_text.push("  /unmod <name> — Remove moderator role".to_string());
                                                 help_text.push("  /verify <name> — Mark a user as verified".to_string());
+                                                help_text.push("  /donor <name> — Mark a user as a donor".to_string());
                                                 help_text.push("  /unverify <name> — Remove verified status".to_string());
                                                 help_text.push("  /lockdown — Toggle registration lockdown".to_string());
                                                 help_text.push("  /invite — Generate invite code for lockdown bypass".to_string());
@@ -918,6 +919,36 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("✦ {} is now verified.", target_name) };
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                             // Broadcast updated peer list so badges refresh.
+                                                            broadcast_peer_list(&state_clone).await;
+                                                        }
+                                                        _ => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/donor" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can set donor status.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let target_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                                if target_name.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /donor <name>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    match state_clone.db.keys_for_name(&target_name) {
+                                                        Ok(keys) if !keys.is_empty() => {
+                                                            for key in &keys {
+                                                                if let Err(e) = state_clone.db.set_role(key, "donor") {
+                                                                    tracing::error!("Failed to set donor: {e}");
+                                                                }
+                                                            }
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("💎 {} is now a donor. Thank you!", target_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
                                                             broadcast_peer_list(&state_clone).await;
                                                         }
                                                         _ => {
