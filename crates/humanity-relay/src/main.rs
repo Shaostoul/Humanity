@@ -60,10 +60,18 @@ async fn main() {
     // Ensure default channel exists.
     db.ensure_default_channel().expect("Failed to create default channel");
 
-    // Create additional default channels (read-only).
+    // Create additional default channels (read-only where noted).
     let _ = db.create_channel("welcome", "welcome", Some("Welcome to Humanity Network"), "system", true);
     let _ = db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", true);
     let _ = db.create_channel("rules", "rules", Some("Community guidelines"), "system", true);
+    let _ = db.create_channel("dev", "dev", Some("Development discussion"), "system", false);
+
+    // Set channel display order: welcome(0), rules(1), announcements(2), general(10), dev(20).
+    let _ = db.set_channel_position("welcome", 0);
+    let _ = db.set_channel_position("rules", 1);
+    let _ = db.set_channel_position("announcements", 2);
+    let _ = db.set_channel_position("general", 10);
+    let _ = db.set_channel_position("dev", 20);
 
     let state = Arc::new(RelayState::new(db));
 

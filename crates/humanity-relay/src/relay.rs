@@ -672,6 +672,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /channel-create <name> [--readonly] [desc] — Create a channel".to_string());
                                                 help_text.push("  /channel-delete <name> — Delete a channel".to_string());
                                                 help_text.push("  /channel-readonly <name> — Toggle read-only on a channel".to_string());
+                                                help_text.push("  /channel-reorder <name> <pos> — Set channel sort order (lower = higher)".to_string());
                                                 help_text.push("  /name-release <name> — Release a name (for account recovery)".to_string());
                                             }
                                             help_text.push("".to_string());
@@ -770,6 +771,39 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                         }
                                                         Err(e) => tracing::error!("Channel readonly toggle error: {e}"),
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/channel-reorder" => {
+                                            // Usage: /channel-reorder <name> <position>
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can reorder channels.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                                if parts.len() < 3 {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /channel-reorder <name> <position>\nLower numbers appear first (e.g., 0, 1, 2, 10, 20).".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let ch_name = parts[1];
+                                                    if let Ok(pos) = parts[2].parse::<i32>() {
+                                                        if state_clone.db.set_channel_position(ch_name, pos).unwrap_or(false) {
+                                                            // Broadcast updated list.
+                                                            if let Ok(channels) = state_clone.db.list_channels() {
+                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
+                                                                let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
+                                                            }
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel #{} moved to position {}.", ch_name, pos) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        } else {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel '{}' not found.", ch_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    } else {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Position must be a number.".to_string() };
+                                                        let _ = state_clone.broadcast_tx.send(private);
                                                     }
                                                 }
                                             }

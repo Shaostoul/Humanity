@@ -347,7 +347,8 @@
       padding: 0.6rem 0.75rem;
       border-radius: 6px;
       font-size: 1rem;
-      width: 280px;
+      width: 340px;
+      max-width: 90vw;
       text-align: center;
       outline: none;
     }
@@ -726,12 +727,16 @@
   <div id="login-screen">
     <h1>🌍 Humanity Network</h1>
     <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
-    <input type="text" id="name-input" placeholder="Your name" autofocus>
-    <input type="text" id="link-code-input" placeholder="Link code (optional, for linking devices)" style="margin-top:0.5rem; display:block;">
-    <input type="text" id="invite-code-input" placeholder="Invite code (optional, for lockdown bypass)" style="margin-top:0.5rem; display:block;">
+    <input type="text" id="name-input" placeholder="Choose a name" autofocus>
+    <input type="text" id="link-code-input" placeholder="Link code (optional)" style="margin-top:0.5rem; display:block;">
+    <input type="text" id="invite-code-input" placeholder="Invite code (optional)" style="margin-top:0.5rem; display:block;">
     <button onclick="connect()">Enter</button>
     <p class="subtitle" id="login-error" style="color:#e74c3c; display:none;"></p>
     <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>
+    <p class="subtitle" style="margin-top: 1rem; font-size: 0.68rem; max-width: 380px; line-height: 1.5;">
+      By entering, you confirm you are <strong style="color:var(--text);">18 years or older</strong> and agree to be respectful.<br>
+      Your identity is a cryptographic key stored in your browser — <a href="https://shaostoul.com/Humanity/" target="_blank" rel="noopener" style="color:var(--accent);">learn more</a>.
+    </p>
   </div>
 
   <!-- Chat Screen -->
@@ -817,6 +822,7 @@
       <div class="cmd"><code>/channel-create &lt;name&gt; [--readonly] [desc]</code> — Create a channel</div>
       <div class="cmd"><code>/channel-delete &lt;name&gt;</code> — Delete a channel</div>
       <div class="cmd"><code>/channel-readonly &lt;name&gt;</code> — Toggle read-only on a channel</div>
+      <div class="cmd"><code>/channel-reorder &lt;name&gt; &lt;pos&gt;</code> — Set channel sort position (lower = higher)</div>
       <div class="cmd"><code>/invite</code> — Generate an invite code for lockdown bypass</div>
       <div class="cmd"><code>/name-release &lt;name&gt;</code> — Release a name for re-registration</div>
     </div>

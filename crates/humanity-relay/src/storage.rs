@@ -132,6 +132,17 @@ impl Storage {
             info!("Migration: added read_only column to channels");
         }
 
+        // Migration: add position column to channels if missing.
+        let has_position: bool = conn
+            .prepare("SELECT position FROM channels LIMIT 0")
+            .is_ok();
+        if !has_position {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN position INTEGER DEFAULT 100;"
+            )?;
+            info!("Migration: added position column to channels");
+        }
+
         info!("Database opened: {}", path.display());
         Ok(Self { conn: Mutex::new(conn) })
     }
@@ -369,7 +380,7 @@ impl Storage {
     /// List all channels (id, name, description, read_only).
     pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>, bool)>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0) FROM channels ORDER BY created_at ASC")?;
+        let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0) FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
         let channels = stmt.query_map([], |row| {
             let ro: i32 = row.get(3)?;
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0))
@@ -399,6 +410,16 @@ impl Storage {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
             Err(e) => Err(e),
         }
+    }
+
+    /// Set a channel's sort position (lower = higher in list).
+    pub fn set_channel_position(&self, id: &str, position: i32) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE channels SET position = ?1 WHERE id = ?2",
+            params![position, id],
+        )?;
+        Ok(rows > 0)
     }
 
     /// Ensure the default "general" channel exists.
