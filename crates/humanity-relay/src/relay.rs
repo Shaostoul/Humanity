@@ -494,6 +494,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 "📖 Available commands:".to_string(),
                                                 "  /help — Show this message".to_string(),
                                                 "  /link — Generate a code to link another device".to_string(),
+                                                "  /revoke <key_prefix> — Remove a stolen/lost device from your name".to_string(),
                                             ];
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("".to_string());
@@ -511,6 +512,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /unmod <name> — Remove moderator role".to_string());
                                                 help_text.push("  /channel-create <name> [desc] — Create a channel".to_string());
                                                 help_text.push("  /channel-delete <name> — Delete a channel".to_string());
+                                                help_text.push("  /name-release <name> — Release a name (for account recovery)".to_string());
                                             }
                                             help_text.push("".to_string());
                                             help_text.push("💡 Tips:".to_string());
@@ -574,6 +576,55 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 } else {
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel '{}' not found.", ch_name) };
                                                     let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
+                                        }
+                                        "/revoke" => {
+                                            // Revoke a device from your own name. Usage: /revoke <key_prefix>
+                                            let prefix = trimmed.split_whitespace().nth(1).unwrap_or("");
+                                            if prefix.len() < 6 {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /revoke <first 6+ chars of device key>. Check your devices in the sidebar.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else if prefix.starts_with(&my_key_for_recv[..6]) {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "You can't revoke your current device. Use another linked device.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.revoke_device(&display, prefix) {
+                                                    Ok(keys) if !keys.is_empty() => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Revoked {} device(s) from your name.", keys.len()) };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Ok(_) => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("No devices found matching prefix '{}'.", prefix) };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => tracing::error!("Revoke error: {e}"),
+                                                }
+                                            }
+                                        }
+                                        "/name-release" => {
+                                            // Admin-only: release a name entirely so it can be re-registered.
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can release names.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let target = trimmed.split_whitespace().nth(1).unwrap_or("");
+                                                if target.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /name-release <name>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    match state_clone.db.release_name(target) {
+                                                        Ok(n) if n > 0 => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Released name '{}' ({} key bindings removed). It can now be claimed by anyone.", target, n) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Ok(_) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Name '{}' not found.", target) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => tracing::error!("Name release error: {e}"),
+                                                    }
                                                 }
                                             }
                                         }

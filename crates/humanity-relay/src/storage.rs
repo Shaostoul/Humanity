@@ -417,6 +417,37 @@ impl Storage {
         Ok((messages, max_id))
     }
 
+    /// Remove a specific key from a name (device revocation).
+    pub fn revoke_device(&self, name: &str, key_prefix: &str) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        // Find keys matching the prefix for this name.
+        let mut stmt = conn.prepare(
+            "SELECT public_key FROM registered_names WHERE name = ?1 COLLATE NOCASE AND public_key LIKE ?2"
+        )?;
+        let prefix_pattern = format!("{}%", key_prefix);
+        let keys: Vec<String> = stmt.query_map(params![name, prefix_pattern], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        for key in &keys {
+            conn.execute(
+                "DELETE FROM registered_names WHERE name = ?1 COLLATE NOCASE AND public_key = ?2",
+                params![name, key],
+            )?;
+        }
+        Ok(keys)
+    }
+
+    /// Release a name entirely (admin action — removes all key associations).
+    pub fn release_name(&self, name: &str) -> Result<usize, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "DELETE FROM registered_names WHERE name = ?1 COLLATE NOCASE",
+            params![name],
+        )?;
+        Ok(rows)
+    }
+
     /// Get all public keys registered to a name.
     pub fn keys_for_name(&self, name: &str) -> Result<Vec<String>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
