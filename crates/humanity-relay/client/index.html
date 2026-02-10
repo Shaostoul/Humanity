@@ -396,6 +396,7 @@
     if (savedName) document.getElementById('name-input').value = savedName;
 
     let pendingLinkCode = null;
+    let identityConfirmed = false;
 
     // ── Connect ──
     async function connect() {
@@ -403,9 +404,24 @@
       pendingLinkCode = document.getElementById('link-code-input').value.trim() || null;
       localStorage.setItem('humanity_name', myName);
 
+      // Hide any previous error, show connecting status.
+      document.getElementById('login-error').style.display = 'none';
+      document.getElementById('crypto-status').textContent = 'Connecting…';
+      document.getElementById('crypto-status').style.color = 'var(--text-muted)';
+
       // Initialize Ed25519 identity.
       myIdentity = await getOrCreateIdentity();
       myKey = myIdentity.publicKeyHex;
+
+      // Stay on login screen — we switch to chat only after server confirms identity.
+      identityConfirmed = false;
+      openSocket();
+    }
+
+    // Called once the server accepts our identity (sends peer_list).
+    function onIdentityConfirmed() {
+      if (identityConfirmed) return;
+      identityConfirmed = true;
 
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('chat-screen').style.display = 'flex';
@@ -416,10 +432,8 @@
         ? '<span style="color:var(--success)">✓ Signing enabled</span>'
         : '<span style="color:var(--warning)">⚠ Unsigned mode</span>';
 
-      // Load history from API before connecting WebSocket.
-      loadHistory().then(() => {
-        openSocket();
-      });
+      // Load history now that we're confirmed.
+      loadHistory();
     }
 
     // ── History ──
@@ -467,7 +481,6 @@
       ws = new WebSocket(`${proto}//${location.host}/ws`);
 
       ws.onopen = () => {
-        setStatus('connected', 'Connected');
         reconnectDelay = 1000;
         clearTimeout(reconnectTimer);
 
@@ -482,12 +495,16 @@
         }
         ws.send(JSON.stringify(identifyMsg));
 
-        document.getElementById('msg-input').disabled = false;
-        document.getElementById('send-btn').disabled = false;
-        document.getElementById('msg-input').focus();
-
-        addSystemMessage('Connected');
-        updateStats();
+        // Don't switch screens yet — wait for server to confirm via peer_list.
+        // If already confirmed (reconnect), re-enable input.
+        if (identityConfirmed) {
+          setStatus('connected', 'Connected');
+          document.getElementById('msg-input').disabled = false;
+          document.getElementById('send-btn').disabled = false;
+          document.getElementById('msg-input').focus();
+          addSystemMessage('Connected');
+          updateStats();
+        }
       };
 
       ws.onmessage = (event) => {
@@ -536,29 +553,38 @@
           break;
         }
         case 'peer_joined':
-          addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} joined`);
+          if (identityConfirmed) addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} joined`);
           updateStats();
           break;
         case 'peer_left':
-          addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} left`);
+          if (identityConfirmed) addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} left`);
           updateStats();
           break;
         case 'peer_list':
+          // Server sent peer_list = identity accepted!
+          if (!identityConfirmed) {
+            onIdentityConfirmed();
+            setStatus('connected', 'Connected');
+            document.getElementById('msg-input').disabled = false;
+            document.getElementById('send-btn').disabled = false;
+            document.getElementById('msg-input').focus();
+            addSystemMessage('Connected');
+            updateStats();
+          }
           updatePeerList(msg.peers);
-          updateStats();
           break;
         case 'system':
           addSystemMessage(msg.message);
           break;
-        case 'name_taken':
-          // Go back to login screen with error.
-          document.getElementById('chat-screen').style.display = 'none';
-          document.getElementById('login-screen').style.display = 'flex';
+        case 'name_taken': {
+          // Stay on login screen, show error. Never touched chat screen.
           const errEl = document.getElementById('login-error');
           errEl.textContent = msg.message;
           errEl.style.display = 'block';
+          document.getElementById('crypto-status').textContent = '';
           if (ws) { ws.close(); ws = null; }
           break;
+        }
       }
     }
 
