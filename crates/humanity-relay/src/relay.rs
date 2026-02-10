@@ -388,6 +388,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .and_then(|p| p.display_name.clone())
                                     .unwrap_or_else(|| "Anonymous".to_string());
 
+                                // Enforce max message length (2000 chars for user text).
+                                // Quotes (lines starting with "> ") are exempt.
+                                let user_text_len: usize = content.lines()
+                                    .filter(|l| !l.starts_with("> "))
+                                    .map(|l| l.len() + 1)
+                                    .sum();
+                                if user_text_len > 2001 {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: format!("Message too long ({} chars, max 2000). Please shorten it.", user_text_len.saturating_sub(1)),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+
                                 // Handle slash commands.
                                 let trimmed = content.trim();
                                 if trimmed.starts_with('/') {

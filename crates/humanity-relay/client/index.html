@@ -352,6 +352,26 @@
       cursor: pointer;
     }
     .body .quote-block:hover { background: var(--bg-hover); }
+    .body .quote-block .quote-expand {
+      color: var(--accent);
+      font-size: 0.75em;
+      display: inline;
+      margin-left: 0.3rem;
+    }
+    .body .quote-block .quote-full { display: none; }
+    .body .quote-block.expanded .quote-full { display: block; }
+    .body .quote-block.expanded .quote-preview { display: none; }
+
+    /* ── Character counter ── */
+    #char-counter {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-align: right;
+      padding: 0 0.75rem;
+      display: none;
+    }
+    #char-counter.warn { color: var(--warning); }
+    #char-counter.over { color: var(--danger); font-weight: 600; }
 
     /* ── Reply bar ── */
     #reply-bar {
@@ -496,6 +516,7 @@
           <div id="reply-preview"></div>
           <button id="reply-cancel" title="Cancel reply">✕</button>
         </div>
+        <div id="char-counter"></div>
         <div id="input-area">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
@@ -788,12 +809,15 @@
       let content = input.value.trim();
       if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-      // Prepend quote from reply bar if active.
+      // Enforce character limit (on user's own text, before adding quote).
+      if (content.length > MAX_MSG_LENGTH) {
+        addSystemMessage(`Message too long (${content.length}/${MAX_MSG_LENGTH} chars). Please shorten it.`);
+        return;
+      }
+
+      // Prepend full quote from reply bar if active (quotes don't count toward limit).
       if (replyTarget) {
-        const quotedBody = replyTarget.body.length > 150
-          ? replyTarget.body.substring(0, 150) + '…'
-          : replyTarget.body;
-        const quoteLines = quotedBody.split('\n').map(l => '> ' + l).join('\n');
+        const quoteLines = replyTarget.body.split('\n').map(l => '> ' + l).join('\n');
         content = quoteLines + '\n' + content;
         clearReplyTarget();
       }
@@ -988,7 +1012,25 @@
 
       function flushQuote() {
         if (quoteLines.length > 0) {
-          result.push('<div class="quote-block">' + quoteLines.join('<br>') + '</div>');
+          const full = quoteLines.join('<br>');
+          const plainLen = quoteLines.join(' ').length;
+
+          // Collapsible if quote is long (>120 chars or >2 lines).
+          if (plainLen > 120 || quoteLines.length > 2) {
+            const previewText = quoteLines[0].substring(0, 80) + (plainLen > 80 ? '…' : '');
+            result.push(
+              '<div class="quote-block" onclick="this.classList.toggle(\'expanded\')">' +
+                '<span class="quote-preview">' + previewText +
+                  '<span class="quote-expand">▸ show more</span>' +
+                '</span>' +
+                '<span class="quote-full">' + full +
+                  '<br><span class="quote-expand">▴ show less</span>' +
+                '</span>' +
+              '</div>'
+            );
+          } else {
+            result.push('<div class="quote-block">' + full + '</div>');
+          }
           quoteLines = [];
         }
       }
@@ -1170,10 +1212,24 @@
       }
     });
 
-    // Auto-resize on input.
+    // Auto-resize + character counter on input.
+    const MAX_MSG_LENGTH = 2000;
     document.getElementById('msg-input').addEventListener('input', (e) => {
       autoResizeTextarea(e.target);
+      updateCharCounter(e.target.value.length);
     });
+
+    function updateCharCounter(len) {
+      const counter = document.getElementById('char-counter');
+      // Show counter when within 200 chars of limit.
+      if (len > MAX_MSG_LENGTH - 200) {
+        counter.style.display = 'block';
+        counter.textContent = `${len} / ${MAX_MSG_LENGTH}`;
+        counter.className = len > MAX_MSG_LENGTH ? 'over' : len > MAX_MSG_LENGTH - 100 ? 'warn' : '';
+      } else {
+        counter.style.display = 'none';
+      }
+    }
 
     // ── Crypto status check ──
     (async () => {
