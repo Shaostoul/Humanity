@@ -184,6 +184,37 @@
     .message .author.bot { color: #7aa4d8; }
     .message .author.you { color: var(--success); }
 
+    .identicon {
+      width: 18px;
+      height: 18px;
+      border-radius: 3px;
+      vertical-align: middle;
+      margin-right: 0.1rem;
+    }
+
+    .reactions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.2rem;
+      margin-top: 0.15rem;
+    }
+    .reactions:empty { display: none; }
+    .reaction-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.05rem 0.4rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .reaction-badge:hover { border-color: var(--accent); }
+    .reaction-badge.mine { border-color: var(--accent); background: var(--accent-dim); }
+    .reaction-badge .count { font-size: 0.65rem; color: var(--text-muted); }
+
     .sig-badge {
       font-size: 0.65rem;
       color: var(--success);
@@ -868,6 +899,10 @@
           showTypingIndicator(typerName);
           break;
         }
+        case 'reaction': {
+          applyReaction(msg.target_from, msg.target_timestamp, msg.emoji, msg.from, msg.from_name);
+          break;
+        }
         case 'delete': {
           // Remove the deleted message from the DOM.
           const msgs = document.querySelectorAll('.message[data-from="' + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
@@ -959,22 +994,35 @@
         ? '<span class="sig-badge" title="Ed25519 signed">✓</span>'
         : '';
 
-      // Action buttons: reply for all, delete for own messages.
-      let actions = '<div class="msg-actions"><button class="reply-btn" title="Reply">↩</button>';
+      // Action buttons: react, reply, delete (own messages).
+      let actions = '<div class="msg-actions">';
+      actions += '<button class="react-btn" title="React">😀</button>';
+      actions += '<button class="reply-btn" title="Reply">↩</button>';
       if (isMe) {
         actions += '<button class="delete-btn" title="Delete">✕</button>';
       }
       actions += '</div>';
 
+      const identiconSrc = (fromKey && !fromKey.startsWith('bot_')) ? generateIdenticon(fromKey, 20) : '';
+      const identiconHtml = identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '';
+
       el.innerHTML = `
         <div class="meta">
+          ${identiconHtml}
           <span class="author${authorClass}">${esc(author)}</span>
           ${sigBadge}
           <span class="time">${time}</span>
         </div>
         <div class="body">${formatBody(body)}</div>
+        <div class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></div>
         ${actions}
       `;
+
+      // Click react button → show emoji picker.
+      el.querySelector('.react-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showReactionPicker(e.target, fromKey, timestamp, el);
+      });
 
       // Click reply button → show reply preview bar above input.
       el.querySelector('.reply-btn').addEventListener('click', (e) => {
@@ -1038,8 +1086,9 @@
 
       list.innerHTML = Object.values(byName).map(g => {
         const deviceCount = g.keys.length > 1 ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${g.keys.length} devices)</span>` : '';
+        const icon = g.keys[0] && !g.keys[0].startsWith('bot_') ? `<img src="${generateIdenticon(g.keys[0], 16)}" class="identicon" style="width:14px;height:14px;">` : '';
         return `<div class="peer${g.isMe ? ' is-you' : ''}">
-          ${esc(g.name)}${g.isMe ? ' (you)' : ''}${deviceCount}
+          ${icon} ${esc(g.name)}${g.isMe ? ' (you)' : ''}${deviceCount}
         </div>`;
       }).join('');
       if (window.twemoji) twemoji.parse(list);
@@ -1181,6 +1230,138 @@
       const d = document.createElement('div');
       d.textContent = str || '';
       return d.innerHTML;
+    }
+
+    // ── Identicon Generator ──
+    // Creates a 5x5 symmetric pixel art from a hex key string.
+    // WHY: Visual identity at a glance, unique per key, no upload needed.
+    const identiconCache = {};
+    function generateIdenticon(hexKey, size) {
+      size = size || 24;
+      const cacheKey = hexKey + ':' + size;
+      if (identiconCache[cacheKey]) return identiconCache[cacheKey];
+
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      // Parse first 15 bytes from hex for the 5x5 grid (only need half — mirror for symmetry).
+      const bytes = [];
+      for (let i = 0; i < 30 && i < hexKey.length; i += 2) {
+        bytes.push(parseInt(hexKey.substr(i, 2), 16) || 0);
+      }
+
+      // Color from bytes 0-2 (ensure visible on dark bg by keeping values 80-220).
+      const r = 80 + (bytes[0] % 140);
+      const g = 80 + (bytes[1] % 140);
+      const b = 80 + (bytes[2] % 140);
+      const color = `rgb(${r},${g},${b})`;
+      const bg = '#1a1a1a';
+
+      const cellSize = size / 5;
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = color;
+
+      // 5x5 grid, horizontally symmetric (columns 0-2 mirror to 4-2).
+      for (let row = 0; row < 5; row++) {
+        for (let col = 0; col < 3; col++) {
+          const byteIdx = 3 + row * 3 + col;
+          if (byteIdx < bytes.length && bytes[byteIdx] % 2 === 0) {
+            ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+            // Mirror: column 4-col.
+            if (col < 2) {
+              ctx.fillRect((4 - col) * cellSize, row * cellSize, cellSize, cellSize);
+            }
+          }
+        }
+      }
+
+      const dataUrl = canvas.toDataURL();
+      identiconCache[cacheKey] = dataUrl;
+      return dataUrl;
+    }
+
+    // ── Emoji Reactions ──
+    const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉', '🔥', '👀'];
+    // Track reactions: key = "fromKey:timestamp", value = { emoji: Set(reactorKeys) }
+    const messageReactions = {};
+
+    function showReactionPicker(btn, targetFrom, targetTs, msgEl) {
+      // Close any existing picker.
+      document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
+
+      const picker = document.createElement('div');
+      picker.className = 'reaction-picker';
+      picker.style.cssText = 'position:absolute;top:-2rem;right:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:0.2rem;display:flex;gap:0.15rem;z-index:20;';
+      REACTION_EMOJIS.forEach(emoji => {
+        const btn = document.createElement('span');
+        btn.textContent = emoji;
+        btn.style.cssText = 'cursor:pointer;padding:0.15rem 0.25rem;border-radius:3px;font-size:0.9rem;';
+        btn.onmouseover = () => btn.style.background = 'var(--bg-hover)';
+        btn.onmouseout = () => btn.style.background = '';
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          sendReaction(targetFrom, targetTs, emoji);
+          picker.remove();
+        };
+        picker.appendChild(btn);
+      });
+      if (window.twemoji) twemoji.parse(picker);
+
+      msgEl.style.position = 'relative';
+      msgEl.appendChild(picker);
+      // Close picker when clicking elsewhere.
+      setTimeout(() => {
+        document.addEventListener('click', function closePicker() {
+          picker.remove();
+          document.removeEventListener('click', closePicker);
+        }, { once: true });
+      }, 0);
+    }
+
+    function sendReaction(targetFrom, targetTs, emoji) {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        type: 'reaction',
+        target_from: targetFrom,
+        target_timestamp: Number(targetTs),
+        emoji: emoji,
+        from: myKey,
+        from_name: myName,
+      }));
+      // Apply locally immediately.
+      applyReaction(targetFrom, Number(targetTs), emoji, myKey, myName);
+    }
+
+    function applyReaction(targetFrom, targetTs, emoji, reactorKey, reactorName) {
+      const rKey = targetFrom + ':' + targetTs;
+      if (!messageReactions[rKey]) messageReactions[rKey] = {};
+      if (!messageReactions[rKey][emoji]) messageReactions[rKey][emoji] = new Set();
+
+      const set = messageReactions[rKey][emoji];
+      if (set.has(reactorKey)) {
+        set.delete(reactorKey); // Toggle off.
+        if (set.size === 0) delete messageReactions[rKey][emoji];
+      } else {
+        set.add(reactorKey); // Toggle on.
+      }
+      renderReactions(targetFrom, targetTs);
+    }
+
+    function renderReactions(targetFrom, targetTs) {
+      const rKey = targetFrom + ':' + targetTs;
+      const reactions = messageReactions[rKey] || {};
+      // Find the reactions div in the DOM.
+      const msgEl = document.querySelector(`.reactions[data-from="${targetFrom}"][data-ts="${targetTs}"]`);
+      if (!msgEl) return;
+
+      msgEl.innerHTML = Object.entries(reactions).map(([emoji, users]) => {
+        const isMine = users.has(myKey);
+        return `<span class="reaction-badge${isMine ? ' mine' : ''}" onclick="sendReaction('${targetFrom}', ${targetTs}, '${emoji}')">${emoji} <span class="count">${users.size}</span></span>`;
+      }).join('');
+      if (window.twemoji) twemoji.parse(msgEl);
     }
 
     // ── Typing Indicator ──

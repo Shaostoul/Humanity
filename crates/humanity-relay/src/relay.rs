@@ -237,6 +237,16 @@ pub enum RelayMessage {
         from: String,
         timestamp: u64,
     },
+
+    /// Emoji reaction on a message.
+    #[serde(rename = "reaction")]
+    Reaction {
+        target_from: String,
+        target_timestamp: u64,
+        emoji: String,
+        from: String,
+        from_name: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -392,6 +402,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 RelayMessage::Chat { from, .. } => from == &my_key_for_broadcast,
                 RelayMessage::Typing { from, .. } => from == &my_key_for_broadcast,
                 RelayMessage::Delete { from, .. } => from == &my_key_for_broadcast,
+                RelayMessage::Reaction { from, .. } => from == &my_key_for_broadcast,
                 _ => false,
             };
             if should_skip {
@@ -698,6 +709,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     from_name: display,
                                 };
                                 let _ = state_clone.broadcast_tx.send(typing);
+                            }
+                            // Reaction — broadcast to all peers.
+                            RelayMessage::Reaction { target_from, target_timestamp, emoji, .. } => {
+                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
+                                let display = peer.as_ref().and_then(|p| p.display_name.clone());
+                                let reaction = RelayMessage::Reaction {
+                                    target_from,
+                                    target_timestamp,
+                                    emoji,
+                                    from: my_key_for_recv.clone(),
+                                    from_name: display,
+                                };
+                                let _ = state_clone.broadcast_tx.send(reaction);
                             }
                             // Delete own message — broadcast removal to all peers.
                             RelayMessage::Delete { timestamp, .. } => {
