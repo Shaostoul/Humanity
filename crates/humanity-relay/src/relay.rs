@@ -779,6 +779,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             }
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("✦ {} is now verified.", target_name) };
                                                             let _ = state_clone.broadcast_tx.send(private);
+                                                            // Broadcast updated peer list so badges refresh.
+                                                            broadcast_peer_list(&state_clone).await;
                                                         }
                                                         _ => {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
@@ -808,6 +810,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             }
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("{} is no longer verified.", target_name) };
                                                             let _ = state_clone.broadcast_tx.send(private);
+                                                            broadcast_peer_list(&state_clone).await;
                                                         }
                                                         _ => {
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
@@ -888,6 +891,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                     message: result,
                                                 };
                                                 let _ = state_clone.broadcast_tx.send(private);
+                                                // Refresh peer list after role/status changes.
+                                                broadcast_peer_list(&state_clone).await;
                                             }
                                         }
                                         _ => {
@@ -988,6 +993,26 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
         public_key: my_key,
     });
+}
+
+/// Broadcast an updated peer list to all connected clients.
+/// WHY: After role changes (verify, mod, etc.) clients need fresh data for badges.
+async fn broadcast_peer_list(state: &Arc<RelayState>) {
+    let peers: Vec<PeerInfo> = state
+        .peers
+        .read()
+        .await
+        .values()
+        .map(|p| {
+            let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
+            PeerInfo {
+                public_key: p.public_key_hex.clone(),
+                display_name: p.display_name.clone(),
+                role,
+            }
+        })
+        .collect();
+    let _ = state.broadcast_tx.send(RelayMessage::PeerList { peers });
 }
 
 /// Handle moderation commands. Returns a status message for the caller.
