@@ -73,6 +73,9 @@ pub struct RelayState {
     pub rate_limits: RwLock<HashMap<String, RateLimitState>>,
     /// Lockdown mode: when true, new name registrations are blocked.
     pub lockdown: RwLock<bool>,
+    /// Whether the current lockdown was set automatically (vs manually).
+    /// Only auto-unlock if lockdown was auto-set.
+    pub auto_lockdown: RwLock<bool>,
 }
 
 impl RelayState {
@@ -107,6 +110,7 @@ impl RelayState {
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
             lockdown: RwLock::new(false),
+            auto_lockdown: RwLock::new(false),
         }
     }
 
@@ -172,6 +176,8 @@ pub struct ChannelInfo {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    #[serde(default)]
+    pub read_only: bool,
 }
 
 /// Messages sent over the relay WebSocket (JSON framing for MVP).
@@ -187,8 +193,11 @@ pub enum RelayMessage {
         public_key: String,
         display_name: Option<String>,
         /// Optional link code for registering a new device under an existing name.
-        #[serde(skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "Option::is_none", default)]
         link_code: Option<String>,
+        /// Optional invite code for bypassing lockdown.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        invite_code: Option<String>,
     },
 
     /// A chat message, optionally Ed25519-signed.
@@ -295,7 +304,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     // Wait for the identify message first.
     while let Some(Ok(msg)) = ws_rx.next().await {
         if let Message::Text(text) = msg {
-            if let Ok(RelayMessage::Identify { public_key, display_name, link_code }) =
+            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code }) =
                 serde_json::from_str::<RelayMessage>(&text)
             {
                 let mut final_name = display_name.clone();
@@ -352,11 +361,27 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 // Name is free — check lockdown before registering.
                                 let locked = *state.lockdown.read().await;
                                 if locked {
-                                    let err = RelayMessage::NameTaken {
-                                        message: "🔒 Registration is currently locked. Only existing users can connect.".to_string(),
-                                    };
-                                    let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
-                                    continue;
+                                    // Check for invite code bypass.
+                                    let mut invite_ok = false;
+                                    if let Some(ref code) = invite_code {
+                                        match state.db.redeem_invite_code(code, &public_key) {
+                                            Ok(true) => {
+                                                invite_ok = true;
+                                                info!("Invite code redeemed by {public_key} during lockdown");
+                                            }
+                                            Ok(false) => {}
+                                            Err(e) => {
+                                                tracing::error!("Invite code error: {e}");
+                                            }
+                                        }
+                                    }
+                                    if !invite_ok {
+                                        let err = RelayMessage::NameTaken {
+                                            message: "🔒 Registration is currently locked. Only existing users can connect. Use an invite code to bypass.".to_string(),
+                                        };
+                                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                                        continue;
+                                    }
                                 }
                                 if let Err(e) = state.db.register_name(name, &public_key) {
                                     tracing::error!("Failed to register name: {e}");
@@ -414,8 +439,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
                 // Send channel list.
                 if let Ok(channels) = state.db.list_channels() {
-                    let channel_infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc)| {
-                        ChannelInfo { id, name, description: desc }
+                    let channel_infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| {
+                        ChannelInfo { id, name, description: desc, read_only: ro }
                     }).collect();
                     let ch_msg = serde_json::to_string(&RelayMessage::ChannelList { channels: channel_infos }).unwrap();
                     let _ = ws_tx.send(Message::Text(ch_msg.into())).await;
@@ -426,8 +451,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
                     public_key,
                     display_name: final_name,
-                    role: peer_role,
+                    role: peer_role.clone(),
                 });
+
+                // Auto-unlock: if an admin/mod connects and lockdown was auto-set, lift it.
+                if peer_role == "admin" || peer_role == "mod" {
+                    let is_auto = *state.auto_lockdown.read().await;
+                    if is_auto {
+                        let locked = *state.lockdown.read().await;
+                        if locked {
+                            *state.lockdown.write().await = false;
+                            *state.auto_lockdown.write().await = false;
+                            let sys = RelayMessage::System {
+                                message: "🔓 Auto-unlock: moderator online.".to_string(),
+                            };
+                            let _ = state.broadcast_tx.send(sys);
+                        }
+                    }
+                }
 
                 break;
             }
@@ -612,6 +653,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /mute <name> — Mute a user".to_string());
                                                 help_text.push("  /unmute <name> — Unmute a user".to_string());
                                             }
+                                            if role == "admin" || role == "mod" {
+                                                help_text.push("  /invite — Generate a one-time invite code for lockdown bypass".to_string());
+                                            }
                                             if role == "admin" {
                                                 help_text.push("".to_string());
                                                 help_text.push("👑 Admin commands:".to_string());
@@ -622,10 +666,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /verify <name> — Mark a user as verified".to_string());
                                                 help_text.push("  /unverify <name> — Remove verified status".to_string());
                                                 help_text.push("  /lockdown — Toggle registration lockdown".to_string());
+                                                help_text.push("  /invite — Generate invite code for lockdown bypass".to_string());
                                                 help_text.push("  /wipe — Delete all chat history".to_string());
                                                 help_text.push("  /gc — Garbage collect inactive names (90 days)".to_string());
-                                                help_text.push("  /channel-create <name> [desc] — Create a channel".to_string());
+                                                help_text.push("  /channel-create <name> [--readonly] [desc] — Create a channel".to_string());
                                                 help_text.push("  /channel-delete <name> — Delete a channel".to_string());
+                                                help_text.push("  /channel-readonly <name> — Toggle read-only on a channel".to_string());
                                                 help_text.push("  /name-release <name> — Release a name (for account recovery)".to_string());
                                             }
                                             help_text.push("".to_string());
@@ -645,20 +691,23 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
                                                 let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_lowercase();
-                                                if ch_name.is_empty() || !ch_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') || ch_name.len() > 24 {
-                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Channel name must be 1-24 chars: letters, numbers, dashes, underscores.".to_string() };
+                                                if ch_name.is_empty() || ch_name == "--readonly" || !ch_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') || ch_name.len() > 24 {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /channel-create <name> [--readonly] [description...]\nChannel name: 1-24 chars, letters/numbers/dashes/underscores.".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else {
-                                                    let desc = trimmed.split_whitespace().skip(2).collect::<Vec<_>>().join(" ");
+                                                    let args: Vec<&str> = trimmed.split_whitespace().skip(2).collect();
+                                                    let read_only = args.iter().any(|a| *a == "--readonly");
+                                                    let desc = args.iter().filter(|a| **a != "--readonly").copied().collect::<Vec<_>>().join(" ");
                                                     let desc_opt = if desc.is_empty() { None } else { Some(desc.as_str()) };
-                                                    match state_clone.db.create_channel(&ch_name, &ch_name, desc_opt, &my_key_for_recv) {
+                                                    match state_clone.db.create_channel(&ch_name, &ch_name, desc_opt, &my_key_for_recv, read_only) {
                                                         Ok(true) => {
                                                             // Broadcast updated channel list to everyone.
                                                             if let Ok(channels) = state_clone.db.list_channels() {
-                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc)| ChannelInfo { id, name, description: desc }).collect();
+                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
                                                                 let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
                                                             }
-                                                            let sys = RelayMessage::System { message: format!("Channel #{} created.", ch_name) };
+                                                            let ro_label = if read_only { " (read-only)" } else { "" };
+                                                            let sys = RelayMessage::System { message: format!("Channel #{} created{}.", ch_name, ro_label) };
                                                             let _ = state_clone.broadcast_tx.send(sys);
                                                         }
                                                         Ok(false) => {
@@ -682,7 +731,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else if state_clone.db.delete_channel(ch_name).unwrap_or(false) {
                                                     if let Ok(channels) = state_clone.db.list_channels() {
-                                                        let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc)| ChannelInfo { id, name, description: desc }).collect();
+                                                        let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
                                                         let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
                                                     }
                                                     let sys = RelayMessage::System { message: format!("Channel #{} deleted.", ch_name) };
@@ -690,6 +739,58 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 } else {
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel '{}' not found.", ch_name) };
                                                     let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
+                                        }
+                                        "/channel-readonly" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can toggle read-only channels.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_lowercase();
+                                                if ch_name.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /channel-readonly <name>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let current_ro = state_clone.db.is_channel_read_only(&ch_name).unwrap_or(false);
+                                                    let new_ro = !current_ro;
+                                                    match state_clone.db.set_channel_read_only(&ch_name, new_ro) {
+                                                        Ok(true) => {
+                                                            if let Ok(channels) = state_clone.db.list_channels() {
+                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
+                                                                let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
+                                                            }
+                                                            let status = if new_ro { "now read-only 🔒" } else { "now writable 🔓" };
+                                                            let sys = RelayMessage::System { message: format!("Channel #{} is {}.", ch_name, status) };
+                                                            let _ = state_clone.broadcast_tx.send(sys);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel '{}' not found.", ch_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => tracing::error!("Channel readonly toggle error: {e}"),
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/invite" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" && role != "mod" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can generate invite codes.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.create_invite_code(&my_key_for_recv) {
+                                                    Ok(code) => {
+                                                        let private = RelayMessage::Private {
+                                                            to: my_key_for_recv.clone(),
+                                                            message: format!("🎫 Invite code: {}  — Share this with someone to let them register during lockdown. Valid for 24 hours, one-time use.", code),
+                                                        };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Failed to create invite code: {e}");
+                                                    }
                                                 }
                                             }
                                         }
@@ -750,6 +851,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             } else {
                                                 let mut locked = state_clone.lockdown.write().await;
                                                 *locked = !*locked;
+                                                // Manual lockdown: clear auto_lockdown flag.
+                                                *state_clone.auto_lockdown.write().await = false;
                                                 let msg = if *locked {
                                                     "🔒 Registration locked"
                                                 } else {
@@ -907,6 +1010,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
 
                                 let ch = if channel.is_empty() { "general".to_string() } else { channel };
+
+                                // Check read-only channel.
+                                if state_clone.db.is_channel_read_only(&ch).unwrap_or(false) {
+                                    if user_role != "admin" && user_role != "mod" {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "This channel is read-only.".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
+                                }
+
                                 let chat = RelayMessage::Chat {
                                     from: my_key_for_recv.clone(),
                                     from_name: Some(display.clone()),
@@ -988,11 +1104,34 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     }
 
     // Clean up: remove peer and announce departure.
+    let disconnected_role = state.db.get_role(&my_key).unwrap_or_default();
     state.peers.write().await.remove(&my_key);
     info!("Peer disconnected: {my_key}");
     let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
         public_key: my_key,
     });
+
+    // Auto-lockdown: if no admins/mods remain, enable lockdown automatically.
+    if disconnected_role == "admin" || disconnected_role == "mod" {
+        let peers = state.peers.read().await;
+        let has_staff = peers.values().any(|p| {
+            let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
+            role == "admin" || role == "mod"
+        });
+        drop(peers);
+
+        if !has_staff {
+            let already_locked = *state.lockdown.read().await;
+            if !already_locked {
+                *state.lockdown.write().await = true;
+                *state.auto_lockdown.write().await = true;
+                let sys = RelayMessage::System {
+                    message: "🔒 Auto-lockdown: no moderators online.".to_string(),
+                };
+                let _ = state.broadcast_tx.send(sys);
+            }
+        }
+    }
 }
 
 /// Broadcast an updated peer list to all connected clients.

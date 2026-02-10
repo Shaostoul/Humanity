@@ -60,6 +60,11 @@ async fn main() {
     // Ensure default channel exists.
     db.ensure_default_channel().expect("Failed to create default channel");
 
+    // Create additional default channels (read-only).
+    let _ = db.create_channel("welcome", "welcome", Some("Welcome to Humanity Network"), "system", true);
+    let _ = db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", true);
+    let _ = db.create_channel("rules", "rules", Some("Community guidelines"), "system", true);
+
     let state = Arc::new(RelayState::new(db));
 
     let app = Router::new()
@@ -71,6 +76,7 @@ async fn main() {
         .route("/api/peers", get(api::get_peers))
         .route("/api/stats", get(api::get_stats))
         .route("/api/upload", post(api::upload_file))
+        .route("/api/github-webhook", post(api::github_webhook))
         .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
         .fallback_service(
             tower_http::services::ServeDir::new("client")

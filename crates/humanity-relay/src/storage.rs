@@ -72,7 +72,16 @@ impl Storage {
                 name        TEXT NOT NULL,
                 description TEXT,
                 created_by  TEXT,
-                created_at  INTEGER NOT NULL
+                created_at  INTEGER NOT NULL,
+                read_only   INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS invite_codes (
+                code        TEXT PRIMARY KEY,
+                created_by  TEXT NOT NULL,
+                created_at  INTEGER NOT NULL,
+                expires_at  INTEGER NOT NULL,
+                used_by     TEXT
             );
 
             CREATE TABLE IF NOT EXISTS user_roles (
@@ -111,6 +120,17 @@ impl Storage {
         conn.execute_batch(
             "CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, id);"
         )?;
+
+        // Migration: add read_only column to channels if missing.
+        let has_read_only: bool = conn
+            .prepare("SELECT read_only FROM channels LIMIT 0")
+            .is_ok();
+        if !has_read_only {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN read_only INTEGER DEFAULT 0;"
+            )?;
+            info!("Migration: added read_only column to channels");
+        }
 
         info!("Database opened: {}", path.display());
         Ok(Self { conn: Mutex::new(conn) })
@@ -326,15 +346,15 @@ impl Storage {
     // ── Channel methods ──
 
     /// Create a channel. Returns true if created, false if already exists.
-    pub fn create_channel(&self, id: &str, name: &str, description: Option<&str>, created_by: &str) -> Result<bool, rusqlite::Error> {
+    pub fn create_channel(&self, id: &str, name: &str, description: Option<&str>, created_by: &str, read_only: bool) -> Result<bool, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as i64;
         let rows = conn.execute(
-            "INSERT OR IGNORE INTO channels (id, name, description, created_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![id, name, description, created_by, now],
+            "INSERT OR IGNORE INTO channels (id, name, description, created_by, created_at, read_only) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, name, description, created_by, now, read_only as i32],
         )?;
         Ok(rows > 0)
     }
@@ -346,19 +366,44 @@ impl Storage {
         Ok(rows > 0)
     }
 
-    /// List all channels.
-    pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>)>, rusqlite::Error> {
+    /// List all channels (id, name, description, read_only).
+    pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>, bool)>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare("SELECT id, name, description FROM channels ORDER BY created_at ASC")?;
+        let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0) FROM channels ORDER BY created_at ASC")?;
         let channels = stmt.query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            let ro: i32 = row.get(3)?;
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0))
         })?.filter_map(|r| r.ok()).collect();
         Ok(channels)
     }
 
+    /// Set the read_only flag on a channel.
+    pub fn set_channel_read_only(&self, id: &str, read_only: bool) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE channels SET read_only = ?1 WHERE id = ?2",
+            params![read_only as i32, id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Check if a channel is read-only.
+    pub fn is_channel_read_only(&self, id: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT COALESCE(read_only, 0) FROM channels WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, i32>(0),
+        ) {
+            Ok(val) => Ok(val != 0),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
     /// Ensure the default "general" channel exists.
     pub fn ensure_default_channel(&self) -> Result<(), rusqlite::Error> {
-        self.create_channel("general", "general", Some("General discussion"), "system")?;
+        self.create_channel("general", "general", Some("General discussion"), "system", false)?;
         Ok(())
     }
 
@@ -681,5 +726,62 @@ impl Storage {
             params![public_key],
             |row| row.get(0),
         )
+    }
+
+    // ── Invite code methods ──
+
+    /// Create an invite code (8-char hex, 24-hour expiry). Returns the code.
+    pub fn create_invite_code(&self, created_by: &str) -> Result<String, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let expires = now + 24 * 60 * 60 * 1000; // 24 hours
+
+        // Generate 8-char hex from timestamp + creator.
+        let raw = format!("{}{}{}", now, created_by, now.wrapping_mul(2654435761));
+        let mut hash: u64 = 0;
+        for b in raw.bytes() {
+            hash = hash.wrapping_mul(31).wrapping_add(b as u64);
+        }
+        let code = format!("{:08X}", hash % 0xFFFFFFFF);
+
+        // Clean up expired codes.
+        conn.execute("DELETE FROM invite_codes WHERE expires_at < ?1", params![now])?;
+
+        conn.execute(
+            "INSERT INTO invite_codes (code, created_by, created_at, expires_at) VALUES (?1, ?2, ?3, ?4)",
+            params![code, created_by, now, expires],
+        )?;
+
+        Ok(code)
+    }
+
+    /// Redeem an invite code. Returns true if successful.
+    pub fn redeem_invite_code(&self, code: &str, used_by: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+
+        let result = conn.query_row(
+            "SELECT code FROM invite_codes WHERE code = ?1 COLLATE NOCASE AND expires_at > ?2 AND used_by IS NULL",
+            params![code, now],
+            |row| row.get::<_, String>(0),
+        );
+
+        match result {
+            Ok(_) => {
+                conn.execute(
+                    "UPDATE invite_codes SET used_by = ?1 WHERE code = ?2 COLLATE NOCASE",
+                    params![used_by, code],
+                )?;
+                Ok(true)
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(e),
+        }
     }
 }

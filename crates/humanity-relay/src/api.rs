@@ -226,6 +226,108 @@ pub async fn upload_file(
     Err((StatusCode::BAD_REQUEST, "No file provided.".to_string()))
 }
 
+/// GitHub push event payload (subset of fields we care about).
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct GitHubPushEvent {
+    #[serde(rename = "ref")]
+    pub git_ref: Option<String>,
+    pub repository: Option<GitHubRepo>,
+    pub pusher: Option<GitHubPusher>,
+    #[serde(default)]
+    pub commits: Vec<GitHubCommit>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GitHubRepo {
+    pub full_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GitHubPusher {
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct GitHubCommit {
+    pub message: Option<String>,
+    pub url: Option<String>,
+}
+
+/// POST /api/github-webhook — receive GitHub push events and announce them.
+pub async fn github_webhook(
+    State(state): State<Arc<RelayState>>,
+    Json(payload): Json<GitHubPushEvent>,
+) -> impl IntoResponse {
+    let repo = payload.repository
+        .as_ref()
+        .and_then(|r| r.full_name.as_deref())
+        .unwrap_or("unknown-repo");
+    let pusher = payload.pusher
+        .as_ref()
+        .and_then(|p| p.name.as_deref())
+        .unwrap_or("someone");
+    let commit_count = payload.commits.len();
+
+    if commit_count == 0 {
+        return StatusCode::OK;
+    }
+
+    let mut lines = vec![
+        format!(
+            "📦 **{}** — {} new commit{} pushed by {}:",
+            repo,
+            commit_count,
+            if commit_count == 1 { "" } else { "s" },
+            pusher
+        ),
+    ];
+
+    for commit in payload.commits.iter().take(10) {
+        let msg = commit.message.as_deref().unwrap_or("(no message)");
+        // Only the first line of multi-line commit messages.
+        let first_line = msg.lines().next().unwrap_or(msg);
+        lines.push(format!("• {}", first_line));
+    }
+
+    if commit_count > 10 {
+        lines.push(format!("  …and {} more", commit_count - 10));
+    }
+
+    let announcement = lines.join("\n");
+
+    // Store as a system-ish message in the announcements channel.
+    let bot_key = "bot_github".to_string();
+    let chat = RelayMessage::Chat {
+        from: bot_key.clone(),
+        from_name: Some("GitHub".to_string()),
+        content: announcement,
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64,
+        signature: None,
+        channel: "announcements".to_string(),
+    };
+
+    // Ensure bot peer exists (for display purposes).
+    {
+        let mut peers = state.peers.write().await;
+        peers.entry(bot_key.clone()).or_insert_with(|| Peer {
+            public_key_hex: bot_key,
+            display_name: Some("GitHub".to_string()),
+        });
+    }
+
+    if let Err(e) = state.db.store_message_in_channel(&chat, "announcements") {
+        tracing::error!("Failed to persist GitHub webhook message: {e}");
+    }
+    let _ = state.broadcast_tx.send(chat);
+
+    StatusCode::OK
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,

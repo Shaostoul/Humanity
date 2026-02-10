@@ -728,6 +728,7 @@
     <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
     <input type="text" id="name-input" placeholder="Your name" autofocus>
     <input type="text" id="link-code-input" placeholder="Link code (optional, for linking devices)" style="margin-top:0.5rem; display:block;">
+    <input type="text" id="invite-code-input" placeholder="Invite code (optional, for lockdown bypass)" style="margin-top:0.5rem; display:block;">
     <button onclick="connect()">Enter</button>
     <p class="subtitle" id="login-error" style="color:#e74c3c; display:none;"></p>
     <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>
@@ -813,8 +814,10 @@
       <div class="cmd"><code>/lockdown</code> — Toggle registration lock</div>
       <div class="cmd"><code>/wipe</code> — Delete all chat history</div>
       <div class="cmd"><code>/gc</code> — Garbage collect inactive names (90 days)</div>
-      <div class="cmd"><code>/channel-create &lt;name&gt; [desc]</code> — Create a channel</div>
+      <div class="cmd"><code>/channel-create &lt;name&gt; [--readonly] [desc]</code> — Create a channel</div>
       <div class="cmd"><code>/channel-delete &lt;name&gt;</code> — Delete a channel</div>
+      <div class="cmd"><code>/channel-readonly &lt;name&gt;</code> — Toggle read-only on a channel</div>
+      <div class="cmd"><code>/invite</code> — Generate an invite code for lockdown bypass</div>
       <div class="cmd"><code>/name-release &lt;name&gt;</code> — Release a name for re-registration</div>
     </div>
   </div>
@@ -844,6 +847,7 @@
     if (savedName) document.getElementById('name-input').value = savedName;
 
     let pendingLinkCode = null;
+    let pendingInviteCode = null;
     let identityConfirmed = false;
     let activeChannel = localStorage.getItem('humanity_channel') || 'general';
     let channelList = [];
@@ -887,6 +891,7 @@
     async function connect() {
       myName = document.getElementById('name-input').value.trim() || 'Anonymous';
       pendingLinkCode = document.getElementById('link-code-input').value.trim() || null;
+      pendingInviteCode = document.getElementById('invite-code-input').value.trim() || null;
 
       // Validate name: only ASCII letters, numbers, underscores, dashes. Max 24 chars.
       if (!/^[A-Za-z0-9_-]{1,24}$/.test(myName)) {
@@ -926,8 +931,15 @@
         ? '<span style="color:var(--success)">✓ Signing enabled</span>'
         : '<span style="color:var(--warning)">⚠ Unsigned mode</span>';
 
-      // Load history now that we're confirmed.
-      loadHistory();
+      // Don't load history here — wait for channel_list to arrive,
+      // then switchChannel will load it.
+      // If channel_list already arrived, load now.
+      if (channelList.length > 0) {
+        switchChannel(activeChannel);
+      } else {
+        // Fallback: load history for current channel.
+        loadHistory();
+      }
     }
 
     // ── History ──
@@ -1005,6 +1017,10 @@
           identifyMsg.link_code = pendingLinkCode;
           pendingLinkCode = null;
         }
+        if (pendingInviteCode) {
+          identifyMsg.invite_code = pendingInviteCode;
+          pendingInviteCode = null;
+        }
         ws.send(JSON.stringify(identifyMsg));
 
         // Don't switch screens yet — wait for server to confirm via peer_list.
@@ -1081,6 +1097,7 @@
         case 'channel_list':
           updateChannelList(msg.channels || []);
           updateChannelHeader();
+          updateInputForChannel();
           break;
         case 'peer_list':
           // Server sent peer_list = identity accepted!
@@ -1325,31 +1342,58 @@
 
     function updateChannelList(channels) {
       channelList = channels;
+      renderChannelList();
+    }
+
+    function renderChannelList() {
       const list = document.getElementById('channel-list');
-      list.innerHTML = channels.map(ch => {
+      list.innerHTML = channelList.map(ch => {
         const isActive = ch.id === activeChannel;
         const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-        return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}</div>`;
+        const lock = ch.read_only ? ' 🔒' : '';
+        return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}</div>`;
       }).join('');
+      if (window.twemoji) twemoji.parse(list);
     }
 
     function switchChannel(channelId) {
-      if (channelId === activeChannel) return;
       activeChannel = channelId;
       localStorage.setItem('humanity_channel', channelId);
       document.getElementById('messages').innerHTML = '';
       seenTimestamps.clear();
-      loadHistory();
-      updateChannelList(channelList);
+      renderChannelList();
       updateChannelHeader();
+      updateInputForChannel();
+      loadHistory();
+    }
+
+    function updateInputForChannel() {
+      const ch = channelList.find(c => c.id === activeChannel);
+      const input = document.getElementById('msg-input');
+      const sendBtn = document.getElementById('send-btn');
+      // Check if the current user is admin/mod.
+      const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
+      const isStaff = myRole === 'admin' || myRole === 'mod';
+
+      if (ch && ch.read_only && !isStaff) {
+        input.disabled = true;
+        input.placeholder = 'This channel is read-only';
+        sendBtn.disabled = true;
+      } else {
+        input.disabled = false;
+        input.placeholder = 'Type a message…';
+        sendBtn.disabled = false;
+      }
     }
 
     function updateChannelHeader() {
       const header = document.getElementById('channel-header');
       const ch = channelList.find(c => c.id === activeChannel);
       if (ch) {
-        header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}</span>${ch.description ? `<span class="ch-desc">— ${esc(ch.description)}</span>` : ''}`;
+        const lock = ch.read_only ? ' 🔒' : '';
+        header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">— ${esc(ch.description)}</span>` : ''}`;
         header.style.display = 'block';
+        if (window.twemoji) twemoji.parse(header);
       } else {
         header.style.display = 'none';
       }
