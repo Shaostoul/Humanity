@@ -137,6 +137,16 @@ impl RelayState {
     }
 }
 
+fn default_channel() -> String { "general".to_string() }
+
+/// Channel info sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChannelInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
 /// Messages sent over the relay WebSocket (JSON framing for MVP).
 ///
 /// In production, these would be CBOR-encoded signed objects.
@@ -164,6 +174,9 @@ pub enum RelayMessage {
         /// Ed25519 signature hex (signs "{content}\n{timestamp}").
         #[serde(skip_serializing_if = "Option::is_none")]
         signature: Option<String>,
+        /// Channel this message belongs to.
+        #[serde(default = "default_channel")]
+        channel: String,
     },
 
     /// Server announces a peer joined.
@@ -203,6 +216,12 @@ pub enum RelayMessage {
     Private {
         to: String,
         message: String,
+    },
+
+    /// Server sends the list of available channels.
+    #[serde(rename = "channel_list")]
+    ChannelList {
+        channels: Vec<ChannelInfo>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -340,6 +359,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 let list_msg = serde_json::to_string(&RelayMessage::PeerList { peers }).unwrap();
                 let _ = ws_tx.send(Message::Text(list_msg.into())).await;
 
+                // Send channel list.
+                if let Ok(channels) = state.db.list_channels() {
+                    let channel_infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc)| {
+                        ChannelInfo { id, name, description: desc }
+                    }).collect();
+                    let ch_msg = serde_json::to_string(&RelayMessage::ChannelList { channels: channel_infos }).unwrap();
+                    let _ = ws_tx.send(Message::Text(ch_msg.into())).await;
+                }
+
                 // Announce to everyone.
                 let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
                     public_key,
@@ -400,7 +428,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 Message::Text(text) => {
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
                         match relay_msg {
-                            RelayMessage::Chat { content, timestamp, signature, .. } => {
+                            RelayMessage::Chat { content, timestamp, signature, channel, .. } => {
                                 let peer = state_clone
                                     .peers
                                     .read()
@@ -481,6 +509,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /unban <name> — Unban a user".to_string());
                                                 help_text.push("  /mod <name> — Make a user a moderator".to_string());
                                                 help_text.push("  /unmod <name> — Remove moderator role".to_string());
+                                                help_text.push("  /channel-create <name> [desc] — Create a channel".to_string());
+                                                help_text.push("  /channel-delete <name> — Delete a channel".to_string());
                                             }
                                             help_text.push("".to_string());
                                             help_text.push("💡 Tips:".to_string());
@@ -491,6 +521,61 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 message: help_text.join("\n"),
                                             };
                                             let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        "/channel-create" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can create channels.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_lowercase();
+                                                if ch_name.is_empty() || !ch_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') || ch_name.len() > 24 {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Channel name must be 1-24 chars: letters, numbers, dashes, underscores.".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let desc = trimmed.split_whitespace().skip(2).collect::<Vec<_>>().join(" ");
+                                                    let desc_opt = if desc.is_empty() { None } else { Some(desc.as_str()) };
+                                                    match state_clone.db.create_channel(&ch_name, &ch_name, desc_opt, &my_key_for_recv) {
+                                                        Ok(true) => {
+                                                            // Broadcast updated channel list to everyone.
+                                                            if let Ok(channels) = state_clone.db.list_channels() {
+                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc)| ChannelInfo { id, name, description: desc }).collect();
+                                                                let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
+                                                            }
+                                                            let sys = RelayMessage::System { message: format!("Channel #{} created.", ch_name) };
+                                                            let _ = state_clone.broadcast_tx.send(sys);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel '{}' already exists.", ch_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => tracing::error!("Channel create error: {e}"),
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/channel-delete" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can delete channels.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("");
+                                                if ch_name == "general" {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Cannot delete the general channel.".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else if state_clone.db.delete_channel(ch_name).unwrap_or(false) {
+                                                    if let Ok(channels) = state_clone.db.list_channels() {
+                                                        let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc)| ChannelInfo { id, name, description: desc }).collect();
+                                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
+                                                    }
+                                                    let sys = RelayMessage::System { message: format!("Channel #{} deleted.", ch_name) };
+                                                    let _ = state_clone.broadcast_tx.send(sys);
+                                                } else {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel '{}' not found.", ch_name) };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
                                         }
                                         // ── Moderation commands ──
                                         "/kick" | "/ban" | "/unban" | "/mod" | "/unmod" | "/mute" | "/unmute" => {
@@ -525,15 +610,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     continue; // Commands are never broadcast as chat.
                                 }
 
+                                let ch = if channel.is_empty() { "general".to_string() } else { channel };
                                 let chat = RelayMessage::Chat {
                                     from: my_key_for_recv.clone(),
                                     from_name: Some(display.clone()),
                                     content: content.clone(),
                                     timestamp,
                                     signature,
+                                    channel: ch.clone(),
                                 };
 
-                                state_clone.broadcast_and_store(chat).await;
+                                // Store in channel-specific table.
+                                if let Err(e) = state_clone.db.store_message_in_channel(&chat, &ch) {
+                                    tracing::error!("Failed to persist message: {e}");
+                                }
+                                // Broadcast to all (clients filter by their active channel).
+                                let _ = state_clone.broadcast_tx.send(chat);
 
                                 // Notify webhook for human messages (non-bot keys).
                                 if !my_key_for_recv.starts_with("bot_") {

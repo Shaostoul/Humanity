@@ -40,6 +40,9 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_messages_timestamp
                 ON messages(timestamp);
 
+            -- Add channel_id column if it doesn't exist (migration).
+            -- SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we handle it in code.
+
             CREATE TABLE IF NOT EXISTS peers (
                 public_key  TEXT PRIMARY KEY,
                 display_name TEXT,
@@ -64,6 +67,14 @@ impl Storage {
                 expires_at  INTEGER NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS channels (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                description TEXT,
+                created_by  TEXT,
+                created_at  INTEGER NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS user_roles (
                 public_key  TEXT PRIMARY KEY,
                 role        TEXT NOT NULL DEFAULT 'user'
@@ -73,6 +84,22 @@ impl Storage {
                 public_key  TEXT PRIMARY KEY,
                 banned_at   INTEGER NOT NULL
             );"
+        )?;
+
+        // Migration: add channel_id column to messages if missing.
+        let has_channel_id: bool = conn
+            .prepare("SELECT channel_id FROM messages LIMIT 0")
+            .is_ok();
+        if !has_channel_id {
+            conn.execute_batch(
+                "ALTER TABLE messages ADD COLUMN channel_id TEXT DEFAULT 'general';"
+            )?;
+            info!("Migration: added channel_id column to messages");
+        }
+
+        // Create index on channel_id for efficient per-channel queries.
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, id);"
         )?;
 
         info!("Database opened: {}", path.display());
@@ -85,7 +112,7 @@ impl Storage {
         let raw = serde_json::to_string(msg).unwrap_or_default();
 
         match msg {
-            RelayMessage::Chat { from, from_name, content, timestamp, signature } => {
+            RelayMessage::Chat { from, from_name, content, timestamp, signature, .. } => {
                 conn.execute(
                     "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json)
                      VALUES ('chat', ?1, ?2, ?3, ?4, ?5, ?6)",
@@ -284,6 +311,110 @@ impl Storage {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
         }
+    }
+
+    // ── Channel methods ──
+
+    /// Create a channel. Returns true if created, false if already exists.
+    pub fn create_channel(&self, id: &str, name: &str, description: Option<&str>, created_by: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let rows = conn.execute(
+            "INSERT OR IGNORE INTO channels (id, name, description, created_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, name, description, created_by, now],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Delete a channel.
+    pub fn delete_channel(&self, id: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute("DELETE FROM channels WHERE id = ?1", params![id])?;
+        Ok(rows > 0)
+    }
+
+    /// List all channels.
+    pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, name, description FROM channels ORDER BY created_at ASC")?;
+        let channels = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(channels)
+    }
+
+    /// Ensure the default "general" channel exists.
+    pub fn ensure_default_channel(&self) -> Result<(), rusqlite::Error> {
+        self.create_channel("general", "general", Some("General discussion"), "system")?;
+        Ok(())
+    }
+
+    /// Store a message with channel scope.
+    pub fn store_message_in_channel(&self, msg: &crate::relay::RelayMessage, channel_id: &str) -> Result<i64, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let raw = serde_json::to_string(msg).unwrap_or_default();
+
+        match msg {
+            crate::relay::RelayMessage::Chat { from, from_name, content, timestamp, signature, .. } => {
+                conn.execute(
+                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json, channel_id)
+                     VALUES ('chat', ?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![from, from_name, content, timestamp, signature, raw, channel_id],
+                )?;
+            }
+            _ => return Ok(0),
+        }
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// Load messages for a specific channel.
+    pub fn load_channel_messages(&self, channel_id: &str, limit: usize) -> Result<Vec<crate::relay::RelayMessage>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT raw_json FROM (
+                SELECT raw_json, id FROM messages
+                WHERE msg_type = 'chat' AND channel_id = ?1
+                ORDER BY id DESC
+                LIMIT ?2
+            ) sub ORDER BY id ASC"
+        )?;
+        let messages = stmt.query_map(params![channel_id, limit], |row| {
+            let raw: String = row.get(0)?;
+            Ok(raw)
+        })?.filter_map(|r| r.ok())
+        .filter_map(|raw| serde_json::from_str::<crate::relay::RelayMessage>(&raw).ok())
+        .collect();
+        Ok(messages)
+    }
+
+    /// Load messages for a channel after a given row ID (for API polling).
+    pub fn load_channel_messages_after(&self, channel_id: &str, after_id: i64, limit: usize) -> Result<(Vec<crate::relay::RelayMessage>, i64), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, raw_json FROM messages
+             WHERE id > ?1 AND msg_type = 'chat' AND channel_id = ?2
+             ORDER BY id ASC
+             LIMIT ?3"
+        )?;
+        let mut messages = Vec::new();
+        let mut max_id = after_id;
+        let rows = stmt.query_map(params![after_id, channel_id, limit], |row| {
+            let id: i64 = row.get(0)?;
+            let raw: String = row.get(1)?;
+            Ok((id, raw))
+        })?;
+        for row in rows {
+            if let Ok((id, raw)) = row {
+                if id > max_id { max_id = id; }
+                if let Ok(msg) = serde_json::from_str::<crate::relay::RelayMessage>(&raw) {
+                    messages.push(msg);
+                }
+            }
+        }
+        Ok((messages, max_id))
     }
 
     /// Get all public keys registered to a name.

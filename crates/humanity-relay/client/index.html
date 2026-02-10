@@ -100,6 +100,21 @@
       letter-spacing: 0.08em;
     }
 
+    .channel-item {
+      font-size: 0.82rem;
+      padding: 0.3rem 0.5rem;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .channel-item:hover { background: var(--bg-hover); color: var(--text); }
+    .channel-item.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .channel-item::before { content: '# '; opacity: 0.6; }
+
     .peer {
       font-size: 0.8rem;
       padding: 0.3rem 0.4rem;
@@ -538,7 +553,9 @@
           <div id="my-key-display" style="font-family:monospace; font-size:0.6rem;"></div>
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
         </div>
-        <h3>Online</h3>
+        <h3>Channels</h3>
+        <div id="channel-list"></div>
+        <h3 style="margin-top:0.75rem;">Online</h3>
         <div id="peer-list"></div>
       </div>
       <div id="chat-area">
@@ -581,6 +598,8 @@
 
     let pendingLinkCode = null;
     let identityConfirmed = false;
+    let activeChannel = localStorage.getItem('humanity_channel') || 'general';
+    let channelList = [];
     let replyTarget = null; // { author, body, fromKey, timestamp, element }
 
     // ── Reply Bar ──
@@ -667,7 +686,7 @@
     // ── History ──
     async function loadHistory() {
       try {
-        const resp = await fetch('/api/messages?limit=100');
+        const resp = await fetch(`/api/messages?limit=100&channel=${encodeURIComponent(activeChannel)}`);
         const data = await resp.json();
         if (data.messages && data.messages.length > 0) {
           const notice = document.createElement('div');
@@ -784,6 +803,9 @@
     function handleMessage(msg) {
       switch (msg.type) {
         case 'chat': {
+          // Only show messages for the active channel.
+          const msgChannel = msg.channel || 'general';
+          if (msgChannel !== activeChannel) return;
           const key = msg.from + ':' + msg.timestamp;
           if (seenTimestamps.has(key)) return; // Deduplicate
           seenTimestamps.add(key);
@@ -805,6 +827,9 @@
         case 'peer_left':
           if (identityConfirmed) addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} left`);
           updateStats();
+          break;
+        case 'channel_list':
+          updateChannelList(msg.channels || []);
           break;
         case 'peer_list':
           // Server sent peer_list = identity accepted!
@@ -878,6 +903,7 @@
         from_name: myName,
         content: content,
         timestamp: timestamp,
+        channel: activeChannel,
       };
       if (signature) {
         msg.signature = signature;
@@ -999,6 +1025,27 @@
         </div>`;
       }).join('');
       if (window.twemoji) twemoji.parse(list);
+    }
+
+    function updateChannelList(channels) {
+      channelList = channels;
+      const list = document.getElementById('channel-list');
+      list.innerHTML = channels.map(ch => {
+        const isActive = ch.id === activeChannel;
+        const title = ch.description ? ` title="${esc(ch.description)}"` : '';
+        return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}</div>`;
+      }).join('');
+    }
+
+    function switchChannel(channelId) {
+      if (channelId === activeChannel) return;
+      activeChannel = channelId;
+      localStorage.setItem('humanity_channel', channelId);
+      // Clear messages and reload for the new channel.
+      document.getElementById('messages').innerHTML = '';
+      seenTimestamps.clear();
+      loadHistory();
+      updateChannelList(channelList);
     }
 
     async function updateStats() {

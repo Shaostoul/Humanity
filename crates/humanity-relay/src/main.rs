@@ -57,6 +57,9 @@ async fn main() {
         }
     }
 
+    // Ensure default channel exists.
+    db.ensure_default_channel().expect("Failed to create default channel");
+
     let state = Arc::new(RelayState::new(db));
 
     let app = Router::new()

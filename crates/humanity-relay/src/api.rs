@@ -35,6 +35,8 @@ pub struct MessagesQuery {
     pub after: Option<usize>,
     /// Max messages to return (default 50).
     pub limit: Option<usize>,
+    /// Channel to fetch messages from (default: general).
+    pub channel: Option<String>,
 }
 
 /// Response for GET /api/messages.
@@ -69,10 +71,15 @@ pub async fn send_message(
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64,
-        signature: None, // Bot messages are unsigned for now.
+        signature: None,
+        channel: "general".to_string(),
     };
 
-    state.broadcast_and_store(chat).await;
+    // Store and broadcast.
+    if let Err(e) = state.db.store_message_in_channel(&chat, "general") {
+        tracing::error!("Failed to persist bot message: {e}");
+    }
+    let _ = state.broadcast_tx.send(chat);
 
     StatusCode::OK
 }
@@ -87,8 +94,9 @@ pub async fn get_messages(
 ) -> Json<MessagesResponse> {
     let after = params.after.unwrap_or(0) as i64;
     let limit = params.limit.unwrap_or(50).min(200);
+    let channel = params.channel.as_deref().unwrap_or("general");
 
-    match state.db.load_messages_after(after, limit) {
+    match state.db.load_channel_messages_after(channel, after, limit) {
         Ok((messages, cursor)) => {
             Json(MessagesResponse { messages, cursor: cursor as usize })
         }
