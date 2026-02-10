@@ -362,6 +362,38 @@
     .body .quote-block.expanded .quote-full { display: block; }
     .body .quote-block.expanded .quote-preview { display: none; }
 
+    /* ── Image messages ── */
+    .body .img-placeholder {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.3rem 0.6rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin: 0.2rem 0;
+    }
+    .body .img-placeholder:hover { border-color: var(--accent); }
+    .body .img-loaded {
+      max-width: 400px;
+      max-height: 300px;
+      border-radius: 4px;
+      margin: 0.2rem 0;
+      cursor: pointer;
+    }
+    .body .img-loaded:hover { opacity: 0.9; }
+
+    /* ── Upload indicator ── */
+    #upload-indicator {
+      font-size: 0.7rem;
+      color: var(--accent);
+      padding: 0.2rem 0.75rem;
+      display: none;
+    }
+
     /* ── Character counter ── */
     #char-counter {
       font-size: 0.65rem;
@@ -516,6 +548,7 @@
           <div id="reply-preview"></div>
           <button id="reply-cancel" title="Cancel reply">✕</button>
         </div>
+        <div id="upload-indicator"></div>
         <div id="char-counter"></div>
         <div id="input-area">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
@@ -588,6 +621,15 @@
     async function connect() {
       myName = document.getElementById('name-input').value.trim() || 'Anonymous';
       pendingLinkCode = document.getElementById('link-code-input').value.trim() || null;
+
+      // Validate name: only ASCII letters, numbers, underscores, dashes. Max 24 chars.
+      if (!/^[A-Za-z0-9_-]{1,24}$/.test(myName)) {
+        const errEl = document.getElementById('login-error');
+        errEl.textContent = 'Names can only contain letters (A-Z), numbers, underscores, and dashes. Max 24 characters.';
+        errEl.style.display = 'block';
+        return;
+      }
+
       localStorage.setItem('humanity_name', myName);
 
       // Hide any previous error, show connecting status.
@@ -989,9 +1031,15 @@
       // Escape HTML first, then apply markdown-like formatting.
       let safe = esc(text);
 
-      // URLs → clickable links.
+      // Image URLs → collapsed image placeholders (click to load).
       safe = safe.replace(
-        /(https?:\/\/[^\s<]+)/g,
+        /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:png|jpe?g|gif|webp)(?:\?[^\s<]*)?)/gi,
+        '<span class="img-placeholder" onclick="loadImage(this, \'$1\')">🖼️ Image (click to load)</span>'
+      );
+
+      // Other URLs → clickable links.
+      safe = safe.replace(
+        /(?<!["=])(https?:\/\/[^\s<]+)(?![^<]*<\/a>|[^<]*<\/span>)/g,
         '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>'
       );
 
@@ -1090,6 +1138,103 @@
         el.textContent = 'Several people are typing…';
       }
     }
+
+    // ── Image handling ──
+    function loadImage(placeholder, url) {
+      // Replace placeholder with actual image (lazy load to save bandwidth).
+      const img = document.createElement('img');
+      img.className = 'img-loaded';
+      img.src = url;
+      img.alt = 'Image';
+      img.onclick = () => window.open(url, '_blank'); // Click full image to open in new tab.
+      placeholder.replaceWith(img);
+    }
+
+    async function uploadImage(file) {
+      const indicator = document.getElementById('upload-indicator');
+      indicator.textContent = `Uploading ${file.name}…`;
+      indicator.style.display = 'block';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const resp = await fetch('/api/upload', { method: 'POST', body: formData });
+        if (!resp.ok) {
+          const text = await resp.text();
+          addSystemMessage(`Upload failed: ${text}`);
+          return null;
+        }
+
+        const data = await resp.json();
+        return data.url;
+      } catch (e) {
+        addSystemMessage(`Upload failed: ${e.message}`);
+        return null;
+      } finally {
+        indicator.style.display = 'none';
+      }
+    }
+
+    // Paste image from clipboard → upload and send.
+    document.getElementById('msg-input').addEventListener('paste', async (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (!file) return;
+
+          const url = await uploadImage(file);
+          if (url && ws && ws.readyState === WebSocket.OPEN) {
+            const timestamp = Date.now();
+            const content = url;
+            let signature = null;
+            if (myIdentity && myIdentity.canSign) {
+              signature = await signMessage(myIdentity.privateKey, content, timestamp);
+            }
+            const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
+            if (signature) msg.signature = signature;
+            ws.send(JSON.stringify(msg));
+            const key = myKey + ':' + timestamp;
+            seenTimestamps.add(key);
+            addChatMessage(myName, content, timestamp, myKey, false, !!signature);
+          }
+          return;
+        }
+      }
+    });
+
+    // Drag and drop image → upload and send.
+    const chatArea = document.getElementById('chat-area');
+    chatArea.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+    chatArea.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      const files = e.dataTransfer?.files;
+      if (!files) return;
+
+      for (const file of files) {
+        if (file.type.startsWith('image/')) {
+          const url = await uploadImage(file);
+          if (url && ws && ws.readyState === WebSocket.OPEN) {
+            const timestamp = Date.now();
+            const content = url;
+            let signature = null;
+            if (myIdentity && myIdentity.canSign) {
+              signature = await signMessage(myIdentity.privateKey, content, timestamp);
+            }
+            const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
+            if (signature) msg.signature = signature;
+            ws.send(JSON.stringify(msg));
+            const key = myKey + ':' + timestamp;
+            seenTimestamps.add(key);
+            addChatMessage(myName, content, timestamp, myKey, false, !!signature);
+          }
+        }
+      }
+    });
 
     function sendTypingIndicator() {
       // Throttle: send at most once every 2 seconds.

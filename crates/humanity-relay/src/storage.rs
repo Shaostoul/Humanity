@@ -62,6 +62,16 @@ impl Storage {
                 created_by  TEXT NOT NULL,
                 created_at  INTEGER NOT NULL,
                 expires_at  INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS user_roles (
+                public_key  TEXT PRIMARY KEY,
+                role        TEXT NOT NULL DEFAULT 'user'
+            );
+
+            CREATE TABLE IF NOT EXISTS banned_keys (
+                public_key  TEXT PRIMARY KEY,
+                banned_at   INTEGER NOT NULL
             );"
         )?;
 
@@ -274,6 +284,71 @@ impl Storage {
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
         }
+    }
+
+    /// Get all public keys registered to a name.
+    pub fn keys_for_name(&self, name: &str) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT public_key FROM registered_names WHERE name = ?1 COLLATE NOCASE"
+        )?;
+        let keys = stmt.query_map(params![name], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(keys)
+    }
+
+    /// Get the role for a public key (returns "" if no role set).
+    pub fn get_role(&self, public_key: &str) -> Result<String, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT role FROM user_roles WHERE public_key = ?1",
+            params![public_key],
+            |row| row.get(0),
+        ) {
+            Ok(role) => Ok(role),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(String::new()),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Set the role for a public key.
+    pub fn set_role(&self, public_key: &str, role: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO user_roles (public_key, role) VALUES (?1, ?2)
+             ON CONFLICT(public_key) DO UPDATE SET role = ?2",
+            params![public_key, role],
+        )?;
+        Ok(())
+    }
+
+    /// Check if a public key is banned.
+    pub fn is_banned(&self, public_key: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM banned_keys WHERE public_key = ?1",
+            params![public_key],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    /// Ban or unban a public key.
+    pub fn set_banned(&self, public_key: &str, banned: bool) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        if banned {
+            conn.execute(
+                "INSERT OR IGNORE INTO banned_keys (public_key, banned_at) VALUES (?1, ?2)",
+                params![public_key, std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64],
+            )?;
+        } else {
+            conn.execute("DELETE FROM banned_keys WHERE public_key = ?1", params![public_key])?;
+        }
+        Ok(())
     }
 
     /// Delete a message by sender key and timestamp (only your own messages).

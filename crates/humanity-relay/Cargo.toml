@@ -12,7 +12,7 @@ humanity-core = { path = "../humanity-core" }
 tokio = { version = "1", features = ["full"] }
 
 # Web framework + WebSocket
-axum = { version = "0.8", features = ["ws"] }
+axum = { version = "0.8", features = ["ws", "multipart"] }
 
 # Tower middleware (CORS, etc.)
 tower-http = { version = "0.6", features = ["cors", "fs"] }

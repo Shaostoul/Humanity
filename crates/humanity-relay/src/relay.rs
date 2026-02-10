@@ -260,6 +260,30 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                 }
 
+                // Validate name format: only letters, numbers, underscores, dashes.
+                // WHY: Prevents homoglyph attacks (Cyrillic і vs Latin i, etc.)
+                if let Some(ref name) = final_name {
+                    if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') || name.is_empty() || name.len() > 24 {
+                        let err = RelayMessage::NameTaken {
+                            message: "Names can only contain letters (A-Z), numbers, underscores, and dashes. Max 24 characters.".to_string(),
+                        };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        continue;
+                    }
+                }
+
+                // Check if user is banned.
+                if !public_key.starts_with("bot_") {
+                    if state.db.is_banned(&public_key).unwrap_or(false) {
+                        let err = RelayMessage::NameTaken {
+                            message: "You have been banned from this server.".to_string(),
+                        };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        let _ = ws_tx.close().await;
+                        return;
+                    }
+                }
+
                 // Check name registration (skip for bot keys).
                 if !public_key.starts_with("bot_") {
                     if let Some(ref name) = final_name {
@@ -388,6 +412,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .and_then(|p| p.display_name.clone())
                                     .unwrap_or_else(|| "Anonymous".to_string());
 
+                                // Check if user is muted.
+                                if state_clone.db.get_role(&my_key_for_recv).unwrap_or_default() == "muted" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You are muted and cannot send messages.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+
                                 // Enforce max message length (2000 chars for user text).
                                 // Quotes (lines starting with "> ") are exempt.
                                 let user_text_len: usize = content.lines()
@@ -427,21 +461,58 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             }
                                         }
                                         "/help" => {
-                                            // List available commands (private, only sender sees it).
-                                            let help_text = [
-                                                "📖 Available commands:",
-                                                "  /help — Show this message",
-                                                "  /link — Generate a code to link another device to your name",
-                                                "",
-                                                "💡 Tips:",
-                                                "  • Click any message to quote/reply to it",
-                                                "  • **bold**, *italic*, `code`, ~~strikethrough~~ for formatting",
-                                            ].join("\n");
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            let mut help_text = vec![
+                                                "📖 Available commands:".to_string(),
+                                                "  /help — Show this message".to_string(),
+                                                "  /link — Generate a code to link another device".to_string(),
+                                            ];
+                                            if role == "admin" || role == "mod" {
+                                                help_text.push("".to_string());
+                                                help_text.push("🛡️ Moderator commands:".to_string());
+                                                help_text.push("  /kick <name> — Disconnect a user".to_string());
+                                                help_text.push("  /mute <name> — Mute a user".to_string());
+                                                help_text.push("  /unmute <name> — Unmute a user".to_string());
+                                            }
+                                            if role == "admin" {
+                                                help_text.push("".to_string());
+                                                help_text.push("👑 Admin commands:".to_string());
+                                                help_text.push("  /ban <name> — Ban a user".to_string());
+                                                help_text.push("  /unban <name> — Unban a user".to_string());
+                                                help_text.push("  /mod <name> — Make a user a moderator".to_string());
+                                                help_text.push("  /unmod <name> — Remove moderator role".to_string());
+                                            }
+                                            help_text.push("".to_string());
+                                            help_text.push("💡 Tips:".to_string());
+                                            help_text.push("  • Click ↩ on any message to reply".to_string());
+                                            help_text.push("  • **bold**, *italic*, `code`, ~~strike~~ for formatting".to_string());
                                             let private = RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
-                                                message: help_text,
+                                                message: help_text.join("\n"),
                                             };
                                             let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        // ── Moderation commands ──
+                                        "/kick" | "/ban" | "/unban" | "/mod" | "/unmod" | "/mute" | "/unmute" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            let target_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+
+                                            if target_name.is_empty() {
+                                                let private = RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: format!("Usage: {} <name>", cmd),
+                                                };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let result = handle_mod_command(
+                                                    &state_clone, &cmd, &role, &target_name, &my_key_for_recv
+                                                ).await;
+                                                let private = RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: result,
+                                                };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            }
                                         }
                                         _ => {
                                             let private = RelayMessage::Private {
@@ -521,4 +592,103 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
         public_key: my_key,
     });
+}
+
+/// Handle moderation commands. Returns a status message for the caller.
+async fn handle_mod_command(
+    state: &Arc<RelayState>,
+    cmd: &str,
+    caller_role: &str,
+    target_name: &str,
+    _caller_key: &str,
+) -> String {
+    // Resolve target name → public key(s).
+    let target_keys = match state.db.keys_for_name(target_name) {
+        Ok(keys) if !keys.is_empty() => keys,
+        _ => return format!("User '{}' not found.", target_name),
+    };
+
+    let is_admin = caller_role == "admin";
+    let is_mod = caller_role == "mod" || is_admin;
+
+    match cmd {
+        "/kick" => {
+            if !is_mod { return "You need moderator permissions.".to_string(); }
+            // Disconnect all sessions for this name by broadcasting a kick.
+            let kick_msg = RelayMessage::System {
+                message: format!("{} was kicked.", target_name),
+            };
+            let _ = state.broadcast_tx.send(kick_msg);
+            // Remove from connected peers.
+            let mut peers = state.peers.write().await;
+            for key in &target_keys {
+                peers.remove(key);
+            }
+            format!("Kicked {}.", target_name)
+        }
+        "/ban" => {
+            if !is_admin { return "Only admins can ban users.".to_string(); }
+            for key in &target_keys {
+                if let Err(e) = state.db.set_banned(key, true) {
+                    tracing::error!("Failed to ban: {e}");
+                }
+            }
+            // Also kick them.
+            let mut peers = state.peers.write().await;
+            for key in &target_keys {
+                peers.remove(key);
+            }
+            let ban_msg = RelayMessage::System {
+                message: format!("{} was banned.", target_name),
+            };
+            let _ = state.broadcast_tx.send(ban_msg);
+            format!("Banned {}.", target_name)
+        }
+        "/unban" => {
+            if !is_admin { return "Only admins can unban users.".to_string(); }
+            for key in &target_keys {
+                if let Err(e) = state.db.set_banned(key, false) {
+                    tracing::error!("Failed to unban: {e}");
+                }
+            }
+            format!("Unbanned {}.", target_name)
+        }
+        "/mod" => {
+            if !is_admin { return "Only admins can assign moderators.".to_string(); }
+            for key in &target_keys {
+                if let Err(e) = state.db.set_role(key, "mod") {
+                    tracing::error!("Failed to set mod: {e}");
+                }
+            }
+            format!("{} is now a moderator.", target_name)
+        }
+        "/unmod" => {
+            if !is_admin { return "Only admins can remove moderators.".to_string(); }
+            for key in &target_keys {
+                if let Err(e) = state.db.set_role(key, "user") {
+                    tracing::error!("Failed to unmod: {e}");
+                }
+            }
+            format!("{} is no longer a moderator.", target_name)
+        }
+        "/mute" => {
+            if !is_mod { return "You need moderator permissions.".to_string(); }
+            for key in &target_keys {
+                if let Err(e) = state.db.set_role(key, "muted") {
+                    tracing::error!("Failed to mute: {e}");
+                }
+            }
+            format!("{} has been muted.", target_name)
+        }
+        "/unmute" => {
+            if !is_mod { return "You need moderator permissions.".to_string(); }
+            for key in &target_keys {
+                if let Err(e) = state.db.set_role(key, "user") {
+                    tracing::error!("Failed to unmute: {e}");
+                }
+            }
+            format!("{} has been unmuted.", target_name)
+        }
+        _ => "Unknown moderation command.".to_string(),
+    }
 }

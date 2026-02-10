@@ -43,6 +43,20 @@ async fn main() {
     let msg_count = db.message_count().unwrap_or(0);
     tracing::info!("Database has {msg_count} stored messages");
 
+    // Auto-promote first registered user or ADMIN_KEYS to admin.
+    if let Ok(admin_keys) = std::env::var("ADMIN_KEYS") {
+        for key in admin_keys.split(',') {
+            let key = key.trim();
+            if !key.is_empty() {
+                if let Err(e) = db.set_role(key, "admin") {
+                    tracing::error!("Failed to set admin for {key}: {e}");
+                } else {
+                    tracing::info!("Admin role set for key: {key}");
+                }
+            }
+        }
+    }
+
     let state = Arc::new(RelayState::new(db));
 
     let app = Router::new()
@@ -53,6 +67,8 @@ async fn main() {
         .route("/api/messages", get(api::get_messages))
         .route("/api/peers", get(api::get_peers))
         .route("/api/stats", get(api::get_stats))
+        .route("/api/upload", post(api::upload_file))
+        .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
         .fallback_service(
             tower_http::services::ServeDir::new("client")
                 .fallback(tower_http::services::ServeFile::new("client/index.html")),

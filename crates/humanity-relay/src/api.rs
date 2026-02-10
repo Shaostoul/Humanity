@@ -127,6 +127,67 @@ pub async fn get_stats(
     })
 }
 
+/// POST /api/upload — upload a file (images only, max 5MB).
+/// Returns a JSON object with the file URL.
+pub async fn upload_file(
+    mut multipart: axum::extract::Multipart,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    const MAX_SIZE: usize = 5 * 1024 * 1024; // 5MB
+    const ALLOWED_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
+    })? {
+        let content_type = field.content_type().unwrap_or("").to_string();
+        if !ALLOWED_TYPES.contains(&content_type.as_str()) {
+            return Err((StatusCode::BAD_REQUEST, format!("Unsupported file type: {}. Allowed: png, jpeg, gif, webp", content_type)));
+        }
+
+        let filename = field.file_name().unwrap_or("upload").to_string();
+        let data = field.bytes().await.map_err(|e| {
+            (StatusCode::BAD_REQUEST, format!("Failed to read file: {e}"))
+        })?;
+
+        if data.len() > MAX_SIZE {
+            return Err((StatusCode::BAD_REQUEST, format!("File too large ({} bytes, max {})", data.len(), MAX_SIZE)));
+        }
+
+        // Generate unique filename.
+        let ext = match content_type.as_str() {
+            "image/png" => "png",
+            "image/jpeg" => "jpg",
+            "image/gif" => "gif",
+            "image/webp" => "webp",
+            _ => "bin",
+        };
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let safe_name: String = filename.chars()
+            .filter(|c: &char| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+            .take(32)
+            .collect();
+        let unique_name = format!("{}_{}.{}", ts, if safe_name.is_empty() { "file" } else { &safe_name }, ext);
+
+        // Store in data/uploads/.
+        let upload_dir = std::path::Path::new("data/uploads");
+        std::fs::create_dir_all(upload_dir).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
+        })?;
+
+        let file_path = upload_dir.join(&unique_name);
+        std::fs::write(&file_path, &data).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to write file: {e}"))
+        })?;
+
+        let url = format!("/uploads/{}", unique_name);
+        return Ok(Json(serde_json::json!({ "url": url, "filename": unique_name, "size": data.len() })));
+    }
+
+    Err((StatusCode::BAD_REQUEST, "No file provided.".to_string()))
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,
