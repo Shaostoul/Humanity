@@ -550,6 +550,47 @@ impl Storage {
         Ok(keys)
     }
 
+    /// List all registered names with their highest role.
+    /// Returns Vec<(name, role, key_count)> sorted alphabetically.
+    pub fn list_all_users(&self) -> Result<Vec<(String, String, usize)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT rn.name, rn.public_key, COALESCE(ur.role, '') as role
+             FROM registered_names rn
+             LEFT JOIN user_roles ur ON rn.public_key = ur.public_key
+             ORDER BY rn.name COLLATE NOCASE"
+        )?;
+        let rows: Vec<(String, String, String)> = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?.filter_map(|r| r.ok()).collect();
+
+        // Group by name, take highest role.
+        let mut users: std::collections::BTreeMap<String, (String, usize)> = std::collections::BTreeMap::new();
+        let role_priority = |r: &str| -> u8 {
+            match r { "admin" => 4, "mod" => 3, "donor" => 2, "verified" => 1, _ => 0 }
+        };
+        for (name, _key, role) in &rows {
+            let lower_name = name.to_lowercase();
+            let entry = users.entry(lower_name).or_insert((String::new(), 0));
+            entry.1 += 1; // key count
+            if role_priority(role) > role_priority(&entry.0) {
+                entry.0 = role.clone();
+            }
+        }
+        // Collect with original-case name from first occurrence.
+        let mut result = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for (name, _key, _role) in &rows {
+            let lower = name.to_lowercase();
+            if seen.insert(lower.clone()) {
+                if let Some((role, count)) = users.get(&lower) {
+                    result.push((name.clone(), role.clone(), *count));
+                }
+            }
+        }
+        Ok(result)
+    }
+
     /// Get the role for a public key (returns "" if no role set).
     pub fn get_role(&self, public_key: &str) -> Result<String, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();

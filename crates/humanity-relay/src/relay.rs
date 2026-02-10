@@ -649,6 +649,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("".to_string());
                                                 help_text.push("🛡️ Moderator commands:".to_string());
+                                                help_text.push("  /users — List all registered users (online/offline)".to_string());
                                                 help_text.push("  /kick <name> — Disconnect a user".to_string());
                                                 help_text.push("  /mute <name> — Mute a user".to_string());
                                                 help_text.push("  /unmute <name> — Unmute a user".to_string());
@@ -1043,6 +1044,45 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                     Err(e) => {
                                                         tracing::error!("Wipe-all failed: {e}");
                                                         let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Wipe failed: {e}") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/users" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" && role != "mod" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can list users.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.list_all_users() {
+                                                    Ok(users) => {
+                                                        let online_names: std::collections::HashSet<String> = state_clone.peers.read().await.values()
+                                                            .filter_map(|p| p.display_name.clone())
+                                                            .map(|n| n.to_lowercase())
+                                                            .collect();
+
+                                                        let mut lines = vec![format!("👥 Registered users ({}):", users.len())];
+                                                        for (name, role, key_count) in &users {
+                                                            let is_online = online_names.contains(&name.to_lowercase());
+                                                            let status = if is_online { "🟢" } else { "⚫" };
+                                                            let role_badge = match role.as_str() {
+                                                                "admin" => " 👑",
+                                                                "mod" => " 🛡️",
+                                                                "verified" => " ✦",
+                                                                "donor" => " 💎",
+                                                                "muted" => " 🔇",
+                                                                _ => "",
+                                                            };
+                                                            let devices = if *key_count > 1 { format!(" ({} devices)", key_count) } else { String::new() };
+                                                            lines.push(format!("  {} {}{}{}", status, name, role_badge, devices));
+                                                        }
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: lines.join("\n") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Failed to list users: {e}");
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
                                                         let _ = state_clone.broadcast_tx.send(private);
                                                     }
                                                 }
