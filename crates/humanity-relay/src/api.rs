@@ -233,9 +233,13 @@ pub async fn get_peers(
     let peers = state.peers.read().await;
     let list: Vec<PeerInfo> = peers
         .values()
-        .map(|p| PeerInfo {
-            public_key: p.public_key_hex.clone(),
-            display_name: p.display_name.clone(),
+        .map(|p| {
+            let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
+            PeerInfo {
+                public_key: p.public_key_hex.clone(),
+                display_name: p.display_name.clone(),
+                role,
+            }
         })
         .collect();
     Json(list)

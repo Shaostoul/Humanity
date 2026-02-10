@@ -71,6 +71,8 @@ pub struct RelayState {
     http_client: reqwest::Client,
     /// Per-key rate limiting state (Fibonacci backoff).
     pub rate_limits: RwLock<HashMap<String, RateLimitState>>,
+    /// Lockdown mode: when true, new name registrations are blocked.
+    pub lockdown: RwLock<bool>,
 }
 
 impl RelayState {
@@ -104,6 +106,7 @@ impl RelayState {
             webhook,
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
+            lockdown: RwLock::new(false),
         }
     }
 
@@ -208,6 +211,8 @@ pub enum RelayMessage {
     PeerJoined {
         public_key: String,
         display_name: Option<String>,
+        #[serde(default)]
+        role: String,
     },
 
     /// Server announces a peer left.
@@ -277,6 +282,8 @@ pub enum RelayMessage {
 pub struct PeerInfo {
     pub public_key: String,
     pub display_name: Option<String>,
+    #[serde(default)]
+    pub role: String,
 }
 
 /// Handle a single WebSocket connection.
@@ -342,7 +349,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     if let Some(ref name) = final_name {
                         match state.db.check_name(name, &public_key) {
                             Ok(None) => {
-                                // Name is free — register it.
+                                // Name is free — check lockdown before registering.
+                                let locked = *state.lockdown.read().await;
+                                if locked {
+                                    let err = RelayMessage::NameTaken {
+                                        message: "🔒 Registration is currently locked. Only existing users can connect.".to_string(),
+                                    };
+                                    let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                                    continue;
+                                }
                                 if let Err(e) = state.db.register_name(name, &public_key) {
                                     tracing::error!("Failed to register name: {e}");
                                 }
@@ -384,9 +399,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     .read()
                     .await
                     .values()
-                    .map(|p| PeerInfo {
-                        public_key: p.public_key_hex.clone(),
-                        display_name: p.display_name.clone(),
+                    .map(|p| {
+                        let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
+                        PeerInfo {
+                            public_key: p.public_key_hex.clone(),
+                            display_name: p.display_name.clone(),
+                            role,
+                        }
                     })
                     .collect();
 
@@ -403,9 +422,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
 
                 // Announce to everyone.
+                let peer_role = state.db.get_role(&public_key).unwrap_or_default();
                 let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
                     public_key,
                     display_name: final_name,
+                    role: peer_role,
                 });
 
                 break;
@@ -504,8 +525,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     let fib_delay = FIB_DELAYS[rl.fib_index];
 
                                     // New-account slow mode: if first seen < 10 min ago, min 5s delay.
+                                    // Skip for verified, mod, and admin users.
+                                    let is_trusted = user_role == "verified" || user_role == "mod" || user_role == "admin";
                                     let account_age = now.duration_since(rl.first_seen).as_secs();
-                                    let new_account_delay = if account_age < NEW_ACCOUNT_WINDOW_SECS {
+                                    let new_account_delay = if !is_trusted && account_age < NEW_ACCOUNT_WINDOW_SECS {
                                         NEW_ACCOUNT_DELAY_SECS
                                     } else {
                                         0
@@ -596,6 +619,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /unban <name> — Unban a user".to_string());
                                                 help_text.push("  /mod <name> — Make a user a moderator".to_string());
                                                 help_text.push("  /unmod <name> — Remove moderator role".to_string());
+                                                help_text.push("  /verify <name> — Mark a user as verified".to_string());
+                                                help_text.push("  /unverify <name> — Remove verified status".to_string());
+                                                help_text.push("  /lockdown — Toggle registration lockdown".to_string());
+                                                help_text.push("  /wipe — Delete all chat history".to_string());
+                                                help_text.push("  /gc — Garbage collect inactive names (90 days)".to_string());
                                                 help_text.push("  /channel-create <name> [desc] — Create a channel".to_string());
                                                 help_text.push("  /channel-delete <name> — Delete a channel".to_string());
                                                 help_text.push("  /name-release <name> — Release a name (for account recovery)".to_string());
@@ -710,6 +738,132 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                         }
                                                         Err(e) => tracing::error!("Name release error: {e}"),
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/lockdown" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can toggle lockdown.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let mut locked = state_clone.lockdown.write().await;
+                                                *locked = !*locked;
+                                                let msg = if *locked {
+                                                    "🔒 Registration locked"
+                                                } else {
+                                                    "🔓 Registration opened"
+                                                };
+                                                let sys = RelayMessage::System { message: msg.to_string() };
+                                                state_clone.broadcast_and_store(sys).await;
+                                            }
+                                        }
+                                        "/verify" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can verify users.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let target_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                                if target_name.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /verify <name>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    match state_clone.db.keys_for_name(&target_name) {
+                                                        Ok(keys) if !keys.is_empty() => {
+                                                            for key in &keys {
+                                                                if let Err(e) = state_clone.db.set_role(key, "verified") {
+                                                                    tracing::error!("Failed to verify: {e}");
+                                                                }
+                                                            }
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("✦ {} is now verified.", target_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        _ => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/unverify" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can unverify users.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let target_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                                if target_name.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /unverify <name>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    match state_clone.db.keys_for_name(&target_name) {
+                                                        Ok(keys) if !keys.is_empty() => {
+                                                            for key in &keys {
+                                                                if let Err(e) = state_clone.db.set_role(key, "user") {
+                                                                    tracing::error!("Failed to unverify: {e}");
+                                                                }
+                                                            }
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("{} is no longer verified.", target_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        _ => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/wipe" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can wipe messages.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.wipe_messages() {
+                                                    Ok(count) => {
+                                                        // Clear in-memory history.
+                                                        state_clone.history.write().await.clear();
+                                                        let sys = RelayMessage::System {
+                                                            message: "💥 Chat history cleared by admin.".to_string(),
+                                                        };
+                                                        let _ = state_clone.broadcast_tx.send(sys);
+                                                        info!("Admin wiped {} messages", count);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Wipe failed: {e}");
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Wipe failed: {e}") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/gc" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can run garbage collection.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.garbage_collect_names(90) {
+                                                    Ok(deleted) if deleted.is_empty() => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "🧹 No inactive names to clean up.".to_string() };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Ok(deleted) => {
+                                                        let names_list = deleted.join(", ");
+                                                        let private = RelayMessage::Private {
+                                                            to: my_key_for_recv.clone(),
+                                                            message: format!("🧹 Garbage collected {} inactive name(s): {}", deleted.len(), names_list),
+                                                        };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("GC failed: {e}");
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("GC failed: {e}") };
+                                                        let _ = state_clone.broadcast_tx.send(private);
                                                     }
                                                 }
                                             }

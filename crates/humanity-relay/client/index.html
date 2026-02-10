@@ -550,11 +550,161 @@
       padding: 0.2rem;
     }
 
+    /* ── Right Sidebar ── */
+    #right-sidebar {
+      width: 200px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border);
+      padding: 0.75rem;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    #right-sidebar h3 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Help Button ── */
+    #help-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    #help-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Help Modal ── */
+    #help-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #help-modal-overlay.open { display: flex; }
+
+    #help-modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-width: 520px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 1.2rem;
+      position: relative;
+    }
+
+    #help-modal h2 {
+      font-size: 1rem;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    #help-modal h4 {
+      font-size: 0.8rem;
+      color: var(--text);
+      margin: 0.75rem 0 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    #help-modal .cmd {
+      font-size: 0.8rem;
+      padding: 0.2rem 0;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    #help-modal .cmd code {
+      background: var(--bg-hover);
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      color: var(--accent);
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
+
+    #help-close {
+      position: absolute;
+      top: 0.6rem;
+      right: 0.8rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+    #help-close:hover { color: var(--text); }
+
+    /* ── Context Menu ── */
+    #user-context-menu {
+      display: none;
+      position: fixed;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      min-width: 150px;
+      z-index: 200;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      padding: 0.3rem 0;
+    }
+    #user-context-menu.open { display: block; }
+    .ctx-item {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ctx-item:hover { background: var(--bg-hover); color: var(--accent); }
+    .ctx-sep {
+      height: 1px;
+      background: var(--border);
+      margin: 0.2rem 0;
+    }
+
+    /* ── Role Badges ── */
+    .role-badge {
+      font-size: 0.7rem;
+      margin-left: 0.2rem;
+      vertical-align: middle;
+    }
+
+    /* ── People toggle button (mobile) ── */
+    #people-toggle {
+      display: none;
+      background: none;
+      border: none;
+      color: var(--text);
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0.2rem;
+    }
+
     /* ── Mobile ── */
     @media (max-width: 640px) {
       #sidebar { display: none; position: fixed; left: 0; top: 48px; bottom: 0; z-index: 10; width: 220px; }
       #sidebar.open { display: block; }
+      #right-sidebar { display: none; position: fixed; right: 0; top: 48px; bottom: 0; z-index: 10; width: 220px; }
+      #right-sidebar.open { display: block; }
       #hamburger { display: block; }
+      #people-toggle { display: block; }
       header h1 { font-size: 0.9rem; }
       #msg-input { font-size: 16px; } /* Prevent iOS zoom */
     }
@@ -591,7 +741,10 @@
         <h1>🌍 Humanity</h1>
         <span id="stats"></span>
       </div>
-      <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
+      <div style="display:flex;align-items:center;gap:0.5rem;">
+        <button id="people-toggle" onclick="document.getElementById('right-sidebar').classList.toggle('open')" title="Online users">👤</button>
+        <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
+      </div>
     </header>
     <div class="main">
       <div id="sidebar">
@@ -602,8 +755,6 @@
         </div>
         <h3>Channels</h3>
         <div id="channel-list"></div>
-        <h3 style="margin-top:0.75rem;">Online</h3>
-        <div id="peer-list"></div>
       </div>
       <div id="chat-area">
         <div id="channel-header"></div>
@@ -618,10 +769,58 @@
         <div id="input-area">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
+          <button id="help-btn" onclick="toggleHelpModal()" title="Help & Commands">?</button>
         </div>
+      </div>
+      <div id="right-sidebar">
+        <h3>Online</h3>
+        <div id="peer-list"></div>
       </div>
     </div>
   </div>
+
+  <!-- Help Modal -->
+  <div id="help-modal-overlay" onclick="closeHelpModal(event)">
+    <div id="help-modal" onclick="event.stopPropagation()">
+      <button id="help-close" onclick="toggleHelpModal()">✕</button>
+      <h2>📖 Commands & Help</h2>
+
+      <h4>💬 Basic Commands</h4>
+      <div class="cmd"><code>/help</code> — Show available commands</div>
+      <div class="cmd"><code>/link</code> — Generate a code to link another device</div>
+      <div class="cmd"><code>/revoke &lt;key_prefix&gt;</code> — Remove a lost/stolen device from your name</div>
+
+      <h4>✍️ Formatting</h4>
+      <div class="cmd"><code>**bold**</code> → <strong>bold</strong></div>
+      <div class="cmd"><code>*italic*</code> → <em>italic</em></div>
+      <div class="cmd"><code>~~strike~~</code> → <del>strike</del></div>
+      <div class="cmd"><code>`code`</code> → <code style="background:var(--bg-hover);padding:0.1rem 0.3rem;border-radius:3px;">code</code></div>
+      <div class="cmd">Click ↩ on a message to quote-reply</div>
+      <div class="cmd">Paste or drag an image to upload</div>
+
+      <h4>🛡️ Moderator Commands</h4>
+      <div class="cmd"><code>/kick &lt;name&gt;</code> — Disconnect a user</div>
+      <div class="cmd"><code>/mute &lt;name&gt;</code> — Mute a user</div>
+      <div class="cmd"><code>/unmute &lt;name&gt;</code> — Unmute a user</div>
+
+      <h4>👑 Admin Commands</h4>
+      <div class="cmd"><code>/ban &lt;name&gt;</code> — Ban a user</div>
+      <div class="cmd"><code>/unban &lt;name&gt;</code> — Unban a user</div>
+      <div class="cmd"><code>/mod &lt;name&gt;</code> — Make a user a moderator</div>
+      <div class="cmd"><code>/unmod &lt;name&gt;</code> — Remove moderator role</div>
+      <div class="cmd"><code>/verify &lt;name&gt;</code> — Mark user as verified</div>
+      <div class="cmd"><code>/unverify &lt;name&gt;</code> — Remove verified status</div>
+      <div class="cmd"><code>/lockdown</code> — Toggle registration lock</div>
+      <div class="cmd"><code>/wipe</code> — Delete all chat history</div>
+      <div class="cmd"><code>/gc</code> — Garbage collect inactive names (90 days)</div>
+      <div class="cmd"><code>/channel-create &lt;name&gt; [desc]</code> — Create a channel</div>
+      <div class="cmd"><code>/channel-delete &lt;name&gt;</code> — Delete a channel</div>
+      <div class="cmd"><code>/name-release &lt;name&gt;</code> — Release a name for re-registration</div>
+    </div>
+  </div>
+
+  <!-- User Context Menu -->
+  <div id="user-context-menu"></div>
 
   <script src="crypto.js"></script>
   <script>
@@ -869,10 +1068,13 @@
           break;
         }
         case 'peer_joined':
+          // Update peerData with new peer info.
+          peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '' };
           if (identityConfirmed) addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} joined`);
           updateStats();
           break;
         case 'peer_left':
+          delete peerData[msg.public_key];
           if (identityConfirmed) addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} left`);
           updateStats();
           break;
@@ -1006,10 +1208,14 @@
       const identiconSrc = (fromKey && !fromKey.startsWith('bot_')) ? generateIdenticon(fromKey, 20) : '';
       const identiconHtml = identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '';
 
+      // Look up role for author badge.
+      const peerRole = (peerData[fromKey] && peerData[fromKey].role) ? peerData[fromKey].role : '';
+      const badge = roleBadge(peerRole);
+
       el.innerHTML = `
         <div class="meta">
           ${identiconHtml}
-          <span class="author${authorClass}">${esc(author)}</span>
+          <span class="author${authorClass}" data-username="${esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${esc(author)}</span>${badge}
           ${sigBadge}
           <span class="time">${time}</span>
         </div>
@@ -1017,6 +1223,15 @@
         <div class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></div>
         ${actions}
       `;
+
+      // Context menu on author name click.
+      const authorEl = el.querySelector('.author');
+      if (authorEl) {
+        authorEl.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showUserContextMenu(e, author, fromKey);
+        });
+      }
 
       // Click react button → show emoji picker.
       el.querySelector('.react-btn').addEventListener('click', (e) => {
@@ -1073,22 +1288,36 @@
     function updatePeerList(peers) {
       const list = document.getElementById('peer-list');
 
+      // Store peer data globally for context menu.
+      peerData = {};
+      for (const p of peers) {
+        peerData[p.public_key] = p;
+      }
+
       // Merge peers with the same display name (multi-device users).
       const byName = {};
       for (const p of peers) {
         const name = p.display_name || 'Anonymous';
         if (!byName[name]) {
-          byName[name] = { name, keys: [], isMe: false };
+          byName[name] = { name, keys: [], isMe: false, role: p.role || '' };
         }
         byName[name].keys.push(p.public_key);
         if (p.public_key === myKey) byName[name].isMe = true;
+        // Use the highest role among devices.
+        const rolePriority = { admin: 4, mod: 3, verified: 2, donor: 1 };
+        if ((rolePriority[p.role] || 0) > (rolePriority[byName[name].role] || 0)) {
+          byName[name].role = p.role;
+        }
       }
 
       list.innerHTML = Object.values(byName).map(g => {
         const deviceCount = g.keys.length > 1 ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${g.keys.length} devices)</span>` : '';
         const icon = g.keys[0] && !g.keys[0].startsWith('bot_') ? `<img src="${generateIdenticon(g.keys[0], 16)}" class="identicon" style="width:14px;height:14px;">` : '';
-        return `<div class="peer${g.isMe ? ' is-you' : ''}">
-          ${icon} ${esc(g.name)}${g.isMe ? ' (you)' : ''}${deviceCount}
+        const badge = roleBadge(g.role);
+        const escapedName = esc(g.name);
+        const escapedKey = esc(g.keys[0]);
+        return `<div class="peer${g.isMe ? ' is-you' : ''}" data-username="${escapedName}" data-pubkey="${escapedKey}" onclick="showUserContextMenu(event, '${escapedName}', '${escapedKey}')">
+          ${icon} ${escapedName}${badge}${g.isMe ? ' (you)' : ''}${deviceCount}
         </div>`;
       }).join('');
       if (window.twemoji) twemoji.parse(list);
@@ -1661,6 +1890,97 @@
 
     // Update stats every 30s.
     setInterval(updateStats, 30000);
+
+    // ── Help Modal ──
+    function toggleHelpModal() {
+      document.getElementById('help-modal-overlay').classList.toggle('open');
+    }
+    function closeHelpModal(e) {
+      // Only close if clicking the overlay background.
+      if (e.target === document.getElementById('help-modal-overlay')) {
+        document.getElementById('help-modal-overlay').classList.remove('open');
+      }
+    }
+
+    // ── Role badge helper ──
+    function roleBadge(role) {
+      switch (role) {
+        case 'admin': return '<span class="role-badge" title="Admin">👑</span>';
+        case 'mod': return '<span class="role-badge" title="Moderator">🛡️</span>';
+        case 'verified': return '<span class="role-badge" title="Verified">✦</span>';
+        case 'donor': return '<span class="role-badge" title="Donor">💎</span>';
+        default: return '';
+      }
+    }
+
+    // ── User Context Menu ──
+    let ctxMenuTarget = null; // { name, publicKey }
+    const ctxMenu = document.getElementById('user-context-menu');
+
+    function showUserContextMenu(e, name, publicKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      ctxMenuTarget = { name, publicKey };
+
+      let html = '';
+      html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
+      if (name !== myName) {
+        html += '<div class="ctx-sep"></div>';
+        html += `<div class="ctx-item" onclick="ctxCommand('/kick')">👢 Kick</div>`;
+        html += `<div class="ctx-item" onclick="ctxCommand('/mute')">🔇 Mute</div>`;
+        html += `<div class="ctx-item" onclick="ctxCommand('/ban')">🚫 Ban</div>`;
+        html += `<div class="ctx-item" onclick="ctxCommand('/verify')">✦ Verify</div>`;
+      }
+
+      ctxMenu.innerHTML = html;
+      if (window.twemoji) twemoji.parse(ctxMenu);
+
+      // Position near click.
+      const x = Math.min(e.clientX, window.innerWidth - 170);
+      const y = Math.min(e.clientY, window.innerHeight - 200);
+      ctxMenu.style.left = x + 'px';
+      ctxMenu.style.top = y + 'px';
+      ctxMenu.classList.add('open');
+    }
+
+    function hideContextMenu() {
+      ctxMenu.classList.remove('open');
+      ctxMenuTarget = null;
+    }
+
+    function copyPublicKey() {
+      if (ctxMenuTarget && ctxMenuTarget.publicKey) {
+        navigator.clipboard.writeText(ctxMenuTarget.publicKey).then(() => {
+          addSystemMessage('Public key copied to clipboard.');
+        }).catch(() => {
+          addSystemMessage('Failed to copy key.');
+        });
+      }
+      hideContextMenu();
+    }
+
+    function ctxCommand(cmd) {
+      if (!ctxMenuTarget || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const msg = `${cmd} ${ctxMenuTarget.name}`;
+      const timestamp = Date.now();
+      ws.send(JSON.stringify({
+        type: 'chat',
+        from: myKey,
+        from_name: myName,
+        content: msg,
+        timestamp: timestamp,
+        channel: activeChannel,
+      }));
+      hideContextMenu();
+    }
+
+    // Close context menu on click outside.
+    document.addEventListener('click', (e) => {
+      if (!ctxMenu.contains(e.target)) hideContextMenu();
+    });
+
+    // Store peer data (with roles) for context menu lookups.
+    let peerData = {};
   </script>
 </body>
 </html>

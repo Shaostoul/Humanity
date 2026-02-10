@@ -523,6 +523,92 @@ impl Storage {
         Ok(())
     }
 
+    /// Delete ALL messages (admin wipe).
+    pub fn wipe_messages(&self) -> Result<usize, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute("DELETE FROM messages", [])?;
+        Ok(rows)
+    }
+
+    /// Garbage collect inactive names.
+    /// Finds names where no messages exist from any of the name's keys in the
+    /// last `days` days AND all keys have role "" or "user" (not privileged).
+    /// Deletes those names and returns them.
+    pub fn garbage_collect_names(&self, days: u64) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let cutoff_ms = {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64;
+            now - (days as i64 * 24 * 60 * 60 * 1000)
+        };
+
+        // Find all distinct names.
+        let mut name_stmt = conn.prepare(
+            "SELECT DISTINCT name FROM registered_names"
+        )?;
+        let all_names: Vec<String> = name_stmt.query_map([], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let mut to_delete = Vec::new();
+
+        for name in &all_names {
+            // Get all keys for this name.
+            let mut key_stmt = conn.prepare(
+                "SELECT public_key FROM registered_names WHERE name = ?1 COLLATE NOCASE"
+            )?;
+            let keys: Vec<String> = key_stmt.query_map(params![name], |row| row.get(0))?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            if keys.is_empty() { continue; }
+
+            // Check if any key has a privileged role.
+            let mut has_privileged = false;
+            for key in &keys {
+                let role: String = conn.query_row(
+                    "SELECT COALESCE((SELECT role FROM user_roles WHERE public_key = ?1), '')",
+                    params![key],
+                    |row| row.get(0),
+                ).unwrap_or_default();
+                if !role.is_empty() && role != "user" {
+                    has_privileged = true;
+                    break;
+                }
+            }
+            if has_privileged { continue; }
+
+            // Check if any key has messages in the last `days` days.
+            let mut has_recent = false;
+            for key in &keys {
+                let count: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM messages WHERE from_key = ?1 AND timestamp > ?2",
+                    params![key, cutoff_ms],
+                    |row| row.get(0),
+                )?;
+                if count > 0 {
+                    has_recent = true;
+                    break;
+                }
+            }
+            if has_recent { continue; }
+
+            to_delete.push(name.clone());
+        }
+
+        // Delete the inactive names.
+        for name in &to_delete {
+            conn.execute(
+                "DELETE FROM registered_names WHERE name = ?1 COLLATE NOCASE",
+                params![name],
+            )?;
+        }
+
+        Ok(to_delete)
+    }
+
     /// Delete a message by sender key and timestamp (only your own messages).
     pub fn delete_message(&self, from_key: &str, timestamp: u64) -> Result<bool, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
