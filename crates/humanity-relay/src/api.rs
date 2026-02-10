@@ -26,7 +26,12 @@ pub struct SendRequest {
     pub from_name: String,
     /// Message content.
     pub content: String,
+    /// Target channel (defaults to "general").
+    #[serde(default = "default_general")]
+    pub channel: String,
 }
+
+fn default_general() -> String { "general".to_string() }
 
 /// Query params for GET /api/messages.
 #[derive(Debug, Deserialize)]
@@ -63,6 +68,7 @@ pub async fn send_message(
         });
     }
 
+    let channel = if req.channel.is_empty() { "general".to_string() } else { req.channel };
     let chat = RelayMessage::Chat {
         from: bot_key,
         from_name: Some(req.from_name),
@@ -72,11 +78,11 @@ pub async fn send_message(
             .unwrap_or_default()
             .as_millis() as u64,
         signature: None,
-        channel: "general".to_string(),
+        channel: channel.clone(),
     };
 
     // Store and broadcast.
-    if let Err(e) = state.db.store_message_in_channel(&chat, "general") {
+    if let Err(e) = state.db.store_message_in_channel(&chat, &channel) {
         tracing::error!("Failed to persist bot message: {e}");
     }
     let _ = state.broadcast_tx.send(chat);
