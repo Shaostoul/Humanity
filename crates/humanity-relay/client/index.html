@@ -1141,12 +1141,24 @@
 
     // ── Image handling ──
     function loadImage(placeholder, url) {
-      // Replace placeholder with actual image (lazy load to save bandwidth).
+      // Replace placeholder with loaded image. Click image to collapse, right-click/long-press for full size.
       const img = document.createElement('img');
       img.className = 'img-loaded';
       img.src = url;
       img.alt = 'Image';
-      img.onclick = () => window.open(url, '_blank'); // Click full image to open in new tab.
+      img.title = 'Click to collapse · Right-click to open full size';
+      img.onclick = (e) => {
+        e.preventDefault();
+        // Collapse back to placeholder.
+        const newPlaceholder = document.createElement('span');
+        newPlaceholder.className = 'img-placeholder';
+        newPlaceholder.textContent = '🖼️ Image (click to load)';
+        newPlaceholder.onclick = () => loadImage(newPlaceholder, url);
+        img.replaceWith(newPlaceholder);
+        if (window.twemoji) twemoji.parse(newPlaceholder);
+      };
+      // Middle-click or Ctrl+click opens in new tab.
+      img.onauxclick = (e) => { if (e.button === 1) window.open(url, '_blank'); };
       placeholder.replaceWith(img);
     }
 

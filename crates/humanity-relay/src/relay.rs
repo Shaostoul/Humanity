@@ -437,9 +437,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     continue;
                                 }
 
-                                // Handle slash commands.
+                                // Handle slash commands (but not paths like /uploads/...).
                                 let trimmed = content.trim();
-                                if trimmed.starts_with('/') {
+                                if trimmed.starts_with('/') && !trimmed.starts_with("/uploads/") && !trimmed.contains('.') {
                                     let cmd = trimmed.split_whitespace().next().unwrap_or("").to_lowercase();
                                     match cmd.as_str() {
                                         "/link" => {
