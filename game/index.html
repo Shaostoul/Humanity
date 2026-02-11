@@ -347,10 +347,38 @@
   <div id="tab-reality" class="tab-content">
     <div class="panel">
       <h2>🌍 Reality</h2>
-      <p>The real-world simulation. Homesteading, agriculture, building, health, survival — grounded in actual physics and real data.</p>
-      <p>This is where you learn skills that transfer directly to the physical world.</p>
-      <div class="placeholder-text">
-        🚧 Under construction — game systems loading…
+      <p>Your real-world dashboard. Track your actual life — garden, inventory, notes, projects — all in one place. Data stays on your device.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;">
+      <div class="panel">
+        <h2>🌱 Garden</h2>
+        <p>Track your plants, soil conditions, watering schedules, and harvests. Connect sensors for live monitoring.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>📦 Inventory</h2>
+        <p>Catalog your tools, supplies, materials, and resources. Know what you have and what you need.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>📝 Notes</h2>
+        <p>Personal notes, plans, checklists, and documentation. Your private knowledge base.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>🏠 Homestead</h2>
+        <p>Map your property, track projects, plan builds, and manage maintenance schedules.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>❤️ Health</h2>
+        <p>Track nutrition, exercise, sleep, and wellness goals. Your body is your most important tool.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>📚 Learning</h2>
+        <p>Skill trees, tutorials, and guides. Learn homesteading, agriculture, building, repair — real skills for real life.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
       </div>
     </div>
   </div>
@@ -359,10 +387,38 @@
   <div id="tab-fantasy" class="tab-content">
     <div class="panel">
       <h2>✨ Fantasy</h2>
-      <p>The imaginative space. Same engine, different rules. Magic, alien worlds, impossible physics — creativity unbound.</p>
-      <p>Build what reality won't allow. Test ideas that don't exist yet.</p>
-      <div class="placeholder-text">
-        🚧 Under construction — imagination loading…
+      <p>Same engine, different rules. Magic, alien worlds, impossible physics — creativity unbound. Your fantasy world, your rules.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;">
+      <div class="panel">
+        <h2>🎮 My Games</h2>
+        <p>Your game library. Install and launch games distributed P2P through the Humanity Network. Verified games from Steam/Epic get trust badges.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>🌌 Game Worlds</h2>
+        <p>Fantasy gardens, alien biomes, magical workshops — the same tools as Reality but with the rules turned off. Experiment freely.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>🗡️ Adventures</h2>
+        <p>Quests, dungeons, exploration. Play solo or with friends. Community-created content using the same engine.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>🏪 Game Store</h2>
+        <p>P2P game distribution. Developers publish, players seed. Trust tiers: verified platforms (Steam/Epic) > community vetted > unverified. You control what you allow.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>🔨 Workshop</h2>
+        <p>Create and share mods, maps, items, and content. Everything is open. Fork anything. Build on each other's work.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
+      </div>
+      <div class="panel">
+        <h2>📊 Fantasy Stats</h2>
+        <p>Track your fantasy inventories, character progress, achievements, and world state — your game dashboard.</p>
+        <div class="placeholder-text">🚧 Coming soon</div>
       </div>
     </div>
   </div>
@@ -523,7 +579,7 @@
     <div class="settings-panel">
       <button class="close-btn" onclick="closeSettings()">✕</button>
       <h3 id="settings-title">Settings</h3>
-      <p id="settings-body" style="color:var(--text-muted);font-size:0.85rem;">Settings for this tab will go here.</p>
+      <div id="settings-body"></div>
     </div>
   </div>
 
@@ -545,18 +601,56 @@
       });
       localStorage.setItem('humanity_game_tab', tabId);
     }
-    // Restore last tab (default to chat).
-    const savedTab = localStorage.getItem('humanity_game_tab') || 'chat';
-    switchTab(savedTab);
+    // Restore last tab on reconnect, or user-set default on fresh load.
+    const savedTab = localStorage.getItem('humanity_game_tab');
+    const userDefault = localStorage.getItem('humanity_default_tab') || 'chat';
+    switchTab(savedTab || userDefault);
 
     // ── Settings ──
+    const defaultTab = localStorage.getItem('humanity_default_tab') || 'chat';
+
     function openSettings(tabId) {
       const overlay = document.getElementById('settings-overlay');
-      const titles = { reality: '🌍 Reality Settings', fantasy: '✨ Fantasy Settings', streams: '📡 Stream Settings', debug: '🔧 Debug Settings' };
+      const titles = { reality: '🌍 Reality Settings', fantasy: '✨ Fantasy Settings', streams: '📡 Stream Settings', debug: '🔧 Debug Settings', global: '⚙ Global Settings' };
       document.getElementById('settings-title').textContent = titles[tabId] || 'Settings';
-      document.getElementById('settings-body').textContent = `Settings for ${tabId} tab — coming soon.`;
+
+      const body = document.getElementById('settings-body');
+      const currentDefault = localStorage.getItem('humanity_default_tab') || 'chat';
+      const tabOptions = ['chat', 'reality', 'fantasy', 'streams', 'debug'];
+
+      let html = `
+        <div style="margin-bottom:1rem;">
+          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">Default tab on startup</label>
+          <select id="default-tab-select" onchange="setDefaultTab(this.value)" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.4rem 0.6rem;font-size:0.85rem;width:100%;">
+            ${tabOptions.map(t => `<option value="${t}" ${t === currentDefault ? 'selected' : ''}>${t === 'chat' ? '💬 Chat' : t === 'reality' ? '🌍 Reality' : t === 'fantasy' ? '✨ Fantasy' : t === 'streams' ? '📡 Streams' : '🔧 Debug'}</option>`).join('')}
+          </select>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.3rem;">This device will open to this tab by default. Useful for dedicated displays — a TV showing your garden, a phone on chat, etc.</div>
+        </div>
+      `;
+
+      if (tabId === 'reality') {
+        html += `<p style="color:var(--text-muted);font-size:0.85rem;">Reality tab settings coming soon — garden monitoring, inventory views, notes configuration.</p>`;
+      } else if (tabId === 'fantasy') {
+        html += `<p style="color:var(--text-muted);font-size:0.85rem;">Fantasy tab settings coming soon — game world preferences, mod settings.</p>`;
+      } else if (tabId === 'streams') {
+        html += `
+          <p style="color:var(--text-muted);font-size:0.85rem;">Stream settings coming soon:</p>
+          <ul style="color:var(--text-muted);font-size:0.8rem;padding-left:1.2rem;line-height:1.8;">
+            <li>Upload bandwidth limit</li>
+            <li>Reserved-for-gaming slider</li>
+            <li>Stream quality preference</li>
+            <li>Auto-seed when idle</li>
+          </ul>
+        `;
+      }
+      body.innerHTML = html;
       overlay.classList.add('open');
     }
+
+    function setDefaultTab(tab) {
+      localStorage.setItem('humanity_default_tab', tab);
+    }
+
     function closeSettings() {
       document.getElementById('settings-overlay').classList.remove('open');
     }
