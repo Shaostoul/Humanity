@@ -377,6 +377,17 @@ pub enum RelayMessage {
         channel: String,
     },
 
+    /// Client requests pinning a specific message by key+timestamp.
+    #[serde(rename = "pin_request")]
+    PinRequest {
+        from_key: String,
+        from_name: String,
+        content: String,
+        timestamp: u64,
+        #[serde(default = "default_channel")]
+        channel: String,
+    },
+
     /// Server sends pinned messages sync on connect / channel switch.
     #[serde(rename = "pins_sync")]
     PinsSync {
@@ -1897,6 +1908,46 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         }
                                         Err(e) => {
                                             tracing::error!("Failed to edit message: {e}");
+                                        }
+                                    }
+                                }
+                            }
+                            // Pin request — pin a specific message by key + timestamp.
+                            RelayMessage::PinRequest { from_key, from_name, content, timestamp, channel: pin_ch } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" && role != "mod" {
+                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can pin messages.".to_string() };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let ch = if pin_ch.is_empty() { "general".to_string() } else { pin_ch };
+                                    let display = state_clone.peers.read().await.get(&my_key_for_recv)
+                                        .and_then(|p| p.display_name.clone())
+                                        .unwrap_or_else(|| my_key_for_recv[..8].to_string());
+                                    match state_clone.db.pin_message(&ch, &from_key, &from_name, &content, timestamp, &display) {
+                                        Ok(true) => {
+                                            let pin = PinData {
+                                                from_key,
+                                                from_name: from_name.clone(),
+                                                content: content.clone(),
+                                                original_timestamp: timestamp,
+                                                pinned_by: display.clone(),
+                                                pinned_at: std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap_or_default()
+                                                    .as_millis() as u64,
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::PinAdded { channel: ch.clone(), pin });
+                                            let sys = RelayMessage::System { message: format!("📌 {} pinned a message by {}.", display, from_name) };
+                                            let _ = state_clone.broadcast_tx.send(sys);
+                                        }
+                                        Ok(false) => {
+                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "That message is already pinned.".to_string() };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Pin request error: {e}");
+                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Pin failed: {e}") };
+                                            let _ = state_clone.broadcast_tx.send(private);
                                         }
                                     }
                                 }

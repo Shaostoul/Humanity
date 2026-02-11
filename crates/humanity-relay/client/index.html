@@ -1163,6 +1163,28 @@
       color: var(--text-muted);
       margin-top: 0.15rem;
     }
+    .pin-card .pin-unpin {
+      float: right;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 0 0.3rem;
+      border-radius: 3px;
+    }
+    .pin-card .pin-unpin:hover { color: var(--error, #e55); background: rgba(255,255,255,0.05); }
+    .pin-section-header {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.3rem;
+      padding-bottom: 0.2rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .pin-section-header:not(:first-child) { margin-top: 0.5rem; }
 
     /* ── @Mentions ── */
     .mention {
@@ -1291,9 +1313,18 @@
       <div id="chat-area">
         <div id="channel-header"></div>
         <div id="pin-bar" onclick="togglePinList()">
-          <span class="pin-summary"><span class="pin-icon">📌</span> <span id="pin-count">0</span> pinned message(s) — click to expand</span>
+          <span class="pin-summary"><span class="pin-icon">📌</span> <span id="pin-count">0</span> pinned — click to expand</span>
         </div>
-        <div id="pin-list"></div>
+        <div id="pin-list">
+          <div id="server-pins-section" style="display:none;">
+            <div class="pin-section-header">📌 Server Pins</div>
+            <div id="server-pins"></div>
+          </div>
+          <div id="my-pins-section" style="display:none;">
+            <div class="pin-section-header">⭐ My Pins</div>
+            <div id="my-pins"></div>
+          </div>
+        </div>
         <div id="messages"></div>
         <div id="typing-indicator"></div>
         <div id="reply-bar" style="display:none;">
@@ -1934,8 +1965,9 @@
         actions += '<button class="edit-btn" title="Edit">✏️</button>';
       }
       if (isStaff) {
-        actions += '<button class="pin-btn" title="Pin">📌</button>';
+        actions += '<button class="pin-btn" title="Pin (server)">📌</button>';
       }
+      actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
       if (isMe) {
         actions += '<button class="delete-btn" title="Delete">✕</button>';
       }
@@ -1991,12 +2023,21 @@
         });
       }
 
-      // Click pin button → pin this message.
+      // Click pin button → server pin (admin/mod).
       const pinBtn = el.querySelector('.pin-btn');
       if (pinBtn) {
         pinBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           pinMessageFromUI(fromKey, author, body, timestamp);
+        });
+      }
+
+      // Click ⭐ button → personal pin.
+      const mypinBtn = el.querySelector('.mypin-btn');
+      if (mypinBtn) {
+        mypinBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleMyPin(fromKey, author, body, timestamp);
         });
       }
 
@@ -2535,35 +2576,84 @@
 
     function renderPinBar() {
       const bar = document.getElementById('pin-bar');
-      const list = document.getElementById('pin-list');
       const countEl = document.getElementById('pin-count');
+      const serverSection = document.getElementById('server-pins-section');
+      const serverContainer = document.getElementById('server-pins');
+      const mySection = document.getElementById('my-pins-section');
+      const myContainer = document.getElementById('my-pins');
+      const myPins = getMyPins();
+      const total = currentPins.length + myPins.length;
 
-      if (currentPins.length === 0) {
+      if (total === 0) {
         bar.style.display = 'none';
-        list.classList.remove('open');
-        list.innerHTML = '';
+        document.getElementById('pin-list').classList.remove('open');
+        serverSection.style.display = 'none';
+        mySection.style.display = 'none';
         return;
       }
 
       bar.style.display = 'block';
-      countEl.textContent = currentPins.length;
+      countEl.textContent = total;
 
-      // Render pin cards.
-      let html = '';
-      currentPins.forEach((pin, i) => {
-        const shortContent = pin.content.length > 150
-          ? pin.content.substring(0, 150) + '…'
-          : pin.content;
-        const time = formatTime(pin.original_timestamp);
-        html += `<div class="pin-card">
-          <div class="pin-card-author">${esc(pin.from_name)}</div>
-          <div class="pin-card-body">${esc(shortContent)}</div>
-          <div class="pin-card-meta">Pinned by ${esc(pin.pinned_by)} · Original: ${time}</div>
-        </div>`;
-      });
-      list.innerHTML = html;
-      if (window.twemoji) twemoji.parse(bar);
-      if (window.twemoji) twemoji.parse(list);
+      // Determine if user is admin/mod for showing server unpin buttons.
+      const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
+      const isStaff = myRole === 'admin' || myRole === 'mod';
+
+      // Server pins.
+      if (currentPins.length > 0) {
+        serverSection.style.display = 'block';
+        let html = '';
+        currentPins.forEach((pin, i) => {
+          const shortContent = pin.content.length > 150 ? pin.content.substring(0, 150) + '…' : pin.content;
+          const time = formatTime(pin.original_timestamp);
+          const unpinBtn = isStaff
+            ? `<button class="pin-unpin" onclick="event.stopPropagation();unpinServer(${i + 1})" title="Unpin">✕</button>`
+            : '';
+          html += `<div class="pin-card">${unpinBtn}
+            <div class="pin-card-author">${esc(pin.from_name)}</div>
+            <div class="pin-card-body">${esc(shortContent)}</div>
+            <div class="pin-card-meta">Pinned by ${esc(pin.pinned_by)} · ${time}</div>
+          </div>`;
+        });
+        serverContainer.innerHTML = html;
+      } else {
+        serverSection.style.display = 'none';
+        serverContainer.innerHTML = '';
+      }
+
+      // Personal pins.
+      if (myPins.length > 0) {
+        mySection.style.display = 'block';
+        let html = '';
+        myPins.forEach((pin, i) => {
+          const shortContent = pin.content.length > 150 ? pin.content.substring(0, 150) + '…' : pin.content;
+          const time = formatTime(pin.original_timestamp);
+          html += `<div class="pin-card"><button class="pin-unpin" onclick="event.stopPropagation();removeMyPin(${i})" title="Remove">✕</button>
+            <div class="pin-card-author">${esc(pin.from_name)}</div>
+            <div class="pin-card-body">${esc(shortContent)}</div>
+            <div class="pin-card-meta">${time}</div>
+          </div>`;
+        });
+        myContainer.innerHTML = html;
+      } else {
+        mySection.style.display = 'none';
+        myContainer.innerHTML = '';
+      }
+
+      if (window.twemoji) { twemoji.parse(bar); twemoji.parse(serverContainer); twemoji.parse(myContainer); }
+    }
+
+    function unpinServer(index) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/unpin ' + index, timestamp: Date.now(), channel: activeChannel }));
+      }
+    }
+
+    function removeMyPin(index) {
+      let pins = getMyPins();
+      pins.splice(index, 1);
+      setMyPins(pins);
+      renderPinBar();
     }
 
     async function loadPinsForChannel(channelId) {
@@ -2580,24 +2670,36 @@
     }
 
     function pinMessageFromUI(fromKey, fromName, content, timestamp) {
-      // Send a /pin-style command via chat, but we'll use the WS edit protocol.
-      // Actually, easier: just find-and-pin the specific message via a special chat command.
-      // The server's /pin command pins the *last* message. For pinning a specific message,
-      // we'll send a pin_message request. But the server doesn't have that yet.
-      // For now, use the /pin command which pins the last message in the channel.
-      // A more precise approach: send a custom message type.
-      // Let's just send /pin as a command for now.
       if (ws && ws.readyState === WebSocket.OPEN) {
-        const ts = Date.now();
         ws.send(JSON.stringify({
-          type: 'chat',
-          from: myKey,
-          from_name: myName,
-          content: '/pin',
-          timestamp: ts,
+          type: 'pin_request',
+          from_key: fromKey,
+          from_name: fromName,
+          content: content,
+          timestamp: Number(timestamp),
           channel: activeChannel,
         }));
       }
+    }
+
+    // ── Personal Pins (client-side, localStorage) ──
+    function getMyPins() {
+      try { return JSON.parse(localStorage.getItem('my_pins_' + activeChannel) || '[]'); }
+      catch { return []; }
+    }
+    function setMyPins(pins) {
+      localStorage.setItem('my_pins_' + activeChannel, JSON.stringify(pins));
+    }
+    function toggleMyPin(fromKey, fromName, content, timestamp) {
+      let pins = getMyPins();
+      const idx = pins.findIndex(p => p.from_key === fromKey && p.original_timestamp === Number(timestamp));
+      if (idx >= 0) {
+        pins.splice(idx, 1);
+      } else {
+        pins.push({ from_key: fromKey, from_name: fromName, content: content, original_timestamp: Number(timestamp), pinned_at: Date.now() });
+      }
+      setMyPins(pins);
+      renderPinBar();
     }
 
     // ── Typing Indicator ──
