@@ -14,8 +14,8 @@ use axum::{
     extract::ws::{WebSocket, WebSocketUpgrade},
     response::IntoResponse,
 };
+use axum::http::{self, HeaderMap, StatusCode};
 use tower_http::cors::CorsLayer;
-use axum::http;
 use tracing_subscriber::EnvFilter;
 use std::sync::Arc;
 
@@ -129,11 +129,22 @@ async fn health(
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
+    headers: HeaderMap,
     state: axum::extract::State<Arc<RelayState>>,
 ) -> impl IntoResponse {
+    // Check Origin header for browser connections.
+    // Non-browser clients (native apps, bots) typically don't send Origin,
+    // so we only reject when Origin is present but not in the allow-list.
+    if let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) {
+        let allowed = ["https://chat.united-humanity.us", "http://localhost:3210"];
+        if !allowed.iter().any(|&a| a == origin) {
+            return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
+        }
+    }
     ws.max_frame_size(65_536)       // 64KB max frame
       .max_message_size(131_072)    // 128KB max message
       .on_upgrade(move |socket| handle_socket(socket, state.0))
+      .into_response()
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<RelayState>) {

@@ -185,6 +185,20 @@ pub struct UploadQuery {
     pub key: Option<String>,
 }
 
+/// Calculate total size of all files in a directory (non-recursive).
+fn dir_total_size(dir: &std::path::Path) -> u64 {
+    std::fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter_map(|e| e.metadata().ok())
+                .filter(|m| m.is_file())
+                .map(|m| m.len())
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
 /// POST /api/upload — upload a file (images only, max 5MB).
 /// Returns a JSON object with the file URL.
 /// If `?key=<public_key>` is provided, enforces a per-user 4-image FIFO.
@@ -195,6 +209,8 @@ pub async fn upload_file(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     const MAX_SIZE: usize = 5 * 1024 * 1024; // 5MB
     const ALLOWED_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
+    /// Maximum total size of all uploads on disk (default 500MB).
+    const MAX_TOTAL_UPLOAD_BYTES: u64 = 500 * 1024 * 1024;
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
@@ -211,6 +227,18 @@ pub async fn upload_file(
 
         if data.len() > MAX_SIZE {
             return Err((StatusCode::BAD_REQUEST, format!("File too large ({} bytes, max {})", data.len(), MAX_SIZE)));
+        }
+
+        // Validate file content matches claimed type via magic bytes.
+        let magic_ok = match content_type.as_str() {
+            "image/png"  => data.len() >= 4 && &data[..4] == b"\x89PNG",
+            "image/jpeg" => data.len() >= 3 && &data[..3] == b"\xFF\xD8\xFF",
+            "image/gif"  => data.len() >= 6 && (&data[..6] == b"GIF87a" || &data[..6] == b"GIF89a"),
+            "image/webp" => data.len() >= 12 && &data[..4] == b"RIFF" && &data[8..12] == b"WEBP",
+            _ => false,
+        };
+        if !magic_ok {
+            return Err((StatusCode::BAD_REQUEST, "File content does not match claimed image type.".to_string()));
         }
 
         // Generate unique filename.
@@ -236,6 +264,17 @@ pub async fn upload_file(
         std::fs::create_dir_all(upload_dir).map_err(|e| {
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create upload dir: {e}"))
         })?;
+
+        // Check global disk usage before writing.
+        let total_size = dir_total_size(upload_dir);
+        if total_size + data.len() as u64 > MAX_TOTAL_UPLOAD_BYTES {
+            return Err((
+                StatusCode::INSUFFICIENT_STORAGE,
+                format!("Upload storage full ({:.1} MB / {:.0} MB). Please try again later.",
+                    total_size as f64 / (1024.0 * 1024.0),
+                    MAX_TOTAL_UPLOAD_BYTES as f64 / (1024.0 * 1024.0)),
+            ));
+        }
 
         let file_path = upload_dir.join(&unique_name);
         std::fs::write(&file_path, &data).map_err(|e| {

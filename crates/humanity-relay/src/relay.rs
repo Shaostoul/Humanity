@@ -3,7 +3,7 @@
 use axum::extract::ws::{Message, WebSocket};
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
@@ -76,6 +76,9 @@ pub struct RelayState {
     /// Whether the current lockdown was set automatically (vs manually).
     /// Only auto-unlock if lockdown was auto-set.
     pub auto_lockdown: RwLock<bool>,
+    /// Keys that have been kicked/banned — their WebSocket loops check this
+    /// and close the connection when they find themselves listed.
+    pub kicked_keys: RwLock<HashSet<String>>,
 }
 
 impl RelayState {
@@ -111,6 +114,7 @@ impl RelayState {
             rate_limits: RwLock::new(HashMap::new()),
             lockdown: RwLock::new(false),
             auto_lockdown: RwLock::new(false),
+            kicked_keys: RwLock::new(HashSet::new()),
         }
     }
 
@@ -588,8 +592,20 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
     // Spawn a task to forward broadcast messages to this client.
     let my_key_for_broadcast = my_key.clone();
+    let state_for_broadcast = state.clone();
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = broadcast_rx.recv().await {
+            // Check if this user has been kicked — if so, close the connection.
+            if state_for_broadcast.kicked_keys.read().await.contains(&my_key_for_broadcast) {
+                let kick_notice = RelayMessage::System {
+                    message: "You have been kicked.".to_string(),
+                };
+                let json = serde_json::to_string(&kick_notice).unwrap();
+                let _ = ws_tx.send(Message::Text(json.into())).await;
+                let _ = ws_tx.close().await;
+                break;
+            }
+
             // Don't echo chat/typing/delete messages back to the sender.
             let should_skip = match &msg {
                 RelayMessage::Chat { from, .. } => from == &my_key_for_broadcast,
@@ -629,6 +645,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     let mut last_profile_update: Option<Instant> = None;
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_rx.next().await {
+            // Check if this user has been kicked — stop processing messages.
+            if state_clone.kicked_keys.read().await.contains(&my_key_for_recv) {
+                break;
+            }
             match msg {
                 Message::Text(text) => {
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
@@ -1597,9 +1617,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         _ = &mut recv_task => send_task.abort(),
     }
 
-    // Clean up: remove peer and announce departure.
+    // Clean up: remove peer, clear kicked status, and announce departure.
     let disconnected_role = state.db.get_role(&my_key).unwrap_or_default();
     state.peers.write().await.remove(&my_key);
+    state.kicked_keys.write().await.remove(&my_key);
     info!("Peer disconnected: {my_key}");
     let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
         public_key: my_key,
@@ -1695,6 +1716,13 @@ async fn handle_mod_command(
     match cmd {
         "/kick" => {
             if !is_mod { return "You need moderator permissions.".to_string(); }
+            // Mark keys as kicked so their WebSocket loops will close.
+            {
+                let mut kicked = state.kicked_keys.write().await;
+                for key in &target_keys {
+                    kicked.insert(key.clone());
+                }
+            }
             // Disconnect all sessions for this name by broadcasting a kick.
             let kick_msg = RelayMessage::System {
                 message: format!("{} was kicked.", target_name),
@@ -1712,6 +1740,13 @@ async fn handle_mod_command(
             for key in &target_keys {
                 if let Err(e) = state.db.set_banned(key, true) {
                     tracing::error!("Failed to ban: {e}");
+                }
+            }
+            // Mark keys as kicked so their WebSocket loops will close.
+            {
+                let mut kicked = state.kicked_keys.write().await;
+                for key in &target_keys {
+                    kicked.insert(key.clone());
                 }
             }
             // Also kick them.

@@ -603,6 +603,7 @@ dependencies = [
  "axum",
  "futures",
  "humanity-core",
+ "rand 0.9.2",
  "reqwest",
  "rusqlite",
  "serde",

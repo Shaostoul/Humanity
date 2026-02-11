@@ -5,6 +5,7 @@
 //! encryption), not in the storage layer. SQLite is just the container
 //! for signed, tamper-evident objects.
 
+use rand::Rng;
 use rusqlite::{Connection, params};
 use std::collections::HashMap;
 use std::path::Path;
@@ -349,13 +350,9 @@ impl Storage {
             .as_millis() as i64;
         let expires = now + 5 * 60 * 1000; // 5 minutes
 
-        // Simple random 6-char code from timestamp + key (no extra deps).
-        let raw = format!("{}{}{}", now, created_by, name);
-        let mut hash: u64 = 0;
-        for b in raw.bytes() {
-            hash = hash.wrapping_mul(31).wrapping_add(b as u64);
-        }
-        let code = format!("{:06X}", hash % 0xFFFFFF);
+        // Cryptographically random 6-char hex code (CSPRNG via rand::thread_rng).
+        let random_val: u32 = rand::thread_rng().random();
+        let code = format!("{:06X}", random_val % 0xFFFFFF);
 
         // Clean up expired codes first.
         conn.execute("DELETE FROM link_codes WHERE expires_at < ?1", params![now])?;
@@ -870,13 +867,9 @@ impl Storage {
             .as_millis() as i64;
         let expires = now + 24 * 60 * 60 * 1000; // 24 hours
 
-        // Generate 8-char hex from timestamp + creator.
-        let raw = format!("{}{}{}", now, created_by, now.wrapping_mul(2654435761));
-        let mut hash: u64 = 0;
-        for b in raw.bytes() {
-            hash = hash.wrapping_mul(31).wrapping_add(b as u64);
-        }
-        let code = format!("{:08X}", hash % 0xFFFFFFFF);
+        // Cryptographically random 8-char hex code (CSPRNG via rand::thread_rng).
+        let random_val: u32 = rand::thread_rng().random();
+        let code = format!("{:08X}", random_val);
 
         // Clean up expired codes.
         conn.execute("DELETE FROM invite_codes WHERE expires_at < ?1", params![now])?;
