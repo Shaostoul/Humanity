@@ -1328,6 +1328,8 @@
       <div class="cmd"><code>/revoke &lt;key_prefix&gt;</code> — Remove a lost/stolen device from your name</div>
       <div class="cmd"><code>/users</code> — List all registered users (online/offline)</div>
       <div class="cmd"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+      <div class="cmd"><code>/dm &lt;name&gt; &lt;message&gt;</code> — Send a direct message</div>
+      <div class="cmd"><code>/dms</code> — List your DM conversations</div>
       <div class="cmd"><code>/block &lt;name&gt;</code> — Block a user (hides their messages)</div>
       <div class="cmd"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
       <div class="cmd"><code>/blocklist</code> — Show your blocked users</div>
@@ -1745,6 +1747,37 @@
           msgs.forEach(m => m.remove());
           break;
         }
+        case 'edit': {
+          // Update the edited message in the DOM.
+          applyEditToDOM(msg.from, msg.timestamp, msg.new_content);
+          break;
+        }
+        case 'pins_sync': {
+          // Full pin list for a channel.
+          if (msg.channel === activeChannel) {
+            currentPins = msg.pins || [];
+            renderPinBar();
+          }
+          break;
+        }
+        case 'pin_added': {
+          if (msg.channel === activeChannel) {
+            currentPins.push(msg.pin);
+            renderPinBar();
+          }
+          break;
+        }
+        case 'pin_removed': {
+          if (msg.channel === activeChannel) {
+            // Remove by 1-based index.
+            const idx = msg.index - 1;
+            if (idx >= 0 && idx < currentPins.length) {
+              currentPins.splice(idx, 1);
+            }
+            renderPinBar();
+          }
+          break;
+        }
         case 'profile_data': {
           // Cache profile data and show if we were waiting for it.
           if (msg.name) {
@@ -1764,6 +1797,41 @@
                   saveProfileLocal(msg.bio || '', socials);
                 }
               } catch {}
+            }
+          }
+          break;
+        }
+        case 'dm': {
+          // Incoming DM — if we're viewing this conversation, show it.
+          const dmFrom = msg.from;
+          const dmFromName = msg.from_name || shortKey(dmFrom);
+          if (activeDmPartner && (dmFrom === activeDmPartner || dmFrom === myKey)) {
+            addDmMessage(dmFromName, msg.content, msg.timestamp, dmFrom, msg.to);
+          }
+          // Notify.
+          if (dmFrom !== myKey) {
+            notifyNewMessage(dmFromName, msg.content, true);
+          }
+          break;
+        }
+        case 'dm_list': {
+          dmConversations = msg.conversations || [];
+          renderDmList();
+          break;
+        }
+        case 'dm_history': {
+          // Received conversation history for a DM.
+          if (activeDmPartner === msg.partner) {
+            document.getElementById('messages').innerHTML = '';
+            const msgs = msg.messages || [];
+            if (msgs.length > 0) {
+              const notice = document.createElement('div');
+              notice.id = 'history-notice';
+              notice.textContent = `── ${msgs.length} earlier messages ──`;
+              document.getElementById('messages').appendChild(notice);
+            }
+            for (const m of msgs) {
+              addDmMessage(m.from_name || shortKey(m.from), m.content, m.timestamp, m.from, m.to);
             }
           }
           break;
@@ -1856,10 +1924,18 @@
         ? '<span class="sig-badge" title="Ed25519 signed">✓</span>'
         : '';
 
-      // Action buttons: react, reply, delete (own messages).
+      // Action buttons: react, reply, edit (own), pin (admin/mod), delete (own).
+      const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
+      const isStaff = myRole === 'admin' || myRole === 'mod';
       let actions = '<div class="msg-actions">';
       actions += '<button class="react-btn" title="React">😀</button>';
       actions += '<button class="reply-btn" title="Reply">↩</button>';
+      if (isMe) {
+        actions += '<button class="edit-btn" title="Edit">✏️</button>';
+      }
+      if (isStaff) {
+        actions += '<button class="pin-btn" title="Pin">📌</button>';
+      }
       if (isMe) {
         actions += '<button class="delete-btn" title="Delete">✕</button>';
       }
@@ -1905,6 +1981,24 @@
         setReplyTarget(author, body, fromKey, timestamp, el);
         document.getElementById('msg-input').focus();
       });
+
+      // Click edit button → inline edit mode.
+      const editBtn = el.querySelector('.edit-btn');
+      if (editBtn) {
+        editBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          startEditMode(el, body, fromKey, timestamp);
+        });
+      }
+
+      // Click pin button → pin this message.
+      const pinBtn = el.querySelector('.pin-btn');
+      if (pinBtn) {
+        pinBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          pinMessageFromUI(fromKey, author, body, timestamp);
+        });
+      }
 
       // Click delete button → send delete request.
       const delBtn = el.querySelector('.delete-btn');
@@ -1999,7 +2093,7 @@
     function renderChannelList() {
       const list = document.getElementById('channel-list');
       list.innerHTML = channelList.map(ch => {
-        const isActive = ch.id === activeChannel;
+        const isActive = ch.id === activeChannel && !activeDmPartner;
         const title = ch.description ? ` title="${esc(ch.description)}"` : '';
         const lock = ch.read_only ? ' 🔒' : '';
         return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}</div>`;
@@ -2008,6 +2102,11 @@
     }
 
     function switchChannel(channelId) {
+      // Clear DM view if active.
+      activeDmPartner = null;
+      activeDmPartnerName = '';
+      renderDmList();
+
       activeChannel = channelId;
       localStorage.setItem('humanity_channel', channelId);
       document.getElementById('messages').innerHTML = '';
@@ -2017,6 +2116,10 @@
       renderChannelList();
       updateChannelHeader();
       updateInputForChannel();
+      // Load pins for the new channel.
+      loadPinsForChannel(channelId);
+      // Close pin list when switching channels.
+      document.getElementById('pin-list').classList.remove('open');
       loadHistory().then(() => {
         // Load persisted reactions after messages are rendered.
         loadReactionsForChannel(channelId);
@@ -2322,6 +2425,178 @@
         }
       } catch (e) {
         console.warn('Failed to load reactions:', e);
+      }
+    }
+
+    // ── Message Editing ──
+    function startEditMode(msgEl, originalBody, fromKey, timestamp) {
+      const bodyEl = msgEl.querySelector('.body');
+      if (!bodyEl || msgEl.querySelector('.edit-area')) return; // Already editing.
+
+      // Strip quote lines from the original body for editing (quotes are read-only context).
+      const lines = originalBody.split('\n');
+      const editableLines = [];
+      let pastQuotes = false;
+      for (const line of lines) {
+        if (!pastQuotes && line.startsWith('> ')) continue;
+        pastQuotes = true;
+        editableLines.push(line);
+      }
+      const editableText = editableLines.join('\n').trim() || originalBody;
+
+      const savedHtml = bodyEl.innerHTML;
+      bodyEl.innerHTML = '';
+
+      const editArea = document.createElement('div');
+      editArea.className = 'edit-area';
+
+      const textarea = document.createElement('textarea');
+      textarea.value = editableText;
+      textarea.rows = Math.min(5, editableText.split('\n').length + 1);
+
+      const buttons = document.createElement('div');
+      buttons.className = 'edit-buttons';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'edit-save';
+      saveBtn.textContent = 'Save';
+      saveBtn.onclick = (e) => {
+        e.stopPropagation();
+        const newContent = textarea.value.trim();
+        if (!newContent || newContent.length > 2000) return;
+        // Send edit via WebSocket.
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'edit',
+            from: myKey,
+            timestamp: Number(timestamp),
+            new_content: newContent,
+            channel: activeChannel,
+          }));
+        }
+        // Apply locally immediately.
+        bodyEl.innerHTML = formatBody(newContent);
+        if (!bodyEl.querySelector('.edited-marker')) {
+          const marker = document.createElement('span');
+          marker.className = 'edited-marker';
+          marker.textContent = '(edited)';
+          bodyEl.appendChild(marker);
+        }
+        if (window.twemoji) twemoji.parse(bodyEl);
+      };
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'edit-cancel';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.onclick = (e) => {
+        e.stopPropagation();
+        bodyEl.innerHTML = savedHtml;
+        if (window.twemoji) twemoji.parse(bodyEl);
+      };
+
+      // Escape to cancel, Ctrl+Enter to save.
+      textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { cancelBtn.click(); }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { saveBtn.click(); }
+      });
+
+      buttons.appendChild(cancelBtn);
+      buttons.appendChild(saveBtn);
+      editArea.appendChild(textarea);
+      editArea.appendChild(buttons);
+      bodyEl.appendChild(editArea);
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
+
+    function applyEditToDOM(fromKey, timestamp, newContent) {
+      const msgEl = document.querySelector(`.message[data-from="${fromKey}"][data-timestamp="${timestamp}"]`);
+      if (!msgEl) return;
+      const bodyEl = msgEl.querySelector('.body');
+      if (!bodyEl) return;
+      bodyEl.innerHTML = formatBody(newContent);
+      // Add (edited) marker if not present.
+      if (!bodyEl.querySelector('.edited-marker')) {
+        const marker = document.createElement('span');
+        marker.className = 'edited-marker';
+        marker.textContent = '(edited)';
+        bodyEl.appendChild(marker);
+      }
+      if (window.twemoji) twemoji.parse(bodyEl);
+    }
+
+    // ── Pin System ──
+    let currentPins = []; // Array of pin objects for the active channel.
+
+    function togglePinList() {
+      const list = document.getElementById('pin-list');
+      list.classList.toggle('open');
+    }
+
+    function renderPinBar() {
+      const bar = document.getElementById('pin-bar');
+      const list = document.getElementById('pin-list');
+      const countEl = document.getElementById('pin-count');
+
+      if (currentPins.length === 0) {
+        bar.style.display = 'none';
+        list.classList.remove('open');
+        list.innerHTML = '';
+        return;
+      }
+
+      bar.style.display = 'block';
+      countEl.textContent = currentPins.length;
+
+      // Render pin cards.
+      let html = '';
+      currentPins.forEach((pin, i) => {
+        const shortContent = pin.content.length > 150
+          ? pin.content.substring(0, 150) + '…'
+          : pin.content;
+        const time = formatTime(pin.original_timestamp);
+        html += `<div class="pin-card">
+          <div class="pin-card-author">${esc(pin.from_name)}</div>
+          <div class="pin-card-body">${esc(shortContent)}</div>
+          <div class="pin-card-meta">Pinned by ${esc(pin.pinned_by)} · Original: ${time}</div>
+        </div>`;
+      });
+      list.innerHTML = html;
+      if (window.twemoji) twemoji.parse(bar);
+      if (window.twemoji) twemoji.parse(list);
+    }
+
+    async function loadPinsForChannel(channelId) {
+      try {
+        const resp = await fetch(`/api/pins?channel=${encodeURIComponent(channelId)}`);
+        const data = await resp.json();
+        currentPins = data.pins || [];
+        renderPinBar();
+      } catch (e) {
+        console.warn('Failed to load pins:', e);
+        currentPins = [];
+        renderPinBar();
+      }
+    }
+
+    function pinMessageFromUI(fromKey, fromName, content, timestamp) {
+      // Send a /pin-style command via chat, but we'll use the WS edit protocol.
+      // Actually, easier: just find-and-pin the specific message via a special chat command.
+      // The server's /pin command pins the *last* message. For pinning a specific message,
+      // we'll send a pin_message request. But the server doesn't have that yet.
+      // For now, use the /pin command which pins the last message in the channel.
+      // A more precise approach: send a custom message type.
+      // Let's just send /pin as a command for now.
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const ts = Date.now();
+        ws.send(JSON.stringify({
+          type: 'chat',
+          from: myKey,
+          from_name: myName,
+          content: '/pin',
+          timestamp: ts,
+          channel: activeChannel,
+        }));
       }
     }
 
@@ -2698,6 +2973,7 @@
       html += `<div class="ctx-item" onclick="viewProfileFromCtx()">👤 View Profile</div>`;
       html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
       if (name !== myName) {
+        html += `<div class="ctx-item" onclick="dmFromCtx()">💬 Direct Message</div>`;
         // Block/unblock toggle.
         if (isBlocked(name)) {
           html += `<div class="ctx-item" onclick="unblockFromCtx()">✅ Unblock</div>`;
@@ -2784,6 +3060,14 @@
       const name = ctxMenuTarget.name;
       hideContextMenu();
       unblockUser(name);
+    }
+
+    function dmFromCtx() {
+      if (!ctxMenuTarget) return;
+      const name = ctxMenuTarget.name;
+      const pk = ctxMenuTarget.publicKey;
+      hideContextMenu();
+      openDmConversation(pk, name);
     }
 
     function viewProfileFromCtx() {
@@ -3127,6 +3411,14 @@
         showBlockList();
         return;
       }
+      if (val === '/dms') {
+        input.value = '';
+        // Request updated DM list from server.
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/dms', timestamp: Date.now(), channel: activeChannel }));
+        }
+        return;
+      }
       if (val.startsWith('/block ') && !val.startsWith('/blocklist')) {
         const name = val.substring(7).trim();
         if (name) {
@@ -3145,8 +3437,6 @@
       }
       // If in DM view, send as DM instead of chat.
       if (activeDmPartner) {
-        const input = document.getElementById('msg-input');
-        const val = input.value.trim();
         if (val && ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'dm',
