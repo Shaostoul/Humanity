@@ -2083,9 +2083,13 @@
     function addSystemMessage(text) {
       // Route certain messages as ephemeral notices instead of permanent system messages.
       const lower = text.toLowerCase();
-      // Link codes, invite codes — ephemeral yellow, 60s
-      if (lower.includes('link code:') || lower.includes('invite code:')) {
-        return addNotice(text, 'yellow', 60);
+      // Link codes — ephemeral yellow, 5 minutes (matches server expiry)
+      if (lower.includes('link code:')) {
+        return addNotice(text, 'yellow', 300);
+      }
+      // Invite codes — ephemeral yellow, 24h display for 60s (code lasts 24h, notice fades)
+      if (lower.includes('invite code:')) {
+        return addNotice(text, 'yellow', 120);
       }
       // Rate limiting / slow mode — ephemeral cyan, 15s
       if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')) {
@@ -2114,6 +2118,15 @@
       appendMessage(el);
     }
 
+    function formatCountdown(secs) {
+      if (secs >= 60) {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return s > 0 ? `${m}m ${s}s` : `${m}m`;
+      }
+      return `${secs}s`;
+    }
+
     /**
      * Add an ephemeral notice with countdown timer.
      * @param {string} text - Notice text
@@ -2129,7 +2142,7 @@
       const timerSpan = document.createElement('span');
       timerSpan.className = 'notice-timer';
       let remaining = seconds;
-      timerSpan.textContent = `${remaining}s`;
+      timerSpan.textContent = formatCountdown(remaining);
       el.appendChild(textSpan);
       el.appendChild(timerSpan);
       appendMessage(el);
@@ -2141,7 +2154,7 @@
           el.classList.add('fading');
           setTimeout(() => el.remove(), 500);
         } else {
-          timerSpan.textContent = `${remaining}s`;
+          timerSpan.textContent = formatCountdown(remaining);
         }
       }, 1000);
     }
