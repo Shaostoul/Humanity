@@ -18,29 +18,15 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/shared/theme.css">
   <style>
     :root {
-      --bg: #0d0d0d;
-      --bg-secondary: #1a1a1a;
-      --bg-input: #222;
-      --bg-hover: #252525;
-      --text: #e0e0e0;
-      --text-muted: #888;
       --accent: #e07020;
       --accent-hover: #ff8c40;
       --accent-dim: rgba(224,112,32,0.15);
-      --border: #333;
-      --success: #4a9;
-      --danger: #c44;
-      --warning: #ca3;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-      background: var(--bg);
-      color: var(--text);
       height: 100vh;
       display: flex;
       flex-direction: column;
@@ -428,12 +414,6 @@
     }
 
     #chat-screen { display: none; flex: 1; min-height: 0; flex-direction: column; }
-
-    /* ── Scrollbar ── */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #555; }
 
     /* ── Message hover actions ── */
     .message { position: relative; cursor: pointer; border-radius: 4px; padding: 0.3rem 0.4rem; }
@@ -1446,6 +1426,8 @@
     <input type="text" id="link-code-input" placeholder="Link code (optional)" style="margin-top:0.5rem; display:block;">
     <input type="text" id="invite-code-input" placeholder="Invite code (optional)" style="margin-top:0.5rem; display:block;">
     <button onclick="connect()">Enter</button>
+    <button onclick="document.getElementById('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;margin-top:0.3rem;">📥 Import Identity Backup</button>
+    <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="handleImportFile(event)">
     <p class="subtitle" id="login-error" style="color:#e74c3c; display:none;"></p>
     <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>
     <p class="subtitle" style="margin-top: 1rem; font-size: 0.68rem; max-width: 380px; line-height: 1.5;">
@@ -1486,6 +1468,7 @@
           <div id="my-key-display" style="font-family:monospace; font-size:0.6rem;"></div>
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
           <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
+          <button id="export-identity-btn" onclick="downloadIdentityBackup(myName)" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">📥 Export Identity</button>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
           <button class="sidebar-tab active" data-tab="servers">🏠 Servers</button>
@@ -1690,9 +1673,9 @@ async function supportsEd25519() {
 }
 
 async function generateKeypair() {
-  const keypair = await crypto.subtle.generateKey('Ed25519', false, ['sign', 'verify']);
+  const keypair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const rawPub = await crypto.subtle.exportKey('raw', keypair.publicKey);
-  return { publicKeyHex: bufToHex(rawPub), privateKey: keypair.privateKey, publicKey: keypair.publicKey };
+  return { publicKeyHex: bufToHex(rawPub), privateKey: keypair.privateKey, publicKey: keypair.publicKey, isNew: true };
 }
 
 async function getOrCreateIdentity() {
@@ -1708,12 +1691,12 @@ async function getOrCreateIdentity() {
     const stored = await loadKeypair(db);
     if (stored && stored.privateKey && stored.publicKeyHex) {
       console.log('Loaded existing identity:', stored.publicKeyHex.substring(0, 16) + '…');
-      return { publicKeyHex: stored.publicKeyHex, privateKey: stored.privateKey, publicKey: stored.publicKey, canSign: true };
+      return { publicKeyHex: stored.publicKeyHex, privateKey: stored.privateKey, publicKey: stored.publicKey, canSign: true, isNew: false };
     }
     const kp = await generateKeypair();
     await storeKeypair(db, kp.publicKeyHex, kp);
     console.log('Generated new identity:', kp.publicKeyHex.substring(0, 16) + '…');
-    return { publicKeyHex: kp.publicKeyHex, privateKey: kp.privateKey, publicKey: kp.publicKey, canSign: true };
+    return { publicKeyHex: kp.publicKeyHex, privateKey: kp.privateKey, publicKey: kp.publicKey, canSign: true, isNew: true };
   } catch (e) {
     console.error('Identity setup failed:', e);
     let key = localStorage.getItem('humanity_key');
@@ -1737,6 +1720,113 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
     const payload = `${content}\n${timestamp}`;
     return await crypto.subtle.verify('Ed25519', pubKey, hexToBuf(signatureHex), new TextEncoder().encode(payload));
   } catch (e) { console.error('Verification failed:', e); return false; }
+}
+
+// ── Identity Export/Import ──
+
+/** Extract the 32-byte Ed25519 seed from a PKCS8 export. */
+function extractSeedFromPkcs8(pkcs8Buf) {
+  // PKCS8 for Ed25519: 48 bytes total. The 32-byte seed starts at offset 16.
+  const bytes = new Uint8Array(pkcs8Buf);
+  if (bytes.length === 48) {
+    return bytes.slice(16, 48);
+  }
+  // Fallback: try last 32 bytes
+  return bytes.slice(bytes.length - 32);
+}
+
+/** Export the current identity as a JSON backup object. Returns null if non-extractable. */
+async function exportIdentityJSON(name) {
+  if (!myIdentity || !myIdentity.privateKey) return null;
+  try {
+    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+    const seed = extractSeedFromPkcs8(pkcs8);
+    return {
+      name: name || myName,
+      publicKey: myIdentity.publicKeyHex,
+      privateKey: bufToHex(seed),
+      exportedAt: new Date().toISOString(),
+      note: "Keep this file safe. Anyone with it can impersonate you."
+    };
+  } catch (e) {
+    console.error('Export failed (key may be non-extractable):', e);
+    return null;
+  }
+}
+
+/** Download identity as a JSON file. */
+async function downloadIdentityBackup(name) {
+  const data = await exportIdentityJSON(name);
+  if (!data) {
+    addSystemMessage("⚠️ This key was created before backup support. Register a new name to get an exportable identity.");
+    return false;
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `humanity-identity-${data.name}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return true;
+}
+
+/** Import an identity from a JSON backup file. Returns { publicKeyHex, privateKey, publicKey, name } or throws. */
+async function importIdentityFromJSON(jsonData) {
+  // Validate required fields
+  if (!jsonData.publicKey || !jsonData.privateKey || !jsonData.name) {
+    throw new Error("Invalid backup file: missing required fields (name, publicKey, privateKey).");
+  }
+  if (jsonData.publicKey.length !== 64 || jsonData.privateKey.length !== 64) {
+    throw new Error("Invalid backup file: keys must be 64-character hex strings.");
+  }
+
+  // Reconstruct the Ed25519 keypair from the seed
+  const seedBytes = hexToBuf(jsonData.privateKey);
+
+  // Build PKCS8 wrapper around the 32-byte seed
+  const pkcs8Prefix = new Uint8Array([
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+    0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20
+  ]);
+  const pkcs8 = new Uint8Array(48);
+  pkcs8.set(pkcs8Prefix, 0);
+  pkcs8.set(seedBytes, 16);
+
+  const privateKey = await crypto.subtle.importKey(
+    'pkcs8', pkcs8, 'Ed25519', true, ['sign']
+  );
+
+  // Import the public key
+  const pubBytes = hexToBuf(jsonData.publicKey);
+  const publicKey = await crypto.subtle.importKey(
+    'raw', pubBytes, 'Ed25519', true, ['verify']
+  );
+
+  // Verify the imported keypair works by signing and verifying a test message
+  const testMsg = new TextEncoder().encode('test');
+  const testSig = await crypto.subtle.sign('Ed25519', privateKey, testMsg);
+  const valid = await crypto.subtle.verify('Ed25519', publicKey, testSig, testMsg);
+  if (!valid) {
+    throw new Error("Key verification failed: the public and private keys don't match.");
+  }
+
+  // Store in IndexedDB
+  const db = await openKeyDB();
+  await storeKeypair(db, jsonData.publicKey, { privateKey, publicKey });
+
+  // Set name in localStorage
+  localStorage.setItem('humanity_name', jsonData.name);
+
+  return {
+    publicKeyHex: jsonData.publicKey,
+    privateKey,
+    publicKey,
+    canSign: true,
+    name: jsonData.name
+  };
 }
   </script>
   <script>
@@ -4022,6 +4112,30 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
       });
     }
 
+    // ── Import file handler (login screen) ──
+    async function handleImportFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const jsonData = JSON.parse(text);
+        const identity = await importIdentityFromJSON(jsonData);
+        // Update state and connect
+        document.getElementById('name-input').value = identity.name;
+        myIdentity = identity;
+        myKey = identity.publicKeyHex;
+        myName = identity.name;
+        addSystemMessage('✅ Identity imported successfully! Connecting...');
+        connect();
+      } catch (e) {
+        const errEl = document.getElementById('login-error');
+        errEl.textContent = '❌ Import failed: ' + e.message;
+        errEl.style.display = 'block';
+      }
+      // Reset file input so the same file can be re-selected
+      event.target.value = '';
+    }
+
     // Handle /profile, /block, /unblock, /blocklist commands.
     // Patching into the existing sendMessage to intercept client-side commands.
     const _origSendMessage2 = sendMessage;
@@ -4031,6 +4145,11 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
       if (val === '/profile') {
         input.value = '';
         openEditProfileModal();
+        return;
+      }
+      if (val === '/export') {
+        input.value = '';
+        downloadIdentityBackup(myName);
         return;
       }
       if (val === '/blocklist') {
