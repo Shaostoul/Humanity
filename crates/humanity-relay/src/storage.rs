@@ -350,8 +350,8 @@ impl Storage {
             .as_millis() as i64;
         let expires = now + 5 * 60 * 1000; // 5 minutes
 
-        // Cryptographically random 6-char hex code (CSPRNG via rand::thread_rng).
-        let random_val: u32 = rand::thread_rng().random();
+        // Cryptographically random 6-char hex code (CSPRNG).
+        let random_val: u32 = rand::rng().random();
         let code = format!("{:06X}", random_val % 0xFFFFFF);
 
         // Clean up expired codes first.
@@ -867,8 +867,8 @@ impl Storage {
             .as_millis() as i64;
         let expires = now + 24 * 60 * 60 * 1000; // 24 hours
 
-        // Cryptographically random 8-char hex code (CSPRNG via rand::thread_rng).
-        let random_val: u32 = rand::thread_rng().random();
+        // Cryptographically random 8-char hex code (CSPRNG).
+        let random_val: u32 = rand::rng().random();
         let code = format!("{:08X}", random_val);
 
         // Clean up expired codes.
