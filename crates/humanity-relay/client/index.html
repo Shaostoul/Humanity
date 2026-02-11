@@ -1504,9 +1504,14 @@
     const MAX_RECONNECT_DELAY = 30000;
     let seenTimestamps = new Set(); // Deduplicate messages
 
-    // Persist name across sessions.
+    // Persist name across sessions — auto-login if returning user.
     const savedName = localStorage.getItem('humanity_name');
-    if (savedName) document.getElementById('name-input').value = savedName;
+    if (savedName) {
+      document.getElementById('name-input').value = savedName;
+      // Auto-login: if user has a saved name, connect immediately.
+      // They've already confirmed 18+ by entering the first time.
+      setTimeout(() => connect(), 100);
+    }
 
     let pendingLinkCode = null;
     let pendingInviteCode = null;
