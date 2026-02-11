@@ -75,7 +75,12 @@
       height: 100%;
     }
     nav .tab:hover { color: var(--text); background: var(--bg-hover); }
-    nav .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    nav .tab.active {
+      color: #fff;
+      border-bottom: 3px solid var(--accent);
+      background: rgba(224, 112, 32, 0.12);
+      font-weight: 700;
+    }
 
     nav .spacer { flex: 1; }
 
@@ -577,6 +582,9 @@
   <script>
     // ── Tab Switching ──
     const TAB_IDS = ['chat', 'reality', 'fantasy', 'streams', 'debug'];
+    let currentTab = 'chat';
+    let settingsOpen = false;
+    let settingsForTab = null;
 
     function switchTab(tabId, pushState) {
       if (!TAB_IDS.includes(tabId)) tabId = 'chat';
@@ -634,9 +642,6 @@
     switchTab(urlTab || savedTab || userDefault);
 
     // ── Settings ──
-    let settingsOpen = false;
-    let settingsForTab = null; // Which tab's settings are showing
-
     function toggleSettings() {
       if (settingsOpen) {
         closeSettings();
@@ -644,8 +649,6 @@
         openSettings(currentTab);
       }
     }
-
-    let currentTab = 'chat';
 
     function openSettings(tabId) {
       settingsOpen = true;
