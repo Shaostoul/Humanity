@@ -71,15 +71,22 @@
     }
 
     nav .brand {
-      font-weight: 700;
-      color: var(--accent);
       font-size: 1.1rem;
-      margin-right: 1.5rem;
-      text-decoration: none;
-      background: var(--bg);
-      padding: 0.2rem 0.5rem;
+      font-weight: 900;
+      color: #FF8811;
+      padding: 0.3rem 0.6rem;
       border-radius: 6px;
-      border: 1px solid var(--border);
+      box-shadow: inset 0 0 0 1px #2a6;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 1.5rem;
+      cursor: pointer;
+      transition: box-shadow 0.15s ease;
+    }
+    nav .brand:hover {
+      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
     }
 
     nav .tab {
@@ -341,7 +348,7 @@
 
   <!-- Navigation -->
   <nav>
-    <a href="/" class="brand" title="Home">🅷</a>
+    <a href="/" class="brand" title="Home">H</a>
     <div class="tab" data-tab="chat" onclick="switchTab('chat')">
       💬 Chat <span id="chat-notif-dot" class="notif-dot" style="display:none;"></span>
     </div>
@@ -605,6 +612,7 @@
 
   <footer>
     <a href="https://united-humanity.us">Humanity</a> — Public domain · CC0 1.0 ·
+    <a href="/chat">Chat</a> ·
     <a href="https://github.com/Shaostoul/Humanity">GitHub</a>
   </footer>
 

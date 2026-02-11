@@ -57,12 +57,22 @@
       flex-shrink: 0;
     }
     .hub-nav .brand {
-      font-weight: 700;
-      color: var(--accent);
-      font-size: 0.95rem;
+      font-size: 1.1rem;
+      font-weight: 900;
+      color: #FF8811;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      box-shadow: inset 0 0 0 1px #2a6;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin-right: 0.75rem;
       cursor: pointer;
-      text-decoration: none;
+      transition: box-shadow 0.15s ease;
+    }
+    .hub-nav .brand:hover {
+      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
     }
     .hub-nav .tab {
       display: flex;
@@ -120,6 +130,22 @@
       animation: rgb-separator 3s linear infinite;
       flex-shrink: 0;
     }
+
+    /* ── Footer ── */
+    .chat-footer {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 0.25rem 1rem;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .chat-footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    .chat-footer a:hover { color: var(--accent); }
 
     /* ── Header ── */
     header {
@@ -1511,7 +1537,7 @@
 
   <!-- Hub Navigation -->
   <nav class="hub-nav">
-    <a href="/" class="brand">🅷</a>
+    <a href="/" class="brand">H</a>
     <a href="/chat" class="tab active">💬 Chat</a>
     <a href="/reality" class="tab">🟢 Reality</a>
     <a href="/fantasy" class="tab">✨ Fantasy</a>
@@ -4599,5 +4625,9 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
       }, 0);
     };
   </script>
+
+  <footer class="chat-footer">
+    Humanity — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a> · <a href="/chat">Chat</a> · <a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>
+  </footer>
 </body>
 </html>

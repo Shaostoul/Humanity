@@ -54,32 +54,97 @@
       padding: 0 24px;
     }
 
-    /* Nav */
-    nav {
+    /* ── Hub Navigation ── */
+    .hub-nav {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(13, 13, 13, 0.9);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-      padding: 16px 0;
-    }
-    nav .container {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
+      background: rgba(13, 13, 13, 0.95);
+      backdrop-filter: blur(12px);
+      padding: 0 1rem;
+      height: 40px;
+      gap: 0.25rem;
     }
-    nav .brand {
-      font-size: 1.2rem;
-      font-weight: 700;
+    .hub-nav .brand {
+      font-size: 1.1rem;
+      font-weight: 900;
+      color: #FF8811;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      box-shadow: inset 0 0 0 1px #2a6;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 0.75rem;
+      cursor: pointer;
+      transition: box-shadow 0.15s ease;
+    }
+    .hub-nav .brand:hover {
+      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
+    }
+    .hub-nav .brand.active {
+      color: #fff;
+      font-weight: 900;
+      animation: channeling 3s linear infinite;
+    }
+    .hub-nav .tab {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.75rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      transition: color 0.15s ease;
+      user-select: none;
+      text-decoration: none;
+      background: transparent;
+      box-shadow: inset 0 0 0 1px #2a6;
+    }
+    .hub-nav .tab:hover {
       color: var(--text);
+      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
     }
-    nav .brand span { color: var(--accent); }
-    nav .links { display: flex; gap: 20px; flex-wrap: wrap; }
-    nav .links a { color: var(--text-muted); font-size: 0.9rem; }
-    nav .links a:hover { color: var(--accent); }
+    .hub-nav .tab.active {
+      color: #fff;
+      font-weight: 700;
+      animation: channeling 3s linear infinite;
+    }
+    @keyframes channeling {
+      0%   { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
+      16%  { box-shadow: inset 0 0 0 2px #f80, 0 0 10px rgba(255,136,0,0.4); }
+      33%  { box-shadow: inset 0 0 0 2px #ff0, 0 0 10px rgba(255,255,0,0.4); }
+      50%  { box-shadow: inset 0 0 0 2px #0f4, 0 0 10px rgba(0,255,68,0.4); }
+      66%  { box-shadow: inset 0 0 0 2px #08f, 0 0 10px rgba(0,136,255,0.4); }
+      83%  { box-shadow: inset 0 0 0 2px #80f, 0 0 10px rgba(136,0,255,0.4); }
+      100% { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
+    }
+    .hub-nav .spacer { flex: 1; }
+    .hub-nav .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      padding: 0.25rem 0.4rem;
+    }
+    .hub-nav .nav-link:hover { color: var(--text); }
+    @keyframes rgb-separator {
+      0%   { background: #ff0000; }
+      16%  { background: #ff8800; }
+      33%  { background: #ffff00; }
+      50%  { background: #00ff44; }
+      66%  { background: #0088ff; }
+      83%  { background: #8800ff; }
+      100% { background: #ff0000; }
+    }
+    .nav-separator {
+      height: 1px;
+      width: 100%;
+      animation: rgb-separator 3s linear infinite;
+    }
 
     /* Hero */
     .hero {
@@ -314,18 +379,18 @@
 </head>
 <body>
 
-  <nav>
-    <div class="container">
-      <div class="brand"><span>H</span>umanity</div>
-      <div class="links">
-        <a href="#building">What We're Building</a>
-        <a href="#chat">Chat</a>
-        <a href="#involved">Get Involved</a>
-        <a href="https://shaostoul.github.io/Humanity" target="_blank">Docs</a>
-        <a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>
-      </div>
-    </div>
+  <nav class="hub-nav">
+    <a href="/" class="brand active">H</a>
+    <a href="/chat" class="tab">💬 Chat</a>
+    <a href="/reality" class="tab">🟢 Reality</a>
+    <a href="/fantasy" class="tab">✨ Fantasy</a>
+    <a href="/streams" class="tab">🎬 Streams</a>
+    <a href="/debug" class="tab">🔧 Debug</a>
+    <span class="spacer"></span>
+    <a href="/download" class="nav-link" title="Download app">⬇</a>
+    <a href="https://github.com/Shaostoul/Humanity" class="nav-link" target="_blank">📦</a>
   </nav>
+  <div class="nav-separator"></div>
 
   <!-- Hero -->
   <header class="hero">
