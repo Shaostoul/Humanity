@@ -918,6 +918,17 @@
       #login-screen p { font-size: 0.85rem; }
       #login-screen input { width: 100%; max-width: 340px; }
       #login-screen button { width: 100%; max-width: 340px; }
+
+      /* Sidebar tabs: slightly bigger on mobile */
+      .sidebar-tab {
+        font-size: 0.7rem;
+        height: 32px;
+        min-height: 32px;
+      }
+      .server-group-header {
+        padding: 0.4rem 0.5rem;
+        min-height: 36px;
+      }
     }
 
     /* ── Profile Modals ── */
@@ -1293,6 +1304,75 @@
       border-left: 3px solid var(--accent);
       background: rgba(224,112,32,0.04);
     }
+
+    /* ── Sidebar Tab Bar ── */
+    .sidebar-tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 0.5rem;
+      background: var(--bg);
+      border-radius: 6px;
+      padding: 2px;
+    }
+    .sidebar-tab {
+      flex: 1;
+      text-align: center;
+      font-size: 0.65rem;
+      padding: 4px 0;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+      user-select: none;
+      white-space: nowrap;
+    }
+    .sidebar-tab:hover { background: var(--bg-hover); color: var(--text); }
+    .sidebar-tab.active {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .sidebar-tab-content { display: none; }
+    .sidebar-tab-content.active { display: block; }
+
+    /* ── Server Group (collapsible) ── */
+    .server-group { margin-bottom: 0.5rem; }
+    .server-group-header {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text);
+      padding: 0.3rem 0.4rem;
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .server-group-header:hover { background: var(--bg-hover); }
+    .server-group-header .collapse-arrow {
+      font-size: 0.55rem;
+      transition: transform 0.2s;
+      color: var(--text-muted);
+    }
+    .server-group.collapsed .collapse-arrow { transform: rotate(-90deg); }
+    .server-group.collapsed .server-group-channels { display: none; }
+    .server-group-channels { padding-left: 0.2rem; }
+
+    /* ── Groups Placeholder ── */
+    .groups-placeholder {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      padding: 0.3rem 0.5rem;
+      font-style: italic;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
@@ -1356,12 +1436,22 @@
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
           <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
         </div>
-        <h3>Channels</h3>
-        <div id="channel-list"></div>
-        <div class="dm-section">
-          <h4>Direct Messages</h4>
+        <div class="sidebar-tabs" id="sidebar-tabs">
+          <button class="sidebar-tab active" data-tab="servers">🏠 Servers</button>
+          <button class="sidebar-tab" data-tab="groups">👥 Groups</button>
+          <button class="sidebar-tab" data-tab="dms">💬 DMs</button>
+        </div>
+        <div id="tab-servers" class="sidebar-tab-content active">
+          <div id="server-list"></div>
+        </div>
+        <div id="tab-groups" class="sidebar-tab-content">
+          <div class="groups-placeholder">P2P group chats — coming soon</div>
+        </div>
+        <div id="tab-dms" class="sidebar-tab-content">
           <div id="dm-list"></div>
         </div>
+        <!-- Hidden channel-list container used by renderChannelList() -->
+        <div id="channel-list" style="display:none;"></div>
       </div>
       <div id="chat-area">
         <div id="channel-header"></div>
@@ -2272,6 +2362,7 @@
     }
 
     function renderChannelList() {
+      // Legacy hidden channel-list (kept for compatibility)
       const list = document.getElementById('channel-list');
       list.innerHTML = channelList.map(ch => {
         const isActive = ch.id === activeChannel && !activeDmPartner;
@@ -2282,6 +2373,8 @@
       if (window.twemoji) twemoji.parse(list);
       // Re-apply unread dots after re-rendering.
       if (typeof renderUnreadDots === 'function') renderUnreadDots();
+      // Also update the server list in the Servers tab
+      if (typeof renderServerList === 'function') renderServerList();
     }
 
     function switchChannel(channelId) {
@@ -2289,6 +2382,9 @@
       activeDmPartner = null;
       activeDmPartnerName = '';
       renderDmList();
+
+      // Switch to Servers tab in sidebar.
+      if (typeof switchSidebarTab === 'function') switchSidebarTab('servers', true);
 
       activeChannel = channelId;
       localStorage.setItem('humanity_channel', channelId);
@@ -3771,6 +3867,9 @@
       activeDmPartner = partnerKey;
       activeDmPartnerName = partnerName;
 
+      // Switch to DMs tab in sidebar.
+      if (typeof switchSidebarTab === 'function') switchSidebarTab('dms', true);
+
       // Update sidebar highlighting.
       renderDmList();
       renderChannelList(); // Deselect channels
@@ -3859,6 +3958,135 @@
       if (window.twemoji) twemoji.parse(list);
     }
 
+    // ── Sidebar Tab Navigation ──
+    (function initSidebarTabs() {
+      const SIDEBAR_TAB_KEY = 'humanity_sidebar_tab';
+      const SERVER_ORDER_KEY = 'humanity_server_order';
+      const SERVER_COLLAPSE_KEY = 'humanity_server_collapsed';
+
+      // Restore saved tab
+      const savedTab = localStorage.getItem(SIDEBAR_TAB_KEY) || 'servers';
+      switchSidebarTab(savedTab, false);
+
+      // Tab click handler via event delegation
+      document.getElementById('sidebar-tabs').addEventListener('click', function(e) {
+        const tab = e.target.closest('.sidebar-tab');
+        if (!tab) return;
+        const tabName = tab.getAttribute('data-tab');
+        if (tabName) switchSidebarTab(tabName, true);
+      });
+
+      function switchSidebarTab(tabName, save) {
+        // Update tab buttons
+        document.querySelectorAll('#sidebar-tabs .sidebar-tab').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-tab') === tabName);
+        });
+        // Update tab content panels
+        document.querySelectorAll('.sidebar-tab-content').forEach(panel => {
+          panel.classList.toggle('active', panel.id === 'tab-' + tabName);
+        });
+        if (save) localStorage.setItem(SIDEBAR_TAB_KEY, tabName);
+        // Render the active tab's content
+        if (tabName === 'servers') renderServerList();
+        if (tabName === 'dms') renderDmList();
+      }
+      window.switchSidebarTab = switchSidebarTab;
+
+      // ── Server List Rendering ──
+      function getServerOrder() {
+        try {
+          const order = JSON.parse(localStorage.getItem(SERVER_ORDER_KEY));
+          if (Array.isArray(order)) return order;
+        } catch(_) {}
+        return null;
+      }
+
+      function getCollapsedServers() {
+        try {
+          const c = JSON.parse(localStorage.getItem(SERVER_COLLAPSE_KEY));
+          if (Array.isArray(c)) return new Set(c);
+        } catch(_) {}
+        return new Set();
+      }
+
+      function saveCollapsedServers(set) {
+        localStorage.setItem(SERVER_COLLAPSE_KEY, JSON.stringify([...set]));
+      }
+
+      function renderServerList() {
+        const container = document.getElementById('server-list');
+        // Build the list of servers — currently just "Humanity"
+        const servers = [{ name: 'Humanity', emoji: '🅷', getChannels: () => channelList }];
+
+        // Sort servers
+        const customOrder = getServerOrder();
+        if (customOrder) {
+          servers.sort((a, b) => {
+            const ai = customOrder.indexOf(a.name);
+            const bi = customOrder.indexOf(b.name);
+            const oa = ai >= 0 ? ai : 999;
+            const ob = bi >= 0 ? bi : 999;
+            return oa - ob || a.name.localeCompare(b.name);
+          });
+        } else {
+          // Default: alphabetical (Humanity is only one for now)
+          servers.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        const collapsed = getCollapsedServers();
+        let html = '';
+        servers.forEach(server => {
+          const isCollapsed = collapsed.has(server.name);
+          const channels = server.getChannels();
+          const channelsHtml = channels.map(ch => {
+            const isActive = ch.id === activeChannel && !activeDmPartner;
+            const title = ch.description ? ` title="${esc(ch.description)}"` : '';
+            const lock = ch.read_only ? ' 🔒' : '';
+            return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${esc(ch.name)}${lock}</div>`;
+          }).join('');
+
+          html += `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="${esc(server.name)}">
+            <div class="server-group-header" data-server-toggle="${esc(server.name)}">
+              <span class="collapse-arrow">▼</span>
+              <span>${server.emoji} ${esc(server.name)}</span>
+            </div>
+            <div class="server-group-channels">${channelsHtml}</div>
+          </div>`;
+        });
+        container.innerHTML = html;
+        if (window.twemoji) twemoji.parse(container);
+        // Re-apply unread dots
+        if (typeof renderUnreadDots === 'function') renderUnreadDots();
+      }
+      window.renderServerList = renderServerList;
+
+      // Event delegation for server list interactions
+      document.getElementById('server-list').addEventListener('click', function(e) {
+        // Toggle server collapse
+        const toggle = e.target.closest('[data-server-toggle]');
+        if (toggle) {
+          const serverName = toggle.getAttribute('data-server-toggle');
+          const group = toggle.closest('.server-group');
+          const collapsed = getCollapsedServers();
+          if (group.classList.contains('collapsed')) {
+            group.classList.remove('collapsed');
+            collapsed.delete(serverName);
+          } else {
+            group.classList.add('collapsed');
+            collapsed.add(serverName);
+          }
+          saveCollapsedServers(collapsed);
+          return;
+        }
+        // Channel click
+        const chItem = e.target.closest('.channel-item');
+        if (chItem) {
+          const channelId = chItem.getAttribute('data-channel-id');
+          if (channelId) switchChannel(channelId);
+        }
+      });
+    })();
+
     // ── Mobile Sidebar Management ──
     function isMobile() {
       return window.innerWidth <= 640;
@@ -3919,11 +4147,14 @@
 
     function renderUnreadDots() {
       document.querySelectorAll('.channel-item').forEach(el => {
-        // Get the channel id from the onclick attribute.
-        const onclick = el.getAttribute('onclick') || '';
-        const match = onclick.match(/switchChannel\('([^']+)'\)/);
-        if (!match) return;
-        const chId = match[1];
+        // Get the channel id from data attribute or onclick attribute.
+        let chId = el.getAttribute('data-channel-id');
+        if (!chId) {
+          const onclick = el.getAttribute('onclick') || '';
+          const match = onclick.match(/switchChannel\('([^']+)'\)/);
+          if (!match) return;
+          chId = match[1];
+        }
 
         // Remove existing dot.
         const existingDot = el.querySelector('.unread-dot');
