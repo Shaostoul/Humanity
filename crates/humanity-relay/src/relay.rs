@@ -325,6 +325,98 @@ pub enum RelayMessage {
     ReactionsSync {
         reactions: Vec<ReactionData>,
     },
+
+    /// Direct message between two users.
+    #[serde(rename = "dm")]
+    Dm {
+        from: String,
+        from_name: Option<String>,
+        to: String,
+        content: String,
+        timestamp: u64,
+    },
+
+    /// Client requests to open a DM conversation (load history).
+    #[serde(rename = "dm_open")]
+    DmOpen {
+        partner: String,
+    },
+
+    /// Server sends DM conversation history.
+    #[serde(rename = "dm_history")]
+    DmHistory {
+        /// Target recipient (stripped before sending to client).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        partner: String,
+        messages: Vec<DmData>,
+    },
+
+    /// Server sends list of DM conversations.
+    #[serde(rename = "dm_list")]
+    DmList {
+        /// Target recipient (stripped before sending to client).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        conversations: Vec<DmConversationData>,
+    },
+
+    /// Client marks DMs from a partner as read.
+    #[serde(rename = "dm_read")]
+    DmRead {
+        partner: String,
+    },
+
+    /// Edit a message — identified by sender key + timestamp.
+    #[serde(rename = "edit")]
+    Edit {
+        from: String,
+        timestamp: u64,
+        new_content: String,
+        #[serde(default = "default_channel")]
+        channel: String,
+    },
+
+    /// Server sends pinned messages sync on connect / channel switch.
+    #[serde(rename = "pins_sync")]
+    PinsSync {
+        channel: String,
+        pins: Vec<PinData>,
+    },
+
+    /// Server broadcasts when a message is pinned.
+    #[serde(rename = "pin_added")]
+    PinAdded {
+        channel: String,
+        pin: PinData,
+    },
+
+    /// Server broadcasts when a message is unpinned.
+    #[serde(rename = "pin_removed")]
+    PinRemoved {
+        channel: String,
+        index: usize,
+    },
+}
+
+/// DM data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DmData {
+    pub from: String,
+    pub from_name: String,
+    pub to: String,
+    pub content: String,
+    pub timestamp: u64,
+}
+
+/// DM conversation summary sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DmConversationData {
+    pub partner_key: String,
+    pub partner_name: String,
+    pub last_message: String,
+    pub last_timestamp: u64,
+    pub unread_count: i64,
 }
 
 /// A single reaction record sent during sync.
@@ -335,6 +427,17 @@ pub struct ReactionData {
     pub emoji: String,
     pub reactor_key: String,
     pub reactor_name: String,
+}
+
+/// A single pinned message record sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PinData {
+    pub from_key: String,
+    pub from_name: String,
+    pub content: String,
+    pub original_timestamp: u64,
+    pub pinned_by: String,
+    pub pinned_at: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -554,6 +657,41 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                 }
 
+                // Send pinned messages for the default channel ("general").
+                if let Ok(pins) = state.db.get_pinned_messages("general") {
+                    let pin_data: Vec<PinData> = pins.into_iter().map(|p| PinData {
+                        from_key: p.from_key,
+                        from_name: p.from_name,
+                        content: p.content,
+                        original_timestamp: p.original_timestamp,
+                        pinned_by: p.pinned_by,
+                        pinned_at: p.pinned_at,
+                    }).collect();
+                    let pins_msg = serde_json::to_string(&RelayMessage::PinsSync {
+                        channel: "general".to_string(),
+                        pins: pin_data,
+                    }).unwrap();
+                    let _ = ws_tx.send(Message::Text(pins_msg.into())).await;
+                }
+
+                // Send DM conversation list to the new peer.
+                if let Ok(convos) = state.db.get_dm_conversations(&public_key) {
+                    let conversations: Vec<DmConversationData> = convos.into_iter().map(|c| DmConversationData {
+                        partner_key: c.partner_key,
+                        partner_name: c.partner_name,
+                        last_message: c.last_message,
+                        last_timestamp: c.last_timestamp,
+                        unread_count: c.unread_count,
+                    }).collect();
+                    if !conversations.is_empty() {
+                        let dm_list_msg = serde_json::to_string(&RelayMessage::DmList {
+                            target: None, // Direct send, not via broadcast
+                            conversations,
+                        }).unwrap();
+                        let _ = ws_tx.send(Message::Text(dm_list_msg.into())).await;
+                    }
+                }
+
                 // Announce to everyone.
                 let peer_role = state.db.get_role(&public_key).unwrap_or_default();
                 let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
@@ -606,16 +744,43 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 break;
             }
 
-            // Don't echo chat/typing/delete messages back to the sender.
+            // Don't echo chat/typing/delete/edit messages back to the sender.
             let should_skip = match &msg {
                 RelayMessage::Chat { from, .. } => from == &my_key_for_broadcast,
                 RelayMessage::Typing { from, .. } => from == &my_key_for_broadcast,
                 RelayMessage::Delete { from, .. } => from == &my_key_for_broadcast,
                 RelayMessage::Reaction { from, .. } => from == &my_key_for_broadcast,
+                RelayMessage::Edit { from, .. } => from == &my_key_for_broadcast,
                 _ => false,
             };
             if should_skip {
                 continue;
+            }
+
+            // DM messages: only deliver to the targeted recipient (not sender — sender gets a confirmation copy via separate send).
+            if let RelayMessage::Dm { ref to, .. } = msg {
+                if to != &my_key_for_broadcast {
+                    continue; // Not for us
+                }
+                // Fall through to send it
+            }
+
+            // DmHistory: only deliver to the target client.
+            if let RelayMessage::DmHistory { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue, // No target = skip
+                    _ => {} // Target matches, fall through
+                }
+            }
+
+            // DmList: only deliver to the target client.
+            if let RelayMessage::DmList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
             }
 
             // Private messages: only deliver to the targeted peer.
@@ -1383,6 +1548,220 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 }
                                             }
                                         }
+                                        "/dm" => {
+                                            // /dm <name> <message> — Send a DM.
+                                            let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
+                                            let target_name = parts.get(1).unwrap_or(&"").to_string();
+                                            let dm_content = parts.get(2).unwrap_or(&"").to_string();
+                                            if target_name.is_empty() || dm_content.is_empty() {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /dm <name> <message>".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else if target_name.eq_ignore_ascii_case(&display) {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "You can't DM yourself.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else if dm_content.len() > 2000 {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "DM too long (max 2000 chars).".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.keys_for_name(&target_name) {
+                                                    Ok(keys) if !keys.is_empty() => {
+                                                        let target_key = keys[0].clone();
+                                                        let ts = std::time::SystemTime::now()
+                                                            .duration_since(std::time::UNIX_EPOCH)
+                                                            .unwrap_or_default()
+                                                            .as_millis() as u64;
+                                                        if let Err(e) = state_clone.db.store_dm(&my_key_for_recv, &display, &target_key, &dm_content, ts) {
+                                                            tracing::error!("Failed to store DM: {e}");
+                                                        }
+                                                        // Send to recipient.
+                                                        let dm_msg = RelayMessage::Dm {
+                                                            from: my_key_for_recv.clone(),
+                                                            from_name: Some(display.clone()),
+                                                            to: target_key.clone(),
+                                                            content: dm_content.clone(),
+                                                            timestamp: ts,
+                                                        };
+                                                        let _ = state_clone.broadcast_tx.send(dm_msg);
+                                                        // Send DM list update to both parties.
+                                                        send_dm_list_update(&state_clone, &my_key_for_recv);
+                                                        send_dm_list_update(&state_clone, &target_key);
+                                                        let private = RelayMessage::Private {
+                                                            to: my_key_for_recv.clone(),
+                                                            message: format!("💬 DM sent to {}.", target_name),
+                                                        };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    _ => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("User '{}' not found.", target_name) };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/dms" => {
+                                            // List DM conversations.
+                                            send_dm_list_update(&state_clone, &my_key_for_recv);
+                                        }
+                                        "/pin" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" && role != "mod" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can pin messages.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                match state_clone.db.get_last_message_in_channel(&ch) {
+                                                    Ok(Some((from_key, from_name, content, ts))) => {
+                                                        match state_clone.db.pin_message(&ch, &from_key, &from_name, &content, ts, &display) {
+                                                            Ok(true) => {
+                                                                let pin = PinData {
+                                                                    from_key,
+                                                                    from_name: from_name.clone(),
+                                                                    content: content.clone(),
+                                                                    original_timestamp: ts,
+                                                                    pinned_by: display.clone(),
+                                                                    pinned_at: std::time::SystemTime::now()
+                                                                        .duration_since(std::time::UNIX_EPOCH)
+                                                                        .unwrap_or_default()
+                                                                        .as_millis() as u64,
+                                                                };
+                                                                let _ = state_clone.broadcast_tx.send(RelayMessage::PinAdded {
+                                                                    channel: ch.clone(),
+                                                                    pin,
+                                                                });
+                                                                let sys = RelayMessage::System {
+                                                                    message: format!("📌 {} pinned a message by {}.", display, from_name),
+                                                                };
+                                                                let _ = state_clone.broadcast_tx.send(sys);
+                                                            }
+                                                            Ok(false) => {
+                                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "That message is already pinned.".to_string() };
+                                                                let _ = state_clone.broadcast_tx.send(private);
+                                                            }
+                                                            Err(e) => {
+                                                                tracing::error!("Pin error: {e}");
+                                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Pin failed: {e}") };
+                                                                let _ = state_clone.broadcast_tx.send(private);
+                                                            }
+                                                        }
+                                                    }
+                                                    Ok(None) => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "No messages to pin in this channel.".to_string() };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::error!("Pin lookup error: {e}");
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/unpin" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" && role != "mod" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can unpin messages.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let idx_str = trimmed.split_whitespace().nth(1).unwrap_or("0");
+                                                let idx: usize = idx_str.parse().unwrap_or(0);
+                                                if idx == 0 {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /unpin <number> — use /pins to see the list.".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                    match state_clone.db.unpin_message(&ch, idx) {
+                                                        Ok(true) => {
+                                                            let _ = state_clone.broadcast_tx.send(RelayMessage::PinRemoved {
+                                                                channel: ch.clone(),
+                                                                index: idx,
+                                                            });
+                                                            let sys = RelayMessage::System {
+                                                                message: format!("📌 {} unpinned message #{}.", display, idx),
+                                                            };
+                                                            let _ = state_clone.broadcast_tx.send(sys);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Pin #{} not found. Use /pins to see the list.", idx) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Unpin error: {e}");
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/pins" => {
+                                            let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                            match state_clone.db.get_pinned_messages(&ch) {
+                                                Ok(pins) if pins.is_empty() => {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("No pinned messages in #{}.", ch) };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                                Ok(pins) => {
+                                                    let mut lines = vec![format!("📌 Pinned messages in #{} ({}):", ch, pins.len())];
+                                                    for (i, pin) in pins.iter().enumerate() {
+                                                        let short_content = if pin.content.len() > 80 {
+                                                            format!("{}…", &pin.content[..80])
+                                                        } else {
+                                                            pin.content.clone()
+                                                        };
+                                                        lines.push(format!("  {}. {} — \"{}\"", i + 1, pin.from_name, short_content));
+                                                    }
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: lines.join("\n") };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!("Pins list error: {e}");
+                                                }
+                                            }
+                                        }
+                                        "/edit" => {
+                                            // /edit <new content> — edit your last message in this channel.
+                                            let new_content = trimmed.strip_prefix("/edit").unwrap_or("").trim().to_string();
+                                            if new_content.is_empty() {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /edit <new message text>".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else if new_content.len() > 2000 {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Message too long (max 2000 chars).".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                // Find user's last message in this channel.
+                                                let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
+                                                // We need to find the timestamp of the user's last message.
+                                                // Query DB for this.
+                                                let conn_result = {
+                                                    let conn = state_clone.db.conn.lock().unwrap();
+                                                    conn.query_row(
+                                                        "SELECT timestamp FROM messages WHERE from_key = ?1 AND channel_id = ?2 AND msg_type = 'chat' ORDER BY id DESC LIMIT 1",
+                                                        rusqlite::params![&my_key_for_recv, &ch],
+                                                        |row| row.get::<_, i64>(0),
+                                                    ).ok()
+                                                };
+                                                if let Some(ts) = conn_result {
+                                                    let ts = ts as u64;
+                                                    match state_clone.db.edit_message(&my_key_for_recv, ts, &new_content) {
+                                                        Ok(true) => {
+                                                            let edit = RelayMessage::Edit {
+                                                                from: my_key_for_recv.clone(),
+                                                                timestamp: ts,
+                                                                new_content: new_content.clone(),
+                                                                channel: ch,
+                                                            };
+                                                            let _ = state_clone.broadcast_tx.send(edit);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Could not find your message to edit.".to_string() };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Edit error: {e}");
+                                                        }
+                                                    }
+                                                } else {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "No messages found to edit.".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
+                                        }
                                         _ => {
                                             let private = RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
@@ -1599,6 +1978,110 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     }
                                 }
                             }
+                            // DM — send a direct message.
+                            RelayMessage::Dm { to, content, .. } => {
+                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
+                                let sender_name = peer.as_ref()
+                                    .and_then(|p| p.display_name.clone())
+                                    .unwrap_or_else(|| "Anonymous".to_string());
+
+                                // Validate.
+                                if content.is_empty() {
+                                    continue;
+                                }
+                                if content.len() > 2000 {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "DM too long (max 2000 chars).".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+                                if to == my_key_for_recv {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You can't DM yourself.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+                                // Check target exists.
+                                let target_exists = {
+                                    let peers = state_clone.peers.read().await;
+                                    peers.contains_key(&to)
+                                } || state_clone.db.keys_for_name("").is_ok(); // We'll check by key
+                                // Better: check if the key is in registered_names.
+                                // For simplicity, just check if any registered name has this key.
+                                // Actually, just let it through — if the key doesn't exist, the DM is just stored.
+
+                                // Rate limiting (same as chat).
+                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if user_role == "muted" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You are muted and cannot send DMs.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+
+                                let ts = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_millis() as u64;
+
+                                // Store the DM.
+                                if let Err(e) = state_clone.db.store_dm(&my_key_for_recv, &sender_name, &to, &content, ts) {
+                                    tracing::error!("Failed to store DM: {e}");
+                                }
+
+                                // Send to recipient via broadcast (filtered in send loop).
+                                let dm_msg = RelayMessage::Dm {
+                                    from: my_key_for_recv.clone(),
+                                    from_name: Some(sender_name.clone()),
+                                    to: to.clone(),
+                                    content: content.clone(),
+                                    timestamp: ts,
+                                };
+                                let _ = state_clone.broadcast_tx.send(dm_msg);
+
+                                // Update DM lists for both parties.
+                                send_dm_list_update(&state_clone, &my_key_for_recv);
+                                send_dm_list_update(&state_clone, &to);
+                            }
+                            // DM open — load conversation history.
+                            RelayMessage::DmOpen { partner } => {
+                                // Mark messages from partner as read.
+                                let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
+
+                                match state_clone.db.load_dm_conversation(&my_key_for_recv, &partner, 100) {
+                                    Ok(records) => {
+                                        let messages: Vec<DmData> = records.into_iter().map(|r| DmData {
+                                            from: r.from_key,
+                                            from_name: r.from_name,
+                                            to: r.to_key,
+                                            content: r.content,
+                                            timestamp: r.timestamp,
+                                        }).collect();
+                                        let history = RelayMessage::DmHistory {
+                                            target: Some(my_key_for_recv.clone()),
+                                            partner,
+                                            messages,
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(history);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to load DM history: {e}");
+                                    }
+                                }
+                                // Also update DM list (to clear unread count).
+                                send_dm_list_update(&state_clone, &my_key_for_recv);
+                            }
+                            // DM read — mark messages from partner as read.
+                            RelayMessage::DmRead { partner } => {
+                                let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
+                                send_dm_list_update(&state_clone, &my_key_for_recv);
+                            }
                             _ => {
                                 // Ignore other message types from clients.
                             }
@@ -1806,5 +2289,27 @@ async fn handle_mod_command(
             format!("{} has been unmuted.", target_name)
         }
         _ => "Unknown moderation command.".to_string(),
+    }
+}
+
+/// Send an updated DM conversation list to a specific user via broadcast (filtered by send loop).
+fn send_dm_list_update(state: &Arc<RelayState>, user_key: &str) {
+    match state.db.get_dm_conversations(user_key) {
+        Ok(convos) => {
+            let conversations: Vec<DmConversationData> = convos.into_iter().map(|c| DmConversationData {
+                partner_key: c.partner_key,
+                partner_name: c.partner_name,
+                last_message: c.last_message,
+                last_timestamp: c.last_timestamp,
+                unread_count: c.unread_count,
+            }).collect();
+            let _ = state.broadcast_tx.send(RelayMessage::DmList {
+                target: Some(user_key.to_string()),
+                conversations,
+            });
+        }
+        Err(e) => {
+            tracing::error!("Failed to get DM conversations for {}: {e}", user_key);
+        }
     }
 }

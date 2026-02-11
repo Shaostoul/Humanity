@@ -14,6 +14,38 @@ use tracing::info;
 
 use crate::relay::RelayMessage;
 
+/// A persisted DM record.
+#[derive(Debug, Clone)]
+pub struct DmRecord {
+    pub from_key: String,
+    pub from_name: String,
+    pub to_key: String,
+    pub content: String,
+    pub timestamp: u64,
+}
+
+/// A DM conversation summary.
+#[derive(Debug, Clone)]
+pub struct DmConversation {
+    pub partner_key: String,
+    pub partner_name: String,
+    pub last_message: String,
+    pub last_timestamp: u64,
+    pub unread_count: i64,
+}
+
+/// A persisted pinned message record.
+#[derive(Debug, Clone)]
+pub struct PinnedMessageRecord {
+    pub channel: String,
+    pub from_key: String,
+    pub from_name: String,
+    pub content: String,
+    pub original_timestamp: u64,
+    pub pinned_by: String,
+    pub pinned_at: u64,
+}
+
 /// A persisted emoji reaction record.
 #[derive(Debug, Clone)]
 pub struct ReactionRecord {
@@ -139,7 +171,40 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_reactions_target
                 ON reactions(target_from, target_timestamp);
             CREATE INDEX IF NOT EXISTS idx_reactions_channel
-                ON reactions(channel);"
+                ON reactions(channel);
+
+            CREATE TABLE IF NOT EXISTS pinned_messages (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel           TEXT NOT NULL,
+                from_key          TEXT NOT NULL,
+                from_name         TEXT NOT NULL,
+                content           TEXT NOT NULL,
+                original_timestamp INTEGER NOT NULL,
+                pinned_by         TEXT NOT NULL,
+                pinned_at         INTEGER NOT NULL,
+                UNIQUE(channel, from_key, original_timestamp)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_pinned_channel
+                ON pinned_messages(channel);"
+        )?;
+
+        // DM table for direct messages.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS direct_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_key TEXT NOT NULL,
+                from_name TEXT NOT NULL,
+                to_key TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                read INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_dm_conversation
+                ON direct_messages(from_key, to_key);
+            CREATE INDEX IF NOT EXISTS idx_dm_to
+                ON direct_messages(to_key);"
         )?;
 
         // Migration: add channel_id column to messages if missing.
@@ -1071,6 +1136,141 @@ impl Storage {
         Ok(records)
     }
 
+    /// Edit a message's content by sender key and timestamp.
+    /// Updates the content column and the raw_json blob.
+    /// Returns true if a row was updated.
+    pub fn edit_message(&self, from_key: &str, timestamp: u64, new_content: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        // First, fetch the existing raw_json so we can update it.
+        let existing: Option<(i64, String)> = conn.query_row(
+            "SELECT id, raw_json FROM messages WHERE from_key = ?1 AND timestamp = ?2 LIMIT 1",
+            params![from_key, timestamp as i64],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).ok();
+
+        if let Some((id, raw)) = existing {
+            // Parse and update the JSON blob.
+            if let Ok(mut val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                val["content"] = serde_json::Value::String(new_content.to_string());
+                let new_raw = serde_json::to_string(&val).unwrap_or(raw);
+                let rows = conn.execute(
+                    "UPDATE messages SET content = ?1, raw_json = ?2 WHERE id = ?3",
+                    params![new_content, new_raw, id],
+                )?;
+                Ok(rows > 0)
+            } else {
+                // Fallback: just update the content column.
+                let rows = conn.execute(
+                    "UPDATE messages SET content = ?1 WHERE from_key = ?2 AND timestamp = ?3",
+                    params![new_content, from_key, timestamp as i64],
+                )?;
+                Ok(rows > 0)
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    // ── Pin methods ──
+
+    /// Pin a message. Returns true if pinned, false if already pinned.
+    pub fn pin_message(
+        &self,
+        channel: &str,
+        from_key: &str,
+        from_name: &str,
+        content: &str,
+        original_timestamp: u64,
+        pinned_by: &str,
+    ) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        let rows = conn.execute(
+            "INSERT OR IGNORE INTO pinned_messages (channel, from_key, from_name, content, original_timestamp, pinned_by, pinned_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![channel, from_key, from_name, content, original_timestamp as i64, pinned_by, now as i64],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Unpin a message by its 1-based index in the channel's pin list (ordered by pinned_at).
+    /// Returns true if removed.
+    pub fn unpin_message(&self, channel: &str, index: usize) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        // Get all pins for the channel ordered by pinned_at ASC.
+        let mut stmt = conn.prepare(
+            "SELECT id FROM pinned_messages WHERE channel = ?1 ORDER BY pinned_at ASC"
+        )?;
+        let ids: Vec<i64> = stmt.query_map(params![channel], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        if index == 0 || index > ids.len() {
+            return Ok(false);
+        }
+
+        let target_id = ids[index - 1];
+        let rows = conn.execute("DELETE FROM pinned_messages WHERE id = ?1", params![target_id])?;
+        Ok(rows > 0)
+    }
+
+    /// Get all pinned messages for a channel, ordered by pinned_at ASC.
+    pub fn get_pinned_messages(&self, channel: &str) -> Result<Vec<PinnedMessageRecord>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT channel, from_key, from_name, content, original_timestamp, pinned_by, pinned_at
+             FROM pinned_messages
+             WHERE channel = ?1
+             ORDER BY pinned_at ASC"
+        )?;
+        let records = stmt.query_map(params![channel], |row| {
+            Ok(PinnedMessageRecord {
+                channel: row.get(0)?,
+                from_key: row.get(1)?,
+                from_name: row.get(2)?,
+                content: row.get(3)?,
+                original_timestamp: row.get::<_, i64>(4)? as u64,
+                pinned_by: row.get(5)?,
+                pinned_at: row.get::<_, i64>(6)? as u64,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(records)
+    }
+
+    /// Get the count of pinned messages in a channel.
+    pub fn get_pinned_count(&self, channel: &str) -> Result<i64, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT COUNT(*) FROM pinned_messages WHERE channel = ?1",
+            params![channel],
+            |row| row.get(0),
+        )
+    }
+
+    /// Get the last chat message in a channel (for /pin command).
+    pub fn get_last_message_in_channel(&self, channel: &str) -> Result<Option<(String, String, String, u64)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT from_key, from_name, content, timestamp FROM messages
+             WHERE channel_id = ?1 AND msg_type = 'chat'
+             ORDER BY id DESC LIMIT 1",
+            params![channel],
+            |row| Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1).unwrap_or_default(),
+                row.get::<_, String>(2).unwrap_or_default(),
+                row.get::<_, i64>(3)? as u64,
+            )),
+        ) {
+            Ok(record) => Ok(Some(record)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// List all registered users with their first public key.
     /// Returns Vec<(name, first_key, role, key_count)> sorted alphabetically.
     pub fn list_all_users_with_keys(&self) -> Result<Vec<(String, String, String, usize)>, rusqlite::Error> {
@@ -1110,5 +1310,124 @@ impl Storage {
             }
         }
         Ok(result)
+    }
+
+    // ── Direct Message methods ──
+
+    /// Store a direct message. Returns the new row id.
+    pub fn store_dm(
+        &self,
+        from_key: &str,
+        from_name: &str,
+        to_key: &str,
+        content: &str,
+        timestamp: u64,
+    ) -> Result<i64, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO direct_messages (from_key, from_name, to_key, content, timestamp)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![from_key, from_name, to_key, content, timestamp as i64],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// Load DM conversation between two users (both directions), ordered by timestamp ASC.
+    pub fn load_dm_conversation(
+        &self,
+        key1: &str,
+        key2: &str,
+        limit: usize,
+    ) -> Result<Vec<DmRecord>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT from_key, from_name, to_key, content, timestamp FROM (
+                SELECT from_key, from_name, to_key, content, timestamp FROM direct_messages
+                WHERE (from_key = ?1 AND to_key = ?2) OR (from_key = ?2 AND to_key = ?1)
+                ORDER BY timestamp DESC
+                LIMIT ?3
+            ) sub ORDER BY timestamp ASC"
+        )?;
+        let records = stmt.query_map(params![key1, key2, limit], |row| {
+            Ok(DmRecord {
+                from_key: row.get(0)?,
+                from_name: row.get(1)?,
+                to_key: row.get(2)?,
+                content: row.get(3)?,
+                timestamp: row.get::<_, i64>(4)? as u64,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(records)
+    }
+
+    /// List all DM conversations for a user, with last message preview and unread count.
+    pub fn get_dm_conversations(&self, my_key: &str) -> Result<Vec<DmConversation>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        // Find all distinct conversation partners.
+        let mut stmt = conn.prepare(
+            "SELECT partner_key, MAX(timestamp) as last_ts FROM (
+                SELECT to_key as partner_key, timestamp FROM direct_messages WHERE from_key = ?1
+                UNION ALL
+                SELECT from_key as partner_key, timestamp FROM direct_messages WHERE to_key = ?1
+            ) GROUP BY partner_key ORDER BY last_ts DESC"
+        )?;
+        let partners: Vec<(String, i64)> = stmt.query_map(params![my_key], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?.filter_map(|r| r.ok()).collect();
+
+        let mut conversations = Vec::new();
+        for (partner_key, _last_ts) in &partners {
+            // Get the last message in this conversation.
+            let last_msg: Option<(String, String, i64)> = conn.query_row(
+                "SELECT from_name, content, timestamp FROM direct_messages
+                 WHERE (from_key = ?1 AND to_key = ?2) OR (from_key = ?2 AND to_key = ?1)
+                 ORDER BY timestamp DESC LIMIT 1",
+                params![my_key, partner_key],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            ).ok();
+
+            // Get unread count (messages FROM partner TO me that are unread).
+            let unread_count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM direct_messages
+                 WHERE from_key = ?1 AND to_key = ?2 AND read = 0",
+                params![partner_key, my_key],
+                |row| row.get(0),
+            ).unwrap_or(0);
+
+            // Get partner name from the last message they sent, or from registered names.
+            let partner_name: String = conn.query_row(
+                "SELECT from_name FROM direct_messages WHERE from_key = ?1 ORDER BY timestamp DESC LIMIT 1",
+                params![partner_key],
+                |row| row.get(0),
+            ).unwrap_or_else(|_| {
+                // Fallback: look up in registered_names.
+                conn.query_row(
+                    "SELECT name FROM registered_names WHERE public_key = ?1 LIMIT 1",
+                    params![partner_key],
+                    |row| row.get(0),
+                ).unwrap_or_else(|_| partner_key[..8.min(partner_key.len())].to_string())
+            });
+
+            if let Some((_, content, timestamp)) = last_msg {
+                conversations.push(DmConversation {
+                    partner_key: partner_key.clone(),
+                    partner_name,
+                    last_message: content,
+                    last_timestamp: timestamp as u64,
+                    unread_count,
+                });
+            }
+        }
+        Ok(conversations)
+    }
+
+    /// Mark all DMs FROM from_key TO to_key as read.
+    pub fn mark_dms_read(&self, from_key: &str, to_key: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE direct_messages SET read = 1 WHERE from_key = ?1 AND to_key = ?2 AND read = 0",
+            params![from_key, to_key],
+        )?;
+        Ok(())
     }
 }
