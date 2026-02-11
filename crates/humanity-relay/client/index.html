@@ -1317,8 +1317,19 @@
         <span id="stats"></span>
       </div>
       <div style="display:flex;align-items:center;gap:0.5rem;">
+        <button id="sound-toggle" onclick="toggleSoundMenu()" title="Notification sounds" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:1.1rem;padding:0.2rem;">🔔</button>
         <button id="people-toggle" onclick="toggleSidebar('right-sidebar')" title="Users">👤</button>
         <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
+      </div>
+      <div id="sound-menu" style="display:none;position:absolute;top:3rem;right:5rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:0.6rem;z-index:200;min-width:200px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.4rem;font-weight:600;">NOTIFICATION SOUND</div>
+        <div id="sound-options" style="display:flex;flex-direction:column;gap:0.25rem;"></div>
+        <div style="border-top:1px solid var(--border);margin-top:0.5rem;padding-top:0.4rem;">
+          <label style="font-size:0.75rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+            <input type="checkbox" id="sound-enabled" checked onchange="toggleSoundEnabled()" style="accent-color:var(--accent);">
+            Sounds enabled
+          </label>
+        </div>
       </div>
     </header>
     <div class="main">
@@ -2235,6 +2246,8 @@
         return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}</div>`;
       }).join('');
       if (window.twemoji) twemoji.parse(list);
+      // Re-apply unread dots after re-rendering.
+      if (typeof renderUnreadDots === 'function') renderUnreadDots();
     }
 
     function switchChannel(channelId) {
@@ -3007,29 +3020,90 @@
       return pattern.test(content);
     }
 
-    // ── Notification Sound (synthesized chime) ──
+    // ── Notification Sounds ──
     let audioCtx = null;
+    let soundEnabled = localStorage.getItem('humanity_sound_enabled') !== 'false';
+    let selectedSound = localStorage.getItem('humanity_sound') || 'chime';
+
+    const SOUND_PRESETS = {
+      chime:  { label: 'Chime',  freqs: [[523.25, 0], [659.25, 0.12]], type: 'sine', vol: 0.15, decay: 0.6 },
+      ping:   { label: 'Ping',   freqs: [[880, 0]], type: 'sine', vol: 0.12, decay: 0.3 },
+      bell:   { label: 'Bell',   freqs: [[1046.5, 0], [784, 0.08]], type: 'sine', vol: 0.1, decay: 0.8 },
+      pop:    { label: 'Pop',    freqs: [[600, 0]], type: 'triangle', vol: 0.2, decay: 0.15 },
+      drop:   { label: 'Drop',   freqs: [[800, 0], [400, 0.08]], type: 'sine', vol: 0.12, decay: 0.4 },
+      blip:   { label: 'Blip',   freqs: [[1200, 0], [900, 0.06]], type: 'square', vol: 0.06, decay: 0.15 },
+    };
+
     function playNotificationChime() {
+      if (!soundEnabled) return;
       try {
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const now = audioCtx.currentTime;
-
-        // Two-tone warm chime: C5 then E5
-        const frequencies = [523.25, 659.25];
-        frequencies.forEach((freq, i) => {
+        const preset = SOUND_PRESETS[selectedSound] || SOUND_PRESETS.chime;
+        preset.freqs.forEach(([freq, offset]) => {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
-          osc.type = 'sine';
+          osc.type = preset.type;
           osc.frequency.value = freq;
-          gain.gain.setValueAtTime(0.15, now + i * 0.12);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.6);
+          gain.gain.setValueAtTime(preset.vol, now + offset);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + offset + preset.decay);
           osc.connect(gain);
           gain.connect(audioCtx.destination);
-          osc.start(now + i * 0.12);
-          osc.stop(now + i * 0.12 + 0.6);
+          osc.start(now + offset);
+          osc.stop(now + offset + preset.decay);
         });
       } catch (e) { /* Audio not available */ }
     }
+
+    function toggleSoundMenu() {
+      const menu = document.getElementById('sound-menu');
+      if (menu.style.display === 'none') {
+        renderSoundOptions();
+        menu.style.display = 'block';
+        // Close on outside click.
+        setTimeout(() => document.addEventListener('click', closeSoundMenuOutside), 0);
+      } else {
+        menu.style.display = 'none';
+      }
+    }
+    function closeSoundMenuOutside(e) {
+      const menu = document.getElementById('sound-menu');
+      if (!menu.contains(e.target) && e.target.id !== 'sound-toggle') {
+        menu.style.display = 'none';
+        document.removeEventListener('click', closeSoundMenuOutside);
+      }
+    }
+    function renderSoundOptions() {
+      const container = document.getElementById('sound-options');
+      container.innerHTML = Object.entries(SOUND_PRESETS).map(([key, preset]) => {
+        const checked = key === selectedSound ? 'checked' : '';
+        return `<label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;cursor:pointer;padding:0.15rem 0;">
+          <input type="radio" name="sound-choice" value="${key}" ${checked} onchange="selectSound('${key}')" style="accent-color:var(--accent);">
+          ${esc(preset.label)}
+          <button onclick="event.preventDefault();previewSound('${key}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;padding:0 0.3rem;">▶</button>
+        </label>`;
+      }).join('');
+      document.getElementById('sound-enabled').checked = soundEnabled;
+    }
+    function selectSound(key) {
+      selectedSound = key;
+      localStorage.setItem('humanity_sound', key);
+      playNotificationChime();
+    }
+    function previewSound(key) {
+      const prev = selectedSound;
+      selectedSound = key;
+      playNotificationChime();
+      selectedSound = prev;
+    }
+    function toggleSoundEnabled() {
+      soundEnabled = document.getElementById('sound-enabled').checked;
+      localStorage.setItem('humanity_sound_enabled', soundEnabled);
+      // Update bell icon.
+      document.getElementById('sound-toggle').textContent = soundEnabled ? '🔔' : '🔕';
+    }
+    // Set initial bell icon.
+    document.getElementById('sound-toggle').textContent = soundEnabled ? '🔔' : '🔕';
 
     function notifyNewMessage(author, content, isDm) {
       const mentioned = isMentioned(content);
