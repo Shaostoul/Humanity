@@ -609,3 +609,73 @@ pub async fn get_peers(
         .collect();
     Json(list)
 }
+
+// ── Federation API ──
+
+/// Response for GET /api/server-info.
+#[derive(Debug, Serialize)]
+pub struct ServerInfoResponse {
+    pub server_id: String,
+    pub name: String,
+    pub version: &'static str,
+    pub channels: Vec<String>,
+    pub users_online: usize,
+    pub accord_compliant: bool,
+    pub public_key: String,
+}
+
+/// GET /api/server-info — public server metadata for federation discovery.
+pub async fn get_server_info(
+    State(state): State<Arc<RelayState>>,
+) -> Json<ServerInfoResponse> {
+    let (pk, _) = state.db.get_or_create_server_keypair().unwrap_or_default();
+    let channels: Vec<String> = state.db.list_channels()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id, _, _, _)| id)
+        .collect();
+    let users_online = state.peers.read().await.len();
+    let server_name = std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string());
+    let accord = std::env::var("ACCORD_COMPLIANT").unwrap_or_default() == "true";
+
+    Json(ServerInfoResponse {
+        server_id: pk.clone(),
+        name: server_name,
+        version: env!("BUILD_VERSION"),
+        channels,
+        users_online,
+        accord_compliant: accord,
+        public_key: pk,
+    })
+}
+
+/// Response for GET /api/federation/servers.
+#[derive(Debug, Serialize)]
+pub struct FederatedServerEntry {
+    pub server_id: String,
+    pub name: String,
+    pub url: String,
+    pub public_key: Option<String>,
+    pub trust_tier: i32,
+    pub accord_compliant: bool,
+    pub status: String,
+    pub last_seen: Option<i64>,
+}
+
+/// GET /api/federation/servers — list federated servers (public).
+pub async fn list_federation_servers(
+    State(state): State<Arc<RelayState>>,
+) -> Json<Vec<FederatedServerEntry>> {
+    let servers = state.db.list_federated_servers().unwrap_or_default();
+    let entries: Vec<FederatedServerEntry> = servers.into_iter().map(|s| FederatedServerEntry {
+        server_id: s.server_id,
+        name: s.name,
+        url: s.url,
+        public_key: s.public_key,
+        trust_tier: s.trust_tier,
+        accord_compliant: s.accord_compliant,
+        status: s.status,
+        last_seen: s.last_seen,
+    }).collect();
+    Json(entries)
+}

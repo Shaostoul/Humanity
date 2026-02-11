@@ -58,6 +58,12 @@ async fn main() {
         }
     }
 
+    // Generate or load server Ed25519 keypair for federation.
+    match db.get_or_create_server_keypair() {
+        Ok((pk, _)) => tracing::info!("Server public key: {pk}"),
+        Err(e) => tracing::error!("Failed to initialize server keypair: {e}"),
+    }
+
     // Ensure default channel exists.
     db.ensure_default_channel().expect("Failed to create default channel");
 
@@ -88,6 +94,8 @@ async fn main() {
         .route("/api/pins", get(api::get_pins))
         .route("/api/upload", post(api::upload_file))
         .route("/api/github-webhook", post(api::github_webhook))
+        .route("/api/server-info", get(api::get_server_info))
+        .route("/api/federation/servers", get(api::list_federation_servers))
         .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
         .fallback_service(
             tower_http::services::ServeDir::new("client")

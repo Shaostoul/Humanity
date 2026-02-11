@@ -85,7 +85,7 @@ pub struct RelayState {
     /// Optional webhook for new-message notifications.
     pub webhook: Option<WebhookConfig>,
     /// HTTP client for webhook calls.
-    http_client: reqwest::Client,
+    pub http_client: reqwest::Client,
     /// Per-key rate limiting state (Fibonacci backoff).
     pub rate_limits: RwLock<HashMap<String, RateLimitState>>,
     /// Lockdown mode: when true, new name registrations are blocked.
@@ -1157,6 +1157,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 "  /dms — List your DM conversations".to_string(),
                                                 "  /edit <text> — Edit your last message".to_string(),
                                                 "  /pins — List pinned messages".to_string(),
+                                                "  /server-list — List federated servers".to_string(),
                                             ];
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("".to_string());
@@ -1192,6 +1193,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /name-release <name> — Release a name (for account recovery)".to_string());
                                                 help_text.push("  /reports — View recent reports".to_string());
                                                 help_text.push("  /reports-clear — Clear all reports".to_string());
+                                                help_text.push("".to_string());
+                                                help_text.push("🌐 Federation:".to_string());
+                                                help_text.push("  /server-add <url> [name] — Add a federated server".to_string());
+                                                help_text.push("  /server-remove <id> — Remove a federated server".to_string());
+                                                help_text.push("  /server-trust <id> <0-3> — Set trust tier".to_string());
                                             }
                                             help_text.push("".to_string());
                                             help_text.push("💡 Tips:".to_string());
@@ -1970,6 +1976,160 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 } else {
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "No messages found to edit.".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
+                                        }
+                                        // ── Federation commands ──
+                                        "/server-add" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can add federated servers.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let parts: Vec<&str> = trimmed.splitn(3, char::is_whitespace).collect();
+                                                let url = parts.get(1).unwrap_or(&"").to_string();
+                                                let name = parts.get(2).map(|s| s.to_string());
+                                                if url.is_empty() || (!url.starts_with("http://") && !url.starts_with("https://")) {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-add <url> [name]\nURL must start with http:// or https://".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    // Use URL as server_id for now (unique).
+                                                    let server_id = url.trim_end_matches('/').to_string();
+                                                    let display_name = name.unwrap_or_else(|| server_id.clone());
+                                                    match state_clone.db.add_federated_server(&server_id, &display_name, &url) {
+                                                        Ok(true) => {
+                                                            // Try to fetch server-info to populate details.
+                                                            let info_url = format!("{}/api/server-info", url.trim_end_matches('/'));
+                                                            let sid = server_id.clone();
+                                                            // Fire and forget — don't block on discovery.
+                                                            let state_for_discover = state_clone.clone();
+                                                            tokio::spawn(async move {
+                                                                match state_for_discover.http_client.get(&info_url).timeout(std::time::Duration::from_secs(10)).send().await {
+                                                                    Ok(resp) if resp.status().is_success() => {
+                                                                        if let Ok(info) = resp.json::<serde_json::Value>().await {
+                                                                            let name = info["name"].as_str().unwrap_or("Unknown");
+                                                                            let pk = info["public_key"].as_str();
+                                                                            let accord = info["accord_compliant"].as_bool().unwrap_or(false);
+                                                                            let _ = state_for_discover.db.update_federated_server_info(&sid, name, pk, accord);
+                                                                            tracing::info!("Discovered federated server: {} ({})", name, sid);
+                                                                        }
+                                                                    }
+                                                                    Ok(resp) => {
+                                                                        let _ = state_for_discover.db.update_federated_server_status(&sid, "unreachable");
+                                                                        tracing::warn!("Server-info fetch failed for {}: HTTP {}", sid, resp.status());
+                                                                    }
+                                                                    Err(e) => {
+                                                                        let _ = state_for_discover.db.update_federated_server_status(&sid, "unreachable");
+                                                                        tracing::warn!("Server-info fetch failed for {}: {}", sid, e);
+                                                                    }
+                                                                }
+                                                            });
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("✅ Added federated server: {}", display_name) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Server already in registry.".to_string() };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Failed to add server: {e}");
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/server-remove" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can remove federated servers.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let server_id = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                                if server_id.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-remove <server_id or url>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    match state_clone.db.remove_federated_server(&server_id) {
+                                                        Ok(true) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Removed federated server: {}", server_id) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Server not found in registry.".to_string() };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Failed to remove server: {e}");
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/server-list" => {
+                                            match state_clone.db.list_federated_servers() {
+                                                Ok(servers) if servers.is_empty() => {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "No federated servers registered.".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                                Ok(servers) => {
+                                                    let mut lines = vec![format!("🌐 Federated servers ({}):", servers.len())];
+                                                    for s in &servers {
+                                                        let tier_badge = match s.trust_tier {
+                                                            3 => "🟢",
+                                                            2 => "🟡",
+                                                            1 => "🔵",
+                                                            _ => "⚪",
+                                                        };
+                                                        let status_icon = match s.status.as_str() {
+                                                            "online" => "●",
+                                                            "unreachable" => "○",
+                                                            _ => "?",
+                                                        };
+                                                        lines.push(format!("  {} {} {} — {} [T{}]", status_icon, tier_badge, s.name, s.url, s.trust_tier));
+                                                    }
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: lines.join("\n") };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!("Failed to list servers: {e}");
+                                                }
+                                            }
+                                        }
+                                        "/server-trust" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can set trust tiers.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                                if parts.len() < 3 {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /server-trust <server_id> <0-3>\nTiers: 3=Verified+Accord, 2=Verified, 1=Accord, 0=Unverified".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let server_id = parts[1];
+                                                    if let Ok(tier) = parts[2].parse::<i32>() {
+                                                        if !(0..=3).contains(&tier) {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Trust tier must be 0-3.".to_string() };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        } else if state_clone.db.set_server_trust_tier(server_id, tier).unwrap_or(false) {
+                                                            let tier_label = match tier {
+                                                                3 => "Verified + Accord 🟢",
+                                                                2 => "Verified 🟡",
+                                                                1 => "Unverified + Accord 🔵",
+                                                                _ => "Unverified ⚪",
+                                                            };
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Set {} to tier {} ({})", server_id, tier, tier_label) };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        } else {
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Server not found in registry.".to_string() };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    } else {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Tier must be a number (0-3).".to_string() };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
                                                 }
                                             }
                                         }

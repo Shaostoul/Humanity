@@ -2845,6 +2845,10 @@ async function importIdentityFromJSON(jsonData) {
         if (p.public_key === myKey && p.upload_token) {
           myUploadToken = p.upload_token;
         }
+        // Track our role for UI rendering (federation admin buttons, etc.).
+        if (p.public_key === myKey && p.role) {
+          window.myPeerRole = p.role;
+        }
       }
     }
 
@@ -4629,55 +4633,103 @@ async function importIdentityFromJSON(jsonData) {
         localStorage.setItem(SERVER_COLLAPSE_KEY, JSON.stringify([...set]));
       }
 
+      // Federated servers cache (fetched from API).
+      let federatedServers = [];
+      let federatedServersFetched = false;
+
+      async function fetchFederatedServers() {
+        try {
+          const resp = await fetch('/api/federation/servers');
+          if (resp.ok) {
+            federatedServers = await resp.json();
+            federatedServersFetched = true;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch federated servers:', e);
+        }
+      }
+
       function renderServerList() {
         const container = document.getElementById('server-list');
-        // Build the list of servers — currently just "Humanity"
-        const servers = [{ name: 'Humanity', emoji: '🅷', getChannels: () => channelList }];
 
-        // Sort servers
-        const customOrder = getServerOrder();
-        if (customOrder) {
-          servers.sort((a, b) => {
-            const ai = customOrder.indexOf(a.name);
-            const bi = customOrder.indexOf(b.name);
-            const oa = ai >= 0 ? ai : 999;
-            const ob = bi >= 0 ? bi : 999;
-            return oa - ob || a.name.localeCompare(b.name);
-          });
-        } else {
-          // Default: alphabetical (Humanity is only one for now)
-          servers.sort((a, b) => a.name.localeCompare(b.name));
+        // Fetch federated servers if not yet loaded.
+        if (!federatedServersFetched) {
+          fetchFederatedServers().then(() => renderServerList());
         }
 
+        // Current server (always first, highlighted).
         const collapsed = getCollapsedServers();
-        let html = '';
-        servers.forEach(server => {
-          const isCollapsed = collapsed.has(server.name);
-          const channels = server.getChannels();
-          const channelsHtml = channels.map(ch => {
-            const isActive = ch.id === activeChannel && !activeDmPartner;
-            const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-            const lock = ch.read_only ? ' 🔒' : '';
-            return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${esc(ch.name)}${lock}</div>`;
-          }).join('');
+        const isCollapsed = collapsed.has('Humanity');
+        const channelsHtml = channelList.map(ch => {
+          const isActive = ch.id === activeChannel && !activeDmPartner;
+          const title = ch.description ? ` title="${esc(ch.description)}"` : '';
+          const lock = ch.read_only ? ' 🔒' : '';
+          return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${esc(ch.name)}${lock}</div>`;
+        }).join('');
 
-          html += `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="${esc(server.name)}">
-            <div class="server-group-header" data-server-toggle="${esc(server.name)}">
-              <span class="collapse-arrow">▼</span>
-              <span>${server.emoji} ${esc(server.name)}</span>
-            </div>
-            <div class="server-group-channels">${channelsHtml}</div>
+        let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
+          <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
+            <span class="collapse-arrow">▼</span>
+            <span>🟢 🅷 Humanity</span>
+          </div>
+          <div class="server-group-channels">${channelsHtml}</div>
+        </div>`;
+
+        // Federated servers.
+        if (federatedServers.length > 0) {
+          html += '<div style="padding:0.3rem 0.5rem 0.1rem;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Federation</div>';
+          for (const s of federatedServers) {
+            const tierBadge = s.trust_tier === 3 ? '🟢' : s.trust_tier === 2 ? '🟡' : s.trust_tier === 1 ? '🔵' : '⚪';
+            const statusDot = s.status === 'online' ? '🟢' : s.status === 'unreachable' ? '⚫' : '🟡';
+            html += `<div class="server-group" data-server="${esc(s.name)}">
+              <div class="server-group-header" data-federated-url="${esc(s.url)}" title="Tier ${s.trust_tier} — ${esc(s.status)}\n${esc(s.url)}">
+                <span>${statusDot} ${tierBadge} ${esc(s.name)}</span>
+              </div>
+            </div>`;
+          }
+        }
+
+        // Add Server button (only show for admins).
+        const myRole = (window.myPeerRole || '').toLowerCase();
+        if (myRole === 'admin') {
+          html += `<div style="padding:0.4rem 0.5rem;">
+            <button onclick="promptAddServer()" style="font-size:0.75rem;padding:0.2rem 0.5rem;cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);width:100%;">+ Add Server</button>
           </div>`;
-        });
+        }
+
         container.innerHTML = html;
         if (window.twemoji) twemoji.parse(container);
-        // Re-apply unread dots
         if (typeof renderUnreadDots === 'function') renderUnreadDots();
       }
       window.renderServerList = renderServerList;
 
+      // Prompt to add a federated server via /server-add command.
+      function promptAddServer() {
+        const url = prompt('Enter server URL (e.g. https://chat.example.com):');
+        if (!url) return;
+        const name = prompt('Server name (optional):') || '';
+        const cmd = name ? `/server-add ${url} ${name}` : `/server-add ${url}`;
+        // Send the command as a chat message (the server intercepts slash commands).
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          const msg = { type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'general' };
+          ws.send(JSON.stringify(msg));
+        }
+        // Refresh after a delay to pick up the new server.
+        setTimeout(() => { federatedServersFetched = false; renderServerList(); }, 3000);
+      }
+      window.promptAddServer = promptAddServer;
+
       // Event delegation for server list interactions
       document.getElementById('server-list').addEventListener('click', function(e) {
+        // Federated server click — navigate to it.
+        const fedHeader = e.target.closest('[data-federated-url]');
+        if (fedHeader) {
+          const url = fedHeader.getAttribute('data-federated-url');
+          if (url && confirm(`Switch to server: ${url}?\n\nThis will open the server in a new tab.`)) {
+            window.open(url, '_blank');
+          }
+          return;
+        }
         // Toggle server collapse
         const toggle = e.target.closest('[data-server-toggle]');
         if (toggle) {

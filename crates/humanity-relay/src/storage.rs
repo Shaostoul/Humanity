@@ -197,6 +197,21 @@ impl Storage {
             );"
         )?;
 
+        // Federation: federated server registry.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS federated_servers (
+                server_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                public_key TEXT,
+                trust_tier INTEGER NOT NULL DEFAULT 0,
+                accord_compliant INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'unknown',
+                last_seen INTEGER,
+                added_at INTEGER NOT NULL
+            );"
+        )?;
+
         // DM table for direct messages.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS direct_messages (
@@ -1635,4 +1650,141 @@ impl Storage {
             Err(e) => Err(e),
         }
     }
+
+    // ── Federation methods ──
+
+    /// A federated server record.
+    #[allow(dead_code)]
+    pub fn add_federated_server(
+        &self,
+        server_id: &str,
+        name: &str,
+        url: &str,
+    ) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let rows = conn.execute(
+            "INSERT OR IGNORE INTO federated_servers (server_id, name, url, trust_tier, added_at)
+             VALUES (?1, ?2, ?3, 0, ?4)",
+            params![server_id, name, url, now],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Remove a federated server by ID.
+    pub fn remove_federated_server(&self, server_id: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "DELETE FROM federated_servers WHERE server_id = ?1",
+            params![server_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// List all federated servers, ordered by trust tier DESC then name.
+    pub fn list_federated_servers(&self) -> Result<Vec<FederatedServer>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT server_id, name, url, public_key, trust_tier, accord_compliant, status, last_seen, added_at
+             FROM federated_servers
+             ORDER BY trust_tier DESC, name ASC"
+        )?;
+        let servers = stmt.query_map([], |row| {
+            Ok(FederatedServer {
+                server_id: row.get(0)?,
+                name: row.get(1)?,
+                url: row.get(2)?,
+                public_key: row.get(3)?,
+                trust_tier: row.get(4)?,
+                accord_compliant: row.get::<_, i32>(5)? != 0,
+                status: row.get(6)?,
+                last_seen: row.get(7)?,
+                added_at: row.get(8)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(servers)
+    }
+
+    /// Set the trust tier for a federated server.
+    pub fn set_server_trust_tier(&self, server_id: &str, tier: i32) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE federated_servers SET trust_tier = ?1 WHERE server_id = ?2",
+            params![tier, server_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Update a federated server's status and last_seen.
+    pub fn update_federated_server_status(&self, server_id: &str, status: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let rows = conn.execute(
+            "UPDATE federated_servers SET status = ?1, last_seen = ?2 WHERE server_id = ?3",
+            params![status, now, server_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Update a federated server's info from a server-info response.
+    pub fn update_federated_server_info(
+        &self,
+        server_id: &str,
+        name: &str,
+        public_key: Option<&str>,
+        accord_compliant: bool,
+    ) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let rows = conn.execute(
+            "UPDATE federated_servers SET name = ?1, public_key = ?2, accord_compliant = ?3, status = 'online', last_seen = ?4 WHERE server_id = ?5",
+            params![name, public_key, accord_compliant as i32, now, server_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Get the server's own Ed25519 keypair (generated on first call, stored in server_state).
+    /// Returns (public_key_hex, secret_key_hex).
+    pub fn get_or_create_server_keypair(&self) -> Result<(String, String), rusqlite::Error> {
+        // Check if already stored.
+        if let Some(pk) = self.get_state("server_public_key")? {
+            if let Some(sk) = self.get_state("server_secret_key")? {
+                return Ok((pk, sk));
+            }
+        }
+        // Generate new keypair using random bytes.
+        use ed25519_dalek::SigningKey;
+        let secret_bytes: [u8; 32] = rand::rng().random();
+        let signing_key = SigningKey::from_bytes(&secret_bytes);
+        let public_key = signing_key.verifying_key();
+        let pk_hex = hex::encode(public_key.as_bytes());
+        let sk_hex = hex::encode(signing_key.to_bytes());
+        self.set_state("server_public_key", &pk_hex)?;
+        self.set_state("server_secret_key", &sk_hex)?;
+        info!("Generated server Ed25519 keypair: {}", pk_hex);
+        Ok((pk_hex, sk_hex))
+    }
+}
+
+/// A federated server record from the database.
+#[derive(Debug, Clone)]
+pub struct FederatedServer {
+    pub server_id: String,
+    pub name: String,
+    pub url: String,
+    pub public_key: Option<String>,
+    pub trust_tier: i32,
+    pub accord_compliant: bool,
+    pub status: String,
+    pub last_seen: Option<i64>,
+    pub added_at: i64,
 }
