@@ -1174,8 +1174,8 @@
       if (channelList.length > 0) {
         switchChannel(activeChannel);
       } else {
-        // Fallback: load history for current channel.
-        loadHistory();
+        // Fallback: load history for current channel, then reactions.
+        loadHistory().then(() => loadReactionsForChannel(activeChannel));
       }
     }
 
