@@ -415,9 +415,9 @@ impl Storage {
             .as_millis() as i64;
         let expires = now + 5 * 60 * 1000; // 5 minutes
 
-        // Cryptographically random 6-char hex code (CSPRNG).
-        let random_val: u32 = rand::rng().random();
-        let code = format!("{:06X}", random_val % 0xFFFFFF);
+        // Cryptographically random 8-char hex code (4 random bytes via CSPRNG).
+        let random_bytes: [u8; 4] = rand::rng().random();
+        let code = format!("{:02X}{:02X}{:02X}{:02X}", random_bytes[0], random_bytes[1], random_bytes[2], random_bytes[3]);
 
         // Clean up expired codes first.
         conn.execute("DELETE FROM link_codes WHERE expires_at < ?1", params![now])?;

@@ -5,6 +5,7 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
 use tracing::info;
@@ -13,6 +14,15 @@ use crate::storage::Storage;
 
 /// Maximum broadcast channel capacity.
 const BROADCAST_CAPACITY: usize = 256;
+
+/// Maximum concurrent WebSocket connections.
+const MAX_CONNECTIONS: usize = 500;
+
+/// Timeout for the initial identify message (seconds).
+const IDENTIFY_TIMEOUT_SECS: u64 = 30;
+
+/// Minimum interval between typing indicators per user (seconds).
+const TYPING_RATE_LIMIT_SECS: u64 = 2;
 
 /// Fibonacci delay sequence in seconds (capped at 21s).
 const FIB_DELAYS: [u64; 8] = [1, 1, 2, 3, 5, 8, 13, 21];
@@ -79,6 +89,10 @@ pub struct RelayState {
     /// Keys that have been kicked/banned — their WebSocket loops check this
     /// and close the connection when they find themselves listed.
     pub kicked_keys: RwLock<HashSet<String>>,
+    /// Active WebSocket connection count (for connection limiting).
+    pub connection_count: AtomicUsize,
+    /// Per-key last typing indicator time (for typing rate limiting).
+    pub typing_timestamps: RwLock<HashMap<String, Instant>>,
 }
 
 impl RelayState {
@@ -115,6 +129,8 @@ impl RelayState {
             lockdown: RwLock::new(false),
             auto_lockdown: RwLock::new(false),
             kicked_keys: RwLock::new(HashSet::new()),
+            connection_count: AtomicUsize::new(0),
+            typing_timestamps: RwLock::new(HashMap::new()),
         }
     }
 
@@ -471,14 +487,48 @@ pub struct UserInfo {
     pub key_count: usize,
 }
 
+/// RAII guard that decrements the connection counter when dropped.
+/// Ensures accurate tracking regardless of how the connection handler exits.
+struct ConnectionGuard {
+    state: Arc<RelayState>,
+}
+
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        self.state.connection_count.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 /// Handle a single WebSocket connection.
 pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
+    // Connection limit check: reject if at capacity.
+    let prev = state.connection_count.fetch_add(1, Ordering::SeqCst);
+    if prev >= MAX_CONNECTIONS {
+        state.connection_count.fetch_sub(1, Ordering::SeqCst);
+        tracing::warn!("Connection rejected: at capacity ({MAX_CONNECTIONS})");
+        return;
+    }
+
+    // RAII guard ensures the counter is decremented on all exit paths.
+    let _conn_guard = ConnectionGuard { state: state.clone() };
+
     let (mut ws_tx, mut ws_rx) = socket.split();
     let mut broadcast_rx = state.broadcast_tx.subscribe();
     let mut peer_key: Option<String> = None;
 
-    // Wait for the identify message first.
-    while let Some(Ok(msg)) = ws_rx.next().await {
+    // Wait for the identify message with a timeout.
+    let identify_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(IDENTIFY_TIMEOUT_SECS);
+
+    loop {
+        let msg = tokio::select! {
+            msg = ws_rx.next() => msg,
+            _ = tokio::time::sleep_until(identify_deadline) => {
+                tracing::warn!("Client did not identify within {IDENTIFY_TIMEOUT_SECS}s, disconnecting");
+                let _ = ws_tx.close().await;
+                return;
+            }
+        };
+        let Some(Ok(msg)) = msg else { return; };
         if let Message::Text(text) = msg {
             if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code }) =
                 serde_json::from_str::<RelayMessage>(&text)
@@ -1821,8 +1871,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     state_clone.notify_webhook(&display, &content);
                                 }
                             }
-                            // Typing indicator — broadcast to other peers.
+                            // Typing indicator — broadcast to other peers (rate limited).
                             RelayMessage::Typing { .. } => {
+                                // Rate limit: max 1 typing indicator per TYPING_RATE_LIMIT_SECS per user.
+                                let now = Instant::now();
+                                {
+                                    let mut typing_ts = state_clone.typing_timestamps.write().await;
+                                    if let Some(last) = typing_ts.get(&my_key_for_recv) {
+                                        if now.duration_since(*last).as_secs() < TYPING_RATE_LIMIT_SECS {
+                                            continue; // Silently drop too-frequent typing indicators
+                                        }
+                                    }
+                                    typing_ts.insert(my_key_for_recv.clone(), now);
+                                }
                                 let peer = state_clone
                                     .peers
                                     .read()
@@ -2011,6 +2072,73 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         continue;
                                     }
 
+                                    // Validate URLs in socials: reject dangerous URIs,
+                                    // require https:// for URL fields.
+                                    if let Ok(socials_obj) = serde_json::from_str::<serde_json::Value>(&socials) {
+                                        if let Some(obj) = socials_obj.as_object() {
+                                            let url_fields = ["website", "youtube"];
+                                            let handle_fields = ["twitter", "github"];
+                                            let mut invalid = false;
+
+                                            for field in &url_fields {
+                                                if let Some(serde_json::Value::String(val)) = obj.get(*field) {
+                                                    let val = val.trim();
+                                                    if val.is_empty() { continue; }
+                                                    let lower = val.to_lowercase();
+                                                    if lower.starts_with("javascript:") || lower.starts_with("data:") {
+                                                        invalid = true;
+                                                        break;
+                                                    }
+                                                    if !val.starts_with("https://") {
+                                                        let private = RelayMessage::Private {
+                                                            to: my_key_for_recv.clone(),
+                                                            message: format!("Profile URL for '{}' must start with https://", field),
+                                                        };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                        invalid = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if !invalid {
+                                                for field in &handle_fields {
+                                                    if let Some(serde_json::Value::String(val)) = obj.get(*field) {
+                                                        let val = val.trim();
+                                                        if val.is_empty() { continue; }
+                                                        // Handles: only alphanumeric + underscores.
+                                                        if !val.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                                                            let private = RelayMessage::Private {
+                                                                to: my_key_for_recv.clone(),
+                                                                message: format!("Profile handle for '{}' can only contain letters, numbers, and underscores.", field),
+                                                            };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                            invalid = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Also check any other string fields for dangerous URIs.
+                                            if !invalid {
+                                                for (_key, val) in obj {
+                                                    if let Some(s) = val.as_str() {
+                                                        let lower = s.trim().to_lowercase();
+                                                        if lower.starts_with("javascript:") || lower.starts_with("data:") {
+                                                            invalid = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            if invalid {
+                                                continue;
+                                            }
+                                        }
+                                    }
+
                                     // Save to DB.
                                     match state_clone.db.save_profile(name, &clean_bio, &socials) {
                                         Ok(()) => {
@@ -2092,7 +2220,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
                                 }
-                                // Rate limiting (same as chat).
+                                // Rate limiting (same Fibonacci backoff as chat).
                                 let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if user_role == "muted" {
                                     let private = RelayMessage::Private {
@@ -2101,6 +2229,50 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
+                                }
+
+                                // Fibonacci rate limiting for DMs (skip for bots and admins).
+                                if !my_key_for_recv.starts_with("bot_") && user_role != "admin" {
+                                    let now = Instant::now();
+                                    let mut rate_limits = state_clone.rate_limits.write().await;
+                                    let rl = rate_limits.entry(my_key_for_recv.clone()).or_insert_with(|| {
+                                        RateLimitState {
+                                            first_seen: now,
+                                            last_message_time: now - std::time::Duration::from_secs(60),
+                                            fib_index: 0,
+                                        }
+                                    });
+
+                                    let elapsed = now.duration_since(rl.last_message_time).as_secs();
+                                    let fib_delay = FIB_DELAYS[rl.fib_index];
+
+                                    let is_trusted = user_role == "verified" || user_role == "donor" || user_role == "mod" || user_role == "admin";
+                                    let account_age = now.duration_since(rl.first_seen).as_secs();
+                                    let new_account_delay = if !is_trusted && account_age < NEW_ACCOUNT_WINDOW_SECS {
+                                        NEW_ACCOUNT_DELAY_SECS
+                                    } else {
+                                        0
+                                    };
+
+                                    let required_delay = fib_delay.max(new_account_delay);
+
+                                    if elapsed < required_delay {
+                                        let wait = required_delay - elapsed;
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: format!("⏳ Slow down! Please wait {} more second{}.", wait, if wait == 1 { "" } else { "s" }),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
+
+                                    if elapsed > required_delay {
+                                        rl.fib_index = 0;
+                                    } else {
+                                        rl.fib_index = (rl.fib_index + 1).min(FIB_DELAYS.len() - 1);
+                                    }
+
+                                    rl.last_message_time = now;
                                 }
 
                                 let ts = std::time::SystemTime::now()

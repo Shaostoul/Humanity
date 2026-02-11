@@ -180,10 +180,10 @@ pub async fn get_stats(
     })
 }
 
-/// Query params for POST /api/upload (optional user key for FIFO tracking).
+/// Query params for POST /api/upload (user key required for auth + FIFO tracking).
 #[derive(Debug, Deserialize)]
 pub struct UploadQuery {
-    /// Public key of the uploader (optional — if absent, no FIFO enforcement).
+    /// Public key of the uploader (required — must be a connected user).
     pub key: Option<String>,
 }
 
@@ -203,7 +203,8 @@ fn dir_total_size(dir: &std::path::Path) -> u64 {
 
 /// POST /api/upload — upload a file (images only, max 5MB).
 /// Returns a JSON object with the file URL.
-/// If `?key=<public_key>` is provided, enforces a per-user 4-image FIFO.
+/// Requires `?key=<public_key>` — must be a currently connected user.
+/// Enforces a per-user 4-image FIFO.
 pub async fn upload_file(
     State(state): State<Arc<RelayState>>,
     Query(query): Query<UploadQuery>,
@@ -213,6 +214,18 @@ pub async fn upload_file(
     const ALLOWED_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
     /// Maximum total size of all uploads on disk (default 500MB).
     const MAX_TOTAL_UPLOAD_BYTES: u64 = 500 * 1024 * 1024;
+
+    // Require a connected peer key for uploads.
+    let public_key = match &query.key {
+        Some(k) if !k.is_empty() => k.clone(),
+        _ => return Err((StatusCode::BAD_REQUEST, "Missing required 'key' query parameter.".into())),
+    };
+    {
+        let peers = state.peers.read().await;
+        if !peers.contains_key(&public_key) {
+            return Err((StatusCode::FORBIDDEN, "Upload denied: key is not connected.".into()));
+        }
+    }
 
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
@@ -284,22 +297,20 @@ pub async fn upload_file(
         })?;
 
         // Track upload per user (FIFO: keep max 4 images per key).
-        if let Some(ref public_key) = query.key {
-            match state.db.record_upload(public_key, &unique_name) {
-                Ok(old_files) => {
-                    // Delete old files from disk.
-                    for old_file in &old_files {
-                        let old_path = upload_dir.join(old_file);
-                        if let Err(e) = std::fs::remove_file(&old_path) {
-                            tracing::warn!("Failed to delete old upload {}: {e}", old_file);
-                        } else {
-                            tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
-                        }
+        match state.db.record_upload(&public_key, &unique_name) {
+            Ok(old_files) => {
+                // Delete old files from disk.
+                for old_file in &old_files {
+                    let old_path = upload_dir.join(old_file);
+                    if let Err(e) = std::fs::remove_file(&old_path) {
+                        tracing::warn!("Failed to delete old upload {}: {e}", old_file);
+                    } else {
+                        tracing::info!("FIFO cleanup: deleted old upload {}", old_file);
                     }
                 }
-                Err(e) => {
-                    tracing::error!("Failed to record upload: {e}");
-                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to record upload: {e}");
             }
         }
 
