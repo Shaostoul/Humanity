@@ -267,6 +267,33 @@
       border-radius: 0;
     }
 
+    /* Ephemeral notices — color-coded, auto-dismiss */
+    .notice {
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      margin-bottom: 0.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: noticeFadeIn 0.2s ease;
+    }
+    .notice .notice-text { flex: 1; }
+    .notice .notice-timer {
+      font-size: 0.65rem;
+      opacity: 0.7;
+      margin-left: 0.5rem;
+      white-space: nowrap;
+    }
+    .notice.notice-red    { background: rgba(220,50,50,0.12); border-left: 3px solid #dc3232; color: #ff6b6b; }
+    .notice.notice-yellow { background: rgba(220,180,50,0.10); border-left: 3px solid #dcb432; color: #e0c860; }
+    .notice.notice-green  { background: rgba(50,180,80,0.10); border-left: 3px solid #32b450; color: #60d080; }
+    .notice.notice-blue   { background: rgba(50,120,220,0.10); border-left: 3px solid #3278dc; color: #60a0e0; }
+    .notice.notice-cyan   { background: rgba(50,200,200,0.10); border-left: 3px solid #32c8c8; color: #60e0e0; }
+    .notice.notice-magenta { background: rgba(180,50,200,0.10); border-left: 3px solid #b432c8; color: #d060e0; }
+    @keyframes noticeFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    .notice.fading { transition: opacity 0.5s ease; opacity: 0; }
+
     .date-separator {
       text-align: center;
       color: var(--text-muted);
@@ -1669,7 +1696,6 @@
           document.getElementById('msg-input').disabled = false;
           document.getElementById('send-btn').disabled = false;
           document.getElementById('msg-input').focus();
-          addSystemMessage('Connected');
           updateStats();
         }
       };
@@ -1723,14 +1749,12 @@
           break;
         }
         case 'peer_joined':
-          // Update peerData with new peer info.
+          // Update peerData with new peer info — sidebar handles visibility.
           peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '' };
-          if (identityConfirmed) addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} joined`);
           updateStats();
           break;
         case 'peer_left':
           delete peerData[msg.public_key];
-          if (identityConfirmed) addSystemMessage(`${msg.display_name || shortKey(msg.public_key)} left`);
           updateStats();
           break;
         case 'channel_list':
@@ -1746,7 +1770,6 @@
             document.getElementById('msg-input').disabled = false;
             document.getElementById('send-btn').disabled = false;
             document.getElementById('msg-input').focus();
-            addSystemMessage('Connected');
             updateStats();
           }
           updatePeerList(msg.peers);
@@ -2058,10 +2081,69 @@
     }
 
     function addSystemMessage(text) {
+      // Route certain messages as ephemeral notices instead of permanent system messages.
+      const lower = text.toLowerCase();
+      // Link codes, invite codes — ephemeral yellow, 60s
+      if (lower.includes('link code:') || lower.includes('invite code:')) {
+        return addNotice(text, 'yellow', 60);
+      }
+      // Rate limiting / slow mode — ephemeral cyan, 15s
+      if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')) {
+        return addNotice(text, 'cyan', 15);
+      }
+      // Kick/ban/mute — important red, 30s
+      if (lower.includes('kicked') || lower.includes('banned') || lower.includes('muted')) {
+        return addNotice(text, 'red', 30);
+      }
+      // Lockdown — red, 30s
+      if (lower.includes('lockdown')) {
+        return addNotice(text, 'red', 30);
+      }
+      // Pin actions — green, 20s
+      if (lower.includes('pinned a message')) {
+        return addNotice(text, 'green', 20);
+      }
+      // Verified/donor — green, 20s
+      if (lower.includes('verified') || lower.includes('donor')) {
+        return addNotice(text, 'green', 20);
+      }
+      // Everything else — regular system message
       const el = document.createElement('div');
       el.className = 'message system';
       el.textContent = `• ${text}`;
       appendMessage(el);
+    }
+
+    /**
+     * Add an ephemeral notice with countdown timer.
+     * @param {string} text - Notice text
+     * @param {string} color - red|yellow|green|blue|cyan|magenta
+     * @param {number} seconds - Auto-dismiss after N seconds
+     */
+    function addNotice(text, color, seconds) {
+      const el = document.createElement('div');
+      el.className = `notice notice-${color}`;
+      const textSpan = document.createElement('span');
+      textSpan.className = 'notice-text';
+      textSpan.textContent = text;
+      const timerSpan = document.createElement('span');
+      timerSpan.className = 'notice-timer';
+      let remaining = seconds;
+      timerSpan.textContent = `${remaining}s`;
+      el.appendChild(textSpan);
+      el.appendChild(timerSpan);
+      appendMessage(el);
+
+      const interval = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(interval);
+          el.classList.add('fading');
+          setTimeout(() => el.remove(), 500);
+        } else {
+          timerSpan.textContent = `${remaining}s`;
+        }
+      }, 1000);
     }
 
     function addDateSeparator(dateStr) {
