@@ -411,97 +411,169 @@
 
   <!-- Fantasy Tab -->
   <div id="tab-fantasy" class="tab-content">
-    <div class="panel">
-      <h2>✨ Fantasy</h2>
-      <p>Same engine, different rules. Magic, alien worlds, impossible physics — creativity unbound. Your fantasy world, your rules.</p>
+    <div class="panel" style="border-color:rgba(120,80,200,0.3);">
+      <h2 style="color:var(--fantasy-accent,#9966ff);">✨ Fantasy</h2>
+      <p>The game side of Humanity. Your character, the world lore, and achievements — all stored locally. The adventure begins here.</p>
     </div>
     <div class="card-grid">
-      <div class="panel">
-        <h2>🎮 My Games</h2>
-        <p>Your game library. Install and launch games distributed P2P through the Humanity Network. Verified games from Steam/Epic get trust badges.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+
+      <!-- ── World Map ── -->
+      <div class="panel reality-card" id="fantasy-worldmap" style="border-color:rgba(120,80,200,0.2);">
+        <h2 class="reality-card-header" onclick="toggleFantasyCard('worldmap')" style="color:var(--fantasy-accent,#9966ff);">🗺️ World Map <span class="collapse-icon" id="worldmap-collapse">▼</span></h2>
+        <div class="reality-card-body" id="worldmap-body">
+          <canvas id="world-map-canvas" width="560" height="280" style="width:100%;border-radius:8px;background:#0a0a1a;cursor:crosshair;"></canvas>
+          <p style="text-align:center;margin-top:0.6rem;color:var(--fantasy-accent,#9966ff);font-style:italic;font-size:0.85rem;">
+            "The world is being built…"
+          </p>
+          <p style="font-size:0.8rem;color:var(--text-muted);text-align:center;line-height:1.6;">
+            In the age before networks, humanity was scattered — isolated villages of thought, unable to share their fire.<br>
+            Now the map fills itself, one connection at a time.
+          </p>
+        </div>
       </div>
-      <div class="panel">
-        <h2>🌌 Game Worlds</h2>
-        <p>Fantasy gardens, alien biomes, magical workshops — the same tools as Reality but with the rules turned off. Experiment freely.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+
+      <!-- ── Character Sheet ── -->
+      <div class="panel reality-card" id="fantasy-character" style="border-color:rgba(120,80,200,0.2);">
+        <h2 class="reality-card-header" onclick="toggleFantasyCard('character')" style="color:var(--fantasy-accent,#9966ff);">⚔️ Character Sheet <span class="collapse-icon" id="character-collapse">▼</span></h2>
+        <div class="reality-card-body" id="character-body">
+          <div id="char-create" style="display:none;">
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.6rem;">Create your character to begin.</p>
+            <input type="text" id="char-name-input" placeholder="Character name" maxlength="24" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.4rem;">
+            <select id="char-class-input" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;font-family:inherit;margin-bottom:0.6rem;">
+              <option value="Explorer">🧭 Explorer</option>
+              <option value="Builder">🔨 Builder</option>
+              <option value="Scholar">📚 Scholar</option>
+              <option value="Guardian">🛡️ Guardian</option>
+            </select>
+            <button onclick="createCharacter()" style="background:var(--fantasy-accent,#9966ff);color:#fff;border:none;padding:0.5rem 1.2rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Create Character</button>
+          </div>
+          <div id="char-display" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+              <div>
+                <span id="char-d-name" style="font-weight:700;font-size:1rem;color:var(--text);"></span>
+                <span id="char-d-class" style="font-size:0.8rem;color:var(--fantasy-accent,#9966ff);margin-left:0.4rem;"></span>
+              </div>
+              <span id="char-d-level" style="font-size:0.75rem;color:var(--text-muted);background:var(--bg-input);padding:0.15rem 0.5rem;border-radius:10px;"></span>
+            </div>
+            <div id="char-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.6rem;"></div>
+            <div style="display:flex;gap:0.4rem;">
+              <button onclick="rerollStats()" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-family:inherit;">🎲 Reroll Stats</button>
+              <button onclick="deleteCharacter()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.4rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-family:inherit;">🗑️</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="panel">
-        <h2>🗡️ Adventures</h2>
-        <p>Quests, dungeons, exploration. Play solo or with friends. Community-created content using the same engine.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+
+      <!-- ── Lore / Codex ── -->
+      <div class="panel reality-card" id="fantasy-lore" style="border-color:rgba(120,80,200,0.2);">
+        <h2 class="reality-card-header" onclick="toggleFantasyCard('lore')" style="color:var(--fantasy-accent,#9966ff);">📜 Lore / Codex <span class="collapse-icon" id="lore-collapse">▼</span></h2>
+        <div class="reality-card-body" id="lore-body">
+          <div id="lore-entries" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
+        </div>
       </div>
-      <div class="panel">
-        <h2>🏪 Game Store</h2>
-        <p>P2P game distribution. Developers publish, players seed. Trust tiers: verified platforms (Steam/Epic) > community vetted > unverified.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+
+      <!-- ── Achievements ── -->
+      <div class="panel reality-card" id="fantasy-achievements" style="border-color:rgba(120,80,200,0.2);">
+        <h2 class="reality-card-header" onclick="toggleFantasyCard('achievements')" style="color:var(--fantasy-accent,#9966ff);">🏆 Achievements <span class="collapse-icon" id="achievements-collapse">▼</span></h2>
+        <div class="reality-card-body" id="achievements-body">
+          <div id="achievement-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.5rem;"></div>
+        </div>
       </div>
-      <div class="panel">
-        <h2>🔨 Workshop</h2>
-        <p>Create and share mods, maps, items, and content. Everything is open. Fork anything. Build on each other's work.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
-      </div>
-      <div class="panel">
-        <h2>📊 Fantasy Stats</h2>
-        <p>Track your fantasy inventories, character progress, achievements, and world state — your game dashboard.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
-      </div>
+
     </div>
   </div>
 
   <!-- Streams Tab -->
   <div id="tab-streams" class="tab-content">
-    <div class="panel">
-      <h2>🎬 Live Streams</h2>
-      <p>Watch or broadcast live to the Humanity Network. Streams are relayed through servers and seeded peer-to-peer — the more viewers, the better it works.</p>
+    <div class="card-grid">
 
-      <h3>🔴 Go Live</h3>
-      <div style="display:flex;gap:0.8rem;align-items:center;margin:0.5rem 0 1rem;">
-        <button class="btn btn-clickable" id="go-live-btn" onclick="toggleGoLive(this)">Start Stream</button>
-        <span id="stream-status" style="font-size:0.8rem;color:var(--text-muted);">Not streaming</span>
-      </div>
-
-      <h3>📺 Live Now</h3>
-      <div id="stream-list" style="margin-top:0.5rem;">
-        <div style="color:var(--text-muted);font-style:italic;font-size:0.85rem;padding:1rem 0;">
-          No active streams. Be the first to go live!
-        </div>
-      </div>
-
-      <h3 style="margin-top:1.5rem;">How It Works</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.8rem;margin-top:0.5rem;">
-        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-          <strong style="color:var(--accent);">1. You stream</strong><br>
-          Your camera/screen goes to the relay server.
-        </div>
-        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-          <strong style="color:var(--accent);">2. Relay distributes</strong><br>
-          Server sends to the first viewers (has way more bandwidth than you).
-        </div>
-        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-          <strong style="color:var(--accent);">3. Viewers seed</strong><br>
-          Each viewer shares chunks with others. More viewers = more seeds = better for everyone.
-        </div>
-        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-          <strong style="color:var(--accent);">4. You control bandwidth</strong><br>
-          Set how much upload you want to contribute. Gaming? Slide it low. Idle? Crank it up.
-        </div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>🌐 Stream Servers</h2>
-      <p>Streams are hosted on Humanity Network servers. Verified servers with the Accord get priority listing.</p>
-      <div id="stream-servers" style="margin-top:0.5rem;">
-        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
-          <span style="font-size:1.1rem;">🟢</span>
-          <div>
-            <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
-            <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
+      <!-- ── How It Works ── -->
+      <div class="panel reality-card" id="streams-howitworks">
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('howitworks')">🎬 How It Works <span class="collapse-icon" id="howitworks-collapse">▼</span></h2>
+        <div class="reality-card-body" id="howitworks-body">
+          <p style="margin-bottom:0.8rem;">Peer-assisted streaming: the more viewers, the <em>better</em> it works.</p>
+          <!-- Visual diagram -->
+          <div style="display:flex;align-items:center;justify-content:center;gap:0.3rem;flex-wrap:wrap;margin:1rem 0;font-size:0.75rem;">
+            <div style="text-align:center;padding:0.6rem;background:rgba(153,102,255,0.15);border:1px solid rgba(153,102,255,0.3);border-radius:8px;min-width:80px;">
+              <div style="font-size:1.3rem;">🎥</div>
+              <div style="color:var(--text);font-weight:600;">Creator</div>
+              <div style="color:var(--text-muted);font-size:0.65rem;">Captures screen/cam</div>
+            </div>
+            <div style="color:var(--text-muted);font-size:1.2rem;">→</div>
+            <div style="text-align:center;padding:0.6rem;background:rgba(68,136,255,0.15);border:1px solid rgba(68,136,255,0.3);border-radius:8px;min-width:80px;">
+              <div style="font-size:1.3rem;">🖥️</div>
+              <div style="color:var(--text);font-weight:600;">Relay</div>
+              <div style="color:var(--text-muted);font-size:0.65rem;">Distributes to first viewers</div>
+            </div>
+            <div style="color:var(--text-muted);font-size:1.2rem;">→</div>
+            <div style="text-align:center;padding:0.6rem;background:rgba(68,204,102,0.15);border:1px solid rgba(68,204,102,0.3);border-radius:8px;min-width:80px;">
+              <div style="font-size:1.3rem;">👥</div>
+              <div style="color:var(--text);font-weight:600;">Viewers</div>
+              <div style="color:var(--text-muted);font-size:0.65rem;">Seed to each other (mesh)</div>
+            </div>
           </div>
-          <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);">0 live</span>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.6rem;margin-top:0.8rem;">
+            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+              <strong style="color:var(--accent);">1. You stream</strong><br>Your camera/screen goes to the relay server.
+            </div>
+            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+              <strong style="color:var(--accent);">2. Relay distributes</strong><br>Server sends to the first viewers.
+            </div>
+            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+              <strong style="color:var(--accent);">3. Viewers seed</strong><br>Each viewer shares chunks with others. More = better.
+            </div>
+            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+              <strong style="color:var(--accent);">4. You control BW</strong><br>Set your upload contribution. Gaming? Low. Idle? Crank it.
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- ── Go Live ── -->
+      <div class="panel reality-card" id="streams-golive">
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('golive')">📡 Go Live <span class="collapse-icon" id="golive-collapse">▼</span></h2>
+        <div class="reality-card-body" id="golive-body">
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Streaming infrastructure coming soon — for now, test your camera/screen capture.</p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.8rem;">
+            <button class="btn btn-clickable" id="capture-camera-btn" onclick="startCapture('camera')">📷 Camera</button>
+            <button class="btn btn-clickable" id="capture-screen-btn" onclick="startCapture('screen')">🖥️ Screen</button>
+            <button class="btn btn-disabled" id="capture-stop-btn" onclick="stopCapture()" style="display:none;">⏹ Stop</button>
+          </div>
+          <div id="capture-status" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;"></div>
+          <video id="capture-preview" autoplay muted playsinline style="display:none;width:100%;max-height:300px;border-radius:8px;background:#000;"></video>
+        </div>
+      </div>
+
+      <!-- ── Live Streams ── -->
+      <div class="panel reality-card" id="streams-live">
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">📺 Live Streams <span class="collapse-icon" id="live-collapse">▼</span></h2>
+        <div class="reality-card-body" id="live-body">
+          <div style="text-align:center;padding:2rem 1rem;">
+            <div style="font-size:2rem;margin-bottom:0.5rem;">📺</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
+            <div style="color:var(--text-muted);font-size:0.75rem;margin-top:0.3rem;">Be the first to test your capture above!</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Server List ── -->
+      <div class="panel reality-card" id="streams-servers">
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">🖥️ Server List <span class="collapse-icon" id="servers-collapse">▼</span></h2>
+        <div class="reality-card-body" id="servers-body">
+          <div id="stream-servers-list">
+            <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
+              <span style="font-size:1.1rem;" id="server-status-dot">🟢</span>
+              <div>
+                <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
+                <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
+              </div>
+              <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);">0 live</span>
+            </div>
+          </div>
+          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;font-style:italic;">Federated server list coming soon.</p>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -994,6 +1066,310 @@
     renderTodos();
     renderNotes();
     renderGarden();
+
+    // ══════════════════════════════════════
+    // FANTASY TAB
+    // ══════════════════════════════════════
+
+    // ── Card collapse (reuse pattern) ──
+    function toggleFantasyCard(id) {
+      const card = document.getElementById('fantasy-' + id);
+      if (card) card.classList.toggle('collapsed');
+      localStorage.setItem('fantasy_collapsed_' + id, card.classList.contains('collapsed'));
+    }
+    ['worldmap', 'character', 'lore', 'achievements'].forEach(id => {
+      if (localStorage.getItem('fantasy_collapsed_' + id) === 'true') {
+        const card = document.getElementById('fantasy-' + id);
+        if (card) card.classList.add('collapsed');
+      }
+    });
+
+    // ── World Map (procedural grid) ──
+    (function drawWorldMap() {
+      const canvas = document.getElementById('world-map-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      // Seed-based pseudo-random
+      let seed = 42;
+      function rng() { seed = (seed * 16807 + 0) % 2147483647; return (seed - 1) / 2147483646; }
+
+      // Draw terrain grid
+      const cellSize = 8;
+      const cols = Math.ceil(w / cellSize), rows = Math.ceil(h / cellSize);
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const v = rng();
+          const cx = x / cols, cy = y / rows;
+          const dist = Math.sqrt((cx - 0.5) ** 2 + (cy - 0.5) ** 2);
+          if (v < 0.15 + dist * 0.3) {
+            // water
+            const b = Math.floor(40 + rng() * 30);
+            ctx.fillStyle = `rgb(${5+Math.floor(rng()*10)},${10+Math.floor(rng()*15)},${b})`;
+          } else if (v < 0.5) {
+            // land
+            const g = Math.floor(25 + rng() * 35);
+            ctx.fillStyle = `rgb(${8+Math.floor(rng()*12)},${g},${8+Math.floor(rng()*10)})`;
+          } else if (v < 0.75) {
+            // highlands
+            const g = Math.floor(35 + rng() * 20);
+            ctx.fillStyle = `rgb(${15+Math.floor(rng()*10)},${g},${20+Math.floor(rng()*10)})`;
+          } else {
+            // mountains
+            const g = Math.floor(20 + rng() * 15);
+            ctx.fillStyle = `rgb(${g},${g},${g+5})`;
+          }
+          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        }
+      }
+      // Overlay fog
+      const grad = ctx.createRadialGradient(w/2, h/2, w*0.15, w/2, h/2, w*0.5);
+      grad.addColorStop(0, 'rgba(10,10,26,0)');
+      grad.addColorStop(1, 'rgba(10,10,26,0.85)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+      // Label
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = 'rgba(153,102,255,0.6)';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚔ Terra Incognita ⚔', w/2, h/2);
+    })();
+
+    // ── Character Sheet ──
+    function loadCharacter() {
+      try { return JSON.parse(localStorage.getItem('humanity_character')); } catch { return null; }
+    }
+    function saveCharacter(c) { localStorage.setItem('humanity_character', JSON.stringify(c)); }
+
+    function rollStats() {
+      const roll = () => Math.floor(Math.random() * 16) + 3; // 3-18
+      return { Strength: roll(), Intelligence: roll(), Dexterity: roll(), Charisma: roll() };
+    }
+
+    function renderCharacter() {
+      const c = loadCharacter();
+      const create = document.getElementById('char-create');
+      const display = document.getElementById('char-display');
+      if (!c) {
+        create.style.display = 'block';
+        display.style.display = 'none';
+        return;
+      }
+      create.style.display = 'none';
+      display.style.display = 'block';
+      const classIcons = { Explorer: '🧭', Builder: '🔨', Scholar: '📚', Guardian: '🛡️' };
+      document.getElementById('char-d-name').textContent = c.name;
+      document.getElementById('char-d-class').textContent = (classIcons[c.class] || '') + ' ' + c.class;
+      document.getElementById('char-d-level').textContent = 'Lv. ' + (c.level || 1);
+      const statsEl = document.getElementById('char-stats');
+      const statColors = { Strength: '#e55', Intelligence: '#58f', Dexterity: '#4c8', Charisma: '#eb4' };
+      statsEl.innerHTML = Object.entries(c.stats).map(([k, v]) => {
+        const pct = ((v - 3) / 15 * 100).toFixed(0);
+        return `<div style="background:var(--bg-input);border-radius:6px;padding:0.35rem 0.5rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:0.2rem;">
+            <span style="color:var(--text-muted);">${k}</span><span style="color:${statColors[k]||'var(--text)'};font-weight:700;">${v}</span>
+          </div>
+          <div style="background:var(--bg);border-radius:3px;height:4px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${statColors[k]||'var(--accent)'};border-radius:3px;"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+      // Auto-unlock achievements
+      checkAchievements();
+    }
+
+    function createCharacter() {
+      const name = document.getElementById('char-name-input').value.trim();
+      if (!name) { document.getElementById('char-name-input').style.borderColor = '#e55'; return; }
+      const cls = document.getElementById('char-class-input').value;
+      saveCharacter({ name, class: cls, level: 1, stats: rollStats(), createdAt: new Date().toISOString() });
+      renderCharacter();
+      // Unlock achievement
+      unlockAchievement('character_created');
+    }
+
+    function rerollStats() {
+      const c = loadCharacter();
+      if (!c) return;
+      c.stats = rollStats();
+      saveCharacter(c);
+      renderCharacter();
+    }
+
+    function deleteCharacter() {
+      if (!confirm('Delete your character? This cannot be undone.')) return;
+      localStorage.removeItem('humanity_character');
+      renderCharacter();
+    }
+
+    renderCharacter();
+
+    // ── Lore / Codex ──
+    const LORE_ENTRIES = [
+      {
+        title: '🌅 The Awakening',
+        text: 'Before the Network, humanity existed in silos — each mind an island, separated by distance, language, and power structures designed to keep them apart. The first spark came not from technology, but from a simple idea: what if we actually cooperated?'
+      },
+      {
+        title: '🔗 The Accord',
+        text: 'The Humanity Accord is not a contract — it\'s a promise. Every node in the network agrees to three principles: Transparency in governance, equity in access, and cooperation over competition. Those who sign the Accord don\'t just join a network — they join a movement.'
+      },
+      {
+        title: '🌌 The Long Road',
+        text: 'The destination was always the stars. But first, humanity had to learn to talk to itself. The Humanity Network is the foundation — a mesh of minds, resources, and purpose. From chat rooms to space stations, every great journey begins with "hello."'
+      },
+      {
+        title: '🛡️ The Guardians',
+        text: 'Not every force in the world welcomes cooperation. The Guardians are those who protect the network — not with weapons, but with code, with vigilance, with the simple act of refusing to let the dream die. They moderate, they build, they hold the line.'
+      },
+      {
+        title: '📡 The Relay',
+        text: 'Messages travel through the Relay — a decentralized web of servers that carry humanity\'s voice. No single point of failure, no single point of control. When one relay falls, others rise. The network remembers, even when individuals forget.'
+      }
+    ];
+
+    function renderLore() {
+      const container = document.getElementById('lore-entries');
+      container.innerHTML = LORE_ENTRIES.map((entry, i) => `
+        <details style="background:var(--bg-input);border-radius:6px;padding:0.1rem 0.6rem;" ${i === 0 ? 'open' : ''}>
+          <summary style="cursor:pointer;font-weight:600;font-size:0.85rem;color:var(--text);padding:0.4rem 0;user-select:none;list-style:none;">
+            ${entry.title}
+          </summary>
+          <p style="font-size:0.82rem;color:var(--text-muted);line-height:1.6;padding:0 0 0.5rem;">${entry.text}</p>
+        </details>
+      `).join('');
+    }
+    renderLore();
+
+    // ── Achievements ──
+    const ACHIEVEMENTS = [
+      { id: 'first_steps', icon: '👣', name: 'First Steps', desc: 'Visited the Humanity Hub', auto: true },
+      { id: 'character_created', icon: '⚔️', name: 'Born Anew', desc: 'Created a character' },
+      { id: 'voice_of_people', icon: '📢', name: 'Voice of the People', desc: 'Sent your first message' },
+      { id: 'gardener', icon: '🌱', name: 'Green Thumb', desc: 'Planted something in your garden' },
+      { id: 'note_taker', icon: '📝', name: 'Scribe', desc: 'Created your first note' },
+      { id: 'explorer', icon: '🧭', name: 'Explorer', desc: 'Visited all hub tabs' },
+      { id: 'lore_reader', icon: '📜', name: 'Lorekeeper', desc: 'Read all codex entries' },
+      { id: 'customizer', icon: '🎨', name: 'Fashionista', desc: 'Changed your accent color' },
+      { id: 'night_owl', icon: '🦉', name: 'Night Owl', desc: 'Online past midnight' },
+      { id: 'streamer', icon: '🎥', name: 'Camera Ready', desc: 'Tested screen/camera capture' },
+      { id: 'completionist', icon: '💎', name: 'Completionist', desc: 'Unlock all other achievements' },
+      { id: 'secret', icon: '🔮', name: '???', desc: 'A secret achievement…' },
+    ];
+
+    function loadAchievements() {
+      try { return JSON.parse(localStorage.getItem('humanity_achievements')) || []; } catch { return []; }
+    }
+    function saveAchievements(a) { localStorage.setItem('humanity_achievements', JSON.stringify(a)); }
+
+    function unlockAchievement(id) {
+      const unlocked = loadAchievements();
+      if (unlocked.includes(id)) return;
+      unlocked.push(id);
+      saveAchievements(unlocked);
+      renderAchievements();
+    }
+
+    function checkAchievements() {
+      // Auto-unlock based on conditions
+      unlockAchievement('first_steps');
+      if (localStorage.getItem('humanity_character')) unlockAchievement('character_created');
+      if (localStorage.getItem('humanity_name')) unlockAchievement('voice_of_people');
+      const garden = (() => { try { return JSON.parse(localStorage.getItem('humanity_garden')); } catch { return null; } })();
+      if (garden && garden.plots && Object.keys(garden.plots).length > 0) unlockAchievement('gardener');
+      const notes = (() => { try { return JSON.parse(localStorage.getItem('humanity_notes')); } catch { return []; } })();
+      if (notes.length > 0) unlockAchievement('note_taker');
+      const settings = (() => { try { return JSON.parse(localStorage.getItem('humanity_settings')); } catch { return {}; } })();
+      if (settings.accent && settings.accent !== '#FF8811') unlockAchievement('customizer');
+      if (new Date().getHours() >= 0 && new Date().getHours() < 5) unlockAchievement('night_owl');
+    }
+
+    function renderAchievements() {
+      const unlocked = loadAchievements();
+      const grid = document.getElementById('achievement-grid');
+      grid.innerHTML = ACHIEVEMENTS.map(a => {
+        const isUnlocked = unlocked.includes(a.id);
+        return `<div style="background:${isUnlocked ? 'rgba(153,102,255,0.1)' : 'var(--bg-input)'};border:1px solid ${isUnlocked ? 'rgba(153,102,255,0.3)' : 'var(--border)'};border-radius:8px;padding:0.5rem;text-align:center;transition:border-color 0.2s;" title="${a.desc}">
+          <div style="font-size:1.5rem;${isUnlocked ? '' : 'filter:grayscale(1) brightness(0.4);'}">${a.icon}</div>
+          <div style="font-size:0.72rem;font-weight:600;color:${isUnlocked ? 'var(--text)' : 'var(--text-muted)'};margin-top:0.2rem;">${isUnlocked ? a.name : '🔒 Locked'}</div>
+          <div style="font-size:0.6rem;color:var(--text-muted);margin-top:0.1rem;">${a.desc}</div>
+        </div>`;
+      }).join('');
+    }
+    checkAchievements();
+    renderAchievements();
+
+    // ══════════════════════════════════════
+    // STREAMS TAB
+    // ══════════════════════════════════════
+
+    function toggleStreamsCard(id) {
+      const card = document.getElementById('streams-' + id);
+      if (card) card.classList.toggle('collapsed');
+      localStorage.setItem('streams_collapsed_' + id, card.classList.contains('collapsed'));
+    }
+    ['howitworks', 'golive', 'live', 'servers'].forEach(id => {
+      if (localStorage.getItem('streams_collapsed_' + id) === 'true') {
+        const card = document.getElementById('streams-' + id);
+        if (card) card.classList.add('collapsed');
+      }
+    });
+
+    let captureStream = null;
+
+    async function startCapture(type) {
+      try {
+        stopCapture();
+        if (type === 'camera') {
+          captureStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        } else {
+          captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        }
+        const video = document.getElementById('capture-preview');
+        video.srcObject = captureStream;
+        video.style.display = 'block';
+        document.getElementById('capture-status').innerHTML = '<span style="color:#4a8;">● Capturing ' + type + '</span> — local preview only, not streaming anywhere.';
+        document.getElementById('capture-stop-btn').style.display = 'inline-flex';
+        document.getElementById('capture-stop-btn').classList.remove('btn-disabled');
+        document.getElementById('capture-stop-btn').classList.add('btn-activated');
+
+        // Track end
+        captureStream.getTracks().forEach(t => t.onended = () => stopCapture());
+
+        // Unlock achievement
+        unlockAchievement('streamer');
+      } catch (e) {
+        document.getElementById('capture-status').innerHTML = '<span style="color:#e55;">⚠ ' + (e.name === 'NotAllowedError' ? 'Permission denied' : e.message) + '</span>';
+      }
+    }
+
+    function stopCapture() {
+      if (captureStream) {
+        captureStream.getTracks().forEach(t => t.stop());
+        captureStream = null;
+      }
+      const video = document.getElementById('capture-preview');
+      if (video) { video.srcObject = null; video.style.display = 'none'; }
+      const status = document.getElementById('capture-status');
+      if (status) status.textContent = '';
+      const stopBtn = document.getElementById('capture-stop-btn');
+      if (stopBtn) { stopBtn.style.display = 'none'; }
+    }
+
+    // Track tab visits for explorer achievement
+    const visitedTabs = JSON.parse(localStorage.getItem('humanity_visited_tabs') || '[]');
+    const origSwitchTab = switchTab;
+    switchTab = function(tabId, pushState) {
+      origSwitchTab(tabId, pushState);
+      if (!visitedTabs.includes(tabId)) {
+        visitedTabs.push(tabId);
+        localStorage.setItem('humanity_visited_tabs', JSON.stringify(visitedTabs));
+      }
+      if (['reality', 'fantasy', 'streams', 'debug'].every(t => visitedTabs.includes(t))) {
+        unlockAchievement('explorer');
+      }
+    };
 
     // ── Auto-refresh on server update ──
     (function() {

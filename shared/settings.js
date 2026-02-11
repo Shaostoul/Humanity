@@ -264,24 +264,47 @@
       });
       chatSection.appendChild(tsRow);
 
-      // Sound toggle
+      // Sound toggle — syncs with chat's 🔔 menu
       const soundRow = document.createElement('label');
-      soundRow.style.cssText = 'display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--text);cursor:pointer;';
+      soundRow.style.cssText = 'display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--text);cursor:pointer;margin-bottom:0.4rem;';
       const soundCb = document.createElement('input');
       soundCb.type = 'checkbox';
-      soundCb.checked = settings.soundEnabled !== false;
+      // Read from chat's own localStorage key for truth
+      const chatSoundEnabled = localStorage.getItem('humanity_sound_enabled') !== 'false';
+      soundCb.checked = chatSoundEnabled;
       soundCb.style.accentColor = 'var(--accent)';
       soundCb.onchange = () => {
         settings.soundEnabled = soundCb.checked;
         save(settings);
         applySettings(settings);
-        // Sync with existing sound toggle if present
+        // Sync with chat's sound-enabled checkbox
         const existing = document.getElementById('sound-enabled');
-        if (existing) existing.checked = soundCb.checked;
+        if (existing && existing.checked !== soundCb.checked) {
+          existing.checked = soundCb.checked;
+          existing.dispatchEvent(new Event('change'));
+        }
+        // Also update chat's localStorage directly
+        localStorage.setItem('humanity_sound_enabled', soundCb.checked);
+        // Update 🔔 icon
+        const toggle = document.getElementById('sound-toggle');
+        if (toggle) toggle.textContent = soundCb.checked ? '🔔' : '🔕';
       };
       soundRow.appendChild(soundCb);
-      soundRow.appendChild(document.createTextNode('Notification sounds'));
+      soundRow.appendChild(document.createTextNode('🔔 Notification sounds'));
       chatSection.appendChild(soundRow);
+
+      // "Open sound picker" button — opens the chat's existing sound menu
+      const soundPickerBtn = document.createElement('button');
+      soundPickerBtn.textContent = '🎵 Choose notification sound…';
+      soundPickerBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.75rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-family:inherit;display:block;';
+      soundPickerBtn.onmouseenter = () => { soundPickerBtn.style.borderColor = 'var(--accent)'; };
+      soundPickerBtn.onmouseleave = () => { soundPickerBtn.style.borderColor = 'var(--border)'; };
+      soundPickerBtn.onclick = () => {
+        closePanel();
+        // Open the chat's existing sound menu
+        if (typeof toggleSoundMenu === 'function') toggleSoundMenu();
+      };
+      chatSection.appendChild(soundPickerBtn);
 
       modal.appendChild(chatSection);
     }
@@ -405,11 +428,29 @@
     return btn;
   }
 
+  // ── Sync: listen for chat's sound toggle changes ──
+  function observeChatSoundToggle() {
+    const chatCb = document.getElementById('sound-enabled');
+    if (!chatCb || chatCb._settingsObserved) return;
+    chatCb._settingsObserved = true;
+    chatCb.addEventListener('change', () => {
+      const settings = load();
+      settings.soundEnabled = chatCb.checked;
+      save(settings);
+    });
+  }
+  // Check periodically since chat elements load dynamically
+  const _syncInterval = setInterval(() => {
+    observeChatSoundToggle();
+    if (document.getElementById('sound-enabled')) clearInterval(_syncInterval);
+  }, 2000);
+
   // ── Init ──
   applySettings(load());
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectGearButton);
+    document.addEventListener('DOMContentLoaded', () => { injectGearButton(); observeChatSoundToggle(); });
   } else {
     injectGearButton();
+    observeChatSoundToggle();
   }
 })();
