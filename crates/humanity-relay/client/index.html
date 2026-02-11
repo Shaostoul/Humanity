@@ -2475,10 +2475,15 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
       }
     }
 
+    let myUploadToken = '';
     function updatePeerList(peers) {
       // Update peerData from peer_list (online peers only — for backwards compat).
       for (const p of peers) {
         peerData[p.public_key] = p;
+        // M-4: Capture our upload token.
+        if (p.public_key === myKey && p.upload_token) {
+          myUploadToken = p.upload_token;
+        }
       }
     }
 
@@ -2754,7 +2759,7 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
     function esc(str) {
       const d = document.createElement('div');
       d.textContent = str || '';
-      return d.innerHTML.replace(/'/g, '&#39;');
+      return d.innerHTML.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
     }
 
     // ── Identicon Generator ──
@@ -3213,7 +3218,7 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
         const formData = new FormData();
         formData.append('file', file);
 
-        const uploadUrl = myKey ? `/api/upload?key=${encodeURIComponent(myKey)}` : '/api/upload';
+        const uploadUrl = myUploadToken ? `/api/upload?token=${encodeURIComponent(myUploadToken)}` : (myKey ? `/api/upload?key=${encodeURIComponent(myKey)}` : '/api/upload');
         const resp = await fetch(uploadUrl, { method: 'POST', body: formData });
         if (!resp.ok) {
           const text = await resp.text();
@@ -3888,13 +3893,22 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
         }
       }
 
-      // Public key (click to copy).
+      // Public key (click to copy) — M-3: use DOM API instead of inline onclick.
       if (publicKey) {
         const shortPk = publicKey.length > 24 ? publicKey.substring(0, 24) + '…' : publicKey;
-        html += '<div class="profile-card-key" onclick="navigator.clipboard.writeText(\'' + esc(publicKey) + '\').then(()=>addSystemMessage(\'Public key copied.\'))" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
+        html += '<div class="profile-card-key" id="profile-pk-copy" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
       }
 
       document.getElementById('view-profile-content').innerHTML = html;
+      // Attach click handler via DOM API (not inline onclick).
+      if (publicKey) {
+        const pkEl = document.getElementById('profile-pk-copy');
+        if (pkEl) {
+          pkEl.addEventListener('click', () => {
+            navigator.clipboard.writeText(publicKey).then(() => addSystemMessage('Public key copied.'));
+          });
+        }
+      }
       if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
       document.getElementById('view-profile-overlay').classList.add('open');
     }

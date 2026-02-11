@@ -18,6 +18,16 @@ use std::sync::Arc;
 
 use crate::relay::{RelayMessage, RelayState, Peer, PeerInfo};
 
+/// Constant-time byte comparison (M-2: prevent timing attacks on HMAC).
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() { return false; }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 /// Verify the `Authorization: Bearer <token>` header against the `API_SECRET` env var.
 /// Fails closed: if `API_SECRET` is unset or empty, ALL requests are rejected.
 fn check_api_auth(headers: &HeaderMap) -> Result<(), (StatusCode, String)> {
@@ -101,6 +111,7 @@ pub async fn send_message(
         peers.entry(bot_key.clone()).or_insert_with(|| Peer {
             public_key_hex: bot_key.clone(),
             display_name: Some(req.from_name.clone()),
+            upload_token: None,
         });
     }
 
@@ -178,11 +189,13 @@ pub async fn get_stats(
     })
 }
 
-/// Query params for POST /api/upload (user key required for auth + FIFO tracking).
+/// Query params for POST /api/upload.
 #[derive(Debug, Deserialize)]
 pub struct UploadQuery {
-    /// Public key of the uploader (required — must be a connected user).
+    /// Legacy: public key (deprecated, use token).
     pub key: Option<String>,
+    /// Per-session upload token (M-4: required for uploads).
+    pub token: Option<String>,
 }
 
 /// Calculate total size of all files in a directory (non-recursive).
@@ -213,17 +226,29 @@ pub async fn upload_file(
     /// Maximum total size of all uploads on disk (default 500MB).
     const MAX_TOTAL_UPLOAD_BYTES: u64 = 500 * 1024 * 1024;
 
-    // Require a connected peer key for uploads.
-    let public_key = match &query.key {
-        Some(k) if !k.is_empty() => k.clone(),
-        _ => return Err((StatusCode::BAD_REQUEST, "Missing required 'key' query parameter.".into())),
-    };
-    {
+    // M-4: Resolve upload token to public key.
+    let public_key = if let Some(ref token) = query.token {
+        if token.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "Empty upload token.".into()));
+        }
+        let tokens = state.upload_tokens.read().await;
+        match tokens.get(token) {
+            Some(key) => key.clone(),
+            None => return Err((StatusCode::FORBIDDEN, "Invalid upload token.".into())),
+        }
+    } else if let Some(ref k) = query.key {
+        // Legacy fallback: accept key param but verify it's connected.
+        if k.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "Missing upload token or key.".into()));
+        }
         let peers = state.peers.read().await;
-        if !peers.contains_key(&public_key) {
+        if !peers.contains_key(k) {
             return Err((StatusCode::FORBIDDEN, "Upload denied: key is not connected.".into()));
         }
-    }
+        k.clone()
+    } else {
+        return Err((StatusCode::BAD_REQUEST, "Missing required 'token' query parameter.".into()));
+    };
 
     // Only verified/mod/admin/donor may upload files.
     {
@@ -356,33 +381,47 @@ pub struct GitHubCommit {
     pub url: Option<String>,
 }
 
-/// Query params for GitHub webhook (secret as query param since GitHub can't send custom headers).
-#[derive(Debug, Deserialize)]
-pub struct WebhookQuery {
-    /// API secret passed as ?secret=... in the webhook URL.
-    #[serde(default)]
-    pub secret: String,
-}
-
 /// POST /api/github-webhook — receive GitHub push events and announce them.
-/// Accepts auth via either:
-///   1. Authorization: Bearer <token> header (bot API style)
-///   2. ?secret=<token> query param (GitHub webhook style)
+/// M-2: Authenticates via GitHub's HMAC-SHA256 signature (X-Hub-Signature-256 header).
+/// Uses WEBHOOK_SECRET env var (separate from API_SECRET).
 pub async fn github_webhook(
     State(state): State<Arc<RelayState>>,
     headers: HeaderMap,
-    Query(query): Query<WebhookQuery>,
-    Json(payload): Json<GitHubPushEvent>,
+    body: axum::body::Bytes,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    // Authenticate via header OR query param.
-    let header_ok = check_api_auth(&headers).is_ok();
-    let query_ok = {
-        let expected = std::env::var("API_SECRET").unwrap_or_default();
-        !expected.is_empty() && !query.secret.is_empty() && query.secret == expected
-    };
-    if !header_ok && !query_ok {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing API token.".into()));
+    // M-2: Verify HMAC-SHA256 signature from GitHub.
+    let webhook_secret = std::env::var("WEBHOOK_SECRET").unwrap_or_default();
+    if webhook_secret.is_empty() {
+        return Err((StatusCode::INTERNAL_SERVER_ERROR, "WEBHOOK_SECRET not configured.".into()));
     }
+
+    let sig_header = headers
+        .get("x-hub-signature-256")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("sha256="))
+        .unwrap_or("");
+
+    if sig_header.is_empty() {
+        return Err((StatusCode::UNAUTHORIZED, "Missing X-Hub-Signature-256 header.".into()));
+    }
+
+    // Compute HMAC-SHA256.
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    type HmacSha256 = Hmac<Sha256>;
+
+    let mut mac = HmacSha256::new_from_slice(webhook_secret.as_bytes())
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "HMAC key error.".into()))?;
+    mac.update(&body);
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    // Constant-time comparison.
+    if expected.len() != sig_header.len() || !constant_time_eq(expected.as_bytes(), sig_header.as_bytes()) {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook signature.".into()));
+    }
+
+    let payload: GitHubPushEvent = serde_json::from_slice(&body)
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")))?;
     let repo = payload.repository
         .as_ref()
         .and_then(|r| r.full_name.as_deref())
@@ -440,6 +479,7 @@ pub async fn github_webhook(
         peers.entry(bot_key.clone()).or_insert_with(|| Peer {
             public_key_hex: bot_key,
             display_name: Some("GitHub".to_string()),
+            upload_token: None,
         });
     }
 
@@ -563,6 +603,7 @@ pub async fn get_peers(
                 public_key: p.public_key_hex.clone(),
                 display_name: p.display_name.clone(),
                 role,
+                upload_token: None, // Never expose tokens via API
             }
         })
         .collect();

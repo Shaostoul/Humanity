@@ -1,7 +1,9 @@
 //! Core relay logic: connection management and message routing.
 
 use axum::extract::ws::{Message, WebSocket};
+use ed25519_dalek::{Signature, VerifyingKey};
 use futures::{SinkExt, StreamExt};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -11,6 +13,9 @@ use tokio::sync::{broadcast, RwLock};
 use tracing::info;
 
 use crate::storage::Storage;
+
+/// Allowed emoji reactions (whitelist).
+const ALLOWED_REACTIONS: &[&str] = &["❤️", "😂", "👍", "👎", "🔥", "😮", "😢", "🎉"];
 
 /// Maximum broadcast channel capacity.
 const BROADCAST_CAPACITY: usize = 256;
@@ -49,6 +54,8 @@ pub struct RateLimitState {
 pub struct Peer {
     pub public_key_hex: String,
     pub display_name: Option<String>,
+    /// Per-session upload token (M-4: prevents impersonation on uploads).
+    pub upload_token: Option<String>,
 }
 
 /// Maximum message history to keep in memory.
@@ -93,6 +100,8 @@ pub struct RelayState {
     pub connection_count: AtomicUsize,
     /// Per-key last typing indicator time (for typing rate limiting).
     pub typing_timestamps: RwLock<HashMap<String, Instant>>,
+    /// Upload token → public key mapping (M-4: per-session upload tokens).
+    pub upload_tokens: RwLock<HashMap<String, String>>,
 }
 
 impl RelayState {
@@ -116,6 +125,16 @@ impl RelayState {
             info!("Loaded {history_count} messages from database");
         }
 
+        // L-4: Restore lockdown state from DB.
+        let persisted_lockdown = db.get_state("lockdown")
+            .ok()
+            .flatten()
+            .map(|v| v == "true")
+            .unwrap_or(false);
+        if persisted_lockdown {
+            info!("Restored lockdown state from database: locked");
+        }
+
         let (broadcast_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         Self {
             peers: RwLock::new(HashMap::new()),
@@ -126,11 +145,12 @@ impl RelayState {
             webhook,
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
-            lockdown: RwLock::new(false),
+            lockdown: RwLock::new(persisted_lockdown),
             auto_lockdown: RwLock::new(false),
             kicked_keys: RwLock::new(HashSet::new()),
             connection_count: AtomicUsize::new(0),
             typing_timestamps: RwLock::new(HashMap::new()),
+            upload_tokens: RwLock::new(HashMap::new()),
         }
     }
 
@@ -218,6 +238,9 @@ pub enum RelayMessage {
         /// Optional invite code for bypassing lockdown.
         #[serde(skip_serializing_if = "Option::is_none", default)]
         invite_code: Option<String>,
+        /// Required for bot_* keys: must match API_SECRET (L-1).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        bot_secret: Option<String>,
     },
 
     /// A chat message, optionally Ed25519-signed.
@@ -475,6 +498,9 @@ pub struct PeerInfo {
     pub display_name: Option<String>,
     #[serde(default)]
     pub role: String,
+    /// Per-session upload token (only set for the recipient's own entry).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upload_token: Option<String>,
 }
 
 /// Info about a registered user (online or offline) for the full user list.
@@ -530,9 +556,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         };
         let Some(Ok(msg)) = msg else { return; };
         if let Message::Text(text) = msg {
-            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code }) =
+            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret }) =
                 serde_json::from_str::<RelayMessage>(&text)
             {
+                // L-1: Bot keys require bot_secret matching API_SECRET.
+                if public_key.starts_with("bot_") {
+                    let expected = std::env::var("API_SECRET").unwrap_or_default();
+                    let provided = bot_secret.as_deref().unwrap_or("");
+                    if expected.is_empty() || provided != expected {
+                        let err = RelayMessage::System {
+                            message: "Bot authentication failed: invalid or missing bot_secret.".to_string(),
+                        };
+                        let _ = ws_tx.send(Message::Text(serde_json::to_string(&err).unwrap().into())).await;
+                        let _ = ws_tx.close().await;
+                        return;
+                    }
+                }
                 let mut final_name = display_name.clone();
 
                 // Handle link code redemption.
@@ -633,18 +672,26 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                 }
 
+                // M-4: Generate per-session upload token.
+                let upload_token = {
+                    let random_bytes: [u8; 16] = rand::rng().random();
+                    hex::encode(random_bytes)
+                };
+
                 let peer = Peer {
                     public_key_hex: public_key.clone(),
                     display_name: final_name.clone(),
+                    upload_token: Some(upload_token.clone()),
                 };
 
-                // Register peer.
+                // Register peer and upload token mapping.
                 state.peers.write().await.insert(public_key.clone(), peer);
+                state.upload_tokens.write().await.insert(upload_token.clone(), public_key.clone());
                 peer_key = Some(public_key.clone());
 
                 info!("Peer connected: {public_key} ({:?})", final_name);
 
-                // Send current peer list to the new peer.
+                // Send current peer list to the new peer (with their upload_token).
                 let peers: Vec<PeerInfo> = state
                     .peers
                     .read()
@@ -652,10 +699,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     .values()
                     .map(|p| {
                         let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
+                        let token = if p.public_key_hex == public_key {
+                            p.upload_token.clone()
+                        } else {
+                            None
+                        };
                         PeerInfo {
                             public_key: p.public_key_hex.clone(),
                             display_name: p.display_name.clone(),
                             role,
+                            upload_token: token,
                         }
                     })
                     .collect();
@@ -777,6 +830,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                         if locked {
                             *state.lockdown.write().await = false;
                             *state.auto_lockdown.write().await = false;
+                            // L-4: Persist lockdown state.
+                            let _ = state.db.set_state("lockdown", "false");
                             let sys = RelayMessage::System {
                                 message: "🔓 Auto-unlock: moderator online.".to_string(),
                             };
@@ -1259,6 +1314,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 *locked = !*locked;
                                                 // Manual lockdown: clear auto_lockdown flag.
                                                 *state_clone.auto_lockdown.write().await = false;
+                                                // L-4: Persist lockdown state.
+                                                let _ = state_clone.db.set_state("lockdown", if *locked { "true" } else { "false" });
                                                 let msg = if *locked {
                                                     "🔒 Registration locked"
                                                 } else {
@@ -1850,12 +1907,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     }
                                 }
 
+                                // H-1: Server-side Ed25519 signature verification.
+                                let verified_sig = if let Some(ref sig_hex) = signature {
+                                    verify_ed25519_signature(&my_key_for_recv, &content, timestamp, sig_hex)
+                                } else {
+                                    false
+                                };
+                                // Only include signature in broadcast if it verified server-side.
+                                let broadcast_sig = if verified_sig { signature } else { None };
+
                                 let chat = RelayMessage::Chat {
                                     from: my_key_for_recv.clone(),
                                     from_name: Some(display.clone()),
                                     content: content.clone(),
                                     timestamp,
-                                    signature,
+                                    signature: broadcast_sig,
                                     channel: ch.clone(),
                                 };
 
@@ -1900,16 +1966,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             // Reaction — persist and broadcast to all peers.
                             RelayMessage::Reaction { target_from, target_timestamp, emoji, channel: reaction_channel, .. } => {
-                                // Validate emoji: only short strings, no HTML/JS special chars.
-                                if emoji.len() > 32
-                                    || emoji.contains('\'')
-                                    || emoji.contains('"')
-                                    || emoji.contains('<')
-                                    || emoji.contains('>')
-                                    || emoji.contains('\\')
-                                    || emoji.contains('&')
-                                {
-                                    continue; // Silently drop invalid reactions
+                                // L-5: Whitelist-only emoji reactions.
+                                if !ALLOWED_REACTIONS.contains(&emoji.as_str()) {
+                                    continue; // Silently drop reactions not in whitelist
                                 }
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
@@ -2350,9 +2409,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         _ = &mut recv_task => send_task.abort(),
     }
 
-    // Clean up: remove peer, clear kicked status, and announce departure.
+    // Clean up: remove peer, clear kicked status, remove upload token, and announce departure.
     let disconnected_role = state.db.get_role(&my_key).unwrap_or_default();
-    state.peers.write().await.remove(&my_key);
+    {
+        let mut peers = state.peers.write().await;
+        if let Some(peer) = peers.remove(&my_key) {
+            if let Some(ref token) = peer.upload_token {
+                state.upload_tokens.write().await.remove(token);
+            }
+        }
+    }
     state.kicked_keys.write().await.remove(&my_key);
     info!("Peer disconnected: {my_key}");
     let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
@@ -2391,6 +2457,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     if !already_locked {
                         *state_for_lockdown.lockdown.write().await = true;
                         *state_for_lockdown.auto_lockdown.write().await = true;
+                        // L-4: Persist lockdown state.
+                        let _ = state_for_lockdown.db.set_state("lockdown", "true");
                         let sys = RelayMessage::System {
                             message: "🔒 Auto-lockdown: no moderators online (30s grace period expired).".to_string(),
                         };
@@ -2400,6 +2468,30 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
             });
         }
     }
+}
+
+/// H-1: Verify an Ed25519 signature. Returns true if valid.
+/// Format: sign(content + '\n' + timestamp_string)
+fn verify_ed25519_signature(public_key_hex: &str, content: &str, timestamp: u64, sig_hex: &str) -> bool {
+    let Ok(pk_bytes) = hex::decode(public_key_hex) else { return false };
+    if pk_bytes.len() != 32 { return false; }
+    let pk_array: [u8; 32] = match pk_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let Ok(verifying_key) = VerifyingKey::from_bytes(&pk_array) else { return false };
+
+    let Ok(sig_bytes) = hex::decode(sig_hex) else { return false };
+    if sig_bytes.len() != 64 { return false; }
+    let sig_array: [u8; 64] = match sig_bytes.try_into() {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+    let signature = Signature::from_bytes(&sig_array);
+
+    let message = format!("{}\n{}", content, timestamp);
+    use ed25519_dalek::Verifier;
+    verifying_key.verify(message.as_bytes(), &signature).is_ok()
 }
 
 /// Broadcast an updated peer list to all connected clients.
@@ -2416,6 +2508,7 @@ async fn broadcast_peer_list(state: &Arc<RelayState>) {
                 public_key: p.public_key_hex.clone(),
                 display_name: p.display_name.clone(),
                 role,
+                upload_token: None, // Never broadcast tokens to everyone
             }
         })
         .collect();

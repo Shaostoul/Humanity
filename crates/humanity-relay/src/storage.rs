@@ -189,6 +189,14 @@ impl Storage {
                 ON pinned_messages(channel);"
         )?;
 
+        // Server state key-value store (for persisting lockdown, etc.).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS server_state (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );"
+        )?;
+
         // DM table for direct messages.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS direct_messages (
@@ -1441,6 +1449,33 @@ impl Storage {
         conn.execute(
             "UPDATE direct_messages SET read = 1 WHERE from_key = ?1 AND to_key = ?2 AND read = 0",
             params![from_key, to_key],
+        )?;
+        Ok(())
+    }
+
+    // ── Server state (key-value) methods ──
+
+    /// Get a server state value by key.
+    pub fn get_state(&self, key: &str) -> Result<Option<String>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT value FROM server_state WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        ) {
+            Ok(val) => Ok(Some(val)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Set a server state value.
+    pub fn set_state(&self, key: &str, value: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO server_state (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = ?2",
+            params![key, value],
         )?;
         Ok(())
     }
