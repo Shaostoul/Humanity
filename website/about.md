@@ -57,7 +57,23 @@ The **Humanity Accord** is a living framework for how humans can cooperate at sc
 
 Communication comes first. If people can't talk to each other freely and privately, nothing else gets built.
 
-The **Humanity Network** is an E2E encrypted, peer-to-peer, federated communication protocol. No accounts. No tracking. Ed25519 cryptographic identity — you own your keys, not us.
+The **Humanity Network** is a federated communication protocol built on Ed25519 cryptographic identity. No accounts. No tracking. No IP logging. You own your keys — they live in your browser, never on our server.
+
+Anyone can host a server. Servers are meeting places, not gatekeepers. Your identity is portable across all of them. A tiered trust system (verified + Accord adoption) helps users find reliable communities.
+
+**What's built:**
+- Live chat with channels, DMs, @mentions, reactions, message editing
+- User profiles, identicons, blocking, reporting
+- Admin/mod tools, lockdown, invite codes, rate limiting
+- Pin system (server + personal), browser notifications
+- Security hardened: CSP, HSTS, TLS 1.2+, upload validation, origin checking
+
+**What's designed (specs complete):**
+- Federated server network with trust tiers
+- P2P direct messaging with E2E encryption
+- Voice/video calls via WebRTC
+- Peer-assisted streaming (many seeds, small slices)
+- Content-addressed file sharing
 
 **It's live now:** [chat.united-humanity.us](https://chat.united-humanity.us)
 

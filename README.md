@@ -16,12 +16,45 @@ This project started in 2019 when Michael Boisson, after a near-death experience
 
 ## What's live now
 
-**[chat.united-humanity.us](https://chat.united-humanity.us)** — The Humanity Chat is live and running.
+**[chat.united-humanity.us](https://chat.united-humanity.us)** — The Humanity Network chat is live.
 
-- No accounts required
-- No tracking, no analytics
-- Ed25519 cryptographic identity — you own your keys, not us
-- Encrypted by design
+**Identity & Privacy:**
+- No accounts, no tracking, no analytics, no IP logging
+- Ed25519 cryptographic identity — keys stored in your browser, never on our server
+- Signed messages with verification badges
+- 18+ only (by-entry confirmation)
+
+**Communication:**
+- Multiple channels with admin-created rooms
+- Direct messages between users
+- @mentions with highlighting and notifications
+- Emoji reactions (persistent, synced across sessions)
+- Reply/quote system with collapsible blocks
+- Message editing and deletion
+- Image sharing with lazy-loaded placeholders
+- Browser push notifications + unread indicators
+- Typing indicators
+
+**Community:**
+- User profiles (bio + social links)
+- Unique pixel-art identicons per user
+- Client-side user blocking (invisible to blocked user)
+- Report system with rate limiting
+- Full user list with online/offline status
+
+**Moderation & Security:**
+- Role-based system: admin 👑, mod 🛡️, verified ✦, donor 💎
+- Kick/ban with instant WebSocket disconnection
+- Auto-lockdown when no mods online + manual lockdown mode
+- Invite codes for controlled access during lockdown
+- Fibonacci rate limiting + new-account slow mode
+- Upload validation (magic bytes + 500MB disk cap + per-user FIFO)
+- WebSocket origin checking, CSP headers, HSTS, TLS 1.2+
+
+**Pins:**
+- Server pins (admin/mod) — survive message wipes
+- Personal pins (per-user, stored locally) — only you see them
+- Collapsible pin bar under channel header
 
 We're building the communication layer first. If people can't talk to each other freely and privately, nothing else matters. Come say hello.
 
@@ -34,7 +67,8 @@ Civilizational principles for how humans can cooperate at scale — across cultu
 → [Read the Accord](accord/humanity_accord.md)
 
 ### The Humanity Network
-An E2E encrypted, peer-to-peer, federated communication protocol. No central servers owning your data. No accounts. Cryptographic identity (Ed25519) means you prove who you are with math, not with a password stored on someone else's computer. The chat at [chat.united-humanity.us](https://chat.united-humanity.us) is the first implementation.
+A federated communication protocol built on cryptographic identity. No central servers owning your data. No accounts. Ed25519 means you prove who you are with math, not with a password stored on someone else's computer. Anyone can host a server. Servers are meeting places, not gatekeepers — your identity is portable across all of them. Trust is tiered: verified servers that adopt the Humanity Accord rank highest.
+→ [Design specs](design/network/) · [Federation spec](design/network/server_federation.md)
 
 ### Project Universe
 A free, open-source game teaching practical skills — homesteading, building, agriculture, health, survival — so anyone, anywhere, can learn to provide for themselves and their community. Think Minecraft meets real-world education. The game won't replace doing the real thing, but it can teach you how before you need to.
@@ -67,6 +101,20 @@ Lower layers may not contradict higher layers. If two files disagree, the higher
 | Serialization | CBOR |
 | Transport | WebSocket relay |
 | Storage | SQLite |
+
+---
+
+## Host your own server
+
+Anyone can run a Humanity Network server. No permission needed.
+
+1. Build the relay: `cargo build --release -p humanity-relay`
+2. Put it behind nginx with TLS (Let's Encrypt is free)
+3. Share your URL — people connect with their existing keypair
+
+Want verified status? Contact [@Shaostoul on X](https://x.com/Shaostoul). Publicly adopt the [Humanity Accord](accord/humanity_accord.md) for highest trust tier.
+
+→ [Federation & trust tiers](design/network/server_federation.md)
 
 ---
 

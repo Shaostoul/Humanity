@@ -19,9 +19,22 @@ Everything we build is **public domain**. No accounts. No tracking. No gatekeepi
 
 **[chat.united-humanity.us](https://chat.united-humanity.us)**
 
-The communication layer comes first. Our chat is live — no accounts, no tracking, Ed25519 cryptographic identity, encrypted by design. You own your keys, not us.
+The communication layer comes first. Our chat is live with:
+
+- **No accounts, no tracking, no IP logging** — cryptographic identity (Ed25519) stored in your browser
+- **Direct messages** between users + multiple channels
+- **@mentions**, emoji reactions, message editing, image sharing
+- **Browser notifications** so you never miss a message
+- **User profiles** with bio and social links
+- **Moderation tools** — admin/mod roles, lockdown, invite codes
+- **Pin system** — server pins for everyone + personal pins just for you
+- **Security hardened** — rate limiting, upload validation, CSP headers, TLS 1.2+
 
 Come say hello.
+
+### Host Your Own Server
+
+Anyone can run a Humanity Network server. No permission needed. Verified servers that adopt the [Humanity Accord](accord) earn the highest trust tier. [Learn more →](https://github.com/Shaostoul/Humanity/blob/main/design/network/server_federation.md)
 
 ---
 
