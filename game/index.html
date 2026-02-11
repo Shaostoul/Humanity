@@ -181,9 +181,8 @@
       animation: none;
     }
 
-    /* ── State: Activated (pressed / active) ── */
-    .btn.btn-activated,
-    .btn:not(.btn-disabled):not(.btn-cooldown):active {
+    /* ── State: Activated (pressed / click-hold) ── */
+    .btn.btn-activated {
       box-shadow: inset 0 0 0 5px var(--btn-activated), 0 0 12px rgba(238, 51, 51, 0.4) !important;
       animation: none;
     }
@@ -320,17 +319,17 @@
 
   <!-- Navigation -->
   <nav>
-    <a href="https://united-humanity.us" class="brand">🌍 Humanity</a>
-    <div class="tab active" onclick="switchTab('reality')">
-      Reality
+    <a href="https://united-humanity.us" class="brand" title="Home">🅷</a>
+    <div class="tab active" onclick="switchTab('chat')">
+      💬 Chat
+    </div>
+    <div class="tab" onclick="switchTab('reality')">
+      🌍 Reality
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('reality')" title="Reality settings">⚙</span>
     </div>
     <div class="tab" onclick="switchTab('fantasy')">
-      Fantasy
+      ✨ Fantasy
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('fantasy')" title="Fantasy settings">⚙</span>
-    </div>
-    <div class="tab" onclick="switchTab('chat')">
-      💬 Chat
     </div>
     <div class="tab" onclick="switchTab('streams')">
       📡 Streams
@@ -345,7 +344,7 @@
   </nav>
 
   <!-- Reality Tab -->
-  <div id="tab-reality" class="tab-content active">
+  <div id="tab-reality" class="tab-content">
     <div class="panel">
       <h2>🌍 Reality</h2>
       <p>The real-world simulation. Homesteading, agriculture, building, health, survival — grounded in actual physics and real data.</p>
@@ -459,7 +458,7 @@
   </div>
 
   <!-- Chat Tab (embedded) -->
-  <div id="tab-chat" class="tab-content" style="padding:0;">
+  <div id="tab-chat" class="tab-content active" style="padding:0;">
     <iframe id="chat-frame" src="https://chat.united-humanity.us" style="width:100%;height:100%;border:none;"></iframe>
   </div>
 
@@ -546,9 +545,9 @@
       });
       localStorage.setItem('humanity_game_tab', tabId);
     }
-    // Restore last tab.
-    const savedTab = localStorage.getItem('humanity_game_tab');
-    if (savedTab) switchTab(savedTab);
+    // Restore last tab (default to chat).
+    const savedTab = localStorage.getItem('humanity_game_tab') || 'chat';
+    switchTab(savedTab);
 
     // ── Settings ──
     function openSettings(tabId) {
@@ -561,6 +560,19 @@
     function closeSettings() {
       document.getElementById('settings-overlay').classList.remove('open');
     }
+
+    // ── Global: Click activates red border for 1s ──
+    document.addEventListener('click', function(e) {
+      const btn = e.target.closest('.btn');
+      if (!btn || btn.classList.contains('btn-disabled') || btn.classList.contains('btn-cooldown')) return;
+      const wasChanneling = btn.classList.contains('btn-channeling');
+      btn.classList.add('btn-activated');
+      if (wasChanneling) btn.style.animation = 'none';
+      setTimeout(() => {
+        btn.classList.remove('btn-activated');
+        if (wasChanneling) btn.style.animation = '';
+      }, 1000);
+    });
 
     // ── Button Test Functions ──
     function testBtnClick(btn) {
