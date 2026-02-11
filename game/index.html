@@ -875,6 +875,28 @@
         btn.textContent = btn.textContent.replace('Channel', 'Stop');
       }
     }
+
+    // ── Auto-refresh on server update ──
+    // Poll /api/stats every 30s; reload when BUILD_VERSION changes.
+    (function() {
+      let knownVersion = null;
+      async function checkVersion() {
+        try {
+          const res = await fetch('https://chat.united-humanity.us/api/stats');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!data.version) return;
+          if (knownVersion === null) {
+            knownVersion = data.version;
+          } else if (knownVersion !== data.version) {
+            console.log('Server updated (' + knownVersion + ' → ' + data.version + '), reloading…');
+            location.reload();
+          }
+        } catch (e) { /* network hiccup, try again next cycle */ }
+      }
+      checkVersion();
+      setInterval(checkVersion, 30000);
+    })();
   </script>
 </body>
 </html>

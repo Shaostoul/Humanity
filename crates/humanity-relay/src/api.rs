@@ -164,6 +164,7 @@ pub async fn get_messages(
 pub struct StatsResponse {
     pub total_messages: i64,
     pub connected_peers: usize,
+    pub version: &'static str,
 }
 
 /// GET /api/stats — relay statistics.
@@ -175,6 +176,7 @@ pub async fn get_stats(
     Json(StatsResponse {
         total_messages: total,
         connected_peers: peers,
+        version: env!("BUILD_VERSION"),
     })
 }
 
