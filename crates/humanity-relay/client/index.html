@@ -1190,6 +1190,16 @@
     .pin-card.expanded .pin-card-body {
       max-height: none;
     }
+    .pin-card .pin-expand-hint {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      margin-top: 0.15rem;
+      opacity: 0.7;
+    }
+    .pin-card .pin-expand-hint:hover { opacity: 1; }
+    .pin-card.expanded .pin-expand-hint .hint-expand { display: none; }
+    .pin-card:not(.expanded) .pin-expand-hint .hint-collapse { display: none; }
     .pin-card .pin-card-meta {
       font-size: 0.6rem;
       color: var(--text-muted);
@@ -2739,6 +2749,7 @@
           html += `<div class="pin-card" onclick="this.classList.toggle('expanded')">${unpinBtn}
             <div class="pin-card-author">${esc(pin.from_name)}</div>
             <div class="pin-card-body">${esc(pin.content)}</div>
+            <div class="pin-expand-hint"><span class="hint-expand">▸ Click to expand</span><span class="hint-collapse">▴ Click to collapse</span></div>
             <div class="pin-card-meta">Pinned by ${esc(pin.pinned_by)} · ${time}</div>
           </div>`;
         });
@@ -2757,6 +2768,7 @@
           html += `<div class="pin-card" onclick="this.classList.toggle('expanded')"><button class="pin-unpin" onclick="event.stopPropagation();removeMyPin(${i})" title="Remove">✕</button>
             <div class="pin-card-author">${esc(pin.from_name)}</div>
             <div class="pin-card-body">${esc(pin.content)}</div>
+            <div class="pin-expand-hint"><span class="hint-expand">▸ Click to expand</span><span class="hint-collapse">▴ Click to collapse</span></div>
             <div class="pin-card-meta">${time}</div>
           </div>`;
         });
