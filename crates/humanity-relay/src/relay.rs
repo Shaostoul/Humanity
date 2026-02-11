@@ -408,6 +408,24 @@ pub enum RelayMessage {
         partner: String,
     },
 
+    /// Voice call signaling (ring/accept/reject/hangup) — forwarded peer-to-peer.
+    #[serde(rename = "voice_call")]
+    VoiceCall {
+        from: String,
+        from_name: Option<String>,
+        to: String,
+        action: String, // "ring" | "accept" | "reject" | "hangup"
+    },
+
+    /// WebRTC signaling (offer/answer/ICE) — forwarded peer-to-peer.
+    #[serde(rename = "webrtc_signal")]
+    WebrtcSignal {
+        from: String,
+        to: String,
+        signal_type: String, // "offer" | "answer" | "ice"
+        data: serde_json::Value,
+    },
+
     /// Edit a message — identified by sender key + timestamp.
     #[serde(rename = "edit")]
     Edit {
@@ -884,6 +902,20 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     continue; // Not for us
                 }
                 // Fall through to send it
+            }
+
+            // VoiceCall: only deliver to the target peer.
+            if let RelayMessage::VoiceCall { ref to, .. } = msg {
+                if to != &my_key_for_broadcast {
+                    continue;
+                }
+            }
+
+            // WebrtcSignal: only deliver to the target peer.
+            if let RelayMessage::WebrtcSignal { ref to, .. } = msg {
+                if to != &my_key_for_broadcast {
+                    continue;
+                }
             }
 
             // DmHistory: only deliver to the target client.
@@ -2400,6 +2432,48 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 // Also update DM list (to clear unread count).
                                 send_dm_list_update(&state_clone, &my_key_for_recv);
+                            }
+                            // Voice call signaling — forward to target peer.
+                            RelayMessage::VoiceCall { to, action, .. } => {
+                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
+                                let sender_name = peer.as_ref()
+                                    .and_then(|p| p.display_name.clone());
+                                // Check target is connected.
+                                let target_connected = state_clone.peers.read().await.contains_key(&to);
+                                if !target_connected {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "User is not online.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let msg = RelayMessage::VoiceCall {
+                                        from: my_key_for_recv.clone(),
+                                        from_name: sender_name,
+                                        to,
+                                        action,
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(msg);
+                                }
+                            }
+                            // WebRTC signaling — forward to target peer.
+                            RelayMessage::WebrtcSignal { to, signal_type, data, .. } => {
+                                let target_connected = state_clone.peers.read().await.contains_key(&to);
+                                if !target_connected {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "User is not online.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let msg = RelayMessage::WebrtcSignal {
+                                        from: my_key_for_recv.clone(),
+                                        to,
+                                        signal_type,
+                                        data,
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(msg);
+                                }
                             }
                             // DM read — mark messages from partner as read.
                             RelayMessage::DmRead { partner } => {

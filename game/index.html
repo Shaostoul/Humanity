@@ -231,6 +231,92 @@
       font-size: 0.78rem;
     }
 
+    /* ── Reality Cards ── */
+    .reality-card-header {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .reality-card-header .collapse-icon {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+    }
+    .reality-card.collapsed .reality-card-body { display: none; }
+    .reality-card.collapsed .collapse-icon { transform: rotate(-90deg); }
+
+    /* Todo */
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .todo-item:hover { background: var(--bg-hover); }
+    .todo-item.completed { opacity: 0.5; }
+    .todo-item.completed .todo-text { text-decoration: line-through; }
+    .todo-item input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+    .todo-text { flex: 1; color: var(--text); }
+    .todo-delete {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 0.75rem; padding: 0.1rem 0.3rem; border-radius: 3px; opacity: 0;
+    }
+    .todo-item:hover .todo-delete { opacity: 1; }
+    .todo-delete:hover { color: var(--danger, #c44); }
+
+    /* Notes */
+    .note-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      color: var(--text-muted);
+    }
+    .note-item:hover { background: var(--bg-hover); color: var(--text); }
+    .note-item.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+    .note-delete {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 0.7rem; padding: 0.1rem 0.3rem; opacity: 0; margin-left: auto;
+    }
+    .note-item:hover .note-delete { opacity: 1; }
+    .note-delete:hover { color: var(--danger, #c44); }
+
+    /* Garden */
+    #garden-grid {
+      display: grid;
+      gap: 4px;
+    }
+    .garden-plot {
+      aspect-ratio: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      padding: 2px;
+      word-break: break-word;
+      transition: border-color 0.15s;
+    }
+    .garden-plot:hover { border-color: var(--accent); }
+    .garden-plot.planted {
+      background: rgba(68,170,68,0.1);
+      border-color: rgba(68,170,68,0.3);
+      color: var(--text);
+      font-weight: 600;
+    }
+
     /* ── Mobile ── */
     @media (max-width: 600px) {
       .tab-content {
@@ -244,6 +330,7 @@
 </head>
 <body>
   <script src="/shared/shell.js"></script>
+  <script src="/shared/settings.js"></script>
   <script>
     document.querySelectorAll('.hub-nav .tab[href^="/reality"]').forEach(el => el.setAttribute('data-tab', 'reality'));
     document.querySelectorAll('.hub-nav .tab[href^="/fantasy"]').forEach(el => el.setAttribute('data-tab', 'fantasy'));
@@ -255,37 +342,68 @@
   <div id="tab-reality" class="tab-content">
     <div class="panel">
       <h2>🟢 Reality</h2>
-      <p>Your real-world dashboard. Track your actual life — garden, inventory, notes, projects — all in one place. Data stays on your device.</p>
+      <p>Your real-world dashboard. Track your actual life — garden, notes, todos — all in one place. Data stays on your device.</p>
     </div>
     <div class="card-grid">
-      <div class="panel">
-        <h2>🌱 Garden</h2>
-        <p>Track your plants, soil conditions, watering schedules, and harvests. Connect sensors for live monitoring.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+      <!-- ── Todo List ── -->
+      <div class="panel reality-card" id="reality-todo">
+        <h2 class="reality-card-header" onclick="toggleRealityCard('todo')">✅ Todo List <span class="collapse-icon" id="todo-collapse">▼</span></h2>
+        <div class="reality-card-body" id="todo-body">
+          <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
+            <input type="text" id="todo-input" placeholder="Add a task…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')addTodo()">
+            <button onclick="addTodo()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Add</button>
+          </div>
+          <div id="todo-list"></div>
+        </div>
       </div>
+
+      <!-- ── Notes ── -->
+      <div class="panel reality-card" id="reality-notes">
+        <h2 class="reality-card-header" onclick="toggleRealityCard('notes')">📝 Notes <span class="collapse-icon" id="notes-collapse">▼</span></h2>
+        <div class="reality-card-body" id="notes-body">
+          <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
+            <button onclick="addNote()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">+ New Note</button>
+          </div>
+          <div id="notes-list" style="margin-bottom:0.6rem;"></div>
+          <div id="notes-editor" style="display:none;">
+            <input type="text" id="note-title" placeholder="Note title" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.4rem;" oninput="saveCurrentNote()">
+            <textarea id="note-content" placeholder="Write your note…" rows="8" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;line-height:1.5;" oninput="saveCurrentNote()"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Garden Tracker ── -->
+      <div class="panel reality-card" id="reality-garden">
+        <h2 class="reality-card-header" onclick="toggleRealityCard('garden')">🌱 Garden Tracker <span class="collapse-icon" id="garden-collapse">▼</span></h2>
+        <div class="reality-card-body" id="garden-body">
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Click a plot to set what's planted. Your garden, your data.</p>
+          <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;align-items:center;">
+            <label style="font-size:0.8rem;color:var(--text-muted);">Grid:</label>
+            <select id="garden-size" onchange="resizeGarden()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:4px;font-size:0.8rem;">
+              <option value="3">3×3</option>
+              <option value="4" selected>4×4</option>
+              <option value="5">5×5</option>
+              <option value="6">6×6</option>
+            </select>
+          </div>
+          <div id="garden-grid"></div>
+        </div>
+      </div>
+
+      <!-- ── Future cards ── -->
       <div class="panel">
         <h2>📦 Inventory</h2>
-        <p>Catalog your tools, supplies, materials, and resources. Know what you have and what you need.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
-      </div>
-      <div class="panel">
-        <h2>📝 Notes</h2>
-        <p>Personal notes, plans, checklists, and documentation. Your private knowledge base.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
-      </div>
-      <div class="panel">
-        <h2>🏠 Homestead</h2>
-        <p>Map your property, track projects, plan builds, and manage maintenance schedules.</p>
+        <p>Catalog your tools, supplies, materials, and resources.</p>
         <div class="placeholder-text">🚧 Coming soon</div>
       </div>
       <div class="panel">
         <h2>❤️ Health</h2>
-        <p>Track nutrition, exercise, sleep, and wellness goals. Your body is your most important tool.</p>
+        <p>Track nutrition, exercise, sleep, and wellness goals.</p>
         <div class="placeholder-text">🚧 Coming soon</div>
       </div>
       <div class="panel">
         <h2>📚 Learning</h2>
-        <p>Skill trees, tutorials, and guides. Learn homesteading, agriculture, building, repair — real skills for real life.</p>
+        <p>Skill trees, tutorials, and guides for real life.</p>
         <div class="placeholder-text">🚧 Coming soon</div>
       </div>
     </div>
@@ -691,6 +809,191 @@
         btn.textContent = btn.textContent.replace('Channel', 'Stop');
       }
     }
+
+    // ══════════════════════════════════════
+    // REALITY TAB — Todo, Notes, Garden
+    // ══════════════════════════════════════
+
+    // ── Card collapse ──
+    function toggleRealityCard(id) {
+      const card = document.getElementById('reality-' + id);
+      if (card) card.classList.toggle('collapsed');
+      localStorage.setItem('reality_collapsed_' + id, card.classList.contains('collapsed'));
+    }
+    // Restore collapse state
+    ['todo', 'notes', 'garden'].forEach(id => {
+      if (localStorage.getItem('reality_collapsed_' + id) === 'true') {
+        const card = document.getElementById('reality-' + id);
+        if (card) card.classList.add('collapsed');
+      }
+    });
+
+    // ── TODO ──
+    function loadTodos() {
+      try { return JSON.parse(localStorage.getItem('humanity_todos')) || []; } catch { return []; }
+    }
+    function saveTodos(todos) { localStorage.setItem('humanity_todos', JSON.stringify(todos)); }
+
+    function renderTodos() {
+      const todos = loadTodos();
+      const list = document.getElementById('todo-list');
+      const active = todos.filter(t => !t.completed);
+      const done = todos.filter(t => t.completed);
+      const sorted = [...active, ...done];
+      list.innerHTML = sorted.length === 0 ? '<div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;padding:0.5rem;">No tasks yet</div>' : '';
+      sorted.forEach(t => {
+        const div = document.createElement('div');
+        div.className = 'todo-item' + (t.completed ? ' completed' : '');
+        div.innerHTML = `<input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTodo('${t.id}')"><span class="todo-text">${escHtml(t.text)}</span><button class="todo-delete" onclick="deleteTodo('${t.id}')" title="Delete">✕</button>`;
+        list.appendChild(div);
+      });
+    }
+
+    function addTodo() {
+      const input = document.getElementById('todo-input');
+      const text = input.value.trim();
+      if (!text) return;
+      const todos = loadTodos();
+      todos.push({ id: Date.now().toString(36), text, completed: false, createdAt: new Date().toISOString() });
+      saveTodos(todos);
+      input.value = '';
+      renderTodos();
+    }
+
+    function toggleTodo(id) {
+      const todos = loadTodos();
+      const t = todos.find(x => x.id === id);
+      if (t) t.completed = !t.completed;
+      saveTodos(todos);
+      renderTodos();
+    }
+
+    function deleteTodo(id) {
+      saveTodos(loadTodos().filter(x => x.id !== id));
+      renderTodos();
+    }
+
+    // ── NOTES ──
+    let currentNoteId = null;
+
+    function loadNotes() {
+      try { return JSON.parse(localStorage.getItem('humanity_notes')) || []; } catch { return []; }
+    }
+    function saveNotes(notes) { localStorage.setItem('humanity_notes', JSON.stringify(notes)); }
+
+    function renderNotes() {
+      const notes = loadNotes();
+      const list = document.getElementById('notes-list');
+      list.innerHTML = notes.length === 0 ? '<div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;padding:0.3rem;">No notes yet</div>' : '';
+      notes.forEach(n => {
+        const div = document.createElement('div');
+        div.className = 'note-item' + (n.id === currentNoteId ? ' active' : '');
+        div.innerHTML = `<span onclick="selectNote('${n.id}')">${escHtml(n.title || 'Untitled')}</span><button class="note-delete" onclick="event.stopPropagation();deleteNote('${n.id}')" title="Delete">✕</button>`;
+        div.querySelector('span').style.flex = '1';
+        div.querySelector('span').style.cursor = 'pointer';
+        list.appendChild(div);
+      });
+    }
+
+    function addNote() {
+      const notes = loadNotes();
+      const id = Date.now().toString(36);
+      notes.unshift({ id, title: '', content: '', updatedAt: new Date().toISOString() });
+      saveNotes(notes);
+      selectNote(id);
+    }
+
+    function selectNote(id) {
+      currentNoteId = id;
+      const notes = loadNotes();
+      const note = notes.find(n => n.id === id);
+      const editor = document.getElementById('notes-editor');
+      if (note) {
+        document.getElementById('note-title').value = note.title;
+        document.getElementById('note-content').value = note.content;
+        editor.style.display = 'block';
+      }
+      renderNotes();
+    }
+
+    function saveCurrentNote() {
+      if (!currentNoteId) return;
+      const notes = loadNotes();
+      const note = notes.find(n => n.id === currentNoteId);
+      if (note) {
+        note.title = document.getElementById('note-title').value;
+        note.content = document.getElementById('note-content').value;
+        note.updatedAt = new Date().toISOString();
+        saveNotes(notes);
+        renderNotes();
+      }
+    }
+
+    function deleteNote(id) {
+      saveNotes(loadNotes().filter(n => n.id !== id));
+      if (currentNoteId === id) {
+        currentNoteId = null;
+        document.getElementById('notes-editor').style.display = 'none';
+      }
+      renderNotes();
+    }
+
+    // ── GARDEN ──
+    function loadGarden() {
+      try { return JSON.parse(localStorage.getItem('humanity_garden')) || { size: 4, plots: {} }; } catch { return { size: 4, plots: {} }; }
+    }
+    function saveGarden(g) { localStorage.setItem('humanity_garden', JSON.stringify(g)); }
+
+    function renderGarden() {
+      const g = loadGarden();
+      const grid = document.getElementById('garden-grid');
+      const sizeSelect = document.getElementById('garden-size');
+      sizeSelect.value = g.size || 4;
+      grid.style.gridTemplateColumns = `repeat(${g.size}, 1fr)`;
+      grid.innerHTML = '';
+      for (let i = 0; i < g.size * g.size; i++) {
+        const plot = document.createElement('div');
+        const data = g.plots[i];
+        plot.className = 'garden-plot' + (data ? ' planted' : '');
+        plot.textContent = data ? data.plant : '🌱';
+        plot.title = data ? `${data.plant}${data.planted ? '\nPlanted: ' + data.planted : ''}` : 'Empty plot — click to plant';
+        plot.onclick = () => editPlot(i);
+        grid.appendChild(plot);
+      }
+    }
+
+    function editPlot(index) {
+      const g = loadGarden();
+      const existing = g.plots[index];
+      const plant = prompt('What is planted here?' + (existing ? ' (clear to remove)' : ''), existing ? existing.plant : '');
+      if (plant === null) return;
+      if (plant.trim() === '') {
+        delete g.plots[index];
+      } else {
+        const planted = existing ? existing.planted : new Date().toISOString().split('T')[0];
+        g.plots[index] = { plant: plant.trim(), planted };
+      }
+      saveGarden(g);
+      renderGarden();
+    }
+
+    function resizeGarden() {
+      const g = loadGarden();
+      g.size = parseInt(document.getElementById('garden-size').value) || 4;
+      saveGarden(g);
+      renderGarden();
+    }
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // Init reality tab
+    renderTodos();
+    renderNotes();
+    renderGarden();
 
     // ── Auto-refresh on server update ──
     (function() {

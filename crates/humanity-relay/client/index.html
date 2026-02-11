@@ -1363,6 +1363,130 @@
       font-style: italic;
     }
 
+    /* ── Voice Call UI ── */
+    #call-bar {
+      display: none;
+      background: linear-gradient(135deg, #1a3a2a, #1a2a3a);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 1rem;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      animation: noticeFadeIn 0.2s ease;
+    }
+    #call-bar.active { display: flex; }
+    #call-bar .call-info {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--success);
+      font-weight: 600;
+    }
+    #call-bar .call-timer {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+    #call-bar .call-actions {
+      display: flex;
+      gap: 0.4rem;
+    }
+    #call-bar .call-actions button {
+      border: none;
+      padding: 0.35rem 0.7rem;
+      border-radius: 5px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-mute {
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border) !important;
+    }
+    .btn-mute:hover { background: var(--bg-hover); }
+    .btn-mute.muted { background: var(--warning); color: #000; }
+    .btn-hangup {
+      background: #dc3232;
+      color: #fff;
+    }
+    .btn-hangup:hover { background: #e54545; }
+
+    #incoming-call-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+    }
+    #incoming-call-overlay.open { display: flex; }
+    #incoming-call-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      min-width: 280px;
+      animation: noticeFadeIn 0.3s ease;
+    }
+    #incoming-call-box .call-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      animation: pulse 1s infinite;
+    }
+    #incoming-call-box .caller-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.3rem;
+    }
+    #incoming-call-box .call-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    #incoming-call-box .call-btns {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+    }
+    #incoming-call-box .call-btns button {
+      border: none;
+      padding: 0.6rem 1.5rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-accept { background: var(--success); color: #fff; }
+    .btn-accept:hover { filter: brightness(1.1); }
+    .btn-reject { background: #dc3232; color: #fff; }
+    .btn-reject:hover { filter: brightness(1.1); }
+
+    .call-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 0.1rem 0.25rem;
+      border-radius: 3px;
+      opacity: 0.5;
+      transition: opacity 0.15s;
+    }
+    .call-btn:hover { opacity: 1; background: var(--bg-hover); }
+    #ringing-status {
+      display: none;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      padding: 0.5rem;
+      animation: pulse 1.5s infinite;
+    }
+    #ringing-status.active { display: block; }
+
     /* ── Todo Channel Sections ── */
     .todo-section {
       border-radius: 8px;
@@ -1423,6 +1547,7 @@
 </head>
 <body>
   <script src="/shared/shell.js"></script>
+  <script src="/shared/settings.js"></script>
 
   <!-- Login Screen -->
   <div id="login-screen">
@@ -1495,6 +1620,18 @@
       </div>
       <div id="chat-area">
         <div id="channel-header"></div>
+        <div id="call-bar">
+          <div class="call-info">
+            <span>🔊</span>
+            <span id="call-peer-name">In call</span>
+            <span class="call-timer" id="call-timer">00:00</span>
+          </div>
+          <div class="call-actions">
+            <button class="btn-mute" id="mute-btn" onclick="toggleMute()">🎤 Mute</button>
+            <button class="btn-hangup" onclick="hangupCall()">📵 Hangup</button>
+          </div>
+        </div>
+        <div id="ringing-status">📞 Calling…</div>
         <div id="pin-bar" onclick="togglePinList()">
           <span class="pin-summary"><span class="pin-icon">📌</span> <span id="pin-count">0</span> pinned — click to expand</span>
         </div>
@@ -1614,6 +1751,19 @@
       <div class="btn-row">
         <button class="btn-cancel" onclick="closeEditProfileOverlay()">Cancel</button>
         <button class="btn-save" onclick="saveProfile()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Incoming Call Modal -->
+  <div id="incoming-call-overlay">
+    <div id="incoming-call-box">
+      <div class="call-icon">📞</div>
+      <div class="caller-name" id="incoming-caller-name">Someone</div>
+      <div class="call-label">is calling you…</div>
+      <div class="call-btns">
+        <button class="btn-reject" onclick="rejectIncomingCall()">Reject</button>
+        <button class="btn-accept" onclick="acceptIncomingCall()">Accept</button>
       </div>
     </div>
   </div>
@@ -4665,6 +4815,361 @@ async function importIdentityFromJSON(jsonData) {
           }
         });
       }, 0);
+    };
+  </script>
+
+  <script>
+    // ── Voice Call / WebRTC ──
+    const rtcConfig = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    let callState = 'idle'; // idle | ringing-out | ringing-in | in-call
+    let callPeerKey = null;
+    let callPeerName = '';
+    let peerConnection = null;
+    let localStream = null;
+    let callTimerInterval = null;
+    let callStartTime = null;
+    let isMuted = false;
+
+    function startCall(targetKey, targetName) {
+      if (callState !== 'idle') {
+        addSystemMessage('You are already in a call or ringing.');
+        return;
+      }
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+      callState = 'ringing-out';
+      callPeerKey = targetKey;
+      callPeerName = targetName;
+
+      ws.send(JSON.stringify({
+        type: 'voice_call',
+        from: myKey,
+        to: targetKey,
+        action: 'ring'
+      }));
+
+      // Show ringing status
+      document.getElementById('ringing-status').textContent = `📞 Calling ${esc(targetName)}…`;
+      document.getElementById('ringing-status').classList.add('active');
+
+      // Auto-cancel after 30s
+      setTimeout(() => {
+        if (callState === 'ringing-out') {
+          hangupCall();
+          addSystemMessage(`${targetName} didn't answer.`);
+        }
+      }, 30000);
+    }
+
+    function acceptIncomingCall() {
+      if (callState !== 'ringing-in') return;
+      callState = 'in-call';
+      document.getElementById('incoming-call-overlay').classList.remove('open');
+
+      ws.send(JSON.stringify({
+        type: 'voice_call',
+        from: myKey,
+        to: callPeerKey,
+        action: 'accept'
+      }));
+
+      // Callee waits for the offer from caller
+      showCallBar();
+    }
+
+    function rejectIncomingCall() {
+      if (callState !== 'ringing-in') return;
+      document.getElementById('incoming-call-overlay').classList.remove('open');
+
+      ws.send(JSON.stringify({
+        type: 'voice_call',
+        from: myKey,
+        to: callPeerKey,
+        action: 'reject'
+      }));
+
+      resetCallState();
+    }
+
+    function hangupCall() {
+      if (callState === 'idle') return;
+
+      if (ws && ws.readyState === WebSocket.OPEN && callPeerKey) {
+        ws.send(JSON.stringify({
+          type: 'voice_call',
+          from: myKey,
+          to: callPeerKey,
+          action: 'hangup'
+        }));
+      }
+
+      cleanupCall();
+    }
+
+    function cleanupCall() {
+      if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+      resetCallState();
+    }
+
+    function resetCallState() {
+      callState = 'idle';
+      callPeerKey = null;
+      callPeerName = '';
+      isMuted = false;
+      if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+      callStartTime = null;
+      document.getElementById('call-bar').classList.remove('active');
+      document.getElementById('ringing-status').classList.remove('active');
+      document.getElementById('incoming-call-overlay').classList.remove('open');
+      const muteBtn = document.getElementById('mute-btn');
+      muteBtn.classList.remove('muted');
+      muteBtn.textContent = '🎤 Mute';
+    }
+
+    function showCallBar() {
+      document.getElementById('call-peer-name').textContent = `In call with ${callPeerName}`;
+      document.getElementById('call-bar').classList.add('active');
+      document.getElementById('ringing-status').classList.remove('active');
+      callStartTime = Date.now();
+      callTimerInterval = setInterval(updateCallTimer, 1000);
+    }
+
+    function updateCallTimer() {
+      if (!callStartTime) return;
+      const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+      const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const s = (elapsed % 60).toString().padStart(2, '0');
+      document.getElementById('call-timer').textContent = `${m}:${s}`;
+    }
+
+    function toggleMute() {
+      if (!localStream) return;
+      isMuted = !isMuted;
+      localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+      const btn = document.getElementById('mute-btn');
+      btn.classList.toggle('muted', isMuted);
+      btn.textContent = isMuted ? '🔇 Unmute' : '🎤 Mute';
+    }
+
+    async function setupPeerConnection(isCaller) {
+      peerConnection = new RTCPeerConnection(rtcConfig);
+
+      // Get microphone
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (e) {
+        addSystemMessage('⚠️ Microphone access denied. Cannot make voice call.');
+        hangupCall();
+        return false;
+      }
+
+      localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+
+      // Play remote audio
+      peerConnection.ontrack = (event) => {
+        const audio = new Audio();
+        audio.srcObject = event.streams[0];
+        audio.autoplay = true;
+        audio.id = 'remote-audio';
+        // Remove old one if any
+        const old = document.getElementById('remote-audio');
+        if (old) old.remove();
+        document.body.appendChild(audio);
+      };
+
+      // ICE candidates → send to peer
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'webrtc_signal',
+            from: myKey,
+            to: callPeerKey,
+            signal_type: 'ice',
+            data: event.candidate.toJSON()
+          }));
+        }
+      };
+
+      peerConnection.onconnectionstatechange = () => {
+        if (peerConnection && (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed')) {
+          addSystemMessage('Call disconnected.');
+          cleanupCall();
+        }
+      };
+
+      return true;
+    }
+
+    async function createAndSendOffer() {
+      if (!await setupPeerConnection(true)) return;
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      ws.send(JSON.stringify({
+        type: 'webrtc_signal',
+        from: myKey,
+        to: callPeerKey,
+        signal_type: 'offer',
+        data: offer
+      }));
+      showCallBar();
+    }
+
+    async function handleOffer(data) {
+      if (!await setupPeerConnection(false)) return;
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      ws.send(JSON.stringify({
+        type: 'webrtc_signal',
+        from: myKey,
+        to: callPeerKey,
+        signal_type: 'answer',
+        data: answer
+      }));
+    }
+
+    async function handleAnswer(data) {
+      if (peerConnection) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+      }
+    }
+
+    async function handleIceCandidate(data) {
+      if (peerConnection) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(data));
+        } catch (e) {
+          console.warn('ICE candidate error:', e);
+        }
+      }
+    }
+
+    // Handle voice_call and webrtc_signal messages
+    const _origHandleMessage3 = handleMessage;
+    handleMessage = function(msg) {
+      if (msg.type === 'voice_call') {
+        handleVoiceCallMessage(msg);
+        return;
+      }
+      if (msg.type === 'webrtc_signal') {
+        handleWebrtcSignalMessage(msg);
+        return;
+      }
+      _origHandleMessage3(msg);
+    };
+
+    function handleVoiceCallMessage(msg) {
+      const fromName = msg.from_name || shortKey(msg.from);
+      switch (msg.action) {
+        case 'ring':
+          if (callState !== 'idle') {
+            // Already busy — auto-reject
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'voice_call', from: myKey, to: msg.from, action: 'reject' }));
+            }
+            return;
+          }
+          callState = 'ringing-in';
+          callPeerKey = msg.from;
+          callPeerName = fromName;
+          document.getElementById('incoming-caller-name').textContent = fromName;
+          document.getElementById('incoming-call-overlay').classList.add('open');
+          playNotificationChime();
+          break;
+        case 'accept':
+          if (callState === 'ringing-out' && msg.from === callPeerKey) {
+            callState = 'in-call';
+            // Caller creates the offer
+            createAndSendOffer();
+          }
+          break;
+        case 'reject':
+          if ((callState === 'ringing-out') && msg.from === callPeerKey) {
+            addSystemMessage(`${callPeerName} rejected the call.`);
+            resetCallState();
+          }
+          break;
+        case 'hangup':
+          if (msg.from === callPeerKey) {
+            addSystemMessage(`${callPeerName} hung up.`);
+            cleanupCall();
+          }
+          break;
+      }
+    }
+
+    function handleWebrtcSignalMessage(msg) {
+      if (msg.from !== callPeerKey) return; // Ignore signals from unexpected peers
+      switch (msg.signal_type) {
+        case 'offer':
+          handleOffer(msg.data);
+          break;
+        case 'answer':
+          handleAnswer(msg.data);
+          break;
+        case 'ice':
+          handleIceCandidate(msg.data);
+          break;
+      }
+    }
+
+    // Auto-hangup on WebSocket disconnect
+    const _origWsOnClose = null; // We'll patch the openSocket function
+    const _origOpenSocket = openSocket;
+    openSocket = function() {
+      _origOpenSocket();
+      // Patch onclose to also cleanup call
+      const currentWs = ws;
+      if (currentWs) {
+        const origOnClose = currentWs.onclose;
+        currentWs.onclose = function() {
+          if (callState !== 'idle') {
+            addSystemMessage('Call ended (disconnected).');
+            cleanupCall();
+          }
+          if (origOnClose) origOnClose.apply(this, arguments);
+        };
+      }
+    };
+
+    // Add 📞 call buttons to user list
+    const _origUpdateUserList = updateUserList;
+    updateUserList = function(users) {
+      _origUpdateUserList(users);
+      // Add call buttons to online users (not self, not bots)
+      const peerList = document.getElementById('peer-list');
+      peerList.querySelectorAll('.peer[data-pubkey]').forEach(el => {
+        const pk = el.dataset.pubkey;
+        const name = el.dataset.username;
+        if (pk === myKey || (pk && pk.startsWith('bot_'))) return;
+        // Only add to online users
+        if (el.style.opacity === '0.5') return; // offline users have opacity 0.5
+        // Check if already has call button
+        if (el.querySelector('.call-btn')) return;
+        const btn = document.createElement('button');
+        btn.className = 'call-btn';
+        btn.textContent = '📞';
+        btn.title = `Call ${name}`;
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          startCall(pk, name);
+        };
+        el.appendChild(btn);
+        if (window.twemoji) twemoji.parse(btn);
+      });
     };
   </script>
 
