@@ -77,16 +77,34 @@
     nav .tab:hover { color: var(--text); background: var(--bg-hover); }
     nav .tab.active { color: var(--text); border-bottom-color: var(--accent); }
 
-    nav .tab .tab-settings {
-      font-size: 0.75rem;
-      opacity: 0.4;
-      cursor: pointer;
-      padding: 0.1rem 0.2rem;
-      border-radius: 3px;
-    }
-    nav .tab .tab-settings:hover { opacity: 0.8; background: var(--bg-hover); }
-
     nav .spacer { flex: 1; }
+
+    /* Notification dots */
+    .notif-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: rainbow-dot 2s linear infinite;
+    }
+    .notif-dot.static {
+      animation: none;
+      background: var(--accent);
+    }
+    @keyframes rainbow-dot {
+      0%   { background: #ff0000; }
+      16%  { background: #ff8800; }
+      33%  { background: #ffff00; }
+      50%  { background: #00ff44; }
+      66%  { background: #0088ff; }
+      83%  { background: #8800ff; }
+      100% { background: #ff0000; }
+    }
+
+    /* Settings button active state */
+    #settings-btn.active { color: var(--accent); background: var(--bg-hover); border-radius: 4px; }
 
     nav .nav-link {
       color: var(--text-muted);
@@ -266,37 +284,8 @@
       letter-spacing: 0.08em;
     }
 
-    /* ── Settings Modal ── */
-    .settings-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 500;
-      align-items: center;
-      justify-content: center;
-    }
-    .settings-overlay.open { display: flex; }
-    .settings-panel {
-      background: var(--bg-panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1.5rem;
-      min-width: 300px;
-      max-width: 90vw;
-    }
-    .settings-panel h3 {
-      color: var(--accent);
-      margin-bottom: 0.8rem;
-    }
-    .settings-panel .close-btn {
-      float: right;
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 1.2rem;
-    }
+    /* ── Settings Panel (inline) ── */
+    #tab-settings .panel { max-width: 600px; }
 
     /* ── Chat Embed ── */
     #tab-chat { overflow: hidden; }
@@ -321,26 +310,23 @@
   <nav>
     <a href="/" class="brand" title="Home">🅷</a>
     <div class="tab" data-tab="chat" onclick="switchTab('chat')">
-      💬 Chat
+      💬 Chat <span id="chat-notif-dot" class="notif-dot" style="display:none;"></span>
     </div>
     <div class="tab" data-tab="reality" onclick="switchTab('reality')">
       🌍 Reality
-      <span class="tab-settings" onclick="event.stopPropagation();openSettings('reality')" title="Reality settings">⚙</span>
     </div>
     <div class="tab" data-tab="fantasy" onclick="switchTab('fantasy')">
       ✨ Fantasy
-      <span class="tab-settings" onclick="event.stopPropagation();openSettings('fantasy')" title="Fantasy settings">⚙</span>
     </div>
     <div class="tab" data-tab="streams" onclick="switchTab('streams')">
       📡 Streams
-      <span class="tab-settings" onclick="event.stopPropagation();openSettings('streams')" title="Stream settings">⚙</span>
     </div>
     <div class="tab" data-tab="debug" onclick="switchTab('debug')">
       🔧 Debug
-      <span class="tab-settings" onclick="event.stopPropagation();openSettings('debug')" title="Debug settings">⚙</span>
     </div>
     <div class="spacer"></div>
-    <a href="https://github.com/Shaostoul/Humanity" class="nav-link" target="_blank">📦 GitHub</a>
+    <button id="settings-btn" onclick="toggleSettings()" title="Settings" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;border-radius:4px;">⚙</button>
+    <a href="https://github.com/Shaostoul/Humanity" class="nav-link" target="_blank">📦</a>
   </nav>
 
   <!-- Reality Tab -->
@@ -574,11 +560,10 @@
     </div>
   </div>
 
-  <!-- Settings Overlay -->
-  <div id="settings-overlay" class="settings-overlay" onclick="if(event.target===this)closeSettings()">
-    <div class="settings-panel">
-      <button class="close-btn" onclick="closeSettings()">✕</button>
-      <h3 id="settings-title">Settings</h3>
+  <!-- Settings Panel (inline, replaces tab content) -->
+  <div id="tab-settings" class="tab-content" style="padding:1.5rem;">
+    <div class="panel">
+      <h2 id="settings-title">⚙ Settings</h2>
       <div id="settings-body"></div>
     </div>
   </div>
@@ -595,14 +580,29 @@
 
     function switchTab(tabId, pushState) {
       if (!TAB_IDS.includes(tabId)) tabId = 'chat';
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      currentTab = tabId;
+
+      // Highlight nav tab.
       document.querySelectorAll('nav .tab').forEach(el => el.classList.remove('active'));
-      const tabEl = document.getElementById('tab-' + tabId);
-      if (tabEl) tabEl.classList.add('active');
-      // Highlight the nav tab.
       document.querySelectorAll('nav .tab').forEach(el => {
         if (el.dataset.tab === tabId) el.classList.add('active');
       });
+
+      if (settingsOpen) {
+        // If settings is open, switch to that tab's settings.
+        openSettings(tabId);
+      } else {
+        // Show the tab content.
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        const tabEl = document.getElementById('tab-' + tabId);
+        if (tabEl) tabEl.classList.add('active');
+      }
+
+      // Clear notification dot when switching to chat.
+      if (tabId === 'chat') {
+        document.getElementById('chat-notif-dot').style.display = 'none';
+      }
+
       localStorage.setItem('humanity_game_tab', tabId);
       // Update URL without reload.
       if (pushState !== false) {
@@ -634,52 +634,117 @@
     switchTab(urlTab || savedTab || userDefault);
 
     // ── Settings ──
-    const defaultTab = localStorage.getItem('humanity_default_tab') || 'chat';
+    let settingsOpen = false;
+    let settingsForTab = null; // Which tab's settings are showing
+
+    function toggleSettings() {
+      if (settingsOpen) {
+        closeSettings();
+      } else {
+        openSettings(currentTab);
+      }
+    }
+
+    let currentTab = 'chat';
 
     function openSettings(tabId) {
-      const overlay = document.getElementById('settings-overlay');
-      const titles = { reality: '🌍 Reality Settings', fantasy: '✨ Fantasy Settings', streams: '📡 Stream Settings', debug: '🔧 Debug Settings', global: '⚙ Global Settings' };
-      document.getElementById('settings-title').textContent = titles[tabId] || 'Settings';
+      settingsOpen = true;
+      settingsForTab = tabId;
+      document.getElementById('settings-btn').classList.add('active');
+
+      const titles = {
+        chat: '💬 Chat Settings',
+        reality: '🌍 Reality Settings',
+        fantasy: '✨ Fantasy Settings',
+        streams: '📡 Stream Settings',
+        debug: '🔧 Debug Settings'
+      };
+      document.getElementById('settings-title').textContent = titles[tabId] || '⚙ Settings';
 
       const body = document.getElementById('settings-body');
       const currentDefault = localStorage.getItem('humanity_default_tab') || 'chat';
-      const tabOptions = ['chat', 'reality', 'fantasy', 'streams', 'debug'];
+      const tabLabels = { chat: '💬 Chat', reality: '🌍 Reality', fantasy: '✨ Fantasy', streams: '📡 Streams', debug: '🔧 Debug' };
 
       let html = `
-        <div style="margin-bottom:1rem;">
+        <h3 style="font-size:0.9rem;margin-bottom:0.5rem;">General</h3>
+        <div style="margin-bottom:1.2rem;">
           <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">Default tab on startup</label>
-          <select id="default-tab-select" onchange="setDefaultTab(this.value)" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.4rem 0.6rem;font-size:0.85rem;width:100%;">
-            ${tabOptions.map(t => `<option value="${t}" ${t === currentDefault ? 'selected' : ''}>${t === 'chat' ? '💬 Chat' : t === 'reality' ? '🌍 Reality' : t === 'fantasy' ? '✨ Fantasy' : t === 'streams' ? '📡 Streams' : '🔧 Debug'}</option>`).join('')}
+          <select onchange="setDefaultTab(this.value)" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.4rem 0.6rem;font-size:0.85rem;width:100%;max-width:250px;">
+            ${TAB_IDS.map(t => `<option value="${t}" ${t === currentDefault ? 'selected' : ''}>${tabLabels[t]}</option>`).join('')}
           </select>
-          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.3rem;">This device will open to this tab by default. Useful for dedicated displays — a TV showing your garden, a phone on chat, etc.</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.3rem;">This device opens to this tab by default. Set your TV to Garden, phone to Chat, etc.</div>
         </div>
       `;
 
-      if (tabId === 'reality') {
-        html += `<p style="color:var(--text-muted);font-size:0.85rem;">Reality tab settings coming soon — garden monitoring, inventory views, notes configuration.</p>`;
-      } else if (tabId === 'fantasy') {
-        html += `<p style="color:var(--text-muted);font-size:0.85rem;">Fantasy tab settings coming soon — game world preferences, mod settings.</p>`;
-      } else if (tabId === 'streams') {
+      // Tab-specific settings
+      if (tabId === 'chat') {
         html += `
-          <p style="color:var(--text-muted);font-size:0.85rem;">Stream settings coming soon:</p>
-          <ul style="color:var(--text-muted);font-size:0.8rem;padding-left:1.2rem;line-height:1.8;">
+          <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Notifications</h3>
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.5rem;">Control which notifications play sounds and show indicators.</p>
+          <div style="display:flex;flex-direction:column;gap:0.4rem;">
+            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+              <input type="checkbox" checked style="accent-color:var(--accent);"> Channel messages
+            </label>
+            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+              <input type="checkbox" checked style="accent-color:var(--accent);"> Direct messages
+            </label>
+            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+              <input type="checkbox" checked style="accent-color:var(--accent);"> @mentions
+            </label>
+            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+              <input type="checkbox" style="accent-color:var(--accent);"> VIP / Favorites only
+              <span style="font-size:0.7rem;color:var(--text-muted);">(coming soon)</span>
+            </label>
+          </div>
+          <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Indicator Style</h3>
+          <div style="display:flex;gap:1rem;align-items:center;">
+            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+              <input type="radio" name="dot-style" value="rainbow" checked style="accent-color:var(--accent);"> <span class="notif-dot" style="display:inline-block;"></span> Rainbow (priority)
+            </label>
+            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+              <input type="radio" name="dot-style" value="static" style="accent-color:var(--accent);"> <span class="notif-dot static" style="display:inline-block;"></span> Static
+            </label>
+          </div>
+        `;
+      } else if (tabId === 'reality') {
+        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Reality Settings</h3>
+          <p style="color:var(--text-muted);font-size:0.85rem;">Garden monitoring, inventory views, notes configuration — coming soon.</p>`;
+      } else if (tabId === 'fantasy') {
+        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Fantasy Settings</h3>
+          <p style="color:var(--text-muted);font-size:0.85rem;">Game world preferences, mod settings, trust filters for P2P games — coming soon.</p>`;
+      } else if (tabId === 'streams') {
+        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Stream Settings</h3>
+          <ul style="color:var(--text-muted);font-size:0.82rem;padding-left:1.2rem;line-height:2;">
             <li>Upload bandwidth limit</li>
             <li>Reserved-for-gaming slider</li>
             <li>Stream quality preference</li>
             <li>Auto-seed when idle</li>
           </ul>
-        `;
+          <p style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">Coming soon.</p>`;
+      } else if (tabId === 'debug') {
+        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Debug Settings</h3>
+          <p style="color:var(--text-muted);font-size:0.85rem;">Nothing to configure here — it's a playground.</p>`;
       }
+
       body.innerHTML = html;
-      overlay.classList.add('open');
+
+      // Show settings tab, hide current content
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-settings').classList.add('active');
+    }
+
+    function closeSettings() {
+      settingsOpen = false;
+      settingsForTab = null;
+      document.getElementById('settings-btn').classList.remove('active');
+      // Return to the current tab
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      const tabEl = document.getElementById('tab-' + currentTab);
+      if (tabEl) tabEl.classList.add('active');
     }
 
     function setDefaultTab(tab) {
       localStorage.setItem('humanity_default_tab', tab);
-    }
-
-    function closeSettings() {
-      document.getElementById('settings-overlay').classList.remove('open');
     }
 
     // ── Global: Click activates red border for 1s ──
@@ -772,6 +837,29 @@
         document.getElementById('stream-status').innerHTML = '<span style="color:#e55;">●</span> Streaming (demo mode)';
       }
     }
+
+    // ── Chat notification dot ──
+    // Listen for title changes in the chat iframe (unread messages flash the title).
+    // Also listen for postMessage from chat if we add that later.
+    setInterval(() => {
+      try {
+        const frame = document.getElementById('chat-frame');
+        if (!frame || !frame.contentDocument) return;
+        const title = frame.contentDocument.title || '';
+        if (title.startsWith('(') && currentTab !== 'chat') {
+          document.getElementById('chat-notif-dot').style.display = 'inline-block';
+        }
+      } catch (e) {
+        // Cross-origin — can't read iframe title. Use fallback.
+      }
+    }, 2000);
+
+    // Fallback: show dot when switching away from chat after activity.
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'humanity-chat-notification' && currentTab !== 'chat') {
+        document.getElementById('chat-notif-dot').style.display = 'inline-block';
+      }
+    });
 
     function toggleChannel(btn) {
       if (btn.classList.contains('btn-channeling')) {
