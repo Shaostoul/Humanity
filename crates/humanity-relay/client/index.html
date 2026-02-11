@@ -4,6 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Humanity Network</title>
+  <meta name="description" content="A cooperative chat platform with cryptographic identity. No accounts, no tracking. Just people talking freely.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Humanity Network — Chat">
+  <meta property="og:description" content="A cooperative chat platform with cryptographic identity. No accounts, no tracking, no surveillance.">
+  <meta property="og:url" content="https://chat.united-humanity.us">
+  <meta property="og:image" content="https://chat.united-humanity.us/favicon.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Humanity Network — Chat">
+  <meta name="twitter:description" content="Cooperative chat with Ed25519 identity. No accounts. No tracking.">
+  <meta name="twitter:image" content="https://chat.united-humanity.us/favicon.png">
+  <meta name="theme-color" content="#FF8811">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
@@ -701,16 +712,176 @@
       padding: 0.2rem;
     }
 
+    /* ── Sidebar overlay backdrop (mobile) ── */
+    #sidebar-overlay {
+      display: none;
+      position: fixed;
+      top: 48px; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 9;
+    }
+    #sidebar-overlay.open { display: block; }
+
+    /* ── Unread indicator ── */
+    .channel-item .unread-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-left: 0.4rem;
+      vertical-align: middle;
+      animation: pulse 1.5s ease-in-out 3;
+    }
+    .channel-item.has-unread {
+      color: var(--text);
+      font-weight: 600;
+    }
+
     /* ── Mobile ── */
     @media (max-width: 640px) {
-      #sidebar { display: none; position: fixed; left: 0; top: 48px; bottom: 0; z-index: 10; width: 220px; }
+      #sidebar {
+        display: none;
+        position: fixed;
+        left: 0; top: 48px; bottom: 0;
+        z-index: 10;
+        width: 260px;
+        max-width: 80vw;
+        box-shadow: 4px 0 16px rgba(0,0,0,0.4);
+      }
       #sidebar.open { display: block; }
-      #right-sidebar { display: none; position: fixed; right: 0; top: 48px; bottom: 0; z-index: 10; width: 220px; }
+      #right-sidebar {
+        display: none;
+        position: fixed;
+        right: 0; top: 48px; bottom: 0;
+        z-index: 10;
+        width: 260px;
+        max-width: 80vw;
+        box-shadow: -4px 0 16px rgba(0,0,0,0.4);
+      }
       #right-sidebar.open { display: block; }
       #hamburger { display: block; }
       #people-toggle { display: block; }
       header h1 { font-size: 0.9rem; }
-      #msg-input { font-size: 16px; } /* Prevent iOS zoom */
+
+      /* Prevent iOS zoom on input focus */
+      #msg-input { font-size: 16px; }
+
+      /* Comfortable input area on mobile */
+      #input-area {
+        padding: 0.5rem;
+        gap: 0.4rem;
+      }
+      #send-btn {
+        padding: 0.6rem 0.9rem;
+        font-size: 0.9rem;
+        min-width: 52px;
+        min-height: 44px;
+      }
+      #help-btn {
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 0.9rem;
+      }
+      #msg-input {
+        padding: 0.6rem 0.7rem;
+        min-height: 44px;
+      }
+
+      /* Message bubbles: more breathing room */
+      .message {
+        padding: 0.35rem 0.4rem;
+        margin-bottom: 0.1rem;
+      }
+      .message .body {
+        font-size: 0.92rem;
+        line-height: 1.45;
+      }
+      .message .time {
+        font-size: 0.6rem;
+      }
+
+      /* Channel items: larger tap targets */
+      .channel-item {
+        padding: 0.45rem 0.6rem;
+        font-size: 0.88rem;
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+      }
+
+      /* Peer items: larger tap targets */
+      .peer {
+        padding: 0.45rem 0.5rem;
+        font-size: 0.85rem;
+        min-height: 36px;
+      }
+
+      /* Profile modals: full-width on mobile */
+      .profile-modal {
+        width: 95%;
+        max-width: none;
+        max-height: 90vh;
+        border-radius: 8px 8px 0 0;
+      }
+
+      /* Help modal: full-width, scrollable */
+      #help-modal {
+        width: 95%;
+        max-width: none;
+        max-height: 85vh;
+        border-radius: 8px 8px 0 0;
+      }
+
+      /* Image placeholders: easier to tap */
+      .body .img-placeholder {
+        padding: 0.5rem 0.8rem;
+        font-size: 0.85rem;
+        min-height: 40px;
+      }
+      .body .img-loaded {
+        max-width: calc(100vw - 2rem);
+        max-height: 250px;
+      }
+
+      /* Reaction badges: bigger on mobile */
+      .reaction-badge {
+        padding: 0.15rem 0.5rem;
+        font-size: 0.82rem;
+        min-height: 30px;
+      }
+      .reaction-badge .count {
+        font-size: 0.72rem;
+      }
+
+      /* Channel header: compact */
+      #channel-header {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.75rem;
+      }
+
+      /* Hide message hover actions on mobile (use long-press or context menu) */
+      .message .msg-actions {
+        display: none !important;
+      }
+      /* Instead, show actions on tap (added via JS) */
+      .message.mobile-selected .msg-actions {
+        display: flex !important;
+        position: static;
+        margin-top: 0.25rem;
+        gap: 0.4rem;
+      }
+      .message.mobile-selected .msg-actions button {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.75rem;
+        min-height: 32px;
+      }
+
+      /* Login page adjustments */
+      #login-screen h1 { font-size: 1.5rem; }
+      #login-screen p { font-size: 0.85rem; }
+      #login-screen input { width: 100%; max-width: 340px; }
+      #login-screen button { width: 100%; max-width: 340px; }
     }
 
     /* ── Profile Modals ── */
@@ -913,16 +1084,17 @@
   <div id="chat-screen">
     <header>
       <div class="header-left">
-        <button id="hamburger" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+        <button id="hamburger" onclick="toggleSidebar('sidebar')">☰</button>
         <h1>🌍 Humanity</h1>
         <span id="stats"></span>
       </div>
       <div style="display:flex;align-items:center;gap:0.5rem;">
-        <button id="people-toggle" onclick="document.getElementById('right-sidebar').classList.toggle('open')" title="Users">👤</button>
+        <button id="people-toggle" onclick="toggleSidebar('right-sidebar')" title="Users">👤</button>
         <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
       </div>
     </header>
     <div class="main">
+      <div id="sidebar-overlay"></div>
       <div id="sidebar">
         <h3>Your Identity</h3>
         <div id="my-identity" style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.75rem; word-break:break-all;">
@@ -2730,6 +2902,220 @@
         }
       }
       await _origSendMessage2();
+    };
+
+    // ── Mobile Sidebar Management ──
+    function isMobile() {
+      return window.innerWidth <= 640;
+    }
+
+    function toggleSidebar(sidebarId) {
+      const sidebar = document.getElementById(sidebarId);
+      const overlay = document.getElementById('sidebar-overlay');
+      const otherSidebar = sidebarId === 'sidebar'
+        ? document.getElementById('right-sidebar')
+        : document.getElementById('sidebar');
+
+      // Close the other sidebar first.
+      otherSidebar.classList.remove('open');
+
+      if (sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('open');
+      } else {
+        sidebar.classList.add('open');
+        if (isMobile()) overlay.classList.add('open');
+      }
+    }
+
+    function closeSidebars() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('right-sidebar').classList.remove('open');
+      document.getElementById('sidebar-overlay').classList.remove('open');
+    }
+
+    // Close sidebars when tapping the overlay backdrop.
+    document.getElementById('sidebar-overlay').addEventListener('click', closeSidebars);
+
+    // ── Close sidebar on channel select (mobile) ──
+    // Patch switchChannel to close sidebar on mobile.
+    const _origSwitchChannel = switchChannel;
+    switchChannel = function(channelId) {
+      // Clear unread for this channel.
+      clearUnread(channelId);
+      _origSwitchChannel(channelId);
+      if (isMobile()) closeSidebars();
+    };
+
+    // ── Unread Indicators ──
+    // Track unread state per channel.
+    const unreadChannels = new Set();
+
+    function markUnread(channelId) {
+      if (channelId === activeChannel) return; // Don't mark current channel.
+      unreadChannels.add(channelId);
+      renderUnreadDots();
+    }
+
+    function clearUnread(channelId) {
+      unreadChannels.delete(channelId);
+      renderUnreadDots();
+    }
+
+    function renderUnreadDots() {
+      document.querySelectorAll('.channel-item').forEach(el => {
+        // Get the channel id from the onclick attribute.
+        const onclick = el.getAttribute('onclick') || '';
+        const match = onclick.match(/switchChannel\('([^']+)'\)/);
+        if (!match) return;
+        const chId = match[1];
+
+        // Remove existing dot.
+        const existingDot = el.querySelector('.unread-dot');
+        if (existingDot) existingDot.remove();
+        el.classList.remove('has-unread');
+
+        if (unreadChannels.has(chId)) {
+          el.classList.add('has-unread');
+          const dot = document.createElement('span');
+          dot.className = 'unread-dot';
+          el.appendChild(dot);
+        }
+      });
+    }
+
+    // Hook into handleMessage to track unread for other channels.
+    const _origHandleMessage2 = handleMessage;
+    handleMessage = function(msg) {
+      // Intercept chat messages for other channels BEFORE the original handler skips them.
+      if (msg.type === 'chat') {
+        const msgChannel = msg.channel || 'general';
+        if (msgChannel !== activeChannel) {
+          markUnread(msgChannel);
+        }
+      }
+      _origHandleMessage2(msg);
+    };
+
+    // ── Improved Context Menu Positioning ──
+    // Patch showUserContextMenu to prevent overflow on mobile.
+    const _origShowCtxMenu = showUserContextMenu;
+    showUserContextMenu = function(e, name, publicKey) {
+      _origShowCtxMenu(e, name, publicKey);
+      // Reposition if overflowing.
+      const menu = document.getElementById('user-context-menu');
+      const rect = menu.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      if (rect.right > vw) {
+        menu.style.left = Math.max(4, vw - rect.width - 8) + 'px';
+      }
+      if (rect.bottom > vh) {
+        menu.style.top = Math.max(4, vh - rect.height - 8) + 'px';
+      }
+      if (rect.left < 0) {
+        menu.style.left = '4px';
+      }
+      if (rect.top < 0) {
+        menu.style.top = '4px';
+      }
+    };
+
+    // ── Mobile: Tap message to show/hide action buttons ──
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      document.getElementById('messages').addEventListener('click', function(e) {
+        const msgEl = e.target.closest('.message:not(.system)');
+        if (!msgEl) return;
+        // Don't interfere with button clicks, links, quotes, images.
+        if (e.target.closest('button, a, .quote-block, .img-placeholder, .img-loaded, .reaction-badge')) return;
+
+        // Toggle mobile-selected on this message, deselect others.
+        const wasSelected = msgEl.classList.contains('mobile-selected');
+        document.querySelectorAll('.message.mobile-selected').forEach(m => m.classList.remove('mobile-selected'));
+        if (!wasSelected) {
+          msgEl.classList.add('mobile-selected');
+        }
+      });
+    }
+
+    // ── Improved Timestamp: "Yesterday" format ──
+    // Override formatTime to show "Yesterday HH:MM" for yesterday's messages.
+    formatTime = function(ts) {
+      const d = new Date(ts);
+      const now = new Date();
+      const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Same day.
+      if (d.toDateString() === now.toDateString()) {
+        return time;
+      }
+
+      // Yesterday.
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (d.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday ' + time;
+      }
+
+      // Same year.
+      if (d.getFullYear() === now.getFullYear()) {
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + time;
+      }
+
+      // Different year.
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + time;
+    };
+
+    // ── Reaction picker: better mobile positioning ──
+    const _origShowReactionPicker = showReactionPicker;
+    showReactionPicker = function(btn, targetFrom, targetTs, msgEl) {
+      // Close any existing picker.
+      document.querySelectorAll('.reaction-picker').forEach(p => p.remove());
+
+      const picker = document.createElement('div');
+      picker.className = 'reaction-picker';
+      // Base styles.
+      picker.style.cssText = 'position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:0.3rem;display:flex;flex-wrap:wrap;gap:0.2rem;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
+
+      if (isMobile()) {
+        // On mobile: position below the message, centered, larger buttons.
+        picker.style.position = 'relative';
+        picker.style.marginTop = '0.3rem';
+        picker.style.justifyContent = 'center';
+      } else {
+        picker.style.top = '-2rem';
+        picker.style.right = '0';
+      }
+
+      REACTION_EMOJIS.forEach(emoji => {
+        const emojiBtn = document.createElement('span');
+        emojiBtn.textContent = emoji;
+        const size = isMobile() ? 'padding:0.35rem 0.45rem;font-size:1.2rem;min-width:36px;text-align:center;' : 'padding:0.15rem 0.25rem;font-size:0.9rem;';
+        emojiBtn.style.cssText = 'cursor:pointer;border-radius:4px;' + size;
+        emojiBtn.onmouseover = () => emojiBtn.style.background = 'var(--bg-hover)';
+        emojiBtn.onmouseout = () => emojiBtn.style.background = '';
+        emojiBtn.onclick = (e) => {
+          e.stopPropagation();
+          sendReaction(targetFrom, targetTs, emoji);
+          picker.remove();
+        };
+        picker.appendChild(emojiBtn);
+      });
+      if (window.twemoji) twemoji.parse(picker);
+
+      msgEl.style.position = 'relative';
+      msgEl.appendChild(picker);
+
+      // Close picker on click elsewhere.
+      setTimeout(() => {
+        document.addEventListener('click', function closePicker(e) {
+          if (!picker.contains(e.target)) {
+            picker.remove();
+            document.removeEventListener('click', closePicker);
+          }
+        });
+      }, 0);
     };
   </script>
 </body>
