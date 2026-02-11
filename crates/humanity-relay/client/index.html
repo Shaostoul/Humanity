@@ -2101,6 +2101,99 @@ async function importIdentityFromJSON(jsonData) {
       openSocket();
     }
 
+    // ── User Data Sync ──
+    const SYNC_KEYS = [
+      'humanity_settings', 'humanity_notes', 'humanity_todos', 'humanity_garden',
+      'humanity_blocked', 'humanity_pins', 'humanity_default_tab',
+      'footer_collapsed', 'sidebar_tab'
+    ];
+    let syncDebounceTimer = null;
+    let syncInitialized = false;
+
+    function getSyncBlob() {
+      const blob = {};
+      for (const key of SYNC_KEYS) {
+        const val = localStorage.getItem(key);
+        if (val !== null) blob[key] = val;
+      }
+      return JSON.stringify(blob);
+    }
+
+    function applySyncBlob(jsonStr) {
+      try {
+        const blob = JSON.parse(jsonStr);
+        for (const key of SYNC_KEYS) {
+          if (key in blob) {
+            localStorage.setItem(key, blob[key]);
+          }
+        }
+        // Re-apply settings if they changed.
+        if (blob.humanity_settings && window.humanitySettings) {
+          try {
+            const s = JSON.parse(blob.humanity_settings);
+            if (typeof applySettings === 'function') applySettings(s);
+          } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('Failed to apply sync blob:', e);
+      }
+    }
+
+    function scheduleSyncSave() {
+      if (!syncInitialized) return;
+      clearTimeout(syncDebounceTimer);
+      syncDebounceTimer = setTimeout(() => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        const data = getSyncBlob();
+        const now = Date.now();
+        localStorage.setItem('sync_updated_at', String(now));
+        ws.send(JSON.stringify({ type: 'sync_save', data: data }));
+      }, 5000);
+    }
+
+    function handleSyncData(payload) {
+      if (payload === 'null') {
+        // No server data — push local data to server.
+        syncInitialized = true;
+        scheduleSyncSave();
+        return;
+      }
+      try {
+        const resp = JSON.parse(payload);
+        const serverData = resp.data;
+        const serverUpdatedAt = resp.updated_at || 0;
+        const localUpdatedAt = parseInt(localStorage.getItem('sync_updated_at') || '0', 10);
+
+        if (!localUpdatedAt || localUpdatedAt < serverUpdatedAt) {
+          // Server is newer — apply server data.
+          applySyncBlob(serverData);
+          localStorage.setItem('sync_updated_at', String(serverUpdatedAt));
+        } else {
+          // Local is newer or equal — push to server.
+          setTimeout(() => scheduleSyncSave(), 1000);
+        }
+      } catch (e) {
+        console.warn('Sync data parse error:', e);
+      }
+      syncInitialized = true;
+    }
+
+    function requestSyncLoad() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: 'sync_load' }));
+    }
+
+    // Watch localStorage changes — intercept setItem to detect changes.
+    (function() {
+      const origSetItem = localStorage.setItem.bind(localStorage);
+      localStorage.setItem = function(key, value) {
+        origSetItem(key, value);
+        if (SYNC_KEYS.includes(key)) {
+          scheduleSyncSave();
+        }
+      };
+    })();
+
     // Called once the server accepts our identity (sends peer_list).
     function onIdentityConfirmed() {
       if (identityConfirmed) return;
@@ -2131,6 +2224,9 @@ async function importIdentityFromJSON(jsonData) {
 
       // Sync profile to server on connect.
       try { syncProfileOnConnect(); } catch (e) { console.warn('Profile sync error:', e); }
+
+      // Request user data sync from server.
+      requestSyncLoad();
 
       // Don't load history here — wait for channel_list to arrive,
       // then switchChannel will load it.
@@ -2437,6 +2533,13 @@ async function importIdentityFromJSON(jsonData) {
           break;
         }
         case 'system':
+          // Handle sync data responses (encoded as system messages with prefix).
+          if (msg.message && msg.message.startsWith('__sync_data__:')) {
+            const payload = msg.message.slice('__sync_data__:'.length);
+            handleSyncData(payload);
+            break;
+          }
+          if (msg.message === 'sync_ack') break; // Silent ack
           addSystemMessage(msg.message);
           break;
         case 'name_taken': {

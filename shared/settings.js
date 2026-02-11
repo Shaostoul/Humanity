@@ -286,6 +286,85 @@
       modal.appendChild(chatSection);
     }
 
+    // ── Export/Import Data ──
+    const dataSection = section('💾 Data Management');
+
+    const exportBtn = document.createElement('button');
+    exportBtn.textContent = '📤 Export All Data';
+    exportBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:6px;font-size:0.8rem;cursor:pointer;width:100%;margin-bottom:0.4rem;font-family:inherit;';
+    exportBtn.onmouseenter = () => { exportBtn.style.borderColor = 'var(--accent)'; };
+    exportBtn.onmouseleave = () => { exportBtn.style.borderColor = 'var(--border)'; };
+    exportBtn.onclick = () => {
+      const data = {
+        identity: {
+          name: localStorage.getItem('humanity_name') || 'Unknown',
+          publicKey: window.myKey || ''
+        },
+        settings: (() => { try { return JSON.parse(localStorage.getItem('humanity_settings') || '{}'); } catch { return {}; } })(),
+        notes: (() => { try { return JSON.parse(localStorage.getItem('humanity_notes') || '[]'); } catch { return []; } })(),
+        todos: (() => { try { return JSON.parse(localStorage.getItem('humanity_todos') || '[]'); } catch { return []; } })(),
+        garden: (() => { try { return JSON.parse(localStorage.getItem('humanity_garden') || '{}'); } catch { return {}; } })(),
+        pins: (() => { try { return JSON.parse(localStorage.getItem('humanity_pins') || '[]'); } catch { return []; } })(),
+        blocked: (() => { try { return JSON.parse(localStorage.getItem('humanity_blocked') || '[]'); } catch { return []; } })(),
+        exportedAt: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const name = data.identity.name.replace(/[^a-zA-Z0-9_-]/g, '');
+      const date = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `humanity-backup-${name}-${date}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    dataSection.appendChild(exportBtn);
+
+    const importBtn = document.createElement('button');
+    importBtn.textContent = '📥 Import Data';
+    importBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:6px;font-size:0.8rem;cursor:pointer;width:100%;font-family:inherit;';
+    importBtn.onmouseenter = () => { importBtn.style.borderColor = 'var(--accent)'; };
+    importBtn.onmouseleave = () => { importBtn.style.borderColor = 'var(--border)'; };
+    importBtn.onclick = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const data = JSON.parse(ev.target.result);
+            // Validate
+            if (!data.exportedAt) {
+              alert('Invalid backup file: missing exportedAt field.');
+              return;
+            }
+            // Merge into localStorage
+            if (data.settings) localStorage.setItem('humanity_settings', JSON.stringify(data.settings));
+            if (data.notes) localStorage.setItem('humanity_notes', JSON.stringify(data.notes));
+            if (data.todos) localStorage.setItem('humanity_todos', JSON.stringify(data.todos));
+            if (data.garden) localStorage.setItem('humanity_garden', JSON.stringify(data.garden));
+            if (data.pins) localStorage.setItem('humanity_pins', JSON.stringify(data.pins));
+            if (data.blocked) localStorage.setItem('humanity_blocked', JSON.stringify(data.blocked));
+            // Re-apply settings
+            if (data.settings) {
+              applySettings(Object.assign({}, DEFAULTS, data.settings));
+            }
+            alert('Data imported successfully! Some changes may require a page reload.');
+            closePanel();
+          } catch (err) {
+            alert('Failed to import: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    };
+    dataSection.appendChild(importBtn);
+    modal.appendChild(dataSection);
+
     // ── Reset ──
     const resetBtn = document.createElement('button');
     resetBtn.textContent = '↺ Reset to Defaults';

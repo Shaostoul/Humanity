@@ -231,6 +231,15 @@ impl Storage {
             "CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, id);"
         )?;
 
+        // User data sync table (settings, notes, todos, etc.).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS user_data (
+                public_key TEXT PRIMARY KEY,
+                data BLOB NOT NULL,
+                updated_at INTEGER NOT NULL
+            );"
+        )?;
+
         // Migration: profiles table for user bios and social links.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS profiles (
@@ -1594,5 +1603,36 @@ impl Storage {
             params![key, value],
         )?;
         Ok(())
+    }
+
+    // ── User data sync methods ──
+
+    /// Save user data blob (JSON string). Upserts by public key.
+    pub fn save_user_data(&self, public_key: &str, data: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        conn.execute(
+            "INSERT INTO user_data (public_key, data, updated_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(public_key) DO UPDATE SET data = ?2, updated_at = ?3",
+            params![public_key, data, now],
+        )?;
+        Ok(())
+    }
+
+    /// Load user data blob. Returns (data_json, updated_at) or None.
+    pub fn load_user_data(&self, public_key: &str) -> Result<Option<(String, i64)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT data, updated_at FROM user_data WHERE public_key = ?1",
+            params![public_key],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        ) {
+            Ok(result) => Ok(Some(result)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 }

@@ -969,6 +969,65 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
             }
             match msg {
                 Message::Text(text) => {
+                    // Handle sync messages (not part of RelayMessage enum).
+                    if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&text) {
+                        match raw.get("type").and_then(|t| t.as_str()) {
+                            Some("sync_save") => {
+                                if let Some(data) = raw.get("data").and_then(|d| d.as_str()) {
+                                    // Validate: must be valid JSON and < 512KB.
+                                    if data.len() > 512 * 1024 {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Sync data too large (max 512KB).".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    } else if serde_json::from_str::<serde_json::Value>(data).is_ok() {
+                                        if let Err(e) = state_clone.db.save_user_data(&my_key_for_recv, data) {
+                                            tracing::error!("Failed to save user data: {e}");
+                                        }
+                                        // Send ack (no broadcast — private to sender via direct ws_tx would be ideal,
+                                        // but we use the Private message pattern for simplicity).
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "sync_ack".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                }
+                                continue;
+                            }
+                            Some("sync_load") => {
+                                match state_clone.db.load_user_data(&my_key_for_recv) {
+                                    Ok(Some((data, updated_at))) => {
+                                        let resp = serde_json::json!({
+                                            "type": "sync_data",
+                                            "data": data,
+                                            "updated_at": updated_at
+                                        });
+                                        // Send via broadcast with Private pattern — but sync_data isn't a RelayMessage variant.
+                                        // We need to send raw JSON. Use a system message with a special prefix.
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: format!("__sync_data__:{}", resp.to_string()),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                    Ok(None) => {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "__sync_data__:null".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Failed to load user data: {e}");
+                                    }
+                                }
+                                continue;
+                            }
+                            _ => {} // Fall through to normal RelayMessage handling
+                        }
+                    }
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
                         match relay_msg {
                             RelayMessage::Chat { content, timestamp, signature, channel, .. } => {
