@@ -13,6 +13,16 @@ use tracing::info;
 
 use crate::relay::RelayMessage;
 
+/// A persisted emoji reaction record.
+#[derive(Debug, Clone)]
+pub struct ReactionRecord {
+    pub target_from: String,
+    pub target_timestamp: u64,
+    pub emoji: String,
+    pub reactor_key: String,
+    pub reactor_name: String,
+}
+
 /// Persistent storage backed by SQLite.
 pub struct Storage {
     conn: Mutex<Connection>,
@@ -111,7 +121,24 @@ impl Storage {
                 reported_name TEXT NOT NULL,
                 reason      TEXT NOT NULL DEFAULT '',
                 created_at  INTEGER NOT NULL
-            );"
+            );
+
+            CREATE TABLE IF NOT EXISTS reactions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                target_from     TEXT NOT NULL,
+                target_timestamp INTEGER NOT NULL,
+                emoji           TEXT NOT NULL,
+                reactor_key     TEXT NOT NULL,
+                reactor_name    TEXT NOT NULL DEFAULT '',
+                channel         TEXT NOT NULL DEFAULT 'general',
+                created_at      INTEGER NOT NULL,
+                UNIQUE(target_from, target_timestamp, emoji, reactor_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_reactions_target
+                ON reactions(target_from, target_timestamp);
+            CREATE INDEX IF NOT EXISTS idx_reactions_channel
+                ON reactions(channel);"
         )?;
 
         // Migration: add channel_id column to messages if missing.
@@ -988,6 +1015,67 @@ impl Storage {
             }
         }
         Ok(result)
+    }
+
+    // ── Reaction methods ──
+
+    /// Toggle a reaction. Returns Ok(true) if added, Ok(false) if removed.
+    pub fn toggle_reaction(
+        &self,
+        target_from: &str,
+        target_timestamp: u64,
+        emoji: &str,
+        reactor_key: &str,
+        reactor_name: &str,
+        channel: &str,
+    ) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        // Check if the reaction already exists.
+        let exists: bool = conn.query_row(
+            "SELECT COUNT(*) FROM reactions WHERE target_from = ?1 AND target_timestamp = ?2 AND emoji = ?3 AND reactor_key = ?4",
+            params![target_from, target_timestamp as i64, emoji, reactor_key],
+            |row| { let c: i64 = row.get(0)?; Ok(c > 0) },
+        )?;
+        if exists {
+            conn.execute(
+                "DELETE FROM reactions WHERE target_from = ?1 AND target_timestamp = ?2 AND emoji = ?3 AND reactor_key = ?4",
+                params![target_from, target_timestamp as i64, emoji, reactor_key],
+            )?;
+            Ok(false)
+        } else {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64;
+            conn.execute(
+                "INSERT INTO reactions (target_from, target_timestamp, emoji, reactor_key, reactor_name, channel, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![target_from, target_timestamp as i64, emoji, reactor_key, reactor_name, channel, now],
+            )?;
+            Ok(true)
+        }
+    }
+
+    /// Load reactions for a given channel (most recent N by created_at).
+    pub fn load_channel_reactions(&self, channel_id: &str, limit: usize) -> Result<Vec<ReactionRecord>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT target_from, target_timestamp, emoji, reactor_key, reactor_name
+             FROM reactions
+             WHERE channel = ?1
+             ORDER BY created_at DESC
+             LIMIT ?2"
+        )?;
+        let records = stmt.query_map(params![channel_id, limit], |row| {
+            Ok(ReactionRecord {
+                target_from: row.get(0)?,
+                target_timestamp: row.get::<_, i64>(1)? as u64,
+                emoji: row.get(2)?,
+                reactor_key: row.get(3)?,
+                reactor_name: row.get(4)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(records)
     }
 
     /// List all registered users with their first public key.

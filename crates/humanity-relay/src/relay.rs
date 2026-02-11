@@ -284,6 +284,9 @@ pub enum RelayMessage {
         emoji: String,
         from: String,
         from_name: Option<String>,
+        /// Channel this reaction belongs to (for persistence).
+        #[serde(default = "default_channel")]
+        channel: String,
     },
 
     /// Full user list (online + offline) for sidebar.
@@ -312,6 +315,22 @@ pub enum RelayMessage {
     ProfileRequest {
         name: String,
     },
+
+    /// Server sends a batch of persisted reactions (on connect / channel switch).
+    #[serde(rename = "reactions_sync")]
+    ReactionsSync {
+        reactions: Vec<ReactionData>,
+    },
+}
+
+/// A single reaction record sent during sync.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReactionData {
+    pub target_from: String,
+    pub target_timestamp: u64,
+    pub emoji: String,
+    pub reactor_key: String,
+    pub reactor_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -514,6 +533,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }).collect();
                     let ch_msg = serde_json::to_string(&RelayMessage::ChannelList { channels: channel_infos }).unwrap();
                     let _ = ws_tx.send(Message::Text(ch_msg.into())).await;
+                }
+
+                // Send persisted reactions for the default channel ("general").
+                if let Ok(records) = state.db.load_channel_reactions("general", 500) {
+                    let reactions: Vec<ReactionData> = records.into_iter().map(|r| ReactionData {
+                        target_from: r.target_from,
+                        target_timestamp: r.target_timestamp,
+                        emoji: r.emoji,
+                        reactor_key: r.reactor_key,
+                        reactor_name: r.reactor_name,
+                    }).collect();
+                    if !reactions.is_empty() {
+                        let sync_msg = serde_json::to_string(&RelayMessage::ReactionsSync { reactions }).unwrap();
+                        let _ = ws_tx.send(Message::Text(sync_msg.into())).await;
+                    }
                 }
 
                 // Announce to everyone.
@@ -1391,8 +1425,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 };
                                 let _ = state_clone.broadcast_tx.send(typing);
                             }
-                            // Reaction — broadcast to all peers.
-                            RelayMessage::Reaction { target_from, target_timestamp, emoji, .. } => {
+                            // Reaction — persist and broadcast to all peers.
+                            RelayMessage::Reaction { target_from, target_timestamp, emoji, channel: reaction_channel, .. } => {
                                 // Validate emoji: only short strings, no HTML/JS special chars.
                                 if emoji.len() > 32
                                     || emoji.contains('\'')
@@ -1406,12 +1440,23 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
+                                let ch = if reaction_channel.is_empty() { "general".to_string() } else { reaction_channel };
+                                // Persist the reaction toggle.
+                                let _ = state_clone.db.toggle_reaction(
+                                    &target_from,
+                                    target_timestamp,
+                                    &emoji,
+                                    &my_key_for_recv,
+                                    display.as_deref().unwrap_or(""),
+                                    &ch,
+                                );
                                 let reaction = RelayMessage::Reaction {
                                     target_from,
                                     target_timestamp,
                                     emoji,
                                     from: my_key_for_recv.clone(),
                                     from_name: display,
+                                    channel: ch,
                                 };
                                 let _ = state_clone.broadcast_tx.send(reaction);
                             }

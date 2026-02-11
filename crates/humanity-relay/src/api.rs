@@ -393,6 +393,56 @@ pub async fn github_webhook(
     Ok(StatusCode::OK)
 }
 
+/// Query params for GET /api/reactions.
+#[derive(Debug, Deserialize)]
+pub struct ReactionsQuery {
+    /// Channel to fetch reactions from (default: general).
+    pub channel: Option<String>,
+    /// Max reactions to return (default 500).
+    pub limit: Option<usize>,
+}
+
+/// Response for GET /api/reactions.
+#[derive(Debug, Serialize)]
+pub struct ReactionsResponse {
+    pub reactions: Vec<ReactionEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReactionEntry {
+    pub target_from: String,
+    pub target_timestamp: u64,
+    pub emoji: String,
+    pub reactor_key: String,
+    pub reactor_name: String,
+}
+
+/// GET /api/reactions — load persisted reactions for a channel.
+pub async fn get_reactions(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<ReactionsQuery>,
+) -> Json<ReactionsResponse> {
+    let channel = params.channel.as_deref().unwrap_or("general");
+    let limit = params.limit.unwrap_or(500).min(1000);
+
+    match state.db.load_channel_reactions(channel, limit) {
+        Ok(records) => {
+            let reactions = records.into_iter().map(|r| ReactionEntry {
+                target_from: r.target_from,
+                target_timestamp: r.target_timestamp,
+                emoji: r.emoji,
+                reactor_key: r.reactor_key,
+                reactor_name: r.reactor_name,
+            }).collect();
+            Json(ReactionsResponse { reactions })
+        }
+        Err(e) => {
+            tracing::error!("Failed to load reactions: {e}");
+            Json(ReactionsResponse { reactions: vec![] })
+        }
+    }
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,

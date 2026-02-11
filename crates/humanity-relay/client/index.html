@@ -1362,6 +1362,14 @@
           applyReaction(msg.target_from, msg.target_timestamp, msg.emoji, msg.from, msg.from_name);
           break;
         }
+        case 'reactions_sync': {
+          if (msg.reactions && msg.reactions.length > 0) {
+            for (const r of msg.reactions) {
+              applyReactionSync(r.target_from, r.target_timestamp, r.emoji, r.reactor_key);
+            }
+          }
+          break;
+        }
         case 'delete': {
           // Remove the deleted message from the DOM.
           const msgs = document.querySelectorAll('.message[data-from="' + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
@@ -1635,10 +1643,15 @@
       localStorage.setItem('humanity_channel', channelId);
       document.getElementById('messages').innerHTML = '';
       seenTimestamps.clear();
+      // Clear local reaction state for old channel messages.
+      Object.keys(messageReactions).forEach(k => delete messageReactions[k]);
       renderChannelList();
       updateChannelHeader();
       updateInputForChannel();
-      loadHistory();
+      loadHistory().then(() => {
+        // Load persisted reactions after messages are rendered.
+        loadReactionsForChannel(channelId);
+      });
     }
 
     function updateInputForChannel() {
@@ -1877,6 +1890,7 @@
         emoji: emoji,
         from: myKey,
         from_name: myName,
+        channel: activeChannel,
       }));
       // Apply locally immediately.
       applyReaction(targetFrom, Number(targetTs), emoji, myKey, myName);
@@ -1909,6 +1923,30 @@
         return `<span class="reaction-badge${isMine ? ' mine' : ''}" data-target-from="${esc(targetFrom)}" data-target-ts="${targetTs}" data-emoji="${esc(emoji)}">${esc(emoji)} <span class="count">${users.size}</span></span>`;
       }).join('');
       if (window.twemoji) twemoji.parse(msgEl);
+    }
+
+    // Apply a reaction from sync (add-only, no toggle).
+    function applyReactionSync(targetFrom, targetTs, emoji, reactorKey) {
+      const rKey = targetFrom + ':' + targetTs;
+      if (!messageReactions[rKey]) messageReactions[rKey] = {};
+      if (!messageReactions[rKey][emoji]) messageReactions[rKey][emoji] = new Set();
+      messageReactions[rKey][emoji].add(reactorKey);
+      renderReactions(targetFrom, targetTs);
+    }
+
+    // Load reactions from the API for the current channel and apply them.
+    async function loadReactionsForChannel(channelId) {
+      try {
+        const resp = await fetch(`/api/reactions?channel=${encodeURIComponent(channelId)}&limit=500`);
+        const data = await resp.json();
+        if (data.reactions && data.reactions.length > 0) {
+          for (const r of data.reactions) {
+            applyReactionSync(r.target_from, r.target_timestamp, r.emoji, r.reactor_key);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load reactions:', e);
+      }
     }
 
     // ── Typing Indicator ──

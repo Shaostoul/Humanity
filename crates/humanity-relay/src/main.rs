@@ -84,6 +84,7 @@ async fn main() {
         .route("/api/messages", get(api::get_messages))
         .route("/api/peers", get(api::get_peers))
         .route("/api/stats", get(api::get_stats))
+        .route("/api/reactions", get(api::get_reactions))
         .route("/api/upload", post(api::upload_file))
         .route("/api/github-webhook", post(api::github_webhook))
         .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
