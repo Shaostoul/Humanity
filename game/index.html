@@ -612,6 +612,9 @@
       }
 
       localStorage.setItem('humanity_game_tab', tabId);
+      // Update browser tab title.
+      const tabTitles = { chat: 'Chat', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', debug: 'Debug' };
+      document.title = 'Humanity — ' + (tabTitles[tabId] || 'Game');
       // Update URL without reload.
       if (pushState !== false) {
         const newPath = '/' + tabId;
