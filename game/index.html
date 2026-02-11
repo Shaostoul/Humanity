@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Humanity — Game</title>
+  <title>Humanity</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <style>
@@ -507,7 +507,7 @@
 
   <!-- Chat Tab (embedded) -->
   <div id="tab-chat" class="tab-content active" style="padding:0;">
-    <iframe id="chat-frame" src="https://chat.united-humanity.us" style="width:100%;height:100%;border:none;" loading="lazy"></iframe>
+    <iframe id="chat-frame" src="/chat-client.html" style="width:100%;height:100%;border:none;" loading="lazy"></iframe>
   </div>
 
   <!-- Streams Tab -->
@@ -614,7 +614,7 @@
       localStorage.setItem('humanity_game_tab', tabId);
       // Update browser tab title.
       const tabTitles = { chat: 'Chat', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', debug: 'Debug' };
-      document.title = 'Humanity — ' + (tabTitles[tabId] || 'Game');
+      document.title = 'Humanity — ' + (tabTitles[tabId] || 'Hub');
       // Update URL without reload.
       if (pushState !== false) {
         const newPath = '/' + tabId;
@@ -885,7 +885,7 @@
       let knownVersion = null;
       async function checkVersion() {
         try {
-          const res = await fetch('https://chat.united-humanity.us/api/stats');
+          const res = await fetch('/api/stats');
           if (!res.ok) return;
           const data = await res.json();
           if (!data.version) return;
