@@ -22,7 +22,7 @@
       --warning: #eb4;
 
       /* Button state colors */
-      --btn-clickable: #ffffff;
+      --btn-clickable: #44cc66;
       --btn-hover: #4488ff;
       --btn-activated: #ee3333;
       --btn-disabled: #222222;
@@ -173,10 +173,11 @@
     }
 
     /* ── State: Hovered ── */
-    .btn:not(.btn-disabled):not(.btn-cooldown):hover {
-      border: 3px solid var(--btn-hover);
-      padding: calc(0.5rem - 2px) calc(1.2rem - 2px); /* compensate for border growth */
-      box-shadow: 0 0 8px rgba(68, 136, 255, 0.3);
+    .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-activated):hover {
+      border: 3px solid var(--btn-hover) !important;
+      padding: calc(0.5rem - 2px) calc(1.2rem - 2px);
+      box-shadow: 0 0 12px rgba(68, 136, 255, 0.4);
+      animation: none; /* pause rainbow on hover */
     }
 
     /* ── State: Activated (pressed / active) ── */
@@ -185,6 +186,7 @@
       border: 5px solid var(--btn-activated) !important;
       padding: calc(0.5rem - 4px) calc(1.2rem - 4px);
       box-shadow: 0 0 12px rgba(238, 51, 51, 0.4);
+      animation: none;
     }
 
     /* ── State: Channeling (active/looping — rainbow cycle) ── */
@@ -306,6 +308,10 @@
       font-size: 1.2rem;
     }
 
+    /* ── Chat Embed ── */
+    #tab-chat { overflow: hidden; }
+    #tab-chat iframe { display: block; }
+
     /* ── Footer ── */
     footer {
       background: var(--bg-secondary);
@@ -332,12 +338,18 @@
       Fantasy
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('fantasy')" title="Fantasy settings">⚙</span>
     </div>
+    <div class="tab" onclick="switchTab('chat')">
+      💬 Chat
+    </div>
+    <div class="tab" onclick="switchTab('streams')">
+      📡 Streams
+      <span class="tab-settings" onclick="event.stopPropagation();openSettings('streams')" title="Stream settings">⚙</span>
+    </div>
     <div class="tab" onclick="switchTab('debug')">
-      Debug
+      🔧 Debug
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('debug')" title="Debug settings">⚙</span>
     </div>
     <div class="spacer"></div>
-    <a href="https://chat.united-humanity.us" class="nav-link" target="_blank">💬 Chat</a>
     <a href="https://github.com/Shaostoul/Humanity" class="nav-link" target="_blank">📦 GitHub</a>
   </nav>
 
@@ -433,8 +445,8 @@
       <h2>🎨 Color Reference</h2>
       <p>The visual language for button borders:</p>
       <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; margin-top: 0.5rem;">
-        <div style="padding:0.5rem;border-left:3px solid #fff;background:rgba(255,255,255,0.03);border-radius:4px;font-size:0.8rem;">
-          <strong style="color:#fff;">White 1px</strong> — Clickable / ready
+        <div style="padding:0.5rem;border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
         </div>
         <div style="padding:0.5rem;border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
           <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
@@ -450,6 +462,67 @@
         </div>
         <div style="padding:0.5rem;border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
           <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Tab (embedded) -->
+  <div id="tab-chat" class="tab-content" style="padding:0;">
+    <iframe id="chat-frame" src="https://chat.united-humanity.us" style="width:100%;height:100%;border:none;"></iframe>
+  </div>
+
+  <!-- Streams Tab -->
+  <div id="tab-streams" class="tab-content">
+    <div class="panel">
+      <h2>📡 Live Streams</h2>
+      <p>Watch or broadcast live to the Humanity Network. Streams are relayed through servers and seeded peer-to-peer — the more viewers, the better it works.</p>
+
+      <h3>🔴 Go Live</h3>
+      <div style="display:flex;gap:0.8rem;align-items:center;margin:0.5rem 0 1rem;">
+        <button class="btn btn-clickable" id="go-live-btn" onclick="toggleGoLive(this)">Start Stream</button>
+        <span id="stream-status" style="font-size:0.8rem;color:var(--text-muted);">Not streaming</span>
+      </div>
+
+      <h3>📺 Live Now</h3>
+      <div id="stream-list" style="margin-top:0.5rem;">
+        <div style="color:var(--text-muted);font-style:italic;font-size:0.85rem;padding:1rem 0;">
+          No active streams. Be the first to go live!
+        </div>
+      </div>
+
+      <h3 style="margin-top:1.5rem;">How It Works</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.8rem;margin-top:0.5rem;">
+        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+          <strong style="color:var(--accent);">1. You stream</strong><br>
+          Your camera/screen goes to the relay server.
+        </div>
+        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+          <strong style="color:var(--accent);">2. Relay distributes</strong><br>
+          Server sends to the first viewers (has way more bandwidth than you).
+        </div>
+        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+          <strong style="color:var(--accent);">3. Viewers seed</strong><br>
+          Each viewer shares chunks with others. More viewers = more seeds = better for everyone.
+        </div>
+        <div style="padding:0.6rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
+          <strong style="color:var(--accent);">4. You control bandwidth</strong><br>
+          Set how much upload you want to contribute. Gaming? Slide it low. Idle? Crank it up.
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🌐 Stream Servers</h2>
+      <p>Streams are hosted on Humanity Network servers. Verified servers with the Accord get priority listing.</p>
+      <div id="stream-servers" style="margin-top:0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
+          <span style="font-size:1.1rem;">🟢</span>
+          <div>
+            <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);">chat.united-humanity.us · Verified + Accord</div>
+          </div>
+          <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);">0 live</span>
         </div>
       </div>
     </div>
@@ -489,7 +562,7 @@
     // ── Settings ──
     function openSettings(tabId) {
       const overlay = document.getElementById('settings-overlay');
-      const titles = { reality: '🌍 Reality Settings', fantasy: '✨ Fantasy Settings', debug: '🔧 Debug Settings' };
+      const titles = { reality: '🌍 Reality Settings', fantasy: '✨ Fantasy Settings', streams: '📡 Stream Settings', debug: '🔧 Debug Settings' };
       document.getElementById('settings-title').textContent = titles[tabId] || 'Settings';
       document.getElementById('settings-body').textContent = `Settings for ${tabId} tab — coming soon.`;
       overlay.classList.add('open');
@@ -559,6 +632,21 @@
           update();
         }
       }, 100);
+    }
+
+    function toggleGoLive(btn) {
+      if (btn.classList.contains('btn-channeling')) {
+        btn.classList.remove('btn-channeling');
+        btn.classList.add('btn-clickable');
+        btn.textContent = 'Start Stream';
+        document.getElementById('stream-status').textContent = 'Not streaming';
+        document.getElementById('stream-status').style.color = 'var(--text-muted)';
+      } else {
+        btn.classList.remove('btn-clickable');
+        btn.classList.add('btn-channeling');
+        btn.textContent = 'Stop Stream';
+        document.getElementById('stream-status').innerHTML = '<span style="color:#e55;">●</span> Streaming (demo mode)';
+      }
     }
 
     function toggleChannel(btn) {
