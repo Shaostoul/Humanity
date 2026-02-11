@@ -15,6 +15,12 @@
   <meta name="twitter:description" content="Cooperative chat with Ed25519 identity. No accounts. No tracking.">
   <meta name="twitter:image" content="https://united-humanity.us/favicon.png">
   <meta name="theme-color" content="#FF8811">
+  <link rel="manifest" href="/shared/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Humanity">
+  <link rel="apple-touch-icon" href="/shared/icons/icon-192.svg">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
@@ -4662,6 +4668,13 @@ async function importIdentityFromJSON(jsonData) {
     };
   </script>
 
+  <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('SW registered:', reg.scope))
+      .catch(err => console.error('SW failed:', err));
+  }
+  </script>
 
 </body>
 </html>

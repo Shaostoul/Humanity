@@ -1,0 +1,16 @@
+{
+  "name": "Humanity",
+  "short_name": "Humanity",
+  "description": "Cooperative communication platform with cryptographic identity",
+  "start_url": "/chat",
+  "display": "standalone",
+  "background_color": "#0d0d0d",
+  "theme_color": "#FF8811",
+  "orientation": "any",
+  "icons": [
+    { "src": "/shared/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" },
+    { "src": "/shared/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml" },
+    { "src": "/shared/icons/icon-maskable-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "maskable" },
+    { "src": "/shared/icons/icon-maskable-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
