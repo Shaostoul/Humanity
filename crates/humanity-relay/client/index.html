@@ -2046,8 +2046,9 @@
       if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
 
       // Enforce character limit (on user's own text, before adding quote).
-      if (content.length > MAX_MSG_LENGTH) {
-        addSystemMessage(`Message too long (${content.length}/${MAX_MSG_LENGTH} chars). Please shorten it.`);
+      const charLimit = getMaxMsgLength();
+      if (content.length > charLimit) {
+        addSystemMessage(`Message too long (${content.length}/${charLimit} chars). Please shorten it.`);
         return;
       }
 
@@ -3305,7 +3306,11 @@
     });
 
     // Auto-resize + character counter on input.
-    const MAX_MSG_LENGTH = 2000;
+    function getMaxMsgLength() {
+      const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
+      return myRole === 'admin' ? 10000 : 2000;
+    }
+    const MAX_MSG_LENGTH = 2000; // default, updated dynamically
     document.getElementById('msg-input').addEventListener('input', (e) => {
       autoResizeTextarea(e.target);
       updateCharCounter(e.target.value.length);
@@ -3313,11 +3318,12 @@
 
     function updateCharCounter(len) {
       const counter = document.getElementById('char-counter');
+      const limit = getMaxMsgLength();
       // Show counter when within 200 chars of limit.
-      if (len > MAX_MSG_LENGTH - 200) {
+      if (len > limit - 200) {
         counter.style.display = 'block';
-        counter.textContent = `${len} / ${MAX_MSG_LENGTH}`;
-        counter.className = len > MAX_MSG_LENGTH ? 'over' : len > MAX_MSG_LENGTH - 100 ? 'warn' : '';
+        counter.textContent = `${len} / ${limit}`;
+        counter.className = len > limit ? 'over' : len > limit - 100 ? 'warn' : '';
       } else {
         counter.style.display = 'none';
       }

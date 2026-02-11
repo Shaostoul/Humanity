@@ -909,16 +909,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     rl.last_message_time = now;
                                 }
 
-                                // Enforce max message length (2000 chars for user text).
+                                // Enforce max message length (admins: 10000, others: 2000).
                                 // Quotes (lines starting with "> ") are exempt.
+                                let char_limit: usize = if user_role == "admin" { 10_000 } else { 2_000 };
                                 let user_text_len: usize = content.lines()
                                     .filter(|l| !l.starts_with("> "))
                                     .map(|l| l.len() + 1)
                                     .sum();
-                                if user_text_len > 2001 {
+                                if user_text_len > char_limit + 1 {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
-                                        message: format!("Message too long ({} chars, max 2000). Please shorten it.", user_text_len.saturating_sub(1)),
+                                        message: format!("Message too long ({} chars, max {}). Please shorten it.", user_text_len.saturating_sub(1), char_limit),
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
