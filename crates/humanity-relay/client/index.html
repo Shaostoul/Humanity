@@ -1536,6 +1536,7 @@
       <div class="cmd"><code>/revoke &lt;key_prefix&gt;</code> — Remove a lost/stolen device from your name</div>
       <div class="cmd"><code>/users</code> — List all registered users (online/offline)</div>
       <div class="cmd"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+      <div class="cmd"><code>/export</code> — Download your identity backup file</div>
       <div class="cmd"><code>/dm &lt;name&gt; &lt;message&gt;</code> — Send a direct message</div>
       <div class="cmd"><code>/dms</code> — List your DM conversations</div>
       <div class="cmd"><code>/block &lt;name&gt;</code> — Block a user (hides their messages)</div>
@@ -1957,6 +1958,17 @@ async function importIdentityFromJSON(jsonData) {
       document.getElementById('my-sign-status').innerHTML = myIdentity.canSign
         ? '<span style="color:var(--success)">✓ Signing enabled</span>'
         : '<span style="color:var(--warning)">⚠ Unsigned mode</span>';
+
+      // Auto-download identity backup on first registration.
+      if (myIdentity && myIdentity.isNew) {
+        myIdentity.isNew = false; // Only trigger once
+        setTimeout(async () => {
+          const ok = await downloadIdentityBackup(myName);
+          if (ok) {
+            addNotice("⚠️ Save the downloaded file! It's the only way to recover your identity if you clear browser data.", 'yellow', 60);
+          }
+        }, 1500);
+      }
 
       // Request notification permission once.
       requestNotifications();

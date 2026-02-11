@@ -2360,10 +2360,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             // DM open — load conversation history.
                             RelayMessage::DmOpen { partner } => {
-                                // Mark messages from partner as read.
-                                let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
+                                // Resolve both parties by name for multi-key support.
+                                let my_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten();
+                                let partner_name = state_clone.db.name_for_key(&partner).ok().flatten();
 
-                                match state_clone.db.load_dm_conversation(&my_key_for_recv, &partner, 100) {
+                                // Mark messages from partner as read (by name if possible).
+                                if let (Some(pn), Some(mn)) = (&partner_name, &my_name) {
+                                    let _ = state_clone.db.mark_dms_read_by_name(pn, mn);
+                                } else {
+                                    let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
+                                }
+
+                                // Load conversation by name if possible (merges all keys for each user).
+                                let records = if let (Some(mn), Some(pn)) = (&my_name, &partner_name) {
+                                    state_clone.db.load_dm_conversation_by_name(mn, pn, 100)
+                                } else {
+                                    state_clone.db.load_dm_conversation(&my_key_for_recv, &partner, 100)
+                                };
+
+                                match records {
                                     Ok(records) => {
                                         let messages: Vec<DmData> = records.into_iter().map(|r| DmData {
                                             from: r.from_key,
@@ -2388,7 +2403,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             // DM read — mark messages from partner as read.
                             RelayMessage::DmRead { partner } => {
-                                let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
+                                let my_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten();
+                                let partner_name = state_clone.db.name_for_key(&partner).ok().flatten();
+                                if let (Some(pn), Some(mn)) = (&partner_name, &my_name) {
+                                    let _ = state_clone.db.mark_dms_read_by_name(pn, mn);
+                                } else {
+                                    let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
+                                }
                                 send_dm_list_update(&state_clone, &my_key_for_recv);
                             }
                             _ => {
