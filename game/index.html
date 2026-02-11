@@ -319,23 +319,23 @@
 
   <!-- Navigation -->
   <nav>
-    <a href="https://united-humanity.us" class="brand" title="Home">🅷</a>
-    <div class="tab active" onclick="switchTab('chat')">
+    <a href="/" class="brand" title="Home">🅷</a>
+    <div class="tab" data-tab="chat" onclick="switchTab('chat')">
       💬 Chat
     </div>
-    <div class="tab" onclick="switchTab('reality')">
+    <div class="tab" data-tab="reality" onclick="switchTab('reality')">
       🌍 Reality
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('reality')" title="Reality settings">⚙</span>
     </div>
-    <div class="tab" onclick="switchTab('fantasy')">
+    <div class="tab" data-tab="fantasy" onclick="switchTab('fantasy')">
       ✨ Fantasy
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('fantasy')" title="Fantasy settings">⚙</span>
     </div>
-    <div class="tab" onclick="switchTab('streams')">
+    <div class="tab" data-tab="streams" onclick="switchTab('streams')">
       📡 Streams
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('streams')" title="Stream settings">⚙</span>
     </div>
-    <div class="tab" onclick="switchTab('debug')">
+    <div class="tab" data-tab="debug" onclick="switchTab('debug')">
       🔧 Debug
       <span class="tab-settings" onclick="event.stopPropagation();openSettings('debug')" title="Debug settings">⚙</span>
     </div>
@@ -515,7 +515,7 @@
 
   <!-- Chat Tab (embedded) -->
   <div id="tab-chat" class="tab-content active" style="padding:0;">
-    <iframe id="chat-frame" src="https://chat.united-humanity.us" style="width:100%;height:100%;border:none;"></iframe>
+    <iframe id="chat-frame" src="https://chat.united-humanity.us" style="width:100%;height:100%;border:none;" loading="lazy"></iframe>
   </div>
 
   <!-- Streams Tab -->
@@ -591,20 +591,47 @@
 
   <script>
     // ── Tab Switching ──
-    function switchTab(tabId) {
+    const TAB_IDS = ['chat', 'reality', 'fantasy', 'streams', 'debug'];
+
+    function switchTab(tabId, pushState) {
+      if (!TAB_IDS.includes(tabId)) tabId = 'chat';
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('nav .tab').forEach(el => el.classList.remove('active'));
-      document.getElementById('tab-' + tabId).classList.add('active');
-      // Find the nav tab by text content.
+      const tabEl = document.getElementById('tab-' + tabId);
+      if (tabEl) tabEl.classList.add('active');
+      // Highlight the nav tab.
       document.querySelectorAll('nav .tab').forEach(el => {
-        if (el.textContent.trim().toLowerCase().startsWith(tabId)) el.classList.add('active');
+        if (el.dataset.tab === tabId) el.classList.add('active');
       });
       localStorage.setItem('humanity_game_tab', tabId);
+      // Update URL without reload.
+      if (pushState !== false) {
+        const newPath = '/' + tabId;
+        if (window.location.pathname !== newPath) {
+          history.pushState({ tab: tabId }, '', newPath);
+        }
+      }
     }
-    // Restore last tab on reconnect, or user-set default on fresh load.
+
+    // Handle browser back/forward.
+    window.addEventListener('popstate', (e) => {
+      const tab = (e.state && e.state.tab) || getTabFromPath();
+      switchTab(tab, false);
+    });
+
+    // Determine tab from URL path.
+    function getTabFromPath() {
+      const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '').toLowerCase();
+      if (TAB_IDS.includes(path)) return path;
+      if (path === 'game') return localStorage.getItem('humanity_game_tab') || localStorage.getItem('humanity_default_tab') || 'chat';
+      return null;
+    }
+
+    // Initialize: URL path > last tab > user default > chat.
+    const urlTab = getTabFromPath();
     const savedTab = localStorage.getItem('humanity_game_tab');
     const userDefault = localStorage.getItem('humanity_default_tab') || 'chat';
-    switchTab(savedTab || userDefault);
+    switchTab(urlTab || savedTab || userDefault);
 
     // ── Settings ──
     const defaultTab = localStorage.getItem('humanity_default_tab') || 'chat';
