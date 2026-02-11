@@ -13,7 +13,7 @@ This is an open project. It belongs to everyone. Here's how you can help.
 
 **The fastest way to get involved is to show up.**
 
-**[chat.united-humanity.us](https://chat.united-humanity.us)** — Our live chat. No account needed. No tracking. Ed25519 cryptographic identity, encrypted by design. Just open the link and say hello.
+**[united-humanity.us/chat](https://united-humanity.us/chat)** — Our live chat. No account needed. No tracking. Ed25519 cryptographic identity, encrypted by design. Just open the link and say hello.
 
 **[Discord](https://discord.gg/9XxmmeQnWC)** — Longer-form discussion, community coordination, and voice chat.
 
@@ -41,7 +41,7 @@ Humanity speaks many languages. The mission should too.
 ## Where to Start
 
 1. **Join the chat** — ask what needs doing
-   → [chat.united-humanity.us](https://chat.united-humanity.us)
+   → [united-humanity.us/chat](https://united-humanity.us/chat)
 
 2. **Read the Accord** — understand the principles
    → [The Humanity Accord](accord)

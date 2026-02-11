@@ -8,12 +8,12 @@
   <meta property="og:type" content="website">
   <meta property="og:title" content="Humanity Network — Chat">
   <meta property="og:description" content="A cooperative chat platform with cryptographic identity. No accounts, no tracking, no surveillance.">
-  <meta property="og:url" content="https://chat.united-humanity.us">
-  <meta property="og:image" content="https://chat.united-humanity.us/favicon.png">
+  <meta property="og:url" content="https://united-humanity.us/chat">
+  <meta property="og:image" content="https://united-humanity.us/favicon.png">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Humanity Network — Chat">
   <meta name="twitter:description" content="Cooperative chat with Ed25519 identity. No accounts. No tracking.">
-  <meta name="twitter:image" content="https://chat.united-humanity.us/favicon.png">
+  <meta name="twitter:image" content="https://united-humanity.us/favicon.png">
   <meta name="theme-color" content="#FF8811">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
@@ -1373,6 +1373,53 @@
       padding: 0.3rem 0.5rem;
       font-style: italic;
     }
+
+    /* ── Todo Channel Sections ── */
+    .todo-section {
+      border-radius: 8px;
+      padding: 0.6rem 0.8rem;
+      margin: 0.3rem 0;
+    }
+    .todo-section summary {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 0.2rem 0;
+      user-select: none;
+      list-style: none;
+    }
+    .todo-section summary::-webkit-details-marker { display: none; }
+    .todo-section summary::before {
+      content: '▼ ';
+      font-size: 0.7rem;
+      margin-right: 0.3rem;
+      display: inline-block;
+      transition: transform 0.15s;
+    }
+    .todo-section:not([open]) summary::before {
+      transform: rotate(-90deg);
+    }
+    .todo-section .todo-items {
+      padding: 0.3rem 0 0 0.5rem;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .todo-section.todo-active {
+      background: #1a2a4a;
+      border: 1px solid #2a3a5a;
+    }
+    .todo-section.todo-active summary { color: #6ab0ff; }
+    .todo-section.todo-completed {
+      background: #1a3a2a;
+      border: 1px solid #2a4a3a;
+    }
+    .todo-section.todo-completed summary { color: #6adb8a; }
+    .todo-section.todo-inactive {
+      background: #3a1a1a;
+      border: 1px solid #4a2a2a;
+    }
+    .todo-section.todo-inactive summary { color: #db6a6a; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
@@ -2139,6 +2186,17 @@
       const peerRole = (peerData[fromKey] && peerData[fromKey].role) ? peerData[fromKey].role : '';
       const badge = roleBadge(peerRole);
 
+      // Check for todo-channel special rendering.
+      let bodyHtml;
+      const isTodoChannel = activeChannel === 'todo';
+      const isHeronBot = fromKey && fromKey.startsWith('bot_') && (author === 'Heron 🪶' || author === 'Heron');
+      if (isTodoChannel && isHeronBot) {
+        const todoHtml = formatTodoMessage(body);
+        bodyHtml = todoHtml || formatBody(body);
+      } else {
+        bodyHtml = formatBody(body);
+      }
+
       el.innerHTML = `
         <div class="meta">
           ${identiconHtml}
@@ -2146,7 +2204,7 @@
           ${sigBadge}
           <span class="time">${time}</span>
         </div>
-        <div class="body">${formatBody(body)}</div>
+        <div class="body">${bodyHtml}</div>
         <div class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></div>
         ${actions}
       `;
@@ -2538,6 +2596,48 @@
       flushQuote();
 
       return result.join('\n');
+    }
+
+    /**
+     * Format todo-channel messages from Heron bot.
+     * Detects [ACTIVE], [COMPLETED], [INACTIVE] section markers and renders
+     * them as collapsible <details> elements with color-coded backgrounds.
+     */
+    function formatTodoMessage(text) {
+      const sectionRegex = /\[(ACTIVE|COMPLETED|INACTIVE)\]/g;
+      const parts = [];
+      let lastIndex = 0;
+      let match;
+      const matches = [];
+
+      while ((match = sectionRegex.exec(text)) !== null) {
+        matches.push({ type: match[1], index: match.index, end: match.index + match[0].length });
+      }
+
+      if (matches.length === 0) return null; // Not a todo message
+
+      // Text before first section
+      const preamble = text.substring(0, matches[0].index).trim();
+      if (preamble) {
+        parts.push('<div style="margin-bottom:0.4rem;">' + esc(preamble) + '</div>');
+      }
+
+      for (let i = 0; i < matches.length; i++) {
+        const m = matches[i];
+        const nextStart = (i + 1 < matches.length) ? matches[i + 1].index : text.length;
+        const sectionContent = text.substring(m.end, nextStart).trim();
+        const cssClass = 'todo-' + m.type.toLowerCase();
+        const label = m.type.charAt(0) + m.type.slice(1).toLowerCase();
+        const icon = m.type === 'ACTIVE' ? '🔵' : m.type === 'COMPLETED' ? '✅' : '🔴';
+        parts.push(
+          '<details class="todo-section ' + cssClass + '" open>' +
+            '<summary>' + icon + ' ' + esc(label) + '</summary>' +
+            '<div class="todo-items">' + esc(sectionContent) + '</div>' +
+          '</details>'
+        );
+      }
+
+      return parts.join('');
     }
 
     function shortKey(hex) {

@@ -17,7 +17,7 @@ Everything we build is **public domain**. No accounts. No tracking. No gatekeepi
 
 ## Live Now: Humanity Chat
 
-**[chat.united-humanity.us](https://chat.united-humanity.us)**
+**[united-humanity.us/chat](https://united-humanity.us/chat)**
 
 The communication layer comes first. Our chat is live with:
 
@@ -67,7 +67,7 @@ Education is the foundation. Tools are the path. Community is the engine.
 
 This is an open project. It belongs to everyone.
 
-- **Chat:** [chat.united-humanity.us](https://chat.united-humanity.us) — no account needed
+- **Chat:** [united-humanity.us/chat](https://united-humanity.us/chat) — no account needed
 - **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
 - **GitHub:** [Explore the repo](https://github.com/Shaostoul/Humanity)
 - **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)

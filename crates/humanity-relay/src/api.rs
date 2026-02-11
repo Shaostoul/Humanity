@@ -90,10 +90,8 @@ pub async fn send_message(
         return Err((StatusCode::BAD_REQUEST, format!("Channel '{}' does not exist.", channel)));
     }
 
-    // Respect read-only channels for bot messages.
-    if state.db.is_channel_read_only(&channel).unwrap_or(false) {
-        return Err((StatusCode::FORBIDDEN, format!("Channel '{}' is read-only.", channel)));
-    }
+    // Bot API is authenticated with API_SECRET, so it's trusted — skip read-only check.
+    // This allows bots (e.g., Heron) to post to read-only channels like #todo.
 
     let bot_key = format!("bot_{}", req.from_name.to_lowercase().replace(' ', "_"));
 

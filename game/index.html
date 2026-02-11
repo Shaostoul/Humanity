@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Humanity</title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231a1a2e'/%3E%3Ctext x='32' y='46' font-family='Arial,Helvetica,sans-serif' font-weight='bold' font-size='42' fill='%23FF8811' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
   <style>
     :root {
       --bg: #1a1a2e;
@@ -41,15 +40,33 @@
       overflow: hidden;
     }
 
+    /* ── RGB Separator Animation ── */
+    @keyframes rgb-separator {
+      0%   { background: #ff0000; }
+      16%  { background: #ff8800; }
+      33%  { background: #ffff00; }
+      50%  { background: #00ff44; }
+      66%  { background: #0088ff; }
+      83%  { background: #8800ff; }
+      100% { background: #ff0000; }
+    }
+
     /* ── Top Navigation ── */
     nav {
       display: flex;
       align-items: center;
       background: var(--bg-secondary);
-      border-bottom: 1px solid var(--border);
+      border-bottom: none;
       padding: 0 1rem;
       height: 48px;
       gap: 0.25rem;
+      flex-shrink: 0;
+    }
+
+    .nav-separator {
+      height: 2px;
+      width: 100%;
+      animation: rgb-separator 3s linear infinite;
       flex-shrink: 0;
     }
 
@@ -72,18 +89,25 @@
       padding: 0.5rem 1rem;
       color: var(--text-muted);
       cursor: pointer;
-      border-bottom: 2px solid transparent;
+      border-bottom: none;
+      border-radius: 8px;
       font-size: 0.9rem;
-      transition: all 0.15s ease;
+      transition: color 0.15s ease;
       user-select: none;
-      height: 100%;
+      height: auto;
+      margin: 0.25rem 0;
+      background: var(--bg-panel);
+      box-shadow: inset 0 0 0 1px var(--btn-clickable);
     }
-    nav .tab:hover { color: var(--text); background: var(--bg-hover); }
+    nav .tab:hover {
+      color: var(--text);
+      box-shadow: inset 0 0 0 3px var(--btn-hover), 0 0 12px rgba(68, 136, 255, 0.4);
+    }
     nav .tab.active {
       color: #fff;
-      border-bottom: 3px solid var(--accent);
-      background: rgba(224, 112, 32, 0.12);
       font-weight: 700;
+      background: var(--bg-panel);
+      animation: rainbow-shadow 3s linear infinite;
     }
 
     nav .spacer { flex: 1; }
@@ -338,6 +362,7 @@
     <a href="/download" class="nav-link" title="Download app">⬇</a>
     <a href="https://github.com/Shaostoul/Humanity" class="nav-link" target="_blank">📦</a>
   </nav>
+  <div class="nav-separator"></div>
 
   <!-- Reality Tab -->
   <div id="tab-reality" class="tab-content">
@@ -562,7 +587,7 @@
           <span style="font-size:1.1rem;">🟢</span>
           <div>
             <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
-            <div style="font-size:0.7rem;color:var(--text-muted);">chat.united-humanity.us · Verified + Accord</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
           </div>
           <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);">0 live</span>
         </div>

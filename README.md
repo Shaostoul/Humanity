@@ -16,7 +16,7 @@ This project started in 2019 when Michael Boisson, after a near-death experience
 
 ## What's live now
 
-**[chat.united-humanity.us](https://chat.united-humanity.us)** — The Humanity Network chat is live.
+**[united-humanity.us/chat](https://united-humanity.us/chat)** — The Humanity Network chat is live.
 
 **Identity & Privacy:**
 - No accounts, no tracking, no analytics, no IP logging
@@ -121,7 +121,7 @@ Want verified status? Contact [@Shaostoul on X](https://x.com/Shaostoul). Public
 ## Get involved
 
 **Chat with us** — The fastest way to get involved. No account needed.
-→ [chat.united-humanity.us](https://chat.united-humanity.us)
+→ [united-humanity.us/chat](https://united-humanity.us/chat)
 
 **Join the Discord** — Longer-form discussion, community, and coordination.
 → [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC)
@@ -146,7 +146,7 @@ No permission required. No attribution required. This belongs to humanity — pr
 
 ### Project
 - 🌐 **Website:** [united-humanity.us](https://united-humanity.us)
-- 💬 **Humanity Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
+- 💬 **Humanity Chat:** [united-humanity.us/chat](https://united-humanity.us/chat)
 - 📖 **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)
 - 📦 **GitHub:** [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 

@@ -75,7 +75,7 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 - Peer-assisted streaming (many seeds, small slices)
 - Content-addressed file sharing
 
-**It's live now:** [chat.united-humanity.us](https://chat.united-humanity.us)
+**It's live now:** [united-humanity.us/chat](https://united-humanity.us/chat)
 
 ---
 
@@ -94,7 +94,7 @@ That's what I'm here to do.
 ## Connect
 
 ### Project
-- 💬 **Humanity Chat:** [chat.united-humanity.us](https://chat.united-humanity.us)
+- 💬 **Humanity Chat:** [united-humanity.us/chat](https://united-humanity.us/chat)
 - 📖 **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)
 - 📦 **GitHub:** [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 - 💜 **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
