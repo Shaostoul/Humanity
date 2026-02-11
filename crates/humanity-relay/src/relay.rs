@@ -238,6 +238,8 @@ pub enum RelayMessage {
     #[serde(rename = "peer_list")]
     PeerList {
         peers: Vec<PeerInfo>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        server_version: Option<String>,
     },
 
     /// Server error or info.
@@ -608,7 +610,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     })
                     .collect();
 
-                let list_msg = serde_json::to_string(&RelayMessage::PeerList { peers }).unwrap();
+                let list_msg = serde_json::to_string(&RelayMessage::PeerList {
+                    peers,
+                    server_version: Some(env!("BUILD_VERSION").to_string()),
+                }).unwrap();
                 let _ = ws_tx.send(Message::Text(list_msg.into())).await;
 
                 // Send full user list (online + offline) to the new peer.
@@ -2224,7 +2229,7 @@ async fn broadcast_peer_list(state: &Arc<RelayState>) {
             }
         })
         .collect();
-    let _ = state.broadcast_tx.send(RelayMessage::PeerList { peers });
+    let _ = state.broadcast_tx.send(RelayMessage::PeerList { peers, server_version: None });
 }
 
 /// Broadcast the full user list (online + offline) to all connected clients.

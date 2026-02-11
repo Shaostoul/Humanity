@@ -1774,6 +1774,16 @@
           updateInputForChannel();
           break;
         case 'peer_list':
+          // Auto-reload on server update: if server_version changed, refresh for new code.
+          if (msg.server_version) {
+            if (!window._serverVersion) {
+              window._serverVersion = msg.server_version;
+            } else if (window._serverVersion !== msg.server_version) {
+              console.log('Server updated, reloading for new version…');
+              location.reload();
+              return;
+            }
+          }
           // Server sent peer_list = identity accepted!
           if (!identityConfirmed) {
             onIdentityConfirmed();
