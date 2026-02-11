@@ -1184,6 +1184,11 @@
       word-wrap: break-word;
       max-height: 60px;
       overflow: hidden;
+      cursor: pointer;
+      transition: max-height 0.25s ease;
+    }
+    .pin-card.expanded .pin-card-body {
+      max-height: none;
     }
     .pin-card .pin-card-meta {
       font-size: 0.6rem;
@@ -2722,14 +2727,13 @@
         serverSection.style.display = 'block';
         let html = '';
         currentPins.forEach((pin, i) => {
-          const shortContent = pin.content.length > 150 ? pin.content.substring(0, 150) + '…' : pin.content;
           const time = formatTime(pin.original_timestamp);
           const unpinBtn = isStaff
             ? `<button class="pin-unpin" onclick="event.stopPropagation();unpinServer(${i + 1})" title="Unpin">✕</button>`
             : '';
-          html += `<div class="pin-card">${unpinBtn}
+          html += `<div class="pin-card" onclick="this.classList.toggle('expanded')">${unpinBtn}
             <div class="pin-card-author">${esc(pin.from_name)}</div>
-            <div class="pin-card-body">${esc(shortContent)}</div>
+            <div class="pin-card-body">${esc(pin.content)}</div>
             <div class="pin-card-meta">Pinned by ${esc(pin.pinned_by)} · ${time}</div>
           </div>`;
         });
@@ -2744,11 +2748,10 @@
         mySection.style.display = 'block';
         let html = '';
         myPins.forEach((pin, i) => {
-          const shortContent = pin.content.length > 150 ? pin.content.substring(0, 150) + '…' : pin.content;
           const time = formatTime(pin.original_timestamp);
-          html += `<div class="pin-card"><button class="pin-unpin" onclick="event.stopPropagation();removeMyPin(${i})" title="Remove">✕</button>
+          html += `<div class="pin-card" onclick="this.classList.toggle('expanded')"><button class="pin-unpin" onclick="event.stopPropagation();removeMyPin(${i})" title="Remove">✕</button>
             <div class="pin-card-author">${esc(pin.from_name)}</div>
-            <div class="pin-card-body">${esc(shortContent)}</div>
+            <div class="pin-card-body">${esc(pin.content)}</div>
             <div class="pin-card-meta">${time}</div>
           </div>`;
         });
