@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Humanity — Game</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --bg-secondary: #16213e;
+      --bg-panel: #1e1e3a;
+      --bg-hover: #2a2a4a;
+      --border: #2d2d5e;
+      --text: #e0e0e0;
+      --text-muted: #8888aa;
+      --accent: #e07020;
+      --accent-hover: #f08030;
+      --success: #4a8;
+      --error: #e55;
+      --warning: #eb4;
+
+      /* Button state colors */
+      --btn-clickable: #ffffff;
+      --btn-hover: #4488ff;
+      --btn-activated: #ee3333;
+      --btn-disabled: #222222;
+      --btn-cooldown: #8844cc;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top Navigation ── */
+    nav {
+      display: flex;
+      align-items: center;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1rem;
+      height: 48px;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+
+    nav .brand {
+      font-weight: 700;
+      color: var(--accent);
+      font-size: 1.1rem;
+      margin-right: 1.5rem;
+      text-decoration: none;
+    }
+
+    nav .tab {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.5rem 1rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-size: 0.9rem;
+      transition: all 0.15s ease;
+      user-select: none;
+      height: 100%;
+    }
+    nav .tab:hover { color: var(--text); background: var(--bg-hover); }
+    nav .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+    nav .tab .tab-settings {
+      font-size: 0.75rem;
+      opacity: 0.4;
+      cursor: pointer;
+      padding: 0.1rem 0.2rem;
+      border-radius: 3px;
+    }
+    nav .tab .tab-settings:hover { opacity: 0.8; background: var(--bg-hover); }
+
+    nav .spacer { flex: 1; }
+
+    nav .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+    }
+    nav .nav-link:hover { color: var(--text); background: var(--bg-hover); }
+
+    /* ── Tab Content ── */
+    .tab-content {
+      flex: 1;
+      display: none;
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+    .tab-content.active { display: block; }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel h2 {
+      font-size: 1.1rem;
+      color: var(--accent);
+      margin-bottom: 0.8rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.4rem;
+    }
+
+    .panel h3 {
+      font-size: 0.9rem;
+      color: var(--text);
+      margin: 1rem 0 0.5rem;
+    }
+
+    .panel p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .placeholder-text {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.9rem;
+      text-align: center;
+      padding: 3rem 1rem;
+    }
+
+    /* ══════════════════════════════════════════
+       BUTTON DESIGN SYSTEM
+       ══════════════════════════════════════════ */
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 120px;
+      min-height: 44px;
+      padding: 0.5rem 1.2rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--bg-panel);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+      user-select: none;
+      font-family: inherit;
+    }
+
+    /* ── State: Clickable (default) ── */
+    .btn.btn-clickable,
+    .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-channeling):not(.btn-activated) {
+      border: 1px solid var(--btn-clickable);
+    }
+
+    /* ── State: Hovered ── */
+    .btn:not(.btn-disabled):not(.btn-cooldown):hover {
+      border: 3px solid var(--btn-hover);
+      padding: calc(0.5rem - 2px) calc(1.2rem - 2px); /* compensate for border growth */
+      box-shadow: 0 0 8px rgba(68, 136, 255, 0.3);
+    }
+
+    /* ── State: Activated (pressed / active) ── */
+    .btn.btn-activated,
+    .btn:not(.btn-disabled):not(.btn-cooldown):active {
+      border: 5px solid var(--btn-activated) !important;
+      padding: calc(0.5rem - 4px) calc(1.2rem - 4px);
+      box-shadow: 0 0 12px rgba(238, 51, 51, 0.4);
+    }
+
+    /* ── State: Channeling (active/looping — rainbow cycle) ── */
+    .btn.btn-channeling {
+      border: 1px solid;
+      animation: rainbow-border 3s linear infinite;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    @keyframes rainbow-border {
+      0%   { border-color: #ff0000; box-shadow: 0 0 8px rgba(255,0,0,0.3); }
+      16%  { border-color: #ff8800; box-shadow: 0 0 8px rgba(255,136,0,0.3); }
+      33%  { border-color: #ffff00; box-shadow: 0 0 8px rgba(255,255,0,0.3); }
+      50%  { border-color: #00ff44; box-shadow: 0 0 8px rgba(0,255,68,0.3); }
+      66%  { border-color: #0088ff; box-shadow: 0 0 8px rgba(0,136,255,0.3); }
+      83%  { border-color: #8800ff; box-shadow: 0 0 8px rgba(136,0,255,0.3); }
+      100% { border-color: #ff0000; box-shadow: 0 0 8px rgba(255,0,0,0.3); }
+    }
+
+    /* ── State: Disabled (unclickable) ── */
+    .btn.btn-disabled {
+      border: 2px solid var(--btn-disabled);
+      color: var(--text-muted);
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .btn.btn-disabled:hover {
+      border: 2px solid var(--btn-disabled);
+      padding: calc(0.5rem - 1px) calc(1.2rem - 1px);
+      box-shadow: none;
+    }
+
+    /* ── State: Cooldown ── */
+    .btn.btn-cooldown {
+      border: 7px solid var(--btn-cooldown);
+      padding: calc(0.5rem - 6px) calc(1.2rem - 6px);
+      cursor: wait;
+      position: relative;
+      color: var(--text-muted);
+    }
+    .btn.btn-cooldown:hover {
+      border: 7px solid var(--btn-cooldown);
+      padding: calc(0.5rem - 6px) calc(1.2rem - 6px);
+      box-shadow: none;
+    }
+
+    .btn-cooldown-timer {
+      position: absolute;
+      font-size: 0.6rem;
+      font-weight: 700;
+      color: var(--btn-cooldown);
+      background: var(--bg);
+      padding: 0 0.3rem;
+      letter-spacing: 0.05em;
+    }
+    .btn-cooldown-timer.top {
+      top: -7px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    .btn-cooldown-timer.bottom {
+      bottom: -7px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    /* ── Button Grid for Debug ── */
+    .btn-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.2rem;
+      margin: 0.5rem 0;
+      align-items: center;
+    }
+
+    .btn-demo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn-demo .btn-label {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Settings Modal ── */
+    .settings-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 500;
+      align-items: center;
+      justify-content: center;
+    }
+    .settings-overlay.open { display: flex; }
+    .settings-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      min-width: 300px;
+      max-width: 90vw;
+    }
+    .settings-panel h3 {
+      color: var(--accent);
+      margin-bottom: 0.8rem;
+    }
+    .settings-panel .close-btn {
+      float: right;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.2rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 0.4rem 1rem;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-align: center;
+      flex-shrink: 0;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav>
+    <a href="https://united-humanity.us" class="brand">🌍 Humanity</a>
+    <div class="tab active" onclick="switchTab('reality')">
+      Reality
+      <span class="tab-settings" onclick="event.stopPropagation();openSettings('reality')" title="Reality settings">⚙</span>
+    </div>
+    <div class="tab" onclick="switchTab('fantasy')">
+      Fantasy
+      <span class="tab-settings" onclick="event.stopPropagation();openSettings('fantasy')" title="Fantasy settings">⚙</span>
+    </div>
+    <div class="tab" onclick="switchTab('debug')">
+      Debug
+      <span class="tab-settings" onclick="event.stopPropagation();openSettings('debug')" title="Debug settings">⚙</span>
+    </div>
+    <div class="spacer"></div>
+    <a href="https://chat.united-humanity.us" class="nav-link" target="_blank">💬 Chat</a>
+    <a href="https://github.com/Shaostoul/Humanity" class="nav-link" target="_blank">📦 GitHub</a>
+  </nav>
+
+  <!-- Reality Tab -->
+  <div id="tab-reality" class="tab-content active">
+    <div class="panel">
+      <h2>🌍 Reality</h2>
+      <p>The real-world simulation. Homesteading, agriculture, building, health, survival — grounded in actual physics and real data.</p>
+      <p>This is where you learn skills that transfer directly to the physical world.</p>
+      <div class="placeholder-text">
+        🚧 Under construction — game systems loading…
+      </div>
+    </div>
+  </div>
+
+  <!-- Fantasy Tab -->
+  <div id="tab-fantasy" class="tab-content">
+    <div class="panel">
+      <h2>✨ Fantasy</h2>
+      <p>The imaginative space. Same engine, different rules. Magic, alien worlds, impossible physics — creativity unbound.</p>
+      <p>Build what reality won't allow. Test ideas that don't exist yet.</p>
+      <div class="placeholder-text">
+        🚧 Under construction — imagination loading…
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Tab -->
+  <div id="tab-debug" class="tab-content">
+    <div class="panel">
+      <h2>🔧 Debug — Button Design System</h2>
+      <p>Interactive preview of all button states. These are the standard interaction patterns for the entire game UI.</p>
+
+      <h3>All States (static preview)</h3>
+      <div class="btn-grid">
+        <div class="btn-demo">
+          <button class="btn btn-clickable">Clickable</button>
+          <span class="btn-label">Default · 1px white</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-channeling">Channeling</button>
+          <span class="btn-label">Active/looping · 1px rainbow</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-activated">Activated</button>
+          <span class="btn-label">Pressed · 5px red</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-disabled">Disabled</button>
+          <span class="btn-label">Unclickable · 2px black</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-cooldown">
+            Cooldown
+            <span class="btn-cooldown-timer top">3.2s</span>
+            <span class="btn-cooldown-timer bottom">3.2s</span>
+          </button>
+          <span class="btn-label">Waiting · 7px purple + timer</span>
+        </div>
+      </div>
+
+      <h3>Interactive Test — Hover & Click</h3>
+      <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
+      <div class="btn-grid">
+        <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
+        <button class="btn" onclick="testBtnClick(this)">Another Button</button>
+        <button class="btn" onclick="testBtnClick(this)">And Another</button>
+      </div>
+
+      <h3>Toggle Test — Click to Cycle States</h3>
+      <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
+      <div class="btn-grid">
+        <button class="btn btn-clickable" id="cycle-btn-1" onclick="cycleState(this)">Cycle Me</button>
+        <button class="btn btn-clickable" id="cycle-btn-2" onclick="cycleState(this)">Cycle Me Too</button>
+        <button class="btn btn-clickable" id="cycle-btn-3" onclick="cycleState(this)">And Me</button>
+      </div>
+
+      <h3>Cooldown Test — Click to Start 5s Cooldown</h3>
+      <div class="btn-grid">
+        <button class="btn btn-clickable" id="cd-btn-1" onclick="startCooldown(this, 5)">5s Cooldown</button>
+        <button class="btn btn-clickable" id="cd-btn-2" onclick="startCooldown(this, 10)">10s Cooldown</button>
+        <button class="btn btn-clickable" id="cd-btn-3" onclick="startCooldown(this, 3)">3s Cooldown</button>
+      </div>
+
+      <h3>Channeling Test — Click to Start/Stop</h3>
+      <div class="btn-grid">
+        <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
+        <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🎨 Color Reference</h2>
+      <p>The visual language for button borders:</p>
+      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; margin-top: 0.5rem;">
+        <div style="padding:0.5rem;border-left:3px solid #fff;background:rgba(255,255,255,0.03);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#fff;">White 1px</strong> — Clickable / ready
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #222;background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#666;">Black 2px</strong> — Disabled / locked
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
+          <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Overlay -->
+  <div id="settings-overlay" class="settings-overlay" onclick="if(event.target===this)closeSettings()">
+    <div class="settings-panel">
+      <button class="close-btn" onclick="closeSettings()">✕</button>
+      <h3 id="settings-title">Settings</h3>
+      <p id="settings-body" style="color:var(--text-muted);font-size:0.85rem;">Settings for this tab will go here.</p>
+    </div>
+  </div>
+
+  <footer>
+    <a href="https://united-humanity.us">Humanity</a> — Public domain · CC0 1.0 ·
+    <a href="https://chat.united-humanity.us">Chat</a> ·
+    <a href="https://github.com/Shaostoul/Humanity">GitHub</a>
+  </footer>
+
+  <script>
+    // ── Tab Switching ──
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('nav .tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + tabId).classList.add('active');
+      // Find the nav tab by text content.
+      document.querySelectorAll('nav .tab').forEach(el => {
+        if (el.textContent.trim().toLowerCase().startsWith(tabId)) el.classList.add('active');
+      });
+      localStorage.setItem('humanity_game_tab', tabId);
+    }
+    // Restore last tab.
+    const savedTab = localStorage.getItem('humanity_game_tab');
+    if (savedTab) switchTab(savedTab);
+
+    // ── Settings ──
+    function openSettings(tabId) {
+      const overlay = document.getElementById('settings-overlay');
+      const titles = { reality: '🌍 Reality Settings', fantasy: '✨ Fantasy Settings', debug: '🔧 Debug Settings' };
+      document.getElementById('settings-title').textContent = titles[tabId] || 'Settings';
+      document.getElementById('settings-body').textContent = `Settings for ${tabId} tab — coming soon.`;
+      overlay.classList.add('open');
+    }
+    function closeSettings() {
+      document.getElementById('settings-overlay').classList.remove('open');
+    }
+
+    // ── Button Test Functions ──
+    function testBtnClick(btn) {
+      btn.textContent = '✓ Clicked!';
+      setTimeout(() => { btn.textContent = 'Hover / Click Me'; }, 800);
+    }
+
+    const states = ['btn-clickable', 'btn-channeling', 'btn-activated', 'btn-cooldown', 'btn-disabled'];
+    function cycleState(btn) {
+      const current = states.find(s => btn.classList.contains(s)) || 'btn-clickable';
+      const idx = states.indexOf(current);
+      const next = states[(idx + 1) % states.length];
+      states.forEach(s => btn.classList.remove(s));
+      btn.classList.add(next);
+      // Remove old cooldown timers.
+      btn.querySelectorAll('.btn-cooldown-timer').forEach(t => t.remove());
+      if (next === 'btn-cooldown') {
+        btn.innerHTML = btn.textContent.replace(/[\d.]+s/g, '').trim();
+        const topT = document.createElement('span');
+        topT.className = 'btn-cooldown-timer top';
+        topT.textContent = '∞';
+        const botT = document.createElement('span');
+        botT.className = 'btn-cooldown-timer bottom';
+        botT.textContent = '∞';
+        btn.appendChild(topT);
+        btn.appendChild(botT);
+      }
+    }
+
+    function startCooldown(btn, seconds) {
+      if (btn.classList.contains('btn-cooldown')) return;
+      const originalText = btn.textContent;
+      btn.classList.remove('btn-clickable');
+      btn.classList.add('btn-cooldown');
+
+      const topT = document.createElement('span');
+      topT.className = 'btn-cooldown-timer top';
+      const botT = document.createElement('span');
+      botT.className = 'btn-cooldown-timer bottom';
+      btn.appendChild(topT);
+      btn.appendChild(botT);
+
+      let remaining = seconds;
+      const update = () => {
+        topT.textContent = remaining.toFixed(1) + 's';
+        botT.textContent = remaining.toFixed(1) + 's';
+      };
+      update();
+
+      const interval = setInterval(() => {
+        remaining -= 0.1;
+        if (remaining <= 0) {
+          clearInterval(interval);
+          btn.classList.remove('btn-cooldown');
+          btn.classList.add('btn-clickable');
+          topT.remove();
+          botT.remove();
+          btn.textContent = originalText;
+        } else {
+          update();
+        }
+      }, 100);
+    }
+
+    function toggleChannel(btn) {
+      if (btn.classList.contains('btn-channeling')) {
+        btn.classList.remove('btn-channeling');
+        btn.classList.add('btn-clickable');
+        btn.textContent = btn.textContent.replace('Stop', 'Channel');
+      } else {
+        btn.classList.remove('btn-clickable');
+        btn.classList.add('btn-channeling');
+        btn.textContent = btn.textContent.replace('Channel', 'Stop');
+      }
+    }
+  </script>
+</body>
+</html>
