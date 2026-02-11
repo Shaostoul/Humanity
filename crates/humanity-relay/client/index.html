@@ -1518,9 +1518,12 @@
     const savedName = localStorage.getItem('humanity_name');
     if (savedName) {
       document.getElementById('name-input').value = savedName;
-      // Auto-login: if user has a saved name, connect immediately.
-      // They've already confirmed 18+ by entering the first time.
-      setTimeout(() => connect(), 100);
+      // Skip login screen immediately — show chat with "Connecting..." status.
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('chat-screen').style.display = 'flex';
+      setStatus('reconnecting', 'Connecting…');
+      // Auto-connect after a tick (let DOM settle).
+      setTimeout(() => connect(), 50);
     }
 
     let pendingLinkCode = null;
@@ -1807,12 +1810,13 @@
           // Server sent peer_list = identity accepted!
           if (!identityConfirmed) {
             onIdentityConfirmed();
-            setStatus('connected', 'Connected');
-            document.getElementById('msg-input').disabled = false;
-            document.getElementById('send-btn').disabled = false;
-            document.getElementById('msg-input').focus();
-            updateStats();
           }
+          // Always re-enable input and update status (handles reconnects too).
+          setStatus('connected', 'Connected');
+          document.getElementById('msg-input').disabled = false;
+          document.getElementById('send-btn').disabled = false;
+          document.getElementById('msg-input').focus();
+          updateStats();
           updatePeerList(msg.peers);
           break;
         case 'full_user_list':
