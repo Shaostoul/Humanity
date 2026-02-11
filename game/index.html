@@ -158,79 +158,70 @@
       font-weight: 600;
       color: var(--text);
       background: var(--bg-panel);
+      border: none;
       border-radius: 8px;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: box-shadow 0.15s ease;
       position: relative;
       user-select: none;
       font-family: inherit;
+      /* All visual borders use box-shadow inset — zero layout shift */
+      box-shadow: inset 0 0 0 1px var(--btn-clickable);
     }
 
     /* ── State: Clickable (default) ── */
     .btn.btn-clickable,
     .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-channeling):not(.btn-activated) {
-      border: 1px solid var(--btn-clickable);
+      box-shadow: inset 0 0 0 1px var(--btn-clickable);
     }
 
     /* ── State: Hovered ── */
     .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-activated):hover {
-      border: 3px solid var(--btn-hover) !important;
-      padding: calc(0.5rem - 2px) calc(1.2rem - 2px);
-      box-shadow: 0 0 12px rgba(68, 136, 255, 0.4);
-      animation: none; /* pause rainbow on hover */
+      box-shadow: inset 0 0 0 3px var(--btn-hover), 0 0 12px rgba(68, 136, 255, 0.4) !important;
+      animation: none;
     }
 
     /* ── State: Activated (pressed / active) ── */
     .btn.btn-activated,
     .btn:not(.btn-disabled):not(.btn-cooldown):active {
-      border: 5px solid var(--btn-activated) !important;
-      padding: calc(0.5rem - 4px) calc(1.2rem - 4px);
-      box-shadow: 0 0 12px rgba(238, 51, 51, 0.4);
+      box-shadow: inset 0 0 0 5px var(--btn-activated), 0 0 12px rgba(238, 51, 51, 0.4) !important;
       animation: none;
     }
 
     /* ── State: Channeling (active/looping — rainbow cycle) ── */
     .btn.btn-channeling {
-      border: 1px solid;
-      animation: rainbow-border 3s linear infinite;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+      animation: rainbow-shadow 3s linear infinite;
     }
 
-    @keyframes rainbow-border {
-      0%   { border-color: #ff0000; box-shadow: 0 0 8px rgba(255,0,0,0.3); }
-      16%  { border-color: #ff8800; box-shadow: 0 0 8px rgba(255,136,0,0.3); }
-      33%  { border-color: #ffff00; box-shadow: 0 0 8px rgba(255,255,0,0.3); }
-      50%  { border-color: #00ff44; box-shadow: 0 0 8px rgba(0,255,68,0.3); }
-      66%  { border-color: #0088ff; box-shadow: 0 0 8px rgba(0,136,255,0.3); }
-      83%  { border-color: #8800ff; box-shadow: 0 0 8px rgba(136,0,255,0.3); }
-      100% { border-color: #ff0000; box-shadow: 0 0 8px rgba(255,0,0,0.3); }
+    @keyframes rainbow-shadow {
+      0%   { box-shadow: inset 0 0 0 1px #ff0000, 0 0 8px rgba(255,0,0,0.3); }
+      16%  { box-shadow: inset 0 0 0 1px #ff8800, 0 0 8px rgba(255,136,0,0.3); }
+      33%  { box-shadow: inset 0 0 0 1px #ffff00, 0 0 8px rgba(255,255,0,0.3); }
+      50%  { box-shadow: inset 0 0 0 1px #00ff44, 0 0 8px rgba(0,255,68,0.3); }
+      66%  { box-shadow: inset 0 0 0 1px #0088ff, 0 0 8px rgba(0,136,255,0.3); }
+      83%  { box-shadow: inset 0 0 0 1px #8800ff, 0 0 8px rgba(136,0,255,0.3); }
+      100% { box-shadow: inset 0 0 0 1px #ff0000, 0 0 8px rgba(255,0,0,0.3); }
     }
 
     /* ── State: Disabled (unclickable) ── */
     .btn.btn-disabled {
-      border: 2px solid var(--btn-disabled);
+      box-shadow: inset 0 0 0 2px var(--btn-disabled);
       color: var(--text-muted);
       opacity: 0.5;
       cursor: not-allowed;
     }
     .btn.btn-disabled:hover {
-      border: 2px solid var(--btn-disabled);
-      padding: calc(0.5rem - 1px) calc(1.2rem - 1px);
-      box-shadow: none;
+      box-shadow: inset 0 0 0 2px var(--btn-disabled) !important;
     }
 
     /* ── State: Cooldown ── */
     .btn.btn-cooldown {
-      border: 7px solid var(--btn-cooldown);
-      padding: calc(0.5rem - 6px) calc(1.2rem - 6px);
+      box-shadow: inset 0 0 0 7px var(--btn-cooldown);
       cursor: wait;
-      position: relative;
       color: var(--text-muted);
     }
     .btn.btn-cooldown:hover {
-      border: 7px solid var(--btn-cooldown);
-      padding: calc(0.5rem - 6px) calc(1.2rem - 6px);
-      box-shadow: none;
+      box-shadow: inset 0 0 0 7px var(--btn-cooldown) !important;
     }
 
     .btn-cooldown-timer {
@@ -238,17 +229,17 @@
       font-size: 0.6rem;
       font-weight: 700;
       color: var(--btn-cooldown);
-      background: var(--bg);
+      background: var(--bg-panel);
       padding: 0 0.3rem;
       letter-spacing: 0.05em;
     }
     .btn-cooldown-timer.top {
-      top: -7px;
+      top: -2px;
       left: 50%;
       transform: translateX(-50%);
     }
     .btn-cooldown-timer.bottom {
-      bottom: -7px;
+      bottom: -2px;
       left: 50%;
       transform: translateX(-50%);
     }
