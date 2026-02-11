@@ -940,6 +940,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 "  /revoke <key_prefix> — Remove a stolen/lost device from your name".to_string(),
                                                 "  /users — List all registered users (online/offline)".to_string(),
                                                 "  /report <name> [reason] — Report a user".to_string(),
+                                                "  /dm <name> <message> — Send a direct message".to_string(),
+                                                "  /dms — List your DM conversations".to_string(),
+                                                "  /edit <text> — Edit your last message".to_string(),
+                                                "  /pins — List pinned messages".to_string(),
                                             ];
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("".to_string());
@@ -947,6 +951,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 help_text.push("  /kick <name> — Disconnect a user".to_string());
                                                 help_text.push("  /mute <name> — Mute a user".to_string());
                                                 help_text.push("  /unmute <name> — Unmute a user".to_string());
+                                                help_text.push("  /pin — Pin the last message in the channel".to_string());
+                                                help_text.push("  /unpin <N> — Unpin a message by its index".to_string());
                                             }
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("  /invite — Generate a one-time invite code for lockdown bypass".to_string());
@@ -1726,18 +1732,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             } else {
                                                 // Find user's last message in this channel.
                                                 let ch = if channel.is_empty() { "general".to_string() } else { channel.clone() };
-                                                // We need to find the timestamp of the user's last message.
-                                                // Query DB for this.
-                                                let conn_result = {
-                                                    let conn = state_clone.db.conn.lock().unwrap();
-                                                    conn.query_row(
-                                                        "SELECT timestamp FROM messages WHERE from_key = ?1 AND channel_id = ?2 AND msg_type = 'chat' ORDER BY id DESC LIMIT 1",
-                                                        rusqlite::params![&my_key_for_recv, &ch],
-                                                        |row| row.get::<_, i64>(0),
-                                                    ).ok()
-                                                };
-                                                if let Some(ts) = conn_result {
-                                                    let ts = ts as u64;
+                                                let last_ts = state_clone.db.get_last_user_message_timestamp(&my_key_for_recv, &ch).unwrap_or(None);
+                                                if let Some(ts) = last_ts {
                                                     match state_clone.db.edit_message(&my_key_for_recv, ts, &new_content) {
                                                         Ok(true) => {
                                                             let edit = RelayMessage::Edit {
@@ -1870,6 +1866,40 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     timestamp,
                                 };
                                 let _ = state_clone.broadcast_tx.send(del);
+                            }
+                            // Edit own message — validate and broadcast.
+                            RelayMessage::Edit { timestamp, new_content, channel: edit_channel, .. } => {
+                                // Validate: content not empty, <= 2000 chars.
+                                if new_content.is_empty() || new_content.len() > 2000 {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Edit failed: message must be 1-2000 characters.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    match state_clone.db.edit_message(&my_key_for_recv, timestamp, &new_content) {
+                                        Ok(true) => {
+                                            let ch = if edit_channel.is_empty() { "general".to_string() } else { edit_channel };
+                                            let edit = RelayMessage::Edit {
+                                                from: my_key_for_recv.clone(),
+                                                timestamp,
+                                                new_content,
+                                                channel: ch,
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(edit);
+                                        }
+                                        Ok(false) => {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Edit failed: message not found or not yours.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Failed to edit message: {e}");
+                                        }
+                                    }
+                                }
                             }
                             // Profile update — save and broadcast.
                             RelayMessage::ProfileUpdate { bio, socials } => {
@@ -2005,15 +2035,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
                                 }
-                                // Check target exists.
-                                let target_exists = {
-                                    let peers = state_clone.peers.read().await;
-                                    peers.contains_key(&to)
-                                } || state_clone.db.keys_for_name("").is_ok(); // We'll check by key
-                                // Better: check if the key is in registered_names.
-                                // For simplicity, just check if any registered name has this key.
-                                // Actually, just let it through — if the key doesn't exist, the DM is just stored.
-
                                 // Rate limiting (same as chat).
                                 let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if user_role == "muted" {

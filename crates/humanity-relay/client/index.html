@@ -1059,6 +1059,176 @@
       font-style: italic;
       margin: 0.75rem 0;
     }
+
+    /* ── Edited marker ── */
+    .edited-marker {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-left: 0.3rem;
+    }
+
+    /* ── Edit mode (inline editing) ── */
+    .edit-area {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-top: 0.2rem;
+    }
+    .edit-area textarea {
+      background: var(--bg-input);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 36px;
+      outline: none;
+    }
+    .edit-area .edit-buttons {
+      display: flex;
+      gap: 0.3rem;
+      justify-content: flex-end;
+    }
+    .edit-area .edit-buttons button {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    .edit-area .edit-save {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .edit-area .edit-save:hover { background: var(--accent-hover); }
+    .edit-area .edit-cancel {
+      background: var(--bg-input);
+      color: var(--text-muted);
+    }
+    .edit-area .edit-cancel:hover { color: var(--text); }
+
+    /* ── Pin Bar ── */
+    #pin-bar {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+      cursor: pointer;
+      display: none;
+      user-select: none;
+    }
+    #pin-bar:hover { background: var(--bg-hover); }
+    #pin-bar .pin-summary {
+      color: var(--text-muted);
+    }
+    #pin-bar .pin-summary .pin-icon { color: var(--accent); }
+
+    #pin-list {
+      display: none;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 0.5rem 0.75rem;
+    }
+    #pin-list.open { display: block; }
+
+    .pin-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.6rem;
+      margin-bottom: 0.35rem;
+      font-size: 0.8rem;
+    }
+    .pin-card .pin-card-author {
+      font-weight: 600;
+      color: var(--accent);
+      font-size: 0.75rem;
+    }
+    .pin-card .pin-card-body {
+      color: var(--text);
+      margin-top: 0.15rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 60px;
+      overflow: hidden;
+    }
+    .pin-card .pin-card-meta {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      margin-top: 0.15rem;
+    }
+
+    /* ── @Mentions ── */
+    .mention {
+      background: rgba(224,112,32,0.15);
+      color: var(--accent);
+      padding: 0 0.2rem;
+      border-radius: 3px;
+    }
+    .mention-me {
+      background: rgba(224,112,32,0.3);
+    }
+
+    /* ── DM Section ── */
+    .dm-section h4 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 0.75rem;
+      margin-bottom: 0.3rem;
+      letter-spacing: 0.08em;
+    }
+    .dm-item {
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .dm-item:hover { background: var(--bg-hover); }
+    .dm-item.active {
+      background: var(--accent-dim);
+    }
+    .dm-item .dm-name {
+      font-weight: 600;
+      color: var(--text);
+      flex: 1;
+      min-width: 0;
+    }
+    .dm-item .dm-preview {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 120px;
+    }
+    .dm-item .dm-unread {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+    .dm-item .dm-time {
+      font-size: 0.6rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* DM message visual distinction */
+    .message.dm-message {
+      border-left: 3px solid var(--accent);
+      background: rgba(224,112,32,0.04);
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
@@ -1113,9 +1283,17 @@
         </div>
         <h3>Channels</h3>
         <div id="channel-list"></div>
+        <div class="dm-section">
+          <h4>Direct Messages</h4>
+          <div id="dm-list"></div>
+        </div>
       </div>
       <div id="chat-area">
         <div id="channel-header"></div>
+        <div id="pin-bar" onclick="togglePinList()">
+          <span class="pin-summary"><span class="pin-icon">📌</span> <span id="pin-count">0</span> pinned message(s) — click to expand</span>
+        </div>
+        <div id="pin-list"></div>
         <div id="messages"></div>
         <div id="typing-indicator"></div>
         <div id="reply-bar" style="display:none;">
@@ -1160,7 +1338,14 @@
       <div class="cmd"><code>~~strike~~</code> → <del>strike</del></div>
       <div class="cmd"><code>`code`</code> → <code style="background:var(--bg-hover);padding:0.1rem 0.3rem;border-radius:3px;">code</code></div>
       <div class="cmd">Click ↩ on a message to quote-reply</div>
+      <div class="cmd">Click ✏️ on your own message to edit it</div>
+      <div class="cmd"><code>/edit &lt;text&gt;</code> — Edit your last message</div>
       <div class="cmd">Paste or drag an image to upload</div>
+
+      <h4>📌 Pins</h4>
+      <div class="cmd"><code>/pins</code> — List pinned messages in this channel</div>
+      <div class="cmd"><code>/pin</code> — Pin the last message (mod/admin)</div>
+      <div class="cmd"><code>/unpin &lt;N&gt;</code> — Unpin message by index (mod/admin)</div>
 
       <h4>🛡️ Moderator Commands</h4>
       <div class="cmd"><code>/kick &lt;name&gt;</code> — Disconnect a user</div>
@@ -1345,6 +1530,9 @@
       document.getElementById('my-sign-status').innerHTML = myIdentity.canSign
         ? '<span style="color:var(--success)">✓ Signing enabled</span>'
         : '<span style="color:var(--warning)">⚠ Unsigned mode</span>';
+
+      // Request notification permission once.
+      requestNotifications();
 
       // Sync profile to server on connect.
       try { syncProfileOnConnect(); } catch (e) { console.warn('Profile sync error:', e); }
@@ -1919,6 +2107,13 @@
       // `inline code`
       safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
 
+      // @mentions — highlight usernames.
+      safe = safe.replace(/@([A-Za-z0-9_-]+)/g, (match, name) => {
+        const isMe = myName && name.toLowerCase() === myName.toLowerCase();
+        const cls = isMe ? 'mention mention-me' : 'mention';
+        return `<span class="${cls}">@${esc(name)}</span>`;
+      });
+
       // Group consecutive "> " lines into a single quote block.
       const lines = safe.split('\n');
       let result = [];
@@ -2291,19 +2486,54 @@
     // Enter to send is handled on #msg-input directly (see below).
 
     // ── Notifications ──
-    let windowFocused = true;
+    let windowFocused = document.hasFocus();
     let unreadCount = 0;
     const originalTitle = document.title;
+    let titleFlashInterval = null;
+
+    function startTitleFlash() {
+      if (titleFlashInterval) return;
+      titleFlashInterval = setInterval(() => {
+        document.title = document.title === originalTitle
+          ? `(${unreadCount}) New Messages`
+          : originalTitle;
+      }, 2000);
+    }
+
+    function stopTitleFlash() {
+      if (titleFlashInterval) {
+        clearInterval(titleFlashInterval);
+        titleFlashInterval = null;
+      }
+      document.title = originalTitle;
+    }
 
     window.addEventListener('focus', () => {
       windowFocused = true;
       unreadCount = 0;
-      document.title = originalTitle;
+      stopTitleFlash();
     });
 
     window.addEventListener('blur', () => {
       windowFocused = false;
     });
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        windowFocused = true;
+        unreadCount = 0;
+        stopTitleFlash();
+      } else {
+        windowFocused = false;
+      }
+    });
+
+    /** Check if a message content mentions the current user. */
+    function isMentioned(content) {
+      if (!myName) return false;
+      const pattern = new RegExp('@' + myName.replace(/[-_]/g, '[-_]'), 'i');
+      return pattern.test(content);
+    }
 
     // ── Notification Sound (synthesized chime) ──
     let audioCtx = null;
@@ -2329,40 +2559,43 @@
       } catch (e) { /* Audio not available */ }
     }
 
-    function notifyNewMessage(author, content) {
-      if (windowFocused) return;
-      unreadCount++;
-      document.title = `(${unreadCount}) ${originalTitle}`;
+    function notifyNewMessage(author, content, isDm) {
+      const mentioned = isMentioned(content);
 
-      playNotificationChime();
+      if (!windowFocused) {
+        unreadCount++;
+        startTitleFlash();
+      }
+
+      // Always notify on @mention or DM, even if focused.
+      if (mentioned || isDm || !windowFocused) {
+        playNotificationChime();
+      }
 
       // Browser notification (if permitted).
-      if (Notification.permission === 'granted') {
-        new Notification(author, { body: content, icon: '🌍', tag: 'humanity-msg' });
+      if (Notification.permission === 'granted' && (!windowFocused || mentioned || isDm)) {
+        const prefix = isDm ? '💬 DM from ' : '';
+        const n = new Notification(prefix + author, {
+          body: content.substring(0, 100),
+          icon: '/favicon.png',
+          tag: isDm ? 'humanity-dm' : 'humanity-msg',
+        });
+        n.onclick = () => {
+          window.focus();
+          n.close();
+        };
       }
     }
 
-    // Request notification permission (non-blocking).
-    if ('Notification' in window && Notification.permission === 'default') {
-      // We'll ask on first message send so it's not jarring on page load.
-    }
-
+    // Request notification permission (once, stored in localStorage).
     function requestNotifications() {
       if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
+        if (!localStorage.getItem('humanity_notif_asked')) {
+          Notification.requestPermission();
+          localStorage.setItem('humanity_notif_asked', '1');
+        }
       }
     }
-
-    // Patch sendMessage to request notification permission on first use.
-    let notifRequested = false;
-    const _origSendMessage = sendMessage;
-    sendMessage = async function() {
-      if (!notifRequested) {
-        requestNotifications();
-        notifRequested = true;
-      }
-      await _origSendMessage();
-    };
 
     // Hook into message rendering to trigger notifications and update last-seen.
     const _origHandleMessage = handleMessage;
@@ -2371,9 +2604,9 @@
       if (msg.type === 'chat') {
         // Update last-seen timestamp.
         localStorage.setItem('humanity_last_seen', String(msg.timestamp));
-        // Notify if from someone else and tab not focused.
+        // Notify if from someone else.
         if (msg.from !== myKey) {
-          notifyNewMessage(msg.from_name || 'Someone', msg.content);
+          notifyNewMessage(msg.from_name || 'Someone', msg.content, false);
         }
       }
     };
@@ -2910,8 +3143,122 @@
           return;
         }
       }
+      // If in DM view, send as DM instead of chat.
+      if (activeDmPartner) {
+        const input = document.getElementById('msg-input');
+        const val = input.value.trim();
+        if (val && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'dm',
+            from: myKey,
+            from_name: myName,
+            to: activeDmPartner,
+            content: val,
+            timestamp: Date.now(),
+          }));
+          // Show locally immediately.
+          addDmMessage(myName, val, Date.now(), myKey, activeDmPartner);
+          input.value = '';
+          input.style.height = 'auto';
+        }
+        return;
+      }
       await _origSendMessage2();
     };
+
+    // ── DM State ──
+    let activeDmPartner = null; // Public key of active DM partner, or null for channel view.
+    let activeDmPartnerName = '';
+    let dmConversations = []; // Array of { partner_key, partner_name, last_message, last_timestamp, unread_count }
+
+    /** Switch to DM conversation view. */
+    function openDmConversation(partnerKey, partnerName) {
+      activeDmPartner = partnerKey;
+      activeDmPartnerName = partnerName;
+
+      // Update sidebar highlighting.
+      renderDmList();
+      renderChannelList(); // Deselect channels
+
+      // Update channel header.
+      const header = document.getElementById('channel-header');
+      header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">💬 ${esc(partnerName)}</span>`;
+      header.style.display = 'block';
+
+      // Clear messages area.
+      document.getElementById('messages').innerHTML = '';
+
+      // Enable input.
+      const input = document.getElementById('msg-input');
+      input.disabled = false;
+      input.placeholder = `Message ${partnerName}…`;
+      document.getElementById('send-btn').disabled = false;
+
+      // Request DM history from server.
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'dm_open', partner: partnerKey }));
+      }
+
+      if (isMobile()) closeSidebars();
+    }
+
+    /** Close DM view and return to channel view. */
+    function closeDmView() {
+      activeDmPartner = null;
+      activeDmPartnerName = '';
+      renderDmList();
+      switchChannel(activeChannel);
+    }
+
+    /** Add a DM message to the message area. */
+    function addDmMessage(author, body, timestamp, fromKey, toKey) {
+      const el = document.createElement('div');
+      el.className = 'message dm-message';
+      el.dataset.from = fromKey;
+      el.dataset.timestamp = timestamp;
+
+      const time = formatTime(timestamp);
+      const isMe = fromKey === myKey;
+
+      const identiconSrc = (fromKey && !fromKey.startsWith('bot_')) ? generateIdenticon(fromKey, 20) : '';
+      const identiconHtml = identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '';
+
+      el.innerHTML = `
+        <div class="meta">
+          ${identiconHtml}
+          <span class="author${isMe ? ' you' : ''}">${esc(author)}</span>
+          <span class="time">${time}</span>
+        </div>
+        <div class="body">${formatBody(body)}</div>
+      `;
+
+      appendMessage(el);
+      if (window.twemoji) twemoji.parse(el);
+    }
+
+    /** Render the DM conversation list in the sidebar. */
+    function renderDmList() {
+      const list = document.getElementById('dm-list');
+      if (dmConversations.length === 0) {
+        list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:0.3rem 0.5rem;">No conversations yet</div>';
+        return;
+      }
+
+      list.innerHTML = dmConversations.map(c => {
+        const isActive = activeDmPartner === c.partner_key;
+        const unread = c.unread_count > 0 ? '<span class="dm-unread"></span>' : '';
+        const preview = c.last_message.length > 30 ? c.last_message.substring(0, 30) + '…' : c.last_message;
+        const timeStr = formatTime(c.last_timestamp);
+        return `<div class="dm-item${isActive ? ' active' : ''}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">
+          <div style="flex:1;min-width:0;">
+            <div class="dm-name">${esc(c.partner_name)} ${unread}</div>
+            <div class="dm-preview">${esc(preview)}</div>
+          </div>
+          <div class="dm-time">${timeStr}</div>
+        </div>`;
+      }).join('');
+      if (window.twemoji) twemoji.parse(list);
+    }
 
     // ── Mobile Sidebar Management ──
     function isMobile() {

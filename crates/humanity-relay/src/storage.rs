@@ -1271,6 +1271,20 @@ impl Storage {
         }
     }
 
+    /// Get the timestamp of a user's last message in a specific channel.
+    pub fn get_last_user_message_timestamp(&self, from_key: &str, channel_id: &str) -> Result<Option<u64>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT timestamp FROM messages WHERE from_key = ?1 AND channel_id = ?2 AND msg_type = 'chat' ORDER BY id DESC LIMIT 1",
+            params![from_key, channel_id],
+            |row| row.get::<_, i64>(0),
+        ) {
+            Ok(ts) => Ok(Some(ts as u64)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// List all registered users with their first public key.
     /// Returns Vec<(name, first_key, role, key_count)> sorted alphabetically.
     pub fn list_all_users_with_keys(&self) -> Result<Vec<(String, String, String, usize)>, rusqlite::Error> {

@@ -482,6 +482,55 @@ pub async fn get_reactions(
     }
 }
 
+/// Query params for GET /api/pins.
+#[derive(Debug, Deserialize)]
+pub struct PinsQuery {
+    /// Channel to fetch pins from (default: general).
+    pub channel: Option<String>,
+}
+
+/// Response for GET /api/pins.
+#[derive(Debug, Serialize)]
+pub struct PinsResponse {
+    pub pins: Vec<PinEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PinEntry {
+    pub from_key: String,
+    pub from_name: String,
+    pub content: String,
+    pub original_timestamp: u64,
+    pub pinned_by: String,
+    pub pinned_at: u64,
+}
+
+/// GET /api/pins — load pinned messages for a channel.
+pub async fn get_pins(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<PinsQuery>,
+) -> Json<PinsResponse> {
+    let channel = params.channel.as_deref().unwrap_or("general");
+
+    match state.db.get_pinned_messages(channel) {
+        Ok(records) => {
+            let pins = records.into_iter().map(|r| PinEntry {
+                from_key: r.from_key,
+                from_name: r.from_name,
+                content: r.content,
+                original_timestamp: r.original_timestamp,
+                pinned_by: r.pinned_by,
+                pinned_at: r.pinned_at,
+            }).collect();
+            Json(PinsResponse { pins })
+        }
+        Err(e) => {
+            tracing::error!("Failed to load pins: {e}");
+            Json(PinsResponse { pins: vec![] })
+        }
+    }
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,
