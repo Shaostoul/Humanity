@@ -43,6 +43,7 @@
       color: var(--text);
       line-height: 1.7;
       min-height: 100vh;
+      padding-bottom: 80px;
     }
 
     a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
@@ -349,23 +350,60 @@
       flex-wrap: wrap;
     }
 
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 40px 0;
+    /* Collapsible Footer */
+    .site-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(13, 13, 13, 0.95);
+      backdrop-filter: blur(12px);
+      border-top: 1px solid #333;
+      z-index: 100;
       text-align: center;
-      color: var(--text-muted);
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+      color: #888;
+      transition: transform 0.3s ease;
     }
-    footer p { margin-bottom: 12px; }
-    footer .footer-links {
+    .site-footer.collapsed .footer-content {
+      display: none;
+    }
+    .site-footer .footer-content {
+      padding: 10px 16px;
+    }
+    .site-footer .footer-links {
       display: flex;
-      gap: 20px;
+      gap: 16px;
       justify-content: center;
       flex-wrap: wrap;
+      margin-top: 6px;
     }
-    footer .footer-links a { color: var(--text-muted); }
-    footer .footer-links a:hover { color: var(--accent); }
+    .site-footer .footer-links a {
+      color: #888;
+      text-decoration: none;
+      font-size: 0.8rem;
+    }
+    .site-footer .footer-links a:hover {
+      color: #FF8811;
+    }
+    .footer-toggle {
+      position: absolute;
+      top: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(13, 13, 13, 0.95);
+      border: 1px solid #333;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      color: #888;
+      cursor: pointer;
+      padding: 2px 16px;
+      font-size: 0.7rem;
+      z-index: 101;
+    }
+    .footer-toggle:hover {
+      color: #FF8811;
+    }
 
     /* Mobile */
     @media (max-width: 600px) {
@@ -536,24 +574,39 @@
     </div>
   </section>
 
-  <footer>
-    <div class="container">
-      <p>Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a> · No permission required</p>
+  <footer class="site-footer" id="site-footer">
+    <button class="footer-toggle" id="footer-toggle" onclick="toggleFooter()">▼</button>
+    <div class="footer-content" id="footer-content">
+      <span>Humanity — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>
       <div class="footer-links">
-        <a href="https://united-humanity.us">Website</a>
+        <a href="/">Home</a>
         <a href="/chat">Chat</a>
-        <a href="https://shaostoul.github.io/Humanity" target="_blank" rel="noopener">Docs</a>
-        <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">GitHub</a>
-        <a href="https://discord.gg/9XxmmeQnWC" target="_blank" rel="noopener">Discord</a>
-        <a href="https://youtube.com/@Shaostoul" target="_blank" rel="noopener">YouTube</a>
-        <a href="https://twitch.tv/Shaostoul" target="_blank" rel="noopener">Twitch</a>
-        <a href="https://x.com/Shaostoul" target="_blank" rel="noopener">X</a>
-        <a href="https://instagram.com/shaostoul" target="_blank" rel="noopener">Instagram</a>
-        <a href="https://bsky.app/profile/shaostoul.bsky.social" target="_blank" rel="noopener">Bluesky</a>
-        <a href="https://reddit.com/user/Shaostoul" target="_blank" rel="noopener">Reddit</a>
+        <a href="https://shaostoul.github.io/Humanity" target="_blank">Docs</a>
+        <a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>
+        <a href="https://discord.gg/9XxmmeQnWC" target="_blank">Discord</a>
+        <a href="https://youtube.com/@Shaostoul" target="_blank">YouTube</a>
+        <a href="https://x.com/Shaostoul" target="_blank">X</a>
       </div>
     </div>
   </footer>
+
+  <script>
+    function toggleFooter() {
+      const footer = document.getElementById('site-footer');
+      const btn = document.getElementById('footer-toggle');
+      footer.classList.toggle('collapsed');
+      btn.textContent = footer.classList.contains('collapsed') ? '▲' : '▼';
+      localStorage.setItem('footer_collapsed', footer.classList.contains('collapsed'));
+    }
+    (function() {
+      if (localStorage.getItem('footer_collapsed') === 'true') {
+        const footer = document.getElementById('site-footer');
+        const btn = document.getElementById('footer-toggle');
+        if (footer) { footer.classList.add('collapsed'); }
+        if (btn) { btn.textContent = '▲'; }
+      }
+    })();
+  </script>
 
 </body>
 </html>
