@@ -2189,7 +2189,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     // Broadcast updated full user list to all clients.
     broadcast_full_user_list(&state).await;
 
-    // Auto-lockdown: if no admins/mods remain, enable lockdown automatically.
+    // Auto-lockdown with grace period: if no admins/mods remain, wait 30s
+    // before locking down. Prevents false lockdowns during deploy restarts.
     if disconnected_role == "admin" || disconnected_role == "mod" {
         let peers = state.peers.read().await;
         let has_staff = peers.values().any(|p| {
@@ -2199,15 +2200,31 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         drop(peers);
 
         if !has_staff {
-            let already_locked = *state.lockdown.read().await;
-            if !already_locked {
-                *state.lockdown.write().await = true;
-                *state.auto_lockdown.write().await = true;
-                let sys = RelayMessage::System {
-                    message: "🔒 Auto-lockdown: no moderators online.".to_string(),
-                };
-                let _ = state.broadcast_tx.send(sys);
-            }
+            let state_for_lockdown = state.clone();
+            tokio::spawn(async move {
+                // Grace period: wait 30 seconds before locking down.
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+
+                // Re-check: did a staff member reconnect during the grace period?
+                let peers = state_for_lockdown.peers.read().await;
+                let has_staff_now = peers.values().any(|p| {
+                    let role = state_for_lockdown.db.get_role(&p.public_key_hex).unwrap_or_default();
+                    role == "admin" || role == "mod"
+                });
+                drop(peers);
+
+                if !has_staff_now {
+                    let already_locked = *state_for_lockdown.lockdown.read().await;
+                    if !already_locked {
+                        *state_for_lockdown.lockdown.write().await = true;
+                        *state_for_lockdown.auto_lockdown.write().await = true;
+                        let sys = RelayMessage::System {
+                            message: "🔒 Auto-lockdown: no moderators online (30s grace period expired).".to_string(),
+                        };
+                        let _ = state_for_lockdown.broadcast_tx.send(sys);
+                    }
+                }
+            });
         }
     }
 }
