@@ -3572,6 +3572,10 @@
       renderDmList();
       renderChannelList(); // Deselect channels
 
+      // Hide pin bar in DM view.
+      document.getElementById('pin-bar').style.display = 'none';
+      document.getElementById('pin-list').classList.remove('open');
+
       // Update channel header.
       const header = document.getElementById('channel-header');
       header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">💬 ${esc(partnerName)}</span>`;
