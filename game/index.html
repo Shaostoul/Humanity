@@ -7,15 +7,17 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231a1a2e'/%3E%3Ctext x='32' y='46' font-family='Arial,Helvetica,sans-serif' font-weight='bold' font-size='42' fill='%23FF8811' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
   <style>
     :root {
-      --bg: #1a1a2e;
-      --bg-secondary: #16213e;
-      --bg-panel: #1e1e3a;
-      --bg-hover: #2a2a4a;
-      --border: #2d2d5e;
+      --bg: #0d0d0d;
+      --bg-secondary: #1a1a1a;
+      --bg-card: #161616;
+      --bg-card-hover: #1c1c1c;
+      --bg-panel: #141414;
+      --bg-hover: #252525;
+      --border: #2a2a2a;
       --text: #e0e0e0;
-      --text-muted: #8888aa;
-      --accent: #e07020;
-      --accent-hover: #f08030;
+      --text-muted: #888;
+      --accent: #FF8811;
+      --accent-hover: #e07020;
       --success: #4a8;
       --error: #e55;
       --warning: #eb4;
@@ -40,37 +42,18 @@
       overflow: hidden;
     }
 
-    /* ── RGB Separator Animation ── */
-    @keyframes rgb-separator {
-      0%   { background: #ff0000; }
-      16%  { background: #ff8800; }
-      33%  { background: #ffff00; }
-      50%  { background: #00ff44; }
-      66%  { background: #0088ff; }
-      83%  { background: #8800ff; }
-      100% { background: #ff0000; }
-    }
-
-    /* ── Top Navigation ── */
-    nav {
+    /* ── Hub Navigation (standard — matches chat & landing) ── */
+    .hub-nav {
       display: flex;
       align-items: center;
-      background: var(--bg-secondary);
-      border-bottom: none;
+      background: rgba(13, 13, 13, 0.95);
+      backdrop-filter: blur(12px);
       padding: 0 1rem;
-      height: 48px;
+      height: 40px;
       gap: 0.25rem;
       flex-shrink: 0;
     }
-
-    .nav-separator {
-      height: 1px;
-      width: 100%;
-      animation: rgb-separator 3s linear infinite;
-      flex-shrink: 0;
-    }
-
-    nav .brand {
+    .hub-nav .brand {
       font-size: 1.1rem;
       font-weight: 900;
       color: #FF8811;
@@ -81,59 +64,55 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-right: 1.5rem;
+      margin-right: 0.75rem;
       cursor: pointer;
       transition: box-shadow 0.15s ease;
     }
-    nav .brand:hover {
+    .hub-nav .brand:hover {
       box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
     }
-
-    nav .tab {
+    .hub-nav .brand.active {
+      color: #fff;
+      font-weight: 900;
+      animation: channeling 3s linear infinite;
+    }
+    .hub-nav .tab {
       display: flex;
       align-items: center;
       gap: 0.35rem;
-      padding: 0.5rem 1rem;
+      padding: 0.3rem 0.75rem;
+      height: 28px;
       color: var(--text-muted);
       cursor: pointer;
-      border-bottom: none;
-      border-radius: 8px;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
+      border-radius: 6px;
       transition: color 0.15s ease;
       user-select: none;
-      height: auto;
-      margin: 0.25rem 0;
-      background: var(--bg-panel);
-      box-shadow: inset 0 0 0 1px var(--btn-clickable);
+      text-decoration: none;
+      background: transparent;
+      box-shadow: inset 0 0 0 1px #2a6;
     }
-    nav .tab:hover {
+    .hub-nav .tab:hover {
       color: var(--text);
-      box-shadow: inset 0 0 0 3px var(--btn-hover), 0 0 12px rgba(68, 136, 255, 0.4);
+      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
     }
-    nav .tab.active {
+    .hub-nav .tab.active {
       color: #fff;
-      font-weight: 700;
-      background: var(--bg-panel);
-      animation: rainbow-shadow 3s linear infinite;
+      animation: channeling 3s linear infinite;
     }
+    .hub-nav .tab svg { width: 14px; height: 14px; fill: currentColor; vertical-align: middle; }
+    @keyframes channeling {
+      0%   { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
+      16%  { box-shadow: inset 0 0 0 2px #f80, 0 0 10px rgba(255,136,0,0.4); }
+      33%  { box-shadow: inset 0 0 0 2px #ff0, 0 0 10px rgba(255,255,0,0.4); }
+      50%  { box-shadow: inset 0 0 0 2px #0f4, 0 0 10px rgba(0,255,68,0.4); }
+      66%  { box-shadow: inset 0 0 0 2px #08f, 0 0 10px rgba(0,136,255,0.4); }
+      83%  { box-shadow: inset 0 0 0 2px #80f, 0 0 10px rgba(136,0,255,0.4); }
+      100% { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
+    }
+    .hub-nav .spacer { flex: 1; }
 
-    nav .spacer { flex: 1; }
-
-    /* Notification dots */
-    .notif-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      margin-left: 4px;
-      vertical-align: middle;
-      animation: rainbow-dot 2s linear infinite;
-    }
-    .notif-dot.static {
-      animation: none;
-      background: var(--accent);
-    }
-    @keyframes rainbow-dot {
+    @keyframes rgb-separator {
       0%   { background: #ff0000; }
       16%  { background: #ff8800; }
       33%  { background: #ffff00; }
@@ -142,18 +121,12 @@
       83%  { background: #8800ff; }
       100% { background: #ff0000; }
     }
-
-    /* Settings button active state */
-    #settings-btn.active { color: var(--accent); background: var(--bg-hover); border-radius: 4px; }
-
-    nav .nav-link {
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.8rem;
-      padding: 0.3rem 0.6rem;
-      border-radius: 4px;
+    .nav-separator {
+      height: 1px;
+      width: 100%;
+      animation: rgb-separator 3s linear infinite;
+      flex-shrink: 0;
     }
-    nav .nav-link:hover { color: var(--text); background: var(--bg-hover); }
 
     /* ── Tab Content ── */
     .tab-content {
@@ -166,7 +139,7 @@
     .tab-content.active { display: block; }
 
     .panel {
-      background: var(--bg-panel);
+      background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 1.5rem;
@@ -199,7 +172,20 @@
       font-style: italic;
       font-size: 0.9rem;
       text-align: center;
-      padding: 3rem 1rem;
+      padding: 2rem 1rem;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .card-grid .panel {
+      transition: border-color 0.2s;
+    }
+    .card-grid .panel:hover {
+      border-color: rgba(255, 136, 17, 0.3);
     }
 
     /* ══════════════════════════════════════════
@@ -224,29 +210,24 @@
       position: relative;
       user-select: none;
       font-family: inherit;
-      /* All visual borders use box-shadow inset — zero layout shift */
       box-shadow: inset 0 0 0 1px var(--btn-clickable);
     }
 
-    /* ── State: Clickable (default) ── */
     .btn.btn-clickable,
     .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-channeling):not(.btn-activated) {
       box-shadow: inset 0 0 0 1px var(--btn-clickable);
     }
 
-    /* ── State: Hovered ── */
     .btn:not(.btn-disabled):not(.btn-cooldown):not(.btn-activated):hover {
       box-shadow: inset 0 0 0 3px var(--btn-hover), 0 0 12px rgba(68, 136, 255, 0.4) !important;
       animation: none;
     }
 
-    /* ── State: Activated (pressed / click-hold) ── */
     .btn.btn-activated {
       box-shadow: inset 0 0 0 5px var(--btn-activated), 0 0 12px rgba(238, 51, 51, 0.4) !important;
       animation: none;
     }
 
-    /* ── State: Channeling (active/looping — rainbow cycle) ── */
     .btn.btn-channeling {
       animation: rainbow-shadow 3s linear infinite;
     }
@@ -261,7 +242,6 @@
       100% { box-shadow: inset 0 0 0 1px #ff0000, 0 0 8px rgba(255,0,0,0.3); }
     }
 
-    /* ── State: Disabled (unclickable) ── */
     .btn.btn-disabled {
       box-shadow: inset 0 0 0 2px var(--btn-disabled);
       color: var(--text-muted);
@@ -272,7 +252,6 @@
       box-shadow: inset 0 0 0 2px var(--btn-disabled) !important;
     }
 
-    /* ── State: Cooldown ── */
     .btn.btn-cooldown {
       box-shadow: inset 0 0 0 7px var(--btn-cooldown);
       cursor: wait;
@@ -302,7 +281,6 @@
       transform: translateX(-50%);
     }
 
-    /* ── Button Grid for Debug ── */
     .btn-grid {
       display: flex;
       flex-wrap: wrap;
@@ -328,9 +306,23 @@
     /* ── Settings Panel (inline) ── */
     #tab-settings .panel { max-width: 600px; }
 
-    /* ── Chat Embed ── */
-    #tab-chat { overflow: hidden; }
-    #tab-chat iframe { display: block; }
+    /* ── Debug info items ── */
+    .debug-info {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 0.3rem 1rem;
+      font-size: 0.82rem;
+      margin: 0.5rem 0;
+    }
+    .debug-info dt {
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .debug-info dd {
+      color: var(--text);
+      font-family: monospace;
+      font-size: 0.78rem;
+    }
 
     /* ── Collapsible Footer ── */
     .site-footer {
@@ -386,42 +378,49 @@
     .footer-toggle:hover {
       color: #FF8811;
     }
+
+    /* ── Mobile ── */
+    @media (max-width: 600px) {
+      .hub-nav {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .hub-nav .tab {
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .tab-content {
+        padding: 1rem;
+      }
+      .card-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Navigation -->
-  <nav>
-    <a href="/" class="brand" title="Home">H</a>
-    <div class="tab" data-tab="chat" onclick="switchTab('chat')">
-      💬 Chat <span id="chat-notif-dot" class="notif-dot" style="display:none;"></span>
-    </div>
-    <div class="tab" data-tab="reality" onclick="switchTab('reality')">
-      🌍 Reality
-    </div>
-    <div class="tab" data-tab="fantasy" onclick="switchTab('fantasy')">
-      ✨ Fantasy
-    </div>
-    <div class="tab" data-tab="streams" onclick="switchTab('streams')">
-      📡 Streams
-    </div>
-    <div class="tab" data-tab="debug" onclick="switchTab('debug')">
-      🔧 Debug
-    </div>
-    <div class="spacer"></div>
-    <button id="settings-btn" onclick="toggleSettings()" title="Settings" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;padding:0.3rem 0.5rem;border-radius:4px;">⚙</button>
-    <a href="/download" class="nav-link" title="Download app">⬇</a>
-    <a href="https://github.com/Shaostoul/Humanity" class="nav-link" target="_blank">📦</a>
+  <!-- Navigation (standard — identical to chat & landing) -->
+  <nav class="hub-nav">
+    <a href="/" class="brand">H</a>
+    <a href="/chat" class="tab">💬 Chat</a>
+    <a href="/reality" class="tab" data-tab="reality">🟢 Reality</a>
+    <a href="/fantasy" class="tab" data-tab="fantasy">✨ Fantasy</a>
+    <a href="/streams" class="tab" data-tab="streams">🎬 Streams</a>
+    <a href="/debug" class="tab" data-tab="debug">🔧 Debug</a>
+    <span class="spacer"></span>
+    <a href="/download" class="tab">⬇ Download</a>
+    <a href="https://github.com/Shaostoul/Humanity" class="tab" target="_blank"><svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg> GitHub</a>
   </nav>
   <div class="nav-separator"></div>
 
   <!-- Reality Tab -->
   <div id="tab-reality" class="tab-content">
     <div class="panel">
-      <h2>🌍 Reality</h2>
+      <h2>🟢 Reality</h2>
       <p>Your real-world dashboard. Track your actual life — garden, inventory, notes, projects — all in one place. Data stays on your device.</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;">
+    <div class="card-grid">
       <div class="panel">
         <h2>🌱 Garden</h2>
         <p>Track your plants, soil conditions, watering schedules, and harvests. Connect sensors for live monitoring.</p>
@@ -461,7 +460,7 @@
       <h2>✨ Fantasy</h2>
       <p>Same engine, different rules. Magic, alien worlds, impossible physics — creativity unbound. Your fantasy world, your rules.</p>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;">
+    <div class="card-grid">
       <div class="panel">
         <h2>🎮 My Games</h2>
         <p>Your game library. Install and launch games distributed P2P through the Humanity Network. Verified games from Steam/Epic get trust badges.</p>
@@ -479,7 +478,7 @@
       </div>
       <div class="panel">
         <h2>🏪 Game Store</h2>
-        <p>P2P game distribution. Developers publish, players seed. Trust tiers: verified platforms (Steam/Epic) > community vetted > unverified. You control what you allow.</p>
+        <p>P2P game distribution. Developers publish, players seed. Trust tiers: verified platforms (Steam/Epic) > community vetted > unverified.</p>
         <div class="placeholder-text">🚧 Coming soon</div>
       </div>
       <div class="panel">
@@ -495,105 +494,10 @@
     </div>
   </div>
 
-  <!-- Debug Tab -->
-  <div id="tab-debug" class="tab-content">
-    <div class="panel">
-      <h2>🔧 Debug — Button Design System</h2>
-      <p>Interactive preview of all button states. These are the standard interaction patterns for the entire game UI.</p>
-
-      <h3>All States (static preview)</h3>
-      <div class="btn-grid">
-        <div class="btn-demo">
-          <button class="btn btn-clickable">Clickable</button>
-          <span class="btn-label">Default · 1px white</span>
-        </div>
-        <div class="btn-demo">
-          <button class="btn btn-channeling">Channeling</button>
-          <span class="btn-label">Active/looping · 1px rainbow</span>
-        </div>
-        <div class="btn-demo">
-          <button class="btn btn-activated">Activated</button>
-          <span class="btn-label">Pressed · 5px red</span>
-        </div>
-        <div class="btn-demo">
-          <button class="btn btn-disabled">Disabled</button>
-          <span class="btn-label">Unclickable · 2px black</span>
-        </div>
-        <div class="btn-demo">
-          <button class="btn btn-cooldown">
-            Cooldown
-            <span class="btn-cooldown-timer top">3.2s</span>
-            <span class="btn-cooldown-timer bottom">3.2s</span>
-          </button>
-          <span class="btn-label">Waiting · 7px purple + timer</span>
-        </div>
-      </div>
-
-      <h3>Interactive Test — Hover & Click</h3>
-      <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
-      <div class="btn-grid">
-        <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
-        <button class="btn" onclick="testBtnClick(this)">Another Button</button>
-        <button class="btn" onclick="testBtnClick(this)">And Another</button>
-      </div>
-
-      <h3>Toggle Test — Click to Cycle States</h3>
-      <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
-      <div class="btn-grid">
-        <button class="btn btn-clickable" id="cycle-btn-1" onclick="cycleState(this)">Cycle Me</button>
-        <button class="btn btn-clickable" id="cycle-btn-2" onclick="cycleState(this)">Cycle Me Too</button>
-        <button class="btn btn-clickable" id="cycle-btn-3" onclick="cycleState(this)">And Me</button>
-      </div>
-
-      <h3>Cooldown Test — Click to Start 5s Cooldown</h3>
-      <div class="btn-grid">
-        <button class="btn btn-clickable" id="cd-btn-1" onclick="startCooldown(this, 5)">5s Cooldown</button>
-        <button class="btn btn-clickable" id="cd-btn-2" onclick="startCooldown(this, 10)">10s Cooldown</button>
-        <button class="btn btn-clickable" id="cd-btn-3" onclick="startCooldown(this, 3)">3s Cooldown</button>
-      </div>
-
-      <h3>Channeling Test — Click to Start/Stop</h3>
-      <div class="btn-grid">
-        <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
-        <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>🎨 Color Reference</h2>
-      <p>The visual language for button borders:</p>
-      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; margin-top: 0.5rem;">
-        <div style="padding:0.5rem;border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
-          <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
-        </div>
-        <div style="padding:0.5rem;border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
-          <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
-        </div>
-        <div style="padding:0.5rem;border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
-          <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
-        </div>
-        <div style="padding:0.5rem;border-left:3px solid #222;background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
-          <strong style="color:#666;">Black 2px</strong> — Disabled / locked
-        </div>
-        <div style="padding:0.5rem;border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
-          <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
-        </div>
-        <div style="padding:0.5rem;border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
-          <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Chat Tab (embedded) -->
-  <div id="tab-chat" class="tab-content active" style="padding:0;">
-    <iframe id="chat-frame" src="/chat-client.html" style="width:100%;height:100%;border:none;" loading="lazy"></iframe>
-  </div>
-
   <!-- Streams Tab -->
   <div id="tab-streams" class="tab-content">
     <div class="panel">
-      <h2>📡 Live Streams</h2>
+      <h2>🎬 Live Streams</h2>
       <p>Watch or broadcast live to the Humanity Network. Streams are relayed through servers and seeded peer-to-peer — the more viewers, the better it works.</p>
 
       <h3>🔴 Go Live</h3>
@@ -646,6 +550,115 @@
     </div>
   </div>
 
+  <!-- Debug Tab -->
+  <div id="tab-debug" class="tab-content">
+    <div class="panel">
+      <h2>🔧 System Information</h2>
+      <p>Version, connection status, and system diagnostics.</p>
+      <dl class="debug-info">
+        <dt>Client Version</dt>
+        <dd id="debug-version">—</dd>
+        <dt>Server</dt>
+        <dd id="debug-server">—</dd>
+        <dt>Connection</dt>
+        <dd id="debug-connection">Checking…</dd>
+        <dt>User Agent</dt>
+        <dd id="debug-ua">—</dd>
+        <dt>Screen</dt>
+        <dd id="debug-screen">—</dd>
+        <dt>Page Loaded</dt>
+        <dd id="debug-loaded">—</dd>
+      </dl>
+    </div>
+
+    <div class="panel">
+      <h2>🎨 Button Design System</h2>
+      <p>Interactive preview of all button states. These are the standard interaction patterns for the entire game UI.</p>
+
+      <h3>All States (static preview)</h3>
+      <div class="btn-grid">
+        <div class="btn-demo">
+          <button class="btn btn-clickable">Clickable</button>
+          <span class="btn-label">Default · 1px green</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-channeling">Channeling</button>
+          <span class="btn-label">Active/looping · 1px rainbow</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-activated">Activated</button>
+          <span class="btn-label">Pressed · 5px red</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-disabled">Disabled</button>
+          <span class="btn-label">Unclickable · 2px black</span>
+        </div>
+        <div class="btn-demo">
+          <button class="btn btn-cooldown">
+            Cooldown
+            <span class="btn-cooldown-timer top">3.2s</span>
+            <span class="btn-cooldown-timer bottom">3.2s</span>
+          </button>
+          <span class="btn-label">Waiting · 7px purple + timer</span>
+        </div>
+      </div>
+
+      <h3>Interactive Test — Hover &amp; Click</h3>
+      <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
+      <div class="btn-grid">
+        <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
+        <button class="btn" onclick="testBtnClick(this)">Another Button</button>
+        <button class="btn" onclick="testBtnClick(this)">And Another</button>
+      </div>
+
+      <h3>Toggle Test — Click to Cycle States</h3>
+      <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
+      <div class="btn-grid">
+        <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me</button>
+        <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me Too</button>
+        <button class="btn btn-clickable" onclick="cycleState(this)">And Me</button>
+      </div>
+
+      <h3>Cooldown Test — Click to Start Cooldown</h3>
+      <div class="btn-grid">
+        <button class="btn btn-clickable" onclick="startCooldown(this, 5)">5s Cooldown</button>
+        <button class="btn btn-clickable" onclick="startCooldown(this, 10)">10s Cooldown</button>
+        <button class="btn btn-clickable" onclick="startCooldown(this, 3)">3s Cooldown</button>
+      </div>
+
+      <h3>Channeling Test — Click to Start/Stop</h3>
+      <div class="btn-grid">
+        <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
+        <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🎨 Color Reference</h2>
+      <p>The visual language for button borders:</p>
+      <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; margin-top: 0.5rem;">
+        <div style="padding:0.5rem;border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #222;background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#666;">Black 2px</strong> — Disabled / locked
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
+          <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
+        </div>
+        <div style="padding:0.5rem;border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
+          <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings Panel (inline, replaces tab content) -->
   <div id="tab-settings" class="tab-content" style="padding:1.5rem;">
     <div class="panel">
@@ -671,6 +684,7 @@
   </footer>
 
   <script>
+    // ── Footer Toggle ──
     function toggleFooter() {
       const footer = document.getElementById('site-footer');
       const btn = document.getElementById('footer-toggle');
@@ -689,42 +703,35 @@
   </script>
 
   <script>
-    // ── Tab Switching ──
-    const TAB_IDS = ['chat', 'reality', 'fantasy', 'streams', 'debug'];
-    let currentTab = 'chat';
-    let settingsOpen = false;
-    let settingsForTab = null;
+    // ── Hub Tab System (SPA with pushState) ──
+    const HUB_TABS = ['reality', 'fantasy', 'streams', 'debug'];
+    let currentTab = 'reality';
+
+    function getTabFromPath() {
+      const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '').toLowerCase();
+      if (HUB_TABS.includes(path)) return path;
+      return null;
+    }
 
     function switchTab(tabId, pushState) {
-      if (!TAB_IDS.includes(tabId)) tabId = 'chat';
+      if (!HUB_TABS.includes(tabId)) tabId = 'reality';
       currentTab = tabId;
 
-      // Highlight nav tab.
-      document.querySelectorAll('nav .tab').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('nav .tab').forEach(el => {
-        if (el.dataset.tab === tabId) el.classList.add('active');
+      // Update nav active state
+      document.querySelectorAll('.hub-nav .tab').forEach(el => {
+        el.classList.toggle('active', el.dataset.tab === tabId);
       });
 
-      if (settingsOpen) {
-        // If settings is open, switch to that tab's settings.
-        openSettings(tabId);
-      } else {
-        // Show the tab content.
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-        const tabEl = document.getElementById('tab-' + tabId);
-        if (tabEl) tabEl.classList.add('active');
-      }
+      // Show correct content panel
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      const tabEl = document.getElementById('tab-' + tabId);
+      if (tabEl) tabEl.classList.add('active');
 
-      // Clear notification dot when switching to chat.
-      if (tabId === 'chat') {
-        document.getElementById('chat-notif-dot').style.display = 'none';
-      }
+      // Update page title
+      const titles = { reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', debug: 'Debug' };
+      document.title = 'Humanity — ' + (titles[tabId] || 'Hub');
 
-      localStorage.setItem('humanity_game_tab', tabId);
-      // Update browser tab title.
-      const tabTitles = { chat: 'Chat', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', debug: 'Debug' };
-      document.title = 'Humanity — ' + (tabTitles[tabId] || 'Hub');
-      // Update URL without reload.
+      // Update URL
       if (pushState !== false) {
         const newPath = '/' + tabId;
         if (window.location.pathname !== newPath) {
@@ -733,134 +740,53 @@
       }
     }
 
-    // Handle browser back/forward.
-    window.addEventListener('popstate', (e) => {
-      const tab = (e.state && e.state.tab) || getTabFromPath();
-      switchTab(tab, false);
+    // SPA navigation: intercept hub tab clicks
+    document.querySelectorAll('.hub-nav .tab[data-tab]').forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        switchTab(link.dataset.tab);
+      });
     });
 
-    // Determine tab from URL path.
-    function getTabFromPath() {
-      const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '').toLowerCase();
-      if (TAB_IDS.includes(path)) return path;
-      if (path === 'game') return localStorage.getItem('humanity_game_tab') || localStorage.getItem('humanity_default_tab') || 'chat';
-      return null;
-    }
+    // Handle browser back/forward
+    window.addEventListener('popstate', (e) => {
+      const tab = (e.state && e.state.tab) || getTabFromPath();
+      if (tab) switchTab(tab, false);
+    });
 
-    // Initialize: URL path > last tab > user default > chat.
-    const urlTab = getTabFromPath();
-    const savedTab = localStorage.getItem('humanity_game_tab');
-    const userDefault = localStorage.getItem('humanity_default_tab') || 'chat';
-    switchTab(urlTab || savedTab || userDefault);
+    // Initialize from URL
+    const initialTab = getTabFromPath() || 'reality';
+    switchTab(initialTab, false);
 
-    // ── Settings ──
-    function toggleSettings() {
-      if (settingsOpen) {
-        closeSettings();
-      } else {
-        openSettings(currentTab);
+    // ── Debug Info ──
+    (function populateDebugInfo() {
+      const el = (id) => document.getElementById(id);
+      el('debug-version').textContent = '0.1.0-dev';
+      el('debug-server').textContent = window.location.origin;
+      el('debug-ua').textContent = navigator.userAgent.slice(0, 100);
+      el('debug-screen').textContent = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio || 1) + 'x DPR';
+      el('debug-loaded').textContent = new Date().toISOString();
+
+      // Check relay connection
+      async function checkConnection() {
+        try {
+          const res = await fetch('/api/stats');
+          if (res.ok) {
+            const data = await res.json();
+            el('debug-connection').textContent = '✅ Connected — ' + (data.online_users || 0) + ' users online';
+            el('debug-connection').style.color = '#4a8';
+            if (data.version) el('debug-version').textContent = data.version;
+          } else {
+            el('debug-connection').textContent = '⚠️ Server responded ' + res.status;
+            el('debug-connection').style.color = '#eb4';
+          }
+        } catch (e) {
+          el('debug-connection').textContent = '❌ Cannot reach server';
+          el('debug-connection').style.color = '#e55';
+        }
       }
-    }
-
-    function openSettings(tabId) {
-      settingsOpen = true;
-      settingsForTab = tabId;
-      document.getElementById('settings-btn').classList.add('active');
-
-      const titles = {
-        chat: '💬 Chat Settings',
-        reality: '🌍 Reality Settings',
-        fantasy: '✨ Fantasy Settings',
-        streams: '📡 Stream Settings',
-        debug: '🔧 Debug Settings'
-      };
-      document.getElementById('settings-title').textContent = titles[tabId] || '⚙ Settings';
-
-      const body = document.getElementById('settings-body');
-      const currentDefault = localStorage.getItem('humanity_default_tab') || 'chat';
-      const tabLabels = { chat: '💬 Chat', reality: '🌍 Reality', fantasy: '✨ Fantasy', streams: '📡 Streams', debug: '🔧 Debug' };
-
-      let html = `
-        <h3 style="font-size:0.9rem;margin-bottom:0.5rem;">General</h3>
-        <div style="margin-bottom:1.2rem;">
-          <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">Default tab on startup</label>
-          <select onchange="setDefaultTab(this.value)" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.4rem 0.6rem;font-size:0.85rem;width:100%;max-width:250px;">
-            ${TAB_IDS.map(t => `<option value="${t}" ${t === currentDefault ? 'selected' : ''}>${tabLabels[t]}</option>`).join('')}
-          </select>
-          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.3rem;">This device opens to this tab by default. Set your TV to Garden, phone to Chat, etc.</div>
-        </div>
-      `;
-
-      // Tab-specific settings
-      if (tabId === 'chat') {
-        html += `
-          <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Notifications</h3>
-          <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.5rem;">Control which notifications play sounds and show indicators.</p>
-          <div style="display:flex;flex-direction:column;gap:0.4rem;">
-            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-              <input type="checkbox" checked style="accent-color:var(--accent);"> Channel messages
-            </label>
-            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-              <input type="checkbox" checked style="accent-color:var(--accent);"> Direct messages
-            </label>
-            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-              <input type="checkbox" checked style="accent-color:var(--accent);"> @mentions
-            </label>
-            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-              <input type="checkbox" style="accent-color:var(--accent);"> VIP / Favorites only
-              <span style="font-size:0.7rem;color:var(--text-muted);">(coming soon)</span>
-            </label>
-          </div>
-          <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Indicator Style</h3>
-          <div style="display:flex;gap:1rem;align-items:center;">
-            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
-              <input type="radio" name="dot-style" value="rainbow" checked style="accent-color:var(--accent);"> <span class="notif-dot" style="display:inline-block;"></span> Rainbow (priority)
-            </label>
-            <label style="font-size:0.82rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
-              <input type="radio" name="dot-style" value="static" style="accent-color:var(--accent);"> <span class="notif-dot static" style="display:inline-block;"></span> Static
-            </label>
-          </div>
-        `;
-      } else if (tabId === 'reality') {
-        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Reality Settings</h3>
-          <p style="color:var(--text-muted);font-size:0.85rem;">Garden monitoring, inventory views, notes configuration — coming soon.</p>`;
-      } else if (tabId === 'fantasy') {
-        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Fantasy Settings</h3>
-          <p style="color:var(--text-muted);font-size:0.85rem;">Game world preferences, mod settings, trust filters for P2P games — coming soon.</p>`;
-      } else if (tabId === 'streams') {
-        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Stream Settings</h3>
-          <ul style="color:var(--text-muted);font-size:0.82rem;padding-left:1.2rem;line-height:2;">
-            <li>Upload bandwidth limit</li>
-            <li>Reserved-for-gaming slider</li>
-            <li>Stream quality preference</li>
-            <li>Auto-seed when idle</li>
-          </ul>
-          <p style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">Coming soon.</p>`;
-      } else if (tabId === 'debug') {
-        html += `<h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Debug Settings</h3>
-          <p style="color:var(--text-muted);font-size:0.85rem;">Nothing to configure here — it's a playground.</p>`;
-      }
-
-      body.innerHTML = html;
-
-      // Show settings tab, hide current content
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      document.getElementById('tab-settings').classList.add('active');
-    }
-
-    function closeSettings() {
-      settingsOpen = false;
-      settingsForTab = null;
-      document.getElementById('settings-btn').classList.remove('active');
-      // Return to the current tab
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      const tabEl = document.getElementById('tab-' + currentTab);
-      if (tabEl) tabEl.classList.add('active');
-    }
-
-    function setDefaultTab(tab) {
-      localStorage.setItem('humanity_default_tab', tab);
-    }
+      checkConnection();
+    })();
 
     // ── Global: Click activates red border for 1s ──
     document.addEventListener('click', function(e) {
@@ -888,7 +814,6 @@
       const next = states[(idx + 1) % states.length];
       states.forEach(s => btn.classList.remove(s));
       btn.classList.add(next);
-      // Remove old cooldown timers.
       btn.querySelectorAll('.btn-cooldown-timer').forEach(t => t.remove());
       if (next === 'btn-cooldown') {
         btn.innerHTML = btn.textContent.replace(/[\d.]+s/g, '').trim();
@@ -953,29 +878,6 @@
       }
     }
 
-    // ── Chat notification dot ──
-    // Listen for title changes in the chat iframe (unread messages flash the title).
-    // Also listen for postMessage from chat if we add that later.
-    setInterval(() => {
-      try {
-        const frame = document.getElementById('chat-frame');
-        if (!frame || !frame.contentDocument) return;
-        const title = frame.contentDocument.title || '';
-        if (title.startsWith('(') && currentTab !== 'chat') {
-          document.getElementById('chat-notif-dot').style.display = 'inline-block';
-        }
-      } catch (e) {
-        // Cross-origin — can't read iframe title. Use fallback.
-      }
-    }, 2000);
-
-    // Fallback: show dot when switching away from chat after activity.
-    window.addEventListener('message', (e) => {
-      if (e.data && e.data.type === 'humanity-chat-notification' && currentTab !== 'chat') {
-        document.getElementById('chat-notif-dot').style.display = 'inline-block';
-      }
-    });
-
     function toggleChannel(btn) {
       if (btn.classList.contains('btn-channeling')) {
         btn.classList.remove('btn-channeling');
@@ -989,7 +891,6 @@
     }
 
     // ── Auto-refresh on server update ──
-    // Poll /api/stats every 30s; reload when BUILD_VERSION changes.
     (function() {
       let knownVersion = null;
       async function checkVersion() {

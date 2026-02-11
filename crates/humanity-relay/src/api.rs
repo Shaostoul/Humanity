@@ -225,6 +225,14 @@ pub async fn upload_file(
         }
     }
 
+    // Only verified/mod/admin/donor may upload files.
+    {
+        let role = state.db.get_role(&public_key).unwrap_or_default();
+        if role.is_empty() {
+            return Err((StatusCode::FORBIDDEN, "Upload denied: only verified users can upload files. Ask an admin to verify you.".into()));
+        }
+    }
+
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
     })? {
