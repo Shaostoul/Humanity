@@ -5366,6 +5366,7 @@ async function importIdentityFromJSON(jsonData) {
         // Current server (always first, highlighted).
         const collapsed = getCollapsedServers();
         const isCollapsed = collapsed.has('Humanity');
+        const myRoleCh = (window.myPeerRole || '').toLowerCase();
         const channelsHtml = channelList.map(ch => {
           const isActive = ch.id === activeChannel && !activeDmPartner;
           const title = ch.description ? ` title="${esc(ch.description)}"` : '';
@@ -5375,7 +5376,6 @@ async function importIdentityFromJSON(jsonData) {
         }).join('');
 
         // Text channel create button (admin/mod only)
-        const myRoleCh = (window.myPeerRole || '').toLowerCase();
         let createChannelBtn = '';
         if (myRoleCh === 'admin' || myRoleCh === 'mod') {
           createChannelBtn = '<div style="padding:0.2rem 0;"><button class="vr-btn" data-action="create-text-channel" style="width:100%;margin-top:0.2rem;font-size:0.7rem;">+ Create Channel</button></div>';
