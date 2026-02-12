@@ -5157,17 +5157,17 @@ async function importIdentityFromJSON(jsonData) {
       const SERVER_ORDER_KEY = 'humanity_server_order';
       const SERVER_COLLAPSE_KEY = 'humanity_server_collapsed';
 
-      // Restore saved tab
-      const savedTab = localStorage.getItem(SIDEBAR_TAB_KEY) || 'servers';
-      switchSidebarTab(savedTab, false);
-
-      // Tab click handler via event delegation
+      // Tab click handler via event delegation — register FIRST before anything that might throw
       document.getElementById('sidebar-tabs').addEventListener('click', function(e) {
         const tab = e.target.closest('.sidebar-tab');
         if (!tab) return;
         const tabName = tab.getAttribute('data-tab');
         if (tabName) switchSidebarTab(tabName, true);
       });
+
+      // Restore saved tab
+      const savedTab = localStorage.getItem(SIDEBAR_TAB_KEY) || 'servers';
+      try { switchSidebarTab(savedTab, false); } catch(e) { console.warn('Sidebar init error:', e); }
 
       function switchSidebarTab(tabName, save) {
         // Update tab buttons
@@ -5224,6 +5224,7 @@ async function importIdentityFromJSON(jsonData) {
 
       function renderServerList() {
         const container = document.getElementById('server-list');
+        if (!container) return;
 
         // Fetch federated servers if not yet loaded.
         if (!federatedServersFetched) {
@@ -5275,6 +5276,7 @@ async function importIdentityFromJSON(jsonData) {
         if (typeof renderUnreadDots === 'function') renderUnreadDots();
       }
       window.renderServerList = renderServerList;
+      window.switchSidebarTab = switchSidebarTab;
 
       // Prompt to add a federated server via /server-add command.
       function promptAddServer() {
