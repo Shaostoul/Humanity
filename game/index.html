@@ -826,6 +826,167 @@
     </script>
   </div>
 
+  <!-- Source Tab — NOTE: add /source to nginx hub regex for routing -->
+  <div id="tab-source" class="tab-content" style="padding:1.5rem;">
+    <style>
+      #tab-source .info-section { margin-bottom:1.5rem; }
+      #tab-source .info-section h2 { font-size:1.1rem; color:var(--accent); margin-bottom:0.8rem; border-bottom:1px solid var(--border); padding-bottom:0.4rem; cursor:pointer; user-select:none; }
+      #tab-source .info-section h2::after { content:' ▾'; font-size:0.7rem; opacity:0.5; }
+      #tab-source .info-section.collapsed h2::after { content:' ▸'; }
+      #tab-source .info-section.collapsed .info-body { display:none; }
+      #tab-source .src-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1.2rem; margin-bottom:0.75rem; }
+      #tab-source .src-card p { font-size:0.85rem; color:var(--text-muted); line-height:1.6; margin:0.4rem 0; }
+      #tab-source .src-card ul { list-style:none; padding:0; margin:0.5rem 0; }
+      #tab-source .src-card li { font-size:0.85rem; color:var(--text-muted); padding:0.25rem 0; line-height:1.5; }
+      #tab-source .src-card li::before { margin-right:0.4rem; }
+      #tab-source .big-statement { font-size:1.2rem; color:var(--text); font-weight:700; text-align:center; margin:1rem 0; }
+      #tab-source .sub-statement { font-size:0.9rem; color:var(--text-muted); text-align:center; margin-bottom:1rem; line-height:1.6; }
+      #tab-source .btn-row { display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center; margin:1rem 0; }
+      #tab-source .src-btn { display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; color:#fff; transition:opacity 0.15s; }
+      #tab-source .src-btn:hover { opacity:0.85; }
+      #tab-source .src-btn.gh { background:#333; }
+      #tab-source .src-btn.donate { background:var(--accent,#e07020); }
+      #tab-source .arch-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.8rem; margin:0.8rem 0; }
+      #tab-source .arch-box { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0.8rem; }
+      #tab-source .arch-box h4 { font-size:0.85rem; color:var(--accent); margin:0 0 0.3rem; }
+      #tab-source .arch-box p { font-size:0.78rem; margin:0; }
+      #tab-source .tech-tags { display:flex; flex-wrap:wrap; gap:0.4rem; margin:0.6rem 0; }
+      #tab-source .tech-tag { background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:4px; padding:0.2rem 0.6rem; font-size:0.75rem; color:var(--text-muted); }
+      #tab-source .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:0.8rem; margin:0.8rem 0; }
+      #tab-source .stat-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
+      #tab-source .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent); }
+      #tab-source .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem; }
+    </style>
+
+    <!-- Open Source -->
+    <div class="info-section">
+      <h2>🔓 Open Source</h2>
+      <div class="info-body">
+        <div class="src-card">
+          <div class="big-statement">Humanity is 100% open source and public domain (CC0-1.0)</div>
+          <div class="sub-statement">Anyone can use, modify, and distribute this code for any purpose.<br>No permission needed. No strings attached.</div>
+          <div class="btn-row">
+            <a href="https://github.com/Shaostoul/Humanity" target="_blank" class="src-btn gh">⭐ GitHub — Shaostoul/Humanity</a>
+            <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" class="src-btn" style="background:#555;">📄 CC0 1.0 License</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The Accord -->
+    <div class="info-section">
+      <h2>📜 The Accord</h2>
+      <div class="info-body">
+        <div class="src-card">
+          <div class="big-statement" style="font-size:1rem;">Wholesomely aiding humanity's betterment</div>
+          <ul>
+            <li>🔒 <strong>Privacy first</strong> — No tracking, no accounts. Your identity is your keys.</li>
+            <li>🗣️ <strong>Free speech</strong> — No censorship. Line drawn at genuine threats and predatory harassment.</li>
+            <li>🔞 <strong>18+ community</strong> — Mature, responsible communication.</li>
+            <li>💛 <strong>Unconditional love</strong> — For all life.</li>
+            <li>✨ <strong>The 7 heavenly virtues</strong> — Chastity, temperance, charity, diligence, patience, kindness, humility.</li>
+          </ul>
+          <div class="btn-row">
+            <a href="https://shaostoul.github.io/Humanity" target="_blank" class="src-btn" style="background:#555;">📖 Read the Full Accord</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Architecture -->
+    <div class="info-section">
+      <h2>🏗️ Architecture</h2>
+      <div class="info-body">
+        <div class="src-card">
+          <div class="arch-grid">
+            <div class="arch-box"><h4>🔑 Identity</h4><p>Ed25519 key pairs stored in your browser — no accounts, no passwords</p></div>
+            <div class="arch-box"><h4>🔏 Encryption</h4><p>Messages signed cryptographically — tamper-proof</p></div>
+            <div class="arch-box"><h4>📡 Communication</h4><p>WebSocket relay for group chat, WebRTC P2P for voice/video</p></div>
+            <div class="arch-box"><h4>💾 Storage</h4><p>SQLite on server, localStorage + IndexedDB on client</p></div>
+            <div class="arch-box"><h4>🌐 Federation</h4><p>Servers can link together — your identity works everywhere</p></div>
+          </div>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-top:0.8rem;"><strong>Tech stack:</strong></p>
+          <div class="tech-tags">
+            <span class="tech-tag">Rust</span><span class="tech-tag">Axum</span><span class="tech-tag">Tokio</span>
+            <span class="tech-tag">SQLite</span><span class="tech-tag">Ed25519</span><span class="tech-tag">BLAKE3</span>
+            <span class="tech-tag">WebRTC</span><span class="tech-tag">Vanilla JS</span>
+          </div>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:0.6rem;"><strong>Future:</strong> CBOR signed objects, P2P direct messaging, peer-assisted streaming</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contributing -->
+    <div class="info-section">
+      <h2>🤝 Contributing</h2>
+      <div class="info-body">
+        <div class="src-card">
+          <p style="font-size:0.95rem;color:var(--text);font-weight:600;">Everyone can help, not just programmers</p>
+          <ul>
+            <li>🐛 <strong>Report bugs</strong> — Use <code style="background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:3px;color:var(--accent);">/report</code> in chat or <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" style="color:var(--accent);">GitHub Issues</a></li>
+            <li>💡 <strong>Suggest features</strong> — Chat in #dev or <a href="https://github.com/Shaostoul/Humanity/discussions" target="_blank" style="color:var(--accent);">GitHub Discussions</a></li>
+            <li>🔧 <strong>Write code</strong> — Fork, hack, PR — it's CC0, go wild</li>
+            <li>📖 <strong>Improve docs</strong> — Website at <a href="https://shaostoul.github.io/Humanity" target="_blank" style="color:var(--accent);">shaostoul.github.io/Humanity</a></li>
+            <li>🧪 <strong>Test features</strong> — Just use the app and tell us what breaks</li>
+            <li>💰 <strong>Donate</strong> — Support development directly</li>
+          </ul>
+          <div class="btn-row">
+            <a href="https://github.com/sponsors/Shaostoul" target="_blank" class="src-btn donate">❤️ GitHub Sponsors</a>
+            <a href="https://ko-fi.com/shaostoul" target="_blank" class="src-btn donate">☕ Ko-fi</a>
+          </div>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:0.8rem;"><strong>Self-hosting:</strong> <code style="background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:3px;font-size:0.78rem;color:var(--text-muted);">git clone → install Rust → cargo build --release → ./target/release/humanity-relay</code></p>
+          <p style="font-size:0.78rem;"><a href="https://github.com/Shaostoul/Humanity#readme" target="_blank" style="color:var(--accent);">Full build instructions on GitHub README →</a></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Stats -->
+    <div class="info-section" id="source-stats-section">
+      <h2>📊 Project Stats</h2>
+      <div class="info-body">
+        <div class="stat-grid">
+          <div class="stat-card"><div class="stat-val" id="src-online">—</div><div class="stat-label">Online Now</div></div>
+          <div class="stat-card"><div class="stat-val" id="src-registered">—</div><div class="stat-label">Registered</div></div>
+          <div class="stat-card"><div class="stat-val" id="src-version">—</div><div class="stat-label">Version</div></div>
+          <div class="stat-card"><div class="stat-val" id="src-uptime">—</div><div class="stat-label">Uptime</div></div>
+          <div class="stat-card"><div class="stat-val">Rust</div><div class="stat-label">Language</div></div>
+          <div class="stat-card"><div class="stat-val">CC0-1.0</div><div class="stat-label">License</div></div>
+          <div class="stat-card"><div class="stat-val">Jan 2019</div><div class="stat-label">Started</div></div>
+        </div>
+        <div class="btn-row" style="margin-top:1rem;">
+          <a href="https://github.com/Shaostoul/Humanity/commits" target="_blank" class="src-btn gh">📈 Commit History on GitHub</a>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    // Collapsible sections
+    document.querySelectorAll('#tab-source .info-section h2').forEach(h2 => {
+      h2.addEventListener('click', () => h2.parentElement.classList.toggle('collapsed'));
+    });
+    // Fetch stats
+    (async function loadSourceStats() {
+      try {
+        const [statsRes, infoRes] = await Promise.all([
+          fetch('/api/stats').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/server-info').then(r => r.ok ? r.json() : null).catch(() => null)
+        ]);
+        if (statsRes) {
+          if (statsRes.online !== undefined) document.getElementById('src-online').textContent = statsRes.online;
+          if (statsRes.registered !== undefined) document.getElementById('src-registered').textContent = statsRes.registered;
+          if (statsRes.uptime) {
+            const s = statsRes.uptime;
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            document.getElementById('src-uptime').textContent = h + 'h ' + m + 'm';
+          }
+        }
+        if (infoRes && infoRes.version) document.getElementById('src-version').textContent = infoRes.version;
+      } catch(e) { console.warn('Source stats fetch failed:', e); }
+    })();
+    </script>
+  </div>
+
   <!-- Debug Tab -->
   <div id="tab-debug" class="tab-content">
     <div class="panel">
@@ -945,7 +1106,7 @@
 
   <script>
     // ── Hub Tab System (SPA with pushState) ──
-    const HUB_TABS = ['board', 'reality', 'fantasy', 'streams', 'info', 'debug'];
+    const HUB_TABS = ['board', 'reality', 'fantasy', 'streams', 'info', 'source', 'debug'];
     let currentTab = 'reality';
 
     function getTabFromPath() {
@@ -969,7 +1130,7 @@
       if (tabEl) tabEl.classList.add('active');
 
       // Update page title
-      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', info: 'Info', debug: 'Debug' };
+      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
       document.title = 'Humanity — ' + (titles[tabId] || 'Hub');
 
       // Update URL

@@ -360,6 +360,83 @@
     #send-btn:hover { background: var(--accent-hover); }
     #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    /* ── Command Palette ── */
+    #cmd-palette-btn {
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      flex-shrink: 0;
+    }
+    #cmd-palette-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    #cmd-palette-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+    }
+    #cmd-palette-overlay.open { display: block; }
+
+    #cmd-palette {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 340px;
+      max-height: 420px;
+      overflow-y: auto;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
+      padding: 0.5rem 0;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      z-index: 1000;
+    }
+    #cmd-palette-overlay.open #cmd-palette {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    #cmd-palette .cp-category {
+      padding: 0.5rem 0.8rem 0.2rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+
+    #cmd-palette .cp-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.45rem 0.8rem;
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: var(--text);
+      transition: background 0.1s;
+    }
+    #cmd-palette .cp-item:hover { background: var(--bg-hover); }
+    #cmd-palette .cp-item .cp-icon { font-size: 1rem; flex-shrink: 0; width: 1.4rem; text-align: center; }
+    #cmd-palette .cp-item .cp-label { font-weight: 500; }
+    #cmd-palette .cp-item .cp-desc { font-size: 0.72rem; color: var(--text-muted); margin-left: auto; white-space: nowrap; }
+
+    @media (max-width: 600px) {
+      #cmd-palette { width: calc(100vw - 1rem); left: 0.5rem; right: 0.5rem; max-height: 55vh; }
+    }
+
     /* ── Login ── */
     #login-screen {
       display: flex;
@@ -2205,7 +2282,11 @@
         </div>
         <div id="upload-indicator"></div>
         <div id="char-counter"></div>
+        <div id="cmd-palette-overlay" onclick="closeCmdPalette()">
+          <div id="cmd-palette" onclick="event.stopPropagation()"></div>
+        </div>
         <div id="input-area">
+          <button id="cmd-palette-btn" onclick="toggleCmdPalette()" title="Commands">+</button>
           <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()" title="Attach file">📎</button>
           <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
@@ -7565,6 +7646,134 @@ async function importIdentityFromJSON(jsonData) {
       if (ctxMenu && ctxMenu.classList.contains('open')) { ctxMenu.classList.remove('open'); return; }
     }
   });
+  </script>
+
+  <script>
+  /* ── Command Palette ── */
+  function getCmdPaletteItems() {
+    const myRole = (typeof peerData !== 'undefined' && typeof myKey !== 'undefined' && peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
+    const isMod = myRole === 'admin' || myRole === 'mod';
+    const isAdmin = myRole === 'admin';
+
+    const cats = [
+      { name: '📱 Social', items: [
+        { icon: '👁️', label: 'Follow User', desc: '/follow', cmd: '/follow ', prefill: true },
+        { icon: '🚫', label: 'Unfollow User', desc: '/unfollow', cmd: '/unfollow ', prefill: true },
+        { icon: '🚷', label: 'Block User', desc: '/block', cmd: '/block ', prefill: true },
+        { icon: '✅', label: 'Unblock User', desc: '/unblock', cmd: '/unblock ', prefill: true },
+        { icon: '📋', label: 'Block List', desc: 'View blocks', cmd: '/blocklist' },
+      ]},
+      { name: '💬 Messaging', items: [
+        { icon: '📩', label: 'Direct Message', desc: '/dm', cmd: '/dm ', prefill: true },
+        { icon: '👥', label: 'Create Group', desc: '/group-create', cmd: '/group-create ', prefill: true },
+        { icon: '📨', label: 'Invite to Group', desc: '/group-invite', cmd: '/group-invite ', prefill: true },
+        { icon: '🚪', label: 'Leave Group', desc: 'Leave current', cmd: '/group-leave' },
+      ]},
+      { name: '👤 Profile', items: [
+        { icon: '📝', label: 'Set Bio', desc: '/bio', cmd: '/bio ', prefill: true },
+        { icon: '🔗', label: 'Set Social Link', desc: '/social', cmd: '/social ', prefill: true },
+        { icon: '👀', label: 'View Profile', desc: '/profile', cmd: '/profile ', prefill: true },
+      ]},
+      { name: '📌 Pins', items: [
+        { icon: '📌', label: 'Pin Message', desc: '/pin', cmd: '/pin ', prefill: true },
+        { icon: '📌', label: 'Personal Pin', desc: '/mypin', cmd: '/mypin ', prefill: true },
+      ]},
+    ];
+
+    if (isMod) {
+      cats.push({ name: '🛡️ Moderation', items: [
+        { icon: '👢', label: 'Kick', desc: '/kick', cmd: '/kick ', prefill: true },
+        { icon: '🔨', label: 'Ban', desc: '/ban', cmd: '/ban ', prefill: true },
+        { icon: '🔇', label: 'Mute', desc: '/mute', cmd: '/mute ', prefill: true },
+        { icon: '📋', label: 'View Reports', desc: 'See reports', cmd: '/reports' },
+      ]});
+    }
+
+    if (isAdmin) {
+      cats.push({ name: '⚙️ Admin', items: [
+        { icon: '✅', label: 'Verify User', desc: '/verify', cmd: '/verify ', prefill: true },
+        { icon: '🛡️', label: 'Make Mod', desc: '/mod', cmd: '/mod ', prefill: true },
+        { icon: '🔒', label: 'Lockdown', desc: 'Toggle lock', cmd: '/lockdown' },
+        { icon: '📢', label: 'Create Channel', desc: '/channel-create', cmd: '/channel-create ', prefill: true },
+      ]});
+    }
+
+    cats.push({ name: '🔧 Utility', items: [
+      { icon: '❓', label: 'Help', desc: 'Show help', cmd: '/help' },
+      { icon: '🔑', label: 'Export Identity', desc: 'Backup keys', cmd: '/export' },
+      { icon: '🔗', label: 'Link Device', desc: 'Multi-device', cmd: '/link' },
+      { icon: '📊', label: 'Server Stats', desc: 'View stats', cmd: '/stats', action: function(){ window.open('/info','_blank'); } },
+    ]});
+
+    return cats;
+  }
+
+  function renderCmdPalette() {
+    const el = document.getElementById('cmd-palette');
+    const cats = getCmdPaletteItems();
+    let html = '';
+    cats.forEach(function(cat) {
+      html += '<div class="cp-category">' + cat.name + '</div>';
+      cat.items.forEach(function(item, i) {
+        html += '<div class="cp-item" data-cat="' + cat.name + '" data-idx="' + i + '">' +
+          '<span class="cp-icon">' + item.icon + '</span>' +
+          '<span class="cp-label">' + item.label + '</span>' +
+          '<span class="cp-desc">' + item.desc + '</span></div>';
+      });
+    });
+    el.innerHTML = html;
+
+    el.querySelectorAll('.cp-item').forEach(function(row) {
+      row.addEventListener('click', function() {
+        const catName = row.dataset.cat;
+        const idx = parseInt(row.dataset.idx);
+        const cat = cats.find(function(c) { return c.name === catName; });
+        if (!cat) return;
+        const item = cat.items[idx];
+        if (!item) return;
+        closeCmdPalette();
+        if (item.action) { item.action(); return; }
+        const input = document.getElementById('msg-input');
+        if (item.prefill) {
+          input.value = item.cmd;
+          input.focus();
+          input.setSelectionRange(item.cmd.length, item.cmd.length);
+        } else {
+          input.value = item.cmd;
+          sendMessage();
+        }
+      });
+    });
+  }
+
+  function toggleCmdPalette() {
+    const overlay = document.getElementById('cmd-palette-overlay');
+    if (overlay.classList.contains('open')) {
+      closeCmdPalette();
+    } else {
+      renderCmdPalette();
+      // Position palette above input area
+      const btn = document.getElementById('cmd-palette-btn');
+      const palette = document.getElementById('cmd-palette');
+      const inputArea = document.getElementById('input-area');
+      const rect = inputArea.getBoundingClientRect();
+      palette.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+      palette.style.left = Math.max(4, rect.left) + 'px';
+      overlay.classList.add('open');
+    }
+  }
+
+  function closeCmdPalette() {
+    document.getElementById('cmd-palette-overlay').classList.remove('open');
+  }
+
+  // Escape to close command palette
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('cmd-palette-overlay');
+      if (overlay && overlay.classList.contains('open')) { closeCmdPalette(); e.stopPropagation(); }
+    }
+  }, true);
   </script>
 
   <script>
