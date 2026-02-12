@@ -2628,13 +2628,22 @@ async function exportIdentityJSON(name) {
   try {
     const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
     const seed = extractSeedFromPkcs8(pkcs8);
-    return {
+    const exportData = {
       name: name || myName,
       publicKey: myIdentity.publicKeyHex,
       privateKey: bufToHex(seed),
       exportedAt: new Date().toISOString(),
       note: "Keep this file safe. Anyone with it can impersonate you."
     };
+    // Include ECDH key for E2EE DMs if available.
+    if (myEcdhKeyPair) {
+      try {
+        const ecdhPkcs8 = await crypto.subtle.exportKey('pkcs8', myEcdhKeyPair.privateKey);
+        exportData.ecdhPrivateKey = btoa(String.fromCharCode(...new Uint8Array(ecdhPkcs8)));
+        exportData.ecdhPublicKey = myEcdhPublicBase64;
+      } catch (e) { console.warn('ECDH export failed:', e); }
+    }
+    return exportData;
   } catch (e) {
     console.error('Export failed (key may be non-extractable):', e);
     return null;
@@ -2715,6 +2724,145 @@ async function importIdentityFromJSON(jsonData) {
     name: jsonData.name
   };
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// E2EE: ECDH P-256 + AES-256-GCM for end-to-end encrypted DMs
+// ══════════════════════════════════════════════════════════════════════════════
+
+const ECDH_DB_STORE = 'ecdh_identity';
+let myEcdhKeyPair = null; // { publicKey, privateKey }
+let myEcdhPublicBase64 = null; // base64-encoded raw public key for transmission
+
+/** Generate or load ECDH P-256 keypair for E2EE DMs. */
+async function getOrCreateEcdhKeypair() {
+  try {
+    // Try loading from IndexedDB
+    const db = await openKeyDB();
+    const stored = await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const req = tx.objectStore(STORE_NAME).get('ecdh');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+    if (stored && stored.privateKey && stored.publicKey) {
+      myEcdhKeyPair = { privateKey: stored.privateKey, publicKey: stored.publicKey };
+      const raw = await crypto.subtle.exportKey('raw', stored.publicKey);
+      myEcdhPublicBase64 = btoa(String.fromCharCode(...new Uint8Array(raw)));
+      console.log('Loaded existing ECDH key');
+      return;
+    }
+  } catch (e) { console.warn('ECDH IndexedDB load failed:', e); }
+
+  // Try localStorage backup
+  try {
+    const backup = localStorage.getItem('humanity_ecdh_backup');
+    if (backup) {
+      const { publicKeyRaw, privateKeyPkcs8 } = JSON.parse(backup);
+      const privBuf = Uint8Array.from(atob(privateKeyPkcs8), c => c.charCodeAt(0));
+      const pubBuf = Uint8Array.from(atob(publicKeyRaw), c => c.charCodeAt(0));
+      const privateKey = await crypto.subtle.importKey('pkcs8', privBuf, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+      const publicKey = await crypto.subtle.importKey('raw', pubBuf, { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+      myEcdhKeyPair = { privateKey, publicKey };
+      myEcdhPublicBase64 = publicKeyRaw;
+      console.log('Restored ECDH key from localStorage');
+      // Re-save to IndexedDB
+      try {
+        const db = await openKeyDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put({ id: 'ecdh', privateKey, publicKey });
+      } catch (e) {}
+      return;
+    }
+  } catch (e) { console.warn('ECDH localStorage restore failed:', e); }
+
+  // Generate new
+  try {
+    const kp = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+    myEcdhKeyPair = { privateKey: kp.privateKey, publicKey: kp.publicKey };
+    const raw = await crypto.subtle.exportKey('raw', kp.publicKey);
+    myEcdhPublicBase64 = btoa(String.fromCharCode(...new Uint8Array(raw)));
+
+    // Store in IndexedDB
+    try {
+      const db = await openKeyDB();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put({ id: 'ecdh', privateKey: kp.privateKey, publicKey: kp.publicKey });
+    } catch (e) {}
+
+    // Backup to localStorage
+    try {
+      const pkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
+      const pkcs8B64 = btoa(String.fromCharCode(...new Uint8Array(pkcs8)));
+      localStorage.setItem('humanity_ecdh_backup', JSON.stringify({ publicKeyRaw: myEcdhPublicBase64, privateKeyPkcs8: pkcs8B64 }));
+    } catch (e) {}
+
+    console.log('Generated new ECDH P-256 keypair');
+  } catch (e) {
+    console.error('ECDH key generation failed:', e);
+  }
+}
+
+/** Derive an AES-GCM-256 key from our ECDH private key and peer's ECDH public key. */
+async function deriveSharedKey(peerEcdhPublicBase64) {
+  if (!myEcdhKeyPair || !peerEcdhPublicBase64) return null;
+  try {
+    const peerRaw = Uint8Array.from(atob(peerEcdhPublicBase64), c => c.charCodeAt(0));
+    const peerKey = await crypto.subtle.importKey('raw', peerRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+    return await crypto.subtle.deriveKey(
+      { name: 'ECDH', public: peerKey },
+      myEcdhKeyPair.privateKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  } catch (e) {
+    console.error('ECDH key derivation failed:', e);
+    return null;
+  }
+}
+
+/** Encrypt a plaintext string for a peer. Returns { content, nonce } (both base64) or null. */
+async function encryptDmContent(plaintext, peerEcdhPublicBase64) {
+  const sharedKey = await deriveSharedKey(peerEcdhPublicBase64);
+  if (!sharedKey) return null;
+  try {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(plaintext);
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, encoded);
+    return {
+      content: btoa(String.fromCharCode(...new Uint8Array(ciphertext))),
+      nonce: btoa(String.fromCharCode(...iv))
+    };
+  } catch (e) {
+    console.error('DM encryption failed:', e);
+    return null;
+  }
+}
+
+/** Decrypt an encrypted DM. Returns plaintext string or null. */
+async function decryptDmContent(ciphertextBase64, nonceBase64, peerEcdhPublicBase64) {
+  const sharedKey = await deriveSharedKey(peerEcdhPublicBase64);
+  if (!sharedKey) return null;
+  try {
+    const iv = Uint8Array.from(atob(nonceBase64), c => c.charCodeAt(0));
+    const ciphertext = Uint8Array.from(atob(ciphertextBase64), c => c.charCodeAt(0));
+    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ciphertext);
+    return new TextDecoder().decode(plainBuf);
+  } catch (e) {
+    console.error('DM decryption failed:', e);
+    return null;
+  }
+}
+
+/** Look up ECDH public key for a peer by their Ed25519 public key. */
+function getPeerEcdhPublic(peerKey) {
+  const peer = peerData[peerKey];
+  return peer ? peer.ecdh_public : null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// End E2EE
+// ══════════════════════════════════════════════════════════════════════════════
   </script>
   <script>
     // Parse static emoji on page load — skip hub-nav so emoji match other pages
@@ -2825,6 +2973,9 @@ async function importIdentityFromJSON(jsonData) {
       // Initialize Ed25519 identity.
       myIdentity = await getOrCreateIdentity();
       myKey = myIdentity.publicKeyHex;
+
+      // Initialize ECDH P-256 keypair for E2E encrypted DMs.
+      await getOrCreateEcdhKeypair();
 
       // Stay on login screen — we switch to chat only after server confirms identity.
       identityConfirmed = false;
@@ -3050,6 +3201,10 @@ async function importIdentityFromJSON(jsonData) {
           public_key: myKey,
           display_name: myName,
         };
+        // E2EE: Include ECDH public key for end-to-end encrypted DMs.
+        if (myEcdhPublicBase64) {
+          identifyMsg.ecdh_public = myEcdhPublicBase64;
+        }
         if (pendingLinkCode) {
           identifyMsg.link_code = pendingLinkCode;
           pendingLinkCode = null;
@@ -3125,11 +3280,14 @@ async function importIdentityFromJSON(jsonData) {
         }
         case 'peer_joined':
           // Update peerData with new peer info — sidebar handles visibility.
-          peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '' };
+          peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', ecdh_public: msg.ecdh_public || null };
           updateStats();
           break;
         case 'peer_left':
-          delete peerData[msg.public_key];
+          // Keep ecdh_public in peerData for offline decryption of history
+          if (peerData[msg.public_key]) {
+            peerData[msg.public_key]._offline = true;
+          }
           updateStats();
           break;
         case 'channel_list':
@@ -3253,12 +3411,28 @@ async function importIdentityFromJSON(jsonData) {
           // Incoming DM — if we're viewing this conversation, show it.
           const dmFrom = msg.from;
           const dmFromName = msg.from_name || shortKey(dmFrom);
+          let dmContent = msg.content;
+          let dmIsEncrypted = !!msg.encrypted;
+          // E2EE: Decrypt if encrypted.
+          if (msg.encrypted && msg.nonce) {
+            const senderEcdh = getPeerEcdhPublic(dmFrom);
+            if (senderEcdh) {
+              const plain = await decryptDmContent(msg.content, msg.nonce, senderEcdh);
+              if (plain !== null) {
+                dmContent = plain;
+              } else {
+                dmContent = '🔒 [Decryption failed]';
+              }
+            } else {
+              dmContent = '🔒 [Cannot decrypt — missing sender key]';
+            }
+          }
           if (activeDmPartner && (dmFrom === activeDmPartner || dmFrom === myKey)) {
-            addDmMessage(dmFromName, msg.content, msg.timestamp, dmFrom, msg.to);
+            addDmMessage(dmFromName, dmContent, msg.timestamp, dmFrom, msg.to, dmIsEncrypted);
           }
           // Notify.
           if (dmFrom !== myKey) {
-            notifyNewMessage(dmFromName, msg.content, true);
+            notifyNewMessage(dmFromName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, true);
           }
           break;
         }
@@ -3272,6 +3446,16 @@ async function importIdentityFromJSON(jsonData) {
           if (activeDmPartner === msg.partner) {
             document.getElementById('messages').innerHTML = '';
             const msgs = msg.messages || [];
+            // E2EE status banner
+            const partnerEcdh = getPeerEcdhPublic(msg.partner);
+            const e2eeNotice = document.createElement('div');
+            e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:0.3rem;color:var(--text-muted);';
+            if (partnerEcdh && myEcdhKeyPair) {
+              e2eeNotice.innerHTML = '🔒 Messages are end-to-end encrypted';
+            } else {
+              e2eeNotice.innerHTML = '🔓 Messages are <b>not</b> encrypted — the other party does not support E2EE';
+            }
+            document.getElementById('messages').appendChild(e2eeNotice);
             if (msgs.length > 0) {
               const notice = document.createElement('div');
               notice.id = 'history-notice';
@@ -3279,7 +3463,19 @@ async function importIdentityFromJSON(jsonData) {
               document.getElementById('messages').appendChild(notice);
             }
             for (const m of msgs) {
-              addDmMessage(m.from_name || shortKey(m.from), m.content, m.timestamp, m.from, m.to);
+              let histContent = m.content;
+              let histEncrypted = !!m.encrypted;
+              if (m.encrypted && m.nonce) {
+                // Determine peer key: if from me, use partner's key; if from partner, use partner's key
+                const peerKeyForDecrypt = getPeerEcdhPublic(m.from === myKey ? m.to : m.from) || getPeerEcdhPublic(msg.partner);
+                if (peerKeyForDecrypt) {
+                  const plain = await decryptDmContent(m.content, m.nonce, peerKeyForDecrypt);
+                  histContent = plain !== null ? plain : '🔒 [Decryption failed]';
+                } else {
+                  histContent = '🔒 [Cannot decrypt — missing key]';
+                }
+              }
+              addDmMessage(m.from_name || shortKey(m.from), histContent, m.timestamp, m.from, m.to, histEncrypted);
             }
           }
           break;
@@ -3643,7 +3839,7 @@ async function importIdentityFromJSON(jsonData) {
 
       // Update peerData from full user list.
       for (const u of users) {
-        peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '' };
+        peerData[u.public_key] = { public_key: u.public_key, display_name: u.name, role: u.role || '', ecdh_public: u.ecdh_public || null };
       }
 
       const online = users.filter(u => u.online);
@@ -5502,16 +5698,27 @@ async function importIdentityFromJSON(jsonData) {
           }
         }
         if (val && ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
+          const peerEcdh = getPeerEcdhPublic(activeDmPartner);
+          let dmPayload = {
             type: 'dm',
             from: myKey,
             from_name: myName,
             to: activeDmPartner,
             content: val,
             timestamp: Date.now(),
-          }));
-          // Show locally immediately.
-          addDmMessage(myName, val, Date.now(), myKey, activeDmPartner);
+          };
+          // E2EE: encrypt if both parties have ECDH keys.
+          if (peerEcdh && myEcdhKeyPair) {
+            const enc = await encryptDmContent(val, peerEcdh);
+            if (enc) {
+              dmPayload.content = enc.content;
+              dmPayload.nonce = enc.nonce;
+              dmPayload.encrypted = true;
+            }
+          }
+          ws.send(JSON.stringify(dmPayload));
+          // Show locally immediately (plaintext).
+          addDmMessage(myName, val, Date.now(), myKey, activeDmPartner, false);
           input.value = '';
           input.style.height = 'auto';
         }
@@ -5572,7 +5779,7 @@ async function importIdentityFromJSON(jsonData) {
     }
 
     /** Add a DM message to the message area. */
-    function addDmMessage(author, body, timestamp, fromKey, toKey) {
+    function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
       const el = document.createElement('div');
       el.className = 'message dm-message';
       el.dataset.from = fromKey;
@@ -5584,12 +5791,13 @@ async function importIdentityFromJSON(jsonData) {
       const isBotMsg2 = fromKey && fromKey.startsWith('bot_');
       const identiconSrc = (!isBotMsg2 && fromKey) ? generateIdenticon(fromKey, 20) : '';
       const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:18px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
+      const e2eeBadge = isEncrypted ? '<span title="End-to-end encrypted" style="font-size:0.65rem;opacity:0.6;margin-left:0.3rem;">🔒</span>' : '';
 
       el.innerHTML = `
         <div class="meta">
           ${identiconHtml}
           <span class="author${isMe ? ' you' : ''}">${esc(author)}</span>
-          <span class="time">${time}</span>
+          <span class="time">${time}</span>${e2eeBadge}
         </div>
         <div class="body">${formatBody(body)}</div>
       `;

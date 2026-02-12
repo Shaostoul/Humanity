@@ -305,6 +305,9 @@ pub enum RelayMessage {
         display_name: Option<String>,
         #[serde(default)]
         role: String,
+        /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        ecdh_public: Option<String>,
     },
 
     /// Server announces a peer left.
@@ -1498,6 +1501,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     public_key,
                     display_name: final_name,
                     role: peer_role.clone(),
+                    ecdh_public: ecdh_public.clone(),
                 });
 
                 // Broadcast updated full user list to all clients.
@@ -3459,7 +3463,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .as_millis() as u64;
 
                                 // Store the DM.
-                                if let Err(e) = state_clone.db.store_dm(&my_key_for_recv, &sender_name, &to, &content, ts) {
+                                if let Err(e) = state_clone.db.store_dm_e2ee(&my_key_for_recv, &sender_name, &to, &content, ts, encrypted, nonce.as_deref()) {
                                     tracing::error!("Failed to store DM: {e}");
                                 }
 
@@ -3507,6 +3511,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             to: r.to_key,
                                             content: r.content,
                                             timestamp: r.timestamp,
+                                            encrypted: r.encrypted,
+                                            nonce: r.nonce,
                                         }).collect();
                                         let history = RelayMessage::DmHistory {
                                             target: Some(my_key_for_recv.clone()),

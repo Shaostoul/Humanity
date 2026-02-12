@@ -132,6 +132,7 @@ pub async fn send_message(
             public_key_hex: bot_key.clone(),
             display_name: Some(req.from_name.clone()),
             upload_token: None,
+            ecdh_public: None,
         });
     }
 
@@ -561,6 +562,7 @@ pub async fn github_webhook(
             public_key_hex: bot_key,
             display_name: Some("GitHub".to_string()),
             upload_token: None,
+            ecdh_public: None,
         });
     }
 
@@ -792,6 +794,7 @@ pub async fn get_peers(
                 upload_token: None, // Never expose tokens via API
                 status: "online".to_string(),
                 status_text: String::new(),
+                ecdh_public: p.ecdh_public.clone(),
             }
         })
         .collect();

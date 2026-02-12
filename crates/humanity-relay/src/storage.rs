@@ -1804,11 +1804,25 @@ impl Storage {
         content: &str,
         timestamp: u64,
     ) -> Result<i64, rusqlite::Error> {
+        self.store_dm_e2ee(from_key, from_name, to_key, content, timestamp, false, None)
+    }
+
+    /// Store a DM with optional E2EE metadata.
+    pub fn store_dm_e2ee(
+        &self,
+        from_key: &str,
+        from_name: &str,
+        to_key: &str,
+        content: &str,
+        timestamp: u64,
+        encrypted: bool,
+        nonce: Option<&str>,
+    ) -> Result<i64, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO direct_messages (from_key, from_name, to_key, content, timestamp)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![from_key, from_name, to_key, content, timestamp as i64],
+            "INSERT INTO direct_messages (from_key, from_name, to_key, content, timestamp, encrypted, nonce)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![from_key, from_name, to_key, content, timestamp as i64, encrypted as i32, nonce],
         )?;
         Ok(conn.last_insert_rowid())
     }
@@ -1823,8 +1837,8 @@ impl Storage {
     ) -> Result<Vec<DmRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT from_key, from_name, to_key, content, timestamp FROM (
-                SELECT from_key, from_name, to_key, content, timestamp FROM direct_messages
+            "SELECT from_key, from_name, to_key, content, timestamp, COALESCE(encrypted, 0), nonce FROM (
+                SELECT from_key, from_name, to_key, content, timestamp, encrypted, nonce FROM direct_messages
                 WHERE (from_key = ?1 AND to_key = ?2) OR (from_key = ?2 AND to_key = ?1)
                 ORDER BY timestamp DESC
                 LIMIT ?3
@@ -1837,6 +1851,8 @@ impl Storage {
                 to_key: row.get(2)?,
                 content: row.get(3)?,
                 timestamp: row.get::<_, i64>(4)? as u64,
+                encrypted: row.get::<_, i32>(5)? != 0,
+                nonce: row.get(6)?,
             })
         })?.filter_map(|r| r.ok()).collect();
         Ok(records)
@@ -1851,8 +1867,8 @@ impl Storage {
     ) -> Result<Vec<DmRecord>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT from_key, from_name, to_key, content, timestamp FROM (
-                SELECT from_key, from_name, to_key, content, timestamp FROM direct_messages
+            "SELECT from_key, from_name, to_key, content, timestamp, COALESCE(encrypted, 0), nonce FROM (
+                SELECT from_key, from_name, to_key, content, timestamp, encrypted, nonce FROM direct_messages
                 WHERE (from_key IN (SELECT public_key FROM registered_names WHERE name = ?1 COLLATE NOCASE)
                        AND to_key IN (SELECT public_key FROM registered_names WHERE name = ?2 COLLATE NOCASE))
                    OR (from_key IN (SELECT public_key FROM registered_names WHERE name = ?2 COLLATE NOCASE)
@@ -1868,6 +1884,8 @@ impl Storage {
                 to_key: row.get(2)?,
                 content: row.get(3)?,
                 timestamp: row.get::<_, i64>(4)? as u64,
+                encrypted: row.get::<_, i32>(5)? != 0,
+                nonce: row.get(6)?,
             })
         })?.filter_map(|r| r.ok()).collect();
         Ok(records)
@@ -2023,6 +2041,32 @@ impl Storage {
             |row| row.get(0),
         ) {
             Ok(name) => Ok(Some(name)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    // ── ECDH Public Key methods (E2EE DMs) ──
+
+    /// Store or update the ECDH P-256 public key for a given Ed25519 public key.
+    pub fn store_ecdh_public(&self, public_key: &str, ecdh_public: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE registered_names SET ecdh_public = ?1 WHERE public_key = ?2",
+            params![ecdh_public, public_key],
+        )?;
+        Ok(())
+    }
+
+    /// Get the ECDH P-256 public key for a given Ed25519 public key.
+    pub fn get_ecdh_public(&self, public_key: &str) -> Result<Option<String>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT ecdh_public FROM registered_names WHERE public_key = ?1 AND ecdh_public IS NOT NULL LIMIT 1",
+            params![public_key],
+            |row| row.get(0),
+        ) {
+            Ok(key) => Ok(Some(key)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
         }
