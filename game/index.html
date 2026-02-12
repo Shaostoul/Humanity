@@ -317,6 +317,145 @@
       font-weight: 600;
     }
 
+    /* ── Catalog System ── */
+    .catalog-search-bar {
+      display: flex; gap: 0.5rem; margin-bottom: 1.2rem; position: sticky; top: 0; z-index: 10;
+      background: var(--bg, #0a0a0a); padding: 0.5rem 0;
+    }
+    .catalog-search-bar input {
+      flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.9rem; outline: none; font-family: inherit;
+    }
+    .catalog-search-bar input:focus { border-color: var(--accent); }
+    .catalog-search-results {
+      background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 1rem; max-height: 300px; overflow-y: auto;
+    }
+    .catalog-search-results:empty { display: none; }
+    .catalog-result-item {
+      display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.8rem;
+      cursor: pointer; font-size: 0.82rem; border-bottom: 1px solid var(--border);
+    }
+    .catalog-result-item:last-child { border-bottom: none; }
+    .catalog-result-item:hover { background: var(--bg-hover, rgba(255,255,255,0.03)); }
+    .catalog-result-badge {
+      font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px;
+      text-transform: uppercase; flex-shrink: 0;
+    }
+
+    /* Reference Sources Grid */
+    .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem; }
+    .ref-card {
+      display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem;
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+      text-decoration: none; color: var(--text); font-size: 0.78rem; transition: border-color 0.15s;
+    }
+    .ref-card:hover { border-color: var(--accent); }
+    .ref-card .ref-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .ref-card .ref-name { font-weight: 600; color: var(--text); }
+    .ref-card .ref-desc { font-size: 0.7rem; color: var(--text-muted); }
+
+    /* Element Cards */
+    .element-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.4rem; }
+    .element-card {
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+      padding: 0.4rem; text-align: center; cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+      position: relative;
+    }
+    .element-card:hover { transform: scale(1.05); z-index: 1; }
+    .element-card .el-number { font-size: 0.6rem; color: var(--text-muted); position: absolute; top: 3px; left: 5px; }
+    .element-card .el-symbol { font-size: 1.3rem; font-weight: 700; margin: 0.1rem 0; }
+    .element-card .el-name { font-size: 0.6rem; color: var(--text-muted); }
+    .element-card .el-mass { font-size: 0.55rem; color: var(--text-muted); opacity: 0.6; }
+    .el-cat-nonmetal { border-color: rgba(76,175,80,0.4); } .el-cat-nonmetal .el-symbol { color: #4caf50; }
+    .el-cat-metal { border-color: rgba(66,165,245,0.4); } .el-cat-metal .el-symbol { color: #42a5f5; }
+    .el-cat-metalloid { border-color: rgba(255,167,38,0.4); } .el-cat-metalloid .el-symbol { color: #ffa726; }
+    .el-cat-noble-gas { border-color: rgba(171,71,188,0.4); } .el-cat-noble-gas .el-symbol { color: #ab47bc; }
+    .el-cat-transition-metal { border-color: rgba(66,165,245,0.4); } .el-cat-transition-metal .el-symbol { color: #42a5f5; }
+    .el-cat-actinide { border-color: rgba(239,83,80,0.4); } .el-cat-actinide .el-symbol { color: #ef5350; }
+
+    /* Element Detail */
+    .element-detail {
+      background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: 10px;
+      padding: 1.2rem; margin-bottom: 1rem; animation: fadeIn 0.15s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    .element-detail h3 { margin: 0 0 0.6rem; font-size: 1.1rem; }
+    .element-detail .el-props { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.4rem; margin: 0.6rem 0; }
+    .element-detail .el-prop { background: var(--bg-input); border-radius: 4px; padding: 0.3rem 0.5rem; font-size: 0.78rem; }
+    .element-detail .el-prop dt { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; }
+    .element-detail .el-prop dd { color: var(--text); font-weight: 600; margin: 0; }
+
+    /* Materials */
+    .material-card {
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.7rem; cursor: pointer; transition: border-color 0.15s;
+    }
+    .material-card:hover { border-color: var(--accent); }
+    .material-type-badge {
+      display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem;
+      border-radius: 3px; text-transform: uppercase;
+    }
+    .mat-raw { background: rgba(139,195,74,0.2); color: #8bc34a; }
+    .mat-processed { background: rgba(66,165,245,0.2); color: #42a5f5; }
+    .mat-composite { background: rgba(255,167,38,0.2); color: #ffa726; }
+    .processing-chain {
+      display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap;
+      font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem;
+    }
+    .processing-chain .chain-arrow { color: var(--accent); font-weight: 700; }
+
+    /* Inventory */
+    .inv-privacy-banner {
+      background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3); border-radius: 8px;
+      padding: 0.5rem 0.8rem; font-size: 0.78rem; color: #4caf50; text-align: center; margin-bottom: 0.8rem;
+    }
+    .inv-toolbar { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.8rem; align-items: center; }
+    .inv-toolbar select, .inv-toolbar input {
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-family: inherit; outline: none;
+    }
+    .inv-item {
+      background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.6rem; transition: border-color 0.15s;
+    }
+    .inv-item:hover { border-color: var(--accent); }
+
+    /* Modal */
+    .catalog-modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;
+    }
+    .catalog-modal-overlay.open { display: flex; }
+    .catalog-modal {
+      background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: 12px;
+      padding: 1.5rem; max-width: 550px; width: 92%; max-height: 85vh; overflow-y: auto; position: relative;
+    }
+    .catalog-modal .modal-close {
+      position: absolute; top: 0.5rem; right: 0.8rem; background: none; border: none;
+      color: var(--text-muted); font-size: 1.3rem; cursor: pointer;
+    }
+    .catalog-modal label { font-size: 0.75rem; color: var(--text-muted); display: block; margin: 0.4rem 0 0.15rem; }
+    .catalog-modal input, .catalog-modal select, .catalog-modal textarea {
+      width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
+      padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.82rem; outline: none; font-family: inherit;
+      box-sizing: border-box;
+    }
+    .catalog-modal textarea { resize: vertical; }
+    .catalog-modal .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .catalog-modal .modal-actions button {
+      flex: 1; padding: 0.5rem; border: none; border-radius: 6px; font-size: 0.85rem;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+
+    .filter-pills { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+    .filter-pill {
+      background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted);
+      padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+    }
+    .filter-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .filter-pill:hover { border-color: var(--accent); }
+
     /* ── Mobile ── */
     @media (max-width: 600px) {
       .tab-content {
@@ -325,6 +464,8 @@
       .card-grid {
         grid-template-columns: 1fr;
       }
+      .element-grid { grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); }
+      .ref-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -377,71 +518,139 @@
 
   <!-- Reality Tab -->
   <div id="tab-reality" class="tab-content">
-    <div class="panel">
-      <h2>🟢 Reality</h2>
-      <p>Your real-world dashboard. Track your actual life — garden, notes, todos — all in one place. Data stays on your device.</p>
+    <!-- Universal Search -->
+    <div class="catalog-search-bar">
+      <input type="text" id="universal-search" placeholder="🔍 Search elements, materials, inventory…" oninput="universalSearch(this.value)">
     </div>
-    <div class="card-grid">
-      <!-- ── Todo List ── -->
-      <div class="panel reality-card" id="reality-todo">
-        <h2 class="reality-card-header" onclick="toggleRealityCard('todo')">✅ Todo List <span class="collapse-icon" id="todo-collapse">▼</span></h2>
-        <div class="reality-card-body" id="todo-body">
-          <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
-            <input type="text" id="todo-input" placeholder="Add a task…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')addTodo()">
-            <button onclick="addTodo()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Add</button>
-          </div>
-          <div id="todo-list"></div>
+    <div class="catalog-search-results" id="universal-search-results"></div>
+
+    <div class="panel" style="margin-bottom:1rem;">
+      <h2>🟢 Reality</h2>
+      <p>Your real-world dashboard. Knowledge base, catalogs, and personal tools — all local-first.</p>
+    </div>
+
+    <!-- ── Todo List ── -->
+    <div class="panel reality-card" id="reality-todo">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('todo')">✅ Todo List <span class="collapse-icon" id="todo-collapse">▼</span></h2>
+      <div class="reality-card-body" id="todo-body">
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
+          <input type="text" id="todo-input" placeholder="Add a task…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')addTodo()">
+          <button onclick="addTodo()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Add</button>
+        </div>
+        <div id="todo-list"></div>
+      </div>
+    </div>
+
+    <!-- ── Notes ── -->
+    <div class="panel reality-card" id="reality-notes">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('notes')">📝 Notes <span class="collapse-icon" id="notes-collapse">▼</span></h2>
+      <div class="reality-card-body" id="notes-body">
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
+          <button onclick="addNote()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">+ New Note</button>
+        </div>
+        <div id="notes-list" style="margin-bottom:0.6rem;"></div>
+        <div id="notes-editor" style="display:none;">
+          <input type="text" id="note-title" placeholder="Note title" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.4rem;" oninput="saveCurrentNote()">
+          <textarea id="note-content" placeholder="Write your note…" rows="8" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;line-height:1.5;" oninput="saveCurrentNote()"></textarea>
         </div>
       </div>
+    </div>
 
-      <!-- ── Notes ── -->
-      <div class="panel reality-card" id="reality-notes">
-        <h2 class="reality-card-header" onclick="toggleRealityCard('notes')">📝 Notes <span class="collapse-icon" id="notes-collapse">▼</span></h2>
-        <div class="reality-card-body" id="notes-body">
-          <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
-            <button onclick="addNote()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">+ New Note</button>
-          </div>
-          <div id="notes-list" style="margin-bottom:0.6rem;"></div>
-          <div id="notes-editor" style="display:none;">
-            <input type="text" id="note-title" placeholder="Note title" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.4rem;" oninput="saveCurrentNote()">
-            <textarea id="note-content" placeholder="Write your note…" rows="8" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.5rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;line-height:1.5;" oninput="saveCurrentNote()"></textarea>
-          </div>
+    <!-- ── Garden Tracker ── -->
+    <div class="panel reality-card" id="reality-garden">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('garden')">🌱 Garden Tracker <span class="collapse-icon" id="garden-collapse">▼</span></h2>
+      <div class="reality-card-body" id="garden-body">
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Click a plot to set what's planted. Your garden, your data.</p>
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;align-items:center;">
+          <label style="font-size:0.8rem;color:var(--text-muted);">Grid:</label>
+          <select id="garden-size" onchange="resizeGarden()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:4px;font-size:0.8rem;">
+            <option value="3">3×3</option>
+            <option value="4" selected>4×4</option>
+            <option value="5">5×5</option>
+            <option value="6">6×6</option>
+          </select>
         </div>
+        <div id="garden-grid"></div>
       </div>
+    </div>
 
-      <!-- ── Garden Tracker ── -->
-      <div class="panel reality-card" id="reality-garden">
-        <h2 class="reality-card-header" onclick="toggleRealityCard('garden')">🌱 Garden Tracker <span class="collapse-icon" id="garden-collapse">▼</span></h2>
-        <div class="reality-card-body" id="garden-body">
-          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Click a plot to set what's planted. Your garden, your data.</p>
-          <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;align-items:center;">
-            <label style="font-size:0.8rem;color:var(--text-muted);">Grid:</label>
-            <select id="garden-size" onchange="resizeGarden()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:4px;font-size:0.8rem;">
-              <option value="3">3×3</option>
-              <option value="4" selected>4×4</option>
-              <option value="5">5×5</option>
-              <option value="6">6×6</option>
-            </select>
-          </div>
-          <div id="garden-grid"></div>
+    <!-- ── Reference Sources ── -->
+    <div class="panel reality-card" id="reality-references">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('references')">📚 Reference Sources <span class="collapse-icon" id="references-collapse">▼</span></h2>
+      <div class="reality-card-body" id="references-body">
+        <div class="ref-grid" id="ref-sources-grid"></div>
+      </div>
+    </div>
+
+    <!-- ── Element Catalog ── -->
+    <div class="panel reality-card" id="reality-elements">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('elements')">🧪 Element Catalog <span class="collapse-icon" id="elements-collapse">▼</span></h2>
+      <div class="reality-card-body" id="elements-body">
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap;align-items:center;">
+          <input type="text" id="element-filter" placeholder="Filter elements…" oninput="renderElements()" style="flex:1;min-width:140px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.8rem;outline:none;font-family:inherit;">
         </div>
+        <div class="filter-pills" id="element-cat-pills"></div>
+        <div id="element-detail-slot"></div>
+        <div class="element-grid" id="element-grid"></div>
       </div>
+    </div>
 
-      <!-- ── Future cards ── -->
-      <div class="panel">
-        <h2>📦 Inventory</h2>
-        <p>Catalog your tools, supplies, materials, and resources.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+    <!-- ── Materials Catalog ── -->
+    <div class="panel reality-card" id="reality-materials">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('materials')">🏗️ Materials Catalog <span class="collapse-icon" id="materials-collapse">▼</span></h2>
+      <div class="reality-card-body" id="materials-body">
+        <div class="filter-pills" id="material-type-pills"></div>
+        <div id="material-detail-slot"></div>
+        <div id="materials-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.5rem;"></div>
       </div>
-      <div class="panel">
-        <h2>❤️ Health</h2>
-        <p>Track nutrition, exercise, sleep, and wellness goals.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+    </div>
+
+    <!-- ── Personal Inventory ── -->
+    <div class="panel reality-card" id="reality-inventory">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('inventory')">📦 Personal Inventory <span class="collapse-icon" id="inventory-collapse">▼</span></h2>
+      <div class="reality-card-body" id="inventory-body">
+        <div class="inv-privacy-banner">🔒 Private — stored only on this device, never uploaded</div>
+        <div class="inv-toolbar">
+          <button onclick="openInventoryModal()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">+ Add Item</button>
+          <select id="inv-category-filter" onchange="renderInventory()" style="min-width:100px;">
+            <option value="">All Categories</option>
+          </select>
+          <input type="text" id="inv-search" placeholder="Search…" oninput="renderInventory()" style="flex:1;min-width:100px;">
+          <button onclick="exportInventory()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.75rem;cursor:pointer;" title="Export JSON">📤</button>
+          <button onclick="document.getElementById('inv-import-file').click()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.75rem;cursor:pointer;" title="Import JSON">📥</button>
+          <input type="file" id="inv-import-file" accept=".json" style="display:none" onchange="importInventory(event)">
+        </div>
+        <div id="inventory-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:0.5rem;"></div>
       </div>
-      <div class="panel">
-        <h2>📚 Learning</h2>
-        <p>Skill trees, tutorials, and guides for real life.</p>
-        <div class="placeholder-text">🚧 Coming soon</div>
+    </div>
+
+    <!-- Inventory Modal -->
+    <div class="catalog-modal-overlay" id="inv-modal">
+      <div class="catalog-modal">
+        <button class="modal-close" onclick="closeInventoryModal()">✕</button>
+        <h3 style="color:var(--text);margin:0 0 0.8rem;" id="inv-modal-title">Add Item</h3>
+        <input type="hidden" id="inv-edit-id">
+        <label>Name *</label><input type="text" id="inv-name" maxlength="100">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>Category</label><select id="inv-category"></select></div>
+          <div><label>Subcategory</label><input type="text" id="inv-subcategory" maxlength="50"></div>
+        </div>
+        <label>Description</label><textarea id="inv-description" rows="2"></textarea>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+          <div><label>Quantity</label><input type="number" id="inv-quantity" min="1" value="1"></div>
+          <div><label>Condition</label><select id="inv-condition"><option>New</option><option selected>Good</option><option>Fair</option><option>Poor</option></select></div>
+          <div><label>Acquired</label><input type="text" id="inv-acquired" placeholder="2024" maxlength="20"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>Location</label><input type="text" id="inv-location" maxlength="50"></div>
+          <div><label>Est. Value</label><input type="text" id="inv-value" maxlength="20"></div>
+        </div>
+        <label>Notes</label><textarea id="inv-notes" rows="2"></textarea>
+        <label>Tags (comma-separated)</label><input type="text" id="inv-tags" placeholder="daily-use, important">
+        <div class="modal-actions">
+          <button onclick="closeInventoryModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+          <button onclick="saveInventoryItem()" style="background:var(--accent);color:#fff;">Save</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1293,22 +1502,450 @@
     }
 
     // ══════════════════════════════════════
-    // REALITY TAB — Todo, Notes, Garden
+    // REALITY TAB — Todo, Notes, Garden, Catalogs
     // ══════════════════════════════════════
 
     // ── Card collapse ──
+    const REALITY_CARDS = ['todo', 'notes', 'garden', 'references', 'elements', 'materials', 'inventory'];
     function toggleRealityCard(id) {
       const card = document.getElementById('reality-' + id);
       if (card) card.classList.toggle('collapsed');
       localStorage.setItem('reality_collapsed_' + id, card.classList.contains('collapsed'));
     }
     // Restore collapse state
-    ['todo', 'notes', 'garden'].forEach(id => {
+    REALITY_CARDS.forEach(id => {
       if (localStorage.getItem('reality_collapsed_' + id) === 'true') {
         const card = document.getElementById('reality-' + id);
         if (card) card.classList.add('collapsed');
       }
     });
+
+    // ══════════════════════════════════════
+    // REFERENCE SOURCES
+    // ══════════════════════════════════════
+    const REF_SOURCES = [
+      { icon: '⚛️', name: 'NIST', url: 'https://nist.gov', desc: 'Physical constants, element data, standards' },
+      { icon: '🧪', name: 'PubChem', url: 'https://pubchem.ncbi.nlm.nih.gov', desc: 'Chemical compounds database' },
+      { icon: '🔬', name: 'PubMed', url: 'https://pubmed.ncbi.nlm.nih.gov', desc: 'Biomedical research papers' },
+      { icon: '🌌', name: 'NASA ADS', url: 'https://ui.adsabs.harvard.edu', desc: 'Astrophysics data system' },
+      { icon: '📖', name: 'Wikipedia', url: 'https://wikipedia.org', desc: 'General reference encyclopedia' },
+      { icon: '🪨', name: 'USGS', url: 'https://usgs.gov', desc: 'Geological surveys, minerals, mines' },
+      { icon: '🏗️', name: 'MatWeb', url: 'https://matweb.com', desc: 'Material property data' },
+      { icon: '📊', name: 'Wolfram Alpha', url: 'https://wolframalpha.com', desc: 'Computational knowledge engine' },
+    ];
+    (function renderRefSources() {
+      document.getElementById('ref-sources-grid').innerHTML = REF_SOURCES.map(s =>
+        `<a href="${s.url}" target="_blank" rel="noopener" class="ref-card">
+          <span class="ref-icon">${s.icon}</span>
+          <div><div class="ref-name">${s.name}</div><div class="ref-desc">${s.desc}</div></div>
+        </a>`
+      ).join('');
+    })();
+
+    // ══════════════════════════════════════
+    // ELEMENT CATALOG
+    // ══════════════════════════════════════
+    const ELEMENTS = [
+      { symbol:'H', name:'Hydrogen', number:1, category:'nonmetal', mass:1.008, phase:'Gas',
+        density:'0.00008988 g/cm³', meltingPoint:'-259.16 °C', boilingPoint:'-252.87 °C',
+        discovered:'1766', discoverer:'Henry Cavendish',
+        uses:['Fuel cells','Ammonia production','Rocket fuel','Hydrogenation'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C1333740'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Hydrogen'}],
+        description:'Lightest element. Most abundant chemical substance in the universe.' },
+      { symbol:'C', name:'Carbon', number:6, category:'nonmetal', mass:12.011, phase:'Solid',
+        density:'2.267 g/cm³', meltingPoint:'3550 °C', boilingPoint:'4027 °C',
+        discovered:'Ancient', discoverer:'Known since antiquity',
+        uses:['Steel production','Fuels','Plastics','Diamond/graphite'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440440'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Carbon'}],
+        description:'Basis of all known life. Forms more compounds than any other element.' },
+      { symbol:'N', name:'Nitrogen', number:7, category:'nonmetal', mass:14.007, phase:'Gas',
+        density:'0.0012506 g/cm³', meltingPoint:'-210.00 °C', boilingPoint:'-195.79 °C',
+        discovered:'1772', discoverer:'Daniel Rutherford',
+        uses:['Fertilizers','Explosives','Cryogenics','Food preservation'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7727379'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Nitrogen'}],
+        description:'Makes up 78% of Earth\'s atmosphere. Essential for amino acids and DNA.' },
+      { symbol:'O', name:'Oxygen', number:8, category:'nonmetal', mass:15.999, phase:'Gas',
+        density:'0.001429 g/cm³', meltingPoint:'-218.79 °C', boilingPoint:'-182.96 °C',
+        discovered:'1774', discoverer:'Joseph Priestley',
+        uses:['Respiration','Steel manufacturing','Medical','Welding'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7782447'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Oxygen'}],
+        description:'Essential for aerobic life. Third most abundant element in the universe.' },
+      { symbol:'Si', name:'Silicon', number:14, category:'metalloid', mass:28.085, phase:'Solid',
+        density:'2.3296 g/cm³', meltingPoint:'1414 °C', boilingPoint:'3265 °C',
+        discovered:'1824', discoverer:'Jöns Jacob Berzelius',
+        uses:['Semiconductors','Glass','Concrete','Solar cells'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440213'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Silicon'}],
+        description:'Second most abundant element in Earth\'s crust. Foundation of modern electronics.' },
+      { symbol:'Fe', name:'Iron', number:26, category:'transition-metal', mass:55.845, phase:'Solid',
+        density:'7.874 g/cm³', meltingPoint:'1538 °C', boilingPoint:'2862 °C',
+        discovered:'Ancient', discoverer:'Known since antiquity',
+        uses:['Steel','Construction','Machinery','Magnets'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7439896'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Iron'}],
+        description:'Most common element on Earth by mass. Core component of steel.' },
+      { symbol:'Cu', name:'Copper', number:29, category:'transition-metal', mass:63.546, phase:'Solid',
+        density:'8.96 g/cm³', meltingPoint:'1084.62 °C', boilingPoint:'2562 °C',
+        discovered:'Ancient', discoverer:'Known since antiquity',
+        uses:['Electrical wiring','Plumbing','Electronics','Alloys'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440508'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Copper'}],
+        description:'Excellent conductor of electricity and heat. One of few metals with natural color.' },
+      { symbol:'Ag', name:'Silver', number:47, category:'transition-metal', mass:107.868, phase:'Solid',
+        density:'10.49 g/cm³', meltingPoint:'961.78 °C', boilingPoint:'2162 °C',
+        discovered:'Ancient', discoverer:'Known since antiquity',
+        uses:['Jewelry','Electronics','Photography','Antibacterial'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440224'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Silver'}],
+        description:'Highest electrical and thermal conductivity of any element. Precious metal.' },
+      { symbol:'Au', name:'Gold', number:79, category:'transition-metal', mass:196.967, phase:'Solid',
+        density:'19.3 g/cm³', meltingPoint:'1064.18 °C', boilingPoint:'2856 °C',
+        discovered:'Ancient', discoverer:'Known since antiquity',
+        uses:['Currency/Investment','Jewelry','Electronics','Dentistry'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440575'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Gold'}],
+        description:'Highly valued precious metal. Extremely malleable and resistant to corrosion.' },
+      { symbol:'U', name:'Uranium', number:92, category:'actinide', mass:238.029, phase:'Solid',
+        density:'19.1 g/cm³', meltingPoint:'1132.2 °C', boilingPoint:'4131 °C',
+        discovered:'1789', discoverer:'Martin Heinrich Klaproth',
+        uses:['Nuclear power','Nuclear weapons','Radiation shielding','Dating rocks'],
+        sources:[{name:'NIST',url:'https://webbook.nist.gov/cgi/cbook.cgi?ID=C7440611'},{name:'PubChem',url:'https://pubchem.ncbi.nlm.nih.gov/element/Uranium'}],
+        description:'Heaviest naturally occurring element. Primary fuel for nuclear reactors.' },
+    ];
+
+    const ELEMENT_CATEGORIES = [...new Set(ELEMENTS.map(e => e.category))];
+    let elementCatFilter = '';
+    let selectedElement = null;
+
+    function renderElementPills() {
+      const pills = document.getElementById('element-cat-pills');
+      pills.innerHTML = `<span class="filter-pill ${elementCatFilter===''?'active':''}" onclick="elementCatFilter='';renderElements()">All</span>` +
+        ELEMENT_CATEGORIES.map(c => `<span class="filter-pill ${elementCatFilter===c?'active':''}" onclick="elementCatFilter='${c}';renderElements()">${c}</span>`).join('');
+    }
+
+    function renderElements() {
+      const filter = (document.getElementById('element-filter').value || '').toLowerCase();
+      const filtered = ELEMENTS.filter(e => {
+        if (elementCatFilter && e.category !== elementCatFilter) return false;
+        if (filter && !e.name.toLowerCase().includes(filter) && !e.symbol.toLowerCase().includes(filter) && !String(e.number).includes(filter)) return false;
+        return true;
+      });
+      renderElementPills();
+      document.getElementById('element-grid').innerHTML = filtered.map(e =>
+        `<div class="element-card el-cat-${e.category}" onclick="showElementDetail('${e.symbol}')" title="${e.name}">
+          <span class="el-number">${e.number}</span>
+          <div class="el-symbol">${e.symbol}</div>
+          <div class="el-name">${e.name}</div>
+          <div class="el-mass">${e.mass}</div>
+        </div>`
+      ).join('');
+    }
+
+    function showElementDetail(symbol) {
+      const e = ELEMENTS.find(el => el.symbol === symbol);
+      if (!e) return;
+      if (selectedElement === symbol) { selectedElement = null; document.getElementById('element-detail-slot').innerHTML = ''; return; }
+      selectedElement = symbol;
+      const srcLinks = e.sources.map(s => `<a href="${s.url}" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.75rem;margin-right:0.6rem;">${s.name} ↗</a>`).join('');
+      document.getElementById('element-detail-slot').innerHTML = `
+        <div class="element-detail">
+          <div style="display:flex;justify-content:space-between;align-items:start;">
+            <h3><span class="el-cat-${e.category}" style="border:none;display:inline;"><span class="el-symbol" style="font-size:1.4rem;">${e.symbol}</span></span> ${e.name} <span style="color:var(--text-muted);font-weight:400;font-size:0.85rem;">#${e.number}</span></h3>
+            <button onclick="selectedElement=null;document.getElementById('element-detail-slot').innerHTML=''" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">✕</button>
+          </div>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin:0.3rem 0 0.6rem;">${e.description}</p>
+          <div class="el-props">
+            <div class="el-prop"><dt>Mass</dt><dd>${e.mass} u</dd></div>
+            <div class="el-prop"><dt>Phase (STP)</dt><dd>${e.phase}</dd></div>
+            <div class="el-prop"><dt>Density</dt><dd>${e.density}</dd></div>
+            <div class="el-prop"><dt>Melting Pt</dt><dd>${e.meltingPoint}</dd></div>
+            <div class="el-prop"><dt>Boiling Pt</dt><dd>${e.boilingPoint}</dd></div>
+            <div class="el-prop"><dt>Category</dt><dd>${e.category}</dd></div>
+            <div class="el-prop"><dt>Discovered</dt><dd>${e.discovered}</dd></div>
+            <div class="el-prop"><dt>Discoverer</dt><dd>${e.discoverer}</dd></div>
+          </div>
+          <div style="margin:0.6rem 0;"><strong style="font-size:0.75rem;color:var(--text-muted);">USES:</strong>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem;">
+              ${e.uses.map(u => `<span style="background:rgba(255,136,17,0.1);color:var(--accent);font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:10px;">${u}</span>`).join('')}
+            </div>
+          </div>
+          <div style="margin-top:0.5rem;">${srcLinks}</div>
+        </div>`;
+    }
+    renderElements();
+
+    // ══════════════════════════════════════
+    // MATERIALS CATALOG
+    // ══════════════════════════════════════
+    const MATERIALS = [
+      { name:'Iron Ore', type:'raw', category:'Metal',
+        components:[], sources_natural:['Open-pit mines','Underground deposits','BIF formations'],
+        properties:{ iron_content:'25-70%', density:'4.0-5.5 g/cm³', hardness:'5-6.5 Mohs' },
+        uses:['Steel production','Pigments','Cement additive'],
+        processing:'Mining → Crushing → Beneficiation → Iron ore concentrate',
+        references:[{name:'USGS',url:'https://usgs.gov/centers/national-minerals-information-center/iron-ore-statistics-and-information'}] },
+      { name:'Steel', type:'processed', category:'Metal',
+        components:['Iron','Carbon'], sources_natural:['Iron ore deposits','Coal mines'],
+        properties:{ tensile_strength:'400-550 MPa', density:'7.85 g/cm³', melting_point:'1370-1510 °C' },
+        uses:['Construction','Vehicles','Tools','Bridges'],
+        processing:'Iron ore → Blast furnace → Pig iron → Basic oxygen steelmaking → Steel',
+        references:[{name:'MatWeb',url:'https://matweb.com/search/DataSheet.aspx?MatGUID=1b3c3a1bc9d24cccb03b1bacbbcdfa8c'}] },
+      { name:'Wood / Timber', type:'raw', category:'Organic',
+        components:[], sources_natural:['Forests','Tree plantations'],
+        properties:{ density:'0.4-0.9 g/cm³', tensile_strength:'40-140 MPa', moisture:'12-20%' },
+        uses:['Construction','Furniture','Paper','Fuel'],
+        processing:'Felling → Debarking → Sawing → Seasoning',
+        references:[{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Wood'}] },
+      { name:'Lumber', type:'processed', category:'Organic',
+        components:['Wood / Timber'], sources_natural:['Managed forests','Sawmills'],
+        properties:{ density:'0.35-0.6 g/cm³', moisture:'6-12%', standard_sizes:'2×4, 2×6, 4×4 etc.' },
+        uses:['Framing','Decking','Fencing','Shelving'],
+        processing:'Timber → Sawmill → Kiln drying → Planing → Grading → Lumber',
+        references:[{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Lumber'}] },
+      { name:'Sand', type:'raw', category:'Mineral',
+        components:[], sources_natural:['Beaches','Riverbeds','Quarries','Deserts'],
+        properties:{ composition:'Mostly SiO₂', grain_size:'0.1-2 mm', density:'1.5-1.7 g/cm³' },
+        uses:['Glass making','Concrete','Foundry casting','Filtration'],
+        processing:'Extraction → Washing → Screening → Grading',
+        references:[{name:'USGS',url:'https://usgs.gov/centers/national-minerals-information-center/sand-and-gravel-statistics-and-information'}] },
+      { name:'Glass', type:'processed', category:'Mineral',
+        components:['Sand','Soda ash','Limestone'], sources_natural:['Sand quarries'],
+        properties:{ density:'2.5 g/cm³', melting_point:'~1700 °C', transparency:'High (visible spectrum)' },
+        uses:['Windows','Bottles','Optics','Screens'],
+        processing:'Sand + Soda ash + Limestone → Furnace (1700°C) → Molten glass → Forming → Annealing → Glass',
+        references:[{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Glass'}] },
+      { name:'Clay', type:'raw', category:'Mineral',
+        components:[], sources_natural:['Riverbanks','Weathered rock deposits','Sedimentary layers'],
+        properties:{ particle_size:'<0.002 mm', plasticity:'High when wet', density:'1.8-2.6 g/cm³' },
+        uses:['Pottery','Bricks','Ceramics','Sculpture'],
+        processing:'Extraction → Weathering → Pugging → Shaping',
+        references:[{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Clay'}] },
+      { name:'Concrete', type:'composite', category:'Mineral',
+        components:['Sand','Gravel','Cement','Water'], sources_natural:['Quarries','Cement plants'],
+        properties:{ compressive_strength:'20-40 MPa', density:'2.3-2.5 g/cm³', curing_time:'28 days full strength' },
+        uses:['Foundations','Roads','Dams','Buildings'],
+        processing:'Cement + Sand + Gravel + Water → Mixing → Pouring → Curing → Concrete',
+        references:[{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Concrete'}] },
+    ];
+
+    let materialTypeFilter = '';
+    let selectedMaterial = null;
+
+    function renderMaterialPills() {
+      const types = ['raw','processed','composite'];
+      document.getElementById('material-type-pills').innerHTML =
+        `<span class="filter-pill ${materialTypeFilter===''?'active':''}" onclick="materialTypeFilter='';renderMaterials()">All</span>` +
+        types.map(t => `<span class="filter-pill ${materialTypeFilter===t?'active':''}" onclick="materialTypeFilter='${t}';renderMaterials()"><span class="material-type-badge mat-${t}">${t}</span></span>`).join('');
+    }
+
+    function renderMaterials() {
+      renderMaterialPills();
+      const filtered = MATERIALS.filter(m => !materialTypeFilter || m.type === materialTypeFilter);
+      document.getElementById('materials-list').innerHTML = filtered.map(m => {
+        const chain = m.processing.split('→').map(s => s.trim());
+        const chainHtml = `<div class="processing-chain">${chain.map((s,i) => (i>0?'<span class="chain-arrow">→</span>':'')+`<span>${s}</span>`).join('')}</div>`;
+        return `<div class="material-card" onclick="showMaterialDetail('${m.name.replace(/'/g,"\\'")}')">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+            <span style="font-weight:600;font-size:0.88rem;color:var(--text);">${m.name}</span>
+            <span class="material-type-badge mat-${m.type}">${m.type}</span>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.3rem;">${m.category}${m.components.length?' · From: '+m.components.join(', '):''}</div>
+          ${chainHtml}
+        </div>`;
+      }).join('');
+    }
+
+    function showMaterialDetail(name) {
+      const m = MATERIALS.find(x => x.name === name);
+      if (!m) return;
+      if (selectedMaterial === name) { selectedMaterial = null; document.getElementById('material-detail-slot').innerHTML = ''; return; }
+      selectedMaterial = name;
+      const propsHtml = Object.entries(m.properties).map(([k,v]) => `<div class="el-prop"><dt>${k.replace(/_/g,' ')}</dt><dd>${v}</dd></div>`).join('');
+      const srcLinks = m.references.map(r => `<a href="${r.url}" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.75rem;">${r.name} ↗</a>`).join(' ');
+      document.getElementById('material-detail-slot').innerHTML = `
+        <div class="element-detail">
+          <div style="display:flex;justify-content:space-between;align-items:start;">
+            <h3>${m.name} <span class="material-type-badge mat-${m.type}" style="vertical-align:middle;">${m.type}</span></h3>
+            <button onclick="selectedMaterial=null;document.getElementById('material-detail-slot').innerHTML=''" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;">✕</button>
+          </div>
+          <div class="el-props">${propsHtml}</div>
+          <div style="margin:0.6rem 0;"><strong style="font-size:0.75rem;color:var(--text-muted);">USES:</strong>
+            <div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.3rem;">
+              ${m.uses.map(u => `<span style="background:rgba(255,136,17,0.1);color:var(--accent);font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:10px;">${u}</span>`).join('')}
+            </div>
+          </div>
+          <div style="margin:0.6rem 0;"><strong style="font-size:0.75rem;color:var(--text-muted);">PROCESSING:</strong>
+            <div class="processing-chain" style="margin-top:0.3rem;font-size:0.8rem;">${m.processing.split('→').map((s,i) => (i>0?'<span class="chain-arrow">→</span>':'')+`<span>${s.trim()}</span>`).join('')}</div>
+          </div>
+          <div style="margin-top:0.5rem;">${srcLinks}</div>
+        </div>`;
+    }
+    renderMaterials();
+
+    // ══════════════════════════════════════
+    // PERSONAL INVENTORY
+    // ══════════════════════════════════════
+    const INV_CATEGORIES = [
+      {id:'Vehicle',icon:'🚗'},{id:'Clothing',icon:'👕'},{id:'Electronics',icon:'💻'},{id:'Tools',icon:'🔧'},
+      {id:'Furniture',icon:'🪑'},{id:'Kitchen',icon:'🍳'},{id:'Books/Media',icon:'📚'},{id:'Gaming',icon:'🎮'},
+      {id:'Home',icon:'🏠'},{id:'Other',icon:'📦'}
+    ];
+
+    (function populateInvCategories() {
+      const sel = document.getElementById('inv-category');
+      const filterSel = document.getElementById('inv-category-filter');
+      INV_CATEGORIES.forEach(c => {
+        sel.innerHTML += `<option value="${c.id}">${c.icon} ${c.id}</option>`;
+        filterSel.innerHTML += `<option value="${c.id}">${c.icon} ${c.id}</option>`;
+      });
+    })();
+
+    function loadInventory() { try { return JSON.parse(localStorage.getItem('humanity_inventory')) || []; } catch { return []; } }
+    function saveInventory(items) { localStorage.setItem('humanity_inventory', JSON.stringify(items)); }
+
+    function renderInventory() {
+      const items = loadInventory();
+      const catFilter = document.getElementById('inv-category-filter').value;
+      const search = (document.getElementById('inv-search').value || '').toLowerCase();
+      const filtered = items.filter(item => {
+        if (catFilter && item.category !== catFilter) return false;
+        if (search && !item.name.toLowerCase().includes(search) && !(item.tags||[]).some(t => t.toLowerCase().includes(search)) && !(item.category||'').toLowerCase().includes(search)) return false;
+        return true;
+      });
+      const catIcon = (id) => (INV_CATEGORIES.find(c => c.id === id) || {icon:'📦'}).icon;
+      document.getElementById('inventory-list').innerHTML = filtered.length === 0
+        ? '<div style="color:var(--text-muted);font-size:0.82rem;font-style:italic;padding:1rem;text-align:center;grid-column:1/-1;">No items yet — click "+ Add Item" to start</div>'
+        : filtered.map(item => `
+          <div class="inv-item">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+              <span style="font-weight:600;font-size:0.88rem;">${catIcon(item.category)} ${escHtml(item.name)}</span>
+              <div style="display:flex;gap:0.3rem;">
+                <button onclick="editInventoryItem('${item.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.75rem;" title="Edit">✏️</button>
+                <button onclick="deleteInventoryItem('${item.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.75rem;" title="Delete">🗑️</button>
+              </div>
+            </div>
+            <div style="font-size:0.72rem;color:var(--text-muted);">
+              ${item.category}${item.subcategory?' · '+escHtml(item.subcategory):''} · Qty: ${item.quantity||1} · ${item.condition||'Good'}
+            </div>
+            ${item.location?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.15rem;">📍 ${escHtml(item.location)}</div>`:''}
+            ${item.description?`<div style="font-size:0.75rem;color:var(--text);margin-top:0.3rem;">${escHtml(item.description)}</div>`:''}
+            ${(item.tags||[]).length?`<div style="display:flex;flex-wrap:wrap;gap:0.2rem;margin-top:0.3rem;">${item.tags.map(t=>`<span style="background:rgba(255,255,255,0.05);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:8px;color:var(--text-muted);">#${escHtml(t)}</span>`).join('')}</div>`:''}
+          </div>`).join('');
+    }
+
+    function openInventoryModal(editId) {
+      document.getElementById('inv-modal-title').textContent = editId ? 'Edit Item' : 'Add Item';
+      document.getElementById('inv-edit-id').value = editId || '';
+      if (editId) {
+        const item = loadInventory().find(i => i.id === editId);
+        if (!item) return;
+        document.getElementById('inv-name').value = item.name || '';
+        document.getElementById('inv-category').value = item.category || 'Other';
+        document.getElementById('inv-subcategory').value = item.subcategory || '';
+        document.getElementById('inv-description').value = item.description || '';
+        document.getElementById('inv-quantity').value = item.quantity || 1;
+        document.getElementById('inv-condition').value = item.condition || 'Good';
+        document.getElementById('inv-acquired').value = item.acquired || '';
+        document.getElementById('inv-location').value = item.location || '';
+        document.getElementById('inv-value').value = item.value || '';
+        document.getElementById('inv-notes').value = item.notes || '';
+        document.getElementById('inv-tags').value = (item.tags||[]).join(', ');
+      } else {
+        ['inv-name','inv-subcategory','inv-description','inv-acquired','inv-location','inv-value','inv-notes','inv-tags'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('inv-quantity').value = 1;
+        document.getElementById('inv-condition').value = 'Good';
+        document.getElementById('inv-category').value = 'Other';
+      }
+      document.getElementById('inv-modal').classList.add('open');
+    }
+    function closeInventoryModal() { document.getElementById('inv-modal').classList.remove('open'); }
+    function editInventoryItem(id) { openInventoryModal(id); }
+    function deleteInventoryItem(id) {
+      if (!confirm('Delete this item?')) return;
+      saveInventory(loadInventory().filter(i => i.id !== id));
+      renderInventory();
+    }
+    function saveInventoryItem() {
+      const name = document.getElementById('inv-name').value.trim();
+      if (!name) { document.getElementById('inv-name').style.borderColor = '#e55'; return; }
+      const editId = document.getElementById('inv-edit-id').value;
+      const items = loadInventory();
+      const item = {
+        id: editId || Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        name,
+        category: document.getElementById('inv-category').value,
+        subcategory: document.getElementById('inv-subcategory').value.trim(),
+        description: document.getElementById('inv-description').value.trim(),
+        quantity: parseInt(document.getElementById('inv-quantity').value) || 1,
+        condition: document.getElementById('inv-condition').value,
+        acquired: document.getElementById('inv-acquired').value.trim(),
+        location: document.getElementById('inv-location').value.trim(),
+        value: document.getElementById('inv-value').value.trim(),
+        notes: document.getElementById('inv-notes').value.trim(),
+        tags: document.getElementById('inv-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+      };
+      if (editId) {
+        const idx = items.findIndex(i => i.id === editId);
+        if (idx >= 0) items[idx] = item; else items.push(item);
+      } else {
+        items.push(item);
+      }
+      saveInventory(items);
+      closeInventoryModal();
+      renderInventory();
+    }
+
+    function exportInventory() {
+      const data = JSON.stringify(loadInventory(), null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'humanity-inventory-' + new Date().toISOString().split('T')[0] + '.json';
+      a.click();
+    }
+    function importInventory(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (!Array.isArray(imported)) throw new Error('Not an array');
+          const existing = loadInventory();
+          const merged = [...existing, ...imported.map(i => ({...i, id: i.id || Date.now().toString(36)+Math.random().toString(36).slice(2,6)}))];
+          saveInventory(merged);
+          renderInventory();
+          alert('Imported ' + imported.length + ' items.');
+        } catch(err) { alert('Import failed: ' + err.message); }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    // Close inv modal on backdrop
+    document.getElementById('inv-modal').addEventListener('click', function(e) { if (e.target === this) closeInventoryModal(); });
+
+    renderInventory();
+
+    // ══════════════════════════════════════
+    // UNIVERSAL SEARCH
+    // ══════════════════════════════════════
+    function universalSearch(query) {
+      const results = document.getElementById('universal-search-results');
+      if (!query || query.length < 2) { results.innerHTML = ''; return; }
+      const q = query.toLowerCase();
+      const hits = [];
+      // Elements
+      ELEMENTS.filter(e => e.name.toLowerCase().includes(q) || e.symbol.toLowerCase().includes(q) || String(e.number).includes(q))
+        .forEach(e => hits.push({ label: `${e.symbol} — ${e.name} (#${e.number})`, badge: 'Element', color: '#4caf50', action: () => { showElementDetail(e.symbol); } }));
+      // Materials
+      MATERIALS.filter(m => m.name.toLowerCase().includes(q) || m.category.toLowerCase().includes(q))
+        .forEach(m => hits.push({ label: m.name + ' (' + m.type + ')', badge: 'Material', color: '#42a5f5', action: () => { showMaterialDetail(m.name); } }));
+      // Inventory
+      loadInventory().filter(i => i.name.toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q) || (i.tags||[]).some(t => t.toLowerCase().includes(q)))
+        .forEach(i => hits.push({ label: i.name + (i.category ? ' · ' + i.category : ''), badge: 'Inventory', color: '#ffa726', action: () => { editInventoryItem(i.id); } }));
+      results.innerHTML = hits.length === 0 ? '<div style="padding:0.8rem;text-align:center;font-size:0.82rem;color:var(--text-muted);">No results</div>'
+        : hits.slice(0, 20).map((h, i) => `<div class="catalog-result-item" onclick="universalSearchResults[${i}]()">
+            <span class="catalog-result-badge" style="background:${h.color}22;color:${h.color};">${h.badge}</span>
+            <span style="color:var(--text);">${escHtml(h.label)}</span>
+          </div>`).join('');
+      window.universalSearchResults = hits.slice(0, 20).map(h => h.action);
+    }
 
     // ── TODO ──
     function loadTodos() {
