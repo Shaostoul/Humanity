@@ -3390,7 +3390,7 @@ function getPeerEcdhPublic(peerKey) {
     }
 
     // ── Message Handling ──
-    function handleMessage(msg) {
+    async function handleMessage(msg) {
       switch (msg.type) {
         case 'chat': {
           // Only show messages for the active channel.
