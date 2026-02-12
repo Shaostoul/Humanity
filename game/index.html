@@ -2404,8 +2404,7 @@
 
     // Connect marketplace WS when market tab is shown
     let marketConnected = false;
-    const origSwitchTab = switchTab;
-    // We can't easily override switchTab, so use a MutationObserver on the tab
+    // Use a MutationObserver on the tab to detect when it becomes active
     const marketTabEl = document.getElementById('tab-market');
     if (marketTabEl) {
       new MutationObserver(() => {
