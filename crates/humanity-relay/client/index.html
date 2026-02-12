@@ -5585,7 +5585,8 @@ async function importIdentityFromJSON(jsonData) {
           saveCollapsedServers(collapsed);
           return;
         }
-        // Channel click
+        // Channel click (skip if clicking the settings cog)
+        if (e.target.closest('.channel-cog')) return;
         const chItem = e.target.closest('.channel-item');
         if (chItem) {
           const channelId = chItem.getAttribute('data-channel-id');
@@ -6322,6 +6323,8 @@ async function importIdentityFromJSON(jsonData) {
     let callPeerKey = null;
     let callPeerName = '';
     let peerConnection = null;
+    let pendingIceCandidates = []; // Buffer ICE candidates arriving before PC is ready
+    let remoteDescriptionSet = false; // Track whether remote description has been set
     let localStream = null;
     let callTimerInterval = null;
     let callStartTime = null;
@@ -6412,6 +6415,8 @@ async function importIdentityFromJSON(jsonData) {
         localStream.getTracks().forEach(t => t.stop());
         localStream = null;
       }
+      pendingIceCandidates = [];
+      remoteDescriptionSet = false;
       resetCallState();
     }
 
@@ -6529,6 +6534,8 @@ async function importIdentityFromJSON(jsonData) {
     async function handleOffer(data) {
       if (!await setupPeerConnection(false)) return;
       await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+      remoteDescriptionSet = true;
+      await flushPendingIceCandidates();
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
       ws.send(JSON.stringify({
@@ -6543,15 +6550,32 @@ async function importIdentityFromJSON(jsonData) {
     async function handleAnswer(data) {
       if (peerConnection) {
         await peerConnection.setRemoteDescription(new RTCSessionDescription(data));
+        remoteDescriptionSet = true;
+        await flushPendingIceCandidates();
       }
     }
 
     async function handleIceCandidate(data) {
-      if (peerConnection) {
+      if (peerConnection && remoteDescriptionSet) {
         try {
           await peerConnection.addIceCandidate(new RTCIceCandidate(data));
         } catch (e) {
           console.warn('ICE candidate error:', e);
+        }
+      } else {
+        // Buffer candidates until PC + remote description are ready
+        pendingIceCandidates.push(data);
+      }
+    }
+
+    async function flushPendingIceCandidates() {
+      if (!peerConnection) return;
+      const candidates = pendingIceCandidates.splice(0);
+      for (const data of candidates) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(data));
+        } catch (e) {
+          console.warn('ICE candidate error (buffered):', e);
         }
       }
     }
