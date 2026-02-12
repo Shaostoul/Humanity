@@ -5207,8 +5207,8 @@ async function importIdentityFromJSON(jsonData) {
       }
 
       // Federated servers cache (fetched from API).
-      let federatedServers = [];
-      let federatedServersFetched = false;
+      var federatedServers = [];
+      var federatedServersFetched = false;
 
       async function fetchFederatedServers() {
         try {
@@ -5373,7 +5373,7 @@ async function importIdentityFromJSON(jsonData) {
 
     // ── Unread Indicators ──
     // Track unread state per channel.
-    const unreadChannels = new Set();
+    var unreadChannels = new Set();
 
     function markUnread(channelId) {
       if (channelId === activeChannel) return; // Don't mark current channel.
