@@ -19,6 +19,7 @@
     else if (p.startsWith('/reality')) active = 'reality';
     else if (p.startsWith('/fantasy')) active = 'fantasy';
     else if (p.startsWith('/streams')) active = 'streams';
+    else if (p.startsWith('/info')) active = 'info';
     else if (p.startsWith('/debug')) active = 'debug';
     else if (p.startsWith('/download')) active = 'download';
     else active = '';
@@ -195,6 +196,7 @@
       '<a href="/reality" class="' + cls('reality') + '">🟢 Reality</a>' +
       '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Fantasy</a>' +
       '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +
+      '<a href="/info" class="' + cls('info') + '">📖 Info</a>' +
       '<a href="/debug" class="' + cls('debug') + '">🔧 Debug</a>' +
       '<span class="spacer"></span>' +
       '<a href="/download" class="' + cls('download') + '">' + dlIcon + ' Download</a>' +
@@ -208,7 +210,7 @@
     const link = e.target.closest('a[href]');
     if (!link) return;
     const href = link.getAttribute('href');
-    const hubPaths = ['/board', '/reality', '/fantasy', '/streams', '/debug'];
+    const hubPaths = ['/board', '/reality', '/fantasy', '/streams', '/info', '/debug'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub = hubPaths.some(function(p) { return href === p; });
     if (currentIsHub && targetIsHub && href !== location.pathname) {

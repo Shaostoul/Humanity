@@ -2240,6 +2240,16 @@
       <div class="cmd"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
       <div class="cmd"><code>/blocklist</code> — Show your blocked users</div>
 
+      <h4>👥 Social</h4>
+      <div class="cmd"><code>/follow &lt;name&gt;</code> — Follow a user (mutual follow = friends, unlocks DMs)</div>
+      <div class="cmd"><code>/unfollow &lt;name&gt;</code> — Unfollow a user</div>
+
+      <h4>👥 Groups</h4>
+      <div class="cmd"><code>/group-create &lt;name&gt;</code> — Create a new group chat</div>
+      <div class="cmd"><code>/group-join &lt;invite_code&gt;</code> — Join a group by invite code</div>
+      <div class="cmd"><code>/group-invite</code> — Copy the current group's invite code</div>
+      <div class="cmd"><code>/group-leave</code> — Leave the current group</div>
+
       <h4>✍️ Formatting</h4>
       <div class="cmd"><code>**bold**</code> → <strong>bold</strong></div>
       <div class="cmd"><code>*italic*</code> → <em>italic</em></div>
@@ -4734,6 +4744,12 @@ async function importIdentityFromJSON(jsonData) {
         html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
         if (name !== myName) {
           html += `<div class="ctx-item" onclick="dmFromCtx()">💬 Direct Message</div>`;
+          // Follow/unfollow toggle
+          if (typeof myFollowing !== 'undefined' && myFollowing.has(publicKey)) {
+            html += `<div class="ctx-item" onclick="followFromCtx(false)">❌ Unfollow</div>`;
+          } else {
+            html += `<div class="ctx-item" onclick="followFromCtx(true)">👁️ Follow</div>`;
+          }
           // Block/unblock toggle.
           if (isBlocked(name)) {
             html += `<div class="ctx-item" onclick="unblockFromCtx()">✅ Unblock</div>`;
@@ -4838,11 +4854,32 @@ async function importIdentityFromJSON(jsonData) {
       unblockUser(name);
     }
 
+    function followFromCtx(doFollow) {
+      if (!ctxMenuTarget) return;
+      const pk = ctxMenuTarget.publicKey;
+      hideContextMenu();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: doFollow ? 'follow' : 'unfollow', target_key: pk }));
+      }
+    }
+
     function dmFromCtx() {
       if (!ctxMenuTarget) return;
       const name = ctxMenuTarget.name;
       const pk = ctxMenuTarget.publicKey;
       hideContextMenu();
+      // DM permission check
+      const myRole = (window.myPeerRole || '').toLowerCase();
+      if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
+        if (myRole !== 'verified' && myRole !== 'donor') {
+          addSystemMessage('🔒 Verify your account to send DMs.');
+          return;
+        }
+        if (typeof isFriend === 'function' && !isFriend(pk)) {
+          addSystemMessage('🔒 You must be friends with this user to DM them. Use /follow ' + name);
+          return;
+        }
+      }
       openDmConversation(pk, name);
     }
 
@@ -5059,6 +5096,23 @@ async function importIdentityFromJSON(jsonData) {
         html += '<div class="profile-card-key" id="profile-pk-copy" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
       }
 
+      // Follow/friend status + button
+      if (publicKey && publicKey !== myKey) {
+        const friend = isFriend(publicKey);
+        const following = isFollowing(publicKey);
+        const followsYou = myFollowers.has(publicKey);
+        let statusText = '';
+        if (friend) statusText = '🤝 Friends (mutual follow)';
+        else if (following && followsYou) statusText = '🤝 Friends';
+        else if (following) statusText = '👁️ You follow this user';
+        else if (followsYou) statusText = '👁️‍🗨️ Follows you';
+        const btnLabel = following ? '❌ Unfollow' : '👁️ Follow';
+        html += '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);">';
+        if (statusText) html += '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">' + statusText + '</div>';
+        html += '<button id="profile-follow-btn" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;">' + btnLabel + '</button>';
+        html += '</div>';
+      }
+
       document.getElementById('view-profile-content').innerHTML = html;
       // Attach click handler via DOM API (not inline onclick).
       if (publicKey) {
@@ -5066,6 +5120,19 @@ async function importIdentityFromJSON(jsonData) {
         if (pkEl) {
           pkEl.addEventListener('click', () => {
             navigator.clipboard.writeText(publicKey).then(() => addSystemMessage('Public key copied.'));
+          });
+        }
+      }
+      // Follow button handler
+      if (publicKey && publicKey !== myKey) {
+        const followBtn = document.getElementById('profile-follow-btn');
+        if (followBtn) {
+          followBtn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              const type = myFollowing.has(publicKey) ? 'unfollow' : 'follow';
+              ws.send(JSON.stringify({ type, target_key: publicKey }));
+              closeViewProfileOverlay();
+            }
           });
         }
       }
@@ -5251,8 +5318,101 @@ async function importIdentityFromJSON(jsonData) {
           return;
         }
       }
+      if (val.startsWith('/follow ') && !val.startsWith('/follow-')) {
+        const name = val.substring(8).trim();
+        if (name && ws && ws.readyState === WebSocket.OPEN) {
+          input.value = '';
+          // Resolve name to key from peer list
+          const targetKey = resolveNameToKey(name);
+          if (targetKey) {
+            ws.send(JSON.stringify({ type: 'follow', target_key: targetKey }));
+          } else {
+            addSystemMessage('User "' + name + '" not found in peer list.');
+          }
+          return;
+        }
+      }
+      if (val.startsWith('/unfollow ')) {
+        const name = val.substring(10).trim();
+        if (name && ws && ws.readyState === WebSocket.OPEN) {
+          input.value = '';
+          const targetKey = resolveNameToKey(name);
+          if (targetKey) {
+            ws.send(JSON.stringify({ type: 'unfollow', target_key: targetKey }));
+          } else {
+            addSystemMessage('User "' + name + '" not found in peer list.');
+          }
+          return;
+        }
+      }
+      if (val.startsWith('/group-create ')) {
+        const name = val.substring(14).trim();
+        if (name && ws && ws.readyState === WebSocket.OPEN) {
+          input.value = '';
+          ws.send(JSON.stringify({ type: 'group_create', name: name }));
+          return;
+        }
+      }
+      if (val.startsWith('/group-join ')) {
+        const code = val.substring(12).trim();
+        if (code && ws && ws.readyState === WebSocket.OPEN) {
+          input.value = '';
+          ws.send(JSON.stringify({ type: 'group_join', invite_code: code }));
+          return;
+        }
+      }
+      if (val.startsWith('/group-leave')) {
+        input.value = '';
+        if (activeGroupId && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'group_leave', group_id: activeGroupId }));
+        } else {
+          addSystemMessage('You are not viewing a group. Switch to a group first.');
+        }
+        return;
+      }
+      if (val.startsWith('/group-invite')) {
+        input.value = '';
+        if (activeGroupId) {
+          const group = myGroups.find(g => g.id === activeGroupId);
+          if (group) {
+            navigator.clipboard.writeText(group.invite_code).then(() => {
+              addSystemMessage('📋 Invite code copied: ' + group.invite_code + ' — Share it with /group-join ' + group.invite_code);
+            }).catch(() => {
+              addSystemMessage('📋 Invite code: ' + group.invite_code + ' — Share it with /group-join ' + group.invite_code);
+            });
+          }
+        } else {
+          addSystemMessage('Switch to a group first to get its invite code.');
+        }
+        return;
+      }
+      // If in group view, send as group message.
+      if (activeGroupId) {
+        if (val && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'group_msg',
+            group_id: activeGroupId,
+            content: val,
+          }));
+          input.value = '';
+          input.style.height = 'auto';
+        }
+        return;
+      }
       // If in DM view, send as DM instead of chat.
       if (activeDmPartner) {
+        // Client-side DM permission pre-check
+        const myRole = (window.myPeerRole || '').toLowerCase();
+        if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
+          if (myRole !== 'verified' && myRole !== 'donor') {
+            addSystemMessage('🔒 Verify your account to send DMs.');
+            return;
+          }
+          if (!isFriend(activeDmPartner)) {
+            addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name> — if they follow you back, you\'ll be friends.');
+            return;
+          }
+        }
         if (val && ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'dm',
@@ -6318,6 +6478,253 @@ async function importIdentityFromJSON(jsonData) {
       });
     })();
 
+    // ── Follow/Friend System (Client State) ──
+    let myFollowing = new Set(); // keys I'm following
+    let myFollowers = new Set(); // keys following me
+    let activeGroupId = null; // Currently viewing group
+    let activeGroupName = '';
+    let myGroups = []; // Array of { id, name, invite_code, role }
+
+    function isFriend(key) {
+      return myFollowing.has(key) && myFollowers.has(key);
+    }
+
+    function isFollowing(key) {
+      return myFollowing.has(key);
+    }
+
+    function resolveNameToKey(name) {
+      // Search through the known user list for a matching name
+      const lowerName = name.toLowerCase();
+      const peerList = document.getElementById('peer-list');
+      if (!peerList) return null;
+      const peers = peerList.querySelectorAll('.peer[data-pubkey]');
+      for (const el of peers) {
+        const peerName = (el.dataset.username || '').toLowerCase();
+        if (peerName === lowerName) return el.dataset.pubkey;
+      }
+      return null;
+    }
+
+    // Handle follow/friend/group messages from server
+    const _origHandleMessageFollow = handleMessage;
+    handleMessage = function(msg) {
+      if (msg.type === 'follow_list') {
+        myFollowing = new Set(msg.following || []);
+        myFollowers = new Set(msg.followers || []);
+        updateFriendIndicators();
+        return;
+      }
+      if (msg.type === 'follow_update') {
+        if (msg.follower_key === myKey) {
+          if (msg.action === 'follow') myFollowing.add(msg.followed_key);
+          else myFollowing.delete(msg.followed_key);
+        }
+        if (msg.followed_key === myKey) {
+          if (msg.action === 'follow') myFollowers.add(msg.follower_key);
+          else myFollowers.delete(msg.follower_key);
+        }
+        updateFriendIndicators();
+        return;
+      }
+      if (msg.type === 'group_list') {
+        myGroups = msg.groups || [];
+        renderGroupList();
+        return;
+      }
+      if (msg.type === 'group_message') {
+        if (activeGroupId === msg.group_id) {
+          const name = msg.from_name || shortKey(msg.from);
+          const isYou = msg.from === myKey;
+          addMessageToChat(name, msg.content, msg.timestamp, isYou, msg.from);
+        }
+        return;
+      }
+      if (msg.type === 'group_history') {
+        if (msg.group_id === activeGroupId) {
+          const messagesDiv = document.getElementById('messages');
+          messagesDiv.innerHTML = '';
+          for (const m of (msg.messages || [])) {
+            const isYou = m.from === myKey;
+            addMessageToChat(m.from_name || shortKey(m.from), m.content, m.timestamp, isYou, m.from);
+          }
+        }
+        return;
+      }
+      _origHandleMessageFollow(msg);
+    };
+
+    function updateFriendIndicators() {
+      // Update friend/follow icons next to peers in the peer list
+      document.querySelectorAll('.peer[data-pubkey]').forEach(el => {
+        const key = el.dataset.pubkey;
+        if (!key || key === myKey) return;
+        // Remove old indicators
+        el.querySelectorAll('.follow-indicator').forEach(x => x.remove());
+        if (isFriend(key)) {
+          const badge = document.createElement('span');
+          badge.className = 'follow-indicator';
+          badge.textContent = ' 🤝';
+          badge.title = 'Friend (mutual follow)';
+          el.querySelector('.peer-name')?.appendChild(badge) || el.appendChild(badge);
+        } else if (isFollowing(key)) {
+          const badge = document.createElement('span');
+          badge.className = 'follow-indicator';
+          badge.textContent = ' 👁️';
+          badge.title = 'Following';
+          el.querySelector('.peer-name')?.appendChild(badge) || el.appendChild(badge);
+        } else if (myFollowers.has(key)) {
+          const badge = document.createElement('span');
+          badge.className = 'follow-indicator';
+          badge.textContent = ' 👁️‍🗨️';
+          badge.title = 'Follows you';
+          el.querySelector('.peer-name')?.appendChild(badge) || el.appendChild(badge);
+        }
+      });
+    }
+
+    // Patch updateUserList to add friend indicators after render
+    const _origUpdateUserListFollow = updateUserList;
+    updateUserList = function(users) {
+      _origUpdateUserListFollow(users);
+      updateFriendIndicators();
+      addFollowContextMenu();
+    };
+
+    function addFollowContextMenu() {
+      document.querySelectorAll('.peer[data-pubkey]').forEach(el => {
+        const key = el.dataset.pubkey;
+        if (!key || key === myKey) return;
+        el.removeEventListener('contextmenu', el._followCtx);
+        el._followCtx = function(e) {
+          e.preventDefault();
+          // Remove any existing context menu
+          document.querySelectorAll('.follow-ctx-menu').forEach(m => m.remove());
+          const menu = document.createElement('div');
+          menu.className = 'follow-ctx-menu';
+          menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:4px 0;min-width:140px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+          menu.style.left = e.clientX + 'px';
+          menu.style.top = e.clientY + 'px';
+
+          const following = myFollowing.has(key);
+          const item = document.createElement('div');
+          item.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
+          item.textContent = following ? '❌ Unfollow' : '👁️ Follow';
+          item.onmouseenter = () => { item.style.background = 'var(--bg-hover)'; };
+          item.onmouseleave = () => { item.style.background = ''; };
+          item.onclick = () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: following ? 'unfollow' : 'follow', target_key: key }));
+            }
+            menu.remove();
+          };
+          menu.appendChild(item);
+
+          document.body.appendChild(menu);
+          const closeMenu = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); } };
+          setTimeout(() => document.addEventListener('click', closeMenu), 0);
+        };
+        el.addEventListener('contextmenu', el._followCtx);
+      });
+    }
+
+    function renderGroupList() {
+      const container = document.getElementById('tab-groups');
+      if (!container) return;
+      if (myGroups.length === 0) {
+        container.innerHTML = '<div style="padding:0.5rem;color:var(--text-muted);font-size:0.8rem;">No groups yet.<br>Use <code>/group-create &lt;name&gt;</code> to create one.</div>';
+        return;
+      }
+      let html = '';
+      for (const g of myGroups) {
+        const isActive = activeGroupId === g.id;
+        html += `<div class="channel-item${isActive ? ' active' : ''}" data-group-id="${g.id}" style="cursor:pointer;">
+          <span style="opacity:0.6">👥 </span>${esc(g.name)}
+          <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>
+        </div>`;
+      }
+      html += '<div style="padding:0.3rem 0;"><button class="vr-btn" onclick="promptCreateGroup()" style="width:100%;font-size:0.7rem;">+ Create Group</button></div>';
+      container.innerHTML = html;
+      // Click handler for groups
+      container.querySelectorAll('[data-group-id]').forEach(el => {
+        el.onclick = () => openGroup(el.dataset.groupId);
+        el.oncontextmenu = (e) => {
+          e.preventDefault();
+          document.querySelectorAll('.group-ctx-menu').forEach(m => m.remove());
+          const gid = el.dataset.groupId;
+          const group = myGroups.find(g => g.id === gid);
+          if (!group) return;
+          const menu = document.createElement('div');
+          menu.className = 'group-ctx-menu';
+          menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:4px 0;min-width:150px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+          menu.style.left = e.clientX + 'px';
+          menu.style.top = e.clientY + 'px';
+          const items = [
+            { label: '📋 Copy Invite Code', action: () => { navigator.clipboard.writeText(group.invite_code).then(() => addSystemMessage('Invite code copied: ' + group.invite_code)); }},
+            { label: '👤 Invite User', action: () => { const name = prompt('Share this invite code with a user:\\n' + group.invite_code + '\\n\\nOr enter a username to tell them:'); if (name && name.trim()) { addSystemMessage('Share this invite code with ' + name.trim() + ': ' + group.invite_code); } }},
+            { label: '🚪 Leave Group', action: () => { if (confirm('Leave group "' + group.name + '"?') && ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'group_leave', group_id: gid })); if (activeGroupId === gid) { activeGroupId = null; activeGroupName = ''; } } }},
+          ];
+          items.forEach(it => {
+            const div = document.createElement('div');
+            div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
+            div.textContent = it.label;
+            div.onmouseenter = () => { div.style.background = 'var(--bg-hover)'; };
+            div.onmouseleave = () => { div.style.background = ''; };
+            div.onclick = (ev) => { ev.stopPropagation(); menu.remove(); it.action(); };
+            menu.appendChild(div);
+          });
+          document.body.appendChild(menu);
+          const closeMenu = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); } };
+          setTimeout(() => document.addEventListener('click', closeMenu), 0);
+        };
+      });
+    }
+
+    function promptCreateGroup() {
+      const name = prompt('Group name:');
+      if (name && name.trim() && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'group_create', name: name.trim() }));
+      }
+    }
+
+    function openGroup(groupId) {
+      const group = myGroups.find(g => g.id === groupId);
+      if (!group) return;
+      activeGroupId = groupId;
+      activeGroupName = group.name;
+      activeDmPartner = null; // Exit DM view
+      // Update channel header
+      const header = document.getElementById('channel-header');
+      if (header) {
+        header.style.display = 'flex';
+        header.querySelector('.ch-name').textContent = '👥 ' + group.name;
+        header.querySelector('.ch-desc').textContent = 'Group • Invite: ' + group.invite_code;
+      }
+      // Clear messages and load group history (if server supports it)
+      document.getElementById('messages').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Group: ' + esc(group.name) + '<br>Invite code: <code>' + group.invite_code + '</code></div>';
+      renderGroupList();
+    }
+
+    // When switching to a channel, clear group view
+    const _origSwitchChannelFollow = switchChannel;
+    switchChannel = function(channelId) {
+      activeGroupId = null;
+      activeGroupName = '';
+      _origSwitchChannelFollow(channelId);
+    };
+
+    // Helper to add a message to the chat (for groups)
+    function addMessageToChat(name, content, timestamp, isYou, fromKey) {
+      const messagesDiv = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = 'message';
+      const time = new Date(timestamp);
+      const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      div.innerHTML = `<div class="meta"><span class="author${isYou ? ' you' : ''}">${esc(name)}</span><span class="timestamp">${timeStr}</span></div><div class="body">${esc(content)}</div>`;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
     // ── Voice Call / WebRTC (1-on-1 DM calls) ──
     let callState = 'idle'; // idle | ringing-out | ringing-in | in-call
     let callPeerKey = null;
@@ -7135,6 +7542,29 @@ async function importIdentityFromJSON(jsonData) {
     }
     _origHandleMessage4(msg);
   };
+  </script>
+
+  <script>
+  // Global Escape key handler to close modals/dropdowns
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      // Close help modal
+      const helpOverlay = document.getElementById('help-modal-overlay');
+      if (helpOverlay && helpOverlay.classList.contains('open')) { helpOverlay.classList.remove('open'); return; }
+      // Close view profile modal
+      const profileOverlay = document.getElementById('view-profile-overlay');
+      if (profileOverlay && profileOverlay.classList.contains('open')) { profileOverlay.classList.remove('open'); return; }
+      // Close edit profile modal
+      const editOverlay = document.getElementById('edit-profile-overlay');
+      if (editOverlay && editOverlay.classList.contains('open')) { editOverlay.classList.remove('open'); return; }
+      // Close cog dropdown
+      if (typeof activeCogDropdown !== 'undefined' && activeCogDropdown) { activeCogDropdown.remove(); activeCogDropdown = null; return; }
+      // Close context menus
+      document.querySelectorAll('.follow-ctx-menu, .group-ctx-menu').forEach(m => m.remove());
+      const ctxMenu = document.getElementById('user-context-menu');
+      if (ctxMenu && ctxMenu.classList.contains('open')) { ctxMenu.classList.remove('open'); return; }
+    }
+  });
   </script>
 
   <script>

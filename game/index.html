@@ -336,6 +336,7 @@
     document.querySelectorAll('.hub-nav .tab[href^="/reality"]').forEach(el => el.setAttribute('data-tab', 'reality'));
     document.querySelectorAll('.hub-nav .tab[href^="/fantasy"]').forEach(el => el.setAttribute('data-tab', 'fantasy'));
     document.querySelectorAll('.hub-nav .tab[href^="/streams"]').forEach(el => el.setAttribute('data-tab', 'streams'));
+    document.querySelectorAll('.hub-nav .tab[href^="/info"]').forEach(el => el.setAttribute('data-tab', 'info'));
     document.querySelectorAll('.hub-nav .tab[href^="/debug"]').forEach(el => el.setAttribute('data-tab', 'debug'));
   </script>
 
@@ -613,6 +614,218 @@
     </div>
   </div>
 
+  <!-- Info Tab -->
+  <!-- NOTE: Add /info to the nginx hub route regex, e.g. location ~ ^/(board|reality|fantasy|streams|info|debug) -->
+  <div id="tab-info" class="tab-content" style="padding:1.5rem;">
+    <style>
+      #tab-info .info-section { margin-bottom:1.5rem; }
+      #tab-info .info-section h2 { font-size:1.1rem; color:var(--accent); margin-bottom:0.8rem; border-bottom:1px solid var(--border); padding-bottom:0.4rem; cursor:pointer; user-select:none; }
+      #tab-info .info-section h2::after { content:' ▾'; font-size:0.7rem; opacity:0.5; }
+      #tab-info .info-section.collapsed h2::after { content:' ▸'; }
+      #tab-info .info-section.collapsed .info-body { display:none; }
+      #tab-info .role-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1rem; margin-bottom:0.75rem; }
+      #tab-info .role-card h3 { margin:0 0 0.4rem; font-size:0.95rem; }
+      #tab-info .role-card .perms { font-size:0.8rem; color:var(--text-muted); line-height:1.6; }
+      #tab-info .role-card .perms .yes { color:#4a8; }
+      #tab-info .role-card .perms .no { color:#e55; }
+      #tab-info .cmd-group { margin-bottom:1rem; }
+      #tab-info .cmd-group h4 { font-size:0.85rem; color:var(--text); margin:0.6rem 0 0.3rem; }
+      #tab-info .cmd-row { font-size:0.8rem; color:var(--text-muted); padding:0.15rem 0; }
+      #tab-info .cmd-row code { background:rgba(255,255,255,0.06); padding:0.1rem 0.4rem; border-radius:3px; color:var(--accent); font-size:0.78rem; }
+      #tab-info .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:0.8rem; }
+      #tab-info .stat-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
+      #tab-info .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent); }
+      #tab-info .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem; }
+    </style>
+
+    <!-- Server Info -->
+    <div class="info-section" id="info-server">
+      <h2>🖥️ Server Info</h2>
+      <div class="info-body">
+        <div class="stat-grid" id="info-stats">
+          <div class="stat-card"><div class="stat-val" id="info-online">—</div><div class="stat-label">Online</div></div>
+          <div class="stat-card"><div class="stat-val" id="info-registered">—</div><div class="stat-label">Registered</div></div>
+          <div class="stat-card"><div class="stat-val" id="info-uptime">—</div><div class="stat-label">Uptime</div></div>
+          <div class="stat-card"><div class="stat-val" id="info-version">—</div><div class="stat-label">Version</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Roles & Permissions -->
+    <div class="info-section">
+      <h2>🛡️ Roles & Permissions</h2>
+      <div class="info-body">
+        <div class="role-card">
+          <h3>👤 Unverified</h3>
+          <div class="perms">
+            <span class="yes">✓</span> Chat (rate limited) · Voice · View channels<br>
+            <span class="no">✗</span> Upload files · DM · Create channels · Follow/unfollow
+          </div>
+        </div>
+        <div class="role-card">
+          <h3>✦ Verified</h3>
+          <div class="perms">
+            <span class="yes">✓</span> All above + Upload files · DM friends · Follow/unfollow
+          </div>
+        </div>
+        <div class="role-card">
+          <h3>💎 Donor</h3>
+          <div class="perms">
+            <span class="yes">✓</span> Same as Verified + 💎 badge · Priority support
+          </div>
+        </div>
+        <div class="role-card">
+          <h3>🛡️ Moderator</h3>
+          <div class="perms">
+            <span class="yes">✓</span> All above + DM anyone · Kick/mute/ban · Create/edit channels · Manage reports
+          </div>
+        </div>
+        <div class="role-card">
+          <h3>👑 Admin</h3>
+          <div class="perms">
+            <span class="yes">✓</span> All above + Verify/unverify · Promote/demote · Lockdown · Wipe · Server config
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Social System -->
+    <div class="info-section">
+      <h2>🤝 Social System</h2>
+      <div class="info-body">
+        <div class="role-card">
+          <h3>👁️ Follow</h3>
+          <div class="perms">One-way — shows you care. Use <code>/follow &lt;name&gt;</code>. Right-click a user for quick follow.</div>
+        </div>
+        <div class="role-card">
+          <h3>🤝 Friends (Mutual Follow)</h3>
+          <div class="perms">When both users follow each other, they become friends. This unlocks DMs and shows the 🤝 badge.</div>
+        </div>
+        <div class="role-card">
+          <h3>🚫 Block</h3>
+          <div class="perms">Client-side — hides their messages from your view. Use <code>/block &lt;name&gt;</code>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rate Limits -->
+    <div class="info-section">
+      <h2>⏱️ Rate Limits</h2>
+      <div class="info-body">
+        <div class="role-card">
+          <div class="perms">
+            <strong>Messages:</strong> Fibonacci rate limiting (1,1,2,3,5,8… second delays on rapid posting)<br>
+            <strong>New accounts:</strong> 5s minimum delay for first 10 minutes<br>
+            <strong>Uploads:</strong> 2/minute, 4 image max per user (FIFO — oldest replaced)<br>
+            <strong>API:</strong> 10 req/s general, 5 req/s for read endpoints
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Commands Reference -->
+    <div class="info-section">
+      <h2>📜 Commands Reference</h2>
+      <div class="info-body">
+        <div class="cmd-group">
+          <h4>👥 Social</h4>
+          <div class="cmd-row"><code>/follow &lt;name&gt;</code> — Follow a user</div>
+          <div class="cmd-row"><code>/unfollow &lt;name&gt;</code> — Unfollow a user</div>
+          <div class="cmd-row"><code>/block &lt;name&gt;</code> — Block a user</div>
+          <div class="cmd-row"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
+          <div class="cmd-row"><code>/blocklist</code> — Show blocked users</div>
+        </div>
+        <div class="cmd-group">
+          <h4>💬 DMs & Groups</h4>
+          <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code> — Send a direct message</div>
+          <div class="cmd-row"><code>/dms</code> — List DM conversations</div>
+          <div class="cmd-row"><code>/group-create &lt;name&gt;</code> — Create a group chat</div>
+          <div class="cmd-row"><code>/group-join &lt;code&gt;</code> — Join group by invite code</div>
+          <div class="cmd-row"><code>/group-invite</code> — Copy current group's invite code</div>
+          <div class="cmd-row"><code>/group-leave</code> — Leave current group</div>
+        </div>
+        <div class="cmd-group">
+          <h4>✏️ Profile</h4>
+          <div class="cmd-row"><code>/bio &lt;text&gt;</code> — Set your bio</div>
+          <div class="cmd-row"><code>/social &lt;platform&gt; &lt;handle&gt;</code> — Set social link</div>
+          <div class="cmd-row"><code>/profile</code> — Edit profile</div>
+          <div class="cmd-row"><code>/name &lt;name&gt;</code> — Change display name</div>
+        </div>
+        <div class="cmd-group">
+          <h4>📌 Pins</h4>
+          <div class="cmd-row"><code>/pin</code> — Pin the last message (mod/admin)</div>
+          <div class="cmd-row"><code>/unpin &lt;N&gt;</code> — Unpin by index (mod/admin)</div>
+          <div class="cmd-row"><code>/mypin</code> — Pin your last message (for yourself)</div>
+          <div class="cmd-row"><code>/unmypin &lt;N&gt;</code> — Unpin your pin by index</div>
+          <div class="cmd-row"><code>/pins</code> — View pins</div>
+        </div>
+        <div class="cmd-group">
+          <h4>📞 Voice</h4>
+          <div class="cmd-row"><code>/call</code> — Start a voice call (or use 📞 button)</div>
+        </div>
+        <div class="cmd-group">
+          <h4>🛡️ Moderation</h4>
+          <div class="cmd-row"><code>/kick &lt;name&gt;</code> — Disconnect a user</div>
+          <div class="cmd-row"><code>/mute &lt;name&gt;</code> — Mute a user</div>
+          <div class="cmd-row"><code>/ban &lt;name&gt;</code> — Ban a user</div>
+          <div class="cmd-row"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+        </div>
+        <div class="cmd-group">
+          <h4>👑 Admin</h4>
+          <div class="cmd-row"><code>/verify &lt;name&gt;</code> — Verify a user</div>
+          <div class="cmd-row"><code>/unverify &lt;name&gt;</code> — Remove verified</div>
+          <div class="cmd-row"><code>/mod &lt;name&gt;</code> — Promote to moderator</div>
+          <div class="cmd-row"><code>/unmod &lt;name&gt;</code> — Remove moderator</div>
+          <div class="cmd-row"><code>/donor &lt;name&gt;</code> — Set donor role</div>
+          <div class="cmd-row"><code>/lockdown</code> — Toggle registration lock</div>
+          <div class="cmd-row"><code>/channel-create &lt;name&gt; [desc]</code> — Create channel</div>
+          <div class="cmd-row"><code>/channel-delete &lt;name&gt;</code> — Delete channel</div>
+          <div class="cmd-row"><code>/wipe</code> — Delete all chat history</div>
+        </div>
+        <div class="cmd-group">
+          <h4>🔧 Utility</h4>
+          <div class="cmd-row"><code>/help</code> — Show help</div>
+          <div class="cmd-row"><code>/export</code> — Download identity backup</div>
+          <div class="cmd-row"><code>/link</code> — Link another device</div>
+          <div class="cmd-row"><code>/revoke &lt;key&gt;</code> — Remove a device</div>
+          <div class="cmd-row"><code>/users</code> — List all users</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    // Collapsible sections
+    document.querySelectorAll('#tab-info .info-section h2').forEach(h2 => {
+      h2.addEventListener('click', () => {
+        h2.parentElement.classList.toggle('collapsed');
+      });
+    });
+    // Fetch server stats
+    (async function loadInfoStats() {
+      try {
+        const [statsRes, infoRes] = await Promise.all([
+          fetch('/api/stats').then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/server-info').then(r => r.ok ? r.json() : null).catch(() => null)
+        ]);
+        if (statsRes) {
+          if (statsRes.online !== undefined) document.getElementById('info-online').textContent = statsRes.online;
+          if (statsRes.registered !== undefined) document.getElementById('info-registered').textContent = statsRes.registered;
+          if (statsRes.uptime) {
+            const s = statsRes.uptime;
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            document.getElementById('info-uptime').textContent = h + 'h ' + m + 'm';
+          }
+        }
+        if (infoRes) {
+          if (infoRes.version) document.getElementById('info-version').textContent = infoRes.version;
+          else if (infoRes.name) document.getElementById('info-version').textContent = infoRes.name;
+        }
+      } catch(e) { console.warn('Info stats fetch failed:', e); }
+    })();
+    </script>
+  </div>
+
   <!-- Debug Tab -->
   <div id="tab-debug" class="tab-content">
     <div class="panel">
@@ -732,7 +945,7 @@
 
   <script>
     // ── Hub Tab System (SPA with pushState) ──
-    const HUB_TABS = ['board', 'reality', 'fantasy', 'streams', 'debug'];
+    const HUB_TABS = ['board', 'reality', 'fantasy', 'streams', 'info', 'debug'];
     let currentTab = 'reality';
 
     function getTabFromPath() {
@@ -756,7 +969,7 @@
       if (tabEl) tabEl.classList.add('active');
 
       // Update page title
-      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', debug: 'Debug' };
+      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', info: 'Info', debug: 'Debug' };
       document.title = 'Humanity — ' + (titles[tabId] || 'Hub');
 
       // Update URL
