@@ -5834,8 +5834,8 @@ async function importIdentityFromJSON(jsonData) {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'turn:united-humanity.us:3478', username: 'humanity', credential: 'turnRelay2026!secure' },
+        { urls: 'turns:united-humanity.us:5349', username: 'humanity', credential: 'turnRelay2026!secure' },
       ],
     };
 
@@ -5881,7 +5881,7 @@ async function importIdentityFromJSON(jsonData) {
 
     async function setupRoomAudio() {
       try {
-        window._roomLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        window._roomLocalStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       } catch (e) {
         addSystemMessage('⚠️ Microphone access denied.');
         leaveVoiceRoom();
@@ -6452,7 +6452,7 @@ async function importIdentityFromJSON(jsonData) {
 
       // Get microphone
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
       } catch (e) {
         addSystemMessage('⚠️ Microphone access denied. Cannot make voice call.');
         hangupCall();
