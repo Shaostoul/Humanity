@@ -49,9 +49,9 @@ self.addEventListener('notificationclick', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Never cache WebSocket, API, or the chat page itself
+  // Never cache WebSocket, API, chat page, or uploads
   const url = event.request.url;
-  if (url.includes('/ws') || url.includes('/api/') || url.includes('/chat')) return;
+  if (url.includes('/ws') || url.includes('/api/') || url.includes('/chat') || url.includes('/uploads/')) return;
 
   event.respondWith(
     fetch(event.request)

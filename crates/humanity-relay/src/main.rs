@@ -109,7 +109,6 @@ async fn main() {
                 .allow_origin([
                     "https://chat.united-humanity.us".parse::<http::HeaderValue>().unwrap(),
                     "https://united-humanity.us".parse::<http::HeaderValue>().unwrap(),
-                    "http://localhost:3210".parse::<http::HeaderValue>().unwrap(),
                 ])
                 .allow_methods([http::Method::GET, http::Method::POST])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
@@ -149,7 +148,7 @@ async fn ws_handler(
     // Non-browser clients (native apps, bots) typically don't send Origin,
     // so we only reject when Origin is present but not in the allow-list.
     if let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) {
-        let allowed = ["https://chat.united-humanity.us", "https://united-humanity.us", "http://localhost:3210"];
+        let allowed = ["https://chat.united-humanity.us", "https://united-humanity.us"];
         if !allowed.iter().any(|&a| a == origin) {
             return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
         }

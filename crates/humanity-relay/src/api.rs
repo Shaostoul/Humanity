@@ -40,7 +40,7 @@ fn check_api_auth(headers: &HeaderMap) -> Result<(), (StatusCode, String)> {
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
         .unwrap_or("");
-    if provided != expected {
+    if provided.len() != expected.len() || !constant_time_eq(provided.as_bytes(), expected.as_bytes()) {
         return Err((StatusCode::UNAUTHORIZED, "Invalid or missing API token.".into()));
     }
     Ok(())
@@ -260,6 +260,7 @@ pub async fn upload_file(
     ];
     const BLOCKED_EXTENSIONS: &[&str] = &[
         "exe", "sh", "bat", "cmd", "msi", "dmg", "app", "com", "scr", "pif",
+        "svg", "html", "htm", "xhtml", "xml", "js", "mjs",
     ];
     /// Maximum total size of all uploads on disk (default 500MB).
     const MAX_TOTAL_UPLOAD_BYTES: u64 = 500 * 1024 * 1024;
@@ -991,7 +992,8 @@ pub async fn search_messages(
     }
 
     let limit = params.limit.unwrap_or(50).min(100) as usize;
-    match state.db.search_messages_full(&params.q, params.channel.as_deref(), params.from.as_deref(), limit) {
+    // API search doesn't include DMs (no requester context); pass empty key to exclude DM results.
+    match state.db.search_messages_full(&params.q, params.channel.as_deref(), params.from.as_deref(), limit, "") {
         Ok(results) => {
             let search_results: Vec<SearchResultData> = results.into_iter().map(|(id, ch, msg)| {
                 if let RelayMessage::Chat { from, from_name, content, timestamp, .. } = msg {

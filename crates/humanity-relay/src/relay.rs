@@ -865,6 +865,9 @@ pub enum RelayMessage {
         from_name: Option<String>,
         content: String,
         timestamp: u64,
+        /// Target member key — only deliver to this client (stripped before sending).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
     },
 }
 
@@ -1118,7 +1121,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 if public_key.starts_with("bot_") {
                     let expected = std::env::var("API_SECRET").unwrap_or_default();
                     let provided = bot_secret.as_deref().unwrap_or("");
-                    if expected.is_empty() || provided != expected {
+                    // H-2: Use constant-time comparison to prevent timing attacks.
+                    let ct_eq = provided.len() == expected.len() && provided.as_bytes().iter().zip(expected.as_bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0;
+                    if expected.is_empty() || !ct_eq {
                         let err = RelayMessage::System {
                             message: "Bot authentication failed: invalid or missing bot_secret.".to_string(),
                         };
@@ -1549,6 +1554,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
             // TaskCommentsResponse: only deliver to the target client.
             if let RelayMessage::TaskCommentsResponse { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // H-5: GroupMessage — only deliver to targeted group member.
+            if let RelayMessage::GroupMessage { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -3489,7 +3503,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     last_searches.insert(my_key_for_recv.clone(), now);
                                 }
                                 let max_results = limit.unwrap_or(50).min(100) as usize;
-                                match state_clone.db.search_messages_full(&query, channel.as_deref(), from.as_deref(), max_results) {
+                                match state_clone.db.search_messages_full(&query, channel.as_deref(), from.as_deref(), max_results, &my_key_for_recv) {
                                     Ok(results) => {
                                         let total = results.len() as u32;
                                         let search_results: Vec<SearchResultData> = results.into_iter().map(|(id, ch, msg)| {
@@ -4128,7 +4142,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     .as_millis() as u64;
                                 let _ = state_clone.db.store_group_message(&group_id, &my_key_for_recv, &sender_name, &content, ts);
 
-                                // Get group members and send to each
+                                // H-5 fix: Send group messages only to group members
                                 if let Ok(members) = state_clone.db.get_group_members(&group_id) {
                                     for (member_key, _role) in members {
                                         let gm = RelayMessage::GroupMessage {
@@ -4137,13 +4151,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             from_name: Some(sender_name.clone()),
                                             content: content.clone(),
                                             timestamp: ts,
+                                            target: Some(member_key),
                                         };
-                                        // Use Private wrapper to target specific members
-                                        // Actually, GroupMessage doesn't have a target field,
-                                        // so we broadcast and filter in the send loop won't work.
-                                        // For now, use the broadcast and let all clients filter by group membership.
                                         let _ = state_clone.broadcast_tx.send(gm);
-                                        break; // Only broadcast once
                                     }
                                 }
                             }

@@ -1484,7 +1484,7 @@ impl Storage {
     /// Search messages with full filtering: query, channel, from (sender name), limit.
     /// Escapes SQL LIKE special characters in the query.
     /// Also searches DMs if channel is None.
-    pub fn search_messages_full(&self, query: &str, channel: Option<&str>, from_name: Option<&str>, limit: usize) -> Result<Vec<(i64, String, RelayMessage)>, rusqlite::Error> {
+    pub fn search_messages_full(&self, query: &str, channel: Option<&str>, from_name: Option<&str>, limit: usize, requester_key: &str) -> Result<Vec<(i64, String, RelayMessage)>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let limit = limit.min(100);
 
@@ -1532,10 +1532,10 @@ impl Storage {
         // Also search DMs if no specific channel filter
         if channel.is_none() {
             let mut dm_sql = String::from(
-                "SELECT id, from_key, from_name, content, timestamp FROM direct_messages WHERE content LIKE '%' || ?1 || '%' ESCAPE '\\'"
+                "SELECT id, from_key, from_name, content, timestamp FROM direct_messages WHERE content LIKE '%' || ?1 || '%' ESCAPE '\\' AND (from_key = ?2 OR to_key = ?2)"
             );
-            let mut dm_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(escaped_query.clone())];
-            let mut dm_idx = 2u32;
+            let mut dm_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(escaped_query.clone()), Box::new(requester_key.to_string())];
+            let mut dm_idx = 3u32;
 
             if let Some(fname) = from_name {
                 let escaped_from = fname
