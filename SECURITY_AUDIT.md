@@ -1,192 +1,232 @@
-# Security Audit Report — February 11, 2026
+# Security Audit — February 12, 2026
 
 ## Summary
 
-**Overall Risk Level: MEDIUM** (improved from previous audit)
+**Auditor:** Heron (automated agent)
+**Scope:** Full source audit of the Humanity relay platform (8 files, ~16,000+ lines)
+**Findings:** 0 Critical, 5 High, 10 Medium, 8 Low, 7 Info
 
-The Humanity relay is a public-facing WebSocket chat platform with ~15 users. The codebase shows significant security awareness with good input validation, rate limiting, and proper DM architecture (server-side filtered delivery). However, several medium-severity issues remain around signature verification, XSS vectors, and API authentication gaps.
+The Humanity relay demonstrates strong security fundamentals: Ed25519 cryptographic identity, parameterized SQL queries throughout, server-side signature verification, HMAC-SHA256 webhook authentication, SSRF protection on link previews, per-session upload tokens, Fibonacci rate limiting, and auto-lockdown when no moderators are online. The architecture is sound for its threat model.
 
-| Severity | Count |
-|----------|-------|
-| Critical | 0 |
-| High | 1 |
-| Medium | 4 |
-| Low | 5 |
-| Info | 5 |
+The findings below are primarily defense-in-depth improvements rather than actively exploitable vulnerabilities.
 
 ---
 
-## Critical Findings
+## Findings
 
-None.
+### CRITICAL
 
----
+_None identified._
 
-## High Findings
+### HIGH
 
-### H-1: No Server-Side Ed25519 Signature Verification
-- **Severity**: HIGH
-- **Component**: `relay.rs` (Chat message handling)
-- **Description**: The server accepts `signature` fields on chat messages but never verifies them. Signatures are stored and forwarded to clients, but the server trusts the `from` field based solely on the WebSocket session's identified key — not cryptographic proof. A compromised or modified client can send arbitrary `from` values for non-chat message types, and the signature field provides a false sense of authenticity.
-- **Impact**: While the server does enforce `from` based on the session key for chat messages (overwriting it server-side would be the fix), the signature is never validated. If a future code change trusts signatures for authorization decisions, this becomes critical. Currently, the main risk is that clients display "✓ signed" badges without the server confirming validity — a client-side-only verification that can be spoofed by modified clients sending fake signatures.
-- **Recommendation**: Add `ed25519-dalek` crate and verify signatures server-side before storing/broadcasting. Reject messages with invalid signatures. Mark messages as `verified: true` in the broadcast only after server verification.
-- **Status**: KNOWN (from previous audit, still present)
+#### H-1: API Secret Comparison Uses Non-Constant-Time Equality
+- **Location:** `api.rs:44` (`check_api_auth` function)
+- **Description:** The `check_api_auth` function compares `provided != expected` using Rust's standard string equality, which short-circuits on the first differing byte. This enables timing side-channel attacks to incrementally guess the API_SECRET. Notably, the codebase already has a `constant_time_eq` function (api.rs:24) used for webhook HMAC verification but does NOT use it for API auth.
+- **Impact:** An attacker on a low-latency network could theoretically recover the API_SECRET through statistical timing analysis, gaining full bot API access.
+- **Recommendation:** Replace `if provided != expected` with `if !constant_time_eq(provided.as_bytes(), expected.as_bytes())` in `check_api_auth`.
 
----
+#### H-2: Bot WebSocket Auth Uses Non-Constant-Time Comparison
+- **Location:** `relay.rs:~1155` (Identify handler for `bot_` keys)
+- **Description:** `if expected.is_empty() || provided != expected` — the bot_secret comparison in the WebSocket identify flow also uses standard string equality, same timing vulnerability as H-1.
+- **Impact:** Same as H-1 but for WebSocket bot authentication.
+- **Recommendation:** Use `constant_time_eq` for bot_secret comparison.
 
-## Medium Findings
+#### H-3: Unauthenticated Read APIs Expose Full Message History
+- **Location:** `api.rs` — `get_messages`, `get_reactions`, `get_pins`, `get_stats`, `get_peers`, `get_tasks`, `get_listings`, `list_federation_servers`, `get_server_info`
+- **Description:** Multiple GET endpoints require no authentication whatsoever. While some (like `get_server_info`, `get_listings`) are intentionally public, `get_messages` exposes the full chat history of any channel including message content, author keys, and timestamps. `get_peers` exposes all connected users' public keys. `get_stats` exposes internal metrics.
+- **Impact:** Any unauthenticated party can scrape the entire message history, enumerate all users and their public keys, and monitor online status — even without a WebSocket connection. This bypasses the WebSocket's identify/origin checks.
+- **Recommendation:** Add `check_api_auth` to `get_messages`, `get_peers`, and `get_stats`. Keep `get_server_info`, `get_listings`, and `list_federation_servers` public (they're designed for federation/public browsing). Consider adding optional API key auth for reactions/pins/tasks.
 
-### M-1: Unauthenticated Read APIs Expose Message History and User Data
-- **Severity**: MEDIUM
-- **Component**: `api.rs` — `GET /api/messages`, `GET /api/peers`, `GET /api/stats`, `GET /api/reactions`, `GET /api/pins`
-- **Description**: All GET API endpoints are completely unauthenticated. Anyone can poll the full message history, user list, reactions, and pins without any credentials. Only `POST /api/send` and `POST /api/upload` require authentication.
-- **Impact**: An attacker can scrape all public channel messages, enumerate all users and their public keys, and monitor the platform without connecting via WebSocket (bypassing connection limits and rate limiting). While this is "public chat," the lack of any access control means automated scraping is trivial.
-- **Recommendation**: Add optional API key authentication or at minimum rate limit these endpoints at the nginx level. Consider if message history should require authentication.
-- **Status**: NEW
+#### H-4: XSS via `formatBody` Post-Escape URL Injection
+- **Location:** `client/index.html:3809-3833` (formatBody function, URL → HTML replacements)
+- **Description:** `formatBody` correctly escapes HTML via `esc()` first, but then uses regex to convert URL patterns back into raw HTML (`<audio>`, `<video>`, `<a>`, `<img>` placeholders). Since escaping converts `&` → `&amp;`, `<` → `&lt;`, etc., the URL content is "safe" — however, the regex operates on the escaped text, and URL values from the escaped text are inserted into `src=` and `href=` attributes without re-validation. A crafted message containing a URL like `javascript:alert(1)` would be escaped to `javascript:alert(1)` (no HTML entities in that string) and then matched by the URL regex `/(?<!["=])(https?:\/\/...)/` — but wait, this regex requires `https?://` prefix, so `javascript:` URLs are actually blocked. The audio/video/document regexes also require specific file extensions. This is **mostly safe** due to the `https?://` requirement, but the file-card handler at line 3821 constructs `<a href="${url}">` where `url` comes from the regex match on escaped text that could contain encoded entities that decode differently in an href context.
+- **Impact:** Low practical exploitability due to the `https?://` prefix requirement, but defense-in-depth is lacking. If any future regex is added without the protocol check, XSS would be immediate.
+- **Recommendation:** Add explicit protocol validation (`url.startsWith('https://') || url.startsWith('http://')`) before inserting any URL into HTML attributes. Consider using a DOMPurify-like sanitizer as a final pass on `formatBody` output.
 
-### M-2: GitHub Webhook Secret Passed as Query Parameter
-- **Severity**: MEDIUM
-- **Component**: `api.rs` — `github_webhook()`
-- **Description**: The GitHub webhook endpoint accepts the API secret as a URL query parameter (`?secret=...`). Query parameters are logged in web server access logs, browser history, and may appear in `Referer` headers.
-- **Impact**: The API secret could leak through nginx access logs (though IP is stripped, the URL with secret is logged), and through any intermediary proxy logs. Since this is the same `API_SECRET` used for bot API authentication, compromise gives full bot send access.
-- **Recommendation**: Use GitHub's native webhook signature verification (`X-Hub-Signature-256` header with HMAC-SHA256) instead of passing the secret as a query parameter. Use a separate secret for the webhook.
-- **Status**: NEW
-
-### M-3: Profile Social URLs Not Fully Sanitized for XSS in Client
-- **Severity**: MEDIUM
-- **Component**: `client/index.html` — `showViewProfileCard()`
-- **Description**: While the server validates that URL fields start with `https://` and handles are alphanumeric, the client renders profile URLs directly into `href` attributes using the `esc()` function. The `esc()` function escapes HTML entities but the server-side validation only checks for `javascript:` and `data:` prefixes. A URL like `https://evil.com/"onclick="alert(1)` would be escaped by `esc()`, BUT the profile card uses string concatenation like `'<a href="' + esc(url) + '"'` — the `esc()` function does escape quotes to `&#39;` (single quotes) but does NOT escape double quotes, only relying on `textContent` which doesn't handle attribute context.
-- **Impact**: Potential stored XSS through crafted profile URLs. The `esc()` function escapes `<`, `>`, `&`, and `'` but NOT `"`. A URL containing double quotes could break out of the `href` attribute.
-- **Recommendation**: Fix `esc()` to also escape double quotes (`"`→`&quot;`). Better yet, use DOM APIs (`setAttribute`) instead of string concatenation for href values. The server should also validate URLs more strictly (no quotes, no spaces).
-- **Status**: NEW
-
-### M-4: Upload Authentication Bypass — Key Parameter Not Cryptographically Verified
-- **Severity**: MEDIUM
-- **Component**: `api.rs` — `upload_file()`
-- **Description**: The upload endpoint authenticates users by checking if the provided `?key=` parameter matches a currently connected peer. However, public keys are broadcast to all connected users via `peer_list` and `full_user_list`. Any connected user can upload files using another user's public key, bypassing per-user upload limits (4 image FIFO).
-- **Impact**: A malicious user could exhaust another user's upload quota by uploading with their key, causing the victim's images to be deleted. Also allows unverified users to upload if they know a verified user's key.
-- **Recommendation**: Require uploads to go through WebSocket (where identity is already established) or require a signed challenge-response for the upload endpoint. At minimum, generate per-session upload tokens.
-- **Status**: NEW
+#### H-5: Group Messages Broadcast to All Connected Clients
+- **Location:** `relay.rs:~4170-4185` (GroupMsg handler)
+- **Description:** When a user sends a group message, the server broadcasts it to ALL connected clients via the broadcast channel. The comment in the code says "For now, use the broadcast and let all clients filter by group membership" — but there's no server-side filtering. Any connected client receives all group messages regardless of membership. The `GroupMessage` variant has no `target` field and no filtering in the broadcast send loop.
+- **Impact:** All private group conversations are visible to any authenticated WebSocket client. Group privacy is effectively non-existent.
+- **Recommendation:** Add a `target` field to `GroupMessage` or filter by group membership in the broadcast send loop (similar to how DMs are filtered by `to` field).
 
 ---
 
-## Low Findings
+### MEDIUM
 
-### L-1: Bot Keys (`bot_*` prefix) Bypass Ban and Name Checks
-- **Severity**: LOW
-- **Component**: `relay.rs` — identify handler
-- **Description**: Keys starting with `bot_` skip ban checks and name registration validation. While bot messages come through the authenticated API, the WebSocket identify path also checks for this prefix. A malicious client could set their public key to `bot_something` to bypass bans.
-- **Impact**: Low — a banned user could reconnect with a `bot_*` key, but they wouldn't have a registered name and the bot API requires `API_SECRET` for sending messages. However, they could observe the chat.
-- **Recommendation**: Validate that `bot_*` keys can only connect through the API path, not through WebSocket identify. Or remove the `bot_` prefix exception from WebSocket connections entirely.
-- **Status**: NEW
+#### M-1: Uploaded Files Served Without Content-Disposition Header
+- **Location:** `main.rs:104` (`.nest_service("/uploads", ...)`)
+- **Description:** Uploaded files are served via `tower_http::services::ServeDir` which serves files with their detected MIME type but without a `Content-Disposition: attachment` header. HTML files are blocked by extension, but SVG files (which can contain JavaScript) are not in the blocked list. While `application/octet-stream` is allowed, the extension check prevents `.html`/`.svg` but not all dangerous types.
+- **Impact:** If an attacker uploads a file that the browser interprets as HTML (e.g., via content-type sniffing), it could execute JavaScript in the context of the site's origin.
+- **Recommendation:** Add `Content-Disposition: attachment` for all uploads, or add `X-Content-Type-Options: nosniff` to the upload serving route. Also add SVG to the blocked extensions list.
 
-### L-2: Rate Limit State Not Persisted Across Restarts
-- **Severity**: LOW
-- **Component**: `relay.rs` — `RateLimitState`
-- **Description**: Rate limiting uses in-memory `Instant` timestamps. After a server restart, all rate limits reset, allowing a burst of messages. The `first_seen` field (used for new account slow mode) also resets, so a 10-minute-old account gets treated as new again (but more permissively since the Fibonacci index resets to 0).
-- **Impact**: Minor DoS window after restarts. An attacker could force a restart (if they know how to trigger a crash) to reset rate limits.
-- **Recommendation**: Accept this as a known limitation. For the current scale (~15 users), this is fine. If scaling, consider persisting rate limit state or using a sliding window approach.
-- **Status**: NEW
+#### M-2: No Rate Limiting on Several API Endpoints
+- **Location:** `api.rs` — `get_messages`, `get_reactions`, `get_pins`, `get_tasks`, `get_listings`, `get_peers`, `get_stats`
+- **Description:** While the WebSocket has Fibonacci rate limiting and search has 1/2s rate limiting, the HTTP API endpoints have no application-level rate limiting. The comment suggests nginx handles this, but if nginx rate limits are per-IP and the server is behind a CDN/proxy, the effective rate limiting may be weaker than expected.
+- **Impact:** An attacker could rapidly poll endpoints to scrape data or cause elevated database load.
+- **Recommendation:** Add application-level rate limiting to API endpoints, or document the nginx rate limit dependency explicitly and ensure it's tested.
 
-### L-3: No Content-Security-Policy Header
-- **Severity**: LOW
-- **Component**: nginx config
-- **Description**: The nginx configuration sets `X-Content-Type-Options`, `Strict-Transport-Security`, and `Referrer-Policy`, but lacks a `Content-Security-Policy` header. The client loads Twemoji from a CDN (`cdn.jsdelivr.net`), making a strict CSP slightly complex but not impossible.
-- **Impact**: Without CSP, any XSS vulnerability has full access to execute arbitrary scripts, access IndexedDB (private keys), and exfiltrate data.
-- **Recommendation**: Add a CSP header: `default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' wss://chat.united-humanity.us wss://united-humanity.us;`. The `unsafe-inline` for scripts is needed due to the inline `<script>` blocks.
-- **Status**: NEW
+#### M-3: DM Search Exposes Private Messages in Search Results
+- **Location:** `storage.rs:~1550-1600` (search_messages_full function)
+- **Description:** When `channel` is None, the search function also searches `direct_messages` and includes DM content in results. The search results are sent only to the requesting user, but there's no check that the requesting user is a party to those DMs. Any authenticated user's search could return DMs between other users.
+- **Impact:** Users could search for keywords and find fragments of other users' private DM conversations.
+- **Recommendation:** Add a `WHERE (from_key = ?requester OR to_key = ?requester)` filter to the DM search query.
 
-### L-4: Lockdown State Not Persisted
-- **Severity**: LOW
-- **Component**: `relay.rs` — `lockdown` field
-- **Description**: The lockdown state (registration lock) is stored in memory only. After a server restart, lockdown is always `false`, regardless of whether an admin had manually enabled it.
-- **Impact**: If the server restarts while lockdown is active, registration opens up. The auto-lockdown mitigates this somewhat (no mods online → auto-lock after 30s), but a manual lockdown intended to be persistent would be lost.
-- **Recommendation**: Persist lockdown state to the database.
-- **Status**: NEW
+#### M-4: Broadcast Channel as Message Bus Leaks Metadata
+- **Location:** `relay.rs` — entire broadcast pattern
+- **Description:** The system uses a single `broadcast::channel` for all message routing. While the send loop filters messages by type (DMs to recipient only, etc.), every connected client's send loop receives every message and then decides whether to forward it. This means the server processes every message for every client, and any bug in the filtering logic would leak private data.
+- **Impact:** Architecture amplifies the impact of any filtering bug. Currently functional but fragile.
+- **Recommendation:** For a future refactor, consider per-user channels or a pub/sub system with topic-based routing. Document the current approach's trade-offs.
 
-### L-5: Emoji Reaction Validation Incomplete
-- **Severity**: LOW
-- **Component**: `relay.rs` — Reaction handler
-- **Description**: Reactions are validated to be ≤32 bytes and exclude certain characters (`'`, `"`, `<`, `>`, `\`, `&`). However, this allows arbitrary Unicode sequences up to 32 bytes, which could include invisible characters, RTL override characters, or very long grapheme clusters that render poorly.
-- **Impact**: Minor UI disruption. Not exploitable for XSS since the characters are escaped on render.
-- **Recommendation**: Restrict reactions to a whitelist of known emoji or validate against Unicode emoji ranges.
-- **Status**: NEW
+#### M-5: No Max Pin Count Per Channel
+- **Location:** `storage.rs` — `pin_message` function
+- **Description:** There's no limit on how many messages can be pinned per channel. A moderator (or compromised mod account) could pin thousands of messages, causing performance issues when syncing pins on connect.
+- **Impact:** DoS vector through pin exhaustion, causing slow connections.
+- **Recommendation:** Add a max pin count per channel (e.g., 50) and reject new pins when the limit is reached.
 
----
+#### M-6: User Data Sync Has No Authentication Beyond Connection
+- **Location:** `relay.rs:~1610-1660` (sync_save/sync_load handlers)
+- **Description:** The `sync_save` and `sync_load` messages allow any authenticated WebSocket client to store/retrieve up to 512KB of arbitrary JSON data keyed by their public key. While this is by design (the user owns their key), there's no validation of the data content, and the 512KB limit per user could be used for abuse (500 users × 512KB = 250MB of user data).
+- **Impact:** Storage exhaustion through user data abuse.
+- **Recommendation:** Consider a lower default limit (e.g., 64KB) and/or rate limiting sync_save operations.
 
-## Informational
+#### M-7: Link Preview Fetcher Could Be Used for Port Scanning
+- **Location:** `relay.rs:~4260-4330` (fetch_link_preview function)
+- **Description:** While the code has SSRF protection (private IP check after DNS resolution), it checks IPs from `lookup_host` but then makes the request via `reqwest` which does its own DNS resolution. A DNS rebinding attack could return a public IP on first lookup (passing the check) and a private IP on second lookup (used by reqwest).
+- **Impact:** SSRF via DNS rebinding to access internal services.
+- **Recommendation:** Use a custom DNS resolver that pins the resolved IP for the entire request, or use `reqwest`'s `resolve` feature to force the checked IP.
 
-### I-1: Private Key Storage in IndexedDB
-- **Severity**: INFO
-- **Component**: `client/index.html` — `getOrCreateIdentity()`
-- **Description**: Ed25519 private keys are stored in IndexedDB with `extractable: false` when Web Crypto is available. This is the correct approach — the keys are non-extractable CryptoKey objects. When Ed25519 is not supported, a random hex key is stored in `localStorage` (no signing capability).
-- **Impact**: Keys are as secure as the browser's Web Crypto implementation allows. A browser extension or XSS attack could still use the key to sign messages (but not extract it).
-- **Recommendation**: This is the best practice for browser-based crypto. No change needed.
-- **Status**: KNOWN (acceptable)
+#### M-8: WebSocket Origin Check Allows Non-Browser Clients Without Origin
+- **Location:** `main.rs:131-137` (ws_handler)
+- **Description:** The origin check only fires when an `Origin` header is present. Non-browser clients (curl, custom tools) don't send Origin and bypass the check entirely. This is by design (to allow native apps and bots), but it means the origin check only protects against browser-based CSRF, not against unauthorized non-browser access.
+- **Impact:** Any tool can connect to the WebSocket without origin restrictions. Combined with H-3, this means unauthenticated enumeration.
+- **Recommendation:** This is acceptable given the public key auth model, but document it explicitly. Consider requiring the identify message to complete within the timeout (already done) and potentially requiring a challenge-response.
 
-### I-2: Broadcast Channel Messages to All — Client-Side Channel Filtering
-- **Severity**: INFO
-- **Component**: `relay.rs` — broadcast loop
-- **Description**: Chat messages are broadcast to ALL connected WebSocket clients regardless of which channel they're viewing. The client filters by `activeChannel`. This means all users receive all channel messages.
-- **Impact**: No privacy impact since channels are public. Minor bandwidth overhead. A modified client could see messages from all channels simultaneously.
-- **Recommendation**: For current scale, this is fine. At scale (100+ channels), add server-side channel subscription filtering to reduce bandwidth.
-- **Status**: KNOWN (acceptable at current scale)
+#### M-9: Profile Socials URLs Not Fully Validated on Display
+- **Location:** `client/index.html:~5130-5200` (showViewProfileCard)
+- **Description:** While the server validates that profile URL fields start with `https://` and handles start with alphanumerics, the client renders profile social links using innerHTML with `esc()`. The server-side validation is good, but the client trusts the server data and renders it. If the database were compromised or a future code change relaxed server validation, XSS would be possible.
+- **Impact:** Low — requires server-side compromise or validation regression.
+- **Recommendation:** Add client-side URL validation before rendering profile links.
 
-### I-3: DM Privacy — Server-Side Filtering (FIXED from previous audit)
-- **Severity**: INFO
-- **Component**: `relay.rs` — DM broadcast loop filtering
-- **Description**: DMs are now properly filtered server-side in the broadcast loop. The `Dm` message type is only delivered to the `to` field recipient. `DmHistory` and `DmList` messages also check `target` fields. This is a significant improvement from the previous audit where DMs were broadcast to all clients.
-- **Impact**: DMs are private between sender and recipient at the transport layer.
-- **Recommendation**: None — this is correctly implemented.
-- **Status**: FIXED (since last audit) ✅
-
-### I-4: Service Runs as Root (Implied)
-- **Severity**: INFO
-- **Component**: systemd service (`humanity-relay.service`)
-- **Description**: The systemd unit file doesn't specify `User=` or `Group=`, meaning the service likely runs as root (the default for system services).
-- **Impact**: If the relay process is compromised, the attacker has root access to the VPS.
-- **Recommendation**: Add `User=humanity` and `Group=humanity` to the service file. Create a dedicated user. Also add `ProtectSystem=strict`, `ProtectHome=true`, `ReadWritePaths=/opt/Humanity/crates/humanity-relay/data`.
-- **Status**: NEW
-
-### I-5: Server Version Exposed to All Clients
-- **Severity**: INFO
-- **Component**: `relay.rs` — `PeerList` message
-- **Description**: The `server_version` is sent to all clients in the `peer_list` message, and the client uses it to trigger auto-reload on version changes. This exposes the exact build version to all users.
-- **Impact**: Minor information disclosure. An attacker could identify the exact build and target known vulnerabilities.
-- **Recommendation**: Accept for now — the auto-reload feature is useful during active development.
-- **Status**: NEW
+#### M-10: No CSRF Protection on File Upload Endpoint
+- **Location:** `api.rs` — `upload_file`
+- **Description:** The upload endpoint uses a per-session token passed as a query parameter (`?token=...`). While this effectively prevents CSRF (the token is secret and per-session), the token is transmitted in the URL which may be logged by proxies, appear in Referer headers, and be stored in browser history.
+- **Impact:** Upload token leakage through URL logging.
+- **Recommendation:** Accept the upload token via a header (e.g., `X-Upload-Token`) instead of a query parameter.
 
 ---
 
-## Positive Security Observations
+### LOW
 
-1. **SQL Injection: SAFE** — All SQLite queries use parameterized queries (`params![]` macro). No string concatenation in SQL. ✅
-2. **DM Privacy: FIXED** — DMs are now server-side filtered, not broadcast to all. Major improvement. ✅
-3. **WebSocket Security: GOOD** — Origin checking, connection limits (500 max), identify timeout (30s), max frame/message sizes. ✅
-4. **Rate Limiting: COMPREHENSIVE** — Fibonacci backoff for chat/DMs, new account slow mode, typing rate limit, profile update rate limit, upload rate limit (nginx + app level). ✅
-5. **File Upload: STRONG** — Type validation via Content-Type AND magic bytes, 5MB size limit, per-user 4-image FIFO, 500MB global disk limit, filename sanitization (no path traversal), only verified users can upload. ✅
-6. **Name Validation: GOOD** — ASCII-only names prevent homoglyph attacks, 24-char max, no special characters. ✅
-7. **Input Validation: GOOD** — Message length limits, bio length limits, socials JSON validation, channel name validation, emoji sanitization. ✅
-8. **nginx Configuration: SOLID** — TLS 1.2+, HSTS, no server tokens, privacy-preserving logs (no IPs), upload rate limiting, UFW firewall with minimal open ports. ✅
-9. **CORS: PROPERLY CONFIGURED** — Explicit allow-list of origins for both HTTP CORS and WebSocket Origin header. ✅
-10. **Moderation: WELL-DESIGNED** — Role hierarchy (admin > mod > verified > user > muted), ban persistence, kick mechanism, auto-lockdown when no staff online, report system with rate limits. ✅
-11. **Link/Invite Codes: SECURE** — CSPRNG generation, time-limited, one-time use, proper cleanup of expired codes. ✅
-12. **HTML Escaping**: The `esc()` function in the client escapes `<`, `>`, `&`, and `'` for most contexts. ✅ (but see M-3 for double-quote gap)
+#### L-1: Error Messages Expose Internal Details
+- **Location:** `api.rs` various endpoints, `relay.rs` error handling
+- **Description:** Some error paths return internal error messages directly to clients, e.g., `format!("Failed to create task: {e}")` which could expose SQLite error details.
+- **Impact:** Information disclosure about database schema and internal state.
+- **Recommendation:** Return generic error messages to clients, log details server-side.
+
+#### L-2: In-Memory Rate Limit State Not Bounded
+- **Location:** `relay.rs` — `rate_limits`, `typing_timestamps`, `last_search_times`
+- **Description:** The `rate_limits` HashMap grows without bound as new keys connect. Old entries are never cleaned up. Over time (or during an attack with many unique keys), this could consume significant memory.
+- **Impact:** Memory exhaustion DoS over long server uptime.
+- **Recommendation:** Periodically prune stale entries (e.g., entries older than 1 hour) or use an LRU cache.
+
+#### L-3: Upload Token Not Invalidated on Reconnect
+- **Location:** `relay.rs:~1250` (upload token generation)
+- **Description:** A new upload token is generated on each connection, but old tokens from previous sessions are only removed when the peer disconnects. If a user disconnects abruptly (without the cleanup running), stale tokens remain in the `upload_tokens` map.
+- **Impact:** Stale upload tokens could theoretically be reused if intercepted.
+- **Recommendation:** Add a TTL to upload tokens or clear them on re-identify.
+
+#### L-4: CORS Allows localhost Origin in Production
+- **Location:** `main.rs:111` — `"http://localhost:3210"`
+- **Description:** The CORS layer includes `http://localhost:3210` as an allowed origin. This is useful for development but should not be present in production.
+- **Impact:** A malicious page on localhost could make cross-origin requests to the production server.
+- **Recommendation:** Make the localhost origin conditional on an environment variable (e.g., only when `RUST_ENV=development`).
+
+#### L-5: No Content Security Policy on Upload Serving
+- **Location:** `main.rs:104` — uploads served via ServeDir
+- **Description:** Uploaded files are served without a restrictive CSP header. While nginx likely adds CSP, the application layer doesn't enforce it.
+- **Impact:** If nginx CSP is misconfigured, uploaded files could execute scripts.
+- **Recommendation:** Add `Content-Security-Policy: default-src 'none'` to the uploads serving route.
+
+#### L-6: Webhook Token Sent in Request Body, Not Header
+- **Location:** `relay.rs:~205` (notify_webhook)
+- **Description:** The webhook notification sends the bearer token via an Authorization header, which is correct. However, the webhook URL and token are logged at startup (`info!("Webhook configured: {}", wh.url)`). The URL itself might contain sensitive path components.
+- **Impact:** Webhook URL disclosed in logs.
+- **Recommendation:** Log only the domain of the webhook URL, not the full path.
+
+#### L-7: Service Worker Caches All Non-API/WS Responses
+- **Location:** `shared/sw.js:48-55` (fetch handler)
+- **Description:** The service worker caches all successful responses except `/ws`, `/api/`, and `/chat`. This includes uploaded files, which could persist sensitive images in the browser cache even after the server's FIFO cleanup deletes them.
+- **Impact:** Deleted uploads persist in client-side cache.
+- **Recommendation:** Exclude `/uploads/` from the service worker cache, or set appropriate `Cache-Control` headers on uploads.
+
+#### L-8: Client Stores Private Key in localStorage
+- **Location:** `client/index.html` (identity management)
+- **Description:** The Ed25519 private key is stored in `localStorage`, which is accessible to any JavaScript running on the same origin. While this is the standard approach for browser-based crypto identity, it means XSS or a malicious browser extension could steal private keys.
+- **Impact:** Private key theft via XSS or extension compromise.
+- **Recommendation:** Document this limitation. Consider using the Web Crypto API with non-extractable keys for signing operations (though this would prevent key export/backup). At minimum, educate users about the risk.
 
 ---
 
-## Recommendations Priority
+### INFO
 
-1. **HIGH — M-3: Fix `esc()` double-quote escaping** — Quick fix, prevents potential stored XSS. Add `&quot;` escaping and use DOM APIs for attribute setting.
-2. **HIGH — H-1: Server-side signature verification** — Core security feature for a crypto-identity platform. Add `ed25519-dalek` verification.
-3. **MEDIUM — M-4: Fix upload authentication** — Generate per-session upload tokens to prevent key impersonation.
-4. **MEDIUM — M-2: Fix GitHub webhook auth** — Switch to HMAC-SHA256 signature verification.
-5. **MEDIUM — M-1: Add rate limiting to GET APIs** — nginx `limit_req` on `/api/messages`, `/api/peers`, etc.
-6. **LOW — L-3: Add CSP header** — Defense-in-depth against XSS.
-7. **LOW — I-4: Run service as non-root** — Standard hardening.
-8. **LOW — L-1: Remove bot_ prefix exception from WebSocket** — Minor hardening.
-9. **LOW — L-4: Persist lockdown state** — Operational reliability.
+#### I-1: SQL Injection Not Present — Parameterized Queries Throughout
+- **Location:** `storage.rs` (entire file)
+- **Description:** All SQL queries use parameterized queries (`params![]`). The search function properly escapes LIKE wildcards (`%`, `_`, `\`). No string interpolation is used in SQL. This is excellent.
+- **Impact:** N/A — positive finding.
+
+#### I-2: Server Keypair Stored in SQLite
+- **Location:** `storage.rs` — `get_or_create_server_keypair`
+- **Description:** The server's Ed25519 keypair for federation is stored in the SQLite database. If the database file is compromised, the server identity is compromised. This is standard for single-server deployments.
+- **Recommendation:** For high-security deployments, consider storing the server private key in a separate secrets store or HSM.
+
+#### I-3: No Message Expiry / Retention Policy
+- **Description:** Messages are stored indefinitely in SQLite. There's no automatic cleanup of old messages (only admin `/wipe` commands). Over time, the database will grow without bound.
+- **Recommendation:** Consider an optional retention policy (e.g., auto-delete messages older than N days) configurable via environment variable.
+
+#### I-4: Federation Security Model Is Incomplete
+- **Description:** The federation system has trust tiers and server discovery, but no actual message relay or verification between servers is implemented yet. The `/server-add` command fetches server-info over HTTP without verifying TLS certificates or server identity.
+- **Recommendation:** When implementing federation relay, ensure messages are signed by origin servers, implement mutual TLS or signed challenges, and validate trust tiers before accepting federated content.
+
+#### I-5: Markdown Formatting Applies After HTML Escaping
+- **Location:** `client/index.html:3839-3847` (formatBody Step 4)
+- **Description:** The `formatBody` function applies markdown transformations (bold, italic, strikethrough) after HTML escaping. Since `esc()` converts `<` to `&lt;`, the regex-generated HTML tags (`<strong>`, `<em>`, `<del>`, `<code>`) are the only raw HTML in the output. This is a safe pattern, but it's fragile — any future markdown rule that doesn't go through `esc()` first could introduce XSS.
+- **Recommendation:** Add a comment documenting this invariant. Consider adding a final sanitization pass (e.g., allowlisting specific tags) as defense-in-depth.
+
+#### I-6: No Audit Log for Admin Actions
+- **Description:** Admin commands (ban, kick, verify, wipe, etc.) are logged via `tracing::info!` but not stored in a persistent audit table. If logs rotate, the history of admin actions is lost.
+- **Recommendation:** Add a persistent `admin_actions` table recording who did what and when.
+
+#### I-7: Build Version Exposed to All Clients
+- **Location:** `relay.rs:~1295` (PeerList with `server_version`), `api.rs` (StatsResponse, ServerInfoResponse)
+- **Description:** The exact build version is sent to all clients on connect and via public API endpoints. This helps attackers identify specific vulnerable versions.
+- **Impact:** Minor information disclosure.
+- **Recommendation:** Acceptable for an open-source project. Consider omitting from the public stats endpoint if desired.
 
 ---
 
-*Audit performed on February 11, 2026. Covers all server-side Rust source (`main.rs`, `relay.rs`, `storage.rs`, `api.rs`), client-side JavaScript/HTML (`index.html`, `shell.js`), and VPS infrastructure (nginx, systemd, UFW).*
+## Recommendations
+
+### Priority 1 (Immediate)
+1. **Fix timing attacks:** Use `constant_time_eq` for API_SECRET and bot_secret comparisons (H-1, H-2)
+2. **Fix group message leak:** Add server-side filtering for group messages (H-5)
+3. **Fix DM search leak:** Filter DM search results to only the requesting user's conversations (M-3)
+
+### Priority 2 (Short-term)
+4. **Add auth to sensitive APIs:** Require API_SECRET for `get_messages`, `get_peers`, `get_stats` (H-3)
+5. **Harden upload serving:** Add `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, block SVG uploads (M-1)
+6. **Fix DNS rebinding in link previews:** Pin resolved IPs for requests (M-7)
+7. **Move upload token to header:** Use `X-Upload-Token` header instead of query param (M-10)
+
+### Priority 3 (Medium-term)
+8. **Bound in-memory state:** Add LRU/TTL to rate_limits, typing_timestamps, etc. (L-2)
+9. **Add rate limiting to API endpoints:** Application-level rate limits (M-2)
+10. **Add pin count limits:** Max 50 pins per channel (M-5)
+11. **Remove localhost CORS in production:** Make it environment-conditional (L-4)
+12. **Exclude uploads from service worker cache** (L-7)
+
+### Priority 4 (Long-term)
+13. **Add persistent admin audit log** (I-6)
+14. **Add message retention policy** (I-3)
+15. **Design federation security model** before implementing message relay (I-4)
+16. **Consider DOMPurify** as a final sanitization pass for `formatBody` output (H-4, I-5)
