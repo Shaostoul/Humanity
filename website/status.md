@@ -9,67 +9,95 @@ title: Status
 
 ---
 
-## Current Phase: Specification
+## Current Phase: Live Platform
 
-We're in the **spec-first, data-first** phase. This means:
-
-- ✅ Documentation defines what must be true
-- ✅ Schemas define what data must look like
-- 🔄 Reference implementation is next
-- ⏳ Game engine comes after the foundation is solid
+The chat and hub are **operational and in daily use** at [united-humanity.us/chat](https://united-humanity.us/chat). We're past spec phase — this is a real platform people use.
 
 ---
 
-## What's Complete
+## What's Built
 
-### The Humanity Accord
-The civilizational framework is documented and stable:
-- Core charter and ethical principles
-- Rights, responsibilities, and prohibitions
-- Governance models and conflict resolution
-- Transparency and consent requirements
+### Communication
+- ✅ Channels (public rooms)
+- ✅ Direct messages (friend requirement for privacy)
+- ✅ Groups (private group conversations)
+- ✅ Voice chat — WebRTC P2P 1-on-1 calls
+- ✅ Persistent voice channels — always-on rooms
+- ✅ @mentions, persistent emoji reactions, message editing
+- ✅ Image sharing and file uploads
+- ✅ Browser notifications with 6 sound options
+- ✅ Pin system — server pins + personal pins
 
-→ [Read the Accord](/Humanity/accord)
+### Social System
+- ✅ Follow/friend system (mutual follow = friends)
+- ✅ User profiles with bio and social links
+- ✅ Identicons (generated avatars)
+- ✅ Blocking and reporting
 
-### Technical Design
-System constraints and specifications are defined:
-- Network architecture (hybrid P2P + relay)
-- Object format (CBOR, BLAKE3, Ed25519)
-- Identity and encryption model
-- Moderation and governance schemas
-- Security threat model
+### Hub Tools
+- ✅ Project board (kanban task management)
+- ✅ Marketplace (P2P listings)
+- ✅ Universal catalog (elements, materials, processing chains)
+- ✅ Personal inventory tracker
+- ✅ Notes (private)
+- ✅ Todos (personal task lists)
+- ✅ Garden tracker
 
-→ [View Design](/Humanity/design)
+### Game & Creative
+- ✅ Fantasy tab — character sheet, lore, world map, achievements
+- ✅ Streams tab — local capture demo
+- ✅ Concept art for in-game spaces (spaceships, virtual malls)
+
+### Platform & Security
+- ✅ Cryptographic identity (Ed25519) — no accounts, no passwords
+- ✅ Key backup/export/import
+- ✅ Auto-sync user data to server
+- ✅ PWA — installable on mobile
+- ✅ Settings panel — accent colors, font size, themes
+- ✅ Command palette
+- ✅ Admin/mod tools, lockdown, invite codes
+- ✅ Rate limiting, upload validation, CSP headers, TLS 1.2+, HSTS
+- ✅ Server federation Phase 1 — discovery, trust tiers
+
+### Documentation
+- ✅ Humanity Accord (civilizational framework)
+- ✅ Full technical design specs
+- ✅ Architecture decision records
 
 ---
 
-## What's In Progress
+## In Progress
 
-### Reference Implementation
-Building the core Rust crates to validate the spec:
-- `humanity-core` — object encoding, hashing, signatures
-- `humanity-storage` — local persistence
-- `humanity-cli` — command-line tools
-
-### Test Vectors
-Generating canonical test cases for:
-- Object encoding/decoding
-- Hash computation
-- Signature verification
+- 🔄 **Reconnect loop fix** — intermittent connection cycling on some clients. Top priority.
+- 🔄 **Voice/Video calling** — voice works, video support being added
+- 🔄 **Federation Phase 2** — server-to-server messaging
 
 ---
 
 ## What's Planned
 
-### Network MVP
-- Basic relay server
-- Web client prototype
-- Desktop client
+- ⏳ E2E encrypted DMs (X25519 + XChaCha20-Poly1305)
+- ⏳ Desktop app (Tauri — Windows/Mac/Linux)
+- ⏳ Video calls
+- ⏳ Actual WebRTC streaming (peer-assisted mesh)
+- ⏳ Client file split (separate HTML/CSS/JS for CSP hardening)
+- ⏳ Encrypted user data sync
+- ⏳ Asset library system
+- ⏳ 3D model marketplace
+- ⏳ Native game client (Rust)
+- ⏳ P2P game distribution via GitHub Releases
+- ⏳ In-game commerce (virtual mall with real retailer kiosks)
+- ⏳ Payment processing (Stripe Connect or crypto)
 
-### Game Integration
-- Simulation engine hooks
-- World state synchronization
-- Multiplayer foundation
+---
+
+## Recent Milestones
+
+- **Feb 2026** — Persistent voice channels, garden tracker, fantasy tab, streams tab
+- **Jan 2026** — Marketplace, universal catalog, project board, inventory system
+- **Late 2025** — Voice chat (WebRTC P2P), follow/friend system, groups, user profiles
+- **Mid 2025** — Core chat platform launch — channels, DMs, reactions, moderation
+- **Early 2025** — Server federation Phase 1, PWA support, key backup/import
 
 ---
 
@@ -77,9 +105,10 @@ Generating canonical test cases for:
 
 This is an open project. Contributions welcome at every level:
 
-- **Writers** — improve clarity and accessibility
-- **Developers** — Rust implementation work
-- **Reviewers** — find gaps, inconsistencies, edge cases
+- **Developers** — Rust, JavaScript, Node.js, WebRTC
+- **Writers** — improve docs and clarity
+- **Designers** — UI/UX, concept art, 3D models
+- **Testers** — use the platform, report bugs
 - **Translators** — make this accessible worldwide
 
 → [Get Involved](/Humanity/get-involved)

@@ -11,30 +11,73 @@ title: Home
 
 We build open-source tools and education to end poverty — not through handouts, but through capability. Life is finite and sacred. Removing barriers to living is the work.
 
-Everything we build is **public domain**. No accounts. No tracking. No gatekeeping. Just tools and knowledge for anyone, anywhere, forever.
+Everything we build is **public domain** (CC0). No accounts. No tracking. No gatekeeping. Just tools and knowledge for anyone, anywhere, forever.
+
+Platform is **18+ only**. Free speech — the line is genuine threats, doxxing, and predatory harassment.
 
 ---
 
-## Live Now: Humanity Chat
+## Live Now: Humanity Chat & Hub
 
 **[united-humanity.us/chat](https://united-humanity.us/chat)**
 
-The communication layer comes first. Our chat is live with:
+A fully operational communication platform and personal hub. No account needed — your cryptographic identity (Ed25519) lives in your browser.
 
-- **No accounts, no tracking, no IP logging** — cryptographic identity (Ed25519) stored in your browser
-- **Direct messages** between users + multiple channels
-- **@mentions**, emoji reactions, message editing, image sharing
-- **Browser notifications** so you never miss a message
-- **User profiles** with bio and social links
-- **Moderation tools** — admin/mod roles, lockdown, invite codes
-- **Pin system** — server pins for everyone + personal pins just for you
+### Communication
+- **Channels** — public rooms for group conversation
+- **Direct messages** — private 1-on-1 chat (friend requirement for privacy)
+- **Groups** — private group conversations
+- **Voice chat** — WebRTC peer-to-peer 1-on-1 voice calls
+- **Persistent voice channels** — always-on voice rooms to join/leave
+- **@mentions**, emoji reactions (persistent), message editing, image sharing
+- **Browser notifications** with 6 notification sound options
+
+### Social
+- **Follow/friend system** — mutual follow = friends, friends unlock DMs
+- **User profiles** — bio, social links, identicons
+- **Blocking and reporting** tools
+
+### Hub Tools
+- **Project board** — kanban-style task management
+- **Marketplace** — peer-to-peer listings for goods and services
+- **Universal catalog** — elements, materials, processing chains
+- **Personal inventory** — track what you own
+- **Notes** — private note-taking
+- **Todos** — personal task lists
+- **Garden tracker** — plan and track your garden
+
+### Game & Creative
+- **Fantasy tab** — character sheet, lore entries, world map, achievements
+- **Streams tab** — local capture demo (real streaming coming soon)
+- **Concept art** — multi-km spaceships, virtual malls, in-game spaces
+
+### Platform
+- **PWA** — installable on mobile, works offline-capable
+- **Settings panel** — accent colors, font sizes, theme customization
+- **Command palette** — quick access to everything
+- **Key backup/export/import** — own your identity, move between devices
+- **Auto-sync** — user data syncs to server automatically
 - **Security hardened** — rate limiting, upload validation, CSP headers, TLS 1.2+
+- **Moderation tools** — admin/mod roles, lockdown, invite codes
 
-Come say hello.
+### Federation
+- **Server federation Phase 1** — server discovery, trust tiers, anyone can host a server
+- Verified servers that adopt the [Humanity Accord](accord) earn the highest trust tier
+- [Learn more →](https://github.com/Shaostoul/Humanity/blob/main/design/network/server_federation.md)
 
-### Host Your Own Server
+---
 
-Anyone can run a Humanity Network server. No permission needed. Verified servers that adopt the [Humanity Accord](accord) earn the highest trust tier. [Learn more →](https://github.com/Shaostoul/Humanity/blob/main/design/network/server_federation.md)
+## What's Planned
+
+- **E2E encrypted DMs** — X25519 key exchange, server never sees plaintext
+- **Federation Phase 2** — server-to-server messaging across instances
+- **Desktop app** — Tauri-based native binary for Windows/Mac/Linux
+- **Video calls** — add video to existing WebRTC voice system
+- **Actual WebRTC streaming** — peer-assisted streaming (creator → relay → peer mesh)
+- **Native game client** — first-person Rust client with in-game chat + AI
+- **P2P game distribution** — GitHub Releases, no app stores, no middlemen
+- **In-game commerce** — virtual mall with real retailer kiosks
+- **Asset library system** — organized art/models/audio with tags and cloud backup
 
 ---
 
@@ -45,7 +88,7 @@ Civilizational principles for how humans cooperate at scale — across cultures,
 → [Read the Accord](accord)
 
 **The Humanity Network**
-An E2E encrypted, peer-to-peer, federated communication protocol. No central servers. No passwords. Cryptographic identity means you prove who you are with math.
+A federated communication protocol built on Ed25519 cryptographic identity. No central servers. No passwords. You prove who you are with math.
 
 **Project Universe**
 A free, open-source game teaching practical skills — homesteading, agriculture, building, health, survival. Learn to provide for yourself and your community.

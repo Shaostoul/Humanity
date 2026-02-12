@@ -42,6 +42,11 @@ The full network specification lives in the repository under `design/network/`:
 - Encryption and key management
 - Offline-first synchronization
 - Hybrid transport with relay fallback
+- [Social Graph](https://github.com/Shaostoul/Humanity/blob/main/design/network/social_graph.md) — follow/friend system, mutual relationships
+- [Voice/Video/Streaming](https://github.com/Shaostoul/Humanity/blob/main/design/network/voice_video_streaming.md) — WebRTC calls, peer-assisted streaming
+- [File Sharing](https://github.com/Shaostoul/Humanity/blob/main/design/network/file_sharing.md) — content-addressed P2P file transfer
+- [Server Federation](https://github.com/Shaostoul/Humanity/blob/main/design/network/server_federation.md) — trust tiers, discovery, cross-server messaging
+- [Realtime Relay Protocol](https://github.com/Shaostoul/Humanity/blob/main/design/network/realtime_relay_protocol.md) — WebSocket relay spec
 
 → [View on GitHub](https://github.com/Shaostoul/Humanity/tree/main/design/network)
 

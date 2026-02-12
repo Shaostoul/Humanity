@@ -61,17 +61,30 @@ The **Humanity Network** is a federated communication protocol built on Ed25519 
 
 Anyone can host a server. Servers are meeting places, not gatekeepers. Your identity is portable across all of them. A tiered trust system (verified + Accord adoption) helps users find reliable communities.
 
-**What's built:**
-- Live chat with channels, DMs, @mentions, reactions, message editing
-- User profiles, identicons, blocking, reporting
+**What's built and live:**
+- Channels, direct messages (friend requirement), groups
+- Voice chat — WebRTC P2P 1-on-1 calls
+- Persistent voice channels — always-on rooms
+- Follow/friend social system (mutual follow = friends)
+- User profiles with bio and social links, identicons
+- @mentions, persistent emoji reactions, message editing, image sharing
+- Project board (kanban), marketplace (P2P listings)
+- Universal catalog (elements, materials, processing chains)
+- Personal inventory, notes, todos, garden tracker
+- Fantasy tab (character sheet, lore, world map, achievements)
+- Streams tab (local capture demo)
+- Key backup/export/import, auto-sync user data
+- PWA installable on mobile
+- Settings panel (accent colors, font size, themes), command palette
+- Notification sounds (6 options), browser notifications
+- Pin system (server + personal), blocking, reporting
 - Admin/mod tools, lockdown, invite codes, rate limiting
-- Pin system (server + personal), browser notifications
-- Security hardened: CSP, HSTS, TLS 1.2+, upload validation, origin checking
+- Security hardened: CSP, HSTS, TLS 1.2+, upload validation
+- Server federation Phase 1 — discovery, trust tiers
 
-**What's designed (specs complete):**
-- Federated server network with trust tiers
-- P2P direct messaging with E2E encryption
-- Voice/video calls via WebRTC
+**What's designed (specs complete, building next):**
+- E2E encrypted DMs (X25519 + XChaCha20-Poly1305)
+- Federation Phase 2 (server-to-server messaging)
 - Peer-assisted streaming (many seeds, small slices)
 - Content-addressed file sharing
 
