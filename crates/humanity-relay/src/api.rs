@@ -16,7 +16,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::relay::{RelayMessage, RelayState, Peer, PeerInfo};
+use crate::relay::{RelayMessage, RelayState, Peer, PeerInfo, SearchResultData};
 
 /// Constant-time byte comparison (M-2: prevent timing attacks on HMAC).
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -967,4 +967,56 @@ pub async fn list_federation_servers(
         last_seen: s.last_seen,
     }).collect();
     Json(entries)
+}
+
+/// Query parameters for GET /api/search.
+#[derive(Debug, Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+    pub channel: Option<String>,
+    pub from: Option<String>,
+    pub limit: Option<u32>,
+}
+
+/// GET /api/search?q=hello&channel=general&from=Michael&limit=20
+pub async fn search_messages(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    Query(params): Query<SearchQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+
+    if params.q.len() < 2 || params.q.len() > 200 {
+        return Err((StatusCode::BAD_REQUEST, "Query must be 2-200 characters".into()));
+    }
+
+    let limit = params.limit.unwrap_or(50).min(100) as usize;
+    match state.db.search_messages_full(&params.q, params.channel.as_deref(), params.from.as_deref(), limit) {
+        Ok(results) => {
+            let search_results: Vec<SearchResultData> = results.into_iter().map(|(id, ch, msg)| {
+                if let RelayMessage::Chat { from, from_name, content, timestamp, .. } = msg {
+                    SearchResultData {
+                        message_id: id,
+                        channel: ch,
+                        from: from.clone(),
+                        from_name: from_name.unwrap_or_default(),
+                        content,
+                        timestamp,
+                    }
+                } else {
+                    SearchResultData {
+                        message_id: id, channel: ch, from: String::new(),
+                        from_name: String::new(), content: String::new(), timestamp: 0,
+                    }
+                }
+            }).collect();
+            let total = search_results.len() as u32;
+            Ok(Json(serde_json::json!({
+                "query": params.q,
+                "results": search_results,
+                "total": total,
+            })))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Search error: {e}"))),
+    }
 }

@@ -1757,12 +1757,9 @@
       display: none;
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border);
-      padding: 0.4rem 0.75rem;
-      gap: 0.5rem;
-      align-items: center;
       animation: noticeFadeIn 0.2s ease;
     }
-    #search-bar.open { display: flex; }
+    #search-bar.open { display: block; }
     #search-bar input {
       flex: 1;
       background: var(--bg-input);
@@ -2242,8 +2239,12 @@
       </div>
       <div id="chat-area">
         <div id="search-bar" style="position:relative;">
-          <input type="text" id="search-input" placeholder="Search messages…" autocomplete="off">
-          <button class="search-close" onclick="closeSearch()">✕</button>
+          <div style="display:flex;gap:6px;align-items:center;padding:8px 12px;">
+            <input type="text" id="search-input" placeholder="Search messages…" autocomplete="off" style="flex:1;">
+            <input type="text" id="search-from" placeholder="From user…" autocomplete="off" style="width:120px;padding:6px 8px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+            <span id="search-count" style="color:var(--text-muted);font-size:0.75rem;white-space:nowrap;"></span>
+            <button class="search-close" onclick="closeSearch()">✕</button>
+          </div>
           <div id="search-results"></div>
         </div>
         <div id="channel-header"></div>
@@ -3069,8 +3070,12 @@ async function importIdentityFromJSON(jsonData) {
       };
 
       ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        handleMessage(msg);
+        try {
+          const msg = JSON.parse(event.data);
+          handleMessage(msg);
+        } catch (e) {
+          console.error('Message handler error:', e, event.data?.slice?.(0, 200));
+        }
       };
 
       ws.onclose = () => {
@@ -7628,7 +7633,16 @@ async function importIdentityFromJSON(jsonData) {
   <script>
   // Global Escape key handler to close modals/dropdowns
   document.addEventListener('keydown', function(e) {
+    // Ctrl+F opens search
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      toggleSearch();
+      return;
+    }
     if (e.key === 'Escape') {
+      // Close search panel
+      const searchBar = document.getElementById('search-bar');
+      if (searchBar && searchBar.classList.contains('open')) { closeSearch(); return; }
       // Close help modal
       const helpOverlay = document.getElementById('help-modal-overlay');
       if (helpOverlay && helpOverlay.classList.contains('open')) { helpOverlay.classList.remove('open'); return; }
@@ -7673,6 +7687,10 @@ async function importIdentityFromJSON(jsonData) {
         { icon: '📝', label: 'Set Bio', desc: '/bio', cmd: '/bio ', prefill: true },
         { icon: '🔗', label: 'Set Social Link', desc: '/social', cmd: '/social ', prefill: true },
         { icon: '👀', label: 'View Profile', desc: '/profile', cmd: '/profile ', prefill: true },
+      ]},
+      { name: '🔍 Search', items: [
+        { icon: '🔍', label: 'Search Messages', desc: 'Open search panel', action: () => toggleSearch() },
+        { icon: '🔎', label: 'Search Command', desc: '/search query', cmd: '/search ', prefill: true },
       ]},
       { name: '📌 Pins', items: [
         { icon: '📌', label: 'Pin Message', desc: '/pin', cmd: '/pin ', prefill: true },
@@ -7781,6 +7799,159 @@ async function importIdentityFromJSON(jsonData) {
     navigator.serviceWorker.register('/sw.js')
       .then(reg => console.log('SW registered:', reg.scope))
       .catch(err => console.error('SW failed:', err));
+  }
+  </script>
+
+  <script>
+  /* ── Message Search ── */
+  (function() {
+    let searchTimer = null;
+    let lastSearchTime = 0;
+
+    window.toggleSearch = function() {
+      const bar = document.getElementById('search-bar');
+      bar.classList.toggle('open');
+      if (bar.classList.contains('open')) {
+        document.getElementById('search-input').focus();
+      } else {
+        closeSearch();
+      }
+    };
+
+    window.closeSearch = function() {
+      const bar = document.getElementById('search-bar');
+      bar.classList.remove('open');
+      document.getElementById('search-input').value = '';
+      document.getElementById('search-from').value = '';
+      document.getElementById('search-results').innerHTML = '';
+      document.getElementById('search-results').classList.remove('open');
+      document.getElementById('search-count').textContent = '';
+    };
+
+    function doSearch() {
+      const query = document.getElementById('search-input').value.trim();
+      const fromUser = document.getElementById('search-from').value.trim();
+      if (query.length < 2) {
+        document.getElementById('search-results').innerHTML = '';
+        document.getElementById('search-results').classList.remove('open');
+        document.getElementById('search-count').textContent = '';
+        return;
+      }
+      // Rate limit client-side
+      const now = Date.now();
+      if (now - lastSearchTime < 2000) return;
+      lastSearchTime = now;
+
+      const msg = { type: 'search', query: query };
+      if (typeof currentChannel !== 'undefined' && currentChannel) {
+        // Don't filter by channel — search all. User can filter from dropdown later.
+      }
+      if (fromUser) msg.from = fromUser;
+      if (typeof ws !== 'undefined' && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify(msg));
+      }
+    }
+
+    document.getElementById('search-input').addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(doSearch, 300);
+    });
+    document.getElementById('search-from').addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(doSearch, 300);
+    });
+    document.getElementById('search-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeSearch();
+      if (e.key === 'Enter') { clearTimeout(searchTimer); doSearch(); }
+    });
+
+    function renderSearchResults(data) {
+      const container = document.getElementById('search-results');
+      const countEl = document.getElementById('search-count');
+      if (!data.results || data.results.length === 0) {
+        container.innerHTML = '<div style="padding:12px;color:var(--text-muted);text-align:center;">No results found</div>';
+        container.classList.add('open');
+        countEl.textContent = '0 results';
+        return;
+      }
+      countEl.textContent = data.total + ' result' + (data.total !== 1 ? 's' : '');
+      const query = data.query.toLowerCase();
+      container.innerHTML = data.results.map(r => {
+        const time = new Date(r.timestamp).toLocaleString();
+        // Highlight match in content
+        const escaped = r.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const highlighted = escaped.replace(new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'), '<mark>$1</mark>');
+        // Truncate content preview
+        const preview = highlighted.length > 300 ? highlighted.substring(0, 300) + '…' : highlighted;
+        return '<div class="search-result" data-channel="' + (r.channel || '') + '" data-timestamp="' + r.timestamp + '">' +
+          '<div class="sr-meta"><span class="sr-author">' + (r.from_name || 'Unknown') + '</span>' +
+          '<span class="sr-channel">#' + (r.channel || '?') + '</span>' +
+          '<span class="sr-time">' + time + '</span></div>' +
+          '<div class="sr-body">' + preview + '</div></div>';
+      }).join('');
+      container.classList.add('open');
+
+      // Click handler for results
+      container.querySelectorAll('.search-result').forEach(el => {
+        el.addEventListener('click', function() {
+          const ch = this.dataset.channel;
+          const ts = parseInt(this.dataset.timestamp);
+          if (ch && ch !== 'DM' && typeof switchChannel === 'function') {
+            switchChannel(ch);
+          }
+          closeSearch();
+          // Try to scroll to message near that timestamp
+          setTimeout(() => {
+            const msgs = document.querySelectorAll('.message');
+            let closest = null, closestDiff = Infinity;
+            msgs.forEach(m => {
+              const mts = parseInt(m.dataset.timestamp || '0');
+              const diff = Math.abs(mts - ts);
+              if (diff < closestDiff) { closestDiff = diff; closest = m; }
+            });
+            if (closest) closest.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 500);
+        });
+      });
+    }
+
+    // Monkey-patch handleMessage for search_results
+    const _origHandleMessageSearch = handleMessage;
+    handleMessage = function(msg) {
+      if (msg.type === 'search_results') {
+        renderSearchResults(msg);
+        return;
+      }
+      _origHandleMessageSearch(msg);
+    };
+
+    // Handle /search command from chat input
+    const _origSendMessageSearch = typeof sendMessage === 'function' ? sendMessage : null;
+    if (_origSendMessageSearch) {
+      window._searchSendMessagePatched = true;
+    }
+  })();
+
+  // Patch sendMessage to intercept /search command
+  if (!window._searchSendPatched) {
+    const _origSendMsg = sendMessage;
+    sendMessage = function() {
+      const input = document.getElementById('msg-input');
+      const val = (input && input.value || '').trim();
+      if (val.startsWith('/search ')) {
+        const query = val.substring(8).trim();
+        if (query.length >= 2) {
+          toggleSearch();
+          document.getElementById('search-input').value = query;
+          // Trigger search
+          document.getElementById('search-input').dispatchEvent(new Event('input'));
+        }
+        input.value = '';
+        return;
+      }
+      return _origSendMsg.apply(this, arguments);
+    };
+    window._searchSendPatched = true;
   }
   </script>
 

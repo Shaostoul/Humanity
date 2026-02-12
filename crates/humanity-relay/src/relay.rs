@@ -106,6 +106,8 @@ pub struct RelayState {
     pub voice_rooms: RwLock<HashMap<String, VoiceRoom>>,
     /// User status cache (name → (status, status_text)).
     pub user_statuses: RwLock<HashMap<String, (String, String)>>,
+    /// Per-key last search time (rate limiting: 1 search per 2 seconds).
+    pub last_search_times: std::sync::Mutex<HashMap<String, std::time::Instant>>,
 }
 
 impl RelayState {
@@ -157,6 +159,7 @@ impl RelayState {
             upload_tokens: RwLock::new(HashMap::new()),
             voice_rooms: RwLock::new(HashMap::new()),
             user_statuses: RwLock::new(HashMap::new()),
+            last_search_times: std::sync::Mutex::new(HashMap::new()),
         }
     }
 
@@ -508,6 +511,12 @@ pub enum RelayMessage {
         query: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         channel: Option<String>,
+        /// Filter by sender display name (case-insensitive substring match).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        from: Option<String>,
+        /// Max results to return (default 50, max 100).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        limit: Option<u32>,
     },
 
     /// Server responds with search results.
@@ -518,6 +527,7 @@ pub enum RelayMessage {
         target: Option<String>,
         query: String,
         results: Vec<SearchResultData>,
+        total: u32,
     },
 
     /// Delete a message by its database row ID (new style).
@@ -3463,12 +3473,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 send_dm_list_update(&state_clone, &my_key_for_recv);
                             }
                             // ── Search ──
-                            RelayMessage::Search { query, channel } => {
+                            RelayMessage::Search { query, channel, from, limit } => {
                                 if query.len() < 2 || query.len() > 200 {
                                     continue;
                                 }
-                                match state_clone.db.search_messages(&query, channel.as_deref(), 30) {
+                                // Rate limit: 1 search per 2 seconds per user
+                                {
+                                    let mut last_searches = state_clone.last_search_times.lock().unwrap();
+                                    let now = std::time::Instant::now();
+                                    if let Some(last) = last_searches.get(&my_key_for_recv) {
+                                        if now.duration_since(*last).as_secs() < 2 {
+                                            continue;
+                                        }
+                                    }
+                                    last_searches.insert(my_key_for_recv.clone(), now);
+                                }
+                                let max_results = limit.unwrap_or(50).min(100) as usize;
+                                match state_clone.db.search_messages_full(&query, channel.as_deref(), from.as_deref(), max_results) {
                                     Ok(results) => {
+                                        let total = results.len() as u32;
                                         let search_results: Vec<SearchResultData> = results.into_iter().map(|(id, ch, msg)| {
                                             if let RelayMessage::Chat { from, from_name, content, timestamp, .. } = msg {
                                                 SearchResultData {
@@ -3490,6 +3513,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             target: Some(my_key_for_recv.clone()),
                                             query,
                                             results: search_results,
+                                            total,
                                         });
                                     }
                                     Err(e) => {

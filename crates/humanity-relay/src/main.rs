@@ -98,6 +98,7 @@ async fn main() {
         .route("/api/server-info", get(api::get_server_info))
         .route("/api/listings", get(api::get_listings).post(api::create_listing))
         .route("/api/federation/servers", get(api::list_federation_servers))
+        .route("/api/search", get(api::search_messages))
         .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
         .fallback_service(
             tower_http::services::ServeDir::new("client")
