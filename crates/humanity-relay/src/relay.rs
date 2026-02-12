@@ -102,6 +102,10 @@ pub struct RelayState {
     pub typing_timestamps: RwLock<HashMap<String, Instant>>,
     /// Upload token → public key mapping (M-4: per-session upload tokens).
     pub upload_tokens: RwLock<HashMap<String, String>>,
+    /// Active voice rooms (room_id → VoiceRoom).
+    pub voice_rooms: RwLock<HashMap<String, VoiceRoom>>,
+    /// User status cache (name → (status, status_text)).
+    pub user_statuses: RwLock<HashMap<String, (String, String)>>,
 }
 
 impl RelayState {
@@ -151,6 +155,8 @@ impl RelayState {
             connection_count: AtomicUsize::new(0),
             typing_timestamps: RwLock::new(HashMap::new()),
             upload_tokens: RwLock::new(HashMap::new()),
+            voice_rooms: RwLock::new(HashMap::new()),
+            user_statuses: RwLock::new(HashMap::new()),
         }
     }
 
@@ -218,6 +224,32 @@ pub struct ChannelInfo {
     pub description: Option<String>,
     #[serde(default)]
     pub read_only: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category_name: Option<String>,
+}
+
+/// Category info sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryInfo {
+    pub id: i64,
+    pub name: String,
+    pub position: i32,
+}
+
+/// Link preview data sent with messages.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkPreview {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub site_name: Option<String>,
 }
 
 /// Messages sent over the relay WebSocket (JSON framing for MVP).
@@ -305,6 +337,8 @@ pub enum RelayMessage {
     #[serde(rename = "channel_list")]
     ChannelList {
         channels: Vec<ChannelInfo>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        categories: Option<Vec<CategoryInfo>>,
     },
 
     /// Typing indicator — broadcast to show who is composing a message.
@@ -467,6 +501,82 @@ pub enum RelayMessage {
         channel: String,
         index: usize,
     },
+
+    /// Client sends a search query.
+    #[serde(rename = "search")]
+    Search {
+        query: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel: Option<String>,
+    },
+
+    /// Server responds with search results.
+    #[serde(rename = "search_results")]
+    SearchResults {
+        /// Target client key (stripped before sending).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        query: String,
+        results: Vec<SearchResultData>,
+    },
+
+    /// Delete a message by its database row ID (new style).
+    #[serde(rename = "delete_by_id")]
+    DeleteById {
+        message_id: i64,
+    },
+
+    /// Server broadcasts that a message was deleted (by ID).
+    #[serde(rename = "message_deleted")]
+    MessageDeleted {
+        message_id: i64,
+        channel: String,
+        from: String,
+        timestamp: u64,
+    },
+
+    /// Client sets their status.
+    #[serde(rename = "set_status")]
+    SetStatus {
+        status: String,
+        #[serde(default)]
+        text: String,
+    },
+
+    /// Voice room management.
+    #[serde(rename = "voice_room")]
+    VoiceRoom {
+        action: String, // "create" | "join" | "leave" | "list"
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        room_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        room_name: Option<String>,
+    },
+
+    /// Server sends voice room state updates.
+    #[serde(rename = "voice_room_update")]
+    VoiceRoomUpdate {
+        rooms: Vec<VoiceRoomData>,
+    },
+
+    /// WebRTC signal for voice rooms (mesh topology).
+    #[serde(rename = "voice_room_signal")]
+    VoiceRoomSignal {
+        from: String,
+        to: String,
+        room_id: String,
+        signal_type: String,
+        data: serde_json::Value,
+    },
+
+    /// Server sends link previews for URLs in a message.
+    #[serde(rename = "link_previews")]
+    LinkPreviews {
+        from: String,
+        timestamp: u64,
+        channel: String,
+        previews: Vec<LinkPreview>,
+    },
 }
 
 /// DM data sent to clients.
@@ -510,6 +620,38 @@ pub struct PinData {
     pub pinned_at: u64,
 }
 
+/// A search result entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResultData {
+    pub message_id: i64,
+    pub channel: String,
+    pub from: String,
+    pub from_name: String,
+    pub content: String,
+    pub timestamp: u64,
+}
+
+/// Voice room data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoiceRoomData {
+    pub room_id: String,
+    pub name: String,
+    pub participants: Vec<VoiceRoomParticipant>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoiceRoomParticipant {
+    pub public_key: String,
+    pub display_name: String,
+    pub muted: bool,
+}
+
+/// In-memory voice room state.
+pub struct VoiceRoom {
+    pub name: String,
+    pub participants: Vec<(String, String)>, // (public_key, display_name)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeerInfo {
     pub public_key: String,
@@ -519,7 +661,15 @@ pub struct PeerInfo {
     /// Per-session upload token (only set for the recipient's own entry).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upload_token: Option<String>,
+    /// User status: online, away, busy, dnd.
+    #[serde(default = "default_online")]
+    pub status: String,
+    /// Custom status text.
+    #[serde(default)]
+    pub status_text: String,
 }
+
+fn default_online() -> String { "online".to_string() }
 
 /// Info about a registered user (online or offline) for the full user list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -529,6 +679,10 @@ pub struct UserInfo {
     pub role: String,
     pub online: bool,
     pub key_count: usize,
+    #[serde(default = "default_online")]
+    pub status: String,
+    #[serde(default)]
+    pub status_text: String,
 }
 
 /// RAII guard that decrements the connection counter when dropped.
@@ -707,14 +861,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 state.upload_tokens.write().await.insert(upload_token.clone(), public_key.clone());
                 peer_key = Some(public_key.clone());
 
+                // Load persisted user status.
+                if let Some(ref name) = final_name {
+                    if let Ok(Some((status, status_text))) = state.db.load_user_status(name) {
+                        state.user_statuses.write().await.insert(name.to_lowercase(), (status, status_text));
+                    }
+                }
+
                 info!("Peer connected: {public_key} ({:?})", final_name);
 
                 // Send current peer list to the new peer (with their upload_token).
-                let peers: Vec<PeerInfo> = state
+                let peers_raw: Vec<Peer> = state
                     .peers
                     .read()
                     .await
                     .values()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let statuses_snap = state.user_statuses.read().await;
+                let peers: Vec<PeerInfo> = peers_raw.into_iter()
                     .map(|p| {
                         let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
                         let token = if p.public_key_hex == public_key {
@@ -722,14 +887,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                         } else {
                             None
                         };
+                        let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
+                        let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
                         PeerInfo {
                             public_key: p.public_key_hex.clone(),
                             display_name: p.display_name.clone(),
                             role,
                             upload_token: token,
+                            status: user_status,
+                            status_text: user_status_text,
                         }
                     })
                     .collect();
+                drop(statuses_snap);
 
                 let list_msg = serde_json::to_string(&RelayMessage::PeerList {
                     peers,
@@ -747,13 +917,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                         .filter_map(|p| p.display_name.clone())
                         .map(|n| n.to_lowercase())
                         .collect();
+                    let statuses_snap2 = state.user_statuses.read().await;
                     let users: Vec<UserInfo> = all_users
                         .into_iter()
                         .map(|(name, first_key, role, key_count)| {
                             let online = online_names.contains(&name.to_lowercase());
-                            UserInfo { name, public_key: first_key, role, online, key_count }
+                            let (us, ust) = statuses_snap2.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
+                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust }
                         })
                         .collect();
+                    drop(statuses_snap2);
                     let ful_msg = serde_json::to_string(&RelayMessage::FullUserList { users }).unwrap();
                     let _ = ws_tx.send(Message::Text(ful_msg.into())).await;
                 }
@@ -770,12 +943,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                 }
 
-                // Send channel list.
-                if let Ok(channels) = state.db.list_channels() {
-                    let channel_infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| {
-                        ChannelInfo { id, name, description: desc, read_only: ro }
-                    }).collect();
-                    let ch_msg = serde_json::to_string(&RelayMessage::ChannelList { channels: channel_infos }).unwrap();
+                // Send channel list with category info.
+                {
+                    let channel_infos = build_channel_list(&state.db);
+                    let categories: Vec<CategoryInfo> = state.db.list_categories().unwrap_or_default().into_iter()
+                        .map(|(id, name, pos)| CategoryInfo { id, name, position: pos }).collect();
+                    let ch_msg = serde_json::to_string(&RelayMessage::ChannelList { channels: channel_infos, categories: Some(categories) }).unwrap();
                     let _ = ws_tx.send(Message::Text(ch_msg.into())).await;
                 }
 
@@ -826,6 +999,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             conversations,
                         }).unwrap();
                         let _ = ws_tx.send(Message::Text(dm_list_msg.into())).await;
+                    }
+                }
+
+                // Send voice room list.
+                {
+                    let rooms = state.voice_rooms.read().await;
+                    if !rooms.is_empty() {
+                        let room_data: Vec<VoiceRoomData> = rooms.iter().map(|(id, r)| VoiceRoomData {
+                            room_id: id.clone(),
+                            name: r.name.clone(),
+                            participants: r.participants.iter().map(|(k, n)| VoiceRoomParticipant {
+                                public_key: k.clone(), display_name: n.clone(), muted: false,
+                            }).collect(),
+                        }).collect();
+                        let room_msg = serde_json::to_string(&RelayMessage::VoiceRoomUpdate { rooms: room_data }).unwrap();
+                        let _ = ws_tx.send(Message::Text(room_msg.into())).await;
                     }
                 }
 
@@ -933,6 +1122,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
                     _ => {}
+                }
+            }
+
+            // SearchResults: only deliver to the target client.
+            if let RelayMessage::SearchResults { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // VoiceRoomSignal: only deliver to the target peer.
+            if let RelayMessage::VoiceRoomSignal { ref to, .. } = msg {
+                if to != &my_key_for_broadcast {
+                    continue;
                 }
             }
 
@@ -1227,10 +1432,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                     match state_clone.db.create_channel(&ch_name, &ch_name, desc_opt, &my_key_for_recv, read_only) {
                                                         Ok(true) => {
                                                             // Broadcast updated channel list to everyone.
-                                                            if let Ok(channels) = state_clone.db.list_channels() {
-                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
-                                                                let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
-                                                            }
+                                                            broadcast_channel_list(&state_clone);
                                                             let ro_label = if read_only { " (read-only)" } else { "" };
                                                             let sys = RelayMessage::System { message: format!("Channel #{} created{}.", ch_name, ro_label) };
                                                             let _ = state_clone.broadcast_tx.send(sys);
@@ -1255,10 +1457,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Cannot delete the general channel.".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
                                                 } else if state_clone.db.delete_channel(ch_name).unwrap_or(false) {
-                                                    if let Ok(channels) = state_clone.db.list_channels() {
-                                                        let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
-                                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
-                                                    }
+                                                    broadcast_channel_list(&state_clone);
                                                     let sys = RelayMessage::System { message: format!("Channel #{} deleted.", ch_name) };
                                                     let _ = state_clone.broadcast_tx.send(sys);
                                                 } else {
@@ -1282,10 +1481,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                     let new_ro = !current_ro;
                                                     match state_clone.db.set_channel_read_only(&ch_name, new_ro) {
                                                         Ok(true) => {
-                                                            if let Ok(channels) = state_clone.db.list_channels() {
-                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
-                                                                let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
-                                                            }
+                                                            broadcast_channel_list(&state_clone);
                                                             let status = if new_ro { "now read-only 🔒" } else { "now writable 🔓" };
                                                             let sys = RelayMessage::System { message: format!("Channel #{} is {}.", ch_name, status) };
                                                             let _ = state_clone.broadcast_tx.send(sys);
@@ -1315,10 +1511,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                     if let Ok(pos) = parts[2].parse::<i32>() {
                                                         if state_clone.db.set_channel_position(ch_name, pos).unwrap_or(false) {
                                                             // Broadcast updated list.
-                                                            if let Ok(channels) = state_clone.db.list_channels() {
-                                                                let infos: Vec<ChannelInfo> = channels.into_iter().map(|(id, name, desc, ro)| ChannelInfo { id, name, description: desc, read_only: ro }).collect();
-                                                                let _ = state_clone.broadcast_tx.send(RelayMessage::ChannelList { channels: infos });
-                                                            }
+                                                            broadcast_channel_list(&state_clone);
                                                             let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel #{} moved to position {}.", ch_name, pos) };
                                                             let _ = state_clone.broadcast_tx.send(private);
                                                         } else {
@@ -2133,6 +2326,92 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 }
                                             }
                                         }
+                                        "/category-create" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can create categories.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let cat_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                                if cat_name.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /category-create <name>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    match state_clone.db.create_category(&cat_name, 100) {
+                                                        Ok(_id) => {
+                                                            broadcast_channel_list(&state_clone);
+                                                            let sys = RelayMessage::System { message: format!("📁 Category '{}' created.", cat_name) };
+                                                            let _ = state_clone.broadcast_tx.send(sys);
+                                                        }
+                                                        Err(e) => {
+                                                            tracing::error!("Category create error: {e}");
+                                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Error: {e}") };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        "/category-delete" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can delete categories.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let cat_name = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                                if cat_name.is_empty() {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /category-delete <name>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else if state_clone.db.delete_category(&cat_name).unwrap_or(false) {
+                                                    broadcast_channel_list(&state_clone);
+                                                    let sys = RelayMessage::System { message: format!("📁 Category '{}' deleted.", cat_name) };
+                                                    let _ = state_clone.broadcast_tx.send(sys);
+                                                } else {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Category '{}' not found.", cat_name) };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
+                                        }
+                                        "/category-rename" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can rename categories.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                                if parts.len() < 3 {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /category-rename <old> <new>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else if state_clone.db.rename_category(parts[1], parts[2]).unwrap_or(false) {
+                                                    broadcast_channel_list(&state_clone);
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Renamed category '{}' to '{}'.", parts[1], parts[2]) };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Category '{}' not found.", parts[1]) };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
+                                        }
+                                        "/channel-category" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can set channel categories.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                                if parts.len() < 3 {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /channel-category <channel> <category>".to_string() };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else if state_clone.db.set_channel_category(parts[1], parts[2]).unwrap_or(false) {
+                                                    broadcast_channel_list(&state_clone);
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Moved #{} to category '{}'.", parts[1], parts[2]) };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Channel '{}' or category '{}' not found.", parts[1], parts[2]) };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                }
+                                            }
+                                        }
                                         _ => {
                                             let private = RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
@@ -2187,6 +2466,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 if !my_key_for_recv.starts_with("bot_") {
                                     state_clone.notify_webhook(&display, &content);
                                 }
+
+                                // Link previews placeholder (future feature).
                             }
                             // Typing indicator — broadcast to other peers (rate limited).
                             RelayMessage::Typing { .. } => {
@@ -2705,6 +2986,160 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 send_dm_list_update(&state_clone, &my_key_for_recv);
                             }
+                            // ── Search ──
+                            RelayMessage::Search { query, channel } => {
+                                if query.len() < 2 || query.len() > 200 {
+                                    continue;
+                                }
+                                match state_clone.db.search_messages(&query, channel.as_deref(), 30) {
+                                    Ok(results) => {
+                                        let search_results: Vec<SearchResultData> = results.into_iter().map(|(id, ch, msg)| {
+                                            if let RelayMessage::Chat { from, from_name, content, timestamp, .. } = msg {
+                                                SearchResultData {
+                                                    message_id: id,
+                                                    channel: ch,
+                                                    from: from.clone(),
+                                                    from_name: from_name.unwrap_or_else(|| shortKey_rust(&from)),
+                                                    content,
+                                                    timestamp,
+                                                }
+                                            } else {
+                                                SearchResultData {
+                                                    message_id: id, channel: ch, from: String::new(),
+                                                    from_name: String::new(), content: String::new(), timestamp: 0,
+                                                }
+                                            }
+                                        }).collect();
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::SearchResults {
+                                            target: Some(my_key_for_recv.clone()),
+                                            query,
+                                            results: search_results,
+                                        });
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Search error: {e}");
+                                    }
+                                }
+                            }
+                            // ── Delete by ID ──
+                            RelayMessage::DeleteById { message_id } => {
+                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let is_admin = user_role == "admin" || user_role == "mod";
+                                match state_clone.db.delete_message_by_id(message_id, &my_key_for_recv, is_admin) {
+                                    Ok(Some((from_key, channel_id))) => {
+                                        // Find the timestamp from the message (we need it for client-side removal).
+                                        // Broadcast deletion to all clients.
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::MessageDeleted {
+                                            message_id,
+                                            channel: channel_id,
+                                            from: from_key,
+                                            timestamp: 0, // Client uses message_id for removal
+                                        });
+                                    }
+                                    Ok(None) => {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Cannot delete: message not found or not yours.".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Delete by ID error: {e}");
+                                    }
+                                }
+                            }
+                            // ── Set Status ──
+                            RelayMessage::SetStatus { status, text } => {
+                                let valid_statuses = ["online", "away", "busy", "dnd"];
+                                if !valid_statuses.contains(&status.as_str()) {
+                                    continue;
+                                }
+                                let status_text = if text.len() > 128 { text[..128].to_string() } else { text };
+                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
+                                if let Some(ref p) = peer {
+                                    if let Some(ref name) = p.display_name {
+                                        let _ = state_clone.db.save_user_status(name, &status, &status_text);
+                                        state_clone.user_statuses.write().await.insert(name.to_lowercase(), (status.clone(), status_text.clone()));
+                                        // Broadcast updated peer/user lists so everyone sees the status change.
+                                        broadcast_peer_list(&state_clone).await;
+                                        broadcast_full_user_list(&state_clone).await;
+                                    }
+                                }
+                            }
+                            // ── Voice Rooms ──
+                            RelayMessage::VoiceRoom { action, room_id, room_name } => {
+                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
+                                let display = peer.as_ref().and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Anonymous".to_string());
+                                match action.as_str() {
+                                    "create" => {
+                                        let rid = format!("room_{}", std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis());
+                                        let rname = room_name.unwrap_or_else(|| format!("{}'s Room", display));
+                                        let mut rooms = state_clone.voice_rooms.write().await;
+                                        rooms.insert(rid.clone(), VoiceRoom {
+                                            name: rname,
+                                            participants: vec![(my_key_for_recv.clone(), display)],
+                                        });
+                                        drop(rooms);
+                                        broadcast_voice_rooms(&state_clone).await;
+                                    }
+                                    "join" => {
+                                        if let Some(rid) = room_id {
+                                            let mut rooms = state_clone.voice_rooms.write().await;
+                                            if let Some(room) = rooms.get_mut(&rid) {
+                                                if !room.participants.iter().any(|(k, _)| k == &my_key_for_recv) {
+                                                    // Notify existing participants to set up WebRTC connections.
+                                                    let existing: Vec<(String, String)> = room.participants.clone();
+                                                    room.participants.push((my_key_for_recv.clone(), display.clone()));
+                                                    drop(rooms);
+                                                    // Send "new_participant" signal to existing members.
+                                                    for (pk, _) in &existing {
+                                                        let _ = state_clone.broadcast_tx.send(RelayMessage::VoiceRoomSignal {
+                                                            from: my_key_for_recv.clone(),
+                                                            to: pk.clone(),
+                                                            room_id: rid.clone(),
+                                                            signal_type: "new_participant".to_string(),
+                                                            data: serde_json::json!({ "key": my_key_for_recv, "name": display }),
+                                                        });
+                                                    }
+                                                    broadcast_voice_rooms(&state_clone).await;
+                                                } else {
+                                                    drop(rooms);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    "leave" => {
+                                        leave_voice_room(&state_clone, &my_key_for_recv).await;
+                                    }
+                                    "list" => {
+                                        // Already sent on connect; re-send on request.
+                                        broadcast_voice_rooms(&state_clone).await;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            // ── Voice Room WebRTC Signaling ──
+                            RelayMessage::VoiceRoomSignal { to, room_id, signal_type, data, .. } => {
+                                // Verify both parties are in the same room.
+                                let rooms = state_clone.voice_rooms.read().await;
+                                let valid = rooms.get(&room_id).map(|r| {
+                                    r.participants.iter().any(|(k, _)| k == &my_key_for_recv) &&
+                                    r.participants.iter().any(|(k, _)| k == &to)
+                                }).unwrap_or(false);
+                                drop(rooms);
+                                if valid {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::VoiceRoomSignal {
+                                        from: my_key_for_recv.clone(),
+                                        to,
+                                        room_id,
+                                        signal_type,
+                                        data,
+                                    });
+                                }
+                            }
                             _ => {
                                 // Ignore other message types from clients.
                             }
@@ -2734,6 +3169,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         }
     }
     state.kicked_keys.write().await.remove(&my_key);
+
+    // Remove from voice rooms and clear status text on disconnect.
+    leave_voice_room(&state, &my_key).await;
+    // Clear status text on disconnect (keep status preference).
+    if let Ok(Some(name)) = state.db.name_for_key(&my_key) {
+        let _ = state.db.clear_user_status_text(&name);
+        if let Some(entry) = state.user_statuses.write().await.get_mut(&name.to_lowercase()) {
+            entry.1 = String::new(); // clear status text
+        }
+    }
+
     info!("Peer disconnected: {my_key}");
     let _ = state.broadcast_tx.send(RelayMessage::PeerLeft {
         public_key: my_key,
@@ -2784,6 +3230,177 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     }
 }
 
+/// Check if an IP address is private/internal (SSRF prevention).
+fn is_private_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_loopback() || v4.is_private() || v4.is_link_local()
+                || v4.octets()[0] == 0 // 0.0.0.0/8
+        }
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback() || v6.is_unspecified()
+        }
+    }
+}
+
+/// Fetch and cache a link preview for a URL. Returns None on failure.
+async fn fetch_link_preview(state: &Arc<RelayState>, url: &str) -> Option<LinkPreview> {
+    // SSRF prevention: only HTTP(S).
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return None;
+    }
+
+    // Don't fetch upload URLs from our own server.
+    if url.contains("/uploads/") {
+        return None;
+    }
+
+    // Check cache first.
+    if let Ok(Some(cached)) = state.db.get_link_preview(url) {
+        return Some(LinkPreview {
+            url: cached.url,
+            title: cached.title,
+            description: cached.description,
+            image: cached.image,
+            site_name: cached.site_name,
+        });
+    }
+
+    // DNS resolution + SSRF check.
+    if let Ok(parsed) = url::Url::parse(url) {
+        if let Some(host) = parsed.host_str() {
+            // Try to resolve the hostname to check for private IPs.
+            if let Ok(addrs) = tokio::net::lookup_host(format!("{}:{}", host, parsed.port_or_known_default().unwrap_or(80))).await {
+                for addr in addrs {
+                    if is_private_ip(&addr.ip()) {
+                        tracing::debug!("SSRF blocked: {} resolves to private IP {}", url, addr.ip());
+                        return None;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fetch with timeout and redirect limit.
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .build()
+        .ok()?;
+
+    let resp = match client.get(url)
+        .header("User-Agent", "HumanityRelay/1.0 LinkPreview")
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::debug!("Link preview fetch failed for {}: {}", url, e);
+            return None;
+        }
+    };
+
+    // Only parse HTML responses.
+    let content_type = resp.headers().get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if !content_type.contains("text/html") {
+        return None;
+    }
+
+    // Limit body size to 256KB.
+    let body = match resp.text().await {
+        Ok(b) if b.len() <= 256 * 1024 => b,
+        _ => return None,
+    };
+
+    // Parse OG tags with simple regex (avoiding heavy HTML parser dependency).
+    let og_title = extract_meta(&body, "og:title")
+        .or_else(|| extract_tag(&body, "title"));
+    let og_desc = extract_meta(&body, "og:description")
+        .or_else(|| extract_meta_name(&body, "description"));
+    let og_image = extract_meta(&body, "og:image");
+    let og_site = extract_meta(&body, "og:site_name");
+
+    // Cache the result.
+    let _ = state.db.cache_link_preview(
+        url,
+        og_title.as_deref(),
+        og_desc.as_deref(),
+        og_image.as_deref(),
+        og_site.as_deref(),
+    );
+
+    // Only return if we have at least a title.
+    if og_title.is_some() {
+        Some(LinkPreview {
+            url: url.to_string(),
+            title: og_title,
+            description: og_desc.map(|d| if d.len() > 300 { format!("{}…", &d[..297]) } else { d }),
+            image: og_image,
+            site_name: og_site,
+        })
+    } else {
+        None
+    }
+}
+
+/// Extract OG meta content: <meta property="X" content="Y">
+fn extract_meta(html: &str, property: &str) -> Option<String> {
+    let pattern = format!(r#"<meta[^>]*property=["']{}["'][^>]*content=["']([^"']*)["']"#, regex::escape(property));
+    let re = regex::Regex::new(&pattern).ok()?;
+    re.captures(html).map(|c| html_decode(&c[1]))
+        .or_else(|| {
+            // Also try content before property (some sites do this).
+            let pattern2 = format!(r#"<meta[^>]*content=["']([^"']*)["'][^>]*property=["']{}["']"#, regex::escape(property));
+            let re2 = regex::Regex::new(&pattern2).ok()?;
+            re2.captures(html).map(|c| html_decode(&c[1]))
+        })
+}
+
+/// Extract meta name content: <meta name="X" content="Y">
+fn extract_meta_name(html: &str, name: &str) -> Option<String> {
+    let pattern = format!(r#"<meta[^>]*name=["']{}["'][^>]*content=["']([^"']*)["']"#, regex::escape(name));
+    let re = regex::Regex::new(&pattern).ok()?;
+    re.captures(html).map(|c| html_decode(&c[1]))
+}
+
+/// Extract <title>...</title>
+fn extract_tag(html: &str, tag: &str) -> Option<String> {
+    let pattern = format!(r"<{0}[^>]*>([^<]*)</{0}>", tag);
+    let re = regex::Regex::new(&pattern).ok()?;
+    re.captures(html).map(|c| html_decode(c[1].trim()))
+}
+
+/// Basic HTML entity decoding.
+fn html_decode(s: &str) -> String {
+    s.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&#x27;", "'")
+}
+
+/// Broadcast updated channel list (with categories) to all clients.
+fn broadcast_channel_list(state: &Arc<RelayState>) {
+    let infos = build_channel_list(&state.db);
+    let categories: Vec<CategoryInfo> = state.db.list_categories().unwrap_or_default().into_iter()
+        .map(|(id, name, pos)| CategoryInfo { id, name, position: pos }).collect();
+    let _ = state.broadcast_tx.send(RelayMessage::ChannelList { channels: infos, categories: Some(categories) });
+}
+
+/// Build ChannelInfo list with category data from the database.
+fn build_channel_list(db: &crate::storage::Storage) -> Vec<ChannelInfo> {
+    let categories = db.list_categories().unwrap_or_default();
+    let cat_map: std::collections::HashMap<i64, String> = categories.into_iter().map(|(id, name, _)| (id, name)).collect();
+    let channels = db.list_channels_with_categories().unwrap_or_default();
+    channels.into_iter().map(|(id, name, desc, ro, cat_id)| {
+        let cat_name = cat_id.and_then(|cid| cat_map.get(&cid).cloned());
+        ChannelInfo { id, name, description: desc, read_only: ro, category_id: cat_id, category_name: cat_name }
+    }).collect()
+}
+
 /// H-1: Verify an Ed25519 signature. Returns true if valid.
 /// Format: sign(content + '\n' + timestamp_string)
 fn verify_ed25519_signature(public_key_hex: &str, content: &str, timestamp: u64, sig_hex: &str) -> bool {
@@ -2811,21 +3428,30 @@ fn verify_ed25519_signature(public_key_hex: &str, content: &str, timestamp: u64,
 /// Broadcast an updated peer list to all connected clients.
 /// WHY: After role changes (verify, mod, etc.) clients need fresh data for badges.
 async fn broadcast_peer_list(state: &Arc<RelayState>) {
-    let peers: Vec<PeerInfo> = state
+    let peers_raw: Vec<Peer> = state
         .peers
         .read()
         .await
         .values()
+        .cloned()
+        .collect();
+    let statuses = state.user_statuses.read().await;
+    let peers: Vec<PeerInfo> = peers_raw.into_iter()
         .map(|p| {
             let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
+            let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
+            let (user_status, user_status_text) = statuses.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
             PeerInfo {
                 public_key: p.public_key_hex.clone(),
                 display_name: p.display_name.clone(),
                 role,
-                upload_token: None, // Never broadcast tokens to everyone
+                upload_token: None,
+                status: user_status,
+                status_text: user_status_text,
             }
         })
         .collect();
+    drop(statuses);
     let _ = state.broadcast_tx.send(RelayMessage::PeerList { peers, server_version: None });
 }
 
@@ -2841,13 +3467,16 @@ async fn broadcast_full_user_list(state: &Arc<RelayState>) {
             .map(|n| n.to_lowercase())
             .collect();
 
+        let statuses = state.user_statuses.read().await;
         let users: Vec<UserInfo> = all_users
             .into_iter()
             .map(|(name, first_key, role, key_count)| {
                 let online = online_names.contains(&name.to_lowercase());
-                UserInfo { name, public_key: first_key, role, online, key_count }
+                let (user_status, user_status_text) = statuses.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
+                UserInfo { name, public_key: first_key, role, online, key_count, status: user_status, status_text: user_status_text }
             })
             .collect();
+        drop(statuses);
 
         let _ = state.broadcast_tx.send(RelayMessage::FullUserList { users });
     }
@@ -2964,6 +3593,42 @@ async fn handle_mod_command(
         }
         _ => "Unknown moderation command.".to_string(),
     }
+}
+
+/// Short key helper (Rust-side).
+fn shortKey_rust(hex: &str) -> String {
+    if hex.len() >= 8 { hex[..8].to_string() } else { hex.to_string() }
+}
+
+/// Broadcast voice room state to all connected clients.
+async fn broadcast_voice_rooms(state: &Arc<RelayState>) {
+    let rooms = state.voice_rooms.read().await;
+    let room_data: Vec<VoiceRoomData> = rooms.iter().map(|(id, r)| VoiceRoomData {
+        room_id: id.clone(),
+        name: r.name.clone(),
+        participants: r.participants.iter().map(|(k, n)| VoiceRoomParticipant {
+            public_key: k.clone(), display_name: n.clone(), muted: false,
+        }).collect(),
+    }).collect();
+    drop(rooms);
+    let _ = state.broadcast_tx.send(RelayMessage::VoiceRoomUpdate { rooms: room_data });
+}
+
+/// Remove a user from any voice room they're in.
+async fn leave_voice_room(state: &Arc<RelayState>, key: &str) {
+    let mut rooms = state.voice_rooms.write().await;
+    let mut empty_rooms = Vec::new();
+    for (rid, room) in rooms.iter_mut() {
+        room.participants.retain(|(k, _)| k != key);
+        if room.participants.is_empty() {
+            empty_rooms.push(rid.clone());
+        }
+    }
+    for rid in empty_rooms {
+        rooms.remove(&rid);
+    }
+    drop(rooms);
+    broadcast_voice_rooms(state).await;
 }
 
 /// Send an updated DM conversation list to a specific user via broadcast (filtered by send loop).

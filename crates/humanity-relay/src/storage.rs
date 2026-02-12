@@ -255,12 +255,43 @@ impl Storage {
             );"
         )?;
 
+        // Migration: user_status table.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS user_status (
+                name TEXT PRIMARY KEY COLLATE NOCASE,
+                status TEXT NOT NULL DEFAULT 'online',
+                status_text TEXT NOT NULL DEFAULT ''
+            );"
+        )?;
+
         // Migration: profiles table for user bios and social links.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS profiles (
                 name    TEXT PRIMARY KEY COLLATE NOCASE,
                 bio     TEXT NOT NULL DEFAULT '',
                 socials TEXT NOT NULL DEFAULT '{}'
+            );"
+        )?;
+
+        // Channel categories for Discord-like grouping.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS channel_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0,
+                collapsed INTEGER NOT NULL DEFAULT 0
+            );"
+        )?;
+
+        // Link preview cache for URL embeds.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS link_previews (
+                url TEXT PRIMARY KEY,
+                title TEXT,
+                description TEXT,
+                image TEXT,
+                site_name TEXT,
+                fetched_at INTEGER NOT NULL
             );"
         )?;
 
@@ -284,6 +315,17 @@ impl Storage {
                 "ALTER TABLE channels ADD COLUMN position INTEGER DEFAULT 100;"
             )?;
             info!("Migration: added position column to channels");
+        }
+
+        // Migration: add category_id column to channels if missing.
+        let has_category_id: bool = conn
+            .prepare("SELECT category_id FROM channels LIMIT 0")
+            .is_ok();
+        if !has_category_id {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN category_id INTEGER DEFAULT NULL;"
+            )?;
+            info!("Migration: added category_id column to channels");
         }
 
         info!("Database opened: {}", path.display());
@@ -516,13 +558,24 @@ impl Storage {
         Ok(rows > 0)
     }
 
-    /// List all channels (id, name, description, read_only).
+    /// List all channels (id, name, description, read_only, category_id).
     pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>, bool)>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0) FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
         let channels = stmt.query_map([], |row| {
             let ro: i32 = row.get(3)?;
             Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0))
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(channels)
+    }
+
+    /// List all channels with category info.
+    pub fn list_channels_with_categories(&self) -> Result<Vec<(String, String, Option<String>, bool, Option<i64>)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id, name, description, COALESCE(read_only, 0), category_id FROM channels ORDER BY COALESCE(position, 100) ASC, created_at ASC")?;
+        let channels = stmt.query_map([], |row| {
+            let ro: i32 = row.get(3)?;
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, ro != 0, row.get(4)?))
         })?.filter_map(|r| r.ok()).collect();
         Ok(channels)
     }
@@ -1272,6 +1325,107 @@ impl Storage {
         Ok(records)
     }
 
+    /// Search messages by content, optionally filtered by channel.
+    pub fn search_messages(&self, query: &str, channel: Option<&str>, limit: usize) -> Result<Vec<(i64, String, RelayMessage)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let limit = limit.min(50);
+        if let Some(ch) = channel {
+            let mut stmt = conn.prepare(
+                "SELECT id, channel_id, raw_json FROM messages
+                 WHERE msg_type = 'chat' AND content LIKE '%' || ?1 || '%' AND channel_id = ?2
+                 ORDER BY timestamp DESC LIMIT ?3"
+            )?;
+            let results = stmt.query_map(params![query, ch, limit], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })?.filter_map(|r| r.ok())
+            .filter_map(|(id, ch, raw)| {
+                serde_json::from_str::<RelayMessage>(&raw).ok().map(|msg| (id, ch, msg))
+            })
+            .collect();
+            Ok(results)
+        } else {
+            let mut stmt = conn.prepare(
+                "SELECT id, channel_id, raw_json FROM messages
+                 WHERE msg_type = 'chat' AND content LIKE '%' || ?1 || '%'
+                 ORDER BY timestamp DESC LIMIT ?2"
+            )?;
+            let results = stmt.query_map(params![query, limit], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+            })?.filter_map(|r| r.ok())
+            .filter_map(|(id, ch, raw)| {
+                serde_json::from_str::<RelayMessage>(&raw).ok().map(|msg| (id, ch, msg))
+            })
+            .collect();
+            Ok(results)
+        }
+    }
+
+    /// Delete a message by its database row ID. Returns the from_key if found.
+    /// If admin_key is Some, allows deleting anyone's message; otherwise only from_key must match.
+    pub fn delete_message_by_id(&self, msg_id: i64, requester_key: &str, is_admin: bool) -> Result<Option<(String, String)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        // Look up the message.
+        let result = conn.query_row(
+            "SELECT from_key, channel_id FROM messages WHERE id = ?1",
+            params![msg_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        );
+        match result {
+            Ok((from_key, channel_id)) => {
+                if from_key == requester_key || is_admin {
+                    conn.execute("DELETE FROM messages WHERE id = ?1", params![msg_id])?;
+                    Ok(Some((from_key, channel_id)))
+                } else {
+                    Ok(None) // Not authorized
+                }
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Save user status (online/away/busy/dnd) and status text.
+    pub fn save_user_status(&self, name: &str, status: &str, status_text: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS user_status (
+                name TEXT PRIMARY KEY COLLATE NOCASE,
+                status TEXT NOT NULL DEFAULT 'online',
+                status_text TEXT NOT NULL DEFAULT ''
+            );"
+        )?;
+        conn.execute(
+            "INSERT INTO user_status (name, status, status_text) VALUES (?1, ?2, ?3)
+             ON CONFLICT(name) DO UPDATE SET status = ?2, status_text = ?3",
+            params![name, status, status_text],
+        )?;
+        Ok(())
+    }
+
+    /// Load user status. Returns (status, status_text) or None.
+    pub fn load_user_status(&self, name: &str) -> Result<Option<(String, String)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        // Table might not exist yet.
+        match conn.query_row(
+            "SELECT status, status_text FROM user_status WHERE name = ?1 COLLATE NOCASE",
+            params![name],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        ) {
+            Ok(result) => Ok(Some(result)),
+            Err(_) => Ok(None),
+        }
+    }
+
+    /// Clear status text on disconnect (but keep status preference).
+    pub fn clear_user_status_text(&self, name: &str) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let _ = conn.execute(
+            "UPDATE user_status SET status_text = '' WHERE name = ?1 COLLATE NOCASE",
+            params![name],
+        );
+        Ok(())
+    }
+
     /// Get the count of pinned messages in a channel.
     pub fn get_pinned_count(&self, channel: &str) -> Result<i64, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
@@ -1773,6 +1927,124 @@ impl Storage {
         info!("Generated server Ed25519 keypair: {}", pk_hex);
         Ok((pk_hex, sk_hex))
     }
+    // ── Channel Category methods ──
+
+    /// Create a channel category. Returns the new category ID.
+    pub fn create_category(&self, name: &str, position: i32) -> Result<i64, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO channel_categories (name, position) VALUES (?1, ?2)",
+            params![name, position],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// Delete a channel category by name. Channels in it become uncategorized.
+    pub fn delete_category(&self, name: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let cat_id: Option<i64> = conn.query_row(
+            "SELECT id FROM channel_categories WHERE name = ?1 COLLATE NOCASE",
+            params![name],
+            |row| row.get(0),
+        ).ok();
+        if let Some(id) = cat_id {
+            conn.execute("UPDATE channels SET category_id = NULL WHERE category_id = ?1", params![id])?;
+            conn.execute("DELETE FROM channel_categories WHERE id = ?1", params![id])?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Rename a category.
+    pub fn rename_category(&self, old_name: &str, new_name: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE channel_categories SET name = ?1 WHERE name = ?2 COLLATE NOCASE",
+            params![new_name, old_name],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Set a channel's category.
+    pub fn set_channel_category(&self, channel_id: &str, category_name: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let cat_id: Option<i64> = conn.query_row(
+            "SELECT id FROM channel_categories WHERE name = ?1 COLLATE NOCASE",
+            params![category_name],
+            |row| row.get(0),
+        ).ok();
+        if let Some(id) = cat_id {
+            let rows = conn.execute(
+                "UPDATE channels SET category_id = ?1 WHERE id = ?2",
+                params![id, channel_id],
+            )?;
+            Ok(rows > 0)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// List all categories ordered by position.
+    pub fn list_categories(&self) -> Result<Vec<(i64, String, i32)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, position FROM channel_categories ORDER BY position ASC, id ASC"
+        )?;
+        let cats = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(cats)
+    }
+
+    // ── Link Preview Cache methods ──
+
+    /// Get cached link preview for a URL.
+    pub fn get_link_preview(&self, url: &str) -> Result<Option<LinkPreviewRecord>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT url, title, description, image, site_name, fetched_at FROM link_previews WHERE url = ?1",
+            params![url],
+            |row| Ok(LinkPreviewRecord {
+                url: row.get(0)?,
+                title: row.get(1)?,
+                description: row.get(2)?,
+                image: row.get(3)?,
+                site_name: row.get(4)?,
+                fetched_at: row.get(5)?,
+            }),
+        ) {
+            Ok(r) => Ok(Some(r)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Cache a link preview.
+    pub fn cache_link_preview(&self, url: &str, title: Option<&str>, description: Option<&str>, image: Option<&str>, site_name: Option<&str>) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        conn.execute(
+            "INSERT OR REPLACE INTO link_previews (url, title, description, image, site_name, fetched_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![url, title, description, image, site_name, now],
+        )?;
+        Ok(())
+    }
+}
+
+/// A cached link preview record.
+#[derive(Debug, Clone)]
+pub struct LinkPreviewRecord {
+    pub url: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub image: Option<String>,
+    pub site_name: Option<String>,
+    pub fetched_at: i64,
 }
 
 /// A federated server record from the database.

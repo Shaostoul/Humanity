@@ -212,17 +212,35 @@ fn dir_total_size(dir: &std::path::Path) -> u64 {
         .unwrap_or(0)
 }
 
-/// POST /api/upload — upload a file (images only, max 5MB).
-/// Returns a JSON object with the file URL.
-/// Requires `?key=<public_key>` — must be a currently connected user.
-/// Enforces a per-user 4-image FIFO.
+/// POST /api/upload — upload a file (images, audio, video, documents, archives).
+/// Returns a JSON object with the file URL, filename, size, and type.
+/// Requires `?token=<upload_token>` or `?key=<public_key>`.
+/// Enforces a per-user 4-file FIFO for images, separate limits for other types.
 pub async fn upload_file(
     State(state): State<Arc<RelayState>>,
     Query(query): Query<UploadQuery>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    const MAX_SIZE: usize = 5 * 1024 * 1024; // 5MB
-    const ALLOWED_TYPES: &[&str] = &["image/png", "image/jpeg", "image/gif", "image/webp"];
+    const MAX_SIZE_DEFAULT: usize = 5 * 1024 * 1024; // 5MB for most files
+    const MAX_SIZE_MEDIA: usize = 20 * 1024 * 1024; // 20MB for audio/video
+    const ALLOWED_TYPES: &[&str] = &[
+        "image/png", "image/jpeg", "image/gif", "image/webp",
+        "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/mp4",
+        "video/mp4", "video/webm", "video/ogg",
+        "application/pdf", "text/plain", "text/markdown",
+        "application/json", "application/zip",
+        "application/gzip", "application/x-tar",
+        "application/x-gzip", "application/x-compressed-tar",
+        "application/octet-stream", // fallback, validated by extension
+    ];
+    const ALLOWED_EXTENSIONS: &[&str] = &[
+        "png", "jpg", "jpeg", "gif", "webp",
+        "mp3", "ogg", "wav", "mp4", "webm",
+        "pdf", "txt", "md", "json", "zip", "tar.gz", "gz",
+    ];
+    const BLOCKED_EXTENSIONS: &[&str] = &[
+        "exe", "sh", "bat", "cmd", "msi", "dmg", "app", "com", "scr", "pif",
+    ];
     /// Maximum total size of all uploads on disk (default 500MB).
     const MAX_TOTAL_UPLOAD_BYTES: u64 = 500 * 1024 * 1024;
 
@@ -261,40 +279,82 @@ pub async fn upload_file(
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
     })? {
-        let content_type = field.content_type().unwrap_or("").to_string();
-        if !ALLOWED_TYPES.contains(&content_type.as_str()) {
-            return Err((StatusCode::BAD_REQUEST, format!("Unsupported file type: {}. Allowed: png, jpeg, gif, webp", content_type)));
+        let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+        let filename = field.file_name().unwrap_or("upload").to_string();
+
+        // Get file extension from filename.
+        let file_ext = filename.rsplit('.').next().unwrap_or("").to_lowercase();
+        let is_tar_gz = filename.to_lowercase().ends_with(".tar.gz");
+
+        // Block dangerous executable extensions.
+        if BLOCKED_EXTENSIONS.contains(&file_ext.as_str()) {
+            return Err((StatusCode::BAD_REQUEST, format!("File type .{} is not allowed.", file_ext)));
         }
 
-        let filename = field.file_name().unwrap_or("upload").to_string();
+        // Validate by either content type or extension.
+        let type_ok = ALLOWED_TYPES.contains(&content_type.as_str());
+        let ext_ok = ALLOWED_EXTENSIONS.contains(&file_ext.as_str()) || is_tar_gz;
+        if !type_ok && !ext_ok {
+            return Err((StatusCode::BAD_REQUEST, format!("Unsupported file type: {} (.{})", content_type, file_ext)));
+        }
+
         let data = field.bytes().await.map_err(|e| {
             (StatusCode::BAD_REQUEST, format!("Failed to read file: {e}"))
         })?;
 
-        if data.len() > MAX_SIZE {
-            return Err((StatusCode::BAD_REQUEST, format!("File too large ({} bytes, max {})", data.len(), MAX_SIZE)));
+        // Determine file category and max size.
+        let is_media = content_type.starts_with("audio/") || content_type.starts_with("video/")
+            || ["mp3", "ogg", "wav", "mp4", "webm"].contains(&file_ext.as_str());
+        let max_size = if is_media { MAX_SIZE_MEDIA } else { MAX_SIZE_DEFAULT };
+
+        if data.len() > max_size {
+            return Err((StatusCode::BAD_REQUEST, format!("File too large ({} bytes, max {})", data.len(), max_size)));
         }
 
-        // Validate file content matches claimed type via magic bytes.
-        let magic_ok = match content_type.as_str() {
-            "image/png"  => data.len() >= 4 && &data[..4] == b"\x89PNG",
-            "image/jpeg" => data.len() >= 3 && &data[..3] == b"\xFF\xD8\xFF",
-            "image/gif"  => data.len() >= 6 && (&data[..6] == b"GIF87a" || &data[..6] == b"GIF89a"),
-            "image/webp" => data.len() >= 12 && &data[..4] == b"RIFF" && &data[8..12] == b"WEBP",
-            _ => false,
-        };
-        if !magic_ok {
-            return Err((StatusCode::BAD_REQUEST, "File content does not match claimed image type.".to_string()));
+        // Validate magic bytes for images (strict).
+        let is_image = content_type.starts_with("image/");
+        if is_image {
+            let magic_ok = match content_type.as_str() {
+                "image/png"  => data.len() >= 4 && &data[..4] == b"\x89PNG",
+                "image/jpeg" => data.len() >= 3 && &data[..3] == b"\xFF\xD8\xFF",
+                "image/gif"  => data.len() >= 6 && (&data[..6] == b"GIF87a" || &data[..6] == b"GIF89a"),
+                "image/webp" => data.len() >= 12 && &data[..4] == b"RIFF" && &data[8..12] == b"WEBP",
+                _ => false,
+            };
+            if !magic_ok {
+                return Err((StatusCode::BAD_REQUEST, "File content does not match claimed image type.".to_string()));
+            }
         }
 
-        // Generate unique filename.
-        let ext = match content_type.as_str() {
-            "image/png" => "png",
-            "image/jpeg" => "jpg",
-            "image/gif" => "gif",
-            "image/webp" => "webp",
-            _ => "bin",
+        // Determine the file extension for storage.
+        let ext = if is_tar_gz {
+            "tar.gz"
+        } else {
+            match content_type.as_str() {
+                "image/png" => "png",
+                "image/jpeg" => "jpg",
+                "image/gif" => "gif",
+                "image/webp" => "webp",
+                "audio/mpeg" => "mp3",
+                "audio/ogg" => "ogg",
+                "audio/wav" => "wav",
+                "video/mp4" => "mp4",
+                "video/webm" => "webm",
+                "application/pdf" => "pdf",
+                "application/json" => "json",
+                "application/zip" => "zip",
+                "text/plain" => "txt",
+                "text/markdown" => "md",
+                _ => if ext_ok { &file_ext } else { "bin" },
+            }
         };
+
+        // Determine file type category for the response.
+        let file_type = if content_type.starts_with("image/") { "image" }
+            else if content_type.starts_with("audio/") || ["mp3", "ogg", "wav"].contains(&ext) { "audio" }
+            else if content_type.starts_with("video/") || ["mp4", "webm"].contains(&ext) { "video" }
+            else if ["zip", "tar.gz", "gz"].contains(&ext) { "archive" }
+            else { "document" };
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -346,7 +406,7 @@ pub async fn upload_file(
         }
 
         let url = format!("/uploads/{}", unique_name);
-        return Ok(Json(serde_json::json!({ "url": url, "filename": unique_name, "size": data.len() })));
+        return Ok(Json(serde_json::json!({ "url": url, "filename": unique_name, "size": data.len(), "type": file_type })));
     }
 
     Err((StatusCode::BAD_REQUEST, "No file provided.".to_string()))
@@ -604,6 +664,8 @@ pub async fn get_peers(
                 display_name: p.display_name.clone(),
                 role,
                 upload_token: None, // Never expose tokens via API
+                status: "online".to_string(),
+                status_text: String::new(),
             }
         })
         .collect();

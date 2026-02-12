@@ -1487,6 +1487,147 @@
     }
     #ringing-status.active { display: block; }
 
+    /* ── Code Blocks ── */
+    .code-block-wrapper {
+      position: relative;
+      margin: 0.3rem 0;
+    }
+    .code-block-wrapper pre {
+      background: #1a1a1a;
+      color: #e0e0e0;
+      padding: 0.6rem 0.8rem;
+      border-radius: 6px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      overflow-x: auto;
+      white-space: pre;
+      margin: 0;
+      border: 1px solid #333;
+    }
+    .code-block-wrapper .code-lang {
+      position: absolute;
+      top: 0.2rem;
+      right: 2.5rem;
+      font-size: 0.6rem;
+      color: #666;
+      text-transform: uppercase;
+    }
+    .code-block-wrapper .code-copy {
+      position: absolute;
+      top: 0.2rem;
+      right: 0.3rem;
+      background: #333;
+      border: 1px solid #555;
+      color: #aaa;
+      font-size: 0.65rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .code-block-wrapper:hover .code-copy { opacity: 1; }
+    .code-block-wrapper .code-copy:hover { color: #fff; border-color: var(--accent); }
+
+    /* ── Blockquote (from markdown) ── */
+    .body blockquote {
+      border-left: 3px solid var(--accent);
+      padding: 0.1rem 0 0.1rem 0.5rem;
+      margin: 0.2rem 0;
+      color: var(--text-muted);
+      font-size: 0.85em;
+    }
+    .body ul.md-list {
+      margin: 0.2rem 0 0.2rem 1.2rem;
+      padding: 0;
+      list-style: disc;
+    }
+    .body ul.md-list li {
+      margin: 0.1rem 0;
+    }
+
+    /* ── Link Previews ── */
+    .link-preview {
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 4px;
+      padding: 0.4rem 0.6rem;
+      margin: 0.3rem 0 0.3rem 1.6rem;
+      font-size: 0.82rem;
+      max-width: 500px;
+      cursor: pointer;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .link-preview:hover { background: var(--bg-hover); }
+    .link-preview.collapsed { display: none; }
+    .link-preview .lp-text { flex: 1; min-width: 0; }
+    .link-preview .lp-site { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+    .link-preview .lp-title { font-weight: 600; color: var(--accent); margin: 0.1rem 0; }
+    .link-preview .lp-title a { color: var(--accent); text-decoration: none; }
+    .link-preview .lp-title a:hover { text-decoration: underline; }
+    .link-preview .lp-desc { color: var(--text-muted); font-size: 0.78rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .link-preview .lp-thumb { width: 80px; height: 60px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+
+    /* ── File Cards (documents, archives) ── */
+    .file-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.4rem 0.7rem;
+      margin: 0.2rem 0;
+      font-size: 0.82rem;
+      max-width: 350px;
+    }
+    .file-card .file-icon { font-size: 1.3rem; }
+    .file-card .file-info { flex: 1; min-width: 0; }
+    .file-card .file-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-card .file-size { font-size: 0.7rem; color: var(--text-muted); }
+    .file-card .file-download { color: var(--accent); text-decoration: none; font-size: 0.75rem; }
+    .file-card .file-download:hover { text-decoration: underline; }
+
+    /* ── Inline audio/video ── */
+    .body audio { max-width: 100%; margin: 0.2rem 0; }
+    .body video { max-width: 400px; max-height: 300px; border-radius: 4px; margin: 0.2rem 0; }
+
+    /* ── Upload attachment button ── */
+    #attach-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.55rem 0.6rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #attach-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Category Headers ── */
+    .category-header {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0.5rem 0.4rem 0.15rem;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .category-header:hover { color: var(--text); }
+    .category-header .cat-arrow {
+      font-size: 0.5rem;
+      transition: transform 0.15s;
+    }
+    .category-header.collapsed .cat-arrow { transform: rotate(-90deg); }
+    .category-header.collapsed + .category-channels { display: none; }
+
     /* ── Todo Channel Sections ── */
     .todo-section {
       border-radius: 8px;
@@ -1533,6 +1674,300 @@
       border: 1px solid #4a2a2a;
     }
     .todo-section.todo-inactive summary { color: #db6a6a; }
+
+    /* ── Feature 1: Message Search ── */
+    #search-bar {
+      display: none;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      padding: 0.4rem 0.75rem;
+      gap: 0.5rem;
+      align-items: center;
+      animation: noticeFadeIn 0.2s ease;
+    }
+    #search-bar.open { display: flex; }
+    #search-bar input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      outline: none;
+      font-family: inherit;
+    }
+    #search-bar input:focus { border-color: var(--accent); }
+    #search-bar .search-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    #search-bar .search-close:hover { color: var(--text); }
+    #search-results {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-top: none;
+      max-height: 400px;
+      overflow-y: auto;
+      z-index: 50;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    #search-results.open { display: block; }
+    .search-result {
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.82rem;
+    }
+    .search-result:hover { background: var(--bg-hover); }
+    .search-result .sr-meta {
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+      margin-bottom: 0.15rem;
+    }
+    .search-result .sr-author { font-weight: 600; color: var(--accent); }
+    .search-result .sr-channel { color: var(--text-muted); font-size: 0.7rem; }
+    .search-result .sr-time { color: var(--text-muted); font-size: 0.65rem; }
+    .search-result .sr-body { color: var(--text); }
+    .search-result .sr-body mark {
+      background: rgba(224,112,32,0.3);
+      color: var(--text);
+      padding: 0 0.1rem;
+      border-radius: 2px;
+    }
+    #search-toggle {
+      background: none;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.2rem;
+    }
+
+    /* ── Feature 2 & 3: Voice Rooms & Video ── */
+    .voice-rooms-section { margin-top: 0.75rem; }
+    .voice-rooms-section h4 {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.3rem;
+      letter-spacing: 0.08em;
+    }
+    .voice-room-item {
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      margin-bottom: 0.2rem;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+    }
+    .voice-room-item:hover { border-color: var(--accent); }
+    .voice-room-item .vr-name { font-weight: 600; color: var(--text); }
+    .voice-room-item .vr-count { font-size: 0.65rem; color: var(--text-muted); }
+    .voice-room-item .vr-participants {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      padding-left: 0.5rem;
+      margin-top: 0.15rem;
+    }
+    .voice-room-item .vr-participant { padding: 0.1rem 0; }
+    .voice-room-item.in-room { border-color: var(--success); background: rgba(68,170,153,0.08); }
+    .vr-create-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.3rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 0.3rem;
+    }
+    .vr-create-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .vr-leave-btn {
+      background: #dc3232;
+      color: #fff;
+      border: none;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.68rem;
+      cursor: pointer;
+      margin-top: 0.2rem;
+    }
+    .vr-leave-btn:hover { background: #e54545; }
+
+    /* Video panel */
+    #video-panel {
+      display: none;
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      background: #000;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 200;
+      resize: both;
+      min-width: 200px;
+      min-height: 150px;
+      width: 320px;
+      height: 240px;
+    }
+    #video-panel.open { display: block; }
+    #video-panel .video-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 2px;
+      width: 100%;
+      height: 100%;
+    }
+    #video-panel video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #video-panel .self-view {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      width: 80px;
+      height: 60px;
+      border-radius: 4px;
+      border: 1px solid var(--accent);
+      z-index: 1;
+    }
+    .btn-video {
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border) !important;
+    }
+    .btn-video:hover { background: var(--bg-hover); }
+    .btn-video.active { background: var(--success); color: #000; }
+
+    /* ── Feature 4: Message Deletion (enhanced) ── */
+    .message-deleted-placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 0.78rem;
+      padding: 0.2rem 0.4rem;
+      opacity: 0.6;
+      animation: fadeOutSlow 3s forwards;
+    }
+    @keyframes fadeOutSlow { 0% { opacity: 0.6; } 80% { opacity: 0.6; } 100% { opacity: 0; } }
+
+    .delete-confirm {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      display: inline-flex;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.2rem;
+    }
+    .delete-confirm button {
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    .delete-confirm .confirm-yes { background: #dc3232; color: #fff; border-color: #dc3232; }
+    .delete-confirm .confirm-yes:hover { background: #e54545; }
+    .delete-confirm .confirm-no { background: var(--bg-input); color: var(--text-muted); }
+    .delete-confirm .confirm-no:hover { color: var(--text); }
+
+    /* ── Feature 5: User Status ── */
+    .status-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 0.3rem;
+      flex-shrink: 0;
+    }
+    .status-online { background: var(--success); }
+    .status-away { background: #e0c860; }
+    .status-busy { background: #dc3232; }
+    .status-dnd { background: #dc3232; box-shadow: inset 0 0 0 1.5px #000; }
+    .status-offline { background: #666; }
+
+    .status-text-display {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-style: italic;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 120px;
+    }
+
+    /* Status picker modal */
+    #status-picker {
+      display: none;
+      position: fixed;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      z-index: 200;
+      min-width: 220px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    #status-picker.open { display: block; }
+    #status-picker h4 {
+      font-size: 0.75rem;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+    .status-option {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.4rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+    .status-option:hover { background: var(--bg-hover); }
+    .status-option.active { background: var(--accent-dim); color: var(--accent); }
+    .status-option .status-label { flex: 1; }
+    #status-text-input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.35rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      outline: none;
+      margin-top: 0.4rem;
+      font-family: inherit;
+    }
+    #status-text-input:focus { border-color: var(--accent); }
+    .status-clear-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      margin-top: 0.3rem;
+      width: 100%;
+    }
+    .status-clear-btn:hover { color: var(--text); border-color: var(--text-muted); }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
@@ -1576,6 +2011,7 @@
         <span id="stats"></span>
       </div>
       <div style="display:flex;align-items:center;gap:0.5rem;">
+        <button id="search-toggle" onclick="toggleSearch()" title="Search messages">🔍</button>
         <button id="sound-toggle" onclick="toggleSoundMenu()" title="Notification sounds" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:1.1rem;padding:0.2rem;">🔔</button>
         <button id="people-toggle" onclick="toggleSidebar('right-sidebar')" title="Users">👤</button>
         <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
@@ -1619,6 +2055,11 @@
         <div id="channel-list" style="display:none;"></div>
       </div>
       <div id="chat-area">
+        <div id="search-bar" style="position:relative;">
+          <input type="text" id="search-input" placeholder="Search messages…" autocomplete="off">
+          <button class="search-close" onclick="closeSearch()">✕</button>
+          <div id="search-results"></div>
+        </div>
         <div id="channel-header"></div>
         <div id="call-bar">
           <div class="call-info">
@@ -1628,6 +2069,7 @@
           </div>
           <div class="call-actions">
             <button class="btn-mute" id="mute-btn" onclick="toggleMute()">🎤 Mute</button>
+            <button class="btn-video" id="video-btn" onclick="toggleVideo()">📹 Video</button>
             <button class="btn-hangup" onclick="hangupCall()">📵 Hangup</button>
           </div>
         </div>
@@ -1654,6 +2096,8 @@
         <div id="upload-indicator"></div>
         <div id="char-counter"></div>
         <div id="input-area">
+          <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()" title="Attach file">📎</button>
+          <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
           <button id="help-btn" onclick="toggleHelpModal()" title="Help & Commands">?</button>
@@ -1766,6 +2210,34 @@
         <button class="btn-accept" onclick="acceptIncomingCall()">Accept</button>
       </div>
     </div>
+  </div>
+
+  <!-- Video Panel -->
+  <div id="video-panel">
+    <div class="video-grid" id="video-grid"></div>
+  </div>
+
+  <!-- Status Picker -->
+  <div id="status-picker">
+    <h4>Set Status</h4>
+    <div class="status-option" data-status="online" onclick="setMyStatus('online')">
+      <span class="status-indicator status-online"></span>
+      <span class="status-label">Online</span>
+    </div>
+    <div class="status-option" data-status="away" onclick="setMyStatus('away')">
+      <span class="status-indicator status-away"></span>
+      <span class="status-label">Away</span>
+    </div>
+    <div class="status-option" data-status="busy" onclick="setMyStatus('busy')">
+      <span class="status-indicator status-busy"></span>
+      <span class="status-label">Busy</span>
+    </div>
+    <div class="status-option" data-status="dnd" onclick="setMyStatus('dnd')">
+      <span class="status-indicator status-dnd"></span>
+      <span class="status-label">Do Not Disturb</span>
+    </div>
+    <input type="text" id="status-text-input" placeholder="What are you up to?" maxlength="128">
+    <button class="status-clear-btn" onclick="clearMyStatus()">Clear Status</button>
   </div>
 
   <!-- View Profile Modal -->
@@ -2532,6 +3004,30 @@ async function importIdentityFromJSON(jsonData) {
           }
           break;
         }
+        case 'link_previews': {
+          // Render link previews under the matching message.
+          if (msg.channel !== activeChannel) break;
+          const msgEl = document.querySelector(`.message[data-from="${msg.from}"][data-timestamp="${msg.timestamp}"]`);
+          if (msgEl && msg.previews && msg.previews.length > 0) {
+            const bodyEl = msgEl.querySelector('.body');
+            if (bodyEl) {
+              for (const p of msg.previews.slice(0, 3)) {
+                const card = document.createElement('div');
+                card.className = 'link-preview';
+                card.onclick = () => card.classList.toggle('collapsed');
+                let html = '<div class="lp-text">';
+                if (p.site_name) html += `<div class="lp-site">${esc(p.site_name)}</div>`;
+                if (p.title) html += `<div class="lp-title"><a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a></div>`;
+                if (p.description) html += `<div class="lp-desc">${esc(p.description)}</div>`;
+                html += '</div>';
+                if (p.image) html += `<img class="lp-thumb" src="${esc(p.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`;
+                card.innerHTML = html;
+                bodyEl.after(card);
+              }
+            }
+          }
+          break;
+        }
         case 'system':
           // Handle sync data responses (encoded as system messages with prefix).
           if (msg.message && msg.message.startsWith('__sync_data__:')) {
@@ -2999,30 +3495,61 @@ async function importIdentityFromJSON(jsonData) {
     }
 
     function formatBody(text) {
-      // Escape HTML first, then apply markdown-like formatting.
-      let safe = esc(text);
+      // Step 1: Extract code blocks BEFORE escaping (they get special treatment).
+      const codeBlocks = [];
+      const CODE_PLACEHOLDER = '\x00CB';
+      let processedText = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+        codeBlocks.push({ lang: lang || '', code: code.replace(/\n$/, '') });
+        return CODE_PLACEHOLDER + (codeBlocks.length - 1) + CODE_PLACEHOLDER;
+      });
 
-      // Image URLs → collapsed image placeholders (click to load via event delegation).
+      // Step 2: Escape HTML for the non-code parts.
+      let safe = esc(processedText);
+
+      // Step 3: File URLs → inline players/file cards.
+      // Audio files
+      safe = safe.replace(
+        /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:mp3|ogg|wav)(?:\?[^\s<]*)?)/gi,
+        '<audio controls preload="none" src="$1"></audio>'
+      );
+      // Video files
+      safe = safe.replace(
+        /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:mp4|webm)(?:\?[^\s<]*)?)/gi,
+        '<video controls preload="none" src="$1" style="max-height:300px;"></video>'
+      );
+      // Document/archive files → file cards
+      safe = safe.replace(
+        /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(pdf|txt|md|json|zip|tar\.gz|gz)(?:\?[^\s<]*)?)/gi,
+        (match, url, ext) => {
+          const icon = ['zip','tar.gz','gz'].includes(ext.toLowerCase()) ? '📦' :
+                       ['mp3','ogg','wav'].includes(ext.toLowerCase()) ? '🎵' : '📄';
+          const fname = url.split('/').pop().split('?')[0];
+          return `<div class="file-card"><span class="file-icon">${icon}</span><div class="file-info"><div class="file-name">${esc(fname)}</div></div><a href="${url}" target="_blank" rel="noopener" class="file-download">Download</a></div>`;
+        }
+      );
+
+      // Image URLs → collapsed image placeholders.
       safe = safe.replace(
         /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:png|jpe?g|gif|webp)(?:\?[^\s<]*)?)/gi,
         '<span class="img-placeholder" data-img-url="$1">🖼️ Image (click to load)</span>'
       );
 
-      // Other URLs → clickable links (exclude javascript: protocol).
+      // Other URLs → clickable links.
       safe = safe.replace(
-        /(?<!["=])(https?:\/\/[^\s<]+)(?![^<]*<\/a>|[^<]*<\/span>)/g,
+        /(?<!["=])(https?:\/\/[^\s<]+)(?![^<]*<\/a>|[^<]*<\/span>|[^<]*<\/audio>|[^<]*<\/video>)/g,
         '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent)">$1</a>'
       );
 
-      // Markdown-like formatting (order matters: bold before italic).
-      // **bold**
+      // Step 4: Markdown formatting.
+      // __bold__ or **bold**
+      safe = safe.replace(/__(.+?)__/g, '<strong>$1</strong>');
       safe = safe.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      // *italic*
+      // *italic* or _italic_ (single, not inside words)
       safe = safe.replace(/\*(.+?)\*/g, '<em>$1</em>');
       // ~~strikethrough~~
       safe = safe.replace(/~~(.+?)~~/g, '<del>$1</del>');
-      // `inline code`
-      safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
+      // `inline code` (but not inside code blocks)
+      safe = safe.replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
       // @mentions — highlight usernames.
       safe = safe.replace(/@([A-Za-z0-9_-]+)/g, (match, name) => {
@@ -3031,17 +3558,16 @@ async function importIdentityFromJSON(jsonData) {
         return `<span class="${cls}">@${esc(name)}</span>`;
       });
 
-      // Group consecutive "> " lines into a single quote block.
+      // Step 5: Process line-level formatting (quotes, lists).
       const lines = safe.split('\n');
       let result = [];
       let quoteLines = [];
+      let listItems = [];
 
       function flushQuote() {
         if (quoteLines.length > 0) {
           const full = quoteLines.join('<br>');
           const plainLen = quoteLines.join(' ').length;
-
-          // Collapsible if quote is long (>120 chars or >2 lines).
           if (plainLen > 120 || quoteLines.length > 2) {
             const previewText = quoteLines[0].substring(0, 80) + (plainLen > 80 ? '…' : '');
             result.push(
@@ -3061,17 +3587,41 @@ async function importIdentityFromJSON(jsonData) {
         }
       }
 
+      function flushList() {
+        if (listItems.length > 0) {
+          result.push('<ul class="md-list">' + listItems.map(li => '<li>' + li + '</li>').join('') + '</ul>');
+          listItems = [];
+        }
+      }
+
       for (const line of lines) {
         if (line.startsWith('&gt; ')) {
-          quoteLines.push(line.substring(5)); // Strip the "&gt; " prefix.
+          flushList();
+          quoteLines.push(line.substring(5));
+        } else if (/^[-*] /.test(line)) {
+          flushQuote();
+          listItems.push(line.substring(2));
         } else {
           flushQuote();
+          flushList();
           result.push(line);
         }
       }
       flushQuote();
+      flushList();
 
-      return result.join('\n');
+      safe = result.join('\n');
+
+      // Step 6: Restore code blocks with styled rendering.
+      safe = safe.replace(new RegExp(CODE_PLACEHOLDER.replace(/\0/g, '\\0') + '(\\d+)' + CODE_PLACEHOLDER.replace(/\0/g, '\\0'), 'g'), (match, idx) => {
+        const block = codeBlocks[parseInt(idx)];
+        if (!block) return match;
+        const escapedCode = esc(block.code);
+        const langLabel = block.lang ? `<span class="code-lang">${esc(block.lang)}</span>` : '';
+        return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.textContent='✓ Copied';setTimeout(()=>this.textContent='📋 Copy',1500)">📋 Copy</button><pre><code>${escapedCode}</code></pre></div>`;
+      });
+
+      return safe;
     }
 
     /**
@@ -3598,6 +4148,29 @@ async function importIdentityFromJSON(jsonData) {
         return null;
       } finally {
         indicator.style.display = 'none';
+      }
+    }
+
+    // Handle file attachment (📎 button).
+    async function handleFileAttachment(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      event.target.value = ''; // Reset for re-selection
+
+      const url = await uploadImage(file); // Reuse existing upload function
+      if (url && ws && ws.readyState === WebSocket.OPEN) {
+        const timestamp = Date.now();
+        const content = url;
+        let signature = null;
+        if (myIdentity && myIdentity.canSign) {
+          signature = await signMessage(myIdentity.privateKey, content, timestamp);
+        }
+        const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp, channel: activeChannel };
+        if (signature) msg.signature = signature;
+        ws.send(JSON.stringify(msg));
+        const key = myKey + ':' + timestamp;
+        seenTimestamps.add(key);
+        addChatMessage(myName, content, timestamp, myKey, false, !!signature);
       }
     }
 
