@@ -2407,6 +2407,49 @@ async function generateKeypair() {
   return { publicKeyHex: bufToHex(rawPub), privateKey: keypair.privateKey, publicKey: keypair.publicKey, isNew: true };
 }
 
+async function requestPersistentStorage() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      const granted = await navigator.storage.persist();
+      console.log('Persistent storage:', granted ? 'granted' : 'denied');
+      return granted;
+    }
+  } catch (e) { console.warn('Persistent storage request failed:', e); }
+  return false;
+}
+
+/** Save key backup to localStorage as redundancy (IndexedDB can be evicted). */
+async function saveKeyBackupToLocalStorage(publicKeyHex, privateKey) {
+  try {
+    if (!privateKey) return;
+    const exported = await crypto.subtle.exportKey('pkcs8', privateKey);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(exported)));
+    localStorage.setItem('humanity_key_backup', JSON.stringify({ publicKeyHex, privateKeyPkcs8: b64 }));
+    console.log('Key backup saved to localStorage');
+  } catch (e) { console.warn('Key backup to localStorage failed:', e); }
+}
+
+/** Try to restore key from localStorage backup. */
+async function restoreKeyFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('humanity_key_backup');
+    if (!raw) return null;
+    const { publicKeyHex, privateKeyPkcs8 } = JSON.parse(raw);
+    if (!publicKeyHex || !privateKeyPkcs8) return null;
+    const pkcs8Buf = Uint8Array.from(atob(privateKeyPkcs8), c => c.charCodeAt(0));
+    const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', true, ['sign']);
+    const publicKey = await crypto.subtle.importKey('raw', hexToBuf(publicKeyHex), 'Ed25519', true, ['verify']);
+    console.log('Restored identity from localStorage backup:', publicKeyHex.substring(0, 16) + '…');
+    // Re-save to IndexedDB
+    try {
+      const db = await openKeyDB();
+      await storeKeypair(db, publicKeyHex, { privateKey, publicKey });
+      console.log('Re-saved restored key to IndexedDB');
+    } catch (e) { console.warn('Could not re-save to IndexedDB:', e); }
+    return { publicKeyHex, privateKey, publicKey, canSign: true, isNew: false, restored: true };
+  } catch (e) { console.warn('localStorage key restore failed:', e); return null; }
+}
+
 async function getOrCreateIdentity() {
   const hasEd25519 = await supportsEd25519();
   if (!hasEd25519) {
@@ -2420,14 +2463,27 @@ async function getOrCreateIdentity() {
     const stored = await loadKeypair(db);
     if (stored && stored.privateKey && stored.publicKeyHex) {
       console.log('Loaded existing identity:', stored.publicKeyHex.substring(0, 16) + '…');
+      // Ensure localStorage backup exists
+      saveKeyBackupToLocalStorage(stored.publicKeyHex, stored.privateKey);
       return { publicKeyHex: stored.publicKeyHex, privateKey: stored.privateKey, publicKey: stored.publicKey, canSign: true, isNew: false };
     }
+    // IndexedDB empty — try localStorage backup before generating new key
+    const restored = await restoreKeyFromLocalStorage();
+    if (restored) return restored;
+    // Generate new identity
     const kp = await generateKeypair();
     await storeKeypair(db, kp.publicKeyHex, kp);
+    // Request persistent storage for new identities
+    await requestPersistentStorage();
+    // Save backup to localStorage
+    await saveKeyBackupToLocalStorage(kp.publicKeyHex, kp.privateKey);
     console.log('Generated new identity:', kp.publicKeyHex.substring(0, 16) + '…');
     return { publicKeyHex: kp.publicKeyHex, privateKey: kp.privateKey, publicKey: kp.publicKey, canSign: true, isNew: true };
   } catch (e) {
     console.error('Identity setup failed:', e);
+    // Try localStorage backup as last resort
+    const restored = await restoreKeyFromLocalStorage();
+    if (restored) return restored;
     let key = localStorage.getItem('humanity_key');
     if (!key) { const bytes = new Uint8Array(32); crypto.getRandomValues(bytes); key = bufToHex(bytes); localStorage.setItem('humanity_key', key); }
     return { publicKeyHex: key, privateKey: null, publicKey: null, canSign: false };
@@ -2786,10 +2842,20 @@ async function importIdentityFromJSON(jsonData) {
         setTimeout(async () => {
           const ok = await downloadIdentityBackup(myName);
           if (ok) {
-            addNotice("⚠️ Save the downloaded file! It's the only way to recover your identity if you clear browser data.", 'yellow', 60);
+            addNotice("🔑 IMPORTANT: Your identity file was downloaded. This is your ONLY recovery method if browser data is cleared. Save it somewhere safe (cloud drive, USB, email to yourself). Without it, your identity is GONE forever.", 'red', 120);
           }
+          // Request persistent storage
+          requestPersistentStorage();
         }, 1500);
       }
+
+      // Notify if identity was restored from backup
+      if (myIdentity && myIdentity.restored) {
+        addNotice("🔑 Your identity was restored from a local backup. Your IndexedDB was cleared but we recovered your key. Please export a backup file for safety.", 'yellow', 30);
+      }
+
+      // Request persistent storage to prevent browser eviction of keys.
+      requestPersistentStorage();
 
       // Request notification permission once.
       requestNotifications();
