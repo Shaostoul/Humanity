@@ -1065,7 +1065,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     let users: Vec<UserInfo> = all_users
                         .into_iter()
                         .map(|(name, first_key, role, key_count)| {
-                            let online = online_names.contains(&name.to_lowercase());
+                            // Bot accounts (bot_ prefix keys) are always shown as online.
+                            let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
                             let (us, ust) = statuses_snap2.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
                             UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust }
                         })
@@ -3854,7 +3855,8 @@ async fn broadcast_full_user_list(state: &Arc<RelayState>) {
         let users: Vec<UserInfo> = all_users
             .into_iter()
             .map(|(name, first_key, role, key_count)| {
-                let online = online_names.contains(&name.to_lowercase());
+                // Bot accounts (bot_ prefix keys) are always shown as online.
+                let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
                 let (user_status, user_status_text) = statuses.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
                 UserInfo { name, public_key: first_key, role, online, key_count, status: user_status, status_text: user_status_text }
             })

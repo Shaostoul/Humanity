@@ -88,9 +88,9 @@ pub async fn send_message(
     // Authenticate.
     check_api_auth(&headers)?;
 
-    // Enforce message length limit (same 2000-char cap as WebSocket users).
-    if req.content.len() > 2000 {
-        return Err((StatusCode::BAD_REQUEST, format!("Message too long ({} chars, max 2000).", req.content.len())));
+    // Enforce message length limit (10000 for bot API, same as admin).
+    if req.content.len() > 10000 {
+        return Err((StatusCode::BAD_REQUEST, format!("Message too long ({} chars, max 10000).", req.content.len())));
     }
 
     let channel = if req.channel.is_empty() { "general".to_string() } else { req.channel };
@@ -104,6 +104,11 @@ pub async fn send_message(
     // This allows bots (e.g., Heron) to post to read-only channels like #todo.
 
     let bot_key = format!("bot_{}", req.from_name.to_lowercase().replace(' ', "_"));
+
+    // Ensure bot is registered in the DB (persistent across restarts).
+    if let Err(e) = state.db.register_name(&req.from_name, &bot_key) {
+        tracing::warn!("Failed to register bot name: {e}");
+    }
 
     // Ensure bot appears as a peer.
     {

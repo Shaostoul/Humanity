@@ -3142,8 +3142,9 @@ async function importIdentityFromJSON(jsonData) {
       }
       actions += '</div>';
 
-      const identiconSrc = (fromKey && !fromKey.startsWith('bot_')) ? generateIdenticon(fromKey, 20) : '';
-      const identiconHtml = identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '';
+      const isBotMsg = fromKey && fromKey.startsWith('bot_');
+      const identiconSrc = (!isBotMsg && fromKey) ? generateIdenticon(fromKey, 20) : '';
+      const identiconHtml = isBotMsg ? '<span class="identicon" style="font-size:16px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
 
       // Look up role for author badge.
       const peerRole = (peerData[fromKey] && peerData[fromKey].role) ? peerData[fromKey].role : '';
@@ -3362,7 +3363,7 @@ async function importIdentityFromJSON(jsonData) {
       function renderUser(u) {
         const isMe = u.name === myName;
         const isBot = u.public_key && u.public_key.startsWith('bot_');
-        const icon = isBot ? '<span style="font-size:14px">🪶</span>' : (u.public_key ? `<img src="${generateIdenticon(u.public_key, 16)}" class="identicon" style="width:14px;height:14px;">` : '');
+        const icon = isBot ? '<span class="bot-icon" title="AI Bot">🤖</span>' : (u.public_key ? `<img src="${generateIdenticon(u.public_key, 16)}" class="identicon" style="width:14px;height:14px;">` : '');
         const badge = isBot ? ' <span class="role-badge" title="AI">🤖</span>' : roleBadge(u.role);
         const escapedName = esc(u.name);
         const escapedKey = esc(u.public_key);
@@ -4802,10 +4803,12 @@ async function importIdentityFromJSON(jsonData) {
       let socials = {};
       try { socials = JSON.parse(socialsStr || '{}'); } catch {}
 
-      const identiconSrc = publicKey && !publicKey.startsWith('bot_')
+      const isBot = publicKey && publicKey.startsWith('bot_');
+      const identiconSrc = !isBot && publicKey
         ? generateIdenticon(publicKey, 64) : '';
-      const identiconHtml = identiconSrc
-        ? '<img src="' + identiconSrc + '" class="identicon-large" alt="">' : '';
+      const identiconHtml = isBot
+        ? '<span class="identicon-large" style="font-size:48px;line-height:64px;display:inline-block;width:64px;text-align:center;">🤖</span>'
+        : (identiconSrc ? '<img src="' + identiconSrc + '" class="identicon-large" alt="">' : '');
 
       // Look up role.
       const peerRole = (peerData[publicKey] && peerData[publicKey].role) ? peerData[publicKey].role : '';
@@ -5139,8 +5142,9 @@ async function importIdentityFromJSON(jsonData) {
       const time = formatTime(timestamp);
       const isMe = fromKey === myKey;
 
-      const identiconSrc = (fromKey && !fromKey.startsWith('bot_')) ? generateIdenticon(fromKey, 20) : '';
-      const identiconHtml = identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '';
+      const isBotMsg2 = fromKey && fromKey.startsWith('bot_');
+      const identiconSrc = (!isBotMsg2 && fromKey) ? generateIdenticon(fromKey, 20) : '';
+      const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:16px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
 
       el.innerHTML = `
         <div class="meta">
