@@ -4,6 +4,9 @@ members = [
     "crates/humanity-core",
     "crates/humanity-relay",
 ]
+exclude = [
+    "desktop/src-tauri",
+]
 
 # Future workspace members (uncomment when ready):
 # "crates/humanity-storage",
