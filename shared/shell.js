@@ -15,6 +15,7 @@
     const p = location.pathname;
     if (p === '/') active = 'home';
     else if (p.startsWith('/chat')) active = 'chat';
+    else if (p.startsWith('/board')) active = 'board';
     else if (p.startsWith('/reality')) active = 'reality';
     else if (p.startsWith('/fantasy')) active = 'fantasy';
     else if (p.startsWith('/streams')) active = 'streams';
@@ -190,6 +191,7 @@
     '<nav class="hub-nav">' +
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
       '<a href="/chat" class="' + cls('chat') + '">💬 Chat</a>' +
+      '<a href="/board" class="' + cls('board') + '">📋 Board</a>' +
       '<a href="/reality" class="' + cls('reality') + '">🟢 Reality</a>' +
       '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Fantasy</a>' +
       '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +

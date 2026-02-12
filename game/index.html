@@ -332,11 +332,47 @@
   <script src="/shared/shell.js"></script>
   <script src="/shared/settings.js"></script>
   <script>
+    document.querySelectorAll('.hub-nav .tab[href^="/board"]').forEach(el => el.setAttribute('data-tab', 'board'));
     document.querySelectorAll('.hub-nav .tab[href^="/reality"]').forEach(el => el.setAttribute('data-tab', 'reality'));
     document.querySelectorAll('.hub-nav .tab[href^="/fantasy"]').forEach(el => el.setAttribute('data-tab', 'fantasy'));
     document.querySelectorAll('.hub-nav .tab[href^="/streams"]').forEach(el => el.setAttribute('data-tab', 'streams'));
     document.querySelectorAll('.hub-nav .tab[href^="/debug"]').forEach(el => el.setAttribute('data-tab', 'debug'));
   </script>
+
+  <!-- Board Tab -->
+  <div id="tab-board" class="tab-content" style="padding:1rem;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">📋 Project Board</h2>
+      <button class="btn btn-clickable" id="board-create-btn" style="display:none;min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;" onclick="showCreateTaskModal()">+ New Task</button>
+    </div>
+    <div id="board-columns" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;min-height:300px;">
+      <div class="board-column" data-status="backlog">
+        <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--text-muted);padding:0.4rem 0.5rem;border-bottom:2px solid #555;margin-bottom:0.5rem;">📥 Backlog <span class="board-col-count" data-status="backlog">0</span></div>
+        <div class="board-col-cards" data-status="backlog"></div>
+      </div>
+      <div class="board-column" data-status="in_progress">
+        <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:#4488ff;padding:0.4rem 0.5rem;border-bottom:2px solid #4488ff;margin-bottom:0.5rem;">🔧 In Progress <span class="board-col-count" data-status="in_progress">0</span></div>
+        <div class="board-col-cards" data-status="in_progress"></div>
+      </div>
+      <div class="board-column" data-status="testing">
+        <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:#eb4;padding:0.4rem 0.5rem;border-bottom:2px solid #eb4;margin-bottom:0.5rem;">🧪 Testing <span class="board-col-count" data-status="testing">0</span></div>
+        <div class="board-col-cards" data-status="testing"></div>
+      </div>
+      <div class="board-column" data-status="done">
+        <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:#4a8;padding:0.4rem 0.5rem;border-bottom:2px solid #4a8;margin-bottom:0.5rem;">✅ Done <span class="board-col-count" data-status="done">0</span></div>
+        <div class="board-col-cards" data-status="done"></div>
+      </div>
+    </div>
+    <div id="board-loading" style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.85rem;">Loading tasks…</div>
+
+    <!-- Task Modal -->
+    <div id="task-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center;">
+      <div style="background:var(--bg-card,#1a1a1a);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative;">
+        <button onclick="closeTaskModal()" style="position:absolute;top:0.8rem;right:0.8rem;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">✕</button>
+        <div id="task-modal-content"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Reality Tab -->
   <div id="tab-reality" class="tab-content">
@@ -696,7 +732,7 @@
 
   <script>
     // ── Hub Tab System (SPA with pushState) ──
-    const HUB_TABS = ['reality', 'fantasy', 'streams', 'debug'];
+    const HUB_TABS = ['board', 'reality', 'fantasy', 'streams', 'debug'];
     let currentTab = 'reality';
 
     function getTabFromPath() {
@@ -720,7 +756,7 @@
       if (tabEl) tabEl.classList.add('active');
 
       // Update page title
-      const titles = { reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', debug: 'Debug' };
+      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', debug: 'Debug' };
       document.title = 'Humanity — ' + (titles[tabId] || 'Hub');
 
       // Update URL
@@ -1370,6 +1406,359 @@
         unlockAchievement('explorer');
       }
     };
+
+    // ══════════════════════════════════════
+    // PROJECT BOARD
+    // ══════════════════════════════════════
+
+    let boardTasks = [];
+    let boardWs = null;
+    let boardMyKey = null;
+    let boardMyRole = '';
+
+    const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
+    const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
+    const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
+
+    function boardConnect() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      boardWs = new WebSocket(proto + '//' + location.host + '/ws');
+      boardWs.onopen = () => {
+        // Try to identify with stored key
+        const storedKey = localStorage.getItem('humanity_key');
+        const storedName = localStorage.getItem('humanity_name');
+        if (storedKey) {
+          boardMyKey = storedKey;
+          boardWs.send(JSON.stringify({ type: 'identify', public_key: storedKey, display_name: storedName || null }));
+        } else {
+          // Generate ephemeral key for read-only
+          boardMyKey = 'viewer_' + Math.random().toString(36).slice(2, 10);
+          boardWs.send(JSON.stringify({ type: 'identify', public_key: boardMyKey, display_name: null }));
+        }
+      };
+      boardWs.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          handleBoardMessage(msg);
+        } catch {}
+      };
+      boardWs.onclose = () => { setTimeout(boardConnect, 3000); };
+      boardWs.onerror = () => {};
+    }
+
+    function handleBoardMessage(msg) {
+      switch (msg.type) {
+        case 'peer_list':
+          // Extract our role from peer list
+          if (msg.peers && boardMyKey) {
+            const me = msg.peers.find(p => p.public_key === boardMyKey);
+            if (me) boardMyRole = me.role || '';
+          }
+          updateBoardPermissions();
+          // Request task list
+          if (boardWs && boardWs.readyState === 1) {
+            boardWs.send(JSON.stringify({ type: 'task_list' }));
+          }
+          break;
+        case 'task_list_response':
+          boardTasks = msg.tasks || [];
+          renderBoard();
+          break;
+        case 'task_created':
+          if (msg.task) {
+            boardTasks.push(msg.task);
+            renderBoard();
+          }
+          break;
+        case 'task_updated':
+          if (msg.task) {
+            const idx = boardTasks.findIndex(t => t.id === msg.task.id);
+            if (idx >= 0) boardTasks[idx] = msg.task;
+            else boardTasks.push(msg.task);
+            renderBoard();
+          }
+          break;
+        case 'task_moved':
+          if (msg.id != null && msg.status) {
+            const t = boardTasks.find(t => t.id === msg.id);
+            if (t) t.status = msg.status;
+            renderBoard();
+          }
+          break;
+        case 'task_deleted':
+          if (msg.id != null) {
+            boardTasks = boardTasks.filter(t => t.id !== msg.id);
+            renderBoard();
+          }
+          break;
+        case 'task_comment_added':
+          if (msg.task_id != null) {
+            const t = boardTasks.find(t => t.id === msg.task_id);
+            if (t) t.comment_count = (t.comment_count || 0) + 1;
+            renderBoard();
+            // If modal is open for this task, append comment
+            const modalEl = document.getElementById('task-modal-content');
+            if (modalEl && modalEl.dataset.taskId == msg.task_id && msg.comment) {
+              const commentsDiv = document.getElementById('task-comments-list');
+              if (commentsDiv) {
+                commentsDiv.innerHTML += renderCommentHtml(msg.comment);
+              }
+            }
+          }
+          break;
+        case 'task_comments_response':
+          if (msg.task_id != null) {
+            const commentsDiv = document.getElementById('task-comments-list');
+            if (commentsDiv && commentsDiv.dataset.taskId == msg.task_id) {
+              commentsDiv.innerHTML = (msg.comments || []).map(renderCommentHtml).join('') || '<div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">No comments yet</div>';
+            }
+          }
+          break;
+      }
+    }
+
+    function updateBoardPermissions() {
+      const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+      const btn = document.getElementById('board-create-btn');
+      if (btn) btn.style.display = canEdit ? 'inline-flex' : 'none';
+    }
+
+    function renderBoard() {
+      document.getElementById('board-loading').style.display = 'none';
+      VALID_STATUSES.forEach(status => {
+        const container = document.querySelector('.board-col-cards[data-status="' + status + '"]');
+        const countEl = document.querySelector('.board-col-count[data-status="' + status + '"]');
+        if (!container) return;
+        const tasks = boardTasks.filter(t => t.status === status).sort((a, b) => a.position - b.position);
+        if (countEl) countEl.textContent = '(' + tasks.length + ')';
+        container.innerHTML = tasks.map(t => renderTaskCard(t)).join('');
+      });
+    }
+
+    function renderTaskCard(task) {
+      const pc = PRIORITY_COLORS[task.priority] || '#666';
+      const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
+      const labelHtml = labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.2rem;">' + escHtml(l) + '</span>').join('');
+      const assigneeHtml = task.assignee ? '<span style="font-size:0.7rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '';
+      const commentHtml = task.comment_count > 0 ? '<span style="font-size:0.7rem;color:var(--text-muted);">💬 ' + task.comment_count + '</span>' : '';
+      const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+      let moveHtml = '';
+      if (canEdit) {
+        const moves = VALID_STATUSES.filter(s => s !== task.status);
+        moveHtml = '<div style="display:flex;gap:0.2rem;margin-top:0.3rem;flex-wrap:wrap;" onclick="event.stopPropagation()">' +
+          moves.map(s => '<button onclick="boardMoveTask(' + task.id + ',\'' + s + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.3rem;border-radius:3px;cursor:pointer;" title="Move to ' + (STATUS_LABELS[s]||s) + '">→ ' + (STATUS_LABELS[s]||s).split(' ').pop() + '</button>').join('') +
+          '</div>';
+      }
+      return '<div onclick="openTaskModal(' + task.id + ')" style="background:var(--bg-panel,#141414);border:1px solid var(--border);border-left:3px solid ' + pc + ';border-radius:6px;padding:0.5rem 0.6rem;margin-bottom:0.4rem;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor=\'rgba(255,136,17,0.3)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.borderLeftColor=\'' + pc + '\'">' +
+        '<div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:0.3rem;">' + escHtml(task.title) + '</div>' +
+        '<div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">' +
+          '<span style="display:inline-block;background:' + pc + ';color:#fff;font-size:0.6rem;padding:0.05rem 0.35rem;border-radius:3px;font-weight:700;text-transform:uppercase;">' + task.priority + '</span>' +
+          labelHtml + assigneeHtml + commentHtml +
+        '</div>' +
+        moveHtml +
+      '</div>';
+    }
+
+    function boardMoveTask(id, status) {
+      if (boardWs && boardWs.readyState === 1) {
+        boardWs.send(JSON.stringify({ type: 'task_move', id: id, status: status }));
+      }
+    }
+
+    function openTaskModal(taskId) {
+      const task = boardTasks.find(t => t.id === taskId);
+      if (!task) return;
+      const modal = document.getElementById('task-modal');
+      const content = document.getElementById('task-modal-content');
+      content.dataset.taskId = taskId;
+      const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+      const canComment = canEdit || boardMyRole === 'verified' || boardMyRole === 'donor';
+      const pc = PRIORITY_COLORS[task.priority] || '#666';
+      const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
+      const created = new Date(task.created_at).toLocaleString();
+
+      let html = '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.1rem;">' + escHtml(task.title) + '</h3>' +
+        '<div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;">' +
+          '<span style="background:' + pc + ';color:#fff;font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;font-weight:700;text-transform:uppercase;">' + task.priority + '</span>' +
+          '<span style="font-size:0.75rem;color:var(--text-muted);">' + (STATUS_LABELS[task.status] || task.status) + '</span>' +
+          (task.assignee ? '<span style="font-size:0.75rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '') +
+          '<span style="font-size:0.7rem;color:var(--text-muted);">Created: ' + created + '</span>' +
+        '</div>';
+
+      if (labels.length) {
+        html += '<div style="margin-bottom:0.5rem;">' + labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.7rem;padding:0.1rem 0.5rem;border-radius:3px;margin-right:0.3rem;">' + escHtml(l) + '</span>').join('') + '</div>';
+      }
+
+      if (task.description) {
+        html += '<div style="background:var(--bg-input,#111);border-radius:6px;padding:0.6rem;margin-bottom:1rem;font-size:0.82rem;color:var(--text);line-height:1.6;white-space:pre-wrap;">' + escHtml(task.description) + '</div>';
+      }
+
+      if (canEdit) {
+        html += '<div style="display:flex;gap:0.4rem;margin-bottom:1rem;flex-wrap:wrap;">' +
+          '<button class="btn btn-clickable" style="min-width:auto;min-height:32px;padding:0.2rem 0.6rem;font-size:0.75rem;" onclick="showEditTaskForm(' + task.id + ')">✏️ Edit</button>' +
+          '<button class="btn" style="min-width:auto;min-height:32px;padding:0.2rem 0.6rem;font-size:0.75rem;box-shadow:inset 0 0 0 1px #e55;" onclick="boardDeleteTask(' + task.id + ')">🗑️ Delete</button>' +
+        '</div>';
+      }
+
+      html += '<h4 style="color:var(--text-muted);font-size:0.85rem;margin:1rem 0 0.5rem;border-top:1px solid var(--border);padding-top:0.8rem;">💬 Comments</h4>' +
+        '<div id="task-comments-list" data-task-id="' + taskId + '" style="margin-bottom:0.8rem;"><div style="color:var(--text-muted);font-size:0.8rem;">Loading…</div></div>';
+
+      if (canComment) {
+        html += '<div style="display:flex;gap:0.4rem;">' +
+          '<input type="text" id="task-comment-input" placeholder="Add a comment…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.82rem;outline:none;font-family:inherit;" onkeydown="if(event.key===\'Enter\')boardAddComment(' + taskId + ')">' +
+          '<button onclick="boardAddComment(' + taskId + ')" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Post</button>' +
+        '</div>';
+      }
+
+      content.innerHTML = html;
+      modal.style.display = 'flex';
+
+      // Request comments
+      if (boardWs && boardWs.readyState === 1) {
+        boardWs.send(JSON.stringify({ type: 'task_comments_request', task_id: taskId }));
+      }
+    }
+
+    function renderCommentHtml(c) {
+      const time = new Date(c.created_at).toLocaleString();
+      return '<div style="background:var(--bg-input,#111);border-radius:6px;padding:0.4rem 0.6rem;margin-bottom:0.3rem;">' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span style="font-size:0.75rem;font-weight:600;color:var(--accent);">' + escHtml(c.author_name) + '</span><span style="font-size:0.65rem;color:var(--text-muted);">' + time + '</span></div>' +
+        '<div style="font-size:0.8rem;color:var(--text);white-space:pre-wrap;">' + escHtml(c.content) + '</div>' +
+      '</div>';
+    }
+
+    function closeTaskModal() {
+      document.getElementById('task-modal').style.display = 'none';
+    }
+
+    function boardAddComment(taskId) {
+      const input = document.getElementById('task-comment-input');
+      if (!input || !input.value.trim()) return;
+      if (boardWs && boardWs.readyState === 1) {
+        boardWs.send(JSON.stringify({ type: 'task_comment', task_id: taskId, content: input.value.trim() }));
+        input.value = '';
+      }
+    }
+
+    function boardDeleteTask(id) {
+      if (!confirm('Delete this task?')) return;
+      if (boardWs && boardWs.readyState === 1) {
+        boardWs.send(JSON.stringify({ type: 'task_delete', id: id }));
+      }
+      closeTaskModal();
+    }
+
+    function showCreateTaskModal() {
+      const modal = document.getElementById('task-modal');
+      const content = document.getElementById('task-modal-content');
+      content.dataset.taskId = '';
+      content.innerHTML =
+        '<h3 style="color:var(--text);margin:0 0 1rem;font-size:1.1rem;">Create New Task</h3>' +
+        '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Title</label>' +
+        '<input type="text" id="new-task-title" maxlength="200" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.6rem;">' +
+        '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Description</label>' +
+        '<textarea id="new-task-desc" rows="4" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;margin-bottom:0.6rem;"></textarea>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem;">' +
+          '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Priority</label>' +
+            '<select id="new-task-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.82rem;font-family:inherit;"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>' +
+          '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Status</label>' +
+            '<select id="new-task-status" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.82rem;font-family:inherit;"><option value="backlog" selected>Backlog</option><option value="in_progress">In Progress</option><option value="testing">Testing</option><option value="done">Done</option></select></div>' +
+        '</div>' +
+        '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Assignee (optional)</label>' +
+        '<input type="text" id="new-task-assignee" maxlength="50" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.6rem;">' +
+        '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Labels (comma-separated)</label>' +
+        '<input type="text" id="new-task-labels" placeholder="bug, feature, urgent" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:1rem;">' +
+        '<button onclick="boardSubmitCreateTask()" style="background:var(--accent);color:#fff;border:none;padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Create Task</button>';
+      modal.style.display = 'flex';
+    }
+
+    function boardSubmitCreateTask() {
+      const title = document.getElementById('new-task-title').value.trim();
+      if (!title) return;
+      const labelsStr = document.getElementById('new-task-labels').value.trim();
+      const labels = labelsStr ? JSON.stringify(labelsStr.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
+      const assignee = document.getElementById('new-task-assignee').value.trim() || null;
+      if (boardWs && boardWs.readyState === 1) {
+        boardWs.send(JSON.stringify({
+          type: 'task_create',
+          title: title,
+          description: document.getElementById('new-task-desc').value,
+          priority: document.getElementById('new-task-priority').value,
+          status: document.getElementById('new-task-status').value,
+          assignee: assignee,
+          labels: labels,
+        }));
+      }
+      closeTaskModal();
+    }
+
+    function showEditTaskForm(taskId) {
+      const task = boardTasks.find(t => t.id === taskId);
+      if (!task) return;
+      const content = document.getElementById('task-modal-content');
+      const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
+      content.innerHTML =
+        '<h3 style="color:var(--text);margin:0 0 1rem;font-size:1.1rem;">Edit Task</h3>' +
+        '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Title</label>' +
+        '<input type="text" id="edit-task-title" maxlength="200" value="' + escHtml(task.title).replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.6rem;">' +
+        '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Description</label>' +
+        '<textarea id="edit-task-desc" rows="4" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;margin-bottom:0.6rem;">' + escHtml(task.description) + '</textarea>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem;">' +
+          '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Priority</label>' +
+            '<select id="edit-task-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.82rem;font-family:inherit;"><option value="low"' + (task.priority==='low'?' selected':'') + '>Low</option><option value="medium"' + (task.priority==='medium'?' selected':'') + '>Medium</option><option value="high"' + (task.priority==='high'?' selected':'') + '>High</option><option value="critical"' + (task.priority==='critical'?' selected':'') + '>Critical</option></select></div>' +
+          '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Assignee</label>' +
+            '<input type="text" id="edit-task-assignee" maxlength="50" value="' + escHtml(task.assignee||'').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.82rem;outline:none;font-family:inherit;"></div>' +
+        '</div>' +
+        '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Labels (comma-separated)</label>' +
+        '<input type="text" id="edit-task-labels" value="' + labels.join(', ').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:1rem;">' +
+        '<button onclick="boardSubmitEditTask(' + task.id + ')" style="background:var(--accent);color:#fff;border:none;padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Save Changes</button>';
+    }
+
+    function boardSubmitEditTask(id) {
+      const title = document.getElementById('edit-task-title').value.trim();
+      if (!title) return;
+      const labelsStr = document.getElementById('edit-task-labels').value.trim();
+      const labels = labelsStr ? JSON.stringify(labelsStr.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
+      const assignee = document.getElementById('edit-task-assignee').value.trim() || null;
+      if (boardWs && boardWs.readyState === 1) {
+        boardWs.send(JSON.stringify({
+          type: 'task_update',
+          id: id,
+          title: title,
+          description: document.getElementById('edit-task-desc').value,
+          priority: document.getElementById('edit-task-priority').value,
+          assignee: assignee,
+          labels: labels,
+        }));
+      }
+      closeTaskModal();
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('task-modal').addEventListener('click', function(e) {
+      if (e.target === this) closeTaskModal();
+    });
+
+    // Connect board WebSocket when tab switches to board
+    const origSwitchTab2 = switchTab;
+    switchTab = function(tabId, pushState) {
+      origSwitchTab2(tabId, pushState);
+      if (tabId === 'board' && (!boardWs || boardWs.readyState > 1)) {
+        boardConnect();
+      } else if (tabId === 'board' && boardWs && boardWs.readyState === 1) {
+        boardWs.send(JSON.stringify({ type: 'task_list' }));
+      }
+    };
+
+    // Auto-connect if initial tab is board
+    if (initialTab === 'board') boardConnect();
+
+    // Mobile responsive: stack columns on small screens
+    (function() {
+      const style = document.createElement('style');
+      style.textContent = '@media (max-width: 768px) { #board-columns { grid-template-columns: 1fr !important; } }';
+      document.head.appendChild(style);
+    })();
 
     // ── Auto-refresh on server update ──
     (function() {

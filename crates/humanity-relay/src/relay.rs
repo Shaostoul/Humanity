@@ -577,6 +577,150 @@ pub enum RelayMessage {
         channel: String,
         previews: Vec<LinkPreview>,
     },
+
+    // ── Project Board messages ──
+
+    /// Client requests the task list.
+    #[serde(rename = "task_list")]
+    TaskList {},
+
+    /// Server responds with the full task list.
+    #[serde(rename = "task_list_response")]
+    TaskListResponse {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        tasks: Vec<TaskData>,
+    },
+
+    /// Client creates a new task.
+    #[serde(rename = "task_create")]
+    TaskCreate {
+        title: String,
+        #[serde(default)]
+        description: String,
+        #[serde(default = "default_backlog")]
+        status: String,
+        #[serde(default = "default_medium")]
+        priority: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        assignee: Option<String>,
+        #[serde(default = "default_empty_labels")]
+        labels: String,
+    },
+
+    /// Server broadcasts a task was created.
+    #[serde(rename = "task_created")]
+    TaskCreated {
+        task: TaskData,
+    },
+
+    /// Client updates a task.
+    #[serde(rename = "task_update")]
+    TaskUpdate {
+        id: i64,
+        title: String,
+        #[serde(default)]
+        description: String,
+        #[serde(default = "default_medium")]
+        priority: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        assignee: Option<String>,
+        #[serde(default = "default_empty_labels")]
+        labels: String,
+    },
+
+    /// Server broadcasts a task was updated.
+    #[serde(rename = "task_updated")]
+    TaskUpdated {
+        task: TaskData,
+    },
+
+    /// Client moves a task to a new status.
+    #[serde(rename = "task_move")]
+    TaskMove {
+        id: i64,
+        status: String,
+    },
+
+    /// Server broadcasts a task was moved.
+    #[serde(rename = "task_moved")]
+    TaskMoved {
+        id: i64,
+        status: String,
+    },
+
+    /// Client deletes a task.
+    #[serde(rename = "task_delete")]
+    TaskDelete {
+        id: i64,
+    },
+
+    /// Server broadcasts a task was deleted.
+    #[serde(rename = "task_deleted")]
+    TaskDeleted {
+        id: i64,
+    },
+
+    /// Client adds a comment to a task.
+    #[serde(rename = "task_comment")]
+    TaskComment {
+        task_id: i64,
+        content: String,
+    },
+
+    /// Server broadcasts a new comment was added.
+    #[serde(rename = "task_comment_added")]
+    TaskCommentAdded {
+        task_id: i64,
+        comment: TaskCommentData,
+    },
+
+    /// Client requests comments for a task.
+    #[serde(rename = "task_comments_request")]
+    TaskCommentsRequest {
+        task_id: i64,
+    },
+
+    /// Server responds with comments for a task.
+    #[serde(rename = "task_comments_response")]
+    TaskCommentsResponse {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        task_id: i64,
+        comments: Vec<TaskCommentData>,
+    },
+}
+
+fn default_backlog() -> String { "backlog".to_string() }
+fn default_medium() -> String { "medium".to_string() }
+fn default_empty_labels() -> String { "[]".to_string() }
+
+/// Task data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskData {
+    pub id: i64,
+    pub title: String,
+    pub description: String,
+    pub status: String,
+    pub priority: String,
+    pub assignee: Option<String>,
+    pub created_by: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub position: i64,
+    pub labels: String,
+    pub comment_count: i64,
+}
+
+/// Task comment data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskCommentData {
+    pub id: i64,
+    pub task_id: i64,
+    pub author_key: String,
+    pub author_name: String,
+    pub content: String,
+    pub created_at: i64,
 }
 
 /// DM data sent to clients.
@@ -1127,6 +1271,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
             // SearchResults: only deliver to the target client.
             if let RelayMessage::SearchResults { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // TaskListResponse: only deliver to the target client.
+            if let RelayMessage::TaskListResponse { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // TaskCommentsResponse: only deliver to the target client.
+            if let RelayMessage::TaskCommentsResponse { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -3145,6 +3307,210 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     });
                                 }
                             }
+                            // ── Project Board: Task List ──
+                            RelayMessage::TaskList { } => {
+                                let tasks = build_task_list(&state_clone.db);
+                                let _ = state_clone.broadcast_tx.send(RelayMessage::TaskListResponse {
+                                    target: Some(my_key_for_recv.clone()),
+                                    tasks,
+                                });
+                            }
+                            // ── Project Board: Create Task ──
+                            RelayMessage::TaskCreate { title, description, status, priority, assignee, labels } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" && role != "mod" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins and mods can create tasks.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let valid_statuses = ["backlog", "in_progress", "testing", "done"];
+                                    let valid_priorities = ["low", "medium", "high", "critical"];
+                                    let s = if valid_statuses.contains(&status.as_str()) { &status } else { "backlog" };
+                                    let p = if valid_priorities.contains(&priority.as_str()) { &priority } else { "medium" };
+                                    if title.trim().is_empty() || title.len() > 200 {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Task title must be 1-200 characters.".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    } else if description.len() > 5000 {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Task description too long (max 5000 chars).".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    } else {
+                                        match state_clone.db.create_task(&title, &description, s, p, assignee.as_deref(), &my_key_for_recv, &labels) {
+                                            Ok(id) => {
+                                                if let Ok(Some(task)) = state_clone.db.get_task(id) {
+                                                    let td = TaskData {
+                                                        id: task.id, title: task.title, description: task.description,
+                                                        status: task.status, priority: task.priority, assignee: task.assignee,
+                                                        created_by: task.created_by, created_at: task.created_at,
+                                                        updated_at: task.updated_at, position: task.position, labels: task.labels,
+                                                        comment_count: 0,
+                                                    };
+                                                    let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
+                                                }
+                                            }
+                                            Err(e) => {
+                                                tracing::error!("Failed to create task: {e}");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            // ── Project Board: Update Task ──
+                            RelayMessage::TaskUpdate { id, title, description, priority, assignee, labels } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" && role != "mod" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins and mods can edit tasks.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let valid_priorities = ["low", "medium", "high", "critical"];
+                                    let p = if valid_priorities.contains(&priority.as_str()) { &priority } else { "medium" };
+                                    match state_clone.db.update_task(id, &title, &description, p, assignee.as_deref(), &labels) {
+                                        Ok(true) => {
+                                            if let Ok(Some(task)) = state_clone.db.get_task(id) {
+                                                let cc = state_clone.db.get_task_comment_counts().unwrap_or_default();
+                                                let td = TaskData {
+                                                    id: task.id, title: task.title, description: task.description,
+                                                    status: task.status, priority: task.priority, assignee: task.assignee,
+                                                    created_by: task.created_by, created_at: task.created_at,
+                                                    updated_at: task.updated_at, position: task.position, labels: task.labels,
+                                                    comment_count: *cc.get(&task.id).unwrap_or(&0),
+                                                };
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
+                                            }
+                                        }
+                                        Ok(false) => {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Task not found.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        Err(e) => tracing::error!("Task update error: {e}"),
+                                    }
+                                }
+                            }
+                            // ── Project Board: Move Task ──
+                            RelayMessage::TaskMove { id, status } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" && role != "mod" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins and mods can move tasks.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let valid_statuses = ["backlog", "in_progress", "testing", "done"];
+                                    if !valid_statuses.contains(&status.as_str()) {
+                                        continue;
+                                    }
+                                    match state_clone.db.move_task(id, &status) {
+                                        Ok(true) => {
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskMoved { id, status });
+                                        }
+                                        Ok(false) => {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Task not found.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        Err(e) => tracing::error!("Task move error: {e}"),
+                                    }
+                                }
+                            }
+                            // ── Project Board: Delete Task ──
+                            RelayMessage::TaskDelete { id } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" && role != "mod" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins and mods can delete tasks.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    match state_clone.db.delete_task(id) {
+                                        Ok(true) => {
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskDeleted { id });
+                                        }
+                                        Ok(false) => {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Task not found.".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        }
+                                        Err(e) => tracing::error!("Task delete error: {e}"),
+                                    }
+                                }
+                            }
+                            // ── Project Board: Add Comment ──
+                            RelayMessage::TaskComment { task_id, content } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let can_comment = role == "admin" || role == "mod" || role == "verified" || role == "donor";
+                                if !can_comment {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only verified users can comment on tasks.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else if content.trim().is_empty() || content.len() > 2000 {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Comment must be 1-2000 characters.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
+                                    let author_name = peer.as_ref()
+                                        .and_then(|p| p.display_name.clone())
+                                        .unwrap_or_else(|| "Anonymous".to_string());
+                                    match state_clone.db.add_task_comment(task_id, &my_key_for_recv, &author_name, &content) {
+                                        Ok(comment_id) => {
+                                            let now = std::time::SystemTime::now()
+                                                .duration_since(std::time::UNIX_EPOCH)
+                                                .unwrap_or_default()
+                                                .as_millis() as i64;
+                                            let comment = TaskCommentData {
+                                                id: comment_id,
+                                                task_id,
+                                                author_key: my_key_for_recv.clone(),
+                                                author_name,
+                                                content,
+                                                created_at: now,
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCommentAdded { task_id, comment });
+                                        }
+                                        Err(e) => tracing::error!("Task comment error: {e}"),
+                                    }
+                                }
+                            }
+                            // ── Project Board: Request Comments ──
+                            RelayMessage::TaskCommentsRequest { task_id } => {
+                                match state_clone.db.get_task_comments(task_id) {
+                                    Ok(records) => {
+                                        let comments: Vec<TaskCommentData> = records.into_iter().map(|r| TaskCommentData {
+                                            id: r.id, task_id: r.task_id, author_key: r.author_key,
+                                            author_name: r.author_name, content: r.content, created_at: r.created_at,
+                                        }).collect();
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCommentsResponse {
+                                            target: Some(my_key_for_recv.clone()),
+                                            task_id,
+                                            comments,
+                                        });
+                                    }
+                                    Err(e) => tracing::error!("Task comments load error: {e}"),
+                                }
+                            }
                             _ => {
                                 // Ignore other message types from clients.
                             }
@@ -3393,6 +3759,18 @@ fn broadcast_channel_list(state: &Arc<RelayState>) {
     let categories: Vec<CategoryInfo> = state.db.list_categories().unwrap_or_default().into_iter()
         .map(|(id, name, pos)| CategoryInfo { id, name, position: pos }).collect();
     let _ = state.broadcast_tx.send(RelayMessage::ChannelList { channels: infos, categories: Some(categories) });
+}
+
+/// Build the task list with comment counts (helper).
+fn build_task_list(db: &crate::storage::Storage) -> Vec<TaskData> {
+    let tasks = db.list_tasks().unwrap_or_default();
+    let counts = db.get_task_comment_counts().unwrap_or_default();
+    tasks.into_iter().map(|t| TaskData {
+        id: t.id, title: t.title, description: t.description, status: t.status,
+        priority: t.priority, assignee: t.assignee, created_by: t.created_by,
+        created_at: t.created_at, updated_at: t.updated_at, position: t.position,
+        labels: t.labels, comment_count: *counts.get(&t.id).unwrap_or(&0),
+    }).collect()
 }
 
 /// Build ChannelInfo list with category data from the database.

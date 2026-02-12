@@ -650,6 +650,111 @@ pub async fn get_pins(
     }
 }
 
+// ── Project Board API ──
+
+/// Query params for GET /api/tasks.
+#[derive(Debug, Deserialize)]
+pub struct TasksQuery {
+    pub status: Option<String>,
+}
+
+/// Response for GET /api/tasks.
+#[derive(Debug, Serialize)]
+pub struct TasksResponse {
+    pub tasks: Vec<TaskEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TaskEntry {
+    pub id: i64,
+    pub title: String,
+    pub description: String,
+    pub status: String,
+    pub priority: String,
+    pub assignee: Option<String>,
+    pub created_by: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub labels: String,
+    pub comment_count: i64,
+}
+
+/// Request body for POST /api/tasks.
+#[derive(Debug, Deserialize)]
+pub struct CreateTaskRequest {
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_backlog")]
+    pub status: String,
+    #[serde(default = "default_medium")]
+    pub priority: String,
+    pub assignee: Option<String>,
+    #[serde(default = "default_empty_labels")]
+    pub labels: String,
+}
+
+fn default_backlog() -> String { "backlog".to_string() }
+fn default_medium() -> String { "medium".to_string() }
+fn default_empty_labels() -> String { "[]".to_string() }
+
+/// GET /api/tasks — list all project board tasks.
+pub async fn get_tasks(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<TasksQuery>,
+) -> Json<TasksResponse> {
+    let tasks = state.db.list_tasks().unwrap_or_default();
+    let counts = state.db.get_task_comment_counts().unwrap_or_default();
+    let entries: Vec<TaskEntry> = tasks.into_iter()
+        .filter(|t| params.status.as_ref().map_or(true, |s| &t.status == s))
+        .map(|t| {
+            let cc = *counts.get(&t.id).unwrap_or(&0);
+            TaskEntry {
+                id: t.id, title: t.title, description: t.description,
+                status: t.status, priority: t.priority, assignee: t.assignee,
+                created_by: t.created_by, created_at: t.created_at,
+                updated_at: t.updated_at, labels: t.labels, comment_count: cc,
+            }
+        }).collect();
+    Json(TasksResponse { tasks: entries })
+}
+
+/// POST /api/tasks — create a task via bot API (requires API_SECRET auth).
+pub async fn create_task(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreateTaskRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+
+    if req.title.trim().is_empty() || req.title.len() > 200 {
+        return Err((StatusCode::BAD_REQUEST, "Title must be 1-200 characters.".into()));
+    }
+
+    let valid_statuses = ["backlog", "in_progress", "testing", "done"];
+    let valid_priorities = ["low", "medium", "high", "critical"];
+    let status = if valid_statuses.contains(&req.status.as_str()) { &req.status } else { "backlog" };
+    let priority = if valid_priorities.contains(&req.priority.as_str()) { &req.priority } else { "medium" };
+
+    match state.db.create_task(&req.title, &req.description, status, priority, req.assignee.as_deref(), "bot_api", &req.labels) {
+        Ok(id) => {
+            // Broadcast to WebSocket clients.
+            if let Ok(Some(task)) = state.db.get_task(id) {
+                let td = crate::relay::TaskData {
+                    id: task.id, title: task.title, description: task.description,
+                    status: task.status, priority: task.priority, assignee: task.assignee,
+                    created_by: task.created_by, created_at: task.created_at,
+                    updated_at: task.updated_at, position: task.position, labels: task.labels,
+                    comment_count: 0,
+                };
+                let _ = state.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
+            }
+            Ok(Json(serde_json::json!({ "id": id, "status": "created" })))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create task: {e}"))),
+    }
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,

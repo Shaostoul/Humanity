@@ -3361,15 +3361,17 @@ async function importIdentityFromJSON(jsonData) {
 
       function renderUser(u) {
         const isMe = u.name === myName;
-        const icon = u.public_key && !u.public_key.startsWith('bot_') ? `<img src="${generateIdenticon(u.public_key, 16)}" class="identicon" style="width:14px;height:14px;">` : '';
-        const badge = roleBadge(u.role);
+        const isBot = u.public_key && u.public_key.startsWith('bot_');
+        const icon = isBot ? '<span style="font-size:14px">🪶</span>' : (u.public_key ? `<img src="${generateIdenticon(u.public_key, 16)}" class="identicon" style="width:14px;height:14px;">` : '');
+        const badge = isBot ? ' <span class="role-badge" title="AI">🤖</span>' : roleBadge(u.role);
         const escapedName = esc(u.name);
         const escapedKey = esc(u.public_key);
-        const deviceCount = u.key_count > 1 ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
+        const deviceCount = (!isBot && u.key_count > 1) ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
         const blocked = isBlocked(u.name);
         const blockIndicator = blocked ? ' <span class="block-indicator" title="Blocked" style="font-size:0.65rem;">🚫</span>' : '';
         const dimStyle = u.online ? (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : '') : (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : ' style="opacity:0.5"');
-        return `<div class="peer${isMe ? ' is-you' : ''}" data-username="${escapedName}" data-pubkey="${escapedKey}"${dimStyle}>
+        const botClass = isBot ? ' is-bot' : '';
+        return `<div class="peer${isMe ? ' is-you' : ''}${botClass}" data-username="${escapedName}" data-pubkey="${escapedKey}"${dimStyle}>
           ${icon} ${escapedName}${badge}${isMe ? ' (you)' : ''}${deviceCount}${blockIndicator}
         </div>`;
       }
@@ -4525,23 +4527,34 @@ async function importIdentityFromJSON(jsonData) {
       e.stopPropagation();
       ctxMenuTarget = { name, publicKey };
 
+      const isBot = publicKey && publicKey.startsWith('bot_');
       let html = '';
-      html += `<div class="ctx-item" onclick="viewProfileFromCtx()">👤 View Profile</div>`;
-      html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
-      if (name !== myName) {
-        html += `<div class="ctx-item" onclick="dmFromCtx()">💬 Direct Message</div>`;
-        // Block/unblock toggle.
-        if (isBlocked(name)) {
-          html += `<div class="ctx-item" onclick="unblockFromCtx()">✅ Unblock</div>`;
-        } else {
-          html += `<div class="ctx-item" onclick="blockFromCtx()">🚫 Block</div>`;
-        }
-        html += `<div class="ctx-item" onclick="reportUser()">🚩 Report</div>`;
+      if (isBot) {
+        // Bot-specific context menu
+        html += `<div class="ctx-item" style="font-weight:bold;color:var(--accent);pointer-events:none">🤖 ${esc(name)}</div>`;
         html += '<div class="ctx-sep"></div>';
-        html += `<div class="ctx-item" onclick="ctxCommand('/kick')">👢 Kick</div>`;
-        html += `<div class="ctx-item" onclick="ctxCommand('/mute')">🔇 Mute</div>`;
-        html += `<div class="ctx-item" onclick="ctxCommand('/ban')">🚫 Ban</div>`;
-        html += `<div class="ctx-item" onclick="ctxCommand('/verify')">✦ Verify</div>`;
+        html += `<div class="ctx-item" onclick="botCommand('status')">📊 Status</div>`;
+        html += `<div class="ctx-item" onclick="botCommand('summary')">📝 Today's Summary</div>`;
+        html += `<div class="ctx-item" onclick="botCommand('tasks')">📋 Current Tasks</div>`;
+        html += `<div class="ctx-item" onclick="botCommand('help')">❓ Help</div>`;
+      } else {
+        html += `<div class="ctx-item" onclick="viewProfileFromCtx()">👤 View Profile</div>`;
+        html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
+        if (name !== myName) {
+          html += `<div class="ctx-item" onclick="dmFromCtx()">💬 Direct Message</div>`;
+          // Block/unblock toggle.
+          if (isBlocked(name)) {
+            html += `<div class="ctx-item" onclick="unblockFromCtx()">✅ Unblock</div>`;
+          } else {
+            html += `<div class="ctx-item" onclick="blockFromCtx()">🚫 Block</div>`;
+          }
+          html += `<div class="ctx-item" onclick="reportUser()">🚩 Report</div>`;
+          html += '<div class="ctx-sep"></div>';
+          html += `<div class="ctx-item" onclick="ctxCommand('/kick')">👢 Kick</div>`;
+          html += `<div class="ctx-item" onclick="ctxCommand('/mute')">🔇 Mute</div>`;
+          html += `<div class="ctx-item" onclick="ctxCommand('/ban')">🚫 Ban</div>`;
+          html += `<div class="ctx-item" onclick="ctxCommand('/verify')">✦ Verify</div>`;
+        }
       }
 
       ctxMenu.innerHTML = html;
@@ -4580,6 +4593,21 @@ async function importIdentityFromJSON(jsonData) {
         from: myKey,
         from_name: myName,
         content: msg,
+        timestamp: timestamp,
+        channel: activeChannel,
+      }));
+      hideContextMenu();
+    }
+
+    function botCommand(cmd) {
+      if (!ctxMenuTarget || !ws || ws.readyState !== WebSocket.OPEN) return;
+      const content = `@Heron /${cmd}`;
+      const timestamp = Date.now();
+      ws.send(JSON.stringify({
+        type: 'chat',
+        from: myKey,
+        from_name: myName,
+        content: content,
         timestamp: timestamp,
         channel: activeChannel,
       }));
