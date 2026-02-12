@@ -1,12 +1,13 @@
 const CACHE_NAME = 'humanity-v2';
 const SHELL_URLS = [
-  '/chat',
   '/shared/shell.js',
   '/shared/theme.css',
   '/shared/manifest.json',
   '/favicon.svg',
   '/favicon.png'
 ];
+
+// Don't pre-cache /chat — it changes frequently and should always be network-first.
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -25,8 +26,9 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Don't cache WebSocket or API
-  if (event.request.url.includes('/ws') || event.request.url.includes('/api/')) return;
+  // Never cache WebSocket, API, or the chat page itself
+  const url = event.request.url;
+  if (url.includes('/ws') || url.includes('/api/') || url.includes('/chat')) return;
 
   event.respondWith(
     fetch(event.request)

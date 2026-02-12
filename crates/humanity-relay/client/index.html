@@ -3032,13 +3032,21 @@ async function importIdentityFromJSON(jsonData) {
           updateInputForChannel();
           break;
         case 'peer_list':
-          // Auto-reload on server update: if server_version changed, refresh for new code.
+          // Auto-reload on server update: if server_version changed, unregister SW and refresh.
           if (msg.server_version) {
             if (!window._serverVersion) {
               window._serverVersion = msg.server_version;
             } else if (window._serverVersion !== msg.server_version) {
-              console.log('Server updated, reloading for new version…');
-              location.reload();
+              console.log('Server updated, clearing SW cache and reloading…');
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(regs => {
+                  regs.forEach(r => r.unregister());
+                  if ('caches' in window) caches.keys().then(ks => ks.forEach(k => caches.delete(k)));
+                  setTimeout(() => location.reload(), 200);
+                }).catch(() => location.reload());
+              } else {
+                location.reload();
+              }
               return;
             }
           }
