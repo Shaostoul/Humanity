@@ -2540,8 +2540,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             // Edit own message — validate and broadcast.
                             RelayMessage::Edit { timestamp, new_content, channel: edit_channel, .. } => {
-                                // Validate: content not empty, <= 2000 chars.
-                                let edit_char_limit: usize = if user_role == "admin" { 10_000 } else { 2_000 };
+                                let edit_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let edit_char_limit: usize = if edit_role == "admin" { 10_000 } else { 2_000 };
                                 if new_content.is_empty() || new_content.len() > edit_char_limit {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
@@ -2798,7 +2798,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 if content.is_empty() {
                                     continue;
                                 }
-                                let dm_char_limit: usize = if user_role == "admin" { 10_000 } else { 2_000 };
+                                let dm_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let dm_char_limit: usize = if dm_role == "admin" { 10_000 } else { 2_000 };
                                 if content.len() > dm_char_limit {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
