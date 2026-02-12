@@ -3,6 +3,10 @@
   "description": "Default capabilities for the Humanity desktop app",
   "windows": ["main"],
   "permissions": [
-    "core:default"
-  ]
+    "core:default",
+    "core:window:allow-set-title"
+  ],
+  "remote": {
+    "urls": ["https://united-humanity.us/*", "https://*.united-humanity.us/*"]
+  }
 }

@@ -1,5 +1,4 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/main/nicegui/json_schemas/tauri.v2.schema.json",
   "productName": "Humanity",
   "version": "0.1.0",
   "identifier": "us.united-humanity.app",
@@ -13,14 +12,11 @@
         "width": 1200,
         "height": 800,
         "minWidth": 400,
-        "minHeight": 300,
-        "url": "https://united-humanity.us"
+        "minHeight": 300
       }
     ],
     "security": {
-      "dangerousRemoteContent": {
-        "allowSchemes": ["https"]
-      }
+      "csp": "default-src 'self' https://united-humanity.us https://*.united-humanity.us; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://united-humanity.us https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://united-humanity.us; connect-src 'self' https://united-humanity.us wss://united-humanity.us https://cdn.jsdelivr.net; img-src 'self' https://united-humanity.us https://cdn.jsdelivr.net data: blob:; media-src 'self' blob:; font-src 'self' data:;"
     }
   },
   "bundle": {
