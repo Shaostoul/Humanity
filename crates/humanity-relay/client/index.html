@@ -3869,7 +3869,7 @@ async function importIdentityFromJSON(jsonData) {
       saveBtn.onclick = (e) => {
         e.stopPropagation();
         const newContent = textarea.value.trim();
-        if (!newContent || newContent.length > 2000) return;
+        if (!newContent || newContent.length > getMaxMsgLength()) return;
         // Send edit via WebSocket.
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({

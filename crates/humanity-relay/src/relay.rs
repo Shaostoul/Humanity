@@ -1979,8 +1979,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             } else if target_name.eq_ignore_ascii_case(&display) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "You can't DM yourself.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
-                                            } else if dm_content.len() > 2000 {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "DM too long (max 2000 chars).".to_string() };
+                                            } else if dm_content.len() > if user_role == "admin" { 10_000 } else { 2_000 } {
+                                                let limit = if user_role == "admin" { 10_000 } else { 2_000 };
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("DM too long (max {} chars).", limit) };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
                                                 match state_clone.db.keys_for_name(&target_name) {
@@ -2140,8 +2141,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             if new_content.is_empty() {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /edit <new message text>".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
-                                            } else if new_content.len() > 2000 {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Message too long (max 2000 chars).".to_string() };
+                                            } else if new_content.len() > if user_role == "admin" { 10_000 } else { 2_000 } {
+                                                let limit = if user_role == "admin" { 10_000 } else { 2_000 };
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: format!("Message too long (max {} chars).", limit) };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
                                                 // Find user's last message in this channel.
@@ -2539,10 +2541,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             // Edit own message — validate and broadcast.
                             RelayMessage::Edit { timestamp, new_content, channel: edit_channel, .. } => {
                                 // Validate: content not empty, <= 2000 chars.
-                                if new_content.is_empty() || new_content.len() > 2000 {
+                                let edit_char_limit: usize = if user_role == "admin" { 10_000 } else { 2_000 };
+                                if new_content.is_empty() || new_content.len() > edit_char_limit {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
-                                        message: "Edit failed: message must be 1-2000 characters.".to_string(),
+                                        message: format!("Edit failed: message must be 1-{} characters.", edit_char_limit),
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                 } else {
@@ -2795,10 +2798,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 if content.is_empty() {
                                     continue;
                                 }
-                                if content.len() > 2000 {
+                                let dm_char_limit: usize = if user_role == "admin" { 10_000 } else { 2_000 };
+                                if content.len() > dm_char_limit {
                                     let private = RelayMessage::Private {
                                         to: my_key_for_recv.clone(),
-                                        message: "DM too long (max 2000 chars).".to_string(),
+                                        message: format!("DM too long (max {} chars).", dm_char_limit),
                                     };
                                     let _ = state_clone.broadcast_tx.send(private);
                                     continue;
