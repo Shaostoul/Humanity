@@ -5833,8 +5833,10 @@ async function importIdentityFromJSON(jsonData) {
     const rtcConfig = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+      ],
     };
 
     // ── Voice Channels (Persistent, SQLite-backed) ──
@@ -5916,9 +5918,25 @@ async function importIdentityFromJSON(jsonData) {
         const audio = document.createElement('audio');
         audio.srcObject = event.streams[0];
         audio.autoplay = true;
+        audio.playsInline = true;
         audio.className = 'room-remote-audio';
         audio.dataset.peerKey = peerKey;
         document.body.appendChild(audio);
+        // Mobile browsers block autoplay — explicitly play with user gesture fallback
+        const playPromise = audio.play();
+        if (playPromise) {
+          playPromise.catch(() => {
+            console.warn('Autoplay blocked for peer', peerKey, '— waiting for user interaction');
+            const resumeAudio = () => {
+              audio.play().catch(() => {});
+              document.removeEventListener('click', resumeAudio);
+              document.removeEventListener('touchstart', resumeAudio);
+            };
+            document.addEventListener('click', resumeAudio, { once: true });
+            document.addEventListener('touchstart', resumeAudio, { once: true });
+            addSystemMessage('⚠️ Tap anywhere to unmute incoming audio (browser autoplay restriction).');
+          });
+        }
       };
 
       pc.onicecandidate = (event) => {
@@ -5935,12 +5953,29 @@ async function importIdentityFromJSON(jsonData) {
       };
 
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        console.log(`Voice peer ${peerKey.substring(0,8)}: ${pc.connectionState}`);
+        if (pc.connectionState === 'connected') {
+          addSystemMessage(`🔊 Voice connected to peer`);
+        } else if (pc.connectionState === 'failed') {
+          addSystemMessage(`⚠️ Voice connection failed — may need TURN server for NAT traversal`);
           pc.close();
           delete window._roomPeerConnections[peerKey];
           const audioEl = document.querySelector(`.room-remote-audio[data-peer-key="${peerKey}"]`);
           if (audioEl) audioEl.remove();
+        } else if (pc.connectionState === 'disconnected') {
+          // Give it a moment — might recover
+          setTimeout(() => {
+            if (pc.connectionState === 'disconnected') {
+              pc.close();
+              delete window._roomPeerConnections[peerKey];
+              const audioEl = document.querySelector(`.room-remote-audio[data-peer-key="${peerKey}"]`);
+              if (audioEl) audioEl.remove();
+            }
+          }, 5000);
         }
+      };
+      pc.onicegatheringstatechange = () => {
+        console.log(`Voice ICE gathering: ${pc.iceGatheringState}`);
       };
 
       if (isCaller) {
@@ -6431,11 +6466,19 @@ async function importIdentityFromJSON(jsonData) {
         const audio = new Audio();
         audio.srcObject = event.streams[0];
         audio.autoplay = true;
+        audio.playsInline = true;
         audio.id = 'remote-audio';
         // Remove old one if any
         const old = document.getElementById('remote-audio');
         if (old) old.remove();
         document.body.appendChild(audio);
+        const pp = audio.play();
+        if (pp) pp.catch(() => {
+          addSystemMessage('⚠️ Tap anywhere to hear incoming audio.');
+          const resume = () => { audio.play().catch(()=>{}); document.removeEventListener('click', resume); document.removeEventListener('touchstart', resume); };
+          document.addEventListener('click', resume, { once: true });
+          document.addEventListener('touchstart', resume, { once: true });
+        });
       };
 
       // ICE candidates → send to peer
