@@ -56,6 +56,8 @@ pub struct Peer {
     pub display_name: Option<String>,
     /// Per-session upload token (M-4: prevents impersonation on uploads).
     pub upload_token: Option<String>,
+    /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+    pub ecdh_public: Option<String>,
 }
 
 /// Maximum message history to keep in memory.
@@ -276,6 +278,9 @@ pub enum RelayMessage {
         /// Required for bot_* keys: must match API_SECRET (L-1).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         bot_secret: Option<String>,
+        /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        ecdh_public: Option<String>,
     },
 
     /// A chat message, optionally Ed25519-signed.
@@ -412,6 +417,12 @@ pub enum RelayMessage {
         to: String,
         content: String,
         timestamp: u64,
+        /// Whether this DM is end-to-end encrypted.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        encrypted: bool,
+        /// Base64-encoded nonce/IV for encrypted DMs.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        nonce: Option<String>,
     },
 
     /// Client requests to open a DM conversation (load history).
@@ -737,6 +748,36 @@ pub enum RelayMessage {
         action: String, // "follow" | "unfollow"
     },
 
+    // ── Friend Code System ──
+
+    /// Client requests a friend code.
+    #[serde(rename = "friend_code_request")]
+    FriendCodeRequest {},
+
+    /// Server responds with a generated friend code.
+    #[serde(rename = "friend_code_response")]
+    FriendCodeResponse {
+        code: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+    },
+
+    /// Client redeems a friend code.
+    #[serde(rename = "friend_code_redeem")]
+    FriendCodeRedeem {
+        code: String,
+    },
+
+    /// Server responds with friend code redemption result.
+    #[serde(rename = "friend_code_result")]
+    FriendCodeResult {
+        success: bool,
+        name: Option<String>,
+        message: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+    },
+
     // ── Group System ──
 
     // ── Marketplace messages ──
@@ -911,6 +952,12 @@ pub struct DmData {
     pub to: String,
     pub content: String,
     pub timestamp: u64,
+    /// Whether this DM is end-to-end encrypted.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub encrypted: bool,
+    /// Base64-encoded nonce/IV for encrypted DMs.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub nonce: Option<String>,
 }
 
 /// DM conversation summary sent to clients.
@@ -999,6 +1046,9 @@ pub struct PeerInfo {
     /// Custom status text.
     #[serde(default)]
     pub status_text: String,
+    /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub ecdh_public: Option<String>,
 }
 
 fn default_online() -> String { "online".to_string() }
@@ -1069,6 +1119,9 @@ pub struct UserInfo {
     pub status: String,
     #[serde(default)]
     pub status_text: String,
+    /// ECDH P-256 public key (base64 raw) for E2E encrypted DMs.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub ecdh_public: Option<String>,
 }
 
 /// RAII guard that decrements the connection counter when dropped.
@@ -1595,6 +1648,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
             }
 
+            // FriendCodeResponse: only deliver to the target client.
+            if let RelayMessage::FriendCodeResponse { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // FriendCodeResult: only deliver to the target client.
+            if let RelayMessage::FriendCodeResult { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // ListingList: only deliver to the target client.
             if let RelayMessage::ListingList { ref target, .. } = msg {
                 match target {
@@ -1834,6 +1905,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 "  /dms — List your DM conversations".to_string(),
                                                 "  /edit <text> — Edit your last message".to_string(),
                                                 "  /pins — List pinned messages".to_string(),
+                                                "  /friend-code — Generate a friend code to share outside the platform".to_string(),
+                                                "  /redeem <code> — Redeem a friend code (auto-mutual-follow)".to_string(),
                                                 "  /server-list — List federated servers".to_string(),
                                             ];
                                             if role == "admin" || role == "mod" {
@@ -3963,6 +4036,95 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         let _ = state_clone.broadcast_tx.send(private);
                                     }
                                     Err(e) => tracing::error!("Unfollow error: {e}"),
+                                }
+                            }
+
+                            // ── Friend Codes ──
+                            RelayMessage::FriendCodeRequest {} => {
+                                let now_ms = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_millis() as u64;
+                                let expires = now_ms + 24 * 60 * 60 * 1000; // 24 hours
+                                match state_clone.db.create_friend_code(&my_key_for_recv, expires, 1) {
+                                    Ok(code) => {
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResponse {
+                                            code,
+                                            target: Some(my_key_for_recv.clone()),
+                                        });
+                                    }
+                                    Err(e) => {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: format!("❌ {e}"),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                }
+                            }
+                            RelayMessage::FriendCodeRedeem { code } => {
+                                match state_clone.db.redeem_friend_code(&code) {
+                                    Ok(Some((owner_key, owner_name))) => {
+                                        if owner_key == my_key_for_recv {
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
+                                                success: false,
+                                                name: None,
+                                                message: "You can't redeem your own friend code.".to_string(),
+                                                target: Some(my_key_for_recv.clone()),
+                                            });
+                                            continue;
+                                        }
+                                        let my_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten().unwrap_or_else(|| "Someone".to_string());
+                                        let oname = owner_name.clone().unwrap_or_else(|| "Unknown".to_string());
+
+                                        // Auto-mutual-follow: both directions.
+                                        let _ = state_clone.db.add_follow(&my_key_for_recv, &owner_key);
+                                        let _ = state_clone.db.add_follow(&owner_key, &my_key_for_recv);
+
+                                        // Broadcast follow updates.
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FollowUpdate {
+                                            follower_key: my_key_for_recv.clone(),
+                                            followed_key: owner_key.clone(),
+                                            action: "follow".to_string(),
+                                        });
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FollowUpdate {
+                                            follower_key: owner_key.clone(),
+                                            followed_key: my_key_for_recv.clone(),
+                                            action: "follow".to_string(),
+                                        });
+
+                                        // Notify redeemer.
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
+                                            success: true,
+                                            name: owner_name.clone(),
+                                            message: format!("🎉 You are now friends with {oname}!"),
+                                            target: Some(my_key_for_recv.clone()),
+                                        });
+
+                                        // Notify the code owner if online.
+                                        let private = RelayMessage::Private {
+                                            to: owner_key.clone(),
+                                            message: format!("🎉 {my_name} redeemed your friend code! You are now friends."),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                    Ok(None) => {
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
+                                            success: false,
+                                            name: None,
+                                            message: "Invalid or expired friend code.".to_string(),
+                                            target: Some(my_key_for_recv.clone()),
+                                        });
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Friend code redeem error: {e}");
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
+                                            success: false,
+                                            name: None,
+                                            message: "Server error while redeeming code.".to_string(),
+                                            target: Some(my_key_for_recv.clone()),
+                                        });
+                                    }
                                 }
                             }
 

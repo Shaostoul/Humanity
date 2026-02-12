@@ -2325,6 +2325,8 @@
       <h4>👥 Social</h4>
       <div class="cmd"><code>/follow &lt;name&gt;</code> — Follow a user (mutual follow = friends, unlocks DMs)</div>
       <div class="cmd"><code>/unfollow &lt;name&gt;</code> — Unfollow a user</div>
+      <div class="cmd"><code>/friend-code</code> — Generate a friend code to share outside the platform</div>
+      <div class="cmd"><code>/redeem &lt;code&gt;</code> — Redeem a friend code (auto-adds as friends)</div>
 
       <h4>👥 Groups</h4>
       <div class="cmd"><code>/group-create &lt;name&gt;</code> — Create a new group chat</div>
@@ -7676,6 +7678,8 @@ async function importIdentityFromJSON(jsonData) {
         { icon: '🚷', label: 'Block User', desc: '/block', cmd: '/block ', prefill: true },
         { icon: '✅', label: 'Unblock User', desc: '/unblock', cmd: '/unblock ', prefill: true },
         { icon: '📋', label: 'Block List', desc: 'View blocks', cmd: '/blocklist' },
+        { icon: '🎟️', label: 'Share Friend Code', desc: 'Generate code', action: function(){ sendFriendCodeRequest(); } },
+        { icon: '🔓', label: 'Redeem Friend Code', desc: '/redeem', cmd: '/redeem ', prefill: true },
       ]},
       { name: '💬 Messaging', items: [
         { icon: '📩', label: 'Direct Message', desc: '/dm', cmd: '/dm ', prefill: true },

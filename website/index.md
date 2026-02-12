@@ -60,10 +60,11 @@ A fully operational communication platform and personal hub. No account needed �
 - **Security hardened** — rate limiting, upload validation, CSP headers, TLS 1.2+
 - **Moderation tools** — admin/mod roles, lockdown, invite codes
 
-### Federation
+### Federation & Self-Hosting
 - **Server federation Phase 1** — server discovery, trust tiers, anyone can host a server
+- Single binary, zero dependencies, under 10 minutes to set up
 - Verified servers that adopt the [Humanity Accord](accord) earn the highest trust tier
-- [Learn more →](https://github.com/Shaostoul/Humanity/blob/main/design/network/server_federation.md)
+- [Self-hosting guide →](https://github.com/Shaostoul/Humanity/blob/main/SELF-HOSTING.md) · [Federation spec →](https://github.com/Shaostoul/Humanity/blob/main/design/network/server_federation.md)
 
 ---
 

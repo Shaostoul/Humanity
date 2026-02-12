@@ -98,9 +98,13 @@ A free game teaching practical skills — homesteading, agriculture, building, h
 
 Anyone can run a Humanity Network server. No permission needed.
 
-1. Build the relay: `cargo build --release -p humanity-relay`
-2. Put it behind nginx with TLS (Let's Encrypt is free)
-3. Share your URL — people connect with their existing keypair
+1. Clone: `git clone https://github.com/Shaostoul/Humanity.git`
+2. Build: `cargo build --release -p humanity-relay`
+3. Run: `./target/release/humanity-relay`
+4. Put it behind nginx with TLS (Let's Encrypt is free)
+5. Share your URL — people connect with their existing keypair
+
+→ **[Full self-hosting guide](SELF-HOSTING.md)** — production setup, nginx config, systemd, federation, admin commands
 
 Want verified status? Contact [@Shaostoul on X](https://x.com/Shaostoul). Publicly adopt the [Humanity Accord](accord/humanity_accord.md) for highest trust tier.
 

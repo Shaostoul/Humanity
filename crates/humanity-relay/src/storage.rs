@@ -422,6 +422,20 @@ impl Storage {
                 ON group_messages(group_id, timestamp);"
         )?;
 
+        // Friend codes table (out-of-band friend discovery).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS friend_codes (
+                code TEXT PRIMARY KEY,
+                public_key TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                uses_remaining INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_friend_codes_key
+                ON friend_codes(public_key);"
+        )?;
+
         // Marketplace listings table.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS marketplace_listings (
@@ -2813,6 +2827,92 @@ impl Storage {
         })?.filter_map(|r| r.ok()).collect();
         messages.reverse();
         Ok(messages)
+    }
+}
+
+    // ── Friend Code System ──
+
+    /// Characters for friend codes (no 0/O/1/I/l confusion).
+    const FRIEND_CODE_CHARS: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+    /// Create a friend code for a user. Returns the code string.
+    /// Rate limited to max 5 active codes per user.
+    pub fn create_friend_code(&self, public_key: &str, expires_at: u64, max_uses: i32) -> Result<String, String> {
+        let conn = self.conn.lock().unwrap();
+        let now = now_millis();
+
+        // Clean up expired codes first.
+        let _ = conn.execute("DELETE FROM friend_codes WHERE expires_at < ?1", params![now as i64]);
+
+        // Check rate limit: max 5 active codes per user.
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM friend_codes WHERE public_key = ?1",
+            params![public_key],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        if count >= 5 {
+            return Err("You already have 5 active friend codes. Wait for them to expire.".to_string());
+        }
+
+        // Generate 8-char code from safe alphabet.
+        let mut code = String::with_capacity(8);
+        let chars = Self::FRIEND_CODE_CHARS;
+        for _ in 0..8 {
+            let idx: usize = rand::rng().random::<usize>() % chars.len();
+            code.push(chars[idx] as char);
+        }
+
+        conn.execute(
+            "INSERT INTO friend_codes (code, public_key, created_at, expires_at, uses_remaining) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![code, public_key, now as i64, expires_at as i64, max_uses],
+        ).map_err(|e| format!("DB error: {e}"))?;
+
+        Ok(code)
+    }
+
+    /// Redeem a friend code. Returns Ok(Some((owner_public_key, owner_name))) on success.
+    pub fn redeem_friend_code(&self, code: &str) -> Result<Option<(String, Option<String>)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = now_millis() as i64;
+
+        // Look up the code (case-insensitive).
+        let result = conn.query_row(
+            "SELECT public_key, uses_remaining FROM friend_codes WHERE code = ?1 COLLATE NOCASE AND expires_at > ?2",
+            params![code, now],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
+        );
+
+        match result {
+            Ok((owner_key, uses)) => {
+                if uses <= 1 {
+                    conn.execute("DELETE FROM friend_codes WHERE code = ?1 COLLATE NOCASE", params![code])?;
+                } else {
+                    conn.execute(
+                        "UPDATE friend_codes SET uses_remaining = uses_remaining - 1 WHERE code = ?1 COLLATE NOCASE",
+                        params![code],
+                    )?;
+                }
+
+                // Look up owner's name.
+                let owner_name: Option<String> = conn.query_row(
+                    "SELECT name FROM registered_names WHERE public_key = ?1 LIMIT 1",
+                    params![owner_key],
+                    |row| row.get(0),
+                ).ok();
+
+                Ok(Some((owner_key, owner_name)))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Clean up expired friend codes.
+    pub fn cleanup_expired_friend_codes(&self) -> Result<usize, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = now_millis() as i64;
+        let rows = conn.execute("DELETE FROM friend_codes WHERE expires_at < ?1", params![now])?;
+        Ok(rows)
     }
 }
 
