@@ -5273,12 +5273,35 @@ async function importIdentityFromJSON(jsonData) {
           return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${esc(ch.name)}${lock}</div>`;
         }).join('');
 
+        // Voice rooms section
+        let voiceHtml = '<div class="voice-rooms-section"><h4>🔊 Voice Channels</h4>';
+        if (window._voiceRooms && window._voiceRooms.length > 0) {
+          for (const room of window._voiceRooms) {
+            const inRoom = room.participants.some(p => p.key === myKey);
+            voiceHtml += `<div class="voice-room-item${inRoom ? ' in-room' : ''}" data-room-id="${esc(room.id)}">
+              <div class="vr-name">🔊 ${esc(room.name)} <span class="vr-count">(${room.participants.length})</span></div>
+              <div class="vr-participants">${room.participants.map(p => `<div class="vr-participant">${esc(p.name)}</div>`).join('')}</div>
+              <div style="margin-top:0.2rem;">${inRoom
+                ? '<button class="vr-btn vr-leave" onclick="leaveVoiceRoom()">Leave</button>'
+                : `<button class="vr-btn vr-join" onclick="joinVoiceRoom('${esc(room.id)}')">Join</button>`
+              }</div>
+            </div>`;
+          }
+        } else {
+          voiceHtml += '<div style="font-size:0.7rem;color:var(--text-muted);padding:0.2rem 0;">No active voice channels</div>';
+        }
+        const myRole2 = (window.myPeerRole || '').toLowerCase();
+        if (myRole2 === 'admin' || myRole2 === 'mod') {
+          voiceHtml += `<button class="vr-btn" onclick="createVoiceRoom()" style="margin-top:0.3rem;width:100%;">+ Create Voice Channel</button>`;
+        }
+        voiceHtml += '</div>';
+
         let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
           <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
             <span class="collapse-arrow">▼</span>
             <span>🟢 🅷 Humanity</span>
           </div>
-          <div class="server-group-channels">${channelsHtml}</div>
+          <div class="server-group-channels">${channelsHtml}${voiceHtml}</div>
         </div>`;
 
         // Federated servers.
@@ -5581,7 +5604,7 @@ async function importIdentityFromJSON(jsonData) {
   </script>
 
   <script>
-    // ── Voice Call / WebRTC ──
+    // ── WebRTC Config (shared by rooms and 1-on-1 calls) ──
     const rtcConfig = {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -5589,6 +5612,209 @@ async function importIdentityFromJSON(jsonData) {
       ]
     };
 
+    // ── Voice Rooms (Group Voice Channels) ──
+    window._voiceRooms = [];
+    window._roomPeerConnections = {}; // key → RTCPeerConnection for mesh
+    window._roomLocalStream = null;
+    window._currentRoomId = null;
+
+    function createVoiceRoom() {
+      const name = prompt('Voice channel name:');
+      if (!name || !name.trim()) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'voice_room', action: 'create', room_name: name.trim() }));
+      }
+    }
+
+    function joinVoiceRoom(roomId) {
+      if (window._currentRoomId) {
+        addSystemMessage('Leave your current voice channel first.');
+        return;
+      }
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: roomId }));
+        window._currentRoomId = roomId;
+        setupRoomAudio();
+      }
+    }
+
+    function leaveVoiceRoom() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'voice_room', action: 'leave' }));
+      }
+      cleanupRoomAudio();
+    }
+
+    async function setupRoomAudio() {
+      try {
+        window._roomLocalStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (e) {
+        addSystemMessage('⚠️ Microphone access denied.');
+        leaveVoiceRoom();
+        return;
+      }
+      // Wait for voice_room_update to know who's in the room, then connect
+    }
+
+    function cleanupRoomAudio() {
+      if (window._roomLocalStream) {
+        window._roomLocalStream.getTracks().forEach(t => t.stop());
+        window._roomLocalStream = null;
+      }
+      for (const [key, pc] of Object.entries(window._roomPeerConnections)) {
+        pc.close();
+      }
+      window._roomPeerConnections = {};
+      window._currentRoomId = null;
+      // Remove room audio elements
+      document.querySelectorAll('.room-remote-audio').forEach(el => el.remove());
+      if (typeof renderServerList === 'function') renderServerList();
+    }
+
+    async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
+      if (window._roomPeerConnections[peerKey]) return; // already connected
+      const pc = new RTCPeerConnection(rtcConfig);
+      window._roomPeerConnections[peerKey] = pc;
+
+      if (window._roomLocalStream) {
+        window._roomLocalStream.getTracks().forEach(t => pc.addTrack(t, window._roomLocalStream));
+      }
+
+      pc.ontrack = (event) => {
+        const audio = document.createElement('audio');
+        audio.srcObject = event.streams[0];
+        audio.autoplay = true;
+        audio.className = 'room-remote-audio';
+        audio.dataset.peerKey = peerKey;
+        document.body.appendChild(audio);
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'voice_room_signal',
+            from: myKey,
+            to: peerKey,
+            room_id: roomId,
+            signal_type: 'ice',
+            data: event.candidate.toJSON()
+          }));
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          pc.close();
+          delete window._roomPeerConnections[peerKey];
+          const audioEl = document.querySelector(`.room-remote-audio[data-peer-key="${peerKey}"]`);
+          if (audioEl) audioEl.remove();
+        }
+      };
+
+      if (isCaller) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({
+          type: 'voice_room_signal',
+          from: myKey,
+          to: peerKey,
+          room_id: roomId,
+          signal_type: 'offer',
+          data: offer
+        }));
+      }
+    }
+
+    // Handle voice_room_update and voice_room_signal
+    const _origHandleMessageVR = handleMessage;
+    handleMessage = function(msg) {
+      if (msg.type === 'voice_room_update') {
+        window._voiceRooms = (msg.rooms || []).map(r => ({
+          id: r.id,
+          name: r.name,
+          participants: r.participants || []
+        }));
+        if (typeof renderServerList === 'function') renderServerList();
+        // If we're in a room, connect to any new participants
+        if (window._currentRoomId && window._roomLocalStream) {
+          const room = window._voiceRooms.find(r => r.id === window._currentRoomId);
+          if (room) {
+            for (const p of room.participants) {
+              if (p.key !== myKey && !window._roomPeerConnections[p.key]) {
+                connectToRoomPeer(p.key, p.name, window._currentRoomId, true);
+              }
+            }
+          } else {
+            cleanupRoomAudio();
+          }
+        }
+        return;
+      }
+      if (msg.type === 'voice_room_signal') {
+        handleVoiceRoomSignal(msg);
+        return;
+      }
+      _origHandleMessageVR(msg);
+    };
+
+    async function handleVoiceRoomSignal(msg) {
+      if (msg.to !== myKey) return;
+      const peerKey = msg.from;
+      const roomId = msg.room_id;
+
+      if (msg.signal_type === 'new_participant') {
+        // New person joined — they'll send us an offer, just wait
+        return;
+      }
+
+      if (msg.signal_type === 'offer') {
+        // Someone is sending us an offer — create connection and answer
+        await connectToRoomPeer(peerKey, '', roomId, false);
+        const pc = window._roomPeerConnections[peerKey];
+        if (pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          ws.send(JSON.stringify({
+            type: 'voice_room_signal',
+            from: myKey,
+            to: peerKey,
+            room_id: roomId,
+            signal_type: 'answer',
+            data: answer
+          }));
+        }
+        return;
+      }
+
+      if (msg.signal_type === 'answer') {
+        const pc = window._roomPeerConnections[peerKey];
+        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+        return;
+      }
+
+      if (msg.signal_type === 'ice') {
+        const pc = window._roomPeerConnections[peerKey];
+        if (pc) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(msg.data)); } catch (e) {}
+        }
+        return;
+      }
+    }
+
+    // Add voice room button styles
+    (function() {
+      const style = document.createElement('style');
+      style.textContent = `
+        .vr-btn { font-size:0.7rem; padding:0.15rem 0.4rem; cursor:pointer; border-radius:4px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); }
+        .vr-btn:hover { background:var(--bg-hover); }
+        .vr-join { color:var(--success); border-color:var(--success); }
+        .vr-leave { color:#e74c3c; border-color:#e74c3c; }
+      `;
+      document.head.appendChild(style);
+    })();
+
+    // ── Voice Call / WebRTC (1-on-1 DM calls) ──
     let callState = 'idle'; // idle | ringing-out | ringing-in | in-call
     let callPeerKey = null;
     let callPeerName = '';
