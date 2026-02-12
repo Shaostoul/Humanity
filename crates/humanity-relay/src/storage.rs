@@ -283,6 +283,17 @@ impl Storage {
             );"
         )?;
 
+        // Persistent voice channels.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS voice_channels (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL,
+                position    INTEGER DEFAULT 0,
+                created_by  TEXT,
+                created_at  INTEGER NOT NULL
+            );"
+        )?;
+
         // Link preview cache for URL embeds.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS link_previews (
@@ -1939,6 +1950,76 @@ impl Storage {
         Ok(rows > 0)
     }
 
+    // ── Voice Channel methods ──
+
+    /// Create a voice channel. Returns the new channel ID.
+    pub fn create_voice_channel(&self, name: &str, created_by: &str) -> Result<i64, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let max_pos: i64 = conn.query_row(
+            "SELECT COALESCE(MAX(position), 0) FROM voice_channels",
+            [],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        conn.execute(
+            "INSERT INTO voice_channels (name, position, created_by, created_at) VALUES (?1, ?2, ?3, ?4)",
+            params![name, max_pos + 1, created_by, now],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// Delete a voice channel by ID.
+    pub fn delete_voice_channel(&self, id: i64) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute("DELETE FROM voice_channels WHERE id = ?1", params![id])?;
+        Ok(rows > 0)
+    }
+
+    /// List all voice channels, ordered by position.
+    pub fn list_voice_channels(&self) -> Result<Vec<VoiceChannelRecord>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, name, position, created_by, created_at FROM voice_channels ORDER BY position ASC, id ASC"
+        )?;
+        let channels = stmt.query_map([], |row| {
+            Ok(VoiceChannelRecord {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                position: row.get(2)?,
+                created_by: row.get(3)?,
+                created_at: row.get(4)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(channels)
+    }
+
+    /// Rename a voice channel.
+    pub fn rename_voice_channel(&self, id: i64, new_name: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE voice_channels SET name = ?1 WHERE id = ?2",
+            params![new_name, id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Check if a voice channel exists.
+    pub fn voice_channel_exists(&self, id: i64) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT 1 FROM voice_channels WHERE id = ?1",
+            params![id],
+            |_| Ok(()),
+        ) {
+            Ok(_) => Ok(true),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
     /// Get the server's own Ed25519 keypair (generated on first call, stored in server_state).
     /// Returns (public_key_hex, secret_key_hex).
     pub fn get_or_create_server_keypair(&self) -> Result<(String, String), rusqlite::Error> {
@@ -2292,6 +2373,16 @@ pub struct LinkPreviewRecord {
     pub image: Option<String>,
     pub site_name: Option<String>,
     pub fetched_at: i64,
+}
+
+/// A voice channel record from the database.
+#[derive(Debug, Clone)]
+pub struct VoiceChannelRecord {
+    pub id: i64,
+    pub name: String,
+    pub position: i64,
+    pub created_by: Option<String>,
+    pub created_at: i64,
 }
 
 /// A federated server record from the database.

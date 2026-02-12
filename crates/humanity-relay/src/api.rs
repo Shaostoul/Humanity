@@ -103,11 +103,26 @@ pub async fn send_message(
     // Bot API is authenticated with API_SECRET, so it's trusted — skip read-only check.
     // This allows bots (e.g., Heron) to post to read-only channels like #todo.
 
-    let bot_key = format!("bot_{}", req.from_name.to_lowercase().replace(' ', "_"));
+    // Strip emoji/special chars from bot key generation (name stays as-is for display).
+    let clean_name: String = req.from_name.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-' || *c == ' ').collect();
+    let bot_key = format!("bot_{}", clean_name.to_lowercase().replace(' ', "_"));
 
     // Ensure bot is registered in the DB (persistent across restarts).
     if let Err(e) = state.db.register_name(&req.from_name, &bot_key) {
         tracing::warn!("Failed to register bot name: {e}");
+    }
+
+    // If the bot's display name changed (e.g., "Heron 🪶" → "Heron"), update the peer entry.
+    {
+        let peers = state.peers.read().await;
+        if let Some(existing) = peers.get(&bot_key) {
+            if existing.display_name.as_deref() != Some(&req.from_name) {
+                drop(peers);
+                state.peers.write().await.entry(bot_key.clone()).and_modify(|p| {
+                    p.display_name = Some(req.from_name.clone());
+                });
+            }
+        }
     }
 
     // Ensure bot appears as a peer.

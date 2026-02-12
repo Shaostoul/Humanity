@@ -559,6 +559,12 @@ pub enum RelayMessage {
         rooms: Vec<VoiceRoomData>,
     },
 
+    /// Server sends persistent voice channel list (with current participants).
+    #[serde(rename = "voice_channel_list")]
+    VoiceChannelList {
+        channels: Vec<VoiceChannelData>,
+    },
+
     /// WebRTC signal for voice rooms (mesh topology).
     #[serde(rename = "voice_room_signal")]
     VoiceRoomSignal {
@@ -790,7 +796,15 @@ pub struct VoiceRoomParticipant {
     pub muted: bool,
 }
 
-/// In-memory voice room state.
+/// Persistent voice channel data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoiceChannelData {
+    pub id: i64,
+    pub name: String,
+    pub participants: Vec<VoiceRoomParticipant>,
+}
+
+/// In-memory voice room state (keyed by voice channel DB id as string).
 pub struct VoiceRoom {
     pub name: String,
     pub participants: Vec<(String, String)>, // (public_key, display_name)
@@ -1147,20 +1161,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                 }
 
-                // Send voice room list.
+                // Send persistent voice channel list with current participants.
                 {
-                    let rooms = state.voice_rooms.read().await;
-                    if !rooms.is_empty() {
-                        let room_data: Vec<VoiceRoomData> = rooms.iter().map(|(id, r)| VoiceRoomData {
-                            room_id: id.clone(),
-                            name: r.name.clone(),
-                            participants: r.participants.iter().map(|(k, n)| VoiceRoomParticipant {
-                                public_key: k.clone(), display_name: n.clone(), muted: false,
-                            }).collect(),
-                        }).collect();
-                        let room_msg = serde_json::to_string(&RelayMessage::VoiceRoomUpdate { rooms: room_data }).unwrap();
-                        let _ = ws_tx.send(Message::Text(room_msg.into())).await;
-                    }
+                    let vc_msg = build_voice_channel_list_msg(&state).await;
+                    let _ = ws_tx.send(Message::Text(serde_json::to_string(&vc_msg).unwrap().into())).await;
                 }
 
                 // Announce to everyone.
@@ -3234,31 +3238,46 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     }
                                 }
                             }
-                            // ── Voice Rooms ──
+                            // ── Voice Rooms (Persistent Channels) ──
                             RelayMessage::VoiceRoom { action, room_id, room_name } => {
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Anonymous".to_string());
+                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 match action.as_str() {
                                     "create" => {
-                                        let rid = format!("room_{}", std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_millis());
-                                        let rname = room_name.unwrap_or_else(|| format!("{}'s Room", display));
-                                        let mut rooms = state_clone.voice_rooms.write().await;
-                                        rooms.insert(rid.clone(), VoiceRoom {
-                                            name: rname,
-                                            participants: vec![(my_key_for_recv.clone(), display)],
-                                        });
-                                        drop(rooms);
-                                        broadcast_voice_rooms(&state_clone).await;
+                                        // Admin/mod only.
+                                        if user_role != "admin" && user_role != "mod" {
+                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can create voice channels.".to_string() };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        } else {
+                                            let rname = room_name.unwrap_or_else(|| format!("{}'s Room", display));
+                                            match state_clone.db.create_voice_channel(&rname, &my_key_for_recv) {
+                                                Ok(_id) => {
+                                                    broadcast_voice_channel_list(&state_clone).await;
+                                                }
+                                                Err(e) => {
+                                                    tracing::error!("Failed to create voice channel: {e}");
+                                                }
+                                            }
+                                        }
                                     }
                                     "join" => {
                                         if let Some(rid) = room_id {
-                                            let mut rooms = state_clone.voice_rooms.write().await;
-                                            if let Some(room) = rooms.get_mut(&rid) {
+                                            // Verify channel exists in DB.
+                                            let id_num: i64 = rid.parse().unwrap_or(0);
+                                            if id_num == 0 || !state_clone.db.voice_channel_exists(id_num).unwrap_or(false) {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel not found.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                let mut rooms = state_clone.voice_rooms.write().await;
+                                                let room = rooms.entry(rid.clone()).or_insert_with(|| {
+                                                    // Get name from DB.
+                                                    let name = state_clone.db.list_voice_channels().ok()
+                                                        .and_then(|chs| chs.into_iter().find(|c| c.id == id_num).map(|c| c.name))
+                                                        .unwrap_or_else(|| "Voice Channel".to_string());
+                                                    VoiceRoom { name, participants: vec![] }
+                                                });
                                                 if !room.participants.iter().any(|(k, _)| k == &my_key_for_recv) {
-                                                    // Notify existing participants to set up WebRTC connections.
                                                     let existing: Vec<(String, String)> = room.participants.clone();
                                                     room.participants.push((my_key_for_recv.clone(), display.clone()));
                                                     drop(rooms);
@@ -3272,7 +3291,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                             data: serde_json::json!({ "key": my_key_for_recv, "name": display }),
                                                         });
                                                     }
-                                                    broadcast_voice_rooms(&state_clone).await;
+                                                    broadcast_voice_channel_list(&state_clone).await;
                                                 } else {
                                                     drop(rooms);
                                                 }
@@ -3282,9 +3301,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     "leave" => {
                                         leave_voice_room(&state_clone, &my_key_for_recv).await;
                                     }
+                                    "delete" => {
+                                        // Admin/mod only.
+                                        if user_role != "admin" && user_role != "mod" {
+                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can delete voice channels.".to_string() };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        } else if let Some(rid) = room_id {
+                                            let id_num: i64 = rid.parse().unwrap_or(0);
+                                            if id_num > 0 {
+                                                // Remove from DB.
+                                                let _ = state_clone.db.delete_voice_channel(id_num);
+                                                // Remove active room.
+                                                state_clone.voice_rooms.write().await.remove(&rid);
+                                                broadcast_voice_channel_list(&state_clone).await;
+                                            }
+                                        }
+                                    }
                                     "list" => {
-                                        // Already sent on connect; re-send on request.
-                                        broadcast_voice_rooms(&state_clone).await;
+                                        broadcast_voice_channel_list(&state_clone).await;
                                     }
                                     _ => {}
                                 }
@@ -3985,18 +4019,33 @@ fn shortKey_rust(hex: &str) -> String {
     if hex.len() >= 8 { hex[..8].to_string() } else { hex.to_string() }
 }
 
-/// Broadcast voice room state to all connected clients.
-async fn broadcast_voice_rooms(state: &Arc<RelayState>) {
+/// Build the voice channel list message (persistent channels + active participants).
+async fn build_voice_channel_list_msg(state: &Arc<RelayState>) -> RelayMessage {
+    let db_channels = state.db.list_voice_channels().unwrap_or_default();
     let rooms = state.voice_rooms.read().await;
-    let room_data: Vec<VoiceRoomData> = rooms.iter().map(|(id, r)| VoiceRoomData {
-        room_id: id.clone(),
-        name: r.name.clone(),
-        participants: r.participants.iter().map(|(k, n)| VoiceRoomParticipant {
-            public_key: k.clone(), display_name: n.clone(), muted: false,
-        }).collect(),
+    let channels: Vec<VoiceChannelData> = db_channels.into_iter().map(|vc| {
+        let rid = vc.id.to_string();
+        let participants = rooms.get(&rid).map(|r| {
+            r.participants.iter().map(|(k, n)| VoiceRoomParticipant {
+                public_key: k.clone(), display_name: n.clone(), muted: false,
+            }).collect()
+        }).unwrap_or_default();
+        VoiceChannelData { id: vc.id, name: vc.name, participants }
     }).collect();
     drop(rooms);
-    let _ = state.broadcast_tx.send(RelayMessage::VoiceRoomUpdate { rooms: room_data });
+    RelayMessage::VoiceChannelList { channels }
+}
+
+/// Broadcast persistent voice channel list to all connected clients.
+async fn broadcast_voice_channel_list(state: &Arc<RelayState>) {
+    let msg = build_voice_channel_list_msg(state).await;
+    let _ = state.broadcast_tx.send(msg);
+}
+
+/// Broadcast voice room state to all connected clients (legacy, kept for compatibility).
+async fn broadcast_voice_rooms(state: &Arc<RelayState>) {
+    // Now we broadcast the persistent voice channel list instead.
+    broadcast_voice_channel_list(state).await;
 }
 
 /// Remove a user from any voice room they're in.
@@ -4009,11 +4058,12 @@ async fn leave_voice_room(state: &Arc<RelayState>, key: &str) {
             empty_rooms.push(rid.clone());
         }
     }
+    // Remove empty in-memory rooms but keep channels in DB.
     for rid in empty_rooms {
         rooms.remove(&rid);
     }
     drop(rooms);
-    broadcast_voice_rooms(state).await;
+    broadcast_voice_channel_list(state).await;
 }
 
 /// Send an updated DM conversation list to a specific user via broadcast (filtered by send loop).

@@ -1781,6 +1781,9 @@
     }
     .voice-room-item .vr-participant { padding: 0.1rem 0; }
     .voice-room-item.in-room { border-color: var(--success); background: rgba(68,170,153,0.08); }
+    .voice-room-item.vc-empty { opacity: 0.55; }
+    .voice-room-item.vc-empty:hover { opacity: 0.85; }
+    .vr-delete { background: transparent !important; border: none !important; cursor: pointer; }
     .vr-create-btn {
       background: var(--bg-input);
       border: 1px solid var(--border);
@@ -5273,26 +5276,42 @@ async function importIdentityFromJSON(jsonData) {
           return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${esc(ch.name)}${lock}</div>`;
         }).join('');
 
-        // Voice rooms section
-        let voiceHtml = '<div class="voice-rooms-section"><h4>🔊 Voice Channels</h4>';
-        if (window._voiceRooms && window._voiceRooms.length > 0) {
-          for (const room of window._voiceRooms) {
-            const inRoom = room.participants.some(p => p.key === myKey);
-            voiceHtml += `<div class="voice-room-item${inRoom ? ' in-room' : ''}" data-room-id="${esc(room.id)}">
-              <div class="vr-name">🔊 ${esc(room.name)} <span class="vr-count">(${room.participants.length})</span></div>
-              <div class="vr-participants">${room.participants.map(p => `<div class="vr-participant">${esc(p.name)}</div>`).join('')}</div>
-              <div style="margin-top:0.2rem;">${inRoom
-                ? '<button class="vr-btn vr-leave" onclick="leaveVoiceRoom()">Leave</button>'
-                : `<button class="vr-btn vr-join" onclick="joinVoiceRoom('${esc(room.id)}')">Join</button>`
-              }</div>
-            </div>`;
-          }
-        } else {
-          voiceHtml += '<div style="font-size:0.7rem;color:var(--text-muted);padding:0.2rem 0;">No active voice channels</div>';
+        // Text channel create button (admin/mod only)
+        const myRoleCh = (window.myPeerRole || '').toLowerCase();
+        let createChannelBtn = '';
+        if (myRoleCh === 'admin' || myRoleCh === 'mod') {
+          createChannelBtn = '<div style="padding:0.2rem 0;"><button class="vr-btn" data-action="create-text-channel" style="width:100%;margin-top:0.2rem;font-size:0.7rem;">+ Create Channel</button></div>';
         }
-        const myRole2 = (window.myPeerRole || '').toLowerCase();
-        if (myRole2 === 'admin' || myRole2 === 'mod') {
-          voiceHtml += `<button class="vr-btn" onclick="createVoiceRoom()" style="margin-top:0.3rem;width:100%;">+ Create Voice Channel</button>`;
+
+        // Persistent voice channels section
+        const voiceChannels = window._voiceChannels || [];
+        let voiceHtml = '<div class="voice-rooms-section"><h4>🔊 Voice Channels</h4>';
+        for (const vc of voiceChannels) {
+          const inRoom = vc.participants.some(p => p.public_key === myKey);
+          const hasParticipants = vc.participants.length > 0;
+          const dimClass = hasParticipants ? '' : ' vc-empty';
+          voiceHtml += `<div class="voice-room-item${inRoom ? ' in-room' : ''}${dimClass}" data-vc-id="${vc.id}">
+            <div class="vr-name">🔊 ${esc(vc.name)}${hasParticipants ? ' <span class="vr-count">(' + vc.participants.length + ')</span>' : ''}</div>`;
+          if (hasParticipants) {
+            voiceHtml += '<div class="vr-participants">';
+            for (const p of vc.participants) {
+              voiceHtml += `<div class="vr-participant">🎤 ${esc(p.display_name)}</div>`;
+            }
+            voiceHtml += '</div>';
+          }
+          voiceHtml += '<div style="margin-top:0.2rem;">';
+          if (inRoom) {
+            voiceHtml += '<button class="vr-btn vr-leave" data-action="vc-leave">Leave</button>';
+          } else {
+            voiceHtml += `<button class="vr-btn vr-join" data-action="vc-join" data-vc-id="${vc.id}">Join</button>`;
+          }
+          if (myRoleCh === 'admin' || myRoleCh === 'mod') {
+            voiceHtml += ` <button class="vr-btn vr-delete" data-action="vc-delete" data-vc-id="${vc.id}" style="float:right;color:var(--text-muted);font-size:0.65rem;" title="Delete voice channel">✕</button>`;
+          }
+          voiceHtml += '</div></div>';
+        }
+        if (myRoleCh === 'admin' || myRoleCh === 'mod') {
+          voiceHtml += '<button class="vr-btn" data-action="vc-create" style="margin-top:0.3rem;width:100%;">+ Create Voice Channel</button>';
         }
         voiceHtml += '</div>';
 
@@ -5301,7 +5320,7 @@ async function importIdentityFromJSON(jsonData) {
             <span class="collapse-arrow">▼</span>
             <span>🟢 🅷 Humanity</span>
           </div>
-          <div class="server-group-channels">${channelsHtml}${voiceHtml}</div>
+          <div class="server-group-channels">${channelsHtml}${createChannelBtn}${voiceHtml}</div>
         </div>`;
 
         // Federated servers.
@@ -5381,6 +5400,30 @@ async function importIdentityFromJSON(jsonData) {
         if (chItem) {
           const channelId = chItem.getAttribute('data-channel-id');
           if (channelId) switchChannel(channelId);
+          return;
+        }
+        // Voice channel actions (event delegation — no inline onclick)
+        const actionBtn = e.target.closest('[data-action]');
+        if (actionBtn) {
+          const action = actionBtn.getAttribute('data-action');
+          if (action === 'vc-join') {
+            const vcId = actionBtn.getAttribute('data-vc-id');
+            if (vcId) joinVoiceRoom(vcId);
+          } else if (action === 'vc-leave') {
+            leaveVoiceRoom();
+          } else if (action === 'vc-delete') {
+            const vcId = actionBtn.getAttribute('data-vc-id');
+            if (vcId) deleteVoiceChannel(vcId);
+          } else if (action === 'vc-create') {
+            createVoiceRoom();
+          } else if (action === 'create-text-channel') {
+            const name = prompt('Channel name (letters, numbers, dashes, underscores):');
+            if (name && name.trim() && ws && ws.readyState === WebSocket.OPEN) {
+              const cmd = '/channel-create ' + name.trim().toLowerCase();
+              ws.send(JSON.stringify({ type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'general' }));
+            }
+          }
+          return;
         }
       });
     })();
@@ -5612,8 +5655,8 @@ async function importIdentityFromJSON(jsonData) {
       ]
     };
 
-    // ── Voice Rooms (Group Voice Channels) ──
-    window._voiceRooms = [];
+    // ── Voice Channels (Persistent, SQLite-backed) ──
+    window._voiceChannels = [];
     window._roomPeerConnections = {}; // key → RTCPeerConnection for mesh
     window._roomLocalStream = null;
     window._currentRoomId = null;
@@ -5632,8 +5675,8 @@ async function importIdentityFromJSON(jsonData) {
         return;
       }
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: roomId }));
-        window._currentRoomId = roomId;
+        ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: String(roomId) }));
+        window._currentRoomId = String(roomId);
         setupRoomAudio();
       }
     }
@@ -5643,6 +5686,13 @@ async function importIdentityFromJSON(jsonData) {
         ws.send(JSON.stringify({ type: 'voice_room', action: 'leave' }));
       }
       cleanupRoomAudio();
+    }
+
+    function deleteVoiceChannel(vcId) {
+      if (!confirm('Delete this voice channel permanently?')) return;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'voice_room', action: 'delete', room_id: String(vcId) }));
+      }
     }
 
     async function setupRoomAudio() {
@@ -5725,29 +5775,38 @@ async function importIdentityFromJSON(jsonData) {
       }
     }
 
-    // Handle voice_room_update and voice_room_signal
+    // Handle voice_channel_list, voice_room_update, and voice_room_signal
     const _origHandleMessageVR = handleMessage;
     handleMessage = function(msg) {
-      if (msg.type === 'voice_room_update') {
-        window._voiceRooms = (msg.rooms || []).map(r => ({
-          id: r.id,
-          name: r.name,
-          participants: r.participants || []
+      if (msg.type === 'voice_channel_list') {
+        window._voiceChannels = (msg.channels || []).map(c => ({
+          id: c.id,
+          name: c.name,
+          participants: (c.participants || []).map(p => ({
+            public_key: p.public_key,
+            display_name: p.display_name,
+            muted: p.muted || false
+          }))
         }));
         if (typeof renderServerList === 'function') renderServerList();
         // If we're in a room, connect to any new participants
         if (window._currentRoomId && window._roomLocalStream) {
-          const room = window._voiceRooms.find(r => r.id === window._currentRoomId);
-          if (room) {
-            for (const p of room.participants) {
-              if (p.key !== myKey && !window._roomPeerConnections[p.key]) {
-                connectToRoomPeer(p.key, p.name, window._currentRoomId, true);
+          const ch = window._voiceChannels.find(c => String(c.id) === String(window._currentRoomId));
+          if (ch) {
+            for (const p of ch.participants) {
+              if (p.public_key !== myKey && !window._roomPeerConnections[p.public_key]) {
+                connectToRoomPeer(p.public_key, p.display_name, String(window._currentRoomId), true);
               }
             }
           } else {
             cleanupRoomAudio();
           }
         }
+        return;
+      }
+      // Legacy voice_room_update — convert to voice_channel_list format
+      if (msg.type === 'voice_room_update') {
+        // Handled by voice_channel_list now; ignore.
         return;
       }
       if (msg.type === 'voice_room_signal') {
