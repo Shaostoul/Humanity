@@ -729,6 +729,82 @@ pub enum RelayMessage {
 
     // ── Group System ──
 
+    // ── Marketplace messages ──
+
+    /// Client requests to browse listings.
+    #[serde(rename = "listing_browse")]
+    ListingBrowse {},
+
+    /// Client creates a listing.
+    #[serde(rename = "listing_create")]
+    ListingCreate {
+        id: String,
+        title: String,
+        #[serde(default)]
+        description: String,
+        category: String,
+        #[serde(default)]
+        condition: String,
+        #[serde(default)]
+        price: String,
+        #[serde(default)]
+        payment_methods: String,
+        #[serde(default)]
+        location: String,
+    },
+
+    /// Client updates a listing.
+    #[serde(rename = "listing_update")]
+    ListingUpdate {
+        id: String,
+        title: String,
+        #[serde(default)]
+        description: String,
+        category: String,
+        #[serde(default)]
+        condition: String,
+        #[serde(default)]
+        price: String,
+        #[serde(default)]
+        payment_methods: String,
+        #[serde(default)]
+        location: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        status: Option<String>,
+    },
+
+    /// Client deletes a listing.
+    #[serde(rename = "listing_delete")]
+    ListingDelete {
+        id: String,
+    },
+
+    /// Server sends listing list to client.
+    #[serde(rename = "listing_list")]
+    ListingList {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        listings: Vec<ListingData>,
+    },
+
+    /// Server broadcasts a new or updated listing.
+    #[serde(rename = "listing_new")]
+    ListingNew {
+        listing: ListingData,
+    },
+
+    /// Server broadcasts that a listing was updated.
+    #[serde(rename = "listing_updated")]
+    ListingUpdated {
+        listing: ListingData,
+    },
+
+    /// Server broadcasts that a listing was deleted.
+    #[serde(rename = "listing_deleted")]
+    ListingDeleted {
+        id: String,
+    },
+
     /// Client requests to create a group.
     #[serde(rename = "group_create")]
     GroupCreate {
@@ -928,6 +1004,44 @@ pub struct GroupMessageData {
     pub from_name: String,
     pub content: String,
     pub timestamp: u64,
+}
+
+/// Listing data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListingData {
+    pub id: String,
+    pub seller_key: String,
+    pub seller_name: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub condition: Option<String>,
+    pub price: Option<String>,
+    pub payment_methods: Option<String>,
+    pub location: Option<String>,
+    pub images: Option<String>,
+    pub status: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+fn listing_from_db(l: &crate::storage::MarketplaceListing) -> ListingData {
+    ListingData {
+        id: l.id.clone(),
+        seller_key: l.seller_key.clone(),
+        seller_name: l.seller_name.clone(),
+        title: l.title.clone(),
+        description: l.description.clone(),
+        category: l.category.clone(),
+        condition: l.condition.clone(),
+        price: l.price.clone(),
+        payment_methods: l.payment_methods.clone(),
+        location: l.location.clone(),
+        images: l.images.clone(),
+        status: l.status.clone(),
+        created_at: l.created_at.clone(),
+        updated_at: l.updated_at.clone(),
+    }
 }
 
 /// Info about a registered user (online or offline) for the full user list.
@@ -1450,6 +1564,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
             // GroupList: only deliver to the target client.
             if let RelayMessage::GroupList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // ListingList: only deliver to the target client.
+            if let RelayMessage::ListingList { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -3802,6 +3925,63 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         let _ = state_clone.broadcast_tx.send(private);
                                     }
                                     Err(e) => tracing::error!("Unfollow error: {e}"),
+                                }
+                            }
+
+                            // ── Marketplace ──
+                            RelayMessage::ListingBrowse {} => {
+                                let listings = state_clone.db.get_listings(None, None, 200).unwrap_or_default();
+                                let data: Vec<ListingData> = listings.iter().map(listing_from_db).collect();
+                                let _ = state_clone.broadcast_tx.send(RelayMessage::ListingList {
+                                    target: Some(my_key_for_recv.clone()),
+                                    listings: data,
+                                });
+                            }
+                            RelayMessage::ListingCreate { id, title, description, category, condition, price, payment_methods, location } => {
+                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if user_role != "verified" && user_role != "donor" && user_role != "mod" && user_role != "admin" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You must be verified to create listings.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+                                if title.trim().is_empty() || title.len() > 100 {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Listing title must be 1-100 characters.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+                                let seller_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
+                                if let Err(e) = state_clone.db.create_listing(&id, &my_key_for_recv, &seller_name, title.trim(), &description, &category, &condition, &price, &payment_methods, &location) {
+                                    tracing::error!("Failed to create listing: {e}");
+                                    continue;
+                                }
+                                if let Ok(Some(listing)) = state_clone.db.get_listing_by_id(&id) {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ListingNew {
+                                        listing: listing_from_db(&listing),
+                                    });
+                                }
+                            }
+                            RelayMessage::ListingUpdate { id, title, description, category, condition, price, payment_methods, location, status } => {
+                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let is_admin = user_role == "admin" || user_role == "mod";
+                                if let Ok(true) = state_clone.db.update_listing(&id, &my_key_for_recv, title.trim(), &description, &category, &condition, &price, &payment_methods, &location, status.as_deref(), is_admin) {
+                                    if let Ok(Some(listing)) = state_clone.db.get_listing_by_id(&id) {
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ListingUpdated {
+                                            listing: listing_from_db(&listing),
+                                        });
+                                    }
+                                }
+                            }
+                            RelayMessage::ListingDelete { id } => {
+                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                let is_admin = user_role == "admin" || user_role == "mod";
+                                if let Ok(true) = state_clone.db.delete_listing(&id, &my_key_for_recv, is_admin) {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ListingDeleted { id });
                                 }
                             }
 

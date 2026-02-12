@@ -422,6 +422,33 @@ impl Storage {
                 ON group_messages(group_id, timestamp);"
         )?;
 
+        // Marketplace listings table.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS marketplace_listings (
+                id TEXT PRIMARY KEY,
+                seller_key TEXT NOT NULL,
+                seller_name TEXT,
+                title TEXT NOT NULL,
+                description TEXT,
+                category TEXT NOT NULL,
+                condition TEXT,
+                price TEXT,
+                payment_methods TEXT,
+                location TEXT,
+                images TEXT,
+                status TEXT DEFAULT 'active',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_marketplace_seller
+                ON marketplace_listings(seller_key);
+            CREATE INDEX IF NOT EXISTS idx_marketplace_status
+                ON marketplace_listings(status);
+            CREATE INDEX IF NOT EXISTS idx_marketplace_category
+                ON marketplace_listings(category);"
+        )?;
+
         info!("Database opened: {}", path.display());
         Ok(Self { conn: Mutex::new(conn) })
     }
@@ -2534,6 +2561,127 @@ impl Storage {
         Ok(())
     }
 
+    // ── Marketplace methods ──
+
+    /// Create a marketplace listing.
+    pub fn create_listing(
+        &self,
+        id: &str,
+        seller_key: &str,
+        seller_name: &str,
+        title: &str,
+        description: &str,
+        category: &str,
+        condition: &str,
+        price: &str,
+        payment_methods: &str,
+        location: &str,
+    ) -> Result<(), rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "INSERT INTO marketplace_listings (id, seller_key, seller_name, title, description, category, condition, price, payment_methods, location, status, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'active', datetime('now'))",
+            params![id, seller_key, seller_name, title, description, category, condition, price, payment_methods, location],
+        )?;
+        Ok(())
+    }
+
+    /// Update a marketplace listing. Returns true if updated.
+    pub fn update_listing(
+        &self,
+        id: &str,
+        seller_key: &str,
+        title: &str,
+        description: &str,
+        category: &str,
+        condition: &str,
+        price: &str,
+        payment_methods: &str,
+        location: &str,
+        status: Option<&str>,
+        is_admin: bool,
+    ) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = if is_admin {
+            conn.execute(
+                "UPDATE marketplace_listings SET title=?1, description=?2, category=?3, condition=?4, price=?5, payment_methods=?6, location=?7, status=COALESCE(?8, status), updated_at=datetime('now') WHERE id=?9",
+                params![title, description, category, condition, price, payment_methods, location, status, id],
+            )?
+        } else {
+            conn.execute(
+                "UPDATE marketplace_listings SET title=?1, description=?2, category=?3, condition=?4, price=?5, payment_methods=?6, location=?7, status=COALESCE(?8, status), updated_at=datetime('now') WHERE id=?9 AND seller_key=?10",
+                params![title, description, category, condition, price, payment_methods, location, status, id, seller_key],
+            )?
+        };
+        Ok(rows > 0)
+    }
+
+    /// Delete a marketplace listing. Returns true if deleted.
+    pub fn delete_listing(&self, id: &str, seller_key: &str, is_admin: bool) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = if is_admin {
+            conn.execute("DELETE FROM marketplace_listings WHERE id=?1", params![id])?
+        } else {
+            conn.execute("DELETE FROM marketplace_listings WHERE id=?1 AND seller_key=?2", params![id, seller_key])?
+        };
+        Ok(rows > 0)
+    }
+
+    /// Get all marketplace listings, optionally filtered.
+    pub fn get_listings(&self, category: Option<&str>, status: Option<&str>, limit: usize) -> Result<Vec<MarketplaceListing>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let query = format!(
+            "SELECT id, seller_key, seller_name, title, description, category, condition, price, payment_methods, location, images, status, created_at, updated_at
+             FROM marketplace_listings
+             WHERE 1=1 {} {}
+             ORDER BY created_at DESC
+             LIMIT ?1",
+            if category.is_some() { "AND category = ?2" } else { "" },
+            if status.is_some() { if category.is_some() { "AND status = ?3" } else { "AND status = ?2" } } else { "" },
+        );
+        let mut stmt = conn.prepare(&query)?;
+        let listings = if let Some(cat) = category {
+            if let Some(st) = status {
+                stmt.query_map(params![limit, cat, st], map_listing_row)?
+            } else {
+                stmt.query_map(params![limit, cat], map_listing_row)?
+            }
+        } else if let Some(st) = status {
+            stmt.query_map(params![limit, st], map_listing_row)?
+        } else {
+            stmt.query_map(params![limit], map_listing_row)?
+        };
+        Ok(listings.filter_map(|r| r.ok()).collect())
+    }
+
+    /// Get a single listing by ID.
+    pub fn get_listing_by_id(&self, id: &str) -> Result<Option<MarketplaceListing>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        match conn.query_row(
+            "SELECT id, seller_key, seller_name, title, description, category, condition, price, payment_methods, location, images, status, created_at, updated_at
+             FROM marketplace_listings WHERE id=?1",
+            params![id],
+            map_listing_row,
+        ) {
+            Ok(l) => Ok(Some(l)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Get listings for a specific seller.
+    pub fn get_user_listings(&self, seller_key: &str) -> Result<Vec<MarketplaceListing>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, seller_key, seller_name, title, description, category, condition, price, payment_methods, location, images, status, created_at, updated_at
+             FROM marketplace_listings WHERE seller_key=?1 ORDER BY created_at DESC"
+        )?;
+        let listings = stmt.query_map(params![seller_key], map_listing_row)?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(listings)
+    }
+
     /// Load recent group messages.
     pub fn load_group_messages(&self, group_id: &str, limit: usize) -> Result<Vec<(String, String, String, u64)>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
@@ -2602,6 +2750,44 @@ pub struct VoiceChannelRecord {
     pub position: i64,
     pub created_by: Option<String>,
     pub created_at: i64,
+}
+
+/// A marketplace listing record from the database.
+#[derive(Debug, Clone)]
+pub struct MarketplaceListing {
+    pub id: String,
+    pub seller_key: String,
+    pub seller_name: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub condition: Option<String>,
+    pub price: Option<String>,
+    pub payment_methods: Option<String>,
+    pub location: Option<String>,
+    pub images: Option<String>,
+    pub status: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+fn map_listing_row(row: &rusqlite::Row) -> rusqlite::Result<MarketplaceListing> {
+    Ok(MarketplaceListing {
+        id: row.get(0)?,
+        seller_key: row.get(1)?,
+        seller_name: row.get(2)?,
+        title: row.get(3)?,
+        description: row.get(4)?,
+        category: row.get(5)?,
+        condition: row.get(6)?,
+        price: row.get(7)?,
+        payment_methods: row.get(8)?,
+        location: row.get(9)?,
+        images: row.get(10)?,
+        status: row.get(11)?,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
+    })
 }
 
 /// A federated server record from the database.

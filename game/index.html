@@ -478,6 +478,7 @@
     document.querySelectorAll('.hub-nav .tab[href^="/fantasy"]').forEach(el => el.setAttribute('data-tab', 'fantasy'));
     document.querySelectorAll('.hub-nav .tab[href^="/streams"]').forEach(el => el.setAttribute('data-tab', 'streams'));
     document.querySelectorAll('.hub-nav .tab[href^="/info"]').forEach(el => el.setAttribute('data-tab', 'info'));
+    document.querySelectorAll('.hub-nav .tab[href^="/market"]').forEach(el => el.setAttribute('data-tab', 'market'));
     document.querySelectorAll('.hub-nav .tab[href^="/debug"]').forEach(el => el.setAttribute('data-tab', 'debug'));
   </script>
 
@@ -1305,6 +1306,117 @@
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════ -->
+  <!-- Market Tab -->
+  <!-- ══════════════════════════════════════ -->
+  <div id="tab-market" class="tab-content" style="padding:1rem;overflow-y:auto;">
+    <!-- Sub-navigation -->
+    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏪 Marketplace</button>
+      <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏬 Stores</button>
+      <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">📋 My Listings</button>
+      <span style="flex:1;"></span>
+      <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:none;">+ Create Listing</button>
+    </div>
+
+    <!-- Marketplace Section -->
+    <div id="market-section-marketplace">
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:0.5rem 0;">
+        <input type="text" id="market-search" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:0.4rem 0.6rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+        <select id="market-category-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+          <option value="">All Categories</option>
+          <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
+          <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
+          <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>Other</option>
+        </select>
+        <select id="market-condition-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+          <option value="">Any Condition</option>
+          <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+        </select>
+        <select id="market-sort" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="alpha">A-Z</option>
+        </select>
+      </div>
+      <div id="market-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
+      <div id="market-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">No listings yet. Be the first to list something!</div>
+    </div>
+
+    <!-- Store Directory Section -->
+    <div id="market-section-stores" style="display:none;">
+      <div style="margin-bottom:1rem;">
+        <select id="store-category-filter" onchange="renderStoreDirectory()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+          <option value="">All Categories</option>
+        </select>
+      </div>
+      <div id="store-directory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;"></div>
+    </div>
+
+    <!-- My Listings Section -->
+    <div id="market-section-mylistings" style="display:none;">
+      <div id="my-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
+      <div id="my-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">You haven't listed anything yet.</div>
+    </div>
+
+    <!-- Listing Detail Modal -->
+    <div id="listing-detail-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
+      <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <div id="listing-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- Create/Edit Listing Modal -->
+    <div id="listing-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
+      <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <h2 style="color:var(--accent);margin-bottom:1rem;font-size:1rem;" id="listing-modal-title">Create Listing</h2>
+        <input type="hidden" id="listing-edit-id" value="">
+        <div style="display:flex;flex-direction:column;gap:0.6rem;">
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Title *</label>
+            <input type="text" id="listing-title" maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+          </div>
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Description</label>
+            <textarea id="listing-description" rows="3" maxlength="2000" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+            <div>
+              <label style="font-size:0.75rem;color:var(--text-muted);">Category *</label>
+              <select id="listing-category" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+                <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
+                <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
+                <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.75rem;color:var(--text-muted);">Condition</label>
+              <select id="listing-condition" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+                <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Price</label>
+            <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+          </div>
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Payment Methods</label>
+            <input type="text" id="listing-payment" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+          </div>
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Location</label>
+            <input type="text" id="listing-location" placeholder='Seattle area, Ships worldwide…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+          </div>
+          <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem;">
+            <button class="btn" onclick="closeListingModal()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Cancel</button>
+            <button class="btn btn-clickable" onclick="submitListing()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Submit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Settings Panel (inline, replaces tab content) -->
   <div id="tab-settings" class="tab-content" style="padding:1.5rem;">
     <div class="panel">
@@ -1315,7 +1427,7 @@
 
   <script>
     // ── Hub Tab System (SPA with pushState) ──
-    const HUB_TABS = ['board', 'reality', 'fantasy', 'streams', 'info', 'source', 'debug'];
+    const HUB_TABS = ['board', 'reality', 'fantasy', 'market', 'streams', 'info', 'source', 'debug'];
     let currentTab = 'reality';
 
     function getTabFromPath() {
@@ -1339,7 +1451,7 @@
       if (tabEl) tabEl.classList.add('active');
 
       // Update page title
-      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
+      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
       document.title = 'Humanity — ' + (titles[tabId] || 'Hub');
 
       // Update URL
@@ -1815,6 +1927,7 @@
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
               <span style="font-weight:600;font-size:0.88rem;">${catIcon(item.category)} ${escHtml(item.name)}</span>
               <div style="display:flex;gap:0.3rem;">
+                <button onclick="listInventoryForSale('${item.id}')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.65rem;" title="List for Sale">📢</button>
                 <button onclick="editInventoryItem('${item.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.75rem;" title="Edit">✏️</button>
                 <button onclick="deleteInventoryItem('${item.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.75rem;" title="Delete">🗑️</button>
               </div>
@@ -1921,6 +2034,387 @@
     document.getElementById('inv-modal').addEventListener('click', function(e) { if (e.target === this) closeInventoryModal(); });
 
     renderInventory();
+
+    // ══════════════════════════════════════
+    // MARKETPLACE
+    // ══════════════════════════════════════
+
+    const STORE_DIRECTORY = [
+      { name: "Amazon", url: "https://amazon.com", icon: "🏪", category: "General", description: "Everything store" },
+      { name: "Walmart", url: "https://walmart.com", icon: "🏪", category: "General", description: "Everyday low prices" },
+      { name: "Etsy", url: "https://etsy.com", icon: "🎨", category: "Handmade & Vintage", description: "Handmade, vintage, and unique goods" },
+      { name: "eBay", url: "https://ebay.com", icon: "🏷️", category: "Auctions & Resale", description: "Buy and sell anything" },
+      { name: "Newegg", url: "https://newegg.com", icon: "💻", category: "Electronics", description: "Computer hardware and electronics" },
+      { name: "Home Depot", url: "https://homedepot.com", icon: "🔨", category: "Home & Garden", description: "Home improvement and tools" },
+      { name: "REI", url: "https://rei.com", icon: "⛺", category: "Outdoors", description: "Outdoor gear and clothing" },
+      { name: "Steam", url: "https://store.steampowered.com", icon: "🎮", category: "Gaming", description: "PC games and software" },
+      { name: "GOG", url: "https://gog.com", icon: "🎮", category: "Gaming", description: "DRM-free games" },
+      { name: "Bandcamp", url: "https://bandcamp.com", icon: "🎵", category: "Music", description: "Independent music" },
+      { name: "Ko-fi", url: "https://ko-fi.com", icon: "☕", category: "Creator Support", description: "Support creators directly" },
+      { name: "GitHub Sponsors", url: "https://github.com/sponsors", icon: "💝", category: "Creator Support", description: "Fund open source developers" },
+    ];
+
+    const LISTING_CATEGORIES = ['Electronics','Vehicles','Clothing','Tools','Furniture','Home','Books/Media','Gaming','Sports','Crafts','Food/Garden','Services','Other'];
+    const LISTING_CONDITIONS = ['New','Like New','Good','Fair','Poor','N/A'];
+    const CATEGORY_COLORS = {Electronics:'#08f',Vehicles:'#f80',Clothing:'#f0a',Tools:'#fa0',Furniture:'#a66',Home:'#4a8','Books/Media':'#84f',Gaming:'#0cf',Sports:'#4c4',Crafts:'#c4a','Food/Garden':'#6a4',Services:'#48f',Other:'#888'};
+
+    let marketListings = [];
+    let marketWs = null;
+    let marketMyKey = null;
+    let marketMyName = null;
+    let marketMyRole = '';
+    let marketCurrentSection = 'marketplace';
+
+    function showMarketSection(section) {
+      marketCurrentSection = section;
+      ['marketplace','stores','mylistings'].forEach(s => {
+        const el = document.getElementById('market-section-' + s);
+        const btn = document.getElementById('market-nav-' + s);
+        if (el) el.style.display = s === section ? '' : 'none';
+        if (btn) btn.className = s === section ? 'btn btn-clickable' : 'btn';
+      });
+      const createBtn = document.getElementById('market-create-btn');
+      if (createBtn) createBtn.style.display = (section === 'marketplace' && canCreateListing()) ? '' : 'none';
+      if (section === 'stores') renderStoreDirectory();
+      if (section === 'mylistings') renderMyListings();
+      if (section === 'marketplace') renderMarketListings();
+    }
+
+    function canCreateListing() {
+      return marketMyRole === 'verified' || marketMyRole === 'donor' || marketMyRole === 'mod' || marketMyRole === 'admin';
+    }
+
+    function marketConnect() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      marketWs = new WebSocket(proto + '//' + location.host + '/ws');
+      marketWs.onopen = () => {
+        const storedKey = localStorage.getItem('humanity_key');
+        const storedName = localStorage.getItem('humanity_name');
+        if (storedKey) {
+          marketMyKey = storedKey;
+          marketMyName = storedName;
+          marketWs.send(JSON.stringify({ type: 'identify', public_key: storedKey, display_name: storedName || null }));
+        } else {
+          marketMyKey = 'viewer_' + Math.random().toString(36).slice(2, 10);
+          marketWs.send(JSON.stringify({ type: 'identify', public_key: marketMyKey, display_name: null }));
+        }
+      };
+      marketWs.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          handleMarketMessage(msg);
+        } catch {}
+      };
+      marketWs.onclose = () => { setTimeout(marketConnect, 3000); };
+      marketWs.onerror = () => {};
+    }
+
+    function handleMarketMessage(msg) {
+      switch (msg.type) {
+        case 'peer_list':
+          if (msg.peers && marketMyKey) {
+            const me = msg.peers.find(p => p.public_key === marketMyKey);
+            if (me) {
+              marketMyRole = me.role || '';
+              marketMyName = me.display_name || marketMyName;
+            }
+          }
+          updateMarketPermissions();
+          // Request listings
+          if (marketWs && marketWs.readyState === 1) {
+            marketWs.send(JSON.stringify({ type: 'listing_browse' }));
+          }
+          break;
+        case 'listing_list':
+          marketListings = msg.listings || [];
+          renderMarketListings();
+          renderMyListings();
+          break;
+        case 'listing_new':
+          if (msg.listing) {
+            const existing = marketListings.findIndex(l => l.id === msg.listing.id);
+            if (existing >= 0) marketListings[existing] = msg.listing;
+            else marketListings.unshift(msg.listing);
+            renderMarketListings();
+            renderMyListings();
+          }
+          break;
+        case 'listing_updated':
+          if (msg.listing) {
+            const idx = marketListings.findIndex(l => l.id === msg.listing.id);
+            if (idx >= 0) marketListings[idx] = msg.listing;
+            renderMarketListings();
+            renderMyListings();
+          }
+          break;
+        case 'listing_deleted':
+          if (msg.id) {
+            marketListings = marketListings.filter(l => l.id !== msg.id);
+            renderMarketListings();
+            renderMyListings();
+          }
+          break;
+        case 'system':
+          // Ignore system messages in market context
+          break;
+      }
+    }
+
+    function updateMarketPermissions() {
+      const createBtn = document.getElementById('market-create-btn');
+      if (createBtn) createBtn.style.display = (marketCurrentSection === 'marketplace' && canCreateListing()) ? '' : 'none';
+    }
+
+    function renderMarketListings() {
+      const search = (document.getElementById('market-search').value || '').toLowerCase();
+      const catFilter = document.getElementById('market-category-filter').value;
+      const condFilter = document.getElementById('market-condition-filter').value;
+      const sort = document.getElementById('market-sort').value;
+
+      let filtered = marketListings.filter(l => {
+        if (l.status !== 'active') return false;
+        if (catFilter && l.category !== catFilter) return false;
+        if (condFilter && l.condition !== condFilter) return false;
+        if (search && !l.title.toLowerCase().includes(search) && !(l.description||'').toLowerCase().includes(search) && !(l.seller_name||'').toLowerCase().includes(search)) return false;
+        return true;
+      });
+
+      if (sort === 'oldest') filtered.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+      else if (sort === 'alpha') filtered.sort((a, b) => a.title.localeCompare(b.title));
+      else filtered.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+      const grid = document.getElementById('market-listings-grid');
+      const empty = document.getElementById('market-listings-empty');
+      if (filtered.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = '';
+      } else {
+        empty.style.display = 'none';
+        grid.innerHTML = filtered.map(l => renderListingCard(l, false)).join('');
+      }
+    }
+
+    function renderListingCard(l, showActions) {
+      const catColor = CATEGORY_COLORS[l.category] || '#888';
+      const isMine = l.seller_key === marketMyKey;
+      const isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
+      const actions = (isMine || showActions) ? `
+        <div style="display:flex;gap:0.3rem;margin-top:0.5rem;">
+          ${isMine?`<button onclick="editListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">✏️ Edit</button>`:''}
+          ${isMine?`<button onclick="markListingSold('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--success);cursor:pointer;font-size:0.7rem;">✅ Sold</button>`:''}
+          ${(isMine||isAdmin)?`<button onclick="deleteListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--error);cursor:pointer;font-size:0.7rem;">🗑️ Delete</button>`:''}
+        </div>` : '';
+      const statusBadge = l.status === 'sold' ? '<span style="background:#4a8;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">SOLD</span>' :
+                          l.status === 'withdrawn' ? '<span style="background:#888;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">WITHDRAWN</span>' : '';
+      return `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'" onclick="showListingDetail('${l.id}')">
+          <div style="height:120px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.06));display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem;">📦</div>
+          <div style="padding:0.8rem;">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.3rem;">
+              <span style="font-weight:600;font-size:0.85rem;color:var(--text);flex:1;">${escHtml(l.title)}${statusBadge}</span>
+            </div>
+            <div style="font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:0.3rem;">${escHtml(l.price || 'Contact for price')}</div>
+            <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+              <span style="background:${catColor}22;color:${catColor};font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;">${escHtml(l.category)}</span>
+              ${l.condition && l.condition !== 'N/A' ? `<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;">${escHtml(l.condition)}</span>` : ''}
+            </div>
+            <div style="font-size:0.72rem;color:var(--text-muted);">by ${escHtml(l.seller_name || 'Anonymous')}</div>
+            ${l.location ? `<div style="font-size:0.68rem;color:var(--text-muted);">📍 ${escHtml(l.location)}</div>` : ''}
+            ${actions}
+          </div>
+        </div>`;
+    }
+
+    function showListingDetail(id) {
+      const l = marketListings.find(x => x.id === id);
+      if (!l) return;
+      const isMine = l.seller_key === marketMyKey;
+      const isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
+      const catColor = CATEGORY_COLORS[l.category] || '#888';
+      const contactBtn = !isMine ? `<button onclick="contactSeller('${escHtml(l.seller_key)}','${escHtml(l.seller_name||'Seller')}');closeListingDetail()" style="width:100%;padding:0.6rem;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9rem;font-weight:600;margin-top:1rem;">💬 Contact Seller</button>` : '';
+      document.getElementById('listing-detail-content').innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <h2 style="color:var(--text);margin:0;font-size:1.1rem;">${escHtml(l.title)}</h2>
+          <button onclick="closeListingDetail()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;">✕</button>
+        </div>
+        <div style="font-size:1.3rem;font-weight:700;color:var(--accent);margin:0.8rem 0;">${escHtml(l.price || 'Contact for price')}</div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.8rem;">
+          <span style="background:${catColor}22;color:${catColor};font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px;">${escHtml(l.category)}</span>
+          ${l.condition ? `<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px;">${escHtml(l.condition)}</span>` : ''}
+          ${l.status !== 'active' ? `<span style="background:${l.status==='sold'?'#4a8':'#888'};color:#fff;font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px;">${l.status.toUpperCase()}</span>` : ''}
+        </div>
+        ${l.description ? `<div style="font-size:0.85rem;color:var(--text);line-height:1.5;margin-bottom:0.8rem;white-space:pre-wrap;">${escHtml(l.description)}</div>` : ''}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;font-size:0.8rem;color:var(--text-muted);">
+          <div>👤 <strong>${escHtml(l.seller_name || 'Anonymous')}</strong></div>
+          ${l.location ? `<div>📍 ${escHtml(l.location)}</div>` : '<div></div>'}
+          ${l.payment_methods ? `<div>💳 ${escHtml(l.payment_methods)}</div>` : '<div></div>'}
+          <div>📅 ${l.created_at ? new Date(l.created_at).toLocaleDateString() : 'Unknown'}</div>
+        </div>
+        ${contactBtn}
+        ${isMine || isAdmin ? `
+        <div style="display:flex;gap:0.5rem;margin-top:0.8rem;">
+          ${isMine?`<button onclick="editListing('${l.id}');closeListingDetail()" class="btn" style="flex:1;min-width:auto;min-height:32px;padding:0.25rem;font-size:0.8rem;">✏️ Edit</button>`:''}
+          ${isMine?`<button onclick="markListingSold('${l.id}');closeListingDetail()" class="btn" style="flex:1;min-width:auto;min-height:32px;padding:0.25rem;font-size:0.8rem;color:var(--success);">✅ Mark Sold</button>`:''}
+          <button onclick="deleteListing('${l.id}');closeListingDetail()" class="btn" style="flex:1;min-width:auto;min-height:32px;padding:0.25rem;font-size:0.8rem;color:var(--error);">🗑️ Delete</button>
+        </div>` : ''}
+      `;
+      document.getElementById('listing-detail-modal').style.display = '';
+    }
+
+    function closeListingDetail() {
+      document.getElementById('listing-detail-modal').style.display = 'none';
+    }
+
+    function contactSeller(sellerKey, sellerName) {
+      // Navigate to chat and open DM — use chat's existing DM system
+      // We'll switch to chat tab and trigger a DM open via stored intent
+      localStorage.setItem('dm_intent', JSON.stringify({ key: sellerKey, name: sellerName }));
+      window.location.href = '/chat';
+    }
+
+    function openListingModal(prefill) {
+      if (!canCreateListing()) {
+        alert('You must be verified to create listings. Ask an admin to verify you.');
+        return;
+      }
+      document.getElementById('listing-modal-title').textContent = prefill && prefill.editId ? 'Edit Listing' : 'Create Listing';
+      document.getElementById('listing-edit-id').value = (prefill && prefill.editId) || '';
+      document.getElementById('listing-title').value = (prefill && prefill.title) || '';
+      document.getElementById('listing-description').value = (prefill && prefill.description) || '';
+      document.getElementById('listing-category').value = (prefill && prefill.category) || 'Other';
+      document.getElementById('listing-condition').value = (prefill && prefill.condition) || 'Good';
+      document.getElementById('listing-price').value = (prefill && prefill.price) || '';
+      document.getElementById('listing-payment').value = (prefill && prefill.payment_methods) || '';
+      document.getElementById('listing-location').value = (prefill && prefill.location) || '';
+      document.getElementById('listing-modal').style.display = '';
+    }
+
+    function closeListingModal() {
+      document.getElementById('listing-modal').style.display = 'none';
+    }
+
+    function submitListing() {
+      const title = document.getElementById('listing-title').value.trim();
+      if (!title) { document.getElementById('listing-title').style.borderColor = '#e55'; return; }
+      const editId = document.getElementById('listing-edit-id').value;
+      const data = {
+        title,
+        description: document.getElementById('listing-description').value.trim(),
+        category: document.getElementById('listing-category').value,
+        condition: document.getElementById('listing-condition').value,
+        price: document.getElementById('listing-price').value.trim(),
+        payment_methods: document.getElementById('listing-payment').value.trim(),
+        location: document.getElementById('listing-location').value.trim(),
+      };
+      if (editId) {
+        data.id = editId;
+        if (marketWs && marketWs.readyState === 1) {
+          marketWs.send(JSON.stringify({ type: 'listing_update', ...data }));
+        }
+      } else {
+        data.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        if (marketWs && marketWs.readyState === 1) {
+          marketWs.send(JSON.stringify({ type: 'listing_create', ...data }));
+        }
+      }
+      closeListingModal();
+    }
+
+    function editListing(id) {
+      const l = marketListings.find(x => x.id === id);
+      if (!l) return;
+      openListingModal({
+        editId: l.id,
+        title: l.title,
+        description: l.description,
+        category: l.category,
+        condition: l.condition,
+        price: l.price,
+        payment_methods: l.payment_methods,
+        location: l.location,
+      });
+    }
+
+    function markListingSold(id) {
+      if (!confirm('Mark this listing as sold?')) return;
+      if (marketWs && marketWs.readyState === 1) {
+        const l = marketListings.find(x => x.id === id);
+        if (l) marketWs.send(JSON.stringify({ type: 'listing_update', id, title: l.title, description: l.description, category: l.category, condition: l.condition, price: l.price, payment_methods: l.payment_methods, location: l.location, status: 'sold' }));
+      }
+    }
+
+    function deleteListing(id) {
+      if (!confirm('Delete this listing?')) return;
+      if (marketWs && marketWs.readyState === 1) {
+        marketWs.send(JSON.stringify({ type: 'listing_delete', id }));
+      }
+    }
+
+    function renderMyListings() {
+      const mine = marketListings.filter(l => l.seller_key === marketMyKey);
+      const grid = document.getElementById('my-listings-grid');
+      const empty = document.getElementById('my-listings-empty');
+      if (mine.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = '';
+      } else {
+        empty.style.display = 'none';
+        grid.innerHTML = mine.map(l => renderListingCard(l, true)).join('');
+      }
+    }
+
+    // Store Directory
+    function renderStoreDirectory() {
+      const filter = document.getElementById('store-category-filter').value;
+      const filtered = filter ? STORE_DIRECTORY.filter(s => s.category === filter) : STORE_DIRECTORY;
+      document.getElementById('store-directory-grid').innerHTML = filtered.map(s => `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1rem;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'">
+          <div style="font-size:1.5rem;margin-bottom:0.4rem;">${s.icon}</div>
+          <div style="font-weight:600;font-size:0.9rem;color:var(--text);margin-bottom:0.2rem;">${escHtml(s.name)}</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.4rem;">${escHtml(s.category)}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">${escHtml(s.description)}</div>
+          <a href="${s.url}" target="_blank" rel="noopener" style="display:inline-block;padding:0.3rem 0.8rem;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.75rem;font-weight:600;">Visit Store →</a>
+        </div>`).join('');
+    }
+
+    // Populate store category filter
+    (function() {
+      const cats = [...new Set(STORE_DIRECTORY.map(s => s.category))];
+      const sel = document.getElementById('store-category-filter');
+      cats.forEach(c => { sel.innerHTML += `<option value="${escHtml(c)}">${escHtml(c)}</option>`; });
+    })();
+
+    // Inventory → Listing bridge
+    function listInventoryForSale(itemId) {
+      const item = loadInventory().find(i => i.id === itemId);
+      if (!item) return;
+      // Map inventory category to marketplace category
+      const catMap = {'Vehicle':'Vehicles','Clothing':'Clothing','Electronics':'Electronics','Tools':'Tools','Furniture':'Furniture','Kitchen':'Home','Books/Media':'Books/Media','Gaming':'Gaming','Home':'Home','Other':'Other'};
+      const category = catMap[item.category] || 'Other';
+      // Switch to market tab
+      switchTab('market');
+      showMarketSection('marketplace');
+      openListingModal({
+        title: item.name,
+        description: (item.description || '') + (item.notes ? '\n\n' + item.notes : ''),
+        category: category,
+        condition: item.condition || 'Good',
+      });
+    }
+
+    // Connect marketplace WS when market tab is shown
+    let marketConnected = false;
+    const origSwitchTab = switchTab;
+    // We can't easily override switchTab, so use a MutationObserver on the tab
+    const marketTabEl = document.getElementById('tab-market');
+    if (marketTabEl) {
+      new MutationObserver(() => {
+        if (marketTabEl.classList.contains('active') && !marketConnected) {
+          marketConnected = true;
+          marketConnect();
+        }
+      }).observe(marketTabEl, { attributes: true, attributeFilter: ['class'] });
+    }
 
     // ══════════════════════════════════════
     // UNIVERSAL SEARCH

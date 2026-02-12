@@ -96,6 +96,7 @@ async fn main() {
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/server-info", get(api::get_server_info))
+        .route("/api/listings", get(api::get_listings).post(api::create_listing))
         .route("/api/federation/servers", get(api::list_federation_servers))
         .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
         .fallback_service(

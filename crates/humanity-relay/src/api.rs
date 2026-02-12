@@ -849,6 +849,108 @@ pub struct FederatedServerEntry {
     pub last_seen: Option<i64>,
 }
 
+// ── Marketplace API ──
+
+/// Query params for GET /api/listings.
+#[derive(Debug, Deserialize)]
+pub struct ListingsQuery {
+    pub category: Option<String>,
+    pub status: Option<String>,
+    pub limit: Option<usize>,
+}
+
+/// Response for GET /api/listings.
+#[derive(Debug, Serialize)]
+pub struct ListingsResponse {
+    pub listings: Vec<ListingEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ListingEntry {
+    pub id: String,
+    pub seller_key: String,
+    pub seller_name: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub condition: Option<String>,
+    pub price: Option<String>,
+    pub payment_methods: Option<String>,
+    pub location: Option<String>,
+    pub status: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+/// GET /api/listings — browse marketplace listings (public).
+pub async fn get_listings(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<ListingsQuery>,
+) -> Json<ListingsResponse> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let listings = state.db.get_listings(
+        params.category.as_deref(),
+        params.status.as_deref().or(Some("active")),
+        limit,
+    ).unwrap_or_default();
+    let entries: Vec<ListingEntry> = listings.into_iter().map(|l| ListingEntry {
+        id: l.id, seller_key: l.seller_key, seller_name: l.seller_name,
+        title: l.title, description: l.description, category: l.category,
+        condition: l.condition, price: l.price, payment_methods: l.payment_methods,
+        location: l.location, status: l.status, created_at: l.created_at,
+        updated_at: l.updated_at,
+    }).collect();
+    Json(ListingsResponse { listings: entries })
+}
+
+/// Request body for POST /api/listings.
+#[derive(Debug, Deserialize)]
+pub struct CreateListingRequest {
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    pub category: String,
+    #[serde(default)]
+    pub condition: String,
+    #[serde(default)]
+    pub price: String,
+    #[serde(default)]
+    pub payment_methods: String,
+    #[serde(default)]
+    pub location: String,
+}
+
+/// POST /api/listings — create a listing (requires API auth for bots).
+pub async fn create_listing(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreateListingRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+    if req.title.trim().is_empty() || req.title.len() > 100 {
+        return Err((StatusCode::BAD_REQUEST, "Title must be 1-100 characters.".into()));
+    }
+    let id = format!("api_{}", std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis());
+    match state.db.create_listing(&id, "bot_api", "API", req.title.trim(), &req.description, &req.category, &req.condition, &req.price, &req.payment_methods, &req.location) {
+        Ok(()) => {
+            if let Ok(Some(listing)) = state.db.get_listing_by_id(&id) {
+                let _ = state.broadcast_tx.send(crate::relay::RelayMessage::ListingNew {
+                    listing: crate::relay::ListingData {
+                        id: listing.id.clone(), seller_key: listing.seller_key, seller_name: listing.seller_name,
+                        title: listing.title, description: listing.description, category: listing.category,
+                        condition: listing.condition, price: listing.price, payment_methods: listing.payment_methods,
+                        location: listing.location, images: listing.images, status: listing.status,
+                        created_at: listing.created_at, updated_at: listing.updated_at,
+                    },
+                });
+            }
+            Ok(Json(serde_json::json!({ "id": id, "status": "created" })))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed: {e}"))),
+    }
+}
+
 /// GET /api/federation/servers — list federated servers (public).
 pub async fn list_federation_servers(
     State(state): State<Arc<RelayState>>,
