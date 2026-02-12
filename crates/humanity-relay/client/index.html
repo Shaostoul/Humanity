@@ -1898,44 +1898,51 @@
 
     /* Video panel */
     #video-panel {
-      display: none;
       position: fixed;
       bottom: 80px;
       right: 20px;
-      background: #000;
-      border: 2px solid var(--border);
+      z-index: 1000;
+      display: none;
+      background: #111;
       border-radius: 8px;
       overflow: hidden;
-      z-index: 200;
-      resize: both;
-      min-width: 200px;
-      min-height: 150px;
-      width: 320px;
-      height: 240px;
+      max-width: 640px;
     }
-    #video-panel.open { display: block; }
-    #video-panel .video-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 2px;
-      width: 100%;
-      height: 100%;
+    #video-panel.active { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; }
+    #video-panel .video-wrapper {
+      position: relative;
+      width: 200px;
+      height: 150px;
     }
     #video-panel video {
-      width: 100%;
-      height: 100%;
+      width: 200px;
+      height: 150px;
       object-fit: cover;
+      border-radius: 4px;
+      background: #000;
+    }
+    #video-panel .video-label {
+      position: absolute;
+      bottom: 4px;
+      left: 4px;
+      font-size: 0.65rem;
+      background: rgba(0,0,0,0.7);
+      padding: 1px 4px;
+      border-radius: 2px;
+      color: #fff;
     }
     #video-panel .self-view {
-      position: absolute;
-      bottom: 8px;
-      right: 8px;
-      width: 80px;
-      height: 60px;
-      border-radius: 4px;
-      border: 1px solid var(--accent);
-      z-index: 1;
+      position: relative;
+      width: 120px;
+      height: 90px;
     }
+    #video-panel .self-view video {
+      width: 120px;
+      height: 90px;
+      transform: scaleX(-1);
+    }
+    /* Connection quality indicator */
+    .vr-participant .quality-indicator { margin-left: 4px; font-size: 0.6rem; }
     .btn-video {
       background: var(--bg-input);
       color: var(--text);
@@ -2149,6 +2156,8 @@
           <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
           <div class="vc-bar-controls">
             <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()" title="Mute/Unmute">🎤</button>
+            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" title="Toggle Camera">📹</button>
+            <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()" title="Screen Share">🖥️</button>
             <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100" title="Master volume" oninput="setVoiceRoomVolume(this.value)">
             <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect">🔌</button>
           </div>
@@ -2170,6 +2179,7 @@
           <div class="call-actions">
             <button class="btn-mute" id="mute-btn" onclick="toggleMute()">🎤 Mute</button>
             <button class="btn-video" id="video-btn" onclick="toggleVideo()">📹 Video</button>
+            <button class="btn-video" id="screen-btn" onclick="toggleScreenShare()">🖥️ Screen</button>
             <button class="btn-hangup" onclick="hangupCall()">📵 Hangup</button>
           </div>
         </div>
@@ -2313,9 +2323,7 @@
   </div>
 
   <!-- Video Panel -->
-  <div id="video-panel">
-    <div class="video-grid" id="video-grid"></div>
-  </div>
+  <div id="video-panel"></div>
 
   <!-- Status Picker -->
   <div id="status-picker">
@@ -6662,6 +6670,447 @@ async function importIdentityFromJSON(jsonData) {
         if (window.twemoji) twemoji.parse(btn);
       });
     };
+  </script>
+
+  <script>
+  // ── Phase 2: Video Calls + Screen Share ──
+
+  // --- DM Call Video ---
+  let dmVideoStream = null;
+  let dmScreenStream = null;
+  let dmVideoActive = false;
+  let dmScreenActive = false;
+
+  function toggleVideo() {
+    if (!peerConnection) return;
+    if (dmVideoActive) {
+      stopDmVideo();
+    } else {
+      startDmVideo();
+    }
+  }
+
+  async function startDmVideo() {
+    if (!peerConnection) return;
+    try {
+      // Stop screen share if active
+      if (dmScreenActive) stopDmScreenShare();
+      dmVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+      const videoTrack = dmVideoStream.getVideoTracks()[0];
+      const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(videoTrack);
+      } else {
+        peerConnection.addTrack(videoTrack, dmVideoStream);
+      }
+      dmVideoActive = true;
+      document.getElementById('video-btn').classList.add('active');
+      document.getElementById('video-btn').textContent = '📹 On';
+      showLocalVideo(dmVideoStream, 'dm-self');
+    } catch (e) {
+      addSystemMessage('⚠️ Camera access denied.');
+    }
+  }
+
+  function stopDmVideo() {
+    if (dmVideoStream) {
+      dmVideoStream.getTracks().forEach(t => t.stop());
+      dmVideoStream = null;
+    }
+    // Remove video sender
+    if (peerConnection) {
+      const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) { try { peerConnection.removeTrack(sender); } catch(e){} }
+    }
+    dmVideoActive = false;
+    document.getElementById('video-btn').classList.remove('active');
+    document.getElementById('video-btn').textContent = '📹 Video';
+    removeVideoElement('dm-self');
+    updateVideoPanel();
+  }
+
+  async function toggleScreenShare() {
+    if (!peerConnection) return;
+    if (dmScreenActive) {
+      stopDmScreenShare();
+    } else {
+      startDmScreenShare();
+    }
+  }
+
+  async function startDmScreenShare() {
+    if (!peerConnection) return;
+    try {
+      if (dmVideoActive) stopDmVideo();
+      dmScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const videoTrack = dmScreenStream.getVideoTracks()[0];
+      videoTrack.addEventListener('ended', () => { stopDmScreenShare(); });
+      const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(videoTrack);
+      } else {
+        peerConnection.addTrack(videoTrack, dmScreenStream);
+      }
+      dmScreenActive = true;
+      document.getElementById('screen-btn').classList.add('active');
+      document.getElementById('screen-btn').textContent = '🖥️ On';
+      showLocalVideo(dmScreenStream, 'dm-screen');
+    } catch (e) {
+      // User cancelled the screen share picker
+    }
+  }
+
+  function stopDmScreenShare() {
+    if (dmScreenStream) {
+      dmScreenStream.getTracks().forEach(t => t.stop());
+      dmScreenStream = null;
+    }
+    if (peerConnection) {
+      const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) { try { peerConnection.removeTrack(sender); } catch(e){} }
+    }
+    dmScreenActive = false;
+    const btn = document.getElementById('screen-btn');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '🖥️ Screen'; }
+    removeVideoElement('dm-screen');
+    updateVideoPanel();
+  }
+
+  // Patch cleanupCall to also clean up video
+  const _origCleanupCall = cleanupCall;
+  cleanupCall = function() {
+    stopDmVideo();
+    stopDmScreenShare();
+    // Remove all remote video
+    document.querySelectorAll('#video-panel .video-wrapper').forEach(el => el.remove());
+    updateVideoPanel();
+    _origCleanupCall();
+  };
+
+  // Patch resetCallState to reset video buttons
+  const _origResetCallState = resetCallState;
+  resetCallState = function() {
+    _origResetCallState();
+    const vb = document.getElementById('video-btn');
+    if (vb) { vb.classList.remove('active'); vb.textContent = '📹 Video'; }
+    const sb = document.getElementById('screen-btn');
+    if (sb) { sb.classList.remove('active'); sb.textContent = '🖥️ Screen'; }
+  };
+
+  // Patch peerConnection.ontrack to handle video tracks
+  const _origSetupPeerConnection = setupPeerConnection;
+  setupPeerConnection = async function(isCaller) {
+    const result = await _origSetupPeerConnection(isCaller);
+    if (!result || !peerConnection) return result;
+    const origOnTrack = peerConnection.ontrack;
+    peerConnection.ontrack = function(event) {
+      if (event.track.kind === 'video') {
+        showRemoteVideo(event.streams[0], 'dm-remote-' + event.track.id, callPeerName || 'Peer');
+      } else {
+        if (origOnTrack) origOnTrack.call(this, event);
+      }
+    };
+    return result;
+  };
+
+  // --- Voice Room Video ---
+  let vrVideoStream = null;
+  let vrScreenStream = null;
+  let vrVideoActive = false;
+  let vrScreenActive = false;
+
+  window.toggleVoiceRoomVideo = async function() {
+    if (!window._currentRoomId) return;
+    if (vrVideoActive) {
+      stopVrVideo();
+    } else {
+      await startVrVideo();
+    }
+  };
+
+  async function startVrVideo() {
+    try {
+      if (vrScreenActive) stopVrScreenShare();
+      vrVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+      const videoTrack = vrVideoStream.getVideoTracks()[0];
+      // Add video track to all peer connections
+      for (const [key, pc] of Object.entries(window._roomPeerConnections)) {
+        pc.addTrack(videoTrack, vrVideoStream);
+      }
+      vrVideoActive = true;
+      const btn = document.getElementById('vc-video-btn');
+      if (btn) { btn.classList.add('vc-muted'); btn.textContent = '📹✓'; }
+      showLocalVideo(vrVideoStream, 'vr-self');
+    } catch (e) {
+      addSystemMessage('⚠️ Camera access denied.');
+    }
+  }
+
+  function stopVrVideo() {
+    if (vrVideoStream) {
+      const videoTrack = vrVideoStream.getVideoTracks()[0];
+      for (const [key, pc] of Object.entries(window._roomPeerConnections)) {
+        const sender = pc.getSenders().find(s => s.track === videoTrack);
+        if (sender) { try { pc.removeTrack(sender); } catch(e){} }
+      }
+      vrVideoStream.getTracks().forEach(t => t.stop());
+      vrVideoStream = null;
+    }
+    vrVideoActive = false;
+    const btn = document.getElementById('vc-video-btn');
+    if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '📹'; }
+    removeVideoElement('vr-self');
+    updateVideoPanel();
+  }
+
+  window.toggleVoiceRoomScreenShare = async function() {
+    if (!window._currentRoomId) return;
+    if (vrScreenActive) {
+      stopVrScreenShare();
+    } else {
+      await startVrScreenShare();
+    }
+  };
+
+  async function startVrScreenShare() {
+    try {
+      if (vrVideoActive) stopVrVideo();
+      vrScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const videoTrack = vrScreenStream.getVideoTracks()[0];
+      videoTrack.addEventListener('ended', () => { stopVrScreenShare(); });
+      for (const [key, pc] of Object.entries(window._roomPeerConnections)) {
+        pc.addTrack(videoTrack, vrScreenStream);
+      }
+      vrScreenActive = true;
+      const btn = document.getElementById('vc-screen-btn');
+      if (btn) { btn.classList.add('vc-muted'); btn.textContent = '🖥️✓'; }
+      showLocalVideo(vrScreenStream, 'vr-screen');
+    } catch (e) {
+      // User cancelled
+    }
+  }
+
+  function stopVrScreenShare() {
+    if (vrScreenStream) {
+      const videoTrack = vrScreenStream.getVideoTracks()[0];
+      for (const [key, pc] of Object.entries(window._roomPeerConnections)) {
+        const sender = pc.getSenders().find(s => s.track === videoTrack);
+        if (sender) { try { pc.removeTrack(sender); } catch(e){} }
+      }
+      vrScreenStream.getTracks().forEach(t => t.stop());
+      vrScreenStream = null;
+    }
+    vrScreenActive = false;
+    const btn = document.getElementById('vc-screen-btn');
+    if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '🖥️'; }
+    removeVideoElement('vr-screen');
+    updateVideoPanel();
+  }
+
+  // Patch cleanupRoomAudio to stop video too
+  const _origCleanupRoomAudio2 = window.cleanupRoomAudio;
+  window.cleanupRoomAudio = function() {
+    stopVrVideo();
+    stopVrScreenShare();
+    document.querySelectorAll('#video-panel .video-wrapper:not([data-id^="dm-"])').forEach(el => el.remove());
+    updateVideoPanel();
+    _origCleanupRoomAudio2();
+  };
+
+  // Patch connectToRoomPeer to handle remote video tracks
+  const _origConnectToRoomPeer2 = window.connectToRoomPeer;
+  window.connectToRoomPeer = async function(peerKey, peerName, roomId, isCaller) {
+    await _origConnectToRoomPeer2(peerKey, peerName, roomId, isCaller);
+    const pc = window._roomPeerConnections[peerKey];
+    if (!pc) return;
+    const origOnTrack = pc.ontrack;
+    pc.ontrack = function(event) {
+      if (event.track.kind === 'video') {
+        const label = peerName || shortKey(peerKey);
+        showRemoteVideo(event.streams[0], 'vr-remote-' + peerKey, label);
+        event.track.addEventListener('ended', () => {
+          removeVideoElement('vr-remote-' + peerKey);
+          updateVideoPanel();
+        });
+      } else {
+        if (origOnTrack) origOnTrack.call(this, event);
+      }
+    };
+  };
+
+  // --- Video Panel Helpers ---
+  function showLocalVideo(stream, id) {
+    removeVideoElement(id);
+    const panel = document.getElementById('video-panel');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'video-wrapper self-view';
+    wrapper.dataset.id = id;
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    const label = document.createElement('div');
+    label.className = 'video-label';
+    label.textContent = 'You';
+    wrapper.appendChild(video);
+    wrapper.appendChild(label);
+    panel.appendChild(wrapper);
+    updateVideoPanel();
+  }
+
+  function showRemoteVideo(stream, id, name) {
+    removeVideoElement(id);
+    const panel = document.getElementById('video-panel');
+    const wrapper = document.createElement('div');
+    wrapper.className = 'video-wrapper';
+    wrapper.dataset.id = id;
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    const label = document.createElement('div');
+    label.className = 'video-label';
+    label.textContent = name;
+    wrapper.appendChild(video);
+    wrapper.appendChild(label);
+    panel.appendChild(wrapper);
+    video.play().catch(() => {});
+    updateVideoPanel();
+  }
+
+  function removeVideoElement(id) {
+    const el = document.querySelector(`#video-panel .video-wrapper[data-id="${id}"]`);
+    if (el) el.remove();
+  }
+
+  function updateVideoPanel() {
+    const panel = document.getElementById('video-panel');
+    const hasVideos = panel.querySelectorAll('.video-wrapper').length > 0;
+    panel.classList.toggle('active', hasVideos);
+  }
+
+  // ── Phase 3: Connection Quality Stats ──
+  let qualityStatsInterval = null;
+
+  function startQualityStats() {
+    if (qualityStatsInterval) return;
+    qualityStatsInterval = setInterval(async () => {
+      // Voice room peers
+      for (const [peerKey, pc] of Object.entries(window._roomPeerConnections || {})) {
+        const indicator = getQualityIndicator(pc);
+        const el = document.querySelector(`.vr-participant[data-participant-key="${peerKey}"]`);
+        if (el) {
+          let badge = el.querySelector('.quality-indicator');
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'quality-indicator';
+            el.appendChild(badge);
+          }
+          badge.textContent = await indicator;
+        }
+      }
+      // DM call peer
+      if (peerConnection && callState === 'in-call') {
+        const ind = await getQualityIndicator(peerConnection);
+        const nameEl = document.getElementById('call-peer-name');
+        if (nameEl) {
+          // Strip old indicator
+          nameEl.textContent = nameEl.textContent.replace(/ [🟢🟡🔴⚫]$/, '') + ' ' + ind;
+        }
+      }
+    }, 3000);
+  }
+
+  function stopQualityStats() {
+    if (qualityStatsInterval) { clearInterval(qualityStatsInterval); qualityStatsInterval = null; }
+  }
+
+  async function getQualityIndicator(pc) {
+    try {
+      const stats = await pc.getStats();
+      for (const [, report] of stats) {
+        if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.currentRoundTripTime != null) {
+          const rtt = report.currentRoundTripTime * 1000; // seconds to ms
+          if (rtt < 100) return '🟢';
+          if (rtt <= 300) return '🟡';
+          return '🔴';
+        }
+      }
+      return '⚫';
+    } catch (e) {
+      return '⚫';
+    }
+  }
+
+  // Start quality stats when in voice room or call
+  const _origShowCallBar = showCallBar;
+  showCallBar = function() {
+    _origShowCallBar();
+    startQualityStats();
+  };
+
+  const _origResetCallState2 = resetCallState;
+  resetCallState = function() {
+    _origResetCallState2();
+    if (!window._currentRoomId) stopQualityStats();
+  };
+
+  // Start/stop quality stats with voice room
+  const _origSetupRoomAudio2 = window.setupRoomAudio;
+  window.setupRoomAudio = async function() {
+    await _origSetupRoomAudio2();
+    startQualityStats();
+  };
+
+  const _origCleanupRoomAudio3 = window.cleanupRoomAudio;
+  window.cleanupRoomAudio = function() {
+    _origCleanupRoomAudio3();
+    if (callState === 'idle') stopQualityStats();
+  };
+
+  // ── Phase 4: Web Push Notifications (SW-based) ──
+  function sendSWNotification(title, body, tag, url) {
+    if (!document.hidden) return; // Only notify when tab is backgrounded
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return;
+    // Request permission if needed
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+      return;
+    }
+    if (Notification.permission !== 'granted') return;
+    navigator.serviceWorker.controller.postMessage({
+      type: 'notification',
+      title: title,
+      body: body,
+      tag: tag || 'humanity',
+      url: url || '/chat'
+    });
+  }
+
+  // Request notification permission on first interaction
+  document.addEventListener('click', function requestNotifPerm() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    document.removeEventListener('click', requestNotifPerm);
+  }, { once: true });
+
+  // Patch handleMessage to send notifications for DMs and calls
+  const _origHandleMessage4 = handleMessage;
+  handleMessage = function(msg) {
+    // Notification for incoming DM
+    if (msg.type === 'private' && msg.from !== myKey && document.hidden) {
+      const senderName = msg.from_name || shortKey(msg.from);
+      sendSWNotification('DM from ' + senderName, msg.content || 'New message', 'dm-' + msg.from, '/chat');
+    }
+    // Notification for incoming call
+    if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden) {
+      const callerName = msg.from_name || shortKey(msg.from);
+      sendSWNotification('Incoming call from ' + callerName, 'Tap to answer', 'call-' + msg.from, '/chat');
+    }
+    _origHandleMessage4(msg);
+  };
   </script>
 
   <script>
