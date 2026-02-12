@@ -203,6 +203,23 @@
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
 
+  // ── SPA Navigation for Hub Tabs ──
+  document.querySelector('.hub-nav').addEventListener('click', function(e) {
+    const link = e.target.closest('a[href]');
+    if (!link) return;
+    const href = link.getAttribute('href');
+    const hubPaths = ['/board', '/reality', '/fantasy', '/streams', '/debug'];
+    const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
+    const targetIsHub = hubPaths.some(function(p) { return href === p; });
+    if (currentIsHub && targetIsHub && href !== location.pathname) {
+      e.preventDefault();
+      history.pushState({}, '', href);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+      document.querySelectorAll('.hub-nav a').forEach(function(a) { a.classList.remove('active'); });
+      link.classList.add('active');
+    }
+  });
+
   // ── Inject Footer ──
   const footer = document.createElement('div');
   footer.innerHTML =

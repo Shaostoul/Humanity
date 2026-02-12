@@ -1779,8 +1779,96 @@
       padding-left: 0.5rem;
       margin-top: 0.15rem;
     }
-    .voice-room-item .vr-participant { padding: 0.1rem 0; }
+    .voice-room-item .vr-participant { padding: 0.1rem 0; transition: color 0.15s, font-weight 0.15s; }
+    .voice-room-item .vr-participant.speaking { color: #4a4; font-weight: bold; }
+    .voice-room-item .vr-participant.speaking::before { content: '🟢 '; }
     .voice-room-item.in-room { border-color: var(--success); background: rgba(68,170,153,0.08); }
+
+    /* ── Voice Control Bar ── */
+    #voice-control-bar {
+      display: none;
+      background: linear-gradient(135deg, #1a3a2a, #1a2a3a);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+    }
+    #voice-control-bar.active { display: block; }
+    #voice-control-bar .vc-bar-header {
+      color: var(--success);
+      font-weight: 600;
+      font-size: 0.72rem;
+      margin-bottom: 0.35rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #voice-control-bar .vc-bar-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    #voice-control-bar button {
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    #voice-control-bar button:hover { background: var(--bg-hover); }
+    #voice-control-bar button.vc-muted { background: var(--warning); color: #000; }
+    #voice-control-bar .vc-volume {
+      flex: 1;
+      min-width: 50px;
+      accent-color: var(--accent);
+      height: 16px;
+    }
+    #voice-control-bar .vc-disconnect {
+      background: #dc3232;
+      color: #fff;
+      border-color: #dc3232;
+    }
+    #voice-control-bar .vc-disconnect:hover { background: #e54545; }
+
+    /* ── Channel Settings Cog ── */
+    .channel-cog {
+      display: none;
+      float: right;
+      cursor: pointer;
+      font-size: 0.7rem;
+      opacity: 0.5;
+      padding: 0 0.2rem;
+      position: relative;
+    }
+    .channel-cog:hover { opacity: 1; }
+    .channel-item:hover .channel-cog,
+    .voice-room-item:hover .channel-cog { display: inline; }
+    .cog-dropdown {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      min-width: 130px;
+      z-index: 200;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      padding: 0.3rem 0;
+    }
+    .cog-dropdown .cog-item {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.78rem;
+      color: var(--text);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .cog-dropdown .cog-item:hover { background: var(--bg-hover); color: var(--accent); }
+    .cog-dropdown .cog-item.danger { color: #e55; }
+    .cog-dropdown .cog-item.danger:hover { background: rgba(220,50,50,0.15); }
     .voice-room-item.vc-empty { opacity: 0.55; }
     .voice-room-item.vc-empty:hover { opacity: 0.85; }
     .vr-delete { background: transparent !important; border: none !important; cursor: pointer; }
@@ -2056,6 +2144,15 @@
         </div>
         <!-- Hidden channel-list container used by renderChannelList() -->
         <div id="channel-list" style="display:none;"></div>
+        <!-- Voice Control Bar (shown when in a voice channel) -->
+        <div id="voice-control-bar">
+          <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
+          <div class="vc-bar-controls">
+            <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()" title="Mute/Unmute">🎤</button>
+            <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100" title="Master volume" oninput="setVoiceRoomVolume(this.value)">
+            <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect">🔌</button>
+          </div>
+        </div>
       </div>
       <div id="chat-area">
         <div id="search-bar" style="position:relative;">
@@ -5273,7 +5370,8 @@ async function importIdentityFromJSON(jsonData) {
           const isActive = ch.id === activeChannel && !activeDmPartner;
           const title = ch.description ? ` title="${esc(ch.description)}"` : '';
           const lock = ch.read_only ? ' 🔒' : '';
-          return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${esc(ch.name)}${lock}</div>`;
+          const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
+          return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${cogHtml}${esc(ch.name)}${lock}</div>`;
         }).join('');
 
         // Text channel create button (admin/mod only)
@@ -5290,12 +5388,13 @@ async function importIdentityFromJSON(jsonData) {
           const inRoom = vc.participants.some(p => p.public_key === myKey);
           const hasParticipants = vc.participants.length > 0;
           const dimClass = hasParticipants ? '' : ' vc-empty';
+          const vcCogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="voice" data-cog-id="${vc.id}" data-cog-name="${esc(vc.name)}">⚙️</span>` : '';
           voiceHtml += `<div class="voice-room-item${inRoom ? ' in-room' : ''}${dimClass}" data-vc-id="${vc.id}">
-            <div class="vr-name">🔊 ${esc(vc.name)}${hasParticipants ? ' <span class="vr-count">(' + vc.participants.length + ')</span>' : ''}</div>`;
+            <div class="vr-name">${vcCogHtml}🔊 ${esc(vc.name)}${hasParticipants ? ' <span class="vr-count">(' + vc.participants.length + ')</span>' : ''}</div>`;
           if (hasParticipants) {
             voiceHtml += '<div class="vr-participants">';
             for (const p of vc.participants) {
-              voiceHtml += `<div class="vr-participant">🎤 ${esc(p.display_name)}</div>`;
+              voiceHtml += `<div class="vr-participant" data-participant-key="${p.public_key}">🎤 ${esc(p.display_name)}</div>`;
             }
             voiceHtml += '</div>';
           }
@@ -5871,6 +5970,225 @@ async function importIdentityFromJSON(jsonData) {
         .vr-leave { color:#e74c3c; border-color:#e74c3c; }
       `;
       document.head.appendChild(style);
+    })();
+
+    // ── Voice Control Bar + Speaking Indicators + Channel Cog ──
+    (function() {
+      // Voice control bar state
+      let vcMuted = false;
+      let vcVolume = 100;
+      let audioCtx = null;
+      let localAnalyser = null;
+      let speakingPollInterval = null;
+      let remoteAnalysers = {}; // peerKey → { analyser, source, interval }
+
+      window.toggleVoiceRoomMute = function() {
+        if (!window._roomLocalStream) return;
+        vcMuted = !vcMuted;
+        window._roomLocalStream.getAudioTracks().forEach(t => { t.enabled = !vcMuted; });
+        const btn = document.getElementById('vc-mute-btn');
+        btn.textContent = vcMuted ? '🔇' : '🎤';
+        btn.classList.toggle('vc-muted', vcMuted);
+        btn.title = vcMuted ? 'Unmute' : 'Mute';
+      };
+
+      window.setVoiceRoomVolume = function(val) {
+        vcVolume = parseInt(val);
+        document.querySelectorAll('.room-remote-audio').forEach(el => {
+          el.volume = vcVolume / 100;
+        });
+      };
+
+      function updateVoiceControlBar() {
+        const bar = document.getElementById('voice-control-bar');
+        if (!bar) return;
+        if (window._currentRoomId && window._roomLocalStream) {
+          const ch = (window._voiceChannels || []).find(c => String(c.id) === String(window._currentRoomId));
+          const name = ch ? ch.name : 'Unknown';
+          document.getElementById('vc-bar-channel-name').textContent = '🔊 Connected to: ' + name;
+          bar.classList.add('active');
+        } else {
+          bar.classList.remove('active');
+          stopSpeakingDetection();
+        }
+      }
+
+      // Speaking detection for local mic
+      function startLocalSpeakingDetection() {
+        if (!window._roomLocalStream) return;
+        try {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioCtx.createMediaStreamSource(window._roomLocalStream);
+          localAnalyser = audioCtx.createAnalyser();
+          localAnalyser.fftSize = 256;
+          source.connect(localAnalyser);
+          const dataArray = new Uint8Array(localAnalyser.frequencyBinCount);
+          speakingPollInterval = setInterval(() => {
+            if (!localAnalyser) return;
+            localAnalyser.getByteFrequencyData(dataArray);
+            const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+            const speaking = avg > 20;
+            const el = document.querySelector(`.vr-participant[data-participant-key="${myKey}"]`);
+            if (el) el.classList.toggle('speaking', speaking);
+          }, 100);
+        } catch (e) { console.warn('Speaking detection failed:', e); }
+      }
+
+      // Speaking detection for remote streams
+      function startRemoteSpeakingDetection(peerKey, stream) {
+        if (remoteAnalysers[peerKey]) return;
+        try {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const interval = setInterval(() => {
+            analyser.getByteFrequencyData(dataArray);
+            const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+            const speaking = avg > 20;
+            const el = document.querySelector(`.vr-participant[data-participant-key="${peerKey}"]`);
+            if (el) el.classList.toggle('speaking', speaking);
+          }, 100);
+          remoteAnalysers[peerKey] = { analyser, source, interval };
+        } catch (e) { console.warn('Remote speaking detection failed:', e); }
+      }
+
+      function stopSpeakingDetection() {
+        if (speakingPollInterval) { clearInterval(speakingPollInterval); speakingPollInterval = null; }
+        localAnalyser = null;
+        for (const [key, r] of Object.entries(remoteAnalysers)) {
+          clearInterval(r.interval);
+        }
+        remoteAnalysers = {};
+        if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
+        // Remove speaking classes
+        document.querySelectorAll('.vr-participant.speaking').forEach(el => el.classList.remove('speaking'));
+      }
+
+      // Patch setupRoomAudio to start speaking detection + update bar
+      const _origSetupRoomAudio = setupRoomAudio;
+      window.setupRoomAudio = async function() {
+        await _origSetupRoomAudio();
+        if (window._roomLocalStream) {
+          startLocalSpeakingDetection();
+          updateVoiceControlBar();
+          // Reset mute state
+          vcMuted = false;
+          const btn = document.getElementById('vc-mute-btn');
+          if (btn) { btn.textContent = '🎤'; btn.classList.remove('vc-muted'); }
+        }
+      };
+
+      // Patch cleanupRoomAudio to hide bar
+      const _origCleanupRoomAudio = cleanupRoomAudio;
+      window.cleanupRoomAudio = function() {
+        stopSpeakingDetection();
+        _origCleanupRoomAudio();
+        updateVoiceControlBar();
+      };
+
+      // Patch connectToRoomPeer to add remote speaking detection + volume
+      const _origConnectToRoomPeer = connectToRoomPeer;
+      window.connectToRoomPeer = async function(peerKey, peerName, roomId, isCaller) {
+        await _origConnectToRoomPeer(peerKey, peerName, roomId, isCaller);
+        const pc = window._roomPeerConnections[peerKey];
+        if (pc) {
+          const origOnTrack = pc.ontrack;
+          pc.ontrack = function(event) {
+            if (origOnTrack) origOnTrack.call(this, event);
+            // Apply volume to new audio elements
+            setTimeout(() => {
+              document.querySelectorAll('.room-remote-audio').forEach(el => { el.volume = vcVolume / 100; });
+              // Start speaking detection for this remote stream
+              if (event.streams[0]) startRemoteSpeakingDetection(peerKey, event.streams[0]);
+            }, 100);
+          };
+        }
+      };
+
+      // Patch renderServerList to update voice control bar
+      const _origRenderServerList = window.renderServerList;
+      window.renderServerList = function() {
+        _origRenderServerList();
+        updateVoiceControlBar();
+      };
+
+      // ── Channel Settings Cog ──
+      let activeCogDropdown = null;
+
+      document.addEventListener('click', function(e) {
+        // Close any open cog dropdown
+        if (activeCogDropdown && !e.target.closest('.cog-dropdown') && !e.target.closest('.channel-cog')) {
+          activeCogDropdown.remove();
+          activeCogDropdown = null;
+        }
+
+        const cog = e.target.closest('.channel-cog');
+        if (!cog) return;
+        e.stopPropagation();
+        e.preventDefault();
+
+        // Close existing
+        if (activeCogDropdown) { activeCogDropdown.remove(); activeCogDropdown = null; }
+
+        const type = cog.dataset.cogType;
+        const id = cog.dataset.cogId;
+        const name = cog.dataset.cogName;
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'cog-dropdown';
+
+        if (type === 'text') {
+          dropdown.innerHTML = `
+            <div class="cog-item" data-cog-action="rename">✏️ Rename</div>
+            <div class="cog-item danger" data-cog-action="delete">🗑️ Delete</div>
+          `;
+          dropdown.addEventListener('click', function(ev) {
+            const item = ev.target.closest('.cog-item');
+            if (!item) return;
+            const action = item.dataset.cogAction;
+            if (action === 'rename') {
+              const newName = prompt('New channel name:', name);
+              if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'chat', content: '/channel-edit ' + name + ' name ' + newName.trim(), timestamp: Date.now(), channel: activeChannel || 'general' }));
+              }
+            } else if (action === 'delete') {
+              if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'chat', content: '/channel-delete ' + name, timestamp: Date.now(), channel: activeChannel || 'general' }));
+                }
+              }
+            }
+            dropdown.remove();
+            activeCogDropdown = null;
+          });
+        } else if (type === 'voice') {
+          dropdown.innerHTML = `
+            <div class="cog-item" data-cog-action="rename" style="opacity:0.5;cursor:default;" title="Not yet implemented">✏️ Rename (coming soon)</div>
+            <div class="cog-item danger" data-cog-action="delete">🗑️ Delete</div>
+          `;
+          dropdown.addEventListener('click', function(ev) {
+            const item = ev.target.closest('.cog-item');
+            if (!item) return;
+            const action = item.dataset.cogAction;
+            if (action === 'delete') {
+              if (confirm('Delete voice channel "' + name + '"?')) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({ type: 'voice_room', action: 'delete', room_id: String(id) }));
+                }
+              }
+            }
+            dropdown.remove();
+            activeCogDropdown = null;
+          });
+        }
+
+        cog.style.position = 'relative';
+        cog.appendChild(dropdown);
+        activeCogDropdown = dropdown;
+      });
     })();
 
     // ── Voice Call / WebRTC (1-on-1 DM calls) ──
