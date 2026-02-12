@@ -3104,8 +3104,8 @@ function getPeerEcdhPublic(peerKey) {
       myIdentity = await getOrCreateIdentity();
       myKey = myIdentity.publicKeyHex;
 
-      // Initialize ECDH P-256 keypair for E2E encrypted DMs.
-      await getOrCreateEcdhKeypair();
+      // Initialize ECDH P-256 keypair for E2E encrypted DMs (non-blocking).
+      getOrCreateEcdhKeypair().catch(e => console.warn('ECDH init failed:', e));
 
       // Stay on login screen — we switch to chat only after server confirms identity.
       identityConfirmed = false;
