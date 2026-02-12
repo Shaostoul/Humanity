@@ -3213,12 +3213,21 @@ async function importIdentityFromJSON(jsonData) {
           addSystemMessage(msg.message);
           break;
         case 'name_taken': {
-          // Stay on login screen, show error. Never touched chat screen.
+          // Stop reconnecting — this is a permanent error, not a transient disconnect.
+          clearTimeout(reconnectTimer);
+          reconnectDelay = 1000;
+          // Clear the saved name so auto-login doesn't loop.
+          localStorage.removeItem('humanity_name');
+          // Show login screen with error.
+          document.getElementById('login-screen').style.display = 'flex';
+          document.getElementById('chat-screen').style.display = 'none';
           const errEl = document.getElementById('login-error');
           errEl.textContent = msg.message;
           errEl.style.display = 'block';
           document.getElementById('crypto-status').textContent = '';
-          if (ws) { ws.close(); ws = null; }
+          identityConfirmed = false;
+          if (ws) { ws.onclose = null; ws.close(); ws = null; }
+          setStatus('disconnected', 'Choose a different name');
           break;
         }
       }
