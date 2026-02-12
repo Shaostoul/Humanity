@@ -22,6 +22,10 @@ pub struct DmRecord {
     pub to_key: String,
     pub content: String,
     pub timestamp: u64,
+    /// Whether this DM is end-to-end encrypted.
+    pub encrypted: bool,
+    /// Base64-encoded nonce/IV for encrypted DMs.
+    pub nonce: Option<String>,
 }
 
 /// A DM conversation summary.
@@ -370,6 +374,29 @@ impl Storage {
                 "ALTER TABLE channels ADD COLUMN category_id INTEGER DEFAULT NULL;"
             )?;
             info!("Migration: added category_id column to channels");
+        }
+
+        // Migration: add ecdh_public column to registered_names for E2EE DMs.
+        let has_ecdh: bool = conn
+            .prepare("SELECT ecdh_public FROM registered_names LIMIT 0")
+            .is_ok();
+        if !has_ecdh {
+            conn.execute_batch(
+                "ALTER TABLE registered_names ADD COLUMN ecdh_public TEXT DEFAULT NULL;"
+            )?;
+            info!("Migration: added ecdh_public column to registered_names");
+        }
+
+        // Migration: add encrypted and nonce columns to direct_messages for E2EE.
+        let has_dm_encrypted: bool = conn
+            .prepare("SELECT encrypted FROM direct_messages LIMIT 0")
+            .is_ok();
+        if !has_dm_encrypted {
+            conn.execute_batch(
+                "ALTER TABLE direct_messages ADD COLUMN encrypted INTEGER DEFAULT 0;
+                 ALTER TABLE direct_messages ADD COLUMN nonce TEXT DEFAULT NULL;"
+            )?;
+            info!("Migration: added encrypted/nonce columns to direct_messages");
         }
 
         // Follows table (social system).
@@ -2828,7 +2855,6 @@ impl Storage {
         messages.reverse();
         Ok(messages)
     }
-}
 
     // ── Friend Code System ──
 
@@ -2857,8 +2883,10 @@ impl Storage {
         // Generate 8-char code from safe alphabet.
         let mut code = String::with_capacity(8);
         let chars = Self::FRIEND_CODE_CHARS;
+        use rand::Rng;
+        let mut rng = rand::rng();
         for _ in 0..8 {
-            let idx: usize = rand::rng().random::<usize>() % chars.len();
+            let idx = rng.random_range(0..chars.len());
             code.push(chars[idx] as char);
         }
 

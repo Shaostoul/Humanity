@@ -1167,7 +1167,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         };
         let Some(Ok(msg)) = msg else { return; };
         if let Message::Text(text) = msg {
-            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret }) =
+            if let Ok(RelayMessage::Identify { public_key, display_name, link_code, invite_code, bot_secret, ecdh_public }) =
                 serde_json::from_str::<RelayMessage>(&text)
             {
                 // L-1: Bot keys require bot_secret matching API_SECRET.
@@ -1291,10 +1291,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     hex::encode(random_bytes)
                 };
 
+                // Store ECDH public key in DB if provided.
+                if let Some(ref ecdh_key) = ecdh_public {
+                    if let Err(e) = state.db.store_ecdh_public(&public_key, ecdh_key) {
+                        tracing::error!("Failed to store ECDH public key: {e}");
+                    }
+                }
+
                 let peer = Peer {
                     public_key_hex: public_key.clone(),
                     display_name: final_name.clone(),
                     upload_token: Some(upload_token.clone()),
+                    ecdh_public: ecdh_public.clone(),
                 };
 
                 // Register peer and upload token mapping.
@@ -1330,6 +1338,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                         };
                         let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
                         let (user_status, user_status_text) = statuses_snap.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
+                        // Get ECDH key: from in-memory peer (if online) or from DB.
+                        let ecdh_pub = p.ecdh_public.clone().or_else(|| state.db.get_ecdh_public(&p.public_key_hex).ok().flatten());
                         PeerInfo {
                             public_key: p.public_key_hex.clone(),
                             display_name: p.display_name.clone(),
@@ -1337,6 +1347,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             upload_token: token,
                             status: user_status,
                             status_text: user_status_text,
+                            ecdh_public: ecdh_pub,
                         }
                     })
                     .collect();
@@ -1365,7 +1376,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             // Bot accounts (bot_ prefix keys) are always shown as online.
                             let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
                             let (us, ust) = statuses_snap2.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
-                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust }
+                            let ecdh_pub = state.db.get_ecdh_public(&first_key).ok().flatten();
+                            UserInfo { name, public_key: first_key, role, online, key_count, status: us, status_text: ust, ecdh_public: ecdh_pub }
                         })
                         .collect();
                     drop(statuses_snap2);
@@ -2539,13 +2551,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                         if let Err(e) = state_clone.db.store_dm(&my_key_for_recv, &display, &target_key, &dm_content, ts) {
                                                             tracing::error!("Failed to store DM: {e}");
                                                         }
-                                                        // Send to recipient.
+                                                        // Send to recipient (/dm command sends plaintext).
                                                         let dm_msg = RelayMessage::Dm {
                                                             from: my_key_for_recv.clone(),
                                                             from_name: Some(display.clone()),
                                                             to: target_key.clone(),
                                                             content: dm_content.clone(),
                                                             timestamp: ts,
+                                                            encrypted: false,
+                                                            nonce: None,
                                                         };
                                                         let _ = state_clone.broadcast_tx.send(dm_msg);
                                                         // Send DM list update to both parties.
@@ -3333,7 +3347,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                             }
                             // DM — send a direct message.
-                            RelayMessage::Dm { to, content, .. } => {
+                            RelayMessage::Dm { to, content, encrypted, nonce, .. } => {
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let sender_name = peer.as_ref()
                                     .and_then(|p| p.display_name.clone())
@@ -3456,6 +3470,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     to: to.clone(),
                                     content: content.clone(),
                                     timestamp: ts,
+                                    encrypted,
+                                    nonce: nonce.clone(),
                                 };
                                 let _ = state_clone.broadcast_tx.send(dm_msg);
 
@@ -4633,6 +4649,7 @@ async fn broadcast_peer_list(state: &Arc<RelayState>) {
             let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
             let name_lower = p.display_name.as_ref().map(|n| n.to_lowercase()).unwrap_or_default();
             let (user_status, user_status_text) = statuses.get(&name_lower).cloned().unwrap_or(("online".to_string(), String::new()));
+            let ecdh_pub = p.ecdh_public.clone().or_else(|| state.db.get_ecdh_public(&p.public_key_hex).ok().flatten());
             PeerInfo {
                 public_key: p.public_key_hex.clone(),
                 display_name: p.display_name.clone(),
@@ -4640,6 +4657,7 @@ async fn broadcast_peer_list(state: &Arc<RelayState>) {
                 upload_token: None,
                 status: user_status,
                 status_text: user_status_text,
+                ecdh_public: ecdh_pub,
             }
         })
         .collect();
@@ -4666,7 +4684,8 @@ async fn broadcast_full_user_list(state: &Arc<RelayState>) {
                 // Bot accounts (bot_ prefix keys) are always shown as online.
                 let online = first_key.starts_with("bot_") || online_names.contains(&name.to_lowercase());
                 let (user_status, user_status_text) = statuses.get(&name.to_lowercase()).cloned().unwrap_or(("online".to_string(), String::new()));
-                UserInfo { name, public_key: first_key, role, online, key_count, status: user_status, status_text: user_status_text }
+                let ecdh_pub = state.db.get_ecdh_public(&first_key).ok().flatten();
+                UserInfo { name, public_key: first_key, role, online, key_count, status: user_status, status_text: user_status_text, ecdh_public: ecdh_pub }
             })
             .collect();
         drop(statuses);

@@ -7936,6 +7936,128 @@ async function importIdentityFromJSON(jsonData) {
     }
   })();
 
+  // ── Friend Code System ──
+  window.sendFriendCodeRequest = function() {
+    if (typeof ws !== 'undefined' && ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'friend_code_request' }));
+    } else {
+      addSystemMessage('Not connected to server.');
+    }
+  };
+
+  // Monkey-patch handleMessage for friend code messages
+  const _origHandleMessageFriendCode = handleMessage;
+  handleMessage = function(msg) {
+    if (msg.type === 'friend_code_response') {
+      showFriendCodeDisplay(msg.code);
+      return;
+    }
+    if (msg.type === 'friend_code_result') {
+      if (msg.success) {
+        addSystemMessage(msg.message);
+      } else {
+        addSystemMessage('❌ ' + msg.message);
+      }
+      return;
+    }
+    _origHandleMessageFriendCode(msg);
+  };
+
+  function showFriendCodeDisplay(code) {
+    // Remove existing overlay if any
+    const existing = document.getElementById('friend-code-overlay');
+    if (existing) existing.remove();
+
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'friend-code-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:var(--bg-secondary,#2b2d31);border-radius:12px;padding:32px;max-width:420px;width:90%;text-align:center;color:var(--text-primary,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+
+    const title = document.createElement('h2');
+    title.textContent = '🎟️ Your Friend Code';
+    title.style.cssText = 'margin:0 0 8px;font-size:1.3rem;';
+
+    const desc = document.createElement('p');
+    desc.textContent = 'Share this code with a friend so they can add you!';
+    desc.style.cssText = 'margin:0 0 20px;color:var(--text-muted,#999);font-size:0.9rem;';
+
+    const codeEl = document.createElement('div');
+    codeEl.textContent = code;
+    codeEl.style.cssText = 'font-family:monospace;font-size:2.5rem;font-weight:bold;letter-spacing:0.3em;padding:16px 24px;background:var(--bg-primary,#1e1f22);border-radius:8px;margin:0 0 16px;user-select:all;cursor:pointer;border:2px dashed var(--text-muted,#666);';
+    codeEl.title = 'Click to select';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = '📋 Copy Code';
+    copyBtn.style.cssText = 'background:var(--accent,#5865f2);color:#fff;border:none;border-radius:6px;padding:10px 24px;font-size:1rem;cursor:pointer;margin:0 8px 16px;';
+    copyBtn.onclick = function() {
+      navigator.clipboard.writeText(code).then(function() {
+        copyBtn.textContent = '✅ Copied!';
+        setTimeout(function() { copyBtn.textContent = '📋 Copy Code'; }, 2000);
+      });
+    };
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.style.cssText = 'background:var(--bg-hover,#404249);color:var(--text-primary,#fff);border:none;border-radius:6px;padding:10px 24px;font-size:1rem;cursor:pointer;margin:0 8px 16px;';
+    closeBtn.onclick = function() { overlay.remove(); };
+
+    const timerEl = document.createElement('div');
+    timerEl.style.cssText = 'color:var(--text-muted,#999);font-size:0.85rem;margin-top:4px;';
+
+    function updateTimer() {
+      const remaining = expiresAt - Date.now();
+      if (remaining <= 0) { timerEl.textContent = 'Expired'; return; }
+      const hours = Math.floor(remaining / 3600000);
+      const mins = Math.floor((remaining % 3600000) / 60000);
+      timerEl.textContent = 'Expires in ' + hours + 'h ' + mins + 'm • Single use';
+      setTimeout(updateTimer, 60000);
+    }
+    updateTimer();
+
+    const note = document.createElement('div');
+    note.textContent = 'They can redeem it with /redeem ' + code;
+    note.style.cssText = 'color:var(--text-muted,#999);font-size:0.8rem;margin-top:12px;';
+
+    modal.appendChild(title);
+    modal.appendChild(desc);
+    modal.appendChild(codeEl);
+    modal.appendChild(copyBtn);
+    modal.appendChild(closeBtn);
+    modal.appendChild(timerEl);
+    modal.appendChild(note);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+  }
+
+  // Intercept /friend-code and /redeem commands in chat input
+  const _origSendMsgFriendCode = sendMessage;
+  sendMessage = function() {
+    const input = document.getElementById('msg-input');
+    const val = (input && input.value || '').trim();
+    if (val === '/friend-code' || val === '/friendcode') {
+      input.value = '';
+      sendFriendCodeRequest();
+      return;
+    }
+    if (val.startsWith('/redeem ')) {
+      const code = val.substring(8).trim().toUpperCase();
+      if (code && ws && ws.readyState === 1) {
+        input.value = '';
+        ws.send(JSON.stringify({ type: 'friend_code_redeem', code: code }));
+      } else if (!code) {
+        addSystemMessage('Usage: /redeem <code>');
+        input.value = '';
+      }
+      return;
+    }
+    return _origSendMsgFriendCode.apply(this, arguments);
+  };
+
   // Patch sendMessage to intercept /search command
   if (!window._searchSendPatched) {
     const _origSendMsg = sendMessage;
