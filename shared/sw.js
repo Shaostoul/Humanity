@@ -1,4 +1,4 @@
-const CACHE_NAME = 'humanity-v1';
+const CACHE_NAME = 'humanity-v2';
 const SHELL_URLS = [
   '/chat',
   '/shared/shell.js',
