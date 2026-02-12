@@ -399,6 +399,24 @@ impl Storage {
             info!("Migration: added encrypted/nonce columns to direct_messages");
         }
 
+        // Migration: add reply_to columns to messages for threaded replies.
+        let has_reply_to: bool = conn
+            .prepare("SELECT reply_to_from FROM messages LIMIT 0")
+            .is_ok();
+        if !has_reply_to {
+            conn.execute_batch(
+                "ALTER TABLE messages ADD COLUMN reply_to_from TEXT DEFAULT NULL;
+                 ALTER TABLE messages ADD COLUMN reply_to_timestamp INTEGER DEFAULT NULL;"
+            )?;
+            info!("Migration: added reply_to_from/reply_to_timestamp columns to messages");
+        }
+
+        // Index for efficient thread queries (find all replies to a message).
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_messages_reply_to
+                ON messages(reply_to_from, reply_to_timestamp);"
+        )?;
+
         // Follows table (social system).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS follows (
@@ -812,6 +830,58 @@ impl Storage {
             _ => return Ok(0),
         }
         Ok(conn.last_insert_rowid())
+    }
+
+    /// Store a message with channel scope and reply reference.
+    pub fn store_message_in_channel_with_reply(&self, msg: &crate::relay::RelayMessage, channel_id: &str, reply_to_from: &str, reply_to_timestamp: u64) -> Result<i64, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let raw = serde_json::to_string(msg).unwrap_or_default();
+
+        match msg {
+            crate::relay::RelayMessage::Chat { from, from_name, content, timestamp, signature, .. } => {
+                conn.execute(
+                    "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json, channel_id, reply_to_from, reply_to_timestamp)
+                     VALUES ('chat', ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    params![from, from_name, content, timestamp, signature, raw, channel_id, reply_to_from, reply_to_timestamp as i64],
+                )?;
+            }
+            _ => return Ok(0),
+        }
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// Get all replies to a specific message (identified by from_key + timestamp).
+    /// Returns Vec<(from_key, from_name, content, timestamp, channel_id)>.
+    pub fn get_thread(&self, from_key: &str, timestamp: u64, limit: usize) -> Result<Vec<(String, String, String, u64, String)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT from_key, COALESCE(from_name, ''), content, timestamp, COALESCE(channel_id, 'general')
+             FROM messages
+             WHERE reply_to_from = ?1 AND reply_to_timestamp = ?2 AND msg_type = 'chat'
+             ORDER BY timestamp ASC
+             LIMIT ?3"
+        )?;
+        let results = stmt.query_map(params![from_key, timestamp as i64, limit], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)? as u64,
+                row.get::<_, String>(4)?,
+            ))
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(results)
+    }
+
+    /// Count replies to a specific message.
+    pub fn get_thread_count(&self, from_key: &str, timestamp: u64) -> Result<u32, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM messages WHERE reply_to_from = ?1 AND reply_to_timestamp = ?2 AND msg_type = 'chat'",
+            params![from_key, timestamp as i64],
+            |row| row.get(0),
+        )?;
+        Ok(count as u32)
     }
 
     /// Load messages for a specific channel.
@@ -1613,6 +1683,8 @@ impl Storage {
                         timestamp: ts as u64,
                         signature: None,
                         channel: "DM".to_string(),
+                        reply_to: None,
+                        thread_count: None,
                     };
                     (id, "DM".to_string(), msg)
                 })

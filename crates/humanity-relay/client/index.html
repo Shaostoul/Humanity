@@ -618,6 +618,123 @@
     }
     #reply-cancel:hover { color: var(--text); }
 
+    /* ── Reply indicator on messages ── */
+    .reply-indicator {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 0.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .reply-indicator:hover { color: var(--accent); }
+    .reply-indicator .reply-indicator-author { color: var(--accent); font-weight: 600; }
+    .reply-indicator .reply-indicator-preview {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 300px;
+      opacity: 0.7;
+    }
+    .message.has-reply { border-left: 2px solid var(--accent-dim, rgba(88,166,255,0.2)); padding-left: 0.5rem; }
+
+    /* ── Thread count badge ── */
+    .thread-badge {
+      font-size: 0.72rem;
+      color: var(--accent);
+      cursor: pointer;
+      margin-top: 0.2rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .thread-badge:hover { text-decoration: underline; }
+
+    /* ── Thread panel ── */
+    #thread-panel {
+      position: fixed;
+      top: 0; right: 0;
+      width: min(420px, 90vw);
+      height: 100vh;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      z-index: 2000;
+      display: none;
+      flex-direction: column;
+      box-shadow: -4px 0 20px rgba(0,0,0,0.3);
+    }
+    #thread-panel.open { display: flex; }
+    #thread-panel-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+    }
+    #thread-panel-header button {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 1.2rem; cursor: pointer;
+    }
+    #thread-panel-header button:hover { color: var(--text); }
+    #thread-panel-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem;
+    }
+    #thread-panel-messages .thread-msg {
+      margin-bottom: 0.75rem;
+      padding: 0.5rem;
+      border-radius: 6px;
+      background: var(--bg-secondary);
+    }
+    #thread-panel-messages .thread-msg .thread-msg-author {
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--accent);
+    }
+    #thread-panel-messages .thread-msg .thread-msg-time {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-left: 0.5rem;
+    }
+    #thread-panel-messages .thread-msg .thread-msg-body {
+      font-size: 0.85rem;
+      margin-top: 0.25rem;
+    }
+    #thread-panel-messages .thread-parent {
+      border-left: 3px solid var(--accent);
+      margin-bottom: 1rem;
+    }
+    #thread-panel-input {
+      padding: 0.5rem 0.75rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 0.5rem;
+    }
+    #thread-panel-input textarea {
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      font-size: 0.85rem;
+      resize: none;
+      min-height: 36px;
+      max-height: 100px;
+    }
+    #thread-panel-input button {
+      background: var(--accent);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
     /* ── Typing indicator ── */
     #typing-indicator {
       font-size: 0.72rem;
@@ -2452,6 +2569,19 @@
     </div>
   </div>
 
+  <!-- Thread Panel -->
+  <div id="thread-panel">
+    <div id="thread-panel-header">
+      <span>Thread</span>
+      <button onclick="closeThreadPanel()" title="Close">✕</button>
+    </div>
+    <div id="thread-panel-messages"></div>
+    <div id="thread-panel-input">
+      <textarea id="thread-input" placeholder="Reply in thread..." rows="1"></textarea>
+      <button onclick="sendThreadReply()">Reply</button>
+    </div>
+  </div>
+
   <script>
 /**
  * Humanity Network — Client-side Ed25519 cryptography (inlined).
@@ -3170,7 +3300,9 @@ function getPeerEcdhPublic(peerKey) {
               msg.timestamp,
               msg.from,
               true, // isHistory
-              !!msg.signature
+              !!msg.signature,
+              msg.reply_to || null,
+              msg.thread_count || null
             );
           }
 
@@ -3271,10 +3403,14 @@ function getPeerEcdhPublic(peerKey) {
           // If message has a signature, verify it client-side.
           if (hasSig && msg.signature && msg.from && !msg.from.startsWith('bot_')) {
             verifyMessage(msg.from, msg.signature, msg.content, msg.timestamp).then(valid => {
-              addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, valid);
+              addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, valid, msg.reply_to || null, msg.thread_count || null);
             });
           } else {
-            addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, hasSig);
+            addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, hasSig, msg.reply_to || null, msg.thread_count || null);
+          }
+          // If this message is a reply, update the parent's thread count badge in the DOM.
+          if (msg.reply_to) {
+            updateThreadBadge(msg.reply_to.from, msg.reply_to.timestamp);
           }
           break;
         }
@@ -3547,16 +3683,21 @@ function getPeerEcdhPublic(peerKey) {
         return;
       }
 
-      // Prepend full quote from reply bar if active (quotes don't count toward limit).
+      // Build reply_to reference if replying.
+      let replyRef = null;
       if (replyTarget) {
-        const quoteLines = replyTarget.body.split('\n').map(l => '> ' + l).join('\n');
-        content = quoteLines + '\n' + content;
+        replyRef = {
+          from: replyTarget.fromKey,
+          from_name: replyTarget.author,
+          content: replyTarget.body,
+          timestamp: replyTarget.timestamp,
+        };
         clearReplyTarget();
       }
 
       const timestamp = Date.now();
 
-      // Sign the full content (including quote) if Ed25519 is available.
+      // Sign the content if Ed25519 is available.
       let signature = null;
       if (myIdentity && myIdentity.canSign) {
         signature = await signMessage(myIdentity.privateKey, content, timestamp);
@@ -3573,19 +3714,22 @@ function getPeerEcdhPublic(peerKey) {
       if (signature) {
         msg.signature = signature;
       }
+      if (replyRef) {
+        msg.reply_to = replyRef;
+      }
 
       ws.send(JSON.stringify(msg));
 
       const key = myKey + ':' + timestamp;
       seenTimestamps.add(key);
-      addChatMessage(myName, content, timestamp, myKey, false, !!signature);
+      addChatMessage(myName, content, timestamp, myKey, false, !!signature, replyRef, null);
       input.value = '';
       input.style.height = 'auto'; // Reset textarea height after sending.
       input.focus();
     }
 
     // ── Rendering ──
-    function addChatMessage(author, body, timestamp, fromKey, isHistory, signed) {
+    function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount) {
       // Skip messages from blocked users entirely.
       if (author && isBlocked(author)) return;
 
@@ -3646,7 +3790,26 @@ function getPeerEcdhPublic(peerKey) {
         bodyHtml = formatBody(body);
       }
 
+      // Reply indicator HTML.
+      let replyIndicatorHtml = '';
+      if (replyTo) {
+        const replyPreview = (replyTo.content || '').substring(0, 60) + ((replyTo.content || '').length > 60 ? '…' : '');
+        replyIndicatorHtml = `<div class="reply-indicator" data-reply-from="${esc(replyTo.from)}" data-reply-ts="${replyTo.timestamp}">
+          <span>↩</span>
+          <span class="reply-indicator-author">${esc(replyTo.from_name || 'Unknown')}</span>
+          <span class="reply-indicator-preview">${esc(replyPreview)}</span>
+        </div>`;
+        el.classList.add('has-reply');
+      }
+
+      // Thread count badge HTML.
+      let threadBadgeHtml = '';
+      if (threadCount && threadCount > 0) {
+        threadBadgeHtml = `<div class="thread-badge" data-thread-from="${esc(fromKey)}" data-thread-ts="${timestamp}">💬 ${threadCount} ${threadCount === 1 ? 'reply' : 'replies'}</div>`;
+      }
+
       el.innerHTML = `
+        ${replyIndicatorHtml}
         <div class="meta">
           ${identiconHtml}
           <span class="author${authorClass}" data-username="${esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${esc(author)}</span>${badge}
@@ -3655,6 +3818,7 @@ function getPeerEcdhPublic(peerKey) {
         </div>
         <div class="body">${bodyHtml}</div>
         <div class="reactions" data-from="${esc(fromKey)}" data-ts="${timestamp}"></div>
+        ${threadBadgeHtml}
         ${actions}
       `;
 
@@ -3716,6 +3880,32 @@ function getPeerEcdhPublic(peerKey) {
             ws.send(JSON.stringify({ type: 'delete', from: myKey, timestamp: Number(timestamp) }));
             el.remove(); // Remove locally immediately.
           }
+        });
+      }
+
+      // Click reply indicator → scroll to original message or show inline.
+      const replyInd = el.querySelector('.reply-indicator');
+      if (replyInd) {
+        replyInd.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const rFrom = replyInd.dataset.replyFrom;
+          const rTs = replyInd.dataset.replyTs;
+          // Find the original message in DOM.
+          const origEl = document.querySelector(`.message[data-from="${rFrom}"][data-timestamp="${rTs}"]`);
+          if (origEl) {
+            origEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            origEl.style.background = 'var(--accent-dim, rgba(88,166,255,0.15))';
+            setTimeout(() => { origEl.style.background = ''; }, 1500);
+          }
+        });
+      }
+
+      // Click thread badge → open thread panel.
+      const threadBadge = el.querySelector('.thread-badge');
+      if (threadBadge) {
+        threadBadge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openThreadPanel(fromKey, timestamp, author, body);
         });
       }
 
@@ -4719,6 +4909,144 @@ function getPeerEcdhPublic(peerKey) {
             addChatMessage(myName, content, timestamp, myKey, false, !!signature);
           }
         }
+      }
+    });
+
+    // ── Thread panel functions ──
+    let currentThread = null; // { from, timestamp, author, body }
+
+    function openThreadPanel(fromKey, timestamp, author, body) {
+      currentThread = { from: fromKey, timestamp: Number(timestamp), author, body };
+      const panel = document.getElementById('thread-panel');
+      panel.classList.add('open');
+      // Show parent message.
+      const messagesDiv = document.getElementById('thread-panel-messages');
+      messagesDiv.innerHTML = `<div class="thread-msg thread-parent">
+        <span class="thread-msg-author">${esc(author)}</span>
+        <span class="thread-msg-time">${formatTime(timestamp)}</span>
+        <div class="thread-msg-body">${formatBody(body)}</div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem;">Loading replies...</div>`;
+      // Request thread from server.
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'thread_request', from: fromKey, timestamp: Number(timestamp) }));
+      }
+      document.getElementById('thread-input').focus();
+    }
+
+    function closeThreadPanel() {
+      currentThread = null;
+      document.getElementById('thread-panel').classList.remove('open');
+    }
+
+    function renderThreadMessages(messages) {
+      const messagesDiv = document.getElementById('thread-panel-messages');
+      if (!currentThread) return;
+      // Keep parent, rebuild replies.
+      const parentHtml = `<div class="thread-msg thread-parent">
+        <span class="thread-msg-author">${esc(currentThread.author)}</span>
+        <span class="thread-msg-time">${formatTime(currentThread.timestamp)}</span>
+        <div class="thread-msg-body">${formatBody(currentThread.body)}</div>
+      </div>`;
+      let repliesHtml = '';
+      if (messages.length === 0) {
+        repliesHtml = '<div style="font-size:0.8rem;color:var(--text-muted);padding:0.5rem;">No replies yet. Be the first!</div>';
+      } else {
+        for (const m of messages) {
+          repliesHtml += `<div class="thread-msg">
+            <span class="thread-msg-author">${esc(m.from_name || 'Unknown')}</span>
+            <span class="thread-msg-time">${formatTime(m.timestamp)}</span>
+            <div class="thread-msg-body">${formatBody(m.content)}</div>
+          </div>`;
+        }
+      }
+      messagesDiv.innerHTML = parentHtml + repliesHtml;
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      if (window.twemoji) twemoji.parse(messagesDiv);
+    }
+
+    async function sendThreadReply() {
+      const input = document.getElementById('thread-input');
+      const content = input.value.trim();
+      if (!content || !ws || ws.readyState !== WebSocket.OPEN || !currentThread) return;
+
+      const timestamp = Date.now();
+      let signature = null;
+      if (myIdentity && myIdentity.canSign) {
+        signature = await signMessage(myIdentity.privateKey, content, timestamp);
+      }
+
+      const msg = {
+        type: 'chat',
+        from: myKey,
+        from_name: myName,
+        content: content,
+        timestamp: timestamp,
+        channel: activeChannel,
+        reply_to: {
+          from: currentThread.from,
+          from_name: currentThread.author,
+          content: currentThread.body,
+          timestamp: currentThread.timestamp,
+        },
+      };
+      if (signature) msg.signature = signature;
+      ws.send(JSON.stringify(msg));
+
+      // Add to thread panel immediately.
+      const messagesDiv = document.getElementById('thread-panel-messages');
+      messagesDiv.innerHTML += `<div class="thread-msg">
+        <span class="thread-msg-author">${esc(myName)}</span>
+        <span class="thread-msg-time">${formatTime(timestamp)}</span>
+        <div class="thread-msg-body">${formatBody(content)}</div>
+      </div>`;
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      if (window.twemoji) twemoji.parse(messagesDiv);
+
+      // Also add to main chat.
+      const key = myKey + ':' + timestamp;
+      seenTimestamps.add(key);
+      addChatMessage(myName, content, timestamp, myKey, false, !!signature, msg.reply_to, null);
+
+      input.value = '';
+    }
+
+    // Update thread badge count when a new reply arrives.
+    function updateThreadBadge(parentFrom, parentTimestamp) {
+      const parentEl = document.querySelector(`.message[data-from="${parentFrom}"][data-timestamp="${parentTimestamp}"]`);
+      if (!parentEl) return;
+      let badge = parentEl.querySelector('.thread-badge');
+      if (badge) {
+        // Increment existing count.
+        const text = badge.textContent;
+        const match = text.match(/(\d+)/);
+        const count = match ? parseInt(match[1]) + 1 : 1;
+        badge.textContent = `💬 ${count} ${count === 1 ? 'reply' : 'replies'}`;
+      } else {
+        // Create new badge.
+        badge = document.createElement('div');
+        badge.className = 'thread-badge';
+        badge.dataset.threadFrom = parentFrom;
+        badge.dataset.threadTs = parentTimestamp;
+        badge.textContent = '💬 1 reply';
+        badge.addEventListener('click', (e) => {
+          e.stopPropagation();
+          // Find parent message content.
+          const bodyEl = parentEl.querySelector('.body');
+          const authorEl = parentEl.querySelector('.author');
+          openThreadPanel(parentFrom, parentTimestamp, authorEl ? authorEl.textContent : 'Unknown', bodyEl ? bodyEl.textContent : '');
+        });
+        const actions = parentEl.querySelector('.msg-actions');
+        if (actions) parentEl.insertBefore(badge, actions);
+        else parentEl.appendChild(badge);
+      }
+    }
+
+    // Handle thread_input Enter key.
+    document.getElementById('thread-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendThreadReply();
       }
     });
 
@@ -8287,6 +8615,18 @@ function getPeerEcdhPublic(peerKey) {
     };
     window._searchSendPatched = true;
   }
+
+  // Handle thread_response messages.
+  const _origHandleMessageThread = handleMessage;
+  handleMessage = function(msg) {
+    if (msg.type === 'thread_response') {
+      if (currentThread && currentThread.from === msg.parent_from && currentThread.timestamp === msg.parent_timestamp) {
+        renderThreadMessages(msg.messages || []);
+      }
+      return;
+    }
+    _origHandleMessageThread(msg);
+  };
   </script>
 
 </body>

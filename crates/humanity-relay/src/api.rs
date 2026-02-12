@@ -146,6 +146,8 @@ pub async fn send_message(
             .as_millis() as u64,
         signature: None,
         channel: channel.clone(),
+        reply_to: None,
+        thread_count: None,
     };
 
     // Store and broadcast.
@@ -553,6 +555,8 @@ pub async fn github_webhook(
             .as_millis() as u64,
         signature: None,
         channel: "announcements".to_string(),
+        reply_to: None,
+        thread_count: None,
     };
 
     // Ensure bot peer exists (for display purposes).

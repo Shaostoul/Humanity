@@ -257,6 +257,15 @@ pub struct LinkPreview {
     pub site_name: Option<String>,
 }
 
+/// Reply reference: embeds the original message context in a reply.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplyRef {
+    pub from: String,
+    pub from_name: String,
+    pub content: String,
+    pub timestamp: u64,
+}
+
 /// Messages sent over the relay WebSocket (JSON framing for MVP).
 ///
 /// In production, these would be CBOR-encoded signed objects.
@@ -296,6 +305,12 @@ pub enum RelayMessage {
         /// Channel this message belongs to.
         #[serde(default = "default_channel")]
         channel: String,
+        /// Reply reference: embeds the original message context.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        reply_to: Option<ReplyRef>,
+        /// Number of replies to this message (populated server-side).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        thread_count: Option<u32>,
     },
 
     /// Server announces a peer joined.
@@ -884,6 +899,27 @@ pub enum RelayMessage {
         content: String,
     },
 
+    /// Client requests a thread (all replies to a specific message).
+    #[serde(rename = "thread_request")]
+    ThreadRequest {
+        from: String,
+        timestamp: u64,
+    },
+
+    /// Server responds with thread messages.
+    #[serde(rename = "thread_response")]
+    ThreadResponse {
+        /// Target client key (stripped before sending).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        /// The original message's from key.
+        parent_from: String,
+        /// The original message's timestamp.
+        parent_timestamp: u64,
+        /// All reply messages.
+        messages: Vec<ThreadMessageData>,
+    },
+
     /// Server sends group list to client.
     #[serde(rename = "group_list")]
     GroupList {
@@ -945,6 +981,16 @@ pub struct TaskCommentData {
     pub author_name: String,
     pub content: String,
     pub created_at: i64,
+}
+
+/// Thread message data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreadMessageData {
+    pub from: String,
+    pub from_name: String,
+    pub content: String,
+    pub timestamp: u64,
+    pub channel: String,
 }
 
 /// DM data sent to clients.
@@ -1700,6 +1746,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
             }
 
+            // ThreadResponse: only deliver to the target client.
+            if let RelayMessage::ThreadResponse { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // Private messages: only deliver to the targeted peer.
             if let RelayMessage::Private { ref to, ref message } = msg {
                 if to != &my_key_for_broadcast {
@@ -1794,7 +1849,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     }
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
                         match relay_msg {
-                            RelayMessage::Chat { content, timestamp, signature, channel, .. } => {
+                            RelayMessage::Chat { content, timestamp, signature, channel, reply_to, .. } => {
                                 let peer = state_clone
                                     .peers
                                     .read()
@@ -3018,11 +3073,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     timestamp,
                                     signature: broadcast_sig,
                                     channel: ch.clone(),
+                                    reply_to: reply_to.clone(),
+                                    thread_count: None,
                                 };
 
-                                // Store in channel-specific table.
-                                if let Err(e) = state_clone.db.store_message_in_channel(&chat, &ch) {
-                                    tracing::error!("Failed to persist message: {e}");
+                                // Store in channel-specific table (with reply_to metadata).
+                                if let Some(ref rt) = reply_to {
+                                    if let Err(e) = state_clone.db.store_message_in_channel_with_reply(&chat, &ch, &rt.from, rt.timestamp) {
+                                        tracing::error!("Failed to persist message: {e}");
+                                    }
+                                } else {
+                                    if let Err(e) = state_clone.db.store_message_in_channel(&chat, &ch) {
+                                        tracing::error!("Failed to persist message: {e}");
+                                    }
                                 }
                                 // Broadcast to all (clients filter by their active channel).
                                 let _ = state_clone.broadcast_tx.send(chat);
@@ -3627,6 +3690,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     }
                                     Err(e) => {
                                         tracing::error!("Search error: {e}");
+                                    }
+                                }
+                            }
+                            // ── Thread request ──
+                            RelayMessage::ThreadRequest { from, timestamp } => {
+                                match state_clone.db.get_thread(&from, timestamp, 100) {
+                                    Ok(replies) => {
+                                        let messages: Vec<ThreadMessageData> = replies.into_iter().map(|(fk, fn_, c, ts, ch)| {
+                                            ThreadMessageData { from: fk, from_name: fn_, content: c, timestamp: ts, channel: ch }
+                                        }).collect();
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ThreadResponse {
+                                            target: Some(my_key_for_recv.clone()),
+                                            parent_from: from,
+                                            parent_timestamp: timestamp,
+                                            messages,
+                                        });
+                                    }
+                                    Err(e) => {
+                                        tracing::error!("Thread request error: {e}");
                                     }
                                 }
                             }
