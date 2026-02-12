@@ -1,0 +1,37 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/main/nicegui/json_schemas/tauri.v2.schema.json",
+  "productName": "Humanity",
+  "version": "0.1.0",
+  "identifier": "us.united-humanity.app",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Humanity",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 400,
+        "minHeight": 300,
+        "url": "https://united-humanity.us"
+      }
+    ],
+    "security": {
+      "dangerousRemoteContent": {
+        "allowSchemes": ["https"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

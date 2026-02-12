@@ -1,0 +1,17 @@
+[package]
+name = "humanity-desktop"
+version = "0.1.0"
+description = "Humanity desktop app — native wrapper for united-humanity.us"
+edition = "2021"
+license = "CC0-1.0"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+devtools = ["tauri/devtools"]

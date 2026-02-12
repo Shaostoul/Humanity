@@ -230,20 +230,23 @@
       <div class="platform-card" id="card-windows">
         <div class="icon">🪟</div>
         <div class="name">Windows</div>
-        <div class="detail">Windows 10+ (x64 / ARM64)<br>.exe installer — no store required</div>
-        <span class="status planned">🚧 Planned</span>
+        <div class="detail">Windows 10+ (x64)<br>.exe / .msi installer — no store required</div>
+        <span class="status available">✓ Available</span>
+        <br><a href="https://github.com/Shaostoul/Humanity/releases/latest">Download →</a>
       </div>
       <div class="platform-card" id="card-macos">
         <div class="icon">🍎</div>
         <div class="name">macOS</div>
-        <div class="detail">macOS 12+ (Apple Silicon / Intel)<br>.dmg — drag to Applications</div>
-        <span class="status planned">🚧 Planned</span>
+        <div class="detail">macOS 12+ (Apple Silicon)<br>.dmg — drag to Applications</div>
+        <span class="status available">✓ Available</span>
+        <br><a href="https://github.com/Shaostoul/Humanity/releases/latest">Download →</a>
       </div>
       <div class="platform-card" id="card-linux">
         <div class="icon">🐧</div>
         <div class="name">Linux</div>
         <div class="detail">AppImage (universal) + .deb (Debian/Ubuntu)<br>Works on most distros</div>
-        <span class="status planned">🚧 Planned</span>
+        <span class="status available">✓ Available</span>
+        <br><a href="https://github.com/Shaostoul/Humanity/releases/latest">Download →</a>
       </div>
       <div class="platform-card" id="card-android">
         <div class="icon">🤖</div>
@@ -282,8 +285,9 @@
       <h3>Build from source</h3>
       <p>Everything is open source under CC0. Clone, build, verify:</p>
       <pre style="background:var(--bg);padding:0.6rem;border-radius:4px;font-size:0.78rem;color:var(--text);overflow-x:auto;margin-top:0.5rem;"><code>git clone https://github.com/Shaostoul/Humanity.git
-cd Humanity
-cargo build --release</code></pre>
+cd Humanity/desktop
+npm install
+npx tauri build</code></pre>
     </div>
   </main>
 
@@ -377,8 +381,14 @@ cargo build --release</code></pre>
         document.getElementById('detected-download').classList.remove('disabled');
         document.getElementById('detected-subtext').textContent = '';
       }
-      // TODO: When builds are available, set download URL based on os + arch
-      // Example: document.getElementById('detected-download').href = `https://github.com/Shaostoul/Humanity/releases/latest/download/humanity-${os}-${arch}.ext`;
+      // Desktop platforms link to GitHub Releases
+      if (['windows', 'macos', 'linux'].includes(os)) {
+        const btn = document.getElementById('detected-download');
+        btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
+        btn.textContent = '⬇ Download for ' + (names[os] || os);
+        btn.classList.remove('disabled');
+        document.getElementById('detected-subtext').textContent = 'Downloads from GitHub Releases';
+      }
     }
 
     detectPlatform();

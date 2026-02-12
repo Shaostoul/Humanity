@@ -134,6 +134,16 @@ Want verified status? Contact [@Shaostoul on X](https://x.com/Shaostoul). Public
 
 ---
 
+## Desktop App
+
+A native desktop app is available for Windows, macOS, and Linux — built with [Tauri v2](https://tauri.app/). It wraps the web client in a native window, so updates are instant without needing to update the app.
+
+**[Download the latest release →](https://github.com/Shaostoul/Humanity/releases/latest)**
+
+To build from source, see [`desktop/README.md`](desktop/README.md).
+
+---
+
 ## License
 
 This work is released into the **public domain** under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
