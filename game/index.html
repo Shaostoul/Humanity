@@ -6644,10 +6644,13 @@
       console.log('[STREAM-DEBUG] sending stream_viewer_join, ws ready:', ws && ws.readyState === 1);
       if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({ type: 'stream_viewer_join' }));
+        // Also send a direct request to the streamer via stream_offer relay forwarding
+        // This bypasses Private→System conversion issues
+        if (streamCurrentInfo && streamCurrentInfo.streamer_key) {
+          console.log('[STREAM-DEBUG] sending stream request to streamer:', streamCurrentInfo.streamer_key.substring(0,8));
+          ws.send(JSON.stringify({ type: 'stream_offer', to: streamCurrentInfo.streamer_key, data: { type: 'request' }, from: marketMyKey }));
+        }
       }
-
-      // Request WebRTC offer from streamer (relay forwards)
-      // The streamer will send an offer when they see our join
     }
 
     function streamViewerJoinExternal(platform, url) {
@@ -6722,9 +6725,18 @@
     }
 
     function streamHandleSignaling(msg) {
-      // For viewer: handle offer from streamer
       console.log('[STREAM-DEBUG] signaling:', msg.type, 'from:', msg.from ? msg.from.substring(0,8) : 'none');
-      if (msg.type === 'stream_offer' && !streamIsLive) {
+
+      // For streamer: handle request from viewer (viewer wants our stream)
+      if (msg.type === 'stream_offer' && streamIsLive && msg.data && msg.data.type === 'request' && msg.from) {
+        console.log('[STREAM-DEBUG] GOT REQUEST from viewer, creating offer for:', msg.from.substring(0,8));
+        const statBar = document.getElementById('stream-stats-bar');
+        if (statBar) statBar.insertAdjacentHTML('beforeend', '<span style="color:#0f0;font-size:0.7rem;"> REQ→OFFER</span>');
+        streamCreateOfferForViewer(msg.from);
+      }
+
+      // For viewer: handle offer from streamer
+      if (msg.type === 'stream_offer' && !streamIsLive && msg.data && msg.data.type !== 'request') {
         console.log('[STREAM-DEBUG] RECEIVED OFFER, creating answer');
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         streamViewerPC = pc;
