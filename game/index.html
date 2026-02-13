@@ -3774,6 +3774,7 @@
         }
       };
       ws = marketWs; // Alias for streaming code
+      window._humanityWs = marketWs; // Alias for Skill DNA
       marketWs.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
@@ -3781,6 +3782,24 @@
           // Route stream messages
           if (msg.type && msg.type.startsWith('stream_')) {
             streamHandleMessage(msg);
+          }
+          // Handle skill verification messages via Private/system
+          if (msg.type === 'private' && msg.message) {
+            if (msg.message.startsWith('__skill_verify_req__:')) {
+              try {
+                const payload = JSON.parse(msg.message.slice('__skill_verify_req__:'.length));
+                if (confirm(`${payload.from_name} claims ${payload.skill_id} Lv ${payload.level} — can you verify?\n\nClick OK to verify, Cancel to decline.`)) {
+                  const note = prompt('Add a note (optional):') || 'Verified';
+                  window._humanityWs.send(JSON.stringify({ type: 'skill_verify_response', skill_id: payload.skill_id, to_key: payload.from_key, approved: true, note }));
+                }
+              } catch(e) {}
+            }
+            if (msg.message.startsWith('__skill_verify_resp__:')) {
+              try {
+                const payload = JSON.parse(msg.message.slice('__skill_verify_resp__:'.length));
+                if (window._sdHandleVerifyResponse) window._sdHandleVerifyResponse(payload);
+              } catch(e) {}
+            }
           }
         } catch {}
       };
@@ -6319,6 +6338,649 @@
     function moveWidget(index, direction) { const data = loadDashboard(); const newIndex = index + direction; if (newIndex < 0 || newIndex >= data.widgets.length) return; [data.widgets[index], data.widgets[newIndex]] = [data.widgets[newIndex], data.widgets[index]]; saveDashboard(data); renderDashboard(); }
     function cycleWidgetSize(index) { const data = loadDashboard(); const sizes = ['small', 'medium', 'large']; const current = sizes.indexOf(data.widgets[index].size); data.widgets[index].size = sizes[(current + 1) % sizes.length]; saveDashboard(data); renderDashboard(); }
     function setEmbedUrl(index) { const input = document.getElementById('embed-url-' + index); if (!input) return; let url = input.value; if (!url) return; if (!url.startsWith('http')) url = 'https://' + url; const data = loadDashboard(); data.widgets[index].config = data.widgets[index].config || {}; data.widgets[index].config.url = url; saveDashboard(data); renderDashboard(); }
+
+    // ══════════════════════════════════════════
+    // ── Skill DNA System ──
+    // ══════════════════════════════════════════
+    (function() {
+      const SKILL_CATEGORIES = {
+        crafting: { name: 'Crafting & Making', icon: '🔨', skills: ['woodworking', 'metalworking', 'welding', 'soldering', 'sewing', 'leatherwork', 'pottery', 'glassblowing', 'blacksmithing', 'cnc', '3d_printing', 'laser_cutting'] },
+        engineering: { name: 'Engineering', icon: '⚙️', skills: ['mechanical', 'electrical', 'civil', 'chemical', 'software', 'aerospace', 'robotics', 'plumbing', 'hvac', 'automotive'] },
+        agriculture: { name: 'Agriculture', icon: '🌱', skills: ['soil_gardening', 'hydroponics', 'aeroponics', 'aquaponics', 'permaculture', 'composting', 'seed_saving', 'beekeeping', 'animal_husbandry', 'foraging', 'food_preservation', 'mycology'] },
+        digital: { name: 'Digital', icon: '💻', skills: ['programming', 'web_dev', 'game_dev', '3d_modeling', 'video_editing', 'audio_production', 'graphic_design', 'ui_ux', 'cybersecurity', 'networking', 'ai_ml', 'database'] },
+        survival: { name: 'Survival', icon: '🏕️', skills: ['fire_starting', 'shelter_building', 'water_purification', 'navigation', 'first_aid', 'knot_tying', 'hunting', 'fishing', 'trapping', 'tracking', 'weather_reading'] },
+        science: { name: 'Science', icon: '🔬', skills: ['biology', 'chemistry', 'physics', 'astronomy', 'geology', 'ecology', 'mathematics', 'statistics', 'medicine', 'nutrition'] },
+        arts: { name: 'Arts & Expression', icon: '🎨', skills: ['drawing', 'painting', 'sculpting', 'music_instrument', 'singing', 'writing', 'photography', 'acting', 'dance', 'calligraphy'] },
+        social: { name: 'Social', icon: '🤝', skills: ['teaching', 'leadership', 'negotiation', 'public_speaking', 'counseling', 'languages', 'conflict_resolution', 'mentoring', 'community_organizing'] },
+        fitness: { name: 'Fitness & Body', icon: '💪', skills: ['strength_training', 'cardio', 'flexibility', 'martial_arts', 'swimming', 'climbing', 'cycling', 'yoga', 'sports'] },
+        home: { name: 'Homesteading', icon: '🏠', skills: ['cooking', 'baking', 'canning', 'cleaning', 'organizing', 'budgeting', 'childcare', 'elder_care', 'home_repair', 'interior_design'] },
+      };
+
+      const SKILL_META = {
+        woodworking: { name:'Woodworking', icon:'🪚', desc:'Working with wood to create structures and objects', prereqs:[], subskills:['carving','joinery','turning','finishing'] },
+        metalworking: { name:'Metalworking', icon:'⚒️', desc:'Shaping and forming metals', prereqs:[], subskills:['forging','casting','machining','sheet_metal'] },
+        welding: { name:'Welding', icon:'🔥', desc:'Joining metals using heat and filler material', prereqs:['metalworking'], subskills:['mig','tig','stick','oxy_acetylene','spot'] },
+        soldering: { name:'Soldering', icon:'🔌', desc:'Joining electronic components with solder', prereqs:[], subskills:['through_hole','smd','desoldering'] },
+        sewing: { name:'Sewing', icon:'🧵', desc:'Joining fabric with needle and thread', prereqs:[], subskills:['hand_sewing','machine','pattern_making'] },
+        leatherwork: { name:'Leatherwork', icon:'👜', desc:'Crafting with leather', prereqs:[], subskills:['tooling','stitching','dying'] },
+        pottery: { name:'Pottery', icon:'🏺', desc:'Creating objects from clay', prereqs:[], subskills:['wheel','hand_building','glazing'] },
+        glassblowing: { name:'Glassblowing', icon:'🔮', desc:'Shaping molten glass', prereqs:[], subskills:['lampwork','furnace','fusing'] },
+        blacksmithing: { name:'Blacksmithing', icon:'⚒️', desc:'Forging iron and steel', prereqs:['metalworking'], subskills:['blade_making','tool_making','decorative'] },
+        cnc: { name:'CNC', icon:'🖥️', desc:'Computer numerical control machining', prereqs:['metalworking'], subskills:['cam_programming','milling','lathe'] },
+        '3d_printing': { name:'3D Printing', icon:'🖨️', desc:'Additive manufacturing', prereqs:['3d_modeling'], subskills:['fdm','resin','slicing'] },
+        laser_cutting: { name:'Laser Cutting', icon:'✂️', desc:'Precision cutting with lasers', prereqs:[], subskills:['vector_design','engraving','material_selection'] },
+        mechanical: { name:'Mechanical Eng.', icon:'⚙️', desc:'Design and analysis of mechanical systems', prereqs:[], subskills:['cad','thermodynamics','materials'] },
+        electrical: { name:'Electrical Eng.', icon:'⚡', desc:'Electrical systems and circuits', prereqs:[], subskills:['circuit_design','power_systems','signal_processing'] },
+        civil: { name:'Civil Eng.', icon:'🏗️', desc:'Infrastructure and structural engineering', prereqs:[], subskills:['structural','geotechnical','transportation'] },
+        chemical: { name:'Chemical Eng.', icon:'🧪', desc:'Chemical processes and materials', prereqs:['chemistry'], subskills:['process_design','materials_science'] },
+        software: { name:'Software Eng.', icon:'💾', desc:'Software design and architecture', prereqs:['programming'], subskills:['architecture','testing','devops'] },
+        aerospace: { name:'Aerospace', icon:'🚀', desc:'Aircraft and spacecraft engineering', prereqs:['mechanical'], subskills:['aerodynamics','propulsion','avionics'] },
+        robotics: { name:'Robotics', icon:'🤖', desc:'Design and programming of robots', prereqs:['programming','electrical'], subskills:['kinematics','control_systems','sensors'] },
+        plumbing: { name:'Plumbing', icon:'🔧', desc:'Water supply and drainage systems', prereqs:[], subskills:['pipe_fitting','drainage','fixtures'] },
+        hvac: { name:'HVAC', icon:'❄️', desc:'Heating, ventilation, and air conditioning', prereqs:[], subskills:['refrigeration','ductwork','controls'] },
+        automotive: { name:'Automotive', icon:'🚗', desc:'Vehicle repair and maintenance', prereqs:[], subskills:['engine','transmission','electrical','bodywork'] },
+        soil_gardening: { name:'Soil Gardening', icon:'🌻', desc:'Growing plants in soil', prereqs:[], subskills:['vegetables','flowers','fruit_trees','herbs'] },
+        hydroponics: { name:'Hydroponics', icon:'💧', desc:'Growing plants without soil in water', prereqs:[], subskills:['nft','dwc','drip'] },
+        aeroponics: { name:'Aeroponics', icon:'💨', desc:'Growing plants in air/mist', prereqs:['hydroponics'], subskills:['high_pressure','low_pressure'] },
+        aquaponics: { name:'Aquaponics', icon:'🐟', desc:'Combined fish and plant growing', prereqs:['hydroponics','fishing'], subskills:['system_design','fish_care','plant_care'] },
+        permaculture: { name:'Permaculture', icon:'🌿', desc:'Sustainable agricultural design', prereqs:['soil_gardening'], subskills:['design','guilds','water_management'] },
+        composting: { name:'Composting', icon:'♻️', desc:'Decomposing organic matter into soil', prereqs:[], subskills:['hot','cold','vermicomposting'] },
+        seed_saving: { name:'Seed Saving', icon:'🌰', desc:'Collecting and storing seeds', prereqs:['soil_gardening'], subskills:['selection','drying','storage'] },
+        beekeeping: { name:'Beekeeping', icon:'🐝', desc:'Managing bee colonies', prereqs:[], subskills:['hive_management','honey_harvest','queen_rearing'] },
+        animal_husbandry: { name:'Animal Husbandry', icon:'🐄', desc:'Raising and caring for animals', prereqs:[], subskills:['poultry','livestock','veterinary_basics'] },
+        foraging: { name:'Foraging', icon:'🍄', desc:'Finding wild food sources', prereqs:[], subskills:['plant_id','mushroom_id','seasonal'] },
+        food_preservation: { name:'Food Preservation', icon:'🫙', desc:'Preserving food for storage', prereqs:[], subskills:['canning_fp','drying','fermenting','smoking'] },
+        mycology: { name:'Mycology', icon:'🍄', desc:'Study and cultivation of fungi', prereqs:['biology'], subskills:['identification','cultivation','spawn_production'] },
+        programming: { name:'Programming', icon:'👨‍💻', desc:'Writing computer code', prereqs:[], subskills:['python','javascript','rust','c_cpp','go'] },
+        web_dev: { name:'Web Dev', icon:'🌐', desc:'Building websites and web apps', prereqs:['programming'], subskills:['frontend','backend','fullstack'] },
+        game_dev: { name:'Game Dev', icon:'🎮', desc:'Creating video games', prereqs:['programming'], subskills:['game_design','engine_dev','level_design'] },
+        '3d_modeling': { name:'3D Modeling', icon:'🧊', desc:'Creating 3D digital models', prereqs:[], subskills:['hard_surface','organic','sculpting_3d','texturing'] },
+        video_editing: { name:'Video Editing', icon:'🎬', desc:'Editing and producing video', prereqs:[], subskills:['cutting','effects','color_grading','motion_graphics'] },
+        audio_production: { name:'Audio Production', icon:'🎵', desc:'Recording and producing audio', prereqs:[], subskills:['recording','mixing','mastering','sound_design'] },
+        graphic_design: { name:'Graphic Design', icon:'🎨', desc:'Visual communication design', prereqs:[], subskills:['typography','layout','branding','illustration'] },
+        ui_ux: { name:'UI/UX Design', icon:'📱', desc:'User interface and experience design', prereqs:[], subskills:['wireframing','prototyping','user_research'] },
+        cybersecurity: { name:'Cybersecurity', icon:'🔐', desc:'Protecting systems from threats', prereqs:['programming','networking'], subskills:['pen_testing','forensics','cryptography'] },
+        networking: { name:'Networking', icon:'🔗', desc:'Computer network design and management', prereqs:[], subskills:['routing','switching','wireless','security'] },
+        ai_ml: { name:'AI/ML', icon:'🧠', desc:'Artificial intelligence and machine learning', prereqs:['programming','mathematics'], subskills:['deep_learning','nlp','computer_vision'] },
+        database: { name:'Database', icon:'🗄️', desc:'Database design and management', prereqs:['programming'], subskills:['sql','nosql','optimization'] },
+        fire_starting: { name:'Fire Starting', icon:'🔥', desc:'Creating fire from various methods', prereqs:[], subskills:['friction','ferro_rod','bow_drill'] },
+        shelter_building: { name:'Shelter Building', icon:'⛺', desc:'Constructing emergency shelters', prereqs:[], subskills:['debris_hut','lean_to','snow_shelter'] },
+        water_purification: { name:'Water Purification', icon:'💧', desc:'Making water safe to drink', prereqs:[], subskills:['filtration','chemical','boiling','solar'] },
+        navigation: { name:'Navigation', icon:'🧭', desc:'Finding your way without GPS', prereqs:[], subskills:['compass','celestial','map_reading','terrain'] },
+        first_aid: { name:'First Aid', icon:'🏥', desc:'Emergency medical treatment', prereqs:[], subskills:['wound_care','cpr','splinting','triage'] },
+        knot_tying: { name:'Knot Tying', icon:'🪢', desc:'Tying useful knots', prereqs:[], subskills:['hitches','bends','loops','lashings'] },
+        hunting: { name:'Hunting', icon:'🏹', desc:'Hunting wild game', prereqs:[], subskills:['rifle','bow','tracking_hunt','field_dressing'] },
+        fishing: { name:'Fishing', icon:'🎣', desc:'Catching fish', prereqs:[], subskills:['fly','spinning','bait','ice_fishing'] },
+        trapping: { name:'Trapping', icon:'🪤', desc:'Setting traps for game', prereqs:[], subskills:['snares','deadfalls','cage_traps'] },
+        tracking: { name:'Tracking', icon:'🐾', desc:'Following animal and human tracks', prereqs:[], subskills:['footprints','scat','trail_signs'] },
+        weather_reading: { name:'Weather Reading', icon:'🌤️', desc:'Predicting weather from natural signs', prereqs:[], subskills:['clouds','wind','barometric','seasonal_patterns'] },
+        biology: { name:'Biology', icon:'🧬', desc:'Study of living organisms', prereqs:[], subskills:['molecular','ecology_bio','genetics','microbiology'] },
+        chemistry: { name:'Chemistry', icon:'⚗️', desc:'Study of matter and its properties', prereqs:[], subskills:['organic','inorganic','analytical','biochemistry'] },
+        physics: { name:'Physics', icon:'⚛️', desc:'Study of matter, energy, and forces', prereqs:['mathematics'], subskills:['mechanics','electromagnetism','quantum','relativity'] },
+        astronomy: { name:'Astronomy', icon:'🔭', desc:'Study of celestial objects', prereqs:[], subskills:['observation','astrophotography','cosmology'] },
+        geology: { name:'Geology', icon:'🪨', desc:'Study of Earth and its processes', prereqs:[], subskills:['mineralogy','petrology','paleontology'] },
+        ecology: { name:'Ecology', icon:'🌍', desc:'Study of ecosystems', prereqs:['biology'], subskills:['conservation','field_study','restoration'] },
+        mathematics: { name:'Mathematics', icon:'📐', desc:'Study of numbers, quantities, and shapes', prereqs:[], subskills:['algebra','calculus','geometry','discrete'] },
+        statistics: { name:'Statistics', icon:'📊', desc:'Analysis and interpretation of data', prereqs:['mathematics'], subskills:['probability','regression','bayesian','experimental_design'] },
+        medicine: { name:'Medicine', icon:'⚕️', desc:'Practice of healthcare', prereqs:['biology','chemistry'], subskills:['diagnosis','pharmacology','surgery','emergency'] },
+        nutrition: { name:'Nutrition', icon:'🥗', desc:'Study of food and health', prereqs:[], subskills:['macro_nutrients','micro_nutrients','diet_planning'] },
+        drawing: { name:'Drawing', icon:'✏️', desc:'Creating images with pencil, pen, or digital tools', prereqs:[], subskills:['sketching','figure_drawing','perspective','digital_drawing'] },
+        painting: { name:'Painting', icon:'🖌️', desc:'Applying pigment to surfaces', prereqs:[], subskills:['oil','acrylic','watercolor','digital_painting'] },
+        sculpting: { name:'Sculpting', icon:'🗿', desc:'Creating 3D art forms', prereqs:[], subskills:['clay_sculpt','stone','wood_sculpt','metal_sculpt'] },
+        music_instrument: { name:'Music Instrument', icon:'🎸', desc:'Playing a musical instrument', prereqs:[], subskills:['guitar','piano','drums','strings','wind'] },
+        singing: { name:'Singing', icon:'🎤', desc:'Vocal performance', prereqs:[], subskills:['technique','harmony','performance'] },
+        writing: { name:'Writing', icon:'✍️', desc:'Creative and technical writing', prereqs:[], subskills:['fiction','nonfiction','poetry','technical'] },
+        photography: { name:'Photography', icon:'📷', desc:'Capturing images', prereqs:[], subskills:['portrait','landscape','studio','editing'] },
+        acting: { name:'Acting', icon:'🎭', desc:'Theatrical and film performance', prereqs:[], subskills:['stage','screen','voice','improv'] },
+        dance: { name:'Dance', icon:'💃', desc:'Movement as artistic expression', prereqs:[], subskills:['ballet','contemporary','hip_hop','ballroom'] },
+        calligraphy: { name:'Calligraphy', icon:'🖋️', desc:'Artistic handwriting', prereqs:[], subskills:['western','eastern','modern','lettering'] },
+        teaching: { name:'Teaching', icon:'👩‍🏫', desc:'Educating others', prereqs:[], subskills:['curriculum','classroom','online','mentoring_t'] },
+        leadership: { name:'Leadership', icon:'👑', desc:'Guiding and inspiring groups', prereqs:[], subskills:['team_building','decision_making','delegation'] },
+        negotiation: { name:'Negotiation', icon:'🤝', desc:'Reaching agreements', prereqs:[], subskills:['preparation','persuasion','mediation'] },
+        public_speaking: { name:'Public Speaking', icon:'🎙️', desc:'Speaking to audiences', prereqs:[], subskills:['presentation','debate','storytelling'] },
+        counseling: { name:'Counseling', icon:'💬', desc:'Helping others through difficulties', prereqs:[], subskills:['active_listening','empathy','crisis_intervention'] },
+        languages: { name:'Languages', icon:'🌐', desc:'Speaking foreign languages', prereqs:[], subskills:['reading_lang','writing_lang','conversation','translation'] },
+        conflict_resolution: { name:'Conflict Resolution', icon:'☮️', desc:'Resolving disputes peacefully', prereqs:[], subskills:['mediation_cr','facilitation','restorative_justice'] },
+        mentoring: { name:'Mentoring', icon:'🧙', desc:'Guiding personal and professional development', prereqs:['teaching'], subskills:['coaching','feedback','career_guidance'] },
+        community_organizing: { name:'Community Organizing', icon:'📣', desc:'Building and mobilizing communities', prereqs:[], subskills:['outreach','event_planning','advocacy'] },
+        strength_training: { name:'Strength Training', icon:'🏋️', desc:'Building muscular strength', prereqs:[], subskills:['powerlifting','bodybuilding','calisthenics','olympic_lifts'] },
+        cardio: { name:'Cardio', icon:'❤️', desc:'Cardiovascular fitness', prereqs:[], subskills:['running','rowing','hiit','jump_rope'] },
+        flexibility: { name:'Flexibility', icon:'🤸', desc:'Stretching and mobility', prereqs:[], subskills:['static','dynamic','pnf'] },
+        martial_arts: { name:'Martial Arts', icon:'🥋', desc:'Combat and self-defense', prereqs:[], subskills:['striking','grappling','weapons','forms'] },
+        swimming: { name:'Swimming', icon:'🏊', desc:'Aquatic movement', prereqs:[], subskills:['freestyle','backstroke','diving','open_water'] },
+        climbing: { name:'Climbing', icon:'🧗', desc:'Rock and wall climbing', prereqs:[], subskills:['bouldering','sport','trad','ice'] },
+        cycling: { name:'Cycling', icon:'🚴', desc:'Bicycle riding', prereqs:[], subskills:['road','mountain','touring','maintenance'] },
+        yoga: { name:'Yoga', icon:'🧘', desc:'Physical and mental yoga practice', prereqs:[], subskills:['vinyasa','hatha','ashtanga','meditation'] },
+        sports: { name:'Sports', icon:'⚽', desc:'Organized athletic activities', prereqs:[], subskills:['team_sports','individual','coaching_s','strategy'] },
+        cooking: { name:'Cooking', icon:'👨‍🍳', desc:'Preparing food', prereqs:[], subskills:['techniques','cuisines','meal_planning','knife_skills'] },
+        baking: { name:'Baking', icon:'🍞', desc:'Baking breads, pastries, and desserts', prereqs:[], subskills:['bread','pastry','cakes','sourdough'] },
+        canning: { name:'Canning', icon:'🫙', desc:'Preserving food in jars', prereqs:[], subskills:['water_bath','pressure_canning','pickling','jam'] },
+        cleaning: { name:'Cleaning', icon:'🧹', desc:'Maintaining cleanliness', prereqs:[], subskills:['deep_cleaning','organizing_c','laundry','natural_cleaners'] },
+        organizing: { name:'Organizing', icon:'📦', desc:'Systematizing spaces and information', prereqs:[], subskills:['decluttering','storage_solutions','digital_org'] },
+        budgeting: { name:'Budgeting', icon:'💰', desc:'Managing personal finances', prereqs:[], subskills:['tracking','saving','investing','debt_management'] },
+        childcare: { name:'Childcare', icon:'👶', desc:'Caring for children', prereqs:[], subskills:['infant','toddler','education_cc','first_aid_cc'] },
+        elder_care: { name:'Elder Care', icon:'👴', desc:'Caring for elderly', prereqs:[], subskills:['daily_assistance','medical_care','companionship'] },
+        home_repair: { name:'Home Repair', icon:'🔨', desc:'Fixing and maintaining a home', prereqs:[], subskills:['drywall','painting_hr','basic_plumbing','basic_electrical'] },
+        interior_design: { name:'Interior Design', icon:'🛋️', desc:'Designing living spaces', prereqs:[], subskills:['space_planning','color_theory','furniture','lighting'] },
+      };
+
+      const LEVEL_THRESHOLDS = [0, 1, 10, 50, 150, 500, 1000, 2500, 5000, 10000, 25000];
+      const LEVEL_NAMES = ['Untrained','Novice','Beginner','Apprentice','Journeyman','Skilled','Expert','Master','Grandmaster','Legendary','Transcendent'];
+      const LEVEL_COLORS = ['#666','#aaa','#4a8','#2a6','#28f','#a2f','#f2a','#fa2','#f52','#f00','#ff0'];
+
+      function calcLevel(realityXp, fantasyXp) {
+        const eff = (realityXp * 2) + fantasyXp;
+        for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) { if (eff >= LEVEL_THRESHOLDS[i]) return i; }
+        return 0;
+      }
+
+      function xpToNextLevel(realityXp, fantasyXp) {
+        const lv = calcLevel(realityXp, fantasyXp);
+        if (lv >= 10) return { current: (realityXp*2)+fantasyXp, needed: Infinity, pct: 100 };
+        const cur = (realityXp*2)+fantasyXp;
+        const next = LEVEL_THRESHOLDS[lv+1];
+        const prev = LEVEL_THRESHOLDS[lv];
+        return { current: cur - prev, needed: next - prev, pct: Math.min(100, ((cur - prev) / (next - prev)) * 100) };
+      }
+
+      function loadSkills() {
+        try { return JSON.parse(localStorage.getItem('humanity_skills')) || { skills: {}, verifications: [] }; }
+        catch { return { skills: {}, verifications: [] }; }
+      }
+      function saveSkills(data) { localStorage.setItem('humanity_skills', JSON.stringify(data)); }
+
+      function getSkillData(data, skillId) {
+        return data.skills[skillId] || { realityXp: 0, fantasyXp: 0, logs: [], subskills: {} };
+      }
+
+      function checkPrereqs(data, skillId) {
+        const meta = SKILL_META[skillId];
+        if (!meta || !meta.prereqs || meta.prereqs.length === 0) return true;
+        return meta.prereqs.every(pId => {
+          const sd = getSkillData(data, pId);
+          return calcLevel(sd.realityXp, sd.fantasyXp) >= 1;
+        });
+      }
+
+      // ── Render Skill DNA panel ──
+      function renderSkillDNA(containerId, mode) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const data = loadSkills();
+        const isFantasy = mode === 'fantasy';
+        const accentColor = isFantasy ? 'var(--fantasy-accent,#9966ff)' : 'var(--accent)';
+
+        // State
+        if (!container._sdState) container._sdState = { category: 'crafting', view: 'grid' };
+        const st = container._sdState;
+
+        let html = '<div class="skill-dna">';
+        // Sidebar
+        html += '<div class="skill-dna-sidebar">';
+        for (const [catId, cat] of Object.entries(SKILL_CATEGORIES)) {
+          const isActive = st.category === catId;
+          html += `<div class="sd-cat ${isActive?'active':''}" onclick="window._sdSelectCat('${containerId}','${catId}','${mode}')">${cat.icon} <span>${cat.name}</span></div>`;
+        }
+        // Stats & Find People
+        html += `<div class="sd-cat" style="margin-top:auto;border-top:1px solid var(--border);" onclick="window._sdShowOverview('${containerId}','${mode}')">📊 Overview</div>`;
+        html += `<div class="sd-cat" onclick="window._sdFindPeople()">👥 Find People</div>`;
+        html += '</div>';
+
+        // Main content
+        const cat = SKILL_CATEGORIES[st.category];
+        html += '<div class="skill-dna-main">';
+        if (st.view === 'grid') {
+          html += `<div class="skill-dna-header"><h3 style="color:${accentColor}">${cat.icon} ${cat.name}</h3>`;
+          html += `<button onclick="window._sdLogActivity('${containerId}','${mode}','${st.category}')" style="background:${accentColor};color:#fff;border:none;padding:0.3rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Log Activity</button>`;
+          html += '</div>';
+          html += '<div class="sd-grid">';
+          for (const skillId of cat.skills) {
+            const meta = SKILL_META[skillId];
+            if (!meta) continue;
+            const sd = getSkillData(data, skillId);
+            const rXp = isFantasy ? sd.fantasyXp : sd.realityXp;
+            const fXp = isFantasy ? sd.realityXp : sd.fantasyXp;
+            const lv = calcLevel(sd.realityXp, sd.fantasyXp);
+            const prog = xpToNextLevel(sd.realityXp, sd.fantasyXp);
+            const locked = !checkPrereqs(data, skillId);
+            const color = LEVEL_COLORS[lv];
+            const verCount = (data.verifications || []).filter(v => v.skill === skillId).length;
+            html += `<div class="sd-tile ${locked?'locked':''}" onclick="${locked?'':'window._sdOpenSkill(\\''+containerId+'\\',\\''+skillId+'\\',\\''+mode+'\\')'}">`;
+            html += `<div class="sd-icon">${meta.icon}</div>`;
+            html += `<div class="sd-name">${meta.name}</div>`;
+            html += `<div class="sd-level" style="color:${color}">Lv ${lv} ${verCount?'✓':''}</div>`;
+            html += `<div class="sd-bar"><div class="sd-bar-fill" style="width:${prog.pct}%;background:${color}"></div></div>`;
+            html += '</div>';
+          }
+          html += '</div>';
+
+          // Stats summary
+          let totalR = 0, totalF = 0, verified = 0, verifs = (data.verifications||[]).length;
+          for (const [sid, sd] of Object.entries(data.skills)) { totalR += sd.realityXp||0; totalF += sd.fantasyXp||0; }
+          const uniqueVerified = new Set((data.verifications||[]).map(v=>v.skill)).size;
+          html += '<div class="sd-stats">';
+          html += `<div>Total Reality XP: <span>${Math.round(totalR)}h</span></div>`;
+          html += `<div>Total Fantasy XP: <span>${Math.round(totalF)}h</span></div>`;
+          html += `<div>Verified Skills: <span>${uniqueVerified}</span> (${verifs} verifications)</div>`;
+          html += '</div>';
+        } else if (st.view === 'overview') {
+          html += renderOverview(data, isFantasy, accentColor, containerId, mode);
+        }
+        html += '</div></div>';
+        container.innerHTML = html;
+      }
+
+      function renderOverview(data, isFantasy, accentColor, containerId, mode) {
+        let html = `<div class="skill-dna-header"><h3 style="color:${accentColor}">📊 Skill Overview</h3>`;
+        html += `<button onclick="window._sdSelectCat('${containerId}','crafting','${mode}')" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;">← Back</button></div>`;
+
+        // Category bar chart
+        html += '<div style="margin:0.6rem 0;">';
+        for (const [catId, cat] of Object.entries(SKILL_CATEGORIES)) {
+          let catHours = 0;
+          for (const sid of cat.skills) { const sd = getSkillData(data, sid); catHours += (sd.realityXp||0) + (sd.fantasyXp||0); }
+          const maxH = 500;
+          const pct = Math.min(100, (catHours / maxH) * 100);
+          html += `<div style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;font-size:0.78rem;">`;
+          html += `<span style="width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${cat.icon} ${cat.name}</span>`;
+          html += `<div style="flex:1;height:12px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">`;
+          html += `<div style="height:100%;width:${pct}%;background:${accentColor};border-radius:4px;"></div></div>`;
+          html += `<span style="width:50px;text-align:right;color:var(--text-muted);">${Math.round(catHours)}h</span></div>`;
+        }
+        html += '</div>';
+
+        // Top skills
+        const allSkills = [];
+        for (const [sid, sd] of Object.entries(data.skills)) {
+          const lv = calcLevel(sd.realityXp||0, sd.fantasyXp||0);
+          if (lv > 0) allSkills.push({ id: sid, lv, total: (sd.realityXp||0)+(sd.fantasyXp||0) });
+        }
+        allSkills.sort((a,b) => b.total - a.total);
+        if (allSkills.length) {
+          html += '<h4 style="margin:0.8rem 0 0.3rem;font-size:0.85rem;">🏆 Top Skills</h4>';
+          for (const s of allSkills.slice(0, 8)) {
+            const meta = SKILL_META[s.id] || { name: s.id, icon: '❓' };
+            html += `<div style="display:flex;align-items:center;gap:0.4rem;margin:0.15rem 0;font-size:0.8rem;">`;
+            html += `${meta.icon} ${meta.name} — <span style="color:${LEVEL_COLORS[s.lv]};font-weight:700;">Lv ${s.lv} ${LEVEL_NAMES[s.lv]}</span> (${Math.round(s.total)}h)</div>`;
+          }
+        }
+
+        // Achievements
+        html += '<h4 style="margin:0.8rem 0 0.3rem;font-size:0.85rem;">🏅 Milestones</h4>';
+        let totalR = 0, totalF = 0;
+        for (const sd of Object.values(data.skills)) { totalR += sd.realityXp||0; totalF += sd.fantasyXp||0; }
+        const milestones = [
+          { name: 'First Steps', desc: 'Log your first activity', check: Object.keys(data.skills).length > 0 },
+          { name: '100 Reality Hours', desc: 'Accumulate 100h of real-world XP', check: totalR >= 100 },
+          { name: 'Verified', desc: 'Get your first peer verification', check: (data.verifications||[]).length > 0 },
+          { name: 'Jack of All Trades', desc: 'Skills in 5+ categories', check: new Set(Object.keys(data.skills).map(s => { for (const [c,v] of Object.entries(SKILL_CATEGORIES)) if (v.skills.includes(s)) return c; return null; }).filter(Boolean)).size >= 5 },
+          { name: '5 Verified', desc: '5 skills peer-verified', check: new Set((data.verifications||[]).map(v=>v.skill)).size >= 5 },
+        ];
+        for (const m of milestones) {
+          html += `<div style="font-size:0.78rem;margin:0.15rem 0;opacity:${m.check?1:0.4};">${m.check?'✅':'⬜'} <strong>${m.name}</strong> — ${m.desc}</div>`;
+        }
+
+        // Radar chart (canvas)
+        html += `<h4 style="margin:0.8rem 0 0.3rem;font-size:0.85rem;">🎯 Skill Radar</h4>`;
+        html += `<canvas id="sd-radar-${containerId}" width="280" height="280" style="display:block;margin:0 auto;max-width:100%;"></canvas>`;
+        setTimeout(() => drawRadar(containerId, data), 50);
+        return html;
+      }
+
+      function drawRadar(containerId, data) {
+        const canvas = document.getElementById('sd-radar-' + containerId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height, cx = w/2, cy = h/2, r = Math.min(cx,cy) - 30;
+        ctx.clearRect(0,0,w,h);
+        const cats = Object.entries(SKILL_CATEGORIES);
+        const n = cats.length;
+        // Grid
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        for (let ring = 1; ring <= 5; ring++) {
+          ctx.beginPath();
+          for (let i = 0; i <= n; i++) {
+            const a = (Math.PI*2*i/n) - Math.PI/2;
+            const rr = r * ring/5;
+            const x = cx + Math.cos(a)*rr, y = cy + Math.sin(a)*rr;
+            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+          }
+          ctx.stroke();
+        }
+        // Spokes + labels
+        ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+        for (let i = 0; i < n; i++) {
+          const a = (Math.PI*2*i/n) - Math.PI/2;
+          ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r); ctx.stroke();
+          const lx = cx + Math.cos(a)*(r+18), ly = cy + Math.sin(a)*(r+18);
+          ctx.fillText(cats[i][1].icon, lx, ly+3);
+        }
+        // Data
+        const vals = cats.map(([catId, cat]) => {
+          let total = 0;
+          for (const sid of cat.skills) { const sd = getSkillData(data, sid); total += (sd.realityXp||0)*2 + (sd.fantasyXp||0); }
+          return Math.min(1, total / 2000); // normalize
+        });
+        ctx.fillStyle = 'rgba(0,180,100,0.2)'; ctx.strokeStyle = 'rgba(0,180,100,0.8)'; ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i <= n; i++) {
+          const idx = i % n;
+          const a = (Math.PI*2*idx/n) - Math.PI/2;
+          const v = Math.max(0.02, vals[idx]);
+          const x = cx + Math.cos(a)*r*v, y = cy + Math.sin(a)*r*v;
+          i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        }
+        ctx.fill(); ctx.stroke();
+      }
+
+      // ── Skill Card (detail view) ──
+      window._sdOpenSkill = function(containerId, skillId, mode) {
+        const data = loadSkills();
+        const meta = SKILL_META[skillId];
+        if (!meta) return;
+        const sd = getSkillData(data, skillId);
+        const lv = calcLevel(sd.realityXp||0, sd.fantasyXp||0);
+        const prog = xpToNextLevel(sd.realityXp||0, sd.fantasyXp||0);
+        const verifs = (data.verifications||[]).filter(v => v.skill === skillId);
+        const isFantasy = mode === 'fantasy';
+        const accent = isFantasy ? '#9966ff' : 'var(--accent)';
+
+        let html = '<div class="sd-card-overlay" onclick="if(event.target===this)this.remove()">';
+        html += '<div class="sd-card">';
+        html += `<h3>${meta.icon} ${meta.name} <span style="color:${LEVEL_COLORS[lv]}">Lv ${lv} ${LEVEL_NAMES[lv]}</span></h3>`;
+        html += `<p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 0.4rem;">${meta.desc}</p>`;
+
+        // Progress bar
+        const progLabel = lv >= 10 ? 'MAX' : `${Math.round(prog.needed - prog.current)}h to Lv ${lv+1}`;
+        html += `<div style="display:flex;align-items:center;gap:0.4rem;font-size:0.75rem;color:var(--text-muted);">`;
+        html += `<div style="flex:1;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${prog.pct}%;background:${LEVEL_COLORS[lv]};border-radius:4px;"></div></div> ${progLabel}</div>`;
+
+        // XP bars
+        html += '<div class="sd-xp-bars">';
+        const maxXp = Math.max(sd.realityXp||1, sd.fantasyXp||1, 10);
+        html += `<div class="sd-xp-row"><span style="width:70px;">Reality XP:</span> <span>${Math.round(sd.realityXp||0)}h</span> <div class="bar"><div class="bar-fill" style="width:${((sd.realityXp||0)/maxXp)*100}%;background:#4a8;"></div></div></div>`;
+        html += `<div class="sd-xp-row"><span style="width:70px;">Fantasy XP:</span> <span>${Math.round(sd.fantasyXp||0)}h</span> <div class="bar"><div class="bar-fill" style="width:${((sd.fantasyXp||0)/maxXp)*100}%;background:#96f;"></div></div></div>`;
+        html += '</div>';
+
+        // Subskills
+        if (meta.subskills && meta.subskills.length) {
+          html += '<div class="sd-subskills"><strong style="font-size:0.8rem;">Subskills:</strong>';
+          for (const sub of meta.subskills) {
+            const subData = (sd.subskills||{})[sub] || { realityXp:0, fantasyXp:0 };
+            const subLv = calcLevel(subData.realityXp, subData.fantasyXp);
+            const subProg = xpToNextLevel(subData.realityXp, subData.fantasyXp);
+            const subName = sub.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+            html += `<div class="sd-subskill"><span style="width:100px;">${subName}</span>`;
+            html += `<div style="flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${subProg.pct}%;background:${LEVEL_COLORS[subLv]};border-radius:3px;"></div></div>`;
+            html += `<span style="color:${LEVEL_COLORS[subLv]};font-weight:600;min-width:30px;text-align:right;">Lv ${subLv}</span></div>`;
+          }
+          html += '</div>';
+        }
+
+        // Verifications
+        if (verifs.length) {
+          html += `<div class="sd-verifications"><strong style="font-size:0.8rem;">Verifications (${verifs.length}):</strong>`;
+          for (const v of verifs) {
+            html += `<div style="margin:0.15rem 0;">✓ <strong>${v.from||'Anonymous'}</strong> — "${v.note||'Verified'}" <span style="color:var(--text-muted);font-size:0.7rem;">${v.date ? new Date(v.date).toLocaleDateString() : ''}</span></div>`;
+          }
+          html += '</div>';
+        }
+
+        // Recent activity
+        const logs = (sd.logs||[]).slice(-5).reverse();
+        if (logs.length) {
+          html += '<div class="sd-activity"><strong style="font-size:0.8rem;">Recent Activity:</strong>';
+          for (const log of logs) {
+            const d = log.date ? new Date(log.date).toLocaleDateString() : '?';
+            const sub = log.subskill ? ` ${log.subskill.replace(/_/g,' ')}` : '';
+            html += `<div style="margin:0.15rem 0;">${d} — ${log.hours||0}h${sub} (${log.type||'reality'}) ${log.note?'— '+log.note:''}</div>`;
+          }
+          html += '</div>';
+        }
+
+        // Actions
+        html += '<div class="sd-actions">';
+        html += `<button onclick="window._sdLogActivity('${containerId}','${mode}','${Object.entries(SKILL_CATEGORIES).find(([c,v])=>v.skills.includes(skillId))?.[0]||'crafting'}','${skillId}');this.closest('.sd-card-overlay').remove()">+ Log Hours</button>`;
+        html += `<button onclick="window._sdRequestVerify('${skillId}');this.closest('.sd-card-overlay').remove()">Request Verify</button>`;
+        html += '</div>';
+        html += '</div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+      };
+
+      // ── Category selection ──
+      window._sdSelectCat = function(containerId, catId, mode) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container._sdState = { category: catId, view: 'grid' };
+        renderSkillDNA(containerId, mode);
+      };
+
+      window._sdShowOverview = function(containerId, mode) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container._sdState = container._sdState || {};
+        container._sdState.view = 'overview';
+        renderSkillDNA(containerId, mode);
+      };
+
+      // ── Log Activity Modal ──
+      window._sdLogActivity = function(containerId, mode, defaultCat, defaultSkill) {
+        const isFantasy = mode === 'fantasy';
+        let html = '<div class="sd-log-overlay" onclick="if(event.target===this)this.remove()">';
+        html += '<div class="sd-log-modal">';
+        html += '<h3>+ Log Activity</h3>';
+        html += '<div class="sd-type-toggle">';
+        html += `<label><input type="radio" name="sd-log-type" value="reality" ${!isFantasy?'checked':''}> Reality</label>`;
+        html += `<label><input type="radio" name="sd-log-type" value="fantasy" ${isFantasy?'checked':''}> Fantasy</label>`;
+        html += '</div>';
+        html += '<label>Category</label><select id="sd-log-cat" onchange="window._sdLogCatChange()">';
+        for (const [catId, cat] of Object.entries(SKILL_CATEGORIES)) {
+          html += `<option value="${catId}" ${catId===defaultCat?'selected':''}>${cat.icon} ${cat.name}</option>`;
+        }
+        html += '</select>';
+        html += '<label>Skill</label><select id="sd-log-skill" onchange="window._sdLogSkillChange()"></select>';
+        html += '<label>Subskill (optional)</label><select id="sd-log-sub"><option value="">— None —</option></select>';
+        html += '<label>Hours</label><input type="number" id="sd-log-hours" min="0.25" step="0.25" value="1">';
+        html += '<label>Notes</label><textarea id="sd-log-notes" rows="2" placeholder="What did you do?"></textarea>';
+        html += `<label>Date</label><input type="date" id="sd-log-date" value="${new Date().toISOString().slice(0,10)}">`;
+        html += '<div class="sd-log-actions">';
+        html += `<button style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);" onclick="this.closest('.sd-log-overlay').remove()">Cancel</button>`;
+        html += `<button style="background:${isFantasy?'#9966ff':'var(--accent)'};color:#fff;" onclick="window._sdSubmitLog('${containerId}','${mode}')">Log Activity</button>`;
+        html += '</div></div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+        // Populate skill dropdown
+        window._sdLogCatChange(defaultSkill);
+      };
+
+      window._sdLogCatChange = function(defaultSkill) {
+        const catId = document.getElementById('sd-log-cat').value;
+        const cat = SKILL_CATEGORIES[catId];
+        const sel = document.getElementById('sd-log-skill');
+        sel.innerHTML = '';
+        for (const sid of cat.skills) {
+          const meta = SKILL_META[sid];
+          if (!meta) continue;
+          sel.innerHTML += `<option value="${sid}" ${sid===defaultSkill?'selected':''}>${meta.icon} ${meta.name}</option>`;
+        }
+        window._sdLogSkillChange();
+      };
+
+      window._sdLogSkillChange = function() {
+        const skillId = document.getElementById('sd-log-skill').value;
+        const meta = SKILL_META[skillId];
+        const sel = document.getElementById('sd-log-sub');
+        sel.innerHTML = '<option value="">— None —</option>';
+        if (meta && meta.subskills) {
+          for (const sub of meta.subskills) {
+            sel.innerHTML += `<option value="${sub}">${sub.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`;
+          }
+        }
+      };
+
+      window._sdSubmitLog = function(containerId, mode) {
+        const type = document.querySelector('input[name="sd-log-type"]:checked')?.value || 'reality';
+        const skillId = document.getElementById('sd-log-skill').value;
+        const subskill = document.getElementById('sd-log-sub').value;
+        const hours = parseFloat(document.getElementById('sd-log-hours').value) || 0;
+        const notes = document.getElementById('sd-log-notes').value;
+        const date = document.getElementById('sd-log-date').value;
+        if (!skillId || hours <= 0) return;
+
+        const data = loadSkills();
+        if (!data.skills[skillId]) data.skills[skillId] = { realityXp: 0, fantasyXp: 0, logs: [], subskills: {} };
+        const sd = data.skills[skillId];
+
+        if (type === 'reality') sd.realityXp = (sd.realityXp||0) + hours;
+        else sd.fantasyXp = (sd.fantasyXp||0) + hours;
+
+        if (subskill) {
+          if (!sd.subskills) sd.subskills = {};
+          if (!sd.subskills[subskill]) sd.subskills[subskill] = { realityXp: 0, fantasyXp: 0 };
+          if (type === 'reality') sd.subskills[subskill].realityXp += hours;
+          else sd.subskills[subskill].fantasyXp += hours;
+        }
+
+        if (!sd.logs) sd.logs = [];
+        sd.logs.push({ date: date || new Date().toISOString(), type, hours, note: notes, subskill: subskill || null });
+
+        saveSkills(data);
+        document.querySelector('.sd-log-overlay')?.remove();
+        renderSkillDNA(containerId, mode);
+
+        // Broadcast skill update to relay if connected
+        _sdBroadcastUpdate(skillId, sd);
+      };
+
+      function _sdBroadcastUpdate(skillId, sd) {
+        // If we have a WebSocket connection, send skill update
+        if (window._humanityWs && window._humanityWs.readyState === 1) {
+          const lv = calcLevel(sd.realityXp||0, sd.fantasyXp||0);
+          try {
+            window._humanityWs.send(JSON.stringify({
+              type: 'skill_update',
+              skill_id: skillId,
+              reality_xp: sd.realityXp||0,
+              fantasy_xp: sd.fantasyXp||0,
+              level: lv
+            }));
+          } catch(e) { /* silent */ }
+        }
+      }
+
+      // ── Request Verification ──
+      window._sdRequestVerify = function(skillId) {
+        const meta = SKILL_META[skillId];
+        if (!meta) return;
+        const data = loadSkills();
+        const sd = getSkillData(data, skillId);
+        const lv = calcLevel(sd.realityXp||0, sd.fantasyXp||0);
+        // Simple prompt-based verification request for now
+        const who = prompt(`Request verification for ${meta.name} (Lv ${lv}).\n\nEnter the username of someone who can verify your skill:`);
+        if (!who || !who.trim()) return;
+        // Send via WS if connected
+        if (window._humanityWs && window._humanityWs.readyState === 1) {
+          try {
+            window._humanityWs.send(JSON.stringify({
+              type: 'skill_verify_request',
+              skill_id: skillId,
+              level: lv,
+              to_name: who.trim()
+            }));
+            alert('Verification request sent to ' + who.trim() + '!');
+          } catch(e) { alert('Could not send request. Are you connected?'); }
+        } else {
+          alert('Not connected to relay. Connect first to send verification requests.');
+        }
+      };
+
+      // Handle incoming verification responses
+      window._sdHandleVerifyResponse = function(msg) {
+        if (msg.type === 'skill_verify_response' && msg.approved) {
+          const data = loadSkills();
+          if (!data.verifications) data.verifications = [];
+          data.verifications.push({
+            skill: msg.skill_id,
+            from: msg.from_name || msg.from_key || 'Unknown',
+            date: Date.now(),
+            note: msg.note || 'Verified'
+          });
+          saveSkills(data);
+          // Re-render if visible
+          renderSkillDNA('skill-dna-reality', 'reality');
+          renderSkillDNA('skill-dna-fantasy', 'fantasy');
+        }
+      };
+
+      // ── Find People ──
+      window._sdFindPeople = async function() {
+        let html = '<div class="sd-find-overlay" onclick="if(event.target===this)this.remove()">';
+        html += '<div class="sd-find-modal">';
+        html += '<h3>👥 Find People by Skill</h3>';
+        html += '<div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">';
+        html += '<select id="sd-find-skill" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.82rem;">';
+        for (const [catId, cat] of Object.entries(SKILL_CATEGORIES)) {
+          html += `<optgroup label="${cat.icon} ${cat.name}">`;
+          for (const sid of cat.skills) {
+            const meta = SKILL_META[sid];
+            if (meta) html += `<option value="${sid}">${meta.name}</option>`;
+          }
+          html += '</optgroup>';
+        }
+        html += '</select>';
+        html += '<select id="sd-find-level" style="width:80px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.82rem;">';
+        for (let i = 1; i <= 10; i++) html += `<option value="${i}">Lv ${i}+</option>`;
+        html += '</select>';
+        html += `<button onclick="window._sdDoSearch()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Search</button>`;
+        html += '</div>';
+        html += '<div id="sd-find-results" style="font-size:0.82rem;color:var(--text-muted);">Select a skill and minimum level, then search.</div>';
+        html += '</div></div>';
+        document.body.insertAdjacentHTML('beforeend', html);
+      };
+
+      window._sdDoSearch = async function() {
+        const skill = document.getElementById('sd-find-skill').value;
+        const minLevel = document.getElementById('sd-find-level').value;
+        const resultsDiv = document.getElementById('sd-find-results');
+        resultsDiv.innerHTML = 'Searching...';
+        try {
+          const res = await fetch(`/api/skills/search?skill=${skill}&min_level=${minLevel}`);
+          if (!res.ok) throw new Error('Search failed');
+          const users = await res.json();
+          if (!users.length) { resultsDiv.innerHTML = 'No users found with that skill level.'; return; }
+          let rHtml = '';
+          for (const u of users) {
+            const meta = SKILL_META[skill];
+            rHtml += `<div class="sd-find-result">`;
+            rHtml += `<div><strong>${u.display_name || u.public_key.slice(0,8)+'...'}</strong>`;
+            rHtml += `<div class="sd-fr-skills">${meta?meta.icon:''} ${meta?meta.name:skill} — <span style="color:${LEVEL_COLORS[u.level]||'#aaa'};font-weight:700;">Lv ${u.level} ${LEVEL_NAMES[u.level]||''}</span> (${Math.round(u.reality_xp||0)}h reality, ${Math.round(u.fantasy_xp||0)}h fantasy)</div>`;
+            rHtml += `</div></div>`;
+          }
+          resultsDiv.innerHTML = rHtml;
+        } catch(e) {
+          resultsDiv.innerHTML = 'Search unavailable. Make sure you\'re connected to a relay.';
+        }
+      };
+
+      // ── Initialize both panels ──
+      function initSkillDNA() {
+        renderSkillDNA('skill-dna-reality', 'reality');
+        renderSkillDNA('skill-dna-fantasy', 'fantasy');
+      }
+
+      // Hook into tab switching to init when visible
+      const origSwitchTabSD = switchTab;
+      switchTab = function(tabId, pushState) {
+        origSwitchTabSD(tabId, pushState);
+        if (tabId === 'reality' || tabId === 'fantasy') initSkillDNA();
+      };
+
+      // Init on load if starting on reality/fantasy
+      if (typeof initialTab !== 'undefined' && (initialTab === 'reality' || initialTab === 'fantasy')) {
+        initSkillDNA();
+      }
+      // Also init after short delay for default tab
+      setTimeout(initSkillDNA, 500);
+    })();
 
     // ── Browse/Dashboard tab activation ──
     {

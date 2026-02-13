@@ -1251,3 +1251,63 @@ pub async fn delete_asset(
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
     }
 }
+
+// ── Skill DNA API ──
+
+#[derive(Debug, Deserialize)]
+pub struct SkillSearchQuery {
+    pub skill: String,
+    pub min_level: Option<i32>,
+    pub limit: Option<usize>,
+}
+
+pub async fn search_skills(
+    state: axum::extract::State<Arc<RelayState>>,
+    Query(query): Query<SkillSearchQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let min_level = query.min_level.unwrap_or(1);
+    let limit = query.limit.unwrap_or(50).min(100);
+
+    match state.db.search_skills(&query.skill, min_level, limit) {
+        Ok(results) => {
+            let users: Vec<serde_json::Value> = results.into_iter().map(|(key, rxp, fxp, lv)| {
+                // Look up display name
+                let name = state.db.get_display_name(&key).unwrap_or_default();
+                serde_json::json!({
+                    "public_key": key,
+                    "display_name": name,
+                    "reality_xp": rxp,
+                    "fantasy_xp": fxp,
+                    "level": lv,
+                })
+            }).collect();
+            Ok(Json(serde_json::json!(users)))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Search error: {e}"))),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UserSkillQuery {
+    pub key: Option<String>,
+}
+
+pub async fn get_user_skills(
+    state: axum::extract::State<Arc<RelayState>>,
+    axum::extract::Path(user_key): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match state.db.get_user_skills(&user_key) {
+        Ok(skills) => {
+            let result: Vec<serde_json::Value> = skills.into_iter().map(|(sid, rxp, fxp, lv)| {
+                serde_json::json!({
+                    "skill_id": sid,
+                    "reality_xp": rxp,
+                    "fantasy_xp": fxp,
+                    "level": lv,
+                })
+            }).collect();
+            Ok(Json(serde_json::json!(result)))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
+    }
+}

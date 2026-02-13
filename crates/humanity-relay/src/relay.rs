@@ -2089,6 +2089,74 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 continue;
                             }
+                            Some("skill_update") => {
+                                // User is broadcasting a skill update
+                                if let (Some(skill_id), Some(reality_xp), Some(fantasy_xp), Some(level)) = (
+                                    raw.get("skill_id").and_then(|v| v.as_str()),
+                                    raw.get("reality_xp").and_then(|v| v.as_f64()),
+                                    raw.get("fantasy_xp").and_then(|v| v.as_f64()),
+                                    raw.get("level").and_then(|v| v.as_i64()),
+                                ) {
+                                    let _ = state_clone.db.upsert_skill(&my_key_for_recv, skill_id, reality_xp, fantasy_xp, level as i32);
+                                }
+                                continue;
+                            }
+                            Some("skill_verify_request") => {
+                                // Forward verification request as a DM to target user
+                                if let (Some(skill_id), Some(to_name)) = (
+                                    raw.get("skill_id").and_then(|v| v.as_str()),
+                                    raw.get("to_name").and_then(|v| v.as_str()),
+                                ) {
+                                    let level = raw.get("level").and_then(|v| v.as_i64()).unwrap_or(0);
+                                    let from_name = {
+                                        let peers = state_clone.peers.read().await;
+                                        peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Someone".to_string())
+                                    };
+                                    // Find target key by name
+                                    if let Ok(Some(true)) = state_clone.db.check_name(to_name, "") {
+                                        // Name exists but belongs to someone else — good, find them
+                                    }
+                                    // Send as system DM via Private message
+                                    // Look up the target key from peers
+                                    let target_key = {
+                                        let peers = state_clone.peers.read().await;
+                                        peers.iter().find(|(_, p)| p.display_name.as_deref() == Some(to_name)).map(|(k, _)| k.clone())
+                                    };
+                                    if let Some(tk) = target_key {
+                                        let msg = format!("__skill_verify_req__:{{\"from_key\":\"{}\",\"from_name\":\"{}\",\"skill_id\":\"{}\",\"level\":{}}}", my_key_for_recv, from_name, skill_id, level);
+                                        let private = RelayMessage::Private {
+                                            to: tk,
+                                            message: msg,
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                }
+                                continue;
+                            }
+                            Some("skill_verify_response") => {
+                                // User is responding to a verification request
+                                if let (Some(skill_id), Some(to_key), Some(approved)) = (
+                                    raw.get("skill_id").and_then(|v| v.as_str()),
+                                    raw.get("to_key").and_then(|v| v.as_str()),
+                                    raw.get("approved").and_then(|v| v.as_bool()),
+                                ) {
+                                    if approved {
+                                        let note = raw.get("note").and_then(|v| v.as_str()).unwrap_or("Verified");
+                                        let _ = state_clone.db.store_skill_verification(skill_id, &my_key_for_recv, to_key, note);
+                                        let from_name = {
+                                            let peers = state_clone.peers.read().await;
+                                            peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Someone".to_string())
+                                        };
+                                        let msg = format!("__skill_verify_resp__:{{\"from_key\":\"{}\",\"from_name\":\"{}\",\"skill_id\":\"{}\",\"approved\":true,\"note\":\"{}\"}}", my_key_for_recv, from_name, skill_id, note);
+                                        let private = RelayMessage::Private {
+                                            to: to_key.to_string(),
+                                            message: msg,
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                }
+                                continue;
+                            }
                             _ => {} // Fall through to normal RelayMessage handling
                         }
                     }
