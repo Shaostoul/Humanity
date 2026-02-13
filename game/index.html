@@ -8785,6 +8785,996 @@
         ctx.fillText('~200 billion stars · ~100,000 ly diameter',cx,ch-3);
       }
 
+      // ══════════════════════════════════════════════════════════════
+      // ██  SKY VIEW — Real night sky with 88 IAU constellations  ██
+      // ══════════════════════════════════════════════════════════════
+
+      // ── Sky View State ──
+      let skyTime = new Date();
+      let skyTimeOffset = 0; // ms offset from real time
+      let skyTimeSpeed = 0; // 0=paused at offset, or multiplier
+      let skyShowConstellations = true;
+      let skyShowMilkyWay = true;
+      let skyDarkSky = true; // false = city sky (only bright stars)
+      let skySelectedConstellation = null;
+      let skyHoveredConstellation = null;
+      let skyAnimFrame = null;
+
+      function skyGetTime() {
+        if (skyTimeSpeed === 0) return new Date(Date.now() + skyTimeOffset);
+        return new Date(Date.now() + skyTimeOffset);
+      }
+
+      // ── Astronomical Math ──
+      function julianDate(date) { return date.getTime() / 86400000 + 2440587.5; }
+
+      function raDecToAltAz(ra, dec, lat, lng, date) {
+        const jd = julianDate(date);
+        const T = (jd - 2451545.0) / 36525.0;
+        const GMST = (280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T) % 360;
+        const LST = ((GMST + lng) % 360 + 360) % 360;
+        const HA = ((LST - ra * 15) % 360 + 360) % 360;
+        const haRad = HA * Math.PI / 180;
+        const decRad = dec * Math.PI / 180;
+        const latRad = lat * Math.PI / 180;
+        const sinAlt = Math.sin(decRad) * Math.sin(latRad) + Math.cos(decRad) * Math.cos(latRad) * Math.cos(haRad);
+        const alt = Math.asin(sinAlt) * 180 / Math.PI;
+        const cosAz = (Math.sin(decRad) - Math.sin(alt * Math.PI / 180) * Math.sin(latRad)) / (Math.cos(alt * Math.PI / 180) * Math.cos(latRad));
+        let az = Math.acos(Math.max(-1, Math.min(1, cosAz))) * 180 / Math.PI;
+        if (Math.sin(haRad) > 0) az = 360 - az;
+        return { altitude: alt, azimuth: az };
+      }
+
+      function altAzToCanvas(alt, az, cx, cy, radius) {
+        const r = radius * (1 - alt / 90);
+        const theta = (az - 180) * Math.PI / 180;
+        return { x: cx + r * Math.sin(theta), y: cy - r * Math.cos(theta) };
+      }
+
+      function getSunRADec(date) {
+        const jd = julianDate(date);
+        const n = jd - 2451545.0;
+        const L = (280.460 + 0.9856474 * n) % 360;
+        const g = ((357.528 + 0.9856003 * n) % 360) * Math.PI / 180;
+        const lambda = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2*g)) % 360;
+        const eps = 23.439 - 0.0000004 * n;
+        const lRad = lambda * Math.PI / 180;
+        const eRad = eps * Math.PI / 180;
+        const ra = Math.atan2(Math.cos(eRad) * Math.sin(lRad), Math.cos(lRad)) * 180 / Math.PI / 15;
+        const dec = Math.asin(Math.sin(eRad) * Math.sin(lRad)) * 180 / Math.PI;
+        return { ra: ((ra % 24) + 24) % 24, dec };
+      }
+
+      function getMoonRADec(date) {
+        const jd = julianDate(date);
+        const T = (jd - 2451545.0) / 36525.0;
+        const L0 = (218.3165 + 481267.8813 * T) % 360;
+        const M = (134.9634 + 477198.8676 * T) % 360 * Math.PI / 180;
+        const F = (93.2721 + 483202.0175 * T) % 360 * Math.PI / 180;
+        const lng = L0 + 6.289 * Math.sin(M);
+        const lat = 5.128 * Math.sin(F);
+        const eps = 23.439 - 0.0000004 * (jd - 2451545.0);
+        const lRad = lng * Math.PI / 180;
+        const bRad = lat * Math.PI / 180;
+        const eRad = eps * Math.PI / 180;
+        const ra = Math.atan2(Math.sin(lRad)*Math.cos(eRad) - Math.tan(bRad)*Math.sin(eRad), Math.cos(lRad)) * 180 / Math.PI / 15;
+        const dec = Math.asin(Math.sin(bRad)*Math.cos(eRad) + Math.cos(bRad)*Math.sin(eRad)*Math.sin(lRad)) * 180 / Math.PI;
+        return { ra: ((ra % 24) + 24) % 24, dec };
+      }
+
+      function getMoonPhase(date) {
+        const knownNewMoon = new Date('2024-01-11T11:57:00Z').getTime();
+        const cycle = 29.53058867;
+        const daysSince = (date.getTime() - knownNewMoon) / 86400000;
+        const phase = ((daysSince % cycle) + cycle) % cycle;
+        return phase / cycle;
+      }
+
+      // ── Star Catalog: ~300 brightest stars (mag < 4.0) ──
+      // Format: [name, RA(hours), Dec(degrees), magnitude, spectral]
+      const SKY_STARS = [
+        ['Sirius',6.752,-16.716,-1.46,'A'],['Canopus',6.399,-52.696,-0.74,'F'],['Arcturus',14.261,19.182,-0.05,'K'],
+        ['Vega',18.616,38.784,0.03,'A'],['Capella',5.278,45.998,0.08,'G'],['Rigel',5.242,-8.202,0.13,'B'],
+        ['Procyon',7.655,5.225,0.34,'F'],['Betelgeuse',5.919,7.407,0.42,'M'],['Altair',19.846,8.868,0.76,'A'],
+        ['Aldebaran',4.599,16.509,0.86,'K'],['Antares',16.490,-26.432,0.96,'M'],['Spica',13.420,-11.161,0.97,'B'],
+        ['Pollux',7.755,28.026,1.14,'K'],['Fomalhaut',22.961,-29.622,1.16,'A'],['Deneb',20.690,45.280,1.25,'A'],
+        ['Mimosa',12.795,-59.689,1.25,'B'],['Regulus',10.140,11.967,1.35,'B'],['Adhara',6.977,-28.972,1.50,'B'],
+        ['Castor',7.577,31.888,1.58,'A'],['Gacrux',12.519,-57.113,1.63,'M'],['Shaula',17.560,-37.104,1.63,'B'],
+        ['Bellatrix',5.419,6.350,1.64,'B'],['Elnath',5.438,28.608,1.65,'B'],['Miaplacidus',9.220,-69.717,1.68,'A'],
+        ['Alnilam',5.603,-1.202,1.69,'B'],['Alnair',22.137,-46.961,1.74,'B'],['Alnitak',5.679,-1.943,1.77,'O'],
+        ['Alioth',12.900,55.960,1.77,'A'],['Dubhe',11.062,61.751,1.79,'K'],['Mirfak',3.405,49.861,1.80,'F'],
+        ['Wezen',7.140,-26.393,1.84,'F'],['Kaus Australis',18.403,-34.384,1.85,'B'],['Alkaid',13.792,49.313,1.86,'B'],
+        ['Sargas',17.622,-42.998,1.87,'F'],['Avior',8.375,-59.510,1.86,'K'],['Menkalinan',5.992,44.947,1.90,'A'],
+        ['Atria',16.811,-69.028,1.92,'K'],['Alhena',6.629,16.399,1.93,'A'],['Peacock',20.427,-56.735,1.94,'B'],
+        ['Alsephina',8.745,-54.709,1.96,'B'],['Mirzam',6.378,-17.956,1.98,'B'],['Alphard',9.460,-8.659,1.99,'K'],
+        ['Polaris',2.530,89.264,1.98,'F'],['Hamal',2.120,23.462,2.00,'K'],['Algieba',10.333,19.842,2.01,'K'],
+        ['Diphda',0.727,-17.987,2.02,'K'],['Nunki',18.921,-26.297,2.02,'B'],['Mizar',13.399,54.925,2.04,'A'],
+        ['Saiph',5.796,-9.670,2.09,'B'],['Schedar',0.675,56.537,2.23,'K'],['Naos',8.060,-40.003,2.25,'O'],
+        ['Almach',2.065,42.330,2.26,'K'],['Caph',0.153,59.150,2.27,'F'],['Mintaka',5.533,-0.299,2.23,'O'],
+        ['Merak',11.031,56.382,2.37,'A'],['Izar',14.750,27.074,2.37,'K'],['Phecda',11.897,53.695,2.44,'A'],
+        ['Megrez',12.257,57.033,2.44,'A'],['Menkent',14.111,-36.370,2.06,'K'],['Rasalhague',17.582,12.560,2.08,'A'],
+        ['Algol',3.136,40.957,2.12,'B'],['Denebola',11.818,14.572,2.14,'A'],['Muhlifain',12.692,-48.960,2.17,'A'],
+        ['Acrux',12.443,-63.100,0.76,'B'],['Wazn',5.741,-35.768,2.64,'G'],
+        ['Alphecca',15.578,26.715,2.23,'A'],['Sadr',20.370,40.257,2.23,'F'],['Eltanin',17.943,51.489,2.24,'K'],
+        ['Dschubba',16.005,-22.622,2.32,'B'],['Larawag',17.208,-43.239,2.29,'K'],
+        ['Acrab',16.091,-19.806,2.62,'B'],['Kochab',14.845,74.156,2.08,'K'],
+        ['Zubenelgenubi',14.848,-16.042,2.75,'A'],['Zubeneschamali',15.284,-9.383,2.61,'B'],
+        ['Unukalhai',15.738,6.426,2.65,'K'],['Kornephoros',16.504,21.490,2.77,'G'],
+        ['Rasalgethi',17.244,14.390,2.81,'M'],['Sabik',17.173,-15.725,2.43,'A'],
+        ['Etamin',17.943,51.489,2.24,'K'],['Enif',21.736,9.875,2.39,'K'],['Markab',23.079,15.205,2.49,'B'],
+        ['Scheat',23.063,28.083,2.42,'M'],['Algenib',0.220,15.185,2.83,'B'],['Ankaa',0.438,-42.306,2.38,'K'],
+        ['Achernar',1.629,-57.237,0.46,'B'],['Tsih',0.945,60.717,2.47,'B'],
+        ['Ruchbah',1.430,60.235,2.68,'A'],['Navi',0.945,60.717,2.47,'B'],
+        ['Mirach',1.163,35.621,2.05,'M'],['Alpheratz',0.140,29.091,2.06,'B'],
+        ['Alderamin',21.310,62.586,2.51,'A'],['Deneb Kaitos',0.727,-17.987,2.02,'K'],
+        ['Phact',5.661,-34.074,2.64,'B'],['Arneb',5.545,-17.822,2.58,'F'],
+        ['Nihal',5.471,-20.759,2.81,'G'],['Suhail',9.133,-43.433,2.21,'K'],
+        ['Turais',8.126,-24.304,2.45,'K'],['Aspidiske',9.285,-59.275,2.25,'A'],
+        ['Gienah',12.263,-17.542,2.59,'B'],['Algorab',12.498,-16.516,2.95,'A'],
+        ['Kraz',12.573,-23.397,2.65,'G'],['Azmidi',7.741,-24.860,2.93,'K'],
+        ['Wezen',7.140,-26.393,1.84,'F'],['Porrima',12.694,-1.449,2.74,'F'],
+        ['Vindemiatrix',13.036,10.959,2.83,'G'],['Zosma',11.235,20.524,2.56,'A'],
+        ['Chertan',11.237,15.430,2.56,'A'],['Algieba',10.333,19.842,2.01,'K'],
+        ['Asellus Australis',8.745,18.154,3.94,'K'],['Acubens',8.975,11.858,4.25,'A'],
+        ['Tejat',6.383,22.513,2.88,'M'],['Mebsuta',6.732,25.131,2.98,'G'],
+        ['Propus',6.248,22.507,3.36,'M'],['Wasat',7.335,21.982,3.53,'F'],
+        ['Alhena',6.629,16.399,1.93,'A'],['Alzirr',6.754,12.896,3.36,'F'],
+        ['Tarazed',19.771,10.613,2.72,'K'],['Alshain',19.922,6.407,3.71,'G'],
+        ['Deneb el Okab',19.090,13.863,3.24,'A'],['Gienah Cygni',20.770,33.970,2.48,'K'],
+        ['Albireo',19.512,27.960,3.08,'K'],['Sadr',20.370,40.257,2.23,'F'],
+        ['Rukh',19.495,51.730,2.86,'K'],
+        ['Rotanev',20.626,14.595,3.63,'F'],['Sualocin',20.661,15.912,3.77,'B'],
+        ['Rasalhague',17.582,12.560,2.08,'A'],
+        ['Cebalrai',17.724,4.567,2.77,'K'],['Marfik',16.961,9.375,3.82,'A'],
+        ['Yed Prior',16.305,-3.694,2.73,'M'],['Yed Posterior',16.439,-4.693,3.23,'K'],
+        ['Graffias',16.091,-19.806,2.62,'B'],['Wei',16.837,-34.293,2.30,'K'],
+        ['Lesath',17.531,-37.296,2.69,'B'],['Girtab',17.622,-42.998,1.87,'F'],
+        ['Dschubba',16.005,-22.622,2.32,'B'],['Fang',16.112,-20.669,3.96,'B'],
+        ['Iklil',15.981,-22.622,3.88,'B'],['Paikauhale',16.864,-38.047,2.89,'B'],
+        ['Aludra',7.402,-29.303,2.45,'B'],['Furud',6.339,-30.063,3.02,'B'],
+        ['Muliphein',7.063,-15.633,4.11,'G'],
+        ['Thuban',14.073,64.376,3.65,'A'],['Rastaban',17.507,52.301,2.79,'G'],
+        ['Grumium',17.892,56.873,3.75,'K'],['Giausar',11.523,69.331,3.83,'M'],
+        ['Edasich',15.416,58.966,3.29,'K'],['Aldhibah',17.146,65.715,3.17,'F'],
+        ['Nodus II',17.536,55.173,3.07,'G'],['Nodus I',17.892,56.873,3.75,'K'],
+        ['Altais',19.209,67.662,3.07,'B'],['Tyl',19.803,70.268,3.73,'F'],
+        ['Pherkad',15.346,71.834,3.05,'A'],
+        ['Marfak',3.405,49.861,1.80,'F'],
+        ['Algol',3.136,40.957,2.12,'B'],['Atik',3.964,40.010,2.85,'B'],
+        ['Menkib',3.983,35.791,3.80,'O'],['Mirfak',3.405,49.861,1.80,'F'],
+        ['Muscida',8.505,60.718,3.36,'G'],
+        ['Tania Borealis',10.286,42.915,3.45,'A'],['Tania Australis',10.372,41.500,3.06,'M'],
+        ['Talitha',8.987,48.042,3.14,'A'],
+        ['Errai',23.655,77.632,3.21,'K'],['Alfirk',21.477,70.561,3.23,'B'],
+        ['Alrai',23.655,77.632,3.21,'K'],
+        ['Dabih',20.350,-14.781,3.08,'F'],['Algedi',20.294,-12.508,3.57,'G'],
+        ['Nashira',21.668,-16.662,3.69,'F'],['Deneb Algedi',21.784,-16.127,2.87,'A'],
+        ['Sadalsuud',21.526,-5.571,2.91,'G'],['Sadalmelik',22.096,-0.320,2.96,'G'],
+        ['Skat',22.691,-15.821,3.27,'A'],['Ancha',22.183,-7.783,4.16,'G'],
+        ['Eta Piscium',1.525,15.346,3.62,'G'],['Alrescha',2.034,2.764,3.82,'A'],
+        ['Fumalsamakah',1.162,24.584,4.48,'A'],
+        ['Sheratan',1.910,20.808,2.64,'A'],['Mesarthim',1.897,19.294,3.88,'B'],
+        ['Bharani',1.978,20.808,2.64,'A'],
+        ['Mothallah',1.885,29.579,3.41,'A'],['Metallah',1.885,29.579,3.41,'A'],
+        ['Aldhanab',22.711,-46.885,3.49,'A'],['Tiaki',1.102,-46.885,3.49,'A'],
+        ['Peacock',20.427,-56.735,1.94,'B'],
+        ['Al Thalimain',20.189,-0.822,3.36,'A'],
+        // Crux
+        ['Acrux',12.443,-63.100,0.76,'B'],['Mimosa',12.795,-59.689,1.25,'B'],
+        ['Gacrux',12.519,-57.113,1.63,'M'],['Imai',12.352,-58.749,2.80,'B'],
+        // Centaurus
+        ['Rigil Kentaurus',14.661,-60.835,-0.01,'G'],['Hadar',14.064,-60.373,0.61,'B'],
+        ['Muhlifain',12.692,-48.960,2.17,'A'],['Menkent',14.111,-36.370,2.06,'K'],
+        // Carina
+        ['Canopus',6.399,-52.696,-0.74,'F'],['Miaplacidus',9.220,-69.717,1.68,'A'],
+        ['Avior',8.375,-59.510,1.86,'K'],['Aspidiske',9.285,-59.275,2.25,'A'],
+        // Puppis
+        ['Naos',8.060,-40.003,2.25,'O'],['Turais',8.126,-24.304,2.45,'K'],
+        // Vela
+        ['Suhail',9.133,-43.433,2.21,'K'],['Alsephina',8.745,-54.709,1.96,'B'],
+        ['Markeb',9.368,-55.011,2.47,'B'],
+        // Columba
+        ['Phact',5.661,-34.074,2.64,'B'],['Wazn',5.741,-35.768,2.64,'G'],
+        // Lepus
+        ['Arneb',5.545,-17.822,2.58,'F'],['Nihal',5.471,-20.759,2.81,'G'],
+        // Eridanus
+        ['Achernar',1.629,-57.237,0.46,'B'],['Cursa',5.131,-5.086,2.79,'A'],
+        ['Zaurak',3.967,-13.509,2.95,'M'],['Rana',3.721,-9.763,3.54,'K'],
+        ['Acamar',2.971,-40.305,2.88,'A'],['Beid',4.195,-6.838,3.87,'F'],
+        // Piscis Austrinus
+        ['Fomalhaut',22.961,-29.622,1.16,'A'],
+        // Grus
+        ['Alnair',22.137,-46.961,1.74,'B'],['Aldhanab',22.488,-43.495,2.07,'B'],
+        // Phoenix
+        ['Ankaa',0.438,-42.306,2.38,'K'],
+        // Sculptor - faint
+        // Fornax - faint
+        // Cetus
+        ['Diphda',0.727,-17.987,2.02,'K'],['Menkar',3.038,4.090,2.53,'M'],
+        ['Mira',2.323,-2.978,3.04,'M'],['Baten Kaitos',1.857,-10.335,3.74,'K'],
+        // Hydra
+        ['Alphard',9.460,-8.659,1.99,'K'],
+        // Corvus
+        ['Gienah',12.263,-17.542,2.59,'B'],['Algorab',12.498,-16.516,2.95,'A'],
+        ['Kraz',12.573,-23.397,2.65,'G'],['Minkar',12.168,-22.620,3.02,'K'],
+        // Crater - faint but included
+        ['Alkes',10.996,-18.299,4.08,'K'],['Labrum',11.194,-22.826,3.56,'K'],
+        // Libra
+        ['Zubenelgenubi',14.848,-16.042,2.75,'A'],['Zubeneschamali',15.284,-9.383,2.61,'B'],
+        // Lupus
+        ['Alpha Lupi',14.699,-47.388,2.30,'B'],['Beta Lupi',14.976,-43.134,2.68,'B'],
+        // Ara
+        ['Beta Arae',17.422,-55.530,2.85,'K'],['Alpha Arae',17.531,-49.876,2.95,'B'],
+        // Pavo
+        ['Peacock',20.427,-56.735,1.94,'B'],
+        // Tucana
+        ['Alpha Tucanae',22.309,-60.260,2.86,'K'],
+        // Triangulum Australe
+        ['Atria',16.811,-69.028,1.92,'K'],
+        // Corona Australis - faint
+        // Norma - faint
+        // Circinus - faint
+        // Musca
+        ['Alpha Muscae',12.620,-69.136,2.69,'B'],
+        // Chamaeleon - faint
+        // Volans - faint
+        // Pictor - faint
+        // Dorado
+        ['Alpha Doradus',4.567,-55.045,3.27,'A'],
+        // Reticulum - faint
+        // Horologium - faint
+        // Caelum - faint
+        // Mensa - faint
+        // Octans - faint
+        // Apus - faint
+        // Telescopium
+        ['Alpha Telescopii',18.450,-45.969,3.51,'B'],
+        // Microscopium - faint
+        // Indus
+        ['Alpha Indi',20.626,-47.292,3.11,'K'],
+        // Sagittarius extras
+        ['Kaus Media',18.349,-29.828,2.70,'K'],['Kaus Borealis',18.466,-25.422,2.81,'K'],
+        ['Ascella',19.043,-29.880,2.60,'A'],['Nunki',18.921,-26.297,2.02,'B'],
+        ['Rukbat',19.398,-40.616,3.97,'B'],['Arkab Prior',19.387,-44.459,3.96,'B'],
+        // Capricornus
+        ['Dabih',20.350,-14.781,3.08,'F'],['Algedi',20.294,-12.508,3.57,'G'],
+        ['Deneb Algedi',21.784,-16.127,2.87,'A'],['Nashira',21.668,-16.662,3.69,'F'],
+        // Aquarius
+        ['Sadalsuud',21.526,-5.571,2.91,'G'],['Sadalmelik',22.096,-0.320,2.96,'G'],
+        ['Skat',22.691,-15.821,3.27,'A'],
+        // Pisces
+        ['Eta Piscium',1.525,15.346,3.62,'G'],['Alrescha',2.034,2.764,3.82,'A'],
+        // Aries
+        ['Hamal',2.120,23.462,2.00,'K'],['Sheratan',1.910,20.808,2.64,'A'],
+        // Pegasus
+        ['Enif',21.736,9.875,2.39,'K'],['Markab',23.079,15.205,2.49,'B'],
+        ['Scheat',23.063,28.083,2.42,'M'],['Algenib',0.220,15.185,2.83,'B'],
+        // Andromeda
+        ['Alpheratz',0.140,29.091,2.06,'B'],['Mirach',1.163,35.621,2.05,'M'],
+        ['Almach',2.065,42.330,2.26,'K'],
+        // Triangulum
+        ['Mothallah',1.885,29.579,3.41,'A'],
+        // Perseus
+        ['Mirfak',3.405,49.861,1.80,'F'],['Algol',3.136,40.957,2.12,'B'],['Atik',3.964,40.010,2.85,'B'],
+        // Cassiopeia
+        ['Schedar',0.675,56.537,2.23,'K'],['Caph',0.153,59.150,2.27,'F'],
+        ['Tsih',0.945,60.717,2.47,'B'],['Ruchbah',1.430,60.235,2.68,'A'],
+        ['Segin',1.907,63.670,3.37,'B'],
+        // Cepheus
+        ['Alderamin',21.310,62.586,2.51,'A'],['Errai',23.655,77.632,3.21,'K'],
+        ['Alfirk',21.477,70.561,3.23,'B'],
+        // Draco
+        ['Thuban',14.073,64.376,3.65,'A'],['Rastaban',17.507,52.301,2.79,'G'],
+        ['Eltanin',17.943,51.489,2.24,'K'],['Grumium',17.892,56.873,3.75,'K'],
+        ['Edasich',15.416,58.966,3.29,'K'],['Aldhibah',17.146,65.715,3.17,'F'],
+        // Ursa Minor
+        ['Polaris',2.530,89.264,1.98,'F'],['Kochab',14.845,74.156,2.08,'K'],
+        ['Pherkad',15.346,71.834,3.05,'A'],
+        // Boötes
+        ['Arcturus',14.261,19.182,-0.05,'K'],['Izar',14.750,27.074,2.37,'K'],
+        ['Muphrid',13.912,18.398,2.68,'G'],['Nekkar',15.032,40.391,3.50,'G'],
+        ['Seginus',14.535,38.308,3.03,'A'],
+        // Corona Borealis
+        ['Alphecca',15.578,26.715,2.23,'A'],['Nusakan',15.464,29.106,3.68,'F'],
+        // Hercules
+        ['Kornephoros',16.504,21.490,2.77,'G'],['Rasalgethi',17.244,14.390,2.81,'M'],
+        ['Sarin',17.251,24.839,3.14,'A'],['Maasym',17.796,30.926,3.83,'G'],
+        // Lyra
+        ['Vega',18.616,38.784,0.03,'A'],['Sheliak',18.835,33.363,3.52,'B'],
+        ['Sulafat',18.982,32.690,3.24,'B'],
+        // Cygnus
+        ['Deneb',20.690,45.280,1.25,'A'],['Sadr',20.370,40.257,2.23,'F'],
+        ['Gienah Cygni',20.770,33.970,2.48,'K'],['Albireo',19.512,27.960,3.08,'K'],
+        ['Rukh',19.495,51.730,2.86,'K'],
+        // Aquila
+        ['Altair',19.846,8.868,0.76,'A'],['Tarazed',19.771,10.613,2.72,'K'],
+        ['Alshain',19.922,6.407,3.71,'G'],
+        // Scutum - faint
+        // Serpens
+        ['Unukalhai',15.738,6.426,2.65,'K'],
+        // Ophiuchus
+        ['Rasalhague',17.582,12.560,2.08,'A'],['Sabik',17.173,-15.725,2.43,'A'],
+        ['Cebalrai',17.724,4.567,2.77,'K'],['Yed Prior',16.305,-3.694,2.73,'M'],
+        // Orion
+        ['Betelgeuse',5.919,7.407,0.42,'M'],['Rigel',5.242,-8.202,0.13,'B'],
+        ['Bellatrix',5.419,6.350,1.64,'B'],['Mintaka',5.533,-0.299,2.23,'O'],
+        ['Alnilam',5.603,-1.202,1.69,'B'],['Alnitak',5.679,-1.943,1.77,'O'],
+        ['Saiph',5.796,-9.670,2.09,'B'],
+        // Taurus
+        ['Aldebaran',4.599,16.509,0.86,'K'],['Elnath',5.438,28.608,1.65,'B'],
+        ['Alcyone',3.791,24.105,2.87,'B'],['Atlas',3.815,24.053,3.63,'B'],
+        ['Electra',3.749,24.114,3.70,'B'],['Maia',3.770,24.368,3.87,'B'],
+        ['Taygeta',3.753,24.467,4.30,'B'],['Merope',3.773,23.948,4.18,'B'],
+        // Gemini
+        ['Castor',7.577,31.888,1.58,'A'],['Pollux',7.755,28.026,1.14,'K'],
+        ['Alhena',6.629,16.399,1.93,'A'],['Tejat',6.383,22.513,2.88,'M'],
+        ['Mebsuta',6.732,25.131,2.98,'G'],['Propus',6.248,22.507,3.36,'M'],
+        ['Wasat',7.335,21.982,3.53,'F'],
+        // Cancer
+        ['Acubens',8.975,11.858,4.25,'A'],['Asellus Borealis',8.722,21.469,4.66,'A'],
+        ['Asellus Australis',8.745,18.154,3.94,'K'],['Tarf',8.275,9.186,3.52,'K'],
+        // Leo
+        ['Regulus',10.140,11.967,1.35,'B'],['Denebola',11.818,14.572,2.14,'A'],
+        ['Algieba',10.333,19.842,2.01,'K'],['Zosma',11.235,20.524,2.56,'A'],
+        ['Chertan',11.237,15.430,2.56,'A'],['Adhafera',10.278,23.417,3.43,'F'],
+        ['Rasalas',9.879,26.007,3.88,'K'],['Subra',9.686,9.892,3.52,'F'],
+        // Virgo
+        ['Spica',13.420,-11.161,0.97,'B'],['Porrima',12.694,-1.449,2.74,'F'],
+        ['Vindemiatrix',13.036,10.959,2.83,'G'],['Heze',13.578,-0.596,3.37,'A'],
+        ['Zaniah',12.332,0.667,3.89,'A'],
+        // Canis Major
+        ['Sirius',6.752,-16.716,-1.46,'A'],['Adhara',6.977,-28.972,1.50,'B'],
+        ['Wezen',7.140,-26.393,1.84,'F'],['Mirzam',6.378,-17.956,1.98,'B'],
+        ['Aludra',7.402,-29.303,2.45,'B'],['Furud',6.339,-30.063,3.02,'B'],
+        // Canis Minor
+        ['Procyon',7.655,5.225,0.34,'F'],['Gomeisa',7.452,8.290,2.90,'B'],
+        // Monoceros - faint
+        // Hydra long
+        // Sextans - faint
+        // Leo Minor - faint
+        // Lynx
+        ['Alpha Lyncis',9.351,34.393,3.14,'K'],
+        // Camelopardalis - faint
+        // Auriga
+        ['Capella',5.278,45.998,0.08,'G'],['Menkalinan',5.992,44.947,1.90,'A'],
+        ['Mahasim',5.993,37.213,2.69,'A'],['Hassaleh',4.950,33.166,2.69,'F'],
+        // Canes Venatici
+        ['Cor Caroli',12.934,38.318,2.89,'A'],
+        // Coma Berenices - faint
+        // Vulpecula - faint
+        // Sagitta
+        ['Sham',19.684,18.014,3.51,'G'],
+        // Delphinus
+        ['Rotanev',20.626,14.595,3.63,'F'],['Sualocin',20.661,15.912,3.77,'B'],
+        // Equuleus - faint
+        // Lacerta - faint
+        // Scutum
+        ['Alpha Scuti',18.587,-8.244,3.85,'K']
+      ];
+
+      // Build name→index lookup (use first occurrence of each name)
+      const skyStarMap = {};
+      SKY_STARS.forEach((s,i) => { if (!skyStarMap[s[0]]) skyStarMap[s[0]] = i; });
+
+      // ── All 88 IAU Constellations ──
+      const SKY_CONSTELLATIONS = [
+        {name:'Orion',abbr:'Ori',lines:[['Betelgeuse','Bellatrix'],['Betelgeuse','Alnitak'],['Bellatrix','Mintaka'],['Alnitak','Alnilam'],['Alnilam','Mintaka'],['Alnitak','Saiph'],['Mintaka','Rigel'],['Rigel','Saiph']],
+         myth:'The Hunter — Greek mythology\'s giant huntsman placed among the stars by Zeus. The three belt stars are one of the most recognizable patterns.',season:'Winter (N)',
+         keyStars:['Betelgeuse (red supergiant, ~700× Sun)','Rigel (blue supergiant, 120,000× Sun luminosity)','Orion Nebula (M42) visible below the belt'],
+         objects:['Orion Nebula (M42) — stellar nursery','Horsehead Nebula (B33)','Flame Nebula (NGC 2024)'],
+         funFact:'The Orion Nebula is ~1,344 ly away and contains enough gas to make ~10,000 stars.'},
+        {name:'Ursa Major',abbr:'UMa',lines:[['Dubhe','Merak'],['Merak','Phecda'],['Phecda','Megrez'],['Megrez','Dubhe'],['Megrez','Alioth'],['Alioth','Mizar'],['Mizar','Alkaid']],
+         myth:'The Great Bear — Contains the Big Dipper asterism. Dubhe and Merak point to Polaris.',season:'Spring (N)',
+         keyStars:['Mizar + Alcor (naked-eye double)','Dubhe & Merak point to Polaris'],objects:['M81 & M82 galaxies','Owl Nebula (M97)'],
+         funFact:'Five of the Big Dipper stars actually move together through space — a "moving group."'},
+        {name:'Ursa Minor',abbr:'UMi',lines:[['Polaris','Kochab'],['Kochab','Pherkad']],
+         myth:'The Little Bear — Contains the North Star (Polaris), within 1° of the celestial north pole.',season:'Year-round (N)',keyStars:['Polaris (North Star, Cepheid variable)']},
+        {name:'Cassiopeia',abbr:'Cas',lines:[['Caph','Schedar'],['Schedar','Tsih'],['Tsih','Ruchbah'],['Ruchbah','Segin']],
+         myth:'The Queen — Ethiopian queen Cassiopeia, chained to her throne in the sky as punishment for her vanity.',season:'Autumn (N)',
+         keyStars:['W-shape asterism','Schedar (orange giant)'],objects:['Heart & Soul Nebulae nearby','Tycho\'s Supernova remnant']},
+        {name:'Cygnus',abbr:'Cyg',lines:[['Deneb','Sadr'],['Sadr','Gienah Cygni'],['Sadr','Albireo'],['Sadr','Rukh']],
+         myth:'The Swan — Zeus disguised as a swan. Contains the Northern Cross asterism and lies in the Milky Way.',season:'Summer (N)',
+         keyStars:['Deneb (luminosity ~200,000× Sun)','Albireo (famous double star: gold & blue)'],objects:['North America Nebula','Veil Nebula'],
+         funFact:'Deneb is so luminous that if placed where Sirius is, it would cast shadows.'},
+        {name:'Scorpius',abbr:'Sco',lines:[['Antares','Dschubba'],['Dschubba','Acrab'],['Antares','Wei'],['Wei','Shaula'],['Shaula','Lesath']],
+         myth:'The Scorpion — Sent by Artemis to kill Orion; they are placed on opposite sides of the sky, never visible together.',season:'Summer (N)',
+         keyStars:['Antares (red supergiant, "rival of Mars")','Shaula (binary system)'],objects:['Butterfly Cluster (M6)','Ptolemy Cluster (M7)'],
+         funFact:'Antares is so large that if placed at the Sun\'s position, it would extend past Mars\' orbit.'},
+        {name:'Leo',abbr:'Leo',lines:[['Regulus','Algieba'],['Algieba','Adhafera'],['Adhafera','Rasalas'],['Regulus','Chertan'],['Chertan','Zosma'],['Zosma','Denebola']],
+         myth:'The Lion — The Nemean Lion slain by Hercules. Regulus marks its heart.',season:'Spring (N)',
+         keyStars:['Regulus (closest bright star to ecliptic)'],objects:['Leo Triplet (M65/M66/NGC 3628)']},
+        {name:'Gemini',abbr:'Gem',lines:[['Castor','Pollux'],['Castor','Mebsuta'],['Mebsuta','Propus'],['Propus','Tejat'],['Pollux','Wasat'],['Wasat','Alhena']],
+         myth:'The Twins — Castor and Pollux, the Dioscuri of Greek mythology. Pollux is actually brighter despite being "beta."',season:'Winter (N)',
+         keyStars:['Castor (sextuple star system)','Pollux (has confirmed exoplanet)'],objects:['Eskimo Nebula (NGC 2392)']},
+        {name:'Taurus',abbr:'Tau',lines:[['Aldebaran','Elnath'],['Aldebaran','Alcyone']],
+         myth:'The Bull — Zeus disguised as a white bull to abduct Europa. Contains the Pleiades and Hyades star clusters.',season:'Winter (N)',
+         keyStars:['Aldebaran (orange giant, "Eye of the Bull")','Pleiades (M45, Seven Sisters)'],objects:['Crab Nebula (M1) — supernova remnant from 1054 AD'],
+         funFact:'The Pleiades have been recognized by virtually every culture on Earth throughout history.'},
+        {name:'Canis Major',abbr:'CMa',lines:[['Sirius','Mirzam'],['Sirius','Adhara'],['Adhara','Wezen'],['Wezen','Aludra'],['Adhara','Furud']],
+         myth:'The Great Dog — Orion\'s faithful hunting dog. Contains Sirius, the brightest star in the night sky.',season:'Winter (N)',
+         keyStars:['Sirius (-1.46 mag, 8.6 ly away, brightest star)','Adhara (would be brightest if closer)'],
+         funFact:'Ancient Egyptians based their calendar on Sirius\' heliacal rising, which predicted the Nile floods.'},
+        {name:'Canis Minor',abbr:'CMi',lines:[['Procyon','Gomeisa']],
+         myth:'The Lesser Dog — Orion\'s smaller hunting companion. Only two main stars.',season:'Winter (N)',keyStars:['Procyon (8th brightest, 11.5 ly away)']},
+        {name:'Aquila',abbr:'Aql',lines:[['Altair','Tarazed'],['Altair','Alshain']],
+         myth:'The Eagle — Carried Zeus\' thunderbolts. Altair forms the Summer Triangle with Vega and Deneb.',season:'Summer (N)',keyStars:['Altair (one of closest bright stars, 16.7 ly, rapid rotator)']},
+        {name:'Lyra',abbr:'Lyr',lines:[['Vega','Sheliak'],['Sheliak','Sulafat'],['Sulafat','Vega']],
+         myth:'The Lyre — Orpheus\' instrument. Vega was the North Star ~12,000 years ago and will be again in ~12,000 years.',season:'Summer (N)',
+         keyStars:['Vega (0.03 mag, standard reference star)'],objects:['Ring Nebula (M57)'],
+         funFact:'Vega was the first star (after the Sun) to be photographed, in 1850.'},
+        {name:'Pegasus',abbr:'Peg',lines:[['Markab','Scheat'],['Scheat','Alpheratz'],['Alpheratz','Algenib'],['Algenib','Markab'],['Enif','Markab']],
+         myth:'The Winged Horse — Born from Medusa\'s blood. The Great Square is easy to spot.',season:'Autumn (N)',keyStars:['Great Square asterism'],objects:['M15 globular cluster']},
+        {name:'Andromeda',abbr:'And',lines:[['Alpheratz','Mirach'],['Mirach','Almach']],
+         myth:'The Chained Princess — Daughter of Cassiopeia, rescued by Perseus from the sea monster Cetus.',season:'Autumn (N)',
+         objects:['Andromeda Galaxy (M31) — nearest major galaxy, visible to naked eye, 2.5M ly away'],
+         funFact:'The Andromeda Galaxy is approaching us at 110 km/s and will merge with the Milky Way in ~4.5 billion years.'},
+        {name:'Perseus',abbr:'Per',lines:[['Mirfak','Algol'],['Mirfak','Atik']],
+         myth:'The Hero — Slayer of Medusa. Contains the "Demon Star" Algol, an eclipsing binary that dims every 2.87 days.',season:'Winter (N)',
+         keyStars:['Algol (prototype eclipsing binary)'],objects:['Double Cluster (NGC 869/884)']},
+        {name:'Sagittarius',abbr:'Sgr',lines:[['Kaus Australis','Kaus Media'],['Kaus Media','Kaus Borealis'],['Kaus Australis','Ascella'],['Ascella','Nunki'],['Nunki','Kaus Borealis']],
+         myth:'The Archer — A centaur aiming at Scorpius. The Milky Way\'s center lies in this direction.',season:'Summer (N)',
+         objects:['Lagoon Nebula (M8)','Trifid Nebula (M20)','Sagittarius A* (supermassive black hole)'],
+         funFact:'Looking toward Sagittarius, you\'re looking at the center of our galaxy, ~26,000 ly away.'},
+        {name:'Capricornus',abbr:'Cap',lines:[['Algedi','Dabih'],['Dabih','Nashira'],['Nashira','Deneb Algedi'],['Deneb Algedi','Algedi']],
+         myth:'The Sea-Goat — A goat-fish hybrid, associated with Pan in Greek mythology.',season:'Autumn (N)'},
+        {name:'Aquarius',abbr:'Aqr',lines:[['Sadalmelik','Sadalsuud'],['Sadalsuud','Skat']],
+         myth:'The Water Bearer — Ganymede, cupbearer to the gods. An ancient constellation recognized across cultures.',season:'Autumn (N)',objects:['Helix Nebula (NGC 7293, nearest planetary nebula)']},
+        {name:'Pisces',abbr:'Psc',lines:[['Eta Piscium','Alrescha']],
+         myth:'The Fishes — Aphrodite and Eros transformed into fish, tied together by a cord.',season:'Autumn (N)'},
+        {name:'Aries',abbr:'Ari',lines:[['Hamal','Sheratan']],
+         myth:'The Ram — The golden-fleeced ram of Greek mythology. Once contained the vernal equinox.',season:'Autumn (N)'},
+        {name:'Cancer',abbr:'Cnc',lines:[['Acubens','Asellus Australis'],['Asellus Australis','Tarf']],
+         myth:'The Crab — Sent by Hera to distract Hercules. Faint but contains the Beehive Cluster.',season:'Spring (N)',objects:['Beehive Cluster (M44, Praesepe)']},
+        {name:'Virgo',abbr:'Vir',lines:[['Spica','Porrima'],['Porrima','Vindemiatrix'],['Spica','Heze']],
+         myth:'The Maiden — Goddess of harvest. Contains the Virgo Cluster with ~2,000 galaxies.',season:'Spring (N)',
+         objects:['Virgo Cluster (~2,000 galaxies)','Sombrero Galaxy (M104)'],
+         funFact:'The Virgo Cluster is the heart of the Virgo Supercluster, our cosmic address.'},
+        {name:'Libra',abbr:'Lib',lines:[['Zubenelgenubi','Zubeneschamali']],
+         myth:'The Scales — Originally the claws of Scorpius. The only zodiac constellation representing an object, not a creature.',season:'Spring (N)'},
+        {name:'Crux',abbr:'Cru',lines:[['Acrux','Gacrux'],['Mimosa','Imai']],
+         myth:'The Southern Cross — Smallest constellation but iconic. Used for navigation in the Southern Hemisphere.',season:'Year-round (S)',
+         keyStars:['Acrux (southernmost first-magnitude star)'],
+         funFact:'Crux was visible from Mediterranean latitudes 2,000 years ago due to precession.'},
+        {name:'Centaurus',abbr:'Cen',lines:[['Rigil Kentaurus','Hadar'],['Hadar','Muhlifain'],['Muhlifain','Menkent']],
+         myth:'The Centaur — Chiron, the wise centaur teacher of Greek heroes. Contains the closest star system to our Sun.',season:'Spring (S)',
+         keyStars:['Alpha Centauri (4.37 ly, closest star system)','Proxima Centauri (closest star, has exoplanet)'],objects:['Omega Centauri (largest globular cluster)']},
+        {name:'Draco',abbr:'Dra',lines:[['Thuban','Rastaban'],['Rastaban','Eltanin'],['Eltanin','Grumium'],['Grumium','Edasich'],['Edasich','Aldhibah'],['Aldhibah','Thuban']],
+         myth:'The Dragon — Ladon, guardian of the golden apples. Thuban was the North Star when the pyramids were built.',season:'Summer (N)',keyStars:['Thuban (was North Star ~2700 BC)']},
+        {name:'Hercules',abbr:'Her',lines:[['Kornephoros','Sarin'],['Sarin','Rasalgethi'],['Kornephoros','Maasym']],
+         myth:'The Hero — Greatest of Greek heroes. Contains the famous Keystone asterism and a great globular cluster.',season:'Summer (N)',objects:['M13 (Great Hercules Cluster, 300,000 stars)','M92 globular cluster']},
+        {name:'Boötes',abbr:'Boo',lines:[['Arcturus','Izar'],['Arcturus','Muphrid'],['Izar','Nekkar'],['Nekkar','Seginus']],
+         myth:'The Herdsman — Follows Ursa Major around the pole. Arcturus guided Polynesian navigators.',season:'Spring (N)',
+         keyStars:['Arcturus (brightest star in N hemisphere, orange giant)'],
+         funFact:'Arcturus was the first star whose motion across the sky was detected, by Edmond Halley in 1718.'},
+        {name:'Corona Borealis',abbr:'CrB',lines:[['Alphecca','Nusakan']],
+         myth:'The Northern Crown — Ariadne\'s crown, given by Dionysus and placed among the stars.',season:'Summer (N)'},
+        {name:'Corvus',abbr:'Crv',lines:[['Gienah','Algorab'],['Algorab','Kraz'],['Kraz','Minkar'],['Minkar','Gienah']],
+         myth:'The Crow — Apollo\'s sacred bird. A compact trapezoid easily spotted south of Virgo.',season:'Spring (N)'},
+        {name:'Crater',abbr:'Crt',lines:[['Alkes','Labrum']],
+         myth:'The Cup — Apollo\'s goblet, placed in the sky alongside the Crow.',season:'Spring (N)'},
+        {name:'Hydra',abbr:'Hya',lines:[['Alphard']],
+         myth:'The Water Snake — The longest constellation, spanning over 100°. Alphard means "the solitary one."',season:'Spring (N)',keyStars:['Alphard (orange giant, brightest in a barren region)']},
+        {name:'Lupus',abbr:'Lup',lines:[['Alpha Lupi','Beta Lupi']],
+         myth:'The Wolf — An animal impaled on a spear by Centaurus. Rich Milky Way star fields.',season:'Winter (S)'},
+        {name:'Ara',abbr:'Ara',lines:[['Beta Arae','Alpha Arae']],
+         myth:'The Altar — The altar of the gods upon which oaths were sworn before the war against the Titans.',season:'Winter (S)'},
+        {name:'Pavo',abbr:'Pav',lines:[['Peacock']],
+         myth:'The Peacock — Hera\'s sacred bird with Argus\' hundred eyes on its tail.',season:'Winter (S)'},
+        {name:'Tucana',abbr:'Tuc',lines:[['Alpha Tucanae']],
+         myth:'The Toucan — A South American bird. Contains the Small Magellanic Cloud.',season:'Autumn (S)',objects:['Small Magellanic Cloud','47 Tucanae (2nd brightest globular cluster)']},
+        {name:'Phoenix',abbr:'Phe',lines:[['Ankaa']],
+         myth:'The Phoenix — The mythical bird reborn from its ashes.',season:'Autumn (S)'},
+        {name:'Grus',abbr:'Gru',lines:[['Alnair','Aldhanab']],
+         myth:'The Crane — A wading bird of the southern sky.',season:'Autumn (S)'},
+        {name:'Carina',abbr:'Car',lines:[['Canopus','Miaplacidus'],['Miaplacidus','Avior'],['Avior','Aspidiske']],
+         myth:'The Keel — Part of the ancient ship Argo Navis. Contains Canopus, the 2nd brightest star.',season:'Summer (S)',
+         keyStars:['Canopus (2nd brightest star, supergiant)'],objects:['Carina Nebula (NGC 3372, massive star-forming region)'],
+         funFact:'The Carina Nebula contains Eta Carinae, one of the most massive and luminous stars known.'},
+        {name:'Vela',abbr:'Vel',lines:[['Suhail','Alsephina'],['Alsephina','Markeb']],
+         myth:'The Sails — Sails of the ship Argo Navis.',season:'Summer (S)'},
+        {name:'Puppis',abbr:'Pup',lines:[['Naos','Turais']],
+         myth:'The Stern — The poop deck of Argo Navis.',season:'Winter (N)'},
+        {name:'Columba',abbr:'Col',lines:[['Phact','Wazn']],
+         myth:'The Dove — Noah\'s dove, or the dove sent by the Argonauts.',season:'Winter (N)'},
+        {name:'Lepus',abbr:'Lep',lines:[['Arneb','Nihal']],
+         myth:'The Hare — A hare at Orion\'s feet, hunted by his dogs.',season:'Winter (N)'},
+        {name:'Eridanus',abbr:'Eri',lines:[['Cursa','Zaurak'],['Zaurak','Rana'],['Rana','Acamar'],['Acamar','Achernar']],
+         myth:'The River — A great celestial river, the 6th largest constellation. Winds from Orion\'s foot to deep south.',season:'Winter (N)',
+         keyStars:['Achernar (flattest known star, spins so fast it bulges)']},
+        {name:'Fornax',abbr:'For',lines:[],myth:'The Furnace — A chemical furnace. Faint but contains the Fornax galaxy cluster.',season:'Autumn (S)',objects:['Fornax Cluster (galaxies)']},
+        {name:'Sculptor',abbr:'Scl',lines:[],myth:'The Sculptor — A sculptor\'s studio. Contains the south galactic pole.',season:'Autumn (S)',objects:['Sculptor Galaxy (NGC 253)']},
+        {name:'Cetus',abbr:'Cet',lines:[['Diphda','Menkar'],['Menkar','Mira'],['Mira','Baten Kaitos']],
+         myth:'The Sea Monster — Sent to devour Andromeda. Contains Mira, the prototype long-period variable star.',season:'Autumn (N)',
+         keyStars:['Mira (prototype variable star, 332-day cycle)']},
+        {name:'Triangulum',abbr:'Tri',lines:[['Mothallah']],
+         myth:'The Triangle — One of the smallest constellations. Contains M33, the Triangulum Galaxy.',season:'Autumn (N)',objects:['Triangulum Galaxy (M33, 3rd largest in Local Group)']},
+        {name:'Piscis Austrinus',abbr:'PsA',lines:[['Fomalhaut']],
+         myth:'The Southern Fish — Drinks water poured by Aquarius. Fomalhaut is one of the Royal Stars of Persia.',season:'Autumn (N)',
+         keyStars:['Fomalhaut (has directly imaged debris disk)']},
+        {name:'Ophiuchus',abbr:'Oph',lines:[['Rasalhague','Cebalrai'],['Rasalhague','Sabik'],['Sabik','Yed Prior']],
+         myth:'The Serpent Bearer — Asclepius, the healer. The Sun actually passes through this constellation, though it\'s not a zodiac sign.',season:'Summer (N)',
+         funFact:'Barnard\'s Star, the fastest-moving star in the sky, is in Ophiuchus (6 ly away).'},
+        {name:'Serpens',abbr:'Ser',lines:[['Unukalhai']],
+         myth:'The Serpent — The only constellation split in two (Caput and Cauda), held by Ophiuchus.',season:'Summer (N)',objects:['Eagle Nebula (M16, "Pillars of Creation")']},
+        {name:'Auriga',abbr:'Aur',lines:[['Capella','Menkalinan'],['Menkalinan','Mahasim'],['Mahasim','Hassaleh'],['Hassaleh','Elnath'],['Elnath','Capella']],
+         myth:'The Charioteer — A chariot driver holding a goat (Capella) and kids.',season:'Winter (N)',
+         keyStars:['Capella (6th brightest, a quadruple star system)'],objects:['M36, M37, M38 open clusters']},
+        {name:'Canes Venatici',abbr:'CVn',lines:[['Cor Caroli']],
+         myth:'The Hunting Dogs — Two dogs held by Boötes.',season:'Spring (N)',objects:['Whirlpool Galaxy (M51)','Sunflower Galaxy (M63)']},
+        {name:'Coma Berenices',abbr:'Com',lines:[],myth:'Berenice\'s Hair — Queen Berenice\'s locks, cut as an offering. Contains the north galactic pole.',season:'Spring (N)',objects:['Coma Cluster (galaxies)','Black Eye Galaxy (M64)']},
+        {name:'Scutum',abbr:'Sct',lines:[['Alpha Scuti']],myth:'The Shield — Sobieski\'s Shield. Small but rich in Milky Way star clouds.',season:'Summer (N)',objects:['Wild Duck Cluster (M11)']},
+        {name:'Sagitta',abbr:'Sge',lines:[['Sham']],myth:'The Arrow — The 3rd smallest constellation, an arrow shot by Hercules.',season:'Summer (N)'},
+        {name:'Vulpecula',abbr:'Vul',lines:[],myth:'The Fox — A small faint constellation in the Milky Way.',season:'Summer (N)',objects:['Dumbbell Nebula (M27)']},
+        {name:'Delphinus',abbr:'Del',lines:[['Sualocin','Rotanev']],
+         myth:'The Dolphin — A dolphin that helped Poseidon find Amphitrite. Star names are "Nicolaus" and "Venator" reversed.',season:'Summer (N)'},
+        {name:'Equuleus',abbr:'Equ',lines:[],myth:'The Little Horse — 2nd smallest constellation, a foal.',season:'Autumn (N)'},
+        {name:'Lacerta',abbr:'Lac',lines:[],myth:'The Lizard — A zigzag of faint stars between Cygnus and Andromeda.',season:'Autumn (N)'},
+        {name:'Monoceros',abbr:'Mon',lines:[],myth:'The Unicorn — A faint constellation in the Milky Way between Orion\'s dogs.',season:'Winter (N)',objects:['Rosette Nebula','Christmas Tree Cluster']},
+        {name:'Sextans',abbr:'Sex',lines:[],myth:'The Sextant — An astronomical instrument, very faint.',season:'Spring (N)'},
+        {name:'Leo Minor',abbr:'LMi',lines:[],myth:'The Little Lion — A small faint lion between Leo and Ursa Major.',season:'Spring (N)'},
+        {name:'Lynx',abbr:'Lyn',lines:[['Alpha Lyncis']],myth:'The Lynx — Named because you need lynx-like eyesight to see it.',season:'Spring (N)'},
+        {name:'Camelopardalis',abbr:'Cam',lines:[],myth:'The Giraffe — A large but very faint constellation near the north pole.',season:'Winter (N)'},
+        {name:'Triangulum Australe',abbr:'TrA',lines:[['Atria']],myth:'The Southern Triangle — A bright, compact southern constellation.',season:'Winter (S)'},
+        {name:'Norma',abbr:'Nor',lines:[],myth:'The Square — A carpenter\'s level. Lies in the Milky Way.',season:'Winter (S)'},
+        {name:'Corona Australis',abbr:'CrA',lines:[],myth:'The Southern Crown — A small arc of stars below Sagittarius.',season:'Summer (N)'},
+        {name:'Circinus',abbr:'Cir',lines:[],myth:'The Compass — A draughtsman\'s compasses, near Alpha Centauri.',season:'Winter (S)'},
+        {name:'Musca',abbr:'Mus',lines:[['Alpha Muscae']],myth:'The Fly — A small constellation just south of Crux.',season:'Spring (S)'},
+        {name:'Chamaeleon',abbr:'Cha',lines:[],myth:'The Chameleon — A faint southern constellation near the celestial pole.',season:'Year-round (S)'},
+        {name:'Volans',abbr:'Vol',lines:[],myth:'The Flying Fish — A flying fish of the southern sky.',season:'Summer (S)'},
+        {name:'Pictor',abbr:'Pic',lines:[],myth:'The Painter\'s Easel — Contains Beta Pictoris, famous for its protoplanetary disk.',season:'Summer (S)',objects:['Beta Pictoris debris disk (directly imaged)']},
+        {name:'Dorado',abbr:'Dor',lines:[['Alpha Doradus']],myth:'The Swordfish — Contains most of the Large Magellanic Cloud.',season:'Summer (S)',
+         objects:['Large Magellanic Cloud','Tarantula Nebula (30 Doradus, most active star-forming region known)']},
+        {name:'Reticulum',abbr:'Ret',lines:[],myth:'The Reticle — A crosshair in a telescope eyepiece.',season:'Summer (S)'},
+        {name:'Horologium',abbr:'Hor',lines:[],myth:'The Clock — A pendulum clock, very faint.',season:'Autumn (S)'},
+        {name:'Caelum',abbr:'Cae',lines:[],myth:'The Chisel — An engraving tool, one of the faintest constellations.',season:'Winter (N)'},
+        {name:'Mensa',abbr:'Men',lines:[],myth:'The Table Mountain — Named for Table Mountain in Cape Town. Contains part of the LMC. The only constellation named after a real place.',season:'Year-round (S)'},
+        {name:'Octans',abbr:'Oct',lines:[],myth:'The Octant — Contains the south celestial pole (no bright pole star).',season:'Year-round (S)'},
+        {name:'Apus',abbr:'Aps',lines:[],myth:'The Bird of Paradise — A colorful tropical bird.',season:'Winter (S)'},
+        {name:'Telescopium',abbr:'Tel',lines:[['Alpha Telescopii']],myth:'The Telescope — A small faint constellation south of Corona Australis.',season:'Summer (S)'},
+        {name:'Microscopium',abbr:'Mic',lines:[],myth:'The Microscope — A small scientific instrument constellation.',season:'Autumn (S)'},
+        {name:'Indus',abbr:'Ind',lines:[['Alpha Indi']],myth:'The Indian — Represents a native figure, near the south celestial pole.',season:'Autumn (S)'},
+        {name:'Antlia',abbr:'Ant',lines:[],myth:'The Air Pump — A pneumatic pump. Very faint.',season:'Spring (N)'},
+        {name:'Pyxis',abbr:'Pyx',lines:[],myth:'The Compass — A mariner\'s compass from the ship Argo.',season:'Spring (N)'}
+      ];
+
+      // ── Milky Way galactic plane points (galactic coords → RA/Dec) ──
+      const MILKY_WAY_POINTS = [
+        // RA(h), Dec(°), width — approximate centerline of galactic plane
+        [18.5,-30,15],[19.0,-26,18],[19.5,-20,20],[20.0,-15,18],[20.5,-8,16],
+        [21.0,0,15],[21.5,10,14],[22.0,18,13],[22.5,25,12],[23.0,30,11],
+        [23.5,40,12],[0.0,50,13],[0.5,58,14],[1.0,60,15],[1.5,58,14],
+        [2.0,52,13],[2.5,45,12],[3.0,38,11],[3.5,32,12],[4.0,25,13],
+        [4.5,18,14],[5.0,12,16],[5.5,5,18],[6.0,-5,20],[6.5,-15,22],
+        [7.0,-22,20],[7.5,-28,18],[8.0,-35,16],[8.5,-42,15],[9.0,-48,14],
+        [10.0,-55,13],[11.0,-60,14],[12.0,-62,15],[13.0,-60,16],[14.0,-55,17],
+        [15.0,-48,18],[16.0,-40,20],[17.0,-35,22],[17.5,-32,24],[18.0,-30,20]
+      ];
+
+      // ── Stargazer XP System ──
+      function loadStargazer() { try { return JSON.parse(localStorage.getItem('humanity_stargazer')) || { identified: [], xp: 0 }; } catch { return { identified: [], xp: 0 }; } }
+      function saveStargazer(data) { localStorage.setItem('humanity_stargazer', JSON.stringify(data)); }
+
+      window.skyIdentifyConstellation = function(name) {
+        const sg = loadStargazer();
+        if (sg.identified.includes(name)) return;
+        sg.identified.push(name);
+        sg.xp += 10;
+        saveStargazer(sg);
+        skySelectedConstellation = name;
+        updateSidebar();
+      };
+
+      // ── Sky View Rendering ──
+      function renderSkyView(cw, ch) {
+        const date = skyGetTime();
+        const home = loadHome();
+        const lat = home ? home.lat : 46.7853;
+        const lng = home ? home.lng : -121.7365;
+
+        // Sun position for day/night
+        const sunRD = getSunRADec(date);
+        const sunPos = raDecToAltAz(sunRD.ra, sunRD.dec, lat, lng, date);
+        const sunAlt = sunPos.altitude;
+
+        // Sky background based on sun altitude
+        let skyDarkness = 1; // 1 = full dark
+        if (sunAlt > 0) skyDarkness = 0;
+        else if (sunAlt > -6) skyDarkness = (-sunAlt) / 6 * 0.5; // civil twilight
+        else if (sunAlt > -12) skyDarkness = 0.5 + (-sunAlt - 6) / 6 * 0.3; // nautical
+        else if (sunAlt > -18) skyDarkness = 0.8 + (-sunAlt - 12) / 6 * 0.2; // astronomical
+        else skyDarkness = 1;
+
+        // Background gradient
+        const cx = cw / 2, cy = ch / 2;
+        const radius = Math.min(cw, ch) * 0.45;
+
+        // Sky gradient from zenith to horizon
+        if (sunAlt > -6) {
+          // Twilight/day colors
+          const dayFrac = Math.max(0, Math.min(1, (sunAlt + 6) / 20));
+          const r1 = Math.round(10 + dayFrac * 100);
+          const g1 = Math.round(10 + dayFrac * 140);
+          const b1 = Math.round(30 + dayFrac * 200);
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.1);
+          grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
+          const r2 = Math.round(20 + dayFrac * 180);
+          const g2 = Math.round(15 + dayFrac * 120);
+          const b2 = Math.round(40 + dayFrac * 80);
+          grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
+          ctx.fillStyle = grad;
+        } else {
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.1);
+          grad.addColorStop(0, '#0a0a1a');
+          grad.addColorStop(0.7, '#080818');
+          grad.addColorStop(1, '#0c0c25');
+          ctx.fillStyle = grad;
+        }
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Clip to circular sky area
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius + 2, 0, Math.PI * 2);
+        ctx.clip();
+
+        // Milky Way band
+        if (skyShowMilkyWay && skyDarkness > 0.5) {
+          ctx.save();
+          const mwAlpha = (skyDarkness - 0.5) * 0.15;
+          for (let i = 0; i < MILKY_WAY_POINTS.length - 1; i++) {
+            const p1 = MILKY_WAY_POINTS[i];
+            const p2 = MILKY_WAY_POINTS[i + 1];
+            const pos1 = raDecToAltAz(p1[0], p1[1], lat, lng, date);
+            const pos2 = raDecToAltAz(p2[0], p2[1], lat, lng, date);
+            if (pos1.altitude < -5 && pos2.altitude < -5) continue;
+            const c1 = altAzToCanvas(Math.max(0, pos1.altitude), pos1.azimuth, cx, cy, radius);
+            const c2 = altAzToCanvas(Math.max(0, pos2.altitude), pos2.azimuth, cx, cy, radius);
+            const w = (p1[2] + p2[2]) * 0.5 * radius / 90;
+            const dx = c2.x - c1.x, dy = c2.y - c1.y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len < 1) continue;
+            const nx = -dy / len * w, ny = dx / len * w;
+            const mwGrad = ctx.createLinearGradient(c1.x + nx, c1.y + ny, c1.x - nx, c1.y - ny);
+            mwGrad.addColorStop(0, 'transparent');
+            mwGrad.addColorStop(0.3, `rgba(180,190,220,${mwAlpha})`);
+            mwGrad.addColorStop(0.5, `rgba(200,210,240,${mwAlpha * 1.3})`);
+            mwGrad.addColorStop(0.7, `rgba(180,190,220,${mwAlpha})`);
+            mwGrad.addColorStop(1, 'transparent');
+            ctx.fillStyle = mwGrad;
+            ctx.beginPath();
+            ctx.moveTo(c1.x + nx, c1.y + ny);
+            ctx.lineTo(c2.x + nx, c2.y + ny);
+            ctx.lineTo(c2.x - nx, c2.y - ny);
+            ctx.lineTo(c1.x - nx, c1.y - ny);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        // Procedural faint background stars (galactic plane weighted)
+        if (skyDarkness > 0.3 && skyDarkSky) {
+          let seed = 42;
+          const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+          const count = Math.round(800 * skyDarkness);
+          for (let i = 0; i < count; i++) {
+            const fakeRA = rng() * 24;
+            // Weight toward galactic plane (dec ~-30 to +60 band)
+            let fakeDec = (rng() - 0.3) * 180;
+            if (rng() < 0.4) fakeDec = rng() * 60 - 30; // galactic plane bias
+            fakeDec = Math.max(-90, Math.min(90, fakeDec));
+            const pos = raDecToAltAz(fakeRA, fakeDec, lat, lng, date);
+            if (pos.altitude < 2) continue;
+            const pt = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius);
+            const mag = 4 + rng() * 2;
+            const sz = Math.max(0.3, 2 - mag * 0.3);
+            const alpha = skyDarkness * (0.1 + rng() * 0.25);
+            ctx.fillStyle = `rgba(200,210,230,${alpha})`;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, sz, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Named stars
+        const magLimit = skyDarkSky ? 6.0 : 3.0;
+        const starScreenPos = []; // for constellation lines
+        const spectralColors = {O:'#9bb0ff',B:'#aabfff',A:'#cad7ff',F:'#f8f7ff',G:'#fff4ea',K:'#ffd2a1',M:'#ffcc6f'};
+
+        for (let i = 0; i < SKY_STARS.length; i++) {
+          const s = SKY_STARS[i];
+          if (s[3] > magLimit) continue;
+          if (s[3] > 2 && skyDarkness < 0.3) continue;
+          if (s[3] > 0 && skyDarkness < 0.1) continue;
+
+          const pos = raDecToAltAz(s[1], s[2], lat, lng, date);
+          if (pos.altitude < 0) { starScreenPos[i] = null; continue; }
+
+          const pt = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius);
+          const sz = Math.max(0.5, 4 - s[3] * 0.5) * Math.min(skyDarkness + 0.3, 1);
+          const col = spectralColors[s[4]] || '#fff';
+          starScreenPos[i] = pt;
+
+          // Glow for bright stars
+          if (s[3] < 2 && skyDarkness > 0.3) {
+            const glowR = sz * 4;
+            const glow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, glowR);
+            glow.addColorStop(0, col.replace(')', `,${0.3 * skyDarkness})`).replace('rgb', 'rgba'));
+            glow.addColorStop(1, 'transparent');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, glowR, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, sz, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Label bright stars
+          if (s[3] < 2 && skyDarkness > 0.2) {
+            ctx.fillStyle = `rgba(200,210,230,${0.5 * skyDarkness})`;
+            ctx.font = '9px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(s[0], pt.x + sz + 3, pt.y + 3);
+          }
+        }
+
+        // Constellation lines
+        if (skyShowConstellations && skyDarkness > 0.2) {
+          for (const con of SKY_CONSTELLATIONS) {
+            if (!con.lines || con.lines.length === 0) continue;
+            const isHovered = skyHoveredConstellation === con.name;
+            const isSelected = skySelectedConstellation === con.name;
+            const alpha = isHovered || isSelected ? 0.6 : 0.25;
+            ctx.strokeStyle = `rgba(100,180,255,${alpha * skyDarkness})`;
+            ctx.lineWidth = isHovered || isSelected ? 1.5 : 0.8;
+
+            let conCx = 0, conCy = 0, conCount = 0;
+            let anyVisible = false;
+
+            for (const line of con.lines) {
+              if (line.length < 2) continue;
+              const i1 = skyStarMap[line[0]];
+              const i2 = skyStarMap[line[1]];
+              if (i1 === undefined || i2 === undefined) continue;
+
+              // Calculate positions on-the-fly if not cached
+              let p1 = starScreenPos[i1];
+              let p2 = starScreenPos[i2];
+              if (!p1) {
+                const s = SKY_STARS[i1];
+                const pos = raDecToAltAz(s[1], s[2], lat, lng, date);
+                if (pos.altitude > 0) { p1 = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius); starScreenPos[i1] = p1; }
+              }
+              if (!p2) {
+                const s = SKY_STARS[i2];
+                const pos = raDecToAltAz(s[1], s[2], lat, lng, date);
+                if (pos.altitude > 0) { p2 = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius); starScreenPos[i2] = p2; }
+              }
+              if (!p1 || !p2) continue;
+
+              anyVisible = true;
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+
+              conCx += p1.x + p2.x;
+              conCy += p1.y + p2.y;
+              conCount += 2;
+            }
+
+            // Also handle single-star constellations for label
+            if (con.lines.length === 1 && con.lines[0].length === 1) {
+              const idx = skyStarMap[con.lines[0][0]];
+              if (idx !== undefined && starScreenPos[idx]) {
+                anyVisible = true;
+                conCx = starScreenPos[idx].x;
+                conCy = starScreenPos[idx].y;
+                conCount = 1;
+              }
+            }
+
+            // Constellation label
+            if (anyVisible && conCount > 0) {
+              const lx = conCx / conCount, ly = conCy / conCount;
+              ctx.fillStyle = `rgba(100,180,255,${(isHovered || isSelected ? 0.7 : 0.3) * skyDarkness})`;
+              ctx.font = `${isHovered || isSelected ? '11px' : '9px'} sans-serif`;
+              ctx.textAlign = 'center';
+              ctx.fillText(con.name, lx, ly - 8);
+            }
+          }
+        }
+
+        // Sun
+        if (sunAlt > -5) {
+          const sunPt = altAzToCanvas(Math.max(0, sunAlt), sunPos.azimuth, cx, cy, radius);
+          if (sunAlt > 0) {
+            const sunGlow = ctx.createRadialGradient(sunPt.x, sunPt.y, 0, sunPt.x, sunPt.y, 30);
+            sunGlow.addColorStop(0, 'rgba(255,240,180,0.9)');
+            sunGlow.addColorStop(0.3, 'rgba(255,200,100,0.4)');
+            sunGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = sunGlow;
+            ctx.beginPath(); ctx.arc(sunPt.x, sunPt.y, 30, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#FFF5E0';
+            ctx.beginPath(); ctx.arc(sunPt.x, sunPt.y, 8, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(255,240,200,0.8)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('☀ Sun', sunPt.x, sunPt.y - 14);
+          }
+        }
+
+        // Moon
+        const moonRD = getMoonRADec(date);
+        const moonPos = raDecToAltAz(moonRD.ra, moonRD.dec, lat, lng, date);
+        if (moonPos.altitude > 0) {
+          const moonPt = altAzToCanvas(moonPos.altitude, moonPos.azimuth, cx, cy, radius);
+          const phase = getMoonPhase(date);
+          const moonR = 8;
+          // Draw moon body
+          ctx.fillStyle = '#e8e0c8';
+          ctx.beginPath(); ctx.arc(moonPt.x, moonPt.y, moonR, 0, Math.PI * 2); ctx.fill();
+          // Phase shadow
+          ctx.fillStyle = 'rgba(10,10,26,0.85)';
+          ctx.beginPath();
+          const illumination = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+          const shadowX = (phase < 0.5) ? moonR * (1 - illumination * 2) : -moonR * (1 - illumination * 2);
+          ctx.ellipse(moonPt.x, moonPt.y, Math.abs(shadowX) || 0.1, moonR, 0, -Math.PI / 2, Math.PI / 2, phase > 0.5);
+          ctx.arc(moonPt.x, moonPt.y, moonR, Math.PI / 2, -Math.PI / 2, phase < 0.25 || phase > 0.75);
+          ctx.fill();
+          // Glow
+          const moonGlow = ctx.createRadialGradient(moonPt.x, moonPt.y, moonR, moonPt.x, moonPt.y, moonR * 3);
+          moonGlow.addColorStop(0, `rgba(200,200,180,${0.15 * illumination})`);
+          moonGlow.addColorStop(1, 'transparent');
+          ctx.fillStyle = moonGlow;
+          ctx.beginPath(); ctx.arc(moonPt.x, moonPt.y, moonR * 3, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(220,215,200,0.7)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('☽ Moon', moonPt.x, moonPt.y - moonR - 4);
+        }
+
+        ctx.restore(); // End clip
+
+        // Horizon circle
+        ctx.strokeStyle = 'rgba(100,200,150,0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Horizon gradient (ground below)
+        const hGrad = ctx.createRadialGradient(cx, cy, radius - 2, cx, cy, radius + 20);
+        hGrad.addColorStop(0, 'transparent');
+        hGrad.addColorStop(0.5, 'rgba(30,50,30,0.3)');
+        hGrad.addColorStop(1, 'rgba(20,30,20,0.5)');
+        ctx.fillStyle = hGrad;
+        ctx.beginPath();
+        // Fill outside the circle
+        ctx.rect(0, 0, cw, ch);
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2, true);
+        ctx.fill();
+
+        // Cardinal directions
+        ctx.fillStyle = 'rgba(100,200,150,0.7)';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('N', cx, cy - radius - 6);
+        ctx.fillText('S', cx, cy + radius + 15);
+        ctx.fillText('E', cx + radius + 10, cy + 4);
+        ctx.fillText('W', cx - radius - 10, cy + 4);
+
+        // Zenith marker
+        ctx.fillStyle = 'rgba(200,210,255,0.3)';
+        ctx.font = '8px sans-serif';
+        ctx.fillText('zenith', cx, cy - 5);
+        ctx.fillStyle = 'rgba(200,210,255,0.15)';
+        ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fill();
+
+        // Time display
+        const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const dateStr = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        ctx.fillStyle = 'rgba(200,210,255,0.7)';
+        ctx.font = '11px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${dateStr} ${timeStr}`, 10, ch - 25);
+        ctx.fillStyle = 'rgba(200,210,255,0.4)';
+        ctx.font = '9px sans-serif';
+        const locName = home ? home.name : 'Default';
+        ctx.fillText(`📍 ${locName} (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`, 10, ch - 10);
+
+        // Sun altitude indicator
+        const sunLabel = sunAlt > 0 ? '☀ Daytime' : sunAlt > -6 ? '🌅 Civil Twilight' : sunAlt > -12 ? '🌆 Nautical Twilight' : sunAlt > -18 ? '🌃 Astronomical Twilight' : '🌑 Full Night';
+        ctx.fillStyle = 'rgba(200,210,255,0.5)';
+        ctx.font = '9px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(sunLabel, cw - 10, ch - 10);
+
+        // Stargazer progress
+        const sg = loadStargazer();
+        ctx.fillText(`⭐ ${sg.identified.length}/88 constellations`, cw - 10, ch - 25);
+      }
+
+      // ── Sky View mouse interaction ──
+      canvas.addEventListener('mousemove', function skyMouseMove(e) {
+        if (mapView !== 'skyview') return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const cw = canvas.clientWidth, ch = canvas.clientHeight;
+        const cx = cw / 2, cy = ch / 2;
+        const radius = Math.min(cw, ch) * 0.45;
+        const date = skyGetTime();
+        const home = loadHome();
+        const lat = home ? home.lat : 46.7853;
+        const lng = home ? home.lng : -121.7365;
+
+        let closest = null, closestDist = 30;
+        for (const con of SKY_CONSTELLATIONS) {
+          if (!con.lines || con.lines.length === 0) continue;
+          let conCx = 0, conCy = 0, count = 0;
+          for (const line of con.lines) {
+            for (const starName of line) {
+              const idx = skyStarMap[starName];
+              if (idx === undefined) continue;
+              const s = SKY_STARS[idx];
+              const pos = raDecToAltAz(s[1], s[2], lat, lng, date);
+              if (pos.altitude <= 0) continue;
+              const pt = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius);
+              conCx += pt.x; conCy += pt.y; count++;
+            }
+          }
+          if (count === 0) continue;
+          conCx /= count; conCy /= count;
+          const d = Math.sqrt((mx - conCx) ** 2 + (my - conCy) ** 2);
+          if (d < closestDist) { closest = con.name; closestDist = d; }
+        }
+        if (closest !== skyHoveredConstellation) {
+          skyHoveredConstellation = closest;
+          mapRender();
+        }
+      });
+
+      canvas.addEventListener('click', function skyClick(e) {
+        if (mapView !== 'skyview') return;
+        if (skyHoveredConstellation) {
+          skySelectedConstellation = skyHoveredConstellation;
+          updateSidebar();
+          mapRender();
+        }
+      });
+
+      // ── Sky View time controls ──
+      window.skySetTimeOffset = function(hours) {
+        skyTimeOffset += hours * 3600000;
+        mapRender();
+      };
+      window.skyResetTime = function() {
+        skyTimeOffset = 0;
+        mapRender();
+      };
+      window.skyToggleConstellations = function() {
+        skyShowConstellations = !skyShowConstellations;
+        mapRender();
+      };
+      window.skyToggleMilkyWay = function() {
+        skyShowMilkyWay = !skyShowMilkyWay;
+        mapRender();
+      };
+      window.skyToggleDarkSky = function() {
+        skyDarkSky = !skyDarkSky;
+        mapRender();
+      };
+
+      // Auto-animate sky (update every 30s for real-time movement)
+      setInterval(() => {
+        if (mapView === 'skyview' && document.getElementById('tab-map').style.display !== 'none') {
+          mapRender();
+        }
+      }, 30000);
+
+      // ══════════════════════════════════════════════════════════════
+      // ██  END SKY VIEW                                           ██
+      // ══════════════════════════════════════════════════════════════
+
       // ── Main render ──
       function mapRender() {
         const dpr = window.devicePixelRatio || 1;
@@ -8916,6 +9906,97 @@
             html += '</div>';
           }
           html += `<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem;">Click map to select location · Right-click to pin</div>`;
+        }
+
+        if (mapView === 'skyview') {
+          const sg = loadStargazer();
+          const date = skyGetTime();
+          const home = loadHome();
+          const locName = home ? home.name : 'Paradise, Mount Rainier';
+
+          html += `<div style="background:rgba(180,140,255,0.08);border:1px solid rgba(180,140,255,0.2);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
+            <div style="font-weight:700;font-size:0.9rem;color:#b48cff;">🔭 Sky View</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">Viewing from: ${locName}</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);">${date.toLocaleString()}</div>
+          </div>`;
+
+          // Time controls
+          html += `<div style="background:rgba(50,50,80,0.3);border:1px solid rgba(100,100,150,0.2);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
+            <div style="font-weight:600;font-size:0.8rem;margin-bottom:0.4rem;">⏰ Time Controls</div>
+            <div style="display:flex;gap:0.3rem;flex-wrap:wrap;">
+              <button onclick="skySetTimeOffset(-6)" style="font-size:0.65rem;padding:2px 6px;background:rgba(100,150,255,0.15);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">-6h</button>
+              <button onclick="skySetTimeOffset(-1)" style="font-size:0.65rem;padding:2px 6px;background:rgba(100,150,255,0.15);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">-1h</button>
+              <button onclick="skySetTimeOffset(-0.25)" style="font-size:0.65rem;padding:2px 6px;background:rgba(100,150,255,0.15);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">-15m</button>
+              <button onclick="skyResetTime()" style="font-size:0.65rem;padding:2px 8px;background:rgba(100,200,150,0.2);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:4px;cursor:pointer;font-weight:700;">Now</button>
+              <button onclick="skySetTimeOffset(0.25)" style="font-size:0.65rem;padding:2px 6px;background:rgba(100,150,255,0.15);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">+15m</button>
+              <button onclick="skySetTimeOffset(1)" style="font-size:0.65rem;padding:2px 6px;background:rgba(100,150,255,0.15);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">+1h</button>
+              <button onclick="skySetTimeOffset(6)" style="font-size:0.65rem;padding:2px 6px;background:rgba(100,150,255,0.15);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">+6h</button>
+            </div>
+          </div>`;
+
+          // Toggles
+          html += `<div style="background:rgba(50,50,80,0.3);border:1px solid rgba(100,100,150,0.2);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
+            <div style="font-weight:600;font-size:0.8rem;margin-bottom:0.4rem;">🎛️ Display</div>
+            <div style="display:flex;flex-direction:column;gap:0.3rem;">
+              <label style="font-size:0.72rem;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:0.3rem;">
+                <input type="checkbox" ${skyShowConstellations?'checked':''} onchange="skyToggleConstellations()"> Constellation lines
+              </label>
+              <label style="font-size:0.72rem;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:0.3rem;">
+                <input type="checkbox" ${skyShowMilkyWay?'checked':''} onchange="skyToggleMilkyWay()"> Milky Way band
+              </label>
+              <label style="font-size:0.72rem;color:var(--text-muted);cursor:pointer;display:flex;align-items:center;gap:0.3rem;">
+                <input type="checkbox" ${skyDarkSky?'checked':''} onchange="skyToggleDarkSky()"> Dark sky (no light pollution)
+              </label>
+            </div>
+          </div>`;
+
+          // Stargazer progress
+          html += `<div style="background:rgba(255,200,50,0.05);border:1px solid rgba(255,200,50,0.15);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
+            <div style="font-weight:700;font-size:0.85rem;color:#ffc832;">⭐ Stargazer</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">${sg.identified.length}/88 constellations identified</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);">XP: ${sg.xp}</div>
+            <div style="width:100%;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;margin-top:0.4rem;overflow:hidden;">
+              <div style="width:${(sg.identified.length/88*100).toFixed(1)}%;height:100%;background:linear-gradient(90deg,#ffc832,#ff8800);border-radius:3px;"></div>
+            </div>`;
+          // Achievements
+          const achievements = [];
+          if (sg.identified.length >= 1) achievements.push('🌟 First Star');
+          const zodiac = ['Aries','Taurus','Gemini','Cancer','Leo','Virgo','Libra','Scorpius','Sagittarius','Capricornus','Aquarius','Pisces'];
+          if (zodiac.every(z => sg.identified.includes(z))) achievements.push('♈ All Zodiac');
+          if (sg.identified.length >= 88) achievements.push('🏆 All 88!');
+          if (achievements.length) {
+            html += `<div style="margin-top:0.4rem;font-size:0.7rem;color:#ffc832;">${achievements.join(' · ')}</div>`;
+          }
+          html += '</div>';
+
+          // Selected constellation detail
+          if (skySelectedConstellation) {
+            const con = SKY_CONSTELLATIONS.find(c => c.name === skySelectedConstellation);
+            if (con) {
+              const isIdentified = sg.identified.includes(con.name);
+              html += `<div style="background:rgba(100,180,255,0.08);border:1px solid rgba(100,180,255,0.2);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
+                <div style="font-weight:700;font-size:0.95rem;color:#6cf;">⭐ ${con.name} — ${con.myth ? con.myth.split('—')[0] : con.abbr}</div>
+                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;line-height:1.5;">${con.myth || ''}</div>`;
+              if (con.season) html += `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">Best viewing: ${con.season}</div>`;
+              if (con.keyStars && con.keyStars.length) {
+                html += `<div style="font-size:0.72rem;margin-top:0.4rem;font-weight:600;color:var(--text);">Key Stars:</div>`;
+                for (const ks of con.keyStars) html += `<div style="font-size:0.7rem;color:var(--text-muted);padding-left:0.5rem;">⭐ ${ks}</div>`;
+              }
+              if (con.objects && con.objects.length) {
+                html += `<div style="font-size:0.72rem;margin-top:0.4rem;font-weight:600;color:var(--text);">Notable Objects:</div>`;
+                for (const obj of con.objects) html += `<div style="font-size:0.7rem;color:var(--text-muted);padding-left:0.5rem;">🌌 ${obj}</div>`;
+              }
+              if (con.funFact) html += `<div style="font-size:0.72rem;color:#b48cff;margin-top:0.4rem;font-style:italic;">💡 ${con.funFact}</div>`;
+              if (!isIdentified) {
+                html += `<button onclick="skyIdentifyConstellation('${con.name}')" style="margin-top:0.5rem;font-size:0.75rem;padding:4px 12px;background:rgba(255,200,50,0.2);border:1px solid rgba(255,200,50,0.4);color:#ffc832;border-radius:6px;cursor:pointer;font-weight:600;">Mark as Identified ✓ (+10 XP)</button>`;
+              } else {
+                html += `<div style="margin-top:0.5rem;font-size:0.72rem;color:#6cc;">✓ Identified</div>`;
+              }
+              html += '</div>';
+            }
+          }
+
+          html += `<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem;">Click a constellation to learn about it · Hover to highlight</div>`;
         }
 
         html += `<details style="margin-top:0.8rem;"><summary style="cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--accent);">📊 Data Sources</summary>
@@ -9080,6 +10161,9 @@
         if (star) { mapSetView('sector'); return; }
         // Galaxy
         if (q.includes('galaxy') || q.includes('milky')) { mapSetView('galaxy'); return; }
+        if (q.includes('sky') || q.includes('constellation') || q.includes('stargazer') || q.includes('night sky')) { mapSetView('skyview'); return; }
+        const skyConMatch = SKY_CONSTELLATIONS && SKY_CONSTELLATIONS.find(c => c.name.toLowerCase().includes(q));
+        if (skyConMatch) { mapSetView('skyview'); setTimeout(() => { skySelectedConstellation = skyConMatch.name; updateSidebar(); mapRender(); }, 500); return; }
       };
 
       // ── Mouse Events ──
