@@ -9,6 +9,8 @@ fn main() {
         .setup(|app| {
             // Navigate the main window to the remote Humanity web app
             if let Some(window) = app.get_webview_window("main") {
+                let version = app.config().version.clone().unwrap_or_else(|| "dev".to_string());
+                let _ = window.set_title(&format!("Humanity — v{version}"));
                 let _ = window.navigate("https://united-humanity.us".parse().unwrap());
             }
 
