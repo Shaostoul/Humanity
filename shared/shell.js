@@ -20,6 +20,8 @@
     else if (p.startsWith('/fantasy')) active = 'fantasy';
     else if (p.startsWith('/streams')) active = 'streams';
     else if (p.startsWith('/market')) active = 'market';
+    else if (p.startsWith('/browse')) active = 'browse';
+    else if (p.startsWith('/dashboard')) active = 'dashboard';
     else if (p.startsWith('/info')) active = 'info';
     else if (p.startsWith('/source')) active = 'source';
     else if (p.startsWith('/debug')) active = 'debug';
@@ -199,6 +201,8 @@
       '<a href="/reality" class="' + cls('reality') + '">🟢 Reality</a>' +
       '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Fantasy</a>' +
       '<a href="/market" class="' + cls('market') + '">🛒 Market</a>' +
+      '<a href="/browse" class="' + cls('browse') + '">🌐 Browse</a>' +
+      '<a href="/dashboard" class="' + cls('dashboard') + '">📊 Dashboard</a>' +
       '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +
       '<a href="/info" class="' + cls('info') + '">📖 Info</a>' +
       '<a href="/source" class="' + cls('source') + '">📜 Source</a>' +
@@ -216,7 +220,7 @@
     if (!link) return;
     const href = link.getAttribute('href');
     /* NOTE: nginx hub regex needs /market added */
-    const hubPaths = ['/board', '/reality', '/fantasy', '/market', '/streams', '/info', '/source', '/debug'];
+    const hubPaths = ['/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard', '/streams', '/info', '/source', '/debug'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub = hubPaths.some(function(p) { return href === p; });
     if (currentIsHub && targetIsHub && href !== location.pathname) {

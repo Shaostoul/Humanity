@@ -479,6 +479,8 @@
     document.querySelectorAll('.hub-nav .tab[href^="/streams"]').forEach(el => el.setAttribute('data-tab', 'streams'));
     document.querySelectorAll('.hub-nav .tab[href^="/info"]').forEach(el => el.setAttribute('data-tab', 'info'));
     document.querySelectorAll('.hub-nav .tab[href^="/market"]').forEach(el => el.setAttribute('data-tab', 'market'));
+    document.querySelectorAll('.hub-nav .tab[href^="/browse"]').forEach(el => el.setAttribute('data-tab', 'browse'));
+    document.querySelectorAll('.hub-nav .tab[href^="/dashboard"]').forEach(el => el.setAttribute('data-tab', 'dashboard'));
     document.querySelectorAll('.hub-nav .tab[href^="/debug"]').forEach(el => el.setAttribute('data-tab', 'debug'));
   </script>
 
@@ -1417,6 +1419,50 @@
     </div>
   </div>
 
+  <!-- Browse Tab -->
+  <div id="tab-browse" class="tab-content" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+    <div id="browse-quickbar" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;align-items:center;">
+      <span style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap;">⚡ Quick:</span>
+      <div id="quickbar-sites" style="display:flex;gap:0.4rem;"></div>
+    </div>
+    <div style="display:flex;flex:1;min-height:0;">
+      <div id="browse-directory" style="width:350px;min-width:280px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+        <div style="padding:0.5rem;border-bottom:1px solid var(--border);display:flex;gap:0.4rem;">
+          <input type="text" id="browse-search" placeholder="Search sites..." oninput="filterBrowseSites()" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;">
+          <button onclick="showAddSiteModal()" style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;" title="Add site">+</button>
+        </div>
+        <div id="browse-categories" style="padding:0.4rem 0.5rem;display:flex;flex-wrap:wrap;gap:0.3rem;border-bottom:1px solid var(--border);"></div>
+        <div id="browse-collections" style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);max-height:120px;overflow-y:auto;"></div>
+        <div id="browse-sites" style="flex:1;overflow-y:auto;padding:0.4rem;"></div>
+      </div>
+      <div id="browse-panel" style="flex:1;display:flex;flex-direction:column;">
+        <div id="browse-toolbar" style="display:flex;gap:0.4rem;padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);align-items:center;">
+          <button onclick="browsePanelBack()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;" title="Back to directory">←</button>
+          <input type="text" id="browse-url-bar" placeholder="Enter URL..." onkeydown="if(event.key==='Enter')browseNavigate(this.value)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;">
+          <button onclick="browseNavigate(document.getElementById('browse-url-bar').value)" style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;">Go</button>
+          <button onclick="browseOpenExternal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Open in new tab">↗</button>
+        </div>
+        <div id="browse-placeholder" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.9rem;">
+          Select a site or enter a URL to browse
+        </div>
+        <iframe id="browse-iframe" style="flex:1;border:none;display:none;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard Tab -->
+  <div id="tab-dashboard" class="tab-content" style="padding:1rem;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">📊 Dashboard</h2>
+      <button onclick="showAddWidgetModal()" class="btn btn-clickable" style="min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">+ Add Widget</button>
+    </div>
+    <div id="dashboard-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem;"></div>
+    <div id="dashboard-empty" style="text-align:center;color:var(--text-muted);padding:3rem;">
+      <p style="font-size:1.2rem;">Your dashboard is empty</p>
+      <p>Click "+ Add Widget" to customize your view</p>
+    </div>
+  </div>
+
   <!-- Settings Panel (inline, replaces tab content) -->
   <div id="tab-settings" class="tab-content" style="padding:1.5rem;">
     <div class="panel">
@@ -1427,7 +1473,7 @@
 
   <script>
     // ── Hub Tab System (SPA with pushState) ──
-    const HUB_TABS = ['board', 'reality', 'fantasy', 'market', 'streams', 'info', 'source', 'debug'];
+    const HUB_TABS = ['board', 'reality', 'fantasy', 'market', 'browse', 'dashboard', 'streams', 'info', 'source', 'debug'];
     let currentTab = 'reality';
 
     function getTabFromPath() {
@@ -1451,7 +1497,7 @@
       if (tabEl) tabEl.classList.add('active');
 
       // Update page title
-      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
+      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', browse: 'Browse', dashboard: 'Dashboard', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
       document.title = 'Humanity — ' + (titles[tabId] || 'Hub');
 
       // Update URL
@@ -4137,6 +4183,334 @@
     (function() {
       const style = document.createElement('style');
       style.textContent = '@media (max-width: 768px) { #board-columns { grid-template-columns: 1fr !important; } }';
+      document.head.appendChild(style);
+    })();
+
+    // ── Browse Tab ──
+    const DEFAULT_SITES = [
+      { url:'https://github.com', name:'GitHub', description:'Code hosting and collaboration', category:'Tech', icon:'🐙' },
+      { url:'https://stackoverflow.com', name:'Stack Overflow', description:'Programming Q&A', category:'Tech', icon:'📚' },
+      { url:'https://news.ycombinator.com', name:'Hacker News', description:'Tech news and discussion', category:'Tech', icon:'🟧' },
+      { url:'https://dev.to', name:'DEV Community', description:'Developer blogs and articles', category:'Tech', icon:'👩‍💻' },
+      { url:'https://gitlab.com', name:'GitLab', description:'DevOps and code hosting', category:'Tech', icon:'🦊' },
+      { url:'https://codepen.io', name:'CodePen', description:'Frontend code playground', category:'Tech', icon:'✏️' },
+      { url:'https://amazon.com', name:'Amazon', description:'Online marketplace', category:'Shopping', icon:'📦' },
+      { url:'https://ebay.com', name:'eBay', description:'Auction and buy-it-now marketplace', category:'Shopping', icon:'🏷️' },
+      { url:'https://etsy.com', name:'Etsy', description:'Handmade and vintage goods', category:'Shopping', icon:'🎨' },
+      { url:'https://craigslist.org', name:'Craigslist', description:'Local classifieds', category:'Shopping', icon:'📋' },
+      { url:'https://newegg.com', name:'Newegg', description:'Computer hardware and electronics', category:'Shopping', icon:'🖥️' },
+      { url:'https://aliexpress.com', name:'AliExpress', description:'International marketplace', category:'Shopping', icon:'🌏' },
+      { url:'https://reuters.com', name:'Reuters', description:'International news agency', category:'News', icon:'📰' },
+      { url:'https://apnews.com', name:'AP News', description:'Associated Press', category:'News', icon:'🗞️' },
+      { url:'https://arstechnica.com', name:'Ars Technica', description:'Technology news and analysis', category:'News', icon:'🔬' },
+      { url:'https://bbc.com/news', name:'BBC News', description:'British Broadcasting Corporation', category:'News', icon:'📺' },
+      { url:'https://allsides.com', name:'AllSides', description:'News from multiple perspectives', category:'News', icon:'⚖️' },
+      { url:'https://youtube.com', name:'YouTube', description:'Video sharing platform', category:'Entertainment', icon:'▶️' },
+      { url:'https://twitch.tv', name:'Twitch', description:'Live streaming platform', category:'Entertainment', icon:'💜' },
+      { url:'https://netflix.com', name:'Netflix', description:'Streaming movies and shows', category:'Entertainment', icon:'🎬' },
+      { url:'https://spotify.com', name:'Spotify', description:'Music streaming', category:'Entertainment', icon:'🎵' },
+      { url:'https://soundcloud.com', name:'SoundCloud', description:'Independent music platform', category:'Entertainment', icon:'🔊' },
+      { url:'https://imdb.com', name:'IMDB', description:'Movie and TV database', category:'Entertainment', icon:'⭐' },
+      { url:'https://store.steampowered.com', name:'Steam', description:'PC game store and community', category:'Gaming', icon:'🎮' },
+      { url:'https://pcgamingwiki.com', name:'PCGamingWiki', description:'PC game fixes and info', category:'Gaming', icon:'🔧' },
+      { url:'https://nexusmods.com', name:'Nexus Mods', description:'Game modding community', category:'Gaming', icon:'⚙️' },
+      { url:'https://isthereanydeal.com', name:'IsThereAnyDeal', description:'Game price comparison', category:'Gaming', icon:'💰' },
+      { url:'https://howlongtobeat.com', name:'HowLongToBeat', description:'Game completion times', category:'Gaming', icon:'⏱️' },
+      { url:'https://itch.io', name:'itch.io', description:'Indie game marketplace', category:'Gaming', icon:'🕹️' },
+      { url:'https://wikipedia.org', name:'Wikipedia', description:'Free encyclopedia', category:'Education', icon:'📖' },
+      { url:'https://khanacademy.org', name:'Khan Academy', description:'Free courses and lessons', category:'Education', icon:'🎓' },
+      { url:'https://wolframalpha.com', name:'Wolfram Alpha', description:'Computational knowledge engine', category:'Education', icon:'🧮' },
+      { url:'https://coursera.org', name:'Coursera', description:'Online university courses', category:'Education', icon:'🏫' },
+      { url:'https://archive.org', name:'Internet Archive', description:'Digital library and Wayback Machine', category:'Education', icon:'🏛️' },
+      { url:'https://libgen.is', name:'Library Genesis', description:'Book and paper archive', category:'Education', icon:'📕' },
+      { url:'https://figma.com', name:'Figma', description:'Collaborative design tool', category:'Creative', icon:'🎨' },
+      { url:'https://blender.org', name:'Blender', description:'Open source 3D creation', category:'Creative', icon:'🧊' },
+      { url:'https://unsplash.com', name:'Unsplash', description:'Free high-quality photos', category:'Creative', icon:'📷' },
+      { url:'https://fonts.google.com', name:'Google Fonts', description:'Free web fonts', category:'Creative', icon:'🔤' },
+      { url:'https://coolors.co', name:'Coolors', description:'Color palette generator', category:'Creative', icon:'🌈' },
+      { url:'https://thingiverse.com', name:'Thingiverse', description:'3D printing models', category:'Creative', icon:'🖨️' },
+      { url:'https://reddit.com', name:'Reddit', description:'Community forums and discussion', category:'Social', icon:'🤖' },
+      { url:'https://discord.com', name:'Discord', description:'Chat and voice communities', category:'Social', icon:'💬' },
+      { url:'https://mastodon.social', name:'Mastodon', description:'Decentralized social network', category:'Social', icon:'🐘' },
+      { url:'https://lemmy.world', name:'Lemmy', description:'Federated link aggregator', category:'Social', icon:'🔗' },
+      { url:'https://signal.org', name:'Signal', description:'Private messaging', category:'Social', icon:'🔒' },
+      { url:'https://duckduckgo.com', name:'DuckDuckGo', description:'Private search engine', category:'Tools', icon:'🦆' },
+      { url:'https://proton.me', name:'Proton Mail', description:'Encrypted email', category:'Tools', icon:'✉️' },
+      { url:'https://bitwarden.com', name:'Bitwarden', description:'Password manager', category:'Tools', icon:'🔐' },
+      { url:'https://excalidraw.com', name:'Excalidraw', description:'Virtual whiteboard', category:'Tools', icon:'✏️' },
+      { url:'https://regex101.com', name:'Regex101', description:'Regular expression tester', category:'Tools', icon:'🔍' },
+      { url:'https://deepl.com', name:'DeepL', description:'AI translation', category:'Tools', icon:'🌐' },
+    ];
+
+    const BROWSE_STORAGE_KEY = 'humanity_browse';
+    function loadBrowseData() { try { return JSON.parse(localStorage.getItem(BROWSE_STORAGE_KEY)) || {}; } catch { return {}; } }
+    function saveBrowseData(data) { localStorage.setItem(BROWSE_STORAGE_KEY, JSON.stringify(data)); if (typeof scheduleSyncSave === 'function') scheduleSyncSave(); }
+    function getBrowseData() {
+      const data = loadBrowseData();
+      if (!data.quickBar) data.quickBar = ['https://duckduckgo.com','https://youtube.com','https://github.com','https://reddit.com','https://wikipedia.org'];
+      if (!data.collections) data.collections = {};
+      if (!data.hidden) data.hidden = [];
+      if (!data.customSites) data.customSites = [];
+      return data;
+    }
+    function getAllSites() { const data = getBrowseData(); return [...DEFAULT_SITES, ...data.customSites]; }
+
+    let browseActiveCategory = '';
+    let browseCurrentUrl = '';
+
+    function renderQuickBar() {
+      const data = getBrowseData();
+      const container = document.getElementById('quickbar-sites');
+      if (!container) return;
+      const allSites = getAllSites();
+      container.innerHTML = data.quickBar.map(url => {
+        const site = allSites.find(s => s.url === url);
+        const icon = site ? site.icon : '🌐';
+        const name = site ? site.name : new URL(url).hostname;
+        return `<button onclick="browseNavigate('${url}')" title="${name}" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:0.25rem 0.5rem;cursor:pointer;font-size:0.85rem;white-space:nowrap;color:var(--text);display:flex;align-items:center;gap:0.25rem;" oncontextmenu="event.preventDefault();removeFromQuickBar('${url}')">${icon} <span style="font-size:0.72rem;">${name}</span></button>`;
+      }).join('');
+    }
+
+    function renderBrowseCategories() {
+      const categories = [...new Set(getAllSites().map(s => s.category))];
+      const container = document.getElementById('browse-categories');
+      if (!container) return;
+      container.innerHTML = `<span class="filter-pill ${browseActiveCategory===''?'active':''}" onclick="browseActiveCategory='';renderBrowseSites()" style="font-size:0.72rem;padding:0.15rem 0.5rem;cursor:pointer;">All</span>` +
+        categories.map(c => `<span class="filter-pill ${browseActiveCategory===c?'active':''}" onclick="browseActiveCategory='${c}';renderBrowseSites()" style="font-size:0.72rem;padding:0.15rem 0.5rem;cursor:pointer;">${c}</span>`).join('');
+    }
+
+    function renderCollections() {
+      const data = getBrowseData();
+      const container = document.getElementById('browse-collections');
+      if (!container) return;
+      const collNames = Object.keys(data.collections);
+      if (collNames.length === 0) { container.innerHTML = '<div style="font-size:0.72rem;color:var(--text-muted);padding:0.2rem;">No collections yet. Right-click a site to add to a collection.</div>'; return; }
+      container.innerHTML = collNames.map(name => {
+        const count = data.collections[name].length;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:0.2rem 0.3rem;cursor:pointer;border-radius:4px;font-size:0.8rem;" onclick="browseActiveCategory='collection:${name}';renderBrowseSites()" oncontextmenu="event.preventDefault();deleteCollection('${name}')"><span>📁 ${name} <span style="color:var(--text-muted);">(${count})</span></span><button onclick="event.stopPropagation();deleteCollection('${name}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">✕</button></div>`;
+      }).join('') + `<button onclick="createCollection()" style="font-size:0.72rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0.2rem;">+ New Collection</button>`;
+    }
+
+    function renderBrowseSites() {
+      renderBrowseCategories(); renderCollections();
+      const data = getBrowseData();
+      const search = (document.getElementById('browse-search')?.value || '').toLowerCase();
+      let sites = getAllSites().filter(s => !data.hidden.includes(s.url));
+      if (browseActiveCategory.startsWith('collection:')) {
+        const collName = browseActiveCategory.replace('collection:', '');
+        const collUrls = data.collections[collName] || [];
+        sites = sites.filter(s => collUrls.includes(s.url));
+      } else if (browseActiveCategory) { sites = sites.filter(s => s.category === browseActiveCategory); }
+      if (search) { sites = sites.filter(s => s.name.toLowerCase().includes(search) || s.description.toLowerCase().includes(search) || s.url.toLowerCase().includes(search)); }
+      const container = document.getElementById('browse-sites');
+      if (!container) return;
+      container.innerHTML = sites.map(s => `<div class="browse-site-card" style="padding:0.5rem;margin-bottom:0.3rem;background:var(--bg-secondary);border-radius:6px;cursor:pointer;border:1px solid var(--border);" onclick="browseNavigate('${s.url}')" oncontextmenu="event.preventDefault();showSiteContextMenu(event,'${s.url.replace(/'/g,"\\'")}','${s.name.replace(/'/g,"\\'")}')"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:600;font-size:0.85rem;">${s.icon} ${s.name}</span><span style="font-size:0.65rem;color:var(--text-muted);background:var(--bg);padding:0.1rem 0.4rem;border-radius:8px;">${s.category}</span></div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;">${s.description}</div><div style="font-size:0.65rem;color:var(--accent);margin-top:0.15rem;">${s.url}</div></div>`).join('') || '<div style="padding:1rem;color:var(--text-muted);text-align:center;">No sites found</div>';
+    }
+
+    function filterBrowseSites() { renderBrowseSites(); }
+    function browseNavigate(url) {
+      if (!url) return;
+      if (!url.startsWith('http')) url = 'https://' + url;
+      browseCurrentUrl = url;
+      document.getElementById('browse-url-bar').value = url;
+      document.getElementById('browse-iframe').src = url;
+      document.getElementById('browse-iframe').style.display = 'block';
+      document.getElementById('browse-placeholder').style.display = 'none';
+    }
+    function browsePanelBack() {
+      document.getElementById('browse-iframe').style.display = 'none';
+      document.getElementById('browse-iframe').src = '';
+      document.getElementById('browse-placeholder').style.display = 'flex';
+      document.getElementById('browse-url-bar').value = '';
+      browseCurrentUrl = '';
+    }
+    function browseOpenExternal() { if (browseCurrentUrl) window.open(browseCurrentUrl, '_blank'); }
+    function addToQuickBar(url) { const data = getBrowseData(); if (!data.quickBar.includes(url)) { data.quickBar.push(url); saveBrowseData(data); renderQuickBar(); } }
+    function removeFromQuickBar(url) { const data = getBrowseData(); data.quickBar = data.quickBar.filter(u => u !== url); saveBrowseData(data); renderQuickBar(); }
+    function hideSite(url) { const data = getBrowseData(); if (!data.hidden.includes(url)) { data.hidden.push(url); saveBrowseData(data); renderBrowseSites(); } }
+    function createCollection() { const name = prompt('Collection name:'); if (!name || !name.trim()) return; const data = getBrowseData(); if (!data.collections[name.trim()]) { data.collections[name.trim()] = []; saveBrowseData(data); renderCollections(); } }
+    function deleteCollection(name) { if (!confirm('Delete collection "' + name + '"?')) return; const data = getBrowseData(); delete data.collections[name]; saveBrowseData(data); if (browseActiveCategory === 'collection:' + name) browseActiveCategory = ''; renderBrowseSites(); }
+    function addToCollection(url, collectionName) { const data = getBrowseData(); if (!data.collections[collectionName]) data.collections[collectionName] = []; if (!data.collections[collectionName].includes(url)) { data.collections[collectionName].push(url); saveBrowseData(data); renderBrowseSites(); } }
+    function showAddSiteModal() {
+      const url = prompt('Site URL:'); if (!url) return;
+      const name = prompt('Site name:') || new URL(url.startsWith('http') ? url : 'https://'+url).hostname;
+      const desc = prompt('Description (optional):') || '';
+      const category = prompt('Category (Tech, Shopping, News, Entertainment, Gaming, Education, Creative, Social, Tools):') || 'Tools';
+      const data = getBrowseData();
+      data.customSites.push({ url: url.startsWith('http') ? url : 'https://'+url, name, description: desc, category, icon: '🌐' });
+      saveBrowseData(data); renderBrowseSites();
+    }
+
+    let siteContextMenu = null;
+    function showSiteContextMenu(event, url, name) {
+      if (siteContextMenu) siteContextMenu.remove();
+      const data = getBrowseData();
+      const inQuickBar = data.quickBar.includes(url);
+      const collNames = Object.keys(data.collections);
+      const menu = document.createElement('div');
+      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:0.3rem 0;box-shadow:0 4px 12px rgba(0,0,0,0.3);min-width:160px;';
+      menu.style.left = event.clientX + 'px'; menu.style.top = event.clientY + 'px';
+      const items = [
+        { label: inQuickBar ? '⚡ Remove from Quick Bar' : '⚡ Add to Quick Bar', action: () => inQuickBar ? removeFromQuickBar(url) : addToQuickBar(url) },
+        { label: '↗ Open in New Tab', action: () => window.open(url, '_blank') },
+        { label: '🚫 Hide Site', action: () => hideSite(url) },
+      ];
+      if (collNames.length > 0) { items.push({ label: '─────', action: null }); collNames.forEach(c => { items.push({ label: '📁 Add to ' + c, action: () => addToCollection(url, c) }); }); }
+      menu.innerHTML = items.map((item, i) => {
+        if (!item.action) return '<div style="border-top:1px solid var(--border);margin:0.2rem 0;"></div>';
+        return `<div class="ctx-item" data-idx="${i}" style="padding:0.3rem 0.8rem;cursor:pointer;font-size:0.8rem;color:var(--text);" onmouseenter="this.style.background='var(--accent)'" onmouseleave="this.style.background=''">${item.label}</div>`;
+      }).join('');
+      menu.querySelectorAll('.ctx-item').forEach(el => { el.addEventListener('click', () => { items[parseInt(el.dataset.idx)].action(); menu.remove(); siteContextMenu = null; }); });
+      document.body.appendChild(menu); siteContextMenu = menu;
+      setTimeout(() => document.addEventListener('click', function dismiss() { if(siteContextMenu) siteContextMenu.remove(); siteContextMenu=null; document.removeEventListener('click',dismiss); }, { once: false }), 10);
+    }
+
+    function initBrowseTab() { renderQuickBar(); renderBrowseSites(); }
+
+    // ── Dashboard Tab ──
+    const DASHBOARD_STORAGE_KEY = 'humanity_dashboard';
+    const WIDGET_TYPES = {
+      clock: { name: 'Clock', icon: '🕐', description: 'Current time and date', defaultSize: 'small' },
+      notes: { name: 'Notes', icon: '📝', description: 'Quick notes pad', defaultSize: 'medium' },
+      todos: { name: 'Todos', icon: '✅', description: 'Your todo list', defaultSize: 'medium' },
+      friends: { name: 'Friends Online', icon: '👥', description: 'Who is online now', defaultSize: 'small' },
+      stats: { name: 'Server Stats', icon: '📈', description: 'Relay server statistics', defaultSize: 'small' },
+      quicklinks: { name: 'Quick Links', icon: '⚡', description: 'Your favorite bookmarks', defaultSize: 'small' },
+      embed: { name: 'Website Embed', icon: '🌐', description: 'Embed any website', defaultSize: 'large' },
+      chat: { name: 'Chat Feed', icon: '💬', description: 'Live messages from a channel', defaultSize: 'large' },
+      weather: { name: 'Weather', icon: '🌤️', description: 'Current weather', defaultSize: 'small' },
+      activity: { name: 'Recent Activity', icon: '🔔', description: 'Latest messages across channels', defaultSize: 'medium' },
+    };
+
+    function loadDashboard() { try { return JSON.parse(localStorage.getItem(DASHBOARD_STORAGE_KEY)) || { widgets: [] }; } catch { return { widgets: [] }; } }
+    function saveDashboard(data) { localStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(data)); if (typeof scheduleSyncSave === 'function') scheduleSyncSave(); }
+
+    function renderDashboard() {
+      const data = loadDashboard();
+      const grid = document.getElementById('dashboard-grid');
+      const empty = document.getElementById('dashboard-empty');
+      if (!grid) return;
+      if (data.widgets.length === 0) { grid.style.display = 'none'; if (empty) empty.style.display = 'block'; return; }
+      grid.style.display = 'grid'; if (empty) empty.style.display = 'none';
+      grid.innerHTML = data.widgets.map((w, i) => {
+        const sizeStyle = w.size === 'large' ? 'grid-column:span 2;min-height:300px;' : w.size === 'medium' ? 'min-height:200px;' : 'min-height:140px;';
+        return `<div class="dashboard-widget" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;overflow:hidden;${sizeStyle}display:flex;flex-direction:column;" data-widget-idx="${i}"><div style="display:flex;justify-content:space-between;align-items:center;padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);flex-shrink:0;"><span style="font-size:0.8rem;font-weight:600;">${WIDGET_TYPES[w.type]?.icon || '📦'} ${WIDGET_TYPES[w.type]?.name || w.type}</span><div style="display:flex;gap:0.3rem;"><button onclick="cycleWidgetSize(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;" title="Resize">⇔</button><button onclick="moveWidget(${i},-1)" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;" title="Move left">◀</button><button onclick="moveWidget(${i},1)" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;" title="Move right">▶</button><button onclick="removeWidget(${i})" style="background:none;border:none;color:#c0392b;cursor:pointer;font-size:0.7rem;" title="Remove">✕</button></div></div><div class="widget-content" style="flex:1;padding:0.5rem;overflow:auto;" id="widget-content-${i}"></div></div>`;
+      }).join('');
+      data.widgets.forEach((w, i) => renderWidgetContent(w, i));
+    }
+
+    function renderWidgetContent(widget, index) {
+      const container = document.getElementById('widget-content-' + index);
+      if (!container) return;
+      switch (widget.type) {
+        case 'clock': {
+          function updateClock() {
+            if (!document.getElementById('widget-content-' + index)) return;
+            const now = new Date();
+            container.innerHTML = `<div style="text-align:center;padding:0.5rem;"><div style="font-size:2rem;font-weight:700;color:var(--accent);">${now.toLocaleTimeString()}</div><div style="font-size:0.9rem;color:var(--text-muted);margin-top:0.3rem;">${now.toLocaleDateString(undefined, {weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div></div>`;
+            setTimeout(updateClock, 1000);
+          }
+          updateClock(); break;
+        }
+        case 'notes': {
+          const notes = localStorage.getItem('humanity_notes'); let notesList = []; try { notesList = JSON.parse(notes) || []; } catch {}
+          container.innerHTML = notesList.length === 0 ? '<div style="color:var(--text-muted);text-align:center;padding:1rem;">No notes yet. Create them in the Reality tab.</div>' : notesList.map(n => `<div style="padding:0.3rem 0;border-bottom:1px solid var(--border);font-size:0.8rem;"><strong>${n.title || 'Untitled'}</strong><div style="color:var(--text-muted);font-size:0.72rem;max-height:40px;overflow:hidden;">${(n.content || '').substring(0, 100)}</div></div>`).join('');
+          break;
+        }
+        case 'todos': {
+          const todos = localStorage.getItem('humanity_todos'); let todoList = []; try { todoList = JSON.parse(todos) || []; } catch {}
+          container.innerHTML = todoList.length === 0 ? '<div style="color:var(--text-muted);text-align:center;padding:1rem;">No todos yet. Create them in the Reality tab.</div>' : todoList.map(t => `<div style="padding:0.25rem 0;font-size:0.8rem;display:flex;gap:0.3rem;align-items:start;"><span>${t.done ? '☑' : '☐'}</span><span style="${t.done?'text-decoration:line-through;color:var(--text-muted);':''}">${t.text || t.title || ''}</span></div>`).join('');
+          break;
+        }
+        case 'friends': {
+          const peers = (typeof peerData !== 'undefined') ? Object.values(peerData).filter(p => !p.public_key?.startsWith('bot_') && !p.public_key?.startsWith('viewer_')) : [];
+          container.innerHTML = peers.length === 0 ? '<div style="color:var(--text-muted);text-align:center;padding:1rem;">Connect to chat to see friends online</div>' : peers.map(p => `<div style="padding:0.2rem 0;font-size:0.8rem;">🟢 ${p.display_name || p.public_key?.substring(0,8) || 'Unknown'} ${p.role === 'admin' ? '👑' : p.role === 'mod' ? '🛡️' : ''}</div>`).join('');
+          break;
+        }
+        case 'stats': {
+          fetch('/api/stats').then(r => r.json()).then(stats => {
+            container.innerHTML = `<div style="padding:0.3rem;"><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;"><div style="text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:var(--accent);">${stats.connected_peers || 0}</div><div style="font-size:0.7rem;color:var(--text-muted);">Online</div></div><div style="text-align:center;"><div style="font-size:1.5rem;font-weight:700;color:var(--accent);">${stats.total_messages || 0}</div><div style="font-size:0.7rem;color:var(--text-muted);">Messages</div></div></div></div>`;
+          }).catch(() => { container.innerHTML = '<div style="color:var(--text-muted);text-align:center;">Could not load stats</div>'; });
+          break;
+        }
+        case 'quicklinks': {
+          const qlData = typeof getBrowseData === 'function' ? getBrowseData() : { quickBar: [] };
+          const allSites = typeof getAllSites === 'function' ? getAllSites() : [];
+          container.innerHTML = qlData.quickBar.length === 0 ? '<div style="color:var(--text-muted);text-align:center;padding:1rem;">No quick links yet</div>' :
+            `<div style="display:flex;flex-wrap:wrap;gap:0.4rem;">${qlData.quickBar.map(url => { const site = allSites.find(s => s.url === url); return `<a href="${url}" target="_blank" rel="noopener" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.25rem 0.5rem;font-size:0.75rem;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:0.2rem;">${site?.icon || '🌐'} ${site?.name || new URL(url).hostname}</a>`; }).join('')}</div>`;
+          break;
+        }
+        case 'embed': {
+          const embedUrl = widget.config?.url || '';
+          if (!embedUrl) { container.innerHTML = `<div style="text-align:center;padding:1rem;"><input type="text" placeholder="Enter URL to embed..." id="embed-url-${index}" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;width:80%;"><button onclick="setEmbedUrl(${index})" style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;margin-top:0.3rem;">Load</button></div>`; }
+          else { container.style.padding = '0'; container.innerHTML = `<iframe src="${embedUrl}" style="width:100%;height:100%;border:none;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer"></iframe>`; }
+          break;
+        }
+        case 'weather': {
+          container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;">Loading weather...</div>';
+          fetch('https://wttr.in/?format=j1').then(r => r.json()).then(w => {
+            const current = w.current_condition?.[0] || {}; const area = w.nearest_area?.[0] || {};
+            container.innerHTML = `<div style="text-align:center;padding:0.3rem;"><div style="font-size:1.8rem;">${current.temp_F || '?'}°F</div><div style="font-size:0.8rem;color:var(--text-muted);">${current.weatherDesc?.[0]?.value || 'Unknown'}</div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;">${area.areaName?.[0]?.value || ''}, ${area.region?.[0]?.value || ''}</div><div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.2rem;">💨 ${current.windspeedMiles || '?'} mph · 💧 ${current.humidity || '?'}%</div></div>`;
+          }).catch(() => { container.innerHTML = '<div style="color:var(--text-muted);text-align:center;">Weather unavailable</div>'; });
+          break;
+        }
+        case 'chat': {
+          const channel = widget.config?.channel || 'general';
+          container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:1rem;">Loading chat...</div>';
+          fetch('/api/messages?limit=15&channel=' + encodeURIComponent(channel)).then(r => r.json()).then(d => {
+            if (d.messages && d.messages.length > 0) { container.innerHTML = d.messages.map(m => `<div style="padding:0.2rem 0;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="color:var(--accent);font-weight:600;">${m.from_name || 'Unknown'}</span><span style="color:var(--text-muted);font-size:0.65rem;margin-left:0.3rem;">${new Date(m.timestamp).toLocaleTimeString()}</span><div style="color:var(--text);">${m.content.substring(0, 200)}</div></div>`).join(''); }
+            else { container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:1rem;">No messages in #' + channel + '</div>'; }
+          }).catch(() => { container.innerHTML = '<div style="color:var(--text-muted);text-align:center;">Could not load chat</div>'; });
+          break;
+        }
+        case 'activity': {
+          fetch('/api/messages?limit=20').then(r => r.json()).then(d => {
+            if (d.messages && d.messages.length > 0) { container.innerHTML = d.messages.map(m => `<div style="padding:0.2rem 0;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);"><span style="font-size:0.65rem;color:var(--text-muted);">#${m.channel || 'general'}</span><span style="color:var(--accent);font-weight:600;margin-left:0.3rem;">${m.from_name || 'Unknown'}</span><span style="color:var(--text-muted);font-size:0.65rem;margin-left:0.3rem;">${new Date(m.timestamp).toLocaleTimeString()}</span><div style="color:var(--text);">${m.content.substring(0, 150)}</div></div>`).join(''); }
+            else { container.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:1rem;">No recent activity</div>'; }
+          }).catch(() => { container.innerHTML = '<div style="color:var(--text-muted);text-align:center;">Could not load activity</div>'; });
+          break;
+        }
+        default: container.innerHTML = '<div style="color:var(--text-muted);text-align:center;">Unknown widget type</div>';
+      }
+    }
+
+    function showAddWidgetModal() {
+      const types = Object.entries(WIDGET_TYPES);
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      modal.innerHTML = `<div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;"><h3 style="margin:0;color:var(--accent);">Add Widget</h3><button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;">✕</button></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">${types.map(([key, t]) => `<div onclick="addWidget('${key}');this.closest('[style*=fixed]').remove()" style="padding:0.8rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'"><div style="font-size:1.5rem;">${t.icon}</div><div style="font-weight:600;font-size:0.85rem;margin-top:0.2rem;">${t.name}</div><div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.1rem;">${t.description}</div></div>`).join('')}</div></div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    }
+
+    function addWidget(type) {
+      const data = loadDashboard(); const config = {};
+      if (type === 'chat') { const ch = prompt('Channel name:', 'general'); if (!ch) return; config.channel = ch; }
+      else if (type === 'embed') { const url = prompt('URL to embed (or leave empty to set later):'); if (url) config.url = url.startsWith('http') ? url : 'https://' + url; }
+      data.widgets.push({ type, config, size: WIDGET_TYPES[type]?.defaultSize || 'medium', id: 'w' + Date.now() });
+      saveDashboard(data); renderDashboard();
+    }
+    function removeWidget(index) { const data = loadDashboard(); data.widgets.splice(index, 1); saveDashboard(data); renderDashboard(); }
+    function moveWidget(index, direction) { const data = loadDashboard(); const newIndex = index + direction; if (newIndex < 0 || newIndex >= data.widgets.length) return; [data.widgets[index], data.widgets[newIndex]] = [data.widgets[newIndex], data.widgets[index]]; saveDashboard(data); renderDashboard(); }
+    function cycleWidgetSize(index) { const data = loadDashboard(); const sizes = ['small', 'medium', 'large']; const current = sizes.indexOf(data.widgets[index].size); data.widgets[index].size = sizes[(current + 1) % sizes.length]; saveDashboard(data); renderDashboard(); }
+    function setEmbedUrl(index) { const input = document.getElementById('embed-url-' + index); if (!input) return; let url = input.value; if (!url) return; if (!url.startsWith('http')) url = 'https://' + url; const data = loadDashboard(); data.widgets[index].config = data.widgets[index].config || {}; data.widgets[index].config.url = url; saveDashboard(data); renderDashboard(); }
+
+    // ── Browse/Dashboard tab activation ──
+    {
+      const origSwitchTab3 = switchTab;
+      switchTab = function(tabId, pushState) {
+        origSwitchTab3(tabId, pushState);
+        if (tabId === 'browse') initBrowseTab();
+        if (tabId === 'dashboard') renderDashboard();
+      };
+      if (initialTab === 'browse') initBrowseTab();
+      if (initialTab === 'dashboard') renderDashboard();
+    }
+
+    // ── Mobile responsive for browse/dashboard ──
+    (function() {
+      const style = document.createElement('style');
+      style.textContent = '@media (max-width: 768px) { #tab-browse > div:nth-child(2) { flex-direction: column !important; } #browse-directory { width: 100% !important; min-width: auto !important; max-height: 40vh; border-right: none !important; border-bottom: 1px solid var(--border); } #dashboard-grid { grid-template-columns: 1fr !important; } .dashboard-widget { grid-column: span 1 !important; } }';
       document.head.appendChild(style);
     })();
 
