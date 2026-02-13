@@ -6716,14 +6716,14 @@
 
       pc.onicecandidate = (e) => {
         if (e.candidate && ws && ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'stream_ice', to: viewerKey, data: e.candidate }));
+          ws.send(JSON.stringify({ type: 'stream_ice', to: viewerKey, data: e.candidate, from: marketMyKey }));
         }
       };
 
       pc.createOffer().then(offer => {
         pc.setLocalDescription(offer);
         if (ws && ws.readyState === 1) {
-          ws.send(JSON.stringify({ type: 'stream_offer', to: viewerKey, data: offer }));
+          ws.send(JSON.stringify({ type: 'stream_offer', to: viewerKey, data: offer, from: marketMyKey }));
         }
       }).catch(e => console.warn('WebRTC offer failed:', e));
     }
@@ -6749,13 +6749,13 @@
         };
         pc.onicecandidate = (e) => {
           if (e.candidate && ws && ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: 'stream_ice', to: msg.from, data: e.candidate }));
+            ws.send(JSON.stringify({ type: 'stream_ice', to: msg.from, data: e.candidate, from: marketMyKey }));
           }
         };
         pc.setRemoteDescription(new RTCSessionDescription(msg.data)).then(() => pc.createAnswer()).then(answer => {
           pc.setLocalDescription(answer);
           if (ws && ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: 'stream_answer', to: msg.from, data: answer }));
+            ws.send(JSON.stringify({ type: 'stream_answer', to: msg.from, data: answer, from: marketMyKey }));
           }
         }).catch(e => console.warn('WebRTC answer failed:', e));
       }
