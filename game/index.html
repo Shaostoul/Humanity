@@ -4198,7 +4198,8 @@
             streamHandleMessage(msg);
           }
           // Handle stream viewer ready notification (streamer creates WebRTC offer)
-          if (msg.type === 'private' && msg.message && msg.message.startsWith('__stream_viewer_ready__:')) {
+          // Relay converts Private→System, so check msg.type === 'system'
+          if (msg.type === 'system' && msg.message && msg.message.startsWith('__stream_viewer_ready__:')) {
             const viewerKey = msg.message.slice('__stream_viewer_ready__:'.length);
             if (streamIsLive && streamCompositeStream) {
               streamCreateOfferForViewer(viewerKey);
@@ -6723,13 +6724,21 @@
       }
 
       // For streamer: handle answer from viewer
-      if (msg.type === 'stream_answer' && streamIsLive && streamPeerConnection) {
-        streamPeerConnection.setRemoteDescription(new RTCSessionDescription(msg.data)).catch(e => console.warn('setRemoteDescription failed:', e));
+      if (msg.type === 'stream_answer' && streamIsLive) {
+        const pc = streamViewerPCs[msg.from] || streamPeerConnection;
+        if (pc) {
+          pc.setRemoteDescription(new RTCSessionDescription(msg.data)).catch(e => console.warn('setRemoteDescription failed:', e));
+        }
       }
 
       // ICE candidates
       if (msg.type === 'stream_ice') {
-        const pc = streamIsLive ? streamPeerConnection : streamViewerPC;
+        let pc;
+        if (streamIsLive) {
+          pc = streamViewerPCs[msg.from] || streamPeerConnection;
+        } else {
+          pc = streamViewerPC;
+        }
         if (pc) {
           pc.addIceCandidate(new RTCIceCandidate(msg.data)).catch(e => console.warn('addIceCandidate failed:', e));
         }
