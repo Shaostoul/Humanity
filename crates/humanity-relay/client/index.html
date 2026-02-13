@@ -3182,6 +3182,59 @@ function getPeerEcdhPublic(peerKey) {
     }
 
     // ── User Data Sync ──
+    // --- Encrypted Sync Data (AES-256-GCM) ---
+    async function deriveSyncKey() {
+      if (!myIdentity || !myIdentity.privateKey) return null;
+      try {
+        const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+        const hash = await crypto.subtle.digest('SHA-256', pkcs8);
+        return await crypto.subtle.importKey('raw', hash, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+      } catch (e) {
+        console.warn('Failed to derive sync encryption key:', e);
+        return null;
+      }
+    }
+
+    async function encryptSyncData(plaintext) {
+      const key = await deriveSyncKey();
+      if (!key) return plaintext; // Fallback to plaintext if no key
+      try {
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encoded = new TextEncoder().encode(plaintext);
+        const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, encoded);
+        return JSON.stringify({
+          v: 1,
+          key: myKey,
+          iv: btoa(String.fromCharCode(...iv)),
+          encrypted: btoa(String.fromCharCode(...new Uint8Array(ciphertext)))
+        });
+      } catch (e) {
+        console.warn('Sync encryption failed, sending plaintext:', e);
+        return plaintext;
+      }
+    }
+
+    async function decryptSyncData(data) {
+      try {
+        const parsed = JSON.parse(data);
+        if (!parsed.v || !parsed.encrypted) return data; // Plaintext (backward compat)
+        if (parsed.key && parsed.key !== myKey) {
+          console.warn('Sync data encrypted by different device key:', parsed.key);
+          return null; // Can't decrypt — different device
+        }
+        const key = await deriveSyncKey();
+        if (!key) return null;
+        const iv = Uint8Array.from(atob(parsed.iv), c => c.charCodeAt(0));
+        const ciphertext = Uint8Array.from(atob(parsed.encrypted), c => c.charCodeAt(0));
+        const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+        return new TextDecoder().decode(plainBuf);
+      } catch (e) {
+        // Could be old plaintext data that happens to be valid JSON but not our format
+        console.warn('Sync decryption failed, treating as plaintext:', e);
+        return data;
+      }
+    }
+
     const SYNC_KEYS = [
       'humanity_settings', 'humanity_notes', 'humanity_todos', 'humanity_garden',
       'humanity_blocked', 'humanity_pins', 'humanity_default_tab',
@@ -3222,16 +3275,17 @@ function getPeerEcdhPublic(peerKey) {
     function scheduleSyncSave() {
       if (!syncInitialized) return;
       clearTimeout(syncDebounceTimer);
-      syncDebounceTimer = setTimeout(() => {
+      syncDebounceTimer = setTimeout(async () => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
         const data = getSyncBlob();
         const now = Date.now();
         localStorage.setItem('sync_updated_at', String(now));
-        ws.send(JSON.stringify({ type: 'sync_save', data: data }));
+        const encrypted = await encryptSyncData(data);
+        ws.send(JSON.stringify({ type: 'sync_save', data: encrypted }));
       }, 5000);
     }
 
-    function handleSyncData(payload) {
+    async function handleSyncData(payload) {
       if (payload === 'null') {
         // No server data — push local data to server.
         syncInitialized = true;
@@ -3245,9 +3299,16 @@ function getPeerEcdhPublic(peerKey) {
         const localUpdatedAt = parseInt(localStorage.getItem('sync_updated_at') || '0', 10);
 
         if (!localUpdatedAt || localUpdatedAt < serverUpdatedAt) {
-          // Server is newer — apply server data.
-          applySyncBlob(serverData);
-          localStorage.setItem('sync_updated_at', String(serverUpdatedAt));
+          // Server is newer — decrypt and apply server data.
+          const decrypted = await decryptSyncData(serverData);
+          if (decrypted) {
+            applySyncBlob(decrypted);
+            localStorage.setItem('sync_updated_at', String(serverUpdatedAt));
+          } else {
+            // Can't decrypt (different device key) — keep local, re-encrypt on next save.
+            console.warn('Could not decrypt sync data from server, keeping local data.');
+            setTimeout(() => scheduleSyncSave(), 1000);
+          }
         } else {
           // Local is newer or equal — push to server.
           setTimeout(() => scheduleSyncSave(), 1000);
