@@ -2306,6 +2306,7 @@ header h1 {
 .fed-dot.disconnected { background: #ed4245; }
 
 /* Twemoji */
+img.emoji {
   height: 1.2em;
   width: 1.2em;
   margin: 0 .05em 0 .1em;

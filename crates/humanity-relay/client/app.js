@@ -3260,6 +3260,10 @@ function renderDmList() {
 }
 
 // ── Sidebar Tab Navigation ──
+// Federated servers cache (fetched from API).
+var federatedServers = [];
+var federatedServersFetched = false;
+
 (function initSidebarTabs() {
   const SIDEBAR_TAB_KEY = 'humanity_sidebar_tab';
   const SERVER_ORDER_KEY = 'humanity_server_order';
@@ -3314,9 +3318,7 @@ function renderDmList() {
     localStorage.setItem(SERVER_COLLAPSE_KEY, JSON.stringify([...set]));
   }
 
-  // Federated servers cache (fetched from API).
-  var federatedServers = [];
-  var federatedServersFetched = false;
+  // (moved above initSidebarTabs)
 
   async function fetchFederatedServers() {
     try {
