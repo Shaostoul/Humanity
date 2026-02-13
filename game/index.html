@@ -2818,8 +2818,8 @@
       if (localStorage.getItem('humanity_name')) unlockAchievement('voice_of_people');
       const garden = (() => { try { return JSON.parse(localStorage.getItem('humanity_garden')); } catch { return null; } })();
       if (garden && garden.plots && Object.keys(garden.plots).length > 0) unlockAchievement('gardener');
-      const notes = (() => { try { return JSON.parse(localStorage.getItem('humanity_notes')); } catch { return []; } })();
-      if (notes.length > 0) unlockAchievement('note_taker');
+      const notes = (() => { try { return JSON.parse(localStorage.getItem('humanity_notes')) || []; } catch { return []; } })();
+      if (notes && notes.length > 0) unlockAchievement('note_taker');
       const settings = (() => { try { return JSON.parse(localStorage.getItem('humanity_settings')); } catch { return {}; } })();
       if (settings.accent && settings.accent !== '#FF8811') unlockAchievement('customizer');
       if (new Date().getHours() >= 0 && new Date().getHours() < 5) unlockAchievement('night_owl');

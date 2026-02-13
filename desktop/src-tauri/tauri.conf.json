@@ -16,7 +16,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' https://united-humanity.us https://*.united-humanity.us; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://united-humanity.us https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://united-humanity.us; connect-src 'self' https://united-humanity.us wss://united-humanity.us https://cdn.jsdelivr.net; img-src 'self' https://united-humanity.us https://cdn.jsdelivr.net data: blob:; media-src 'self' blob:; font-src 'self' data:;"
+      "csp": null
     }
   },
   "bundle": {
