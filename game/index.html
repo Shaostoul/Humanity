@@ -1048,6 +1048,35 @@
       </div>
 
     </div>
+
+    <!-- ── Celestial Map (full-width, outside card-grid) ── -->
+    <div class="panel reality-card" id="fantasy-celestial" style="border-color:rgba(80,120,220,0.3);">
+      <h2 class="reality-card-header" onclick="toggleFantasyCard('celestial')" style="color:#6699ff;">🌌 Celestial Map <span class="collapse-icon" id="celestial-collapse">▼</span></h2>
+      <div class="reality-card-body" id="celestial-body">
+        <!-- Breadcrumb -->
+        <div id="cel-breadcrumb" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;display:flex;align-items:center;gap:0.3rem;flex-wrap:wrap;"></div>
+        <!-- Canvas -->
+        <div style="position:relative;">
+          <canvas id="celestial-canvas" width="900" height="500" style="width:100%;border-radius:8px;background:#05050f;cursor:crosshair;display:block;"></canvas>
+          <!-- Zoom controls -->
+          <div style="position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:4px;">
+            <button onclick="celZoomIn()" style="width:28px;height:28px;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;font-size:1rem;line-height:1;">+</button>
+            <button onclick="celZoomOut()" style="width:28px;height:28px;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;font-size:1rem;line-height:1;">−</button>
+          </div>
+          <!-- Mode toggle -->
+          <div style="position:absolute;top:8px;left:8px;display:flex;gap:4px;">
+            <button id="cel-mode-reality" onclick="celSetMode('reality')" style="padding:2px 8px;font-size:0.7rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">Reality</button>
+            <button id="cel-mode-fantasy" onclick="celSetMode('fantasy')" style="padding:2px 8px;font-size:0.7rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">Fantasy</button>
+          </div>
+        </div>
+        <!-- Info panel -->
+        <div id="cel-info" style="display:none;margin-top:0.8rem;background:rgba(10,10,30,0.6);border:1px solid rgba(100,150,255,0.2);border-radius:8px;padding:1rem;"></div>
+        <!-- Nearby stars (shown in system view) -->
+        <div id="cel-nearby" style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted);"></div>
+        <p style="text-align:center;margin-top:0.6rem;font-size:0.7rem;color:var(--text-muted);">Click stars/planets to inspect · Scroll to zoom · Drag to pan · Double-click to enter system</p>
+      </div>
+    </div>
+
   </div>
 
   <!-- Streams Tab -->
@@ -5108,7 +5137,7 @@
       if (card) card.classList.toggle('collapsed');
       localStorage.setItem('fantasy_collapsed_' + id, card.classList.contains('collapsed'));
     }
-    ['worldmap', 'character', 'lore', 'achievements'].forEach(id => {
+    ['worldmap', 'character', 'lore', 'achievements', 'celestial'].forEach(id => {
       if (localStorage.getItem('fantasy_collapsed_' + id) === 'true') {
         const card = document.getElementById('fantasy-' + id);
         if (card) card.classList.add('collapsed');
@@ -5330,6 +5359,874 @@
     }
     checkAchievements();
     renderAchievements();
+
+    // ══════════════════════════════════════
+    // CELESTIAL NAVIGATION
+    // ══════════════════════════════════════
+    (function initCelestialMap() {
+      const canvas = document.getElementById('celestial-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      // ── Solar System Data (accurate) ──
+      const SUN = {
+        id:'SOL',name:'Sol',properName:'Sun',symbol:'☀',
+        position:{x:0,y:0,z:0},ra:0,dec:0,distance:0,
+        magnitude:-26.74,absMagnitude:4.85,spectralType:'G2V',
+        luminosity:1.0,temperature:5778,mass:1.0,radius:1.0,
+        color:'#FFF5E0',
+        planets:['mercury','venus','earth','mars','jupiter','saturn','uranus','neptune','pluto']
+      };
+
+      const PLANETS = [
+        {id:'mercury',name:'Mercury',symbol:'☿',starId:'SOL',type:'terrestrial',radius:2440,mass:3.30e23,gravity:3.7,dayLength:4222.6,
+         atmosphere:{composition:{},pressure:0,description:'Virtually none'},
+         temperature:{min:-173,avg:167,max:427},
+         orbit:{semiMajor:0.387,eccentricity:0.2056,period:87.97,inclination:7.0,longitudeOfPerihelion:77.46,meanLongitude:252.25},
+         moons:[],rings:false,water:false,life:false,colonized:false,
+         resources:['iron','nickel','silicon'],color:'#8c7e6d'},
+        {id:'venus',name:'Venus',symbol:'♀',starId:'SOL',type:'terrestrial',radius:6052,mass:4.87e24,gravity:8.87,dayLength:2802.0,
+         atmosphere:{composition:{CO2:96.5,N2:3.5},pressure:9200,description:'Dense CO₂, extreme greenhouse'},
+         temperature:{min:462,avg:464,max:467},
+         orbit:{semiMajor:0.723,eccentricity:0.0068,period:224.7,inclination:3.39,longitudeOfPerihelion:131.53,meanLongitude:181.98},
+         moons:[],rings:false,water:false,life:false,colonized:false,
+         resources:['sulfur','carbon','silicon'],color:'#e8cda0'},
+        {id:'earth',name:'Earth',symbol:'🌍',starId:'SOL',type:'terrestrial',radius:6371,mass:5.97e24,gravity:9.81,dayLength:24.0,
+         atmosphere:{composition:{N2:78.08,O2:20.95,Ar:0.93,CO2:0.04},pressure:101.3,description:'Nitrogen-oxygen, breathable'},
+         temperature:{min:-89.2,avg:14.9,max:56.7},
+         orbit:{semiMajor:1.0,eccentricity:0.0167,period:365.25,inclination:0.0,longitudeOfPerihelion:102.94,meanLongitude:100.46},
+         moons:['luna'],rings:false,water:true,life:true,colonized:true,
+         resources:['iron','silicon','aluminum','calcium','sodium','magnesium'],color:'#4488ff'},
+        {id:'mars',name:'Mars',symbol:'♂',starId:'SOL',type:'terrestrial',radius:3390,mass:6.42e23,gravity:3.72,dayLength:24.6,
+         atmosphere:{composition:{CO2:95.3,N2:2.7,Ar:1.6},pressure:0.636,description:'Thin CO₂'},
+         temperature:{min:-153,avg:-65,max:20},
+         orbit:{semiMajor:1.524,eccentricity:0.0934,period:686.97,inclination:1.85,longitudeOfPerihelion:336.04,meanLongitude:355.45},
+         moons:['phobos','deimos'],rings:false,water:false,life:false,colonized:false,
+         resources:['iron','magnesium','silicon','calcium'],color:'#cc5533'},
+        {id:'jupiter',name:'Jupiter',symbol:'♃',starId:'SOL',type:'gas_giant',radius:69911,mass:1.90e27,gravity:24.79,dayLength:9.93,
+         atmosphere:{composition:{H2:89.8,He:10.2},pressure:null,description:'Hydrogen-helium, no surface'},
+         temperature:{min:-163,avg:-110,max:-110},
+         orbit:{semiMajor:5.203,eccentricity:0.0489,period:4332.59,inclination:1.3,longitudeOfPerihelion:14.73,meanLongitude:34.40},
+         moons:['io','europa','ganymede','callisto'],rings:true,water:false,life:false,colonized:false,
+         resources:['hydrogen','helium','deuterium'],color:'#c8a55a'},
+        {id:'saturn',name:'Saturn',symbol:'♄',starId:'SOL',type:'gas_giant',radius:58232,mass:5.68e26,gravity:10.44,dayLength:10.7,
+         atmosphere:{composition:{H2:96.3,He:3.25},pressure:null,description:'Hydrogen-helium'},
+         temperature:{min:-189,avg:-140,max:-140},
+         orbit:{semiMajor:9.537,eccentricity:0.0565,period:10759.22,inclination:2.49,longitudeOfPerihelion:92.43,meanLongitude:49.94},
+         moons:['titan','enceladus','mimas','tethys','dione','rhea','iapetus'],rings:true,water:false,life:false,colonized:false,
+         resources:['hydrogen','helium'],color:'#e0c878'},
+        {id:'uranus',name:'Uranus',symbol:'⛢',starId:'SOL',type:'ice_giant',radius:25362,mass:8.68e25,gravity:8.69,dayLength:17.2,
+         atmosphere:{composition:{H2:82.5,He:15.2,CH4:2.3},pressure:null,description:'Hydrogen-helium-methane'},
+         temperature:{min:-224,avg:-195,max:-195},
+         orbit:{semiMajor:19.19,eccentricity:0.0457,period:30688.5,inclination:0.77,longitudeOfPerihelion:170.96,meanLongitude:313.23},
+         moons:['miranda','ariel','umbriel','titania','oberon'],rings:true,water:false,life:false,colonized:false,
+         resources:['hydrogen','helium','methane','deuterium'],color:'#7ec8c8'},
+        {id:'neptune',name:'Neptune',symbol:'♆',starId:'SOL',type:'ice_giant',radius:24622,mass:1.02e26,gravity:11.15,dayLength:16.1,
+         atmosphere:{composition:{H2:80,He:19,CH4:1.5},pressure:null,description:'Hydrogen-helium-methane'},
+         temperature:{min:-223,avg:-200,max:-200},
+         orbit:{semiMajor:30.07,eccentricity:0.0113,period:60182,inclination:1.77,longitudeOfPerihelion:44.97,meanLongitude:304.88},
+         moons:['triton'],rings:true,water:false,life:false,colonized:false,
+         resources:['hydrogen','helium','methane'],color:'#4466dd'},
+        {id:'pluto',name:'Pluto',symbol:'⯓',starId:'SOL',type:'dwarf',radius:1188,mass:1.31e22,gravity:0.62,dayLength:153.3,
+         atmosphere:{composition:{N2:99,CH4:0.5,CO:0.05},pressure:0.001,description:'Tenuous nitrogen'},
+         temperature:{min:-240,avg:-229,max:-218},
+         orbit:{semiMajor:39.48,eccentricity:0.2488,period:90560,inclination:17.16,longitudeOfPerihelion:224.07,meanLongitude:238.93},
+         moons:['charon'],rings:false,water:false,life:false,colonized:false,
+         resources:['nitrogen','methane','water_ice'],color:'#c4a882'}
+      ];
+
+      const MOONS = [
+        {id:'luna',name:'Moon',planetId:'earth',radius:1737.4,mass:7.342e22,gravity:1.62,
+         orbit:{semiMajor:384400,period:27.322,eccentricity:0.0549,inclination:5.145},
+         temperature:{min:-173,avg:-23,max:127},color:'#aaaaaa'},
+        {id:'phobos',name:'Phobos',planetId:'mars',radius:11.3,mass:1.07e16,gravity:0.0057,
+         orbit:{semiMajor:9376,period:0.319,eccentricity:0.0151,inclination:1.08},
+         temperature:{min:-40,avg:-40,max:-4},color:'#887766'},
+        {id:'deimos',name:'Deimos',planetId:'mars',radius:6.2,mass:1.48e15,gravity:0.003,
+         orbit:{semiMajor:23458,period:1.263,eccentricity:0.0002,inclination:1.79},
+         temperature:{min:-40,avg:-40,max:-4},color:'#998877'},
+        {id:'io',name:'Io',planetId:'jupiter',radius:1821.6,mass:8.93e22,gravity:1.80,
+         orbit:{semiMajor:421700,period:1.769,eccentricity:0.004,inclination:0.04},
+         temperature:{min:-183,avg:-143,max:-143},color:'#ddcc44'},
+        {id:'europa',name:'Europa',planetId:'jupiter',radius:1560.8,mass:4.80e22,gravity:1.31,
+         orbit:{semiMajor:671034,period:3.551,eccentricity:0.009,inclination:0.47},
+         temperature:{min:-223,avg:-171,max:-148},color:'#c8bfaa'},
+        {id:'ganymede',name:'Ganymede',planetId:'jupiter',radius:2634.1,mass:1.48e23,gravity:1.43,
+         orbit:{semiMajor:1070412,period:7.155,eccentricity:0.001,inclination:0.18},
+         temperature:{min:-203,avg:-163,max:-121},color:'#aa9988'},
+        {id:'callisto',name:'Callisto',planetId:'jupiter',radius:2410.3,mass:1.08e23,gravity:1.24,
+         orbit:{semiMajor:1882709,period:16.69,eccentricity:0.007,inclination:0.19},
+         temperature:{min:-193,avg:-139,max:-108},color:'#776655'},
+        {id:'titan',name:'Titan',planetId:'saturn',radius:2574.7,mass:1.35e23,gravity:1.35,
+         orbit:{semiMajor:1221870,period:15.945,eccentricity:0.029,inclination:0.35},
+         temperature:{min:-179,avg:-179,max:-179},color:'#cc9944'},
+        {id:'enceladus',name:'Enceladus',planetId:'saturn',radius:252.1,mass:1.08e20,gravity:0.113,
+         orbit:{semiMajor:238042,period:1.370,eccentricity:0.005,inclination:0.02},
+         temperature:{min:-240,avg:-198,max:-128},color:'#eeeeff'},
+        {id:'triton',name:'Triton',planetId:'neptune',radius:1353.4,mass:2.14e22,gravity:0.78,
+         orbit:{semiMajor:354759,period:5.877,eccentricity:0.00002,inclination:156.9},
+         temperature:{min:-235,avg:-235,max:-235},color:'#bbaacc'},
+        {id:'charon',name:'Charon',planetId:'pluto',radius:606,mass:1.59e21,gravity:0.288,
+         orbit:{semiMajor:19591,period:6.387,eccentricity:0.0002,inclination:0.08},
+         temperature:{min:-220,avg:-220,max:-220},color:'#998888'},
+        {id:'mimas',name:'Mimas',planetId:'saturn',radius:198.2,mass:3.75e19,gravity:0.064,
+         orbit:{semiMajor:185540,period:0.942,eccentricity:0.020,inclination:1.57},
+         temperature:{min:-209,avg:-209,max:-209},color:'#cccccc'},
+        {id:'tethys',name:'Tethys',planetId:'saturn',radius:531.1,mass:6.18e20,gravity:0.145,
+         orbit:{semiMajor:294672,period:1.888,eccentricity:0.0001,inclination:1.12},
+         temperature:{min:-187,avg:-187,max:-187},color:'#ccccdd'},
+        {id:'dione',name:'Dione',planetId:'saturn',radius:561.4,mass:1.10e21,gravity:0.232,
+         orbit:{semiMajor:377415,period:2.737,eccentricity:0.002,inclination:0.02},
+         temperature:{min:-186,avg:-186,max:-186},color:'#bbbbcc'},
+        {id:'rhea',name:'Rhea',planetId:'saturn',radius:763.8,mass:2.31e21,gravity:0.264,
+         orbit:{semiMajor:527068,period:4.518,eccentricity:0.001,inclination:0.35},
+         temperature:{min:-200,avg:-174,max:-174},color:'#bbbbbb'},
+        {id:'iapetus',name:'Iapetus',planetId:'saturn',radius:734.5,mass:1.81e21,gravity:0.223,
+         orbit:{semiMajor:3560854,period:79.32,eccentricity:0.029,inclination:15.47},
+         temperature:{min:-173,avg:-143,max:-143},color:'#887766'},
+        {id:'miranda',name:'Miranda',planetId:'uranus',radius:235.8,mass:6.59e19,gravity:0.079,
+         orbit:{semiMajor:129900,period:1.413,eccentricity:0.001,inclination:4.34},
+         temperature:{min:-213,avg:-213,max:-213},color:'#aaaaaa'},
+        {id:'ariel',name:'Ariel',planetId:'uranus',radius:578.9,mass:1.35e21,gravity:0.269,
+         orbit:{semiMajor:190900,period:2.520,eccentricity:0.001,inclination:0.04},
+         temperature:{min:-213,avg:-213,max:-213},color:'#bbbbcc'},
+        {id:'umbriel',name:'Umbriel',planetId:'uranus',radius:584.7,mass:1.17e21,gravity:0.234,
+         orbit:{semiMajor:266000,period:4.144,eccentricity:0.004,inclination:0.13},
+         temperature:{min:-208,avg:-208,max:-208},color:'#777788'},
+        {id:'titania',name:'Titania',planetId:'uranus',radius:788.9,mass:3.53e21,gravity:0.379,
+         orbit:{semiMajor:436300,period:8.706,eccentricity:0.001,inclination:0.08},
+         temperature:{min:-213,avg:-203,max:-203},color:'#aabbaa'},
+        {id:'oberon',name:'Oberon',planetId:'uranus',radius:761.4,mass:3.01e21,gravity:0.346,
+         orbit:{semiMajor:583500,period:13.46,eccentricity:0.001,inclination:0.07},
+         temperature:{min:-203,avg:-198,max:-198},color:'#998888'}
+      ];
+
+      // ── Nearest ~200 Stars (HYG subset, within ~20 parsecs) ──
+      // Format: [name, x, y, z (parsecs from Sol), spectralType, apparentMag, absMag, properName]
+      const STAR_CATALOG = [
+        ['Proxima Centauri',-1.546,-1.184,-0.769,'M5.5V',11.13,15.53,'Proxima Centauri'],
+        ['Alpha Centauri A',-1.546,-1.184,-0.769,'G2V',0.01,4.38,'Rigil Kentaurus'],
+        ['Alpha Centauri B',-1.546,-1.184,-0.769,'K1V',1.34,5.71,'Toliman'],
+        ["Barnard's Star",-0.057,-1.815,0.148,'M4V',9.51,13.22,"Barnard's Star"],
+        ['Wolf 359',1.937,0.987,0.592,'M6V',13.44,16.55,'Wolf 359'],
+        ['Lalande 21185',1.640,-0.956,1.380,'M2V',7.47,10.44,'Lalande 21185'],
+        ['Sirius A',1.681,0.247,-1.331,'A1V',-1.46,1.42,'Sirius'],
+        ['Sirius B',1.681,0.247,-1.331,'DA2',8.44,11.34,''],
+        ['Luyten 726-8A',-0.524,-0.370,-2.266,'M5.5V',12.54,15.40,'BL Ceti'],
+        ['Luyten 726-8B',-0.524,-0.370,-2.266,'M6V',12.99,15.85,'UV Ceti'],
+        ['Ross 154',0.985,-1.849,-0.659,'M3.5V',10.43,13.07,'Ross 154'],
+        ['Ross 248',-2.556,0.538,1.504,'M5.5V',12.29,14.79,'Ross 248'],
+        ['Epsilon Eridani',-2.133,-0.356,-1.898,'K2V',3.73,6.19,'Epsilon Eridani'],
+        ['Lacaille 9352',-1.498,-0.539,-2.845,'M1.5V',7.34,9.75,'Lacaille 9352'],
+        ['Ross 128',3.227,0.170,-0.619,'M4V',11.13,13.51,'Ross 128'],
+        ['EZ Aquarii A',-2.880,0.469,-1.562,'M5V',13.33,15.64,'EZ Aquarii'],
+        ['61 Cygni A',2.170,3.017,1.623,'K5V',5.21,7.49,'61 Cygni A'],
+        ['61 Cygni B',2.170,3.017,1.623,'K7V',6.03,8.31,'61 Cygni B'],
+        ['Procyon A',2.825,-0.872,-2.108,'F5IV-V',0.34,2.59,'Procyon'],
+        ['Struve 2398A',2.263,2.960,2.025,'M3V',8.90,11.16,'Struve 2398'],
+        ['Groombridge 34A',3.440,0.568,1.328,'M1.5V',8.08,10.32,'Groombridge 34'],
+        ['Epsilon Indi',-2.206,0.082,-3.064,'K5V',4.69,6.89,'Epsilon Indi'],
+        ['DX Cancri',3.577,0.261,0.363,'M6.5V',14.78,16.98,'DX Cancri'],
+        ['Tau Ceti',-3.364,0.468,-1.399,'G8.5V',3.49,5.68,'Tau Ceti'],
+        ["Luyten's Star",0.929,-2.905,-1.766,'M3.5V',9.86,11.97,"Luyten's Star"],
+        ["Teegarden's Star",1.208,-2.742,-1.834,'M6.5V',15.14,17.22,"Teegarden's Star"],
+        ["Kapteyn's Star",-1.891,0.889,-3.260,'M1V',8.85,10.87,"Kapteyn's Star"],
+        ['Lacaille 8760',-1.186,-1.094,-3.277,'M0V',6.67,8.69,'Lacaille 8760'],
+        ['Kruger 60A',0.966,3.237,1.959,'M3V',9.79,11.76,'Kruger 60'],
+        ['Ross 614A',3.732,-0.264,-0.570,'M4.5V',11.15,13.09,'Ross 614'],
+        ['Wolf 1061',1.137,-3.064,-1.534,'M3V',10.07,11.93,'Wolf 1061'],
+        ["van Maanen's Star",3.586,-0.375,-1.368,'DZ7',12.38,14.21,"van Maanen's Star"],
+        ['Gliese 1',4.073,0.096,-0.374,'M1.5V',8.55,10.35,'Gliese 1'],
+        ['Wolf 424A',2.143,-1.009,3.188,'M5.5V',13.18,14.97,'Wolf 424'],
+        ['TZ Arietis',-1.478,-3.373,-1.355,'M4.5V',12.27,14.03,'TZ Arietis'],
+        ["Luyten 789-6",-0.551,-1.152,-3.862,'M5V',12.18,13.90,"Luyten 789-6"],
+        ['Gliese 687',0.823,3.600,2.173,'M3.5V',9.15,10.87,'Gliese 687'],
+        ['LHS 292',3.398,1.699,1.768,'M6.5V',15.60,17.32,'LHS 292'],
+        ['Gliese 674',0.335,-3.741,-2.101,'M3V',9.38,11.09,'Gliese 674'],
+        ['GJ 1002',-3.367,-1.780,-1.820,'M5.5V',13.76,15.40,'GJ 1002'],
+        ['Gliese 876',-3.643,-0.156,-2.680,'M4V',10.17,11.79,'Gliese 876'],
+        ['Gliese 832',-2.570,0.474,-3.655,'M1.5V',8.66,10.20,'Gliese 832'],
+        ['GJ 3379',4.017,-0.688,1.668,'M3.5V',11.31,12.81,'GJ 3379'],
+        ['Gliese 412A',4.236,1.299,0.891,'M1V',8.77,10.26,'Gliese 412'],
+        ['Groombridge 1618',4.297,0.282,0.854,'K7V',6.59,8.09,'Groombridge 1618'],
+        ['AD Leonis',3.234,-0.217,3.046,'M3V',9.32,10.87,'AD Leonis'],
+        ['GJ 1061',-3.652,-1.553,-2.364,'M5.5V',13.09,14.55,'GJ 1061'],
+        ['Gliese 388',3.979,0.781,2.165,'M3V',9.32,10.78,'Gliese 388'],
+        ['Gliese 445',2.005,3.750,2.583,'M3.5V',10.79,12.24,'Gliese 445'],
+        ['GJ 1116A',-2.034,-2.007,3.521,'M5.5V',14.06,15.44,'GJ 1116'],
+        ['Gliese 526',3.740,1.905,1.961,'M1.5V',8.46,9.82,'Gliese 526'],
+        ['Stein 2051',1.471,4.274,1.618,'M4V',11.04,12.36,'Stein 2051'],
+        ['Gliese 251',4.610,0.173,1.213,'M3V',10.02,11.22,'Gliese 251'],
+        ['Gliese 205',3.975,-2.199,-0.777,'M1.5V',7.97,9.19,'Gliese 205'],
+        ['Wolf 294',3.127,3.249,0.610,'M4V',11.87,13.04,'Wolf 294'],
+        ['Gliese 229A',2.927,-3.060,-0.736,'M1V',8.14,9.34,'Gliese 229'],
+        ['Ross 47',4.500,1.760,0.137,'M4V',11.57,12.73,'Ross 47'],
+        ['Gliese 752A',1.106,2.127,4.200,'M3V',9.13,10.25,'Gliese 752'],
+        ['Gliese 338A',4.835,-1.011,0.803,'K7V',7.64,8.77,'Gliese 338'],
+        ['Gliese 581',-1.752,-3.285,-3.209,'M3V',10.56,11.56,'Gliese 581'],
+        ['Gliese 667C',-3.676,-2.534,-2.571,'M1.5V',10.22,11.03,'Gliese 667C'],
+        ['Gliese 440',-3.126,-3.312,-0.968,'DQ6',11.50,12.47,'Gliese 440'],
+        ['Gliese 1',4.073,0.096,-0.374,'M1.5V',8.55,10.35,''],
+        ['Gliese 380',5.015,0.367,0.330,'K7V',6.59,7.55,'Gliese 380'],
+        ['40 Eridani A',-3.502,-0.293,-3.791,'K0.5V',4.43,5.33,'40 Eridani'],
+        ['Gliese 784',-0.755,-1.695,-4.915,'M0V',7.97,8.85,'Gliese 784'],
+        ['GJ 1005A',-4.099,-2.038,-2.201,'M4V',11.48,12.28,'GJ 1005'],
+        ['Gliese 887',-2.610,-0.061,-4.527,'M2V',7.34,8.15,'Gliese 887'],
+        ['Gliese 411',4.904,1.693,1.084,'M2V',7.49,8.29,'Lalande 21185'],
+        ['GJ 1245A',1.262,3.720,3.760,'M5.5V',13.46,14.01,'GJ 1245'],
+        ['Gliese 699',-0.057,-1.815,0.148,'M4V',9.51,13.22,''],
+        ['70 Ophiuchi A',1.234,4.013,2.878,'K0V',4.03,5.50,'70 Ophiuchi'],
+        ['Altair',2.289,4.072,-2.397,'A7V',0.76,2.20,'Altair'],
+        ['EV Lacertae',2.019,4.520,1.484,'M3.5V',10.06,11.68,'EV Lacertae'],
+        ['Gliese 725A',1.423,4.780,2.139,'M3V',8.91,10.30,'Gliese 725'],
+        ['70 Ophiuchi B',1.234,4.013,2.878,'K5V',6.00,7.47,''],
+        ['Sigma Draconis',2.440,4.820,1.198,'G9V',4.68,5.87,'Sigma Draconis'],
+        ['Eta Cassiopeiae A',5.107,1.538,1.638,'G3V',3.44,4.59,'Eta Cassiopeiae'],
+        ['36 Ophiuchi A',0.424,2.668,4.740,'K2V',5.07,6.20,'36 Ophiuchi'],
+        ['82 Eridani',-5.030,0.710,-2.280,'G8V',4.27,5.35,'82 Eridani'],
+        ['Delta Pavonis',-2.483,0.693,-5.274,'G8IV',3.55,4.62,'Delta Pavonis'],
+        ['HR 7703',0.093,3.025,-4.880,'K3V',5.31,6.37,'HR 7703'],
+        ['Gliese 563.2A',2.698,3.645,3.667,'K5V',6.40,7.41,'Gliese 563.2'],
+        ['Xi Bootis A',5.204,2.208,1.106,'G8V',4.55,5.54,'Xi Bootis'],
+        ['Gliese 783',-0.710,-2.200,-5.490,'K2.5V',5.32,6.41,'Gliese 783'],
+        ['HR 753A',5.543,-0.050,-1.618,'K3V',5.70,6.63,'HR 753'],
+        ['Gliese 105A',5.397,-0.755,-1.747,'K3V',5.79,6.56,'Gliese 105'],
+        ['Mu Cassiopeiae',5.785,1.060,0.545,'G5VIp',5.17,5.78,'Mu Cassiopeiae'],
+        ['Beta Hydri',-3.843,2.038,-4.449,'G2IV',2.80,3.45,'Beta Hydri'],
+        ['Gliese 570A',0.753,2.630,5.440,'K4V',5.64,6.47,'Gliese 570'],
+        ['p Eridani',-5.108,-1.148,-3.232,'K2V',5.78,6.30,'p Eridani'],
+        ['Gliese 566A',4.948,3.203,1.690,'G8V',4.33,5.07,'Gliese 566'],
+        ['Wolf 630A',0.567,4.300,4.450,'M3.5V',10.07,10.77,'Wolf 630'],
+        ['Fomalhaut',-4.225,1.298,-5.010,'A3V',1.16,1.72,'Fomalhaut'],
+        ['Vega',0.690,6.190,0.210,'A0Va',0.03,0.58,'Vega'],
+        ['Chi1 Orionis A',5.915,-2.930,-0.485,'G0V',4.41,5.02,'Chi1 Orionis'],
+        ['Pi3 Orionis',5.770,-3.160,-1.060,'F6V',3.19,3.67,'Pi3 Orionis'],
+        ['Alpha Mensae',-3.738,-0.063,-5.750,'G7V',5.09,5.59,'Alpha Mensae'],
+        ['Gamma Leporis A',5.077,-3.770,-1.640,'F6.5V',3.59,4.18,'Gamma Leporis'],
+        ['Zeta Tucanae',-4.915,1.500,-4.610,'F9.5V',4.23,4.67,'Zeta Tucanae'],
+        ['107 Piscium',5.978,-1.838,-2.950,'K1V',5.24,5.87,'107 Piscium'],
+        ['Gliese 892',5.498,3.925,0.375,'K3V',5.57,6.11,'Gliese 892'],
+        ['Gliese 673',0.028,-4.015,-5.553,'K7V',7.54,8.04,'Gliese 673'],
+        ['Alpha Centauri AB',-1.546,-1.184,-0.769,'G2V',-0.27,4.08,'Alpha Centauri'],
+      ];
+
+      // Spectral type → color
+      function spectralColor(sp) {
+        if (!sp) return '#ffffff';
+        const c = sp.charAt(0).toUpperCase();
+        const map = {O:'#9bb0ff',B:'#aabfff',A:'#cad7ff',F:'#f8f7ff',G:'#fff4ea',K:'#ffd2a1',M:'#ffcc6f',D:'#ffffff',L:'#ff6633',T:'#cc3300'};
+        return map[c] || '#ffffff';
+      }
+
+      // ── State ──
+      let celMode = 'reality'; // reality | fantasy
+      let celLevel = 'sector'; // sector | system | planet
+      let celTarget = null; // current star/planet/moon id
+      let celPan = {x:0, y:0};
+      let celZoom = 1.0;
+      let celDragging = false;
+      let celDragStart = {x:0,y:0};
+      let celPanStart = {x:0,y:0};
+      let celHover = null;
+      let celSelected = null;
+      let celAnimate = false;
+
+      // Load saved state
+      try {
+        const saved = JSON.parse(localStorage.getItem('humanity_celestial'));
+        if (saved) {
+          celMode = saved.mode || 'reality';
+          celLevel = saved.viewState?.level || 'sector';
+          celTarget = saved.viewState?.target || null;
+          celPan = saved.viewState?.pan || {x:0,y:0};
+          celZoom = saved.viewState?.zoom || 1.0;
+        }
+      } catch {}
+
+      function celSave() {
+        const state = {
+          mode: celMode,
+          viewState: { level: celLevel, target: celTarget, pan: {...celPan}, zoom: celZoom },
+          homePlanet: 'earth',
+          bookmarks: [],
+          visited: []
+        };
+        localStorage.setItem('humanity_celestial', JSON.stringify(state));
+      }
+
+      // ── Mode Toggle ──
+      window.celSetMode = function(mode) {
+        celMode = mode;
+        document.getElementById('cel-mode-reality').style.background = mode === 'reality' ? 'rgba(100,150,255,0.4)' : 'rgba(20,20,40,0.8)';
+        document.getElementById('cel-mode-fantasy').style.background = mode === 'fantasy' ? 'rgba(150,100,255,0.4)' : 'rgba(20,20,40,0.8)';
+        celSave();
+        celRender();
+      };
+
+      // ── Zoom Controls ──
+      window.celZoomIn = function() { celZoom = Math.min(celZoom * 1.4, 50); celSave(); celRender(); };
+      window.celZoomOut = function() { celZoom = Math.max(celZoom / 1.4, 0.1); celSave(); celRender(); };
+
+      // ── Navigation ──
+      function celNavigate(level, target) {
+        celLevel = level;
+        celTarget = target;
+        celPan = {x:0, y:0};
+        if (level === 'sector') celZoom = 1.0;
+        else if (level === 'system') celZoom = 1.0;
+        else if (level === 'planet') celZoom = 1.0;
+        celSelected = null;
+        celSave();
+        celRender();
+        celRenderBreadcrumb();
+        celRenderInfo();
+      }
+
+      // ── Breadcrumb ──
+      function celRenderBreadcrumb() {
+        const bc = document.getElementById('cel-breadcrumb');
+        if (!bc) return;
+        let parts = [];
+        const mkLink = (text, fn) => `<span style="cursor:pointer;color:#6699ff;text-decoration:underline;" onclick="${fn}">${text}</span>`;
+        parts.push(mkLink('🌌 Universe', ""));
+        parts.push(mkLink('Milky Way', ""));
+        if (celLevel === 'sector') {
+          parts.push('<span style="color:var(--text);">Local Stars</span>');
+        } else if (celLevel === 'system') {
+          parts.push(mkLink('Local Stars', "celNavigate('sector',null)"));
+          const star = celTarget === 'SOL' ? SUN : findStar(celTarget);
+          parts.push(`<span style="color:var(--text);">${star ? (star.properName || star.name) : celTarget}</span>`);
+        } else if (celLevel === 'planet') {
+          parts.push(mkLink('Local Stars', "celNavigate('sector',null)"));
+          const planet = PLANETS.find(p => p.id === celTarget);
+          if (planet) {
+            parts.push(mkLink('Sol', "celNavigate('system','SOL')"));
+            parts.push(`<span style="color:var(--text);">${planet.name}</span>`);
+          }
+        }
+        bc.innerHTML = parts.join(' <span style="color:var(--text-muted);">›</span> ');
+      }
+
+      function findStar(id) {
+        if (id === 'SOL') return SUN;
+        const entry = STAR_CATALOG.find(s => s[0] === id || s[7] === id);
+        if (!entry) return null;
+        return {
+          id: entry[0], name: entry[0], properName: entry[7] || entry[0],
+          position: {x:entry[1],y:entry[2],z:entry[3]},
+          spectralType: entry[4], magnitude: entry[5], absMagnitude: entry[6],
+          distance: Math.sqrt(entry[1]**2+entry[2]**2+entry[3]**2),
+          color: spectralColor(entry[4]),
+          planets: id === 'SOL' ? SUN.planets : []
+        };
+      }
+
+      // ── Rendering ──
+      function celRender() {
+        const w = canvas.width, h = canvas.height;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.clientWidth * dpr;
+        canvas.height = canvas.clientHeight * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const cw = canvas.clientWidth, ch = canvas.clientHeight;
+
+        // Clear
+        ctx.fillStyle = '#05050f';
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Draw faint background stars
+        ctx.save();
+        let bgSeed = 12345;
+        const bgRng = () => { bgSeed = (bgSeed * 16807) % 2147483647; return (bgSeed - 1) / 2147483646; };
+        for (let i = 0; i < 200; i++) {
+          const bx = bgRng() * cw, by = bgRng() * ch;
+          const br = bgRng() * 0.8 + 0.2;
+          const ba = bgRng() * 0.4 + 0.1;
+          ctx.fillStyle = `rgba(200,210,255,${ba})`;
+          ctx.beginPath();
+          ctx.arc(bx, by, br, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        if (celLevel === 'sector') celRenderSector(cw, ch);
+        else if (celLevel === 'system') celRenderSystem(cw, ch);
+        else if (celLevel === 'planet') celRenderPlanet(cw, ch);
+      }
+
+      // ── Sector View (Stellar Neighborhood) ──
+      let sectorStarPositions = []; // [{name, sx, sy, star, distPc}]
+      function celRenderSector(cw, ch) {
+        sectorStarPositions = [];
+        const cx = cw / 2 + celPan.x;
+        const cy = ch / 2 + celPan.y;
+        const scale = 25 * celZoom; // pixels per parsec
+
+        // Grid
+        ctx.strokeStyle = 'rgba(50,70,120,0.15)';
+        ctx.lineWidth = 0.5;
+        const gridStep = 5; // parsecs
+        const gridPx = gridStep * scale;
+        if (gridPx > 20) {
+          for (let gx = cx % gridPx; gx < cw; gx += gridPx) {
+            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, ch); ctx.stroke();
+          }
+          for (let gy = cy % gridPx; gy < ch; gy += gridPx) {
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(cw, gy); ctx.stroke();
+          }
+        }
+
+        // Sol
+        const solSx = cx, solSy = cy;
+        drawStar(solSx, solSy, '#FFF5E0', 4, 'Sol');
+        sectorStarPositions.push({name:'SOL',sx:solSx,sy:solSy,star:SUN,distPc:0});
+
+        // Catalog stars (project x,z onto screen — top-down galactic plane)
+        for (const s of STAR_CATALOG) {
+          const sx = cx + s[1] * scale;
+          const sy = cy - s[3] * scale; // z → up
+          const col = spectralColor(s[4]);
+          const mag = s[5];
+          const r = Math.max(1.5, Math.min(4, (8 - mag) * 0.3)) * Math.min(celZoom, 2);
+          const distPc = Math.sqrt(s[1]**2+s[2]**2+s[3]**2);
+
+          if (sx > -20 && sx < cw + 20 && sy > -20 && sy < ch + 20) {
+            drawStar(sx, sy, col, r, celZoom > 0.8 ? (s[7] || '') : '');
+            sectorStarPositions.push({name:s[0],sx,sy,star:{name:s[0],properName:s[7]||s[0],spectralType:s[4],magnitude:s[5],absMagnitude:s[6],distance:distPc,color:col,position:{x:s[1],y:s[2],z:s[3]}},distPc});
+          }
+        }
+
+        // Scale indicator
+        ctx.fillStyle = 'rgba(100,150,255,0.5)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'left';
+        const scaleBarPc = 5;
+        const scaleBarPx = scaleBarPc * scale;
+        if (scaleBarPx > 20 && scaleBarPx < cw * 0.6) {
+          ctx.fillRect(10, ch - 20, scaleBarPx, 2);
+          ctx.fillText(scaleBarPc + ' pc', 10, ch - 25);
+        }
+      }
+
+      function drawStar(x, y, color, radius, label) {
+        // Glow
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, radius * 3);
+        grad.addColorStop(0, color);
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+        ctx.fill();
+        // Core
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        // Label
+        if (label) {
+          ctx.fillStyle = 'rgba(200,210,255,0.7)';
+          ctx.font = '9px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(label, x, y - radius - 4);
+        }
+      }
+
+      // ── System View (Solar System) ──
+      let systemPlanetPositions = []; // [{id, sx, sy, planet, r}]
+      function celRenderSystem(cw, ch) {
+        systemPlanetPositions = [];
+        if (celTarget !== 'SOL') {
+          // Non-Sol stars — just show info, no planets
+          ctx.fillStyle = 'rgba(200,210,255,0.5)';
+          ctx.font = '14px sans-serif';
+          ctx.textAlign = 'center';
+          const star = findStar(celTarget);
+          ctx.fillText(star ? star.properName || star.name : celTarget, cw/2, ch/2 - 20);
+          ctx.font = '11px sans-serif';
+          ctx.fillText('No detailed planet data available (yet)', cw/2, ch/2 + 10);
+          ctx.fillText('Spectral Type: ' + (star ? star.spectralType : '?'), cw/2, ch/2 + 30);
+          return;
+        }
+
+        const cx = cw / 2 + celPan.x;
+        const cy = ch / 2 + celPan.y;
+
+        // Scale: AU to pixels — logarithmic for visibility
+        function auToR(au) {
+          return (30 + Math.log2(au + 0.1) * 35) * celZoom;
+        }
+
+        // Draw Sun
+        ctx.fillStyle = '#FFF5E0';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 8 * Math.min(celZoom, 2), 0, Math.PI * 2);
+        ctx.fill();
+        const sunGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 20 * Math.min(celZoom, 2));
+        sunGrad.addColorStop(0, 'rgba(255,245,224,0.3)');
+        sunGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = sunGrad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 20 * Math.min(celZoom, 2), 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,245,224,0.8)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('☀ Sol', cx, cy - 14 * Math.min(celZoom, 2));
+
+        // Draw planets
+        const now = Date.now();
+        const J2000 = Date.UTC(2000, 0, 1, 12, 0, 0);
+        const daysSinceJ2000 = (now - J2000) / 86400000;
+
+        for (const p of PLANETS) {
+          const orbitR = auToR(p.orbit.semiMajor);
+          // Draw orbit ellipse
+          ctx.strokeStyle = 'rgba(100,150,255,0.12)';
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, orbitR, orbitR * (1 - p.orbit.eccentricity * 0.3), 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Calculate position (simplified mean anomaly)
+          const meanAnomaly = ((p.orbit.meanLongitude || 0) + (360 / p.orbit.period) * daysSinceJ2000) % 360;
+          const angle = meanAnomaly * Math.PI / 180;
+          const px = cx + Math.cos(angle) * orbitR;
+          const py = cy + Math.sin(angle) * orbitR * (1 - p.orbit.eccentricity * 0.3);
+
+          // Planet size (artistic, not to scale)
+          let pr;
+          if (p.type === 'gas_giant') pr = 6;
+          else if (p.type === 'ice_giant') pr = 5;
+          else if (p.type === 'dwarf') pr = 2.5;
+          else pr = 3.5;
+          pr *= Math.min(celZoom, 2);
+
+          // Draw planet
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(px, py, pr, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Rings
+          if (p.rings) {
+            ctx.strokeStyle = p.color + '66';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.ellipse(px, py, pr * 1.8, pr * 0.5, -0.3, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+
+          // Label
+          ctx.fillStyle = 'rgba(200,210,255,0.7)';
+          ctx.font = '9px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(p.symbol + ' ' + p.name, px, py - pr - 4);
+
+          systemPlanetPositions.push({id:p.id, sx:px, sy:py, planet:p, r:pr});
+        }
+      }
+
+      // ── Planet View ──
+      function celRenderPlanet(cw, ch) {
+        const planet = PLANETS.find(p => p.id === celTarget);
+        if (!planet) return;
+
+        const cx = cw / 2;
+        const cy = ch / 2;
+        const pr = Math.min(cw, ch) * 0.3;
+
+        // Draw planet as a sphere with simple shading
+        const grad = ctx.createRadialGradient(cx - pr * 0.3, cy - pr * 0.3, pr * 0.1, cx, cy, pr);
+        grad.addColorStop(0, planet.color);
+        grad.addColorStop(1, '#111122');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Atmosphere glow
+        if (planet.atmosphere && planet.atmosphere.pressure > 0.1) {
+          const atmoGrad = ctx.createRadialGradient(cx, cy, pr * 0.95, cx, cy, pr * 1.15);
+          atmoGrad.addColorStop(0, planet.color + '33');
+          atmoGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = atmoGrad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, pr * 1.15, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Icosphere grid overlay (level 0 — 20 triangles projected)
+        ctx.strokeStyle = 'rgba(100,150,255,0.15)';
+        ctx.lineWidth = 0.5;
+        // Draw latitude/longitude lines as approximation
+        for (let lat = -60; lat <= 60; lat += 30) {
+          const latR = Math.cos(lat * Math.PI / 180) * pr;
+          const latY = cy - Math.sin(lat * Math.PI / 180) * pr;
+          ctx.beginPath();
+          ctx.ellipse(cx, latY, latR, latR * 0.15, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        for (let lon = 0; lon < 180; lon += 30) {
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, pr * Math.cos(lon * Math.PI / 180), pr, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        // Name
+        ctx.fillStyle = planet.color;
+        ctx.font = 'bold 16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(planet.symbol + ' ' + planet.name, cx, cy - pr - 20);
+
+        // Draw moons
+        const moons = MOONS.filter(m => m.planetId === planet.id);
+        moons.forEach((m, i) => {
+          const mAngle = (Date.now() / (m.orbit.period * 86400) * Math.PI * 2) % (Math.PI * 2);
+          const mOrbitR = pr * 1.3 + i * 25;
+          const mx = cx + Math.cos(mAngle) * mOrbitR;
+          const my = cy + Math.sin(mAngle) * mOrbitR * 0.4;
+          // orbit
+          ctx.strokeStyle = 'rgba(150,150,200,0.1)';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, mOrbitR, mOrbitR * 0.4, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          // moon
+          ctx.fillStyle = m.color || '#aaa';
+          ctx.beginPath();
+          ctx.arc(mx, my, Math.max(2, Math.min(m.radius / 500, 6)), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgba(200,210,255,0.6)';
+          ctx.font = '8px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(m.name, mx, my - 8);
+        });
+      }
+
+      // ── Info Panel ──
+      function celRenderInfo() {
+        const panel = document.getElementById('cel-info');
+        if (!panel) return;
+
+        if (celLevel === 'system' && celTarget !== 'SOL' && celTarget) {
+          const star = findStar(celTarget);
+          if (star) {
+            panel.style.display = 'block';
+            panel.innerHTML = `
+              <div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.6rem;">
+                <span style="font-size:2rem;">⭐</span>
+                <div>
+                  <div style="font-weight:700;font-size:1rem;color:${star.color};">${star.properName || star.name}</div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);">${star.spectralType} · ${star.distance.toFixed(2)} pc</div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;font-size:0.8rem;">
+                <div style="color:var(--text-muted);">Apparent Mag: <span style="color:var(--text);">${star.magnitude.toFixed(2)}</span></div>
+                <div style="color:var(--text-muted);">Absolute Mag: <span style="color:var(--text);">${star.absMagnitude.toFixed(2)}</span></div>
+                <div style="color:var(--text-muted);">Distance: <span style="color:var(--text);">${(star.distance * 3.262).toFixed(2)} ly</span></div>
+                <div style="color:var(--text-muted);">Position: <span style="color:var(--text);">${star.position.x.toFixed(1)}, ${star.position.y.toFixed(1)}, ${star.position.z.toFixed(1)} pc</span></div>
+              </div>`;
+            return;
+          }
+        }
+
+        if (celSelected && celLevel === 'system') {
+          const planet = PLANETS.find(p => p.id === celSelected);
+          if (planet) {
+            panel.style.display = 'block';
+            const atmoStr = planet.atmosphere && planet.atmosphere.composition
+              ? Object.entries(planet.atmosphere.composition).map(([k,v]) => `${k} ${v}%`).join(', ')
+              : 'None';
+            const moonNames = MOONS.filter(m => m.planetId === planet.id).map(m => m.name).join(', ') || 'None';
+            panel.innerHTML = `
+              <div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.6rem;">
+                <span style="font-size:2rem;">${planet.symbol}</span>
+                <div>
+                  <div style="font-weight:700;font-size:1rem;color:${planet.color};">${planet.name}</div>
+                  <div style="font-size:0.75rem;color:var(--text-muted);">${planet.type.replace('_',' ')} · ${planet.orbit.semiMajor.toFixed(2)} AU from Sun</div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem 1rem;font-size:0.8rem;">
+                <div style="color:var(--text-muted);">Radius: <span style="color:var(--text);">${planet.radius.toLocaleString()} km</span></div>
+                <div style="color:var(--text-muted);">Mass: <span style="color:var(--text);">${planet.mass.toExponential(2)} kg</span></div>
+                <div style="color:var(--text-muted);">Gravity: <span style="color:var(--text);">${planet.gravity} m/s²</span></div>
+                <div style="color:var(--text-muted);">Day Length: <span style="color:var(--text);">${planet.dayLength} hours</span></div>
+                <div style="color:var(--text-muted);">Year Length: <span style="color:var(--text);">${planet.orbit.period.toFixed(1)} days</span></div>
+                <div style="color:var(--text-muted);">🌡️ Temp: <span style="color:var(--text);">${planet.temperature.min}°C to ${planet.temperature.max}°C (avg ${planet.temperature.avg}°C)</span></div>
+                <div style="color:var(--text-muted);">🌬️ Atmosphere: <span style="color:var(--text);">${atmoStr}</span></div>
+                <div style="color:var(--text-muted);">💧 Water: <span style="color:var(--text);">${planet.water ? 'Yes' : 'No'}</span></div>
+                <div style="color:var(--text-muted);">🧬 Life: <span style="color:var(--text);">${planet.life ? 'Yes' : 'No'}</span></div>
+                <div style="color:var(--text-muted);">🌙 Moons: <span style="color:var(--text);">${moonNames}</span></div>
+                <div style="color:var(--text-muted);">📦 Resources: <span style="color:var(--text);">${planet.resources.join(', ')}</span></div>
+              </div>
+              <div style="margin-top:0.6rem;display:flex;gap:0.4rem;">
+                <button onclick="celNavigate('planet','${planet.id}')" style="padding:4px 10px;font-size:0.75rem;background:rgba(100,150,255,0.2);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">🌐 View Surface</button>
+              </div>`;
+            return;
+          }
+        }
+
+        // Planet view detail
+        if (celLevel === 'planet') {
+          const planet = PLANETS.find(p => p.id === celTarget);
+          if (planet) {
+            panel.style.display = 'block';
+            const atmoStr = planet.atmosphere && planet.atmosphere.composition
+              ? Object.entries(planet.atmosphere.composition).map(([k,v]) => `${k} ${v}%`).join(', ')
+              : 'None';
+            const moonNames = MOONS.filter(m => m.planetId === planet.id).map(m => m.name).join(', ') || 'None';
+            panel.innerHTML = `
+              <div style="font-weight:700;font-size:1.1rem;color:${planet.color};margin-bottom:0.5rem;">${planet.symbol} ${planet.name}</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem 1rem;font-size:0.8rem;">
+                <div style="color:var(--text-muted);">Type: <span style="color:var(--text);">${planet.type.replace('_',' ')}</span></div>
+                <div style="color:var(--text-muted);">Radius: <span style="color:var(--text);">${planet.radius.toLocaleString()} km</span></div>
+                <div style="color:var(--text-muted);">Mass: <span style="color:var(--text);">${planet.mass.toExponential(2)} kg</span></div>
+                <div style="color:var(--text-muted);">Gravity: <span style="color:var(--text);">${planet.gravity} m/s²</span></div>
+                <div style="color:var(--text-muted);">Day: <span style="color:var(--text);">${planet.dayLength} hours</span></div>
+                <div style="color:var(--text-muted);">Year: <span style="color:var(--text);">${planet.orbit.period.toFixed(1)} days</span></div>
+                <div style="color:var(--text-muted);">🌡️ Temp: <span style="color:var(--text);">${planet.temperature.min}°C to ${planet.temperature.max}°C</span></div>
+                <div style="color:var(--text-muted);">🌬️ Atmo: <span style="color:var(--text);">${atmoStr}</span></div>
+                <div style="color:var(--text-muted);">💧 Water: <span style="color:var(--text);">${planet.water ? 'Yes' : 'No'}</span></div>
+                <div style="color:var(--text-muted);">🧬 Life: <span style="color:var(--text);">${planet.life ? 'Yes' : 'No'}</span></div>
+                <div style="color:var(--text-muted);">🌙 Moons: <span style="color:var(--text);">${moonNames}</span></div>
+                <div style="color:var(--text-muted);">📦 Resources: <span style="color:var(--text);">${planet.resources.join(', ')}</span></div>
+              </div>
+              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.6rem;font-style:italic;">
+                Icosphere address: F0.A0 — Surface detail coming soon
+              </p>`;
+            return;
+          }
+        }
+
+        panel.style.display = 'none';
+      }
+
+      // ── Nearby Stars ──
+      function celRenderNearby() {
+        const el = document.getElementById('cel-nearby');
+        if (!el) return;
+        if (celLevel === 'sector') {
+          const sorted = STAR_CATALOG.map(s => ({name: s[7] || s[0], dist: Math.sqrt(s[1]**2+s[2]**2+s[3]**2)}))
+            .sort((a,b) => a.dist - b.dist).slice(0, 8);
+          el.innerHTML = '✨ Nearest: ' + sorted.map(s => `<span style="color:#6699ff;cursor:pointer;" title="${s.dist.toFixed(2)} pc">${s.name} (${s.dist.toFixed(2)} pc)</span>`).join(' · ');
+        } else {
+          el.innerHTML = '';
+        }
+      }
+
+      // ── Mouse Interaction ──
+      canvas.addEventListener('mousedown', e => {
+        celDragging = true;
+        const rect = canvas.getBoundingClientRect();
+        celDragStart = {x: e.clientX - rect.left, y: e.clientY - rect.top};
+        celPanStart = {...celPan};
+      });
+
+      canvas.addEventListener('mousemove', e => {
+        if (celDragging) {
+          const rect = canvas.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          celPan.x = celPanStart.x + (mx - celDragStart.x);
+          celPan.y = celPanStart.y + (my - celDragStart.y);
+          celRender();
+        }
+      });
+
+      canvas.addEventListener('mouseup', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const wasDrag = Math.abs(mx - celDragStart.x) > 5 || Math.abs(my - celDragStart.y) > 5;
+        celDragging = false;
+
+        if (!wasDrag) {
+          // Click detection
+          if (celLevel === 'sector') {
+            // Find nearest star
+            let best = null, bestD = 20;
+            for (const sp of sectorStarPositions) {
+              const d = Math.sqrt((sp.sx - mx)**2 + (sp.sy - my)**2);
+              if (d < bestD) { bestD = d; best = sp; }
+            }
+            if (best) {
+              celSelected = best.name;
+              celNavigate('system', best.name);
+            }
+          } else if (celLevel === 'system') {
+            // Find nearest planet
+            let best = null, bestD = 20;
+            for (const pp of systemPlanetPositions) {
+              const d = Math.sqrt((pp.sx - mx)**2 + (pp.sy - my)**2);
+              if (d < bestD) { bestD = d; best = pp; }
+            }
+            if (best) {
+              celSelected = best.id;
+              celRenderInfo();
+            } else {
+              celSelected = null;
+              celRenderInfo();
+            }
+          }
+        }
+        celSave();
+      });
+
+      canvas.addEventListener('dblclick', e => {
+        if (celLevel === 'system' && celSelected) {
+          const planet = PLANETS.find(p => p.id === celSelected);
+          if (planet) celNavigate('planet', planet.id);
+        }
+      });
+
+      canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 0.87;
+        celZoom = Math.max(0.1, Math.min(50, celZoom * factor));
+        celSave();
+        celRender();
+      }, {passive: false});
+
+      // Touch support
+      let celTouchDist = 0;
+      canvas.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+          celDragging = true;
+          celDragStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+          celPanStart = {...celPan};
+        } else if (e.touches.length === 2) {
+          celTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        }
+      }, {passive:true});
+      canvas.addEventListener('touchmove', e => {
+        if (e.touches.length === 1 && celDragging) {
+          celPan.x = celPanStart.x + (e.touches[0].clientX - celDragStart.x);
+          celPan.y = celPanStart.y + (e.touches[0].clientY - celDragStart.y);
+          celRender();
+        } else if (e.touches.length === 2) {
+          const newDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          const factor = newDist / celTouchDist;
+          celZoom = Math.max(0.1, Math.min(50, celZoom * factor));
+          celTouchDist = newDist;
+          celRender();
+        }
+      }, {passive:true});
+      canvas.addEventListener('touchend', () => { celDragging = false; celSave(); }, {passive:true});
+
+      // Make celNavigate global for breadcrumbs
+      window.celNavigate = celNavigate;
+
+      // Initial render
+      celSetMode(celMode);
+      celRender();
+      celRenderBreadcrumb();
+      celRenderInfo();
+      celRenderNearby();
+
+      // Resize handler
+      window.addEventListener('resize', () => { celRender(); });
+
+    })();
 
     // ══════════════════════════════════════
     // STREAMS TAB
