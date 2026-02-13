@@ -3121,13 +3121,7 @@
       'Natural Gas': { production:{annual:'4.0 trillion m³',growth:'+2%/yr'}, topProducers:['USA (25%)','Russia (15%)','Iran','China','Canada'], co2:'2.0 tonnes CO₂ per 1000 m³ burned' },
     };
 
-    // Merge world data into MATERIALS
-    MATERIALS.forEach(m => {
-      const wd = MATERIAL_WORLD_DATA[m.name];
-      if (wd) Object.assign(m, { worldData: wd });
-    });
-
-    const ELEMENT_CATEGORIES = [...new Set(ELEMENTS.map(e => e.category))];
+        const ELEMENT_CATEGORIES = [...new Set(ELEMENTS.map(e => e.category))];
     let elementCatFilter = '';
     let selectedElement = null;
 
@@ -3476,6 +3470,12 @@
         processing:'Extraction → Separation → Dehydration → Sweetening (H₂S removal) → Compression/Liquefaction',
         references:[{name:'USGS',url:'https://usgs.gov/centers/national-minerals-information-center'},{name:'Wikipedia',url:'https://en.wikipedia.org/wiki/Natural_gas'}] },
     ];
+
+    // Merge world data into MATERIALS
+    MATERIALS.forEach(m => {
+      const wd = MATERIAL_WORLD_DATA[m.name];
+      if (wd) Object.assign(m, { worldData: wd });
+    });
 
     let materialTypeFilter = '';
     let selectedMaterial = null;
