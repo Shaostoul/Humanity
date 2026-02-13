@@ -768,6 +768,59 @@
       </div>
     </div>
 
+    <!-- ── World Dashboard ── -->
+    <div class="panel reality-card" id="reality-worlddash">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('worlddash')">🌍 World Dashboard <span class="collapse-icon" id="worlddash-collapse">▼</span></h2>
+      <div class="reality-card-body" id="worlddash-body">
+        <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">Humanity's aggregate resource status — real data from USGS 2024, World Bank, FAO.</div>
+        <div id="world-dash-content" style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+          <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+            <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">⛏️ Mining Output</div>
+            <div style="font-size:0.72rem;line-height:1.7;">
+              <div>Iron Ore: <strong>2.5B tonnes/yr</strong></div>
+              <div>Aluminum: <strong>69M tonnes/yr</strong></div>
+              <div>Copper: <strong>22M tonnes/yr</strong></div>
+              <div>Gold: <strong>3,300 tonnes/yr</strong></div>
+              <div>Lithium: <strong>130,000 tonnes/yr</strong></div>
+              <div>Rare Earths: <strong>350,000 tonnes/yr</strong></div>
+            </div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+            <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">⚡ Energy Production</div>
+            <div style="font-size:0.72rem;line-height:1.7;">
+              <div>Total: <strong>29,165 TWh/yr</strong></div>
+              <div>Coal: 35% · Gas: 23% · Oil: 3%</div>
+              <div>Hydro: 15% · Nuclear: 10%</div>
+              <div>Wind: 8% · Solar: 5% · Other: 1%</div>
+              <div style="color:#0c6;margin-top:0.2rem;">☀️ Renewables now cheapest new power in 90% of world</div>
+            </div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+            <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">🌾 Food Production</div>
+            <div style="font-size:0.72rem;line-height:1.7;">
+              <div>Cereals: <strong>2.8B tonnes/yr</strong></div>
+              <div>Meat: <strong>350M tonnes/yr</strong></div>
+              <div>Fish: <strong>180M tonnes/yr</strong></div>
+              <div>Calories produced: <strong>enough for 10B+ people</strong></div>
+              <div style="color:#f90;">⚠️ ~30% of food is wasted globally</div>
+            </div>
+          </div>
+          <div style="background:var(--bg-input);border-radius:8px;padding:0.6rem;">
+            <div style="font-weight:700;font-size:0.8rem;margin-bottom:0.3rem;">👥 Population & Progress</div>
+            <div style="font-size:0.72rem;line-height:1.7;">
+              <div>Population: <strong>8.1 billion</strong> (2024)</div>
+              <div>Literacy: <strong>87%</strong> and rising</div>
+              <div>Extreme poverty: <strong>9%</strong> (was 36% in 1990)</div>
+              <div>Life expectancy: <strong>73.4 years</strong> (global avg)</div>
+              <div>Internet access: <strong>67%</strong> of world population</div>
+            </div>
+          </div>
+        </div>
+        <canvas id="world-dash-chart" width="600" height="200" style="width:100%;margin-top:0.8rem;border-radius:8px;background:var(--bg-input);"></canvas>
+        <div id="world-dash-fact" style="margin-top:0.6rem;padding:0.5rem 0.7rem;border-radius:8px;background:rgba(255,136,17,0.08);font-size:0.75rem;color:var(--accent);font-style:italic;"></div>
+      </div>
+    </div>
+
     <!-- ── Element Catalog ── -->
     <div class="panel reality-card" id="reality-elements">
       <h2 class="reality-card-header" onclick="toggleRealityCard('elements')">🧪 Element Catalog <span class="collapse-icon" id="elements-collapse">▼</span></h2>
@@ -2817,6 +2870,192 @@
         description:'Heaviest known element. Named after Yuri Oganessian. May be solid, not gas.' },
     ];
 
+    // ══════════════════════════════════════
+    // WORLD PRODUCTION DATA (USGS 2024 / World Bank 2024)
+    // ══════════════════════════════════════
+    const ELEMENT_WORLD_DATA = {
+      H:  { production:{annual:'100 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited (water)',yearsSupply:null}, topProducers:['China','USA','EU','Middle East'], price:{amount:1500,unit:'$/tonne',year:2024}, primaryUses:['Ammonia/fertilizer (55%)','Oil refining (25%)','Methanol (10%)','Fuel cells'] },
+      He: { production:{annual:'160 million m³',unit:'m³/yr'}, reserves:{amount:'31.3 billion m³',yearsSupply:195}, topProducers:['USA','Qatar','Algeria','Russia','Poland'], price:{amount:35,unit:'$/m³',year:2024}, primaryUses:['Cryogenics/MRI (30%)','Welding (17%)','Leak detection','Balloons'] },
+      Li: { production:{annual:'130,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'28 million tonnes',yearsSupply:215}, topProducers:['Australia','Chile','China','Argentina'], price:{amount:17000,unit:'$/tonne',year:2024}, primaryUses:['Batteries (80%)','Ceramics/glass (7%)','Lubricant grease','Pharmaceuticals'] },
+      Be: { production:{annual:'260 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Undisclosed',yearsSupply:null}, topProducers:['USA','China','Mozambique','Brazil'], price:{amount:857000,unit:'$/tonne',year:2024}, primaryUses:['Aerospace alloys','Electronics','X-ray windows','Nuclear reactors'] },
+      B:  { production:{annual:'4.4 million tonnes (boron oxide)',unit:'tonnes/yr'}, reserves:{amount:'1.2 billion tonnes',yearsSupply:270}, topProducers:['Turkey (68%)','USA','Chile','Russia'], price:{amount:450,unit:'$/tonne (boric acid)',year:2024}, primaryUses:['Glass/fiberglass (46%)','Detergents (12%)','Agriculture','Ceramics'] },
+      C:  { production:{annual:'130 million carats industrial diamond; 1.1B tonnes coal',unit:'mixed'}, reserves:{amount:'1.07 trillion tonnes coal',yearsSupply:139}, topProducers:['China','India','Indonesia','USA','Australia'], price:{amount:null,unit:'varies widely',year:2024}, primaryUses:['Steel production','Fuels','Plastics/chemicals','Diamond tools'] },
+      N:  { production:{annual:'150 million tonnes (as fertilizer N)',unit:'tonnes/yr'}, reserves:{amount:'Unlimited (78% of atmosphere)',yearsSupply:null}, topProducers:['China','India','USA','EU','Russia'], price:{amount:400,unit:'$/tonne (ammonia)',year:2024}, primaryUses:['Fertilizer (80%)','Explosives','Nylon/plastics','Cryogenics'] },
+      O:  { production:{annual:'360 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Unlimited (atmosphere + water)',yearsSupply:null}, topProducers:['China','USA','EU','India','Japan'], price:{amount:100,unit:'$/tonne (liquid)',year:2024}, primaryUses:['Steel manufacturing (55%)','Medical','Welding','Chemical synthesis'] },
+      F:  { production:{annual:'8.3 million tonnes (fluorspar)',unit:'tonnes/yr'}, reserves:{amount:'310 million tonnes',yearsSupply:37}, topProducers:['China (64%)','Mexico','Mongolia','South Africa'], price:{amount:560,unit:'$/tonne (fluorspar)',year:2024}, primaryUses:['Aluminum smelting','Refrigerants/PTFE','Uranium enrichment','Toothpaste'] },
+      Ne: { production:{note:'Byproduct of air separation — ~70,000 tonnes/yr'}, topProducers:['Ukraine','China','USA','Japan'], price:{amount:120,unit:'$/m³',year:2024}, primaryUses:['Semiconductor lithography','Neon signs','Lasers','Cryogenics'] },
+      Na: { production:{annual:'280 million tonnes (as NaCl salt)',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited',yearsSupply:null}, topProducers:['China','USA','India','Germany','Australia'], price:{amount:40,unit:'$/tonne (salt)',year:2024}, primaryUses:['Food/seasoning (35%)','Chemical industry (35%)','De-icing','Water treatment'] },
+      Mg: { production:{annual:'1.1 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited (seawater)',yearsSupply:null}, topProducers:['China (90%)','USA','Israel','Brazil','Turkey'], price:{amount:2800,unit:'$/tonne',year:2024}, primaryUses:['Aluminum alloys (42%)','Die casting','Steel desulfurization','Aerospace'] },
+      Al: { production:{annual:'69 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'55-75 billion tonnes (bauxite)',yearsSupply:100}, topProducers:['China (57%)','India','Russia','Canada','UAE'], price:{amount:2400,unit:'$/tonne',year:2024}, primaryUses:['Transportation (27%)','Packaging (20%)','Construction (20%)','Electrical'] },
+      Si: { production:{annual:'8.8 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Abundant (28% of crust)',yearsSupply:null}, topProducers:['China (70%)','Russia','Brazil','Norway','France'], price:{amount:2500,unit:'$/tonne',year:2024}, primaryUses:['Aluminum alloys (40%)','Silicones (30%)','Semiconductors','Solar cells'] },
+      P:  { production:{annual:'220 million tonnes (phosphate rock)',unit:'tonnes/yr'}, reserves:{amount:'72 billion tonnes',yearsSupply:327}, topProducers:['China (40%)','Morocco','USA','Russia','Brazil'], price:{amount:100,unit:'$/tonne (rock)',year:2024}, primaryUses:['Fertilizer (85%)','Animal feed','Detergents','Food additives'] },
+      S:  { production:{annual:'80 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Abundant (byproduct)',yearsSupply:null}, topProducers:['China','USA','Russia','Canada','Saudi Arabia'], price:{amount:80,unit:'$/tonne',year:2024}, primaryUses:['Sulfuric acid (60%)','Fertilizer','Rubber vulcanization','Chemicals'] },
+      Cl: { production:{annual:'75 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited (sea salt)',yearsSupply:null}, topProducers:['China','USA','EU','India','Japan'], price:{amount:200,unit:'$/tonne',year:2024}, primaryUses:['PVC (35%)','Water treatment','Solvents','Bleach/disinfection'] },
+      Ar: { production:{annual:'700,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Unlimited (0.93% of atmosphere)',yearsSupply:null}, topProducers:['China','USA','EU','Japan','India'], price:{amount:3,unit:'$/m³',year:2024}, primaryUses:['Welding shield gas (55%)','Lighting','Insulated windows','Semiconductor fab'] },
+      K:  { production:{annual:'45 million tonnes (K₂O equiv)',unit:'tonnes/yr'}, reserves:{amount:'3.7 billion tonnes',yearsSupply:82}, topProducers:['Canada (30%)','Russia','Belarus','China','Germany'], price:{amount:300,unit:'$/tonne (KCl)',year:2024}, primaryUses:['Fertilizer (95%)','Soap/glass','Salt substitutes','Industrial chemicals'] },
+      Ca: { production:{annual:'350 million tonnes (as lime/limestone)',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited',yearsSupply:null}, topProducers:['China','USA','India','Russia','Japan'], price:{amount:100,unit:'$/tonne (lime)',year:2024}, primaryUses:['Cement (70%)','Steel flux','Agriculture','Water treatment'] },
+      Sc: { production:{annual:'15-20 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Unknown (scattered deposits)',yearsSupply:null}, topProducers:['China','Russia','Philippines','Ukraine'], price:{amount:3600,unit:'$/kg',year:2024}, primaryUses:['Aluminum-scandium alloys','Solid oxide fuel cells','Sports equipment','Lighting'] },
+      Ti: { production:{annual:'7.5 million tonnes (TiO₂ concentrate)',unit:'tonnes/yr'}, reserves:{amount:'700 million tonnes',yearsSupply:93}, topProducers:['China','Mozambique','South Africa','Australia','Canada'], price:{amount:11000,unit:'$/tonne (sponge)',year:2024}, primaryUses:['Pigments/TiO₂ (93%)','Aerospace metal (4%)','Medical implants','Welding rod coatings'] },
+      V:  { production:{annual:'110,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'24 million tonnes',yearsSupply:218}, topProducers:['China (66%)','Russia','South Africa','Brazil'], price:{amount:28,unit:'$/kg',year:2024}, primaryUses:['Steel alloys (85%)','Titanium alloys','Vanadium redox batteries','Catalysts'] },
+      Cr: { production:{annual:'41 million tonnes (ore)',unit:'tonnes/yr'}, reserves:{amount:'570 million tonnes',yearsSupply:14}, topProducers:['South Africa (44%)','Turkey','Kazakhstan','India','Finland'], price:{amount:10000,unit:'$/tonne (ferrochromium)',year:2024}, primaryUses:['Stainless steel (70%)','Chrome plating','Pigments','Refractories'] },
+      Mn: { production:{annual:'20 million tonnes (ore)',unit:'tonnes/yr'}, reserves:{amount:'1.7 billion tonnes',yearsSupply:85}, topProducers:['South Africa (37%)','Gabon','Australia','Ghana','China'], price:{amount:1500,unit:'$/tonne (ore)',year:2024}, primaryUses:['Steel production (90%)','Batteries','Aluminum alloys','Chemicals'] },
+      Fe: { production:{annual:'2.5 billion tonnes (ore)',unit:'tonnes/yr'}, reserves:{amount:'170 billion tonnes',yearsSupply:68}, topProducers:['Australia','Brazil','China','India','Russia'], price:{amount:120,unit:'$/tonne',year:2024}, primaryUses:['Steel production (98%)','Cast iron','Magnets','Pigments'] },
+      Co: { production:{annual:'190,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'8.3 million tonnes',yearsSupply:44}, topProducers:['DRC (73%)','Indonesia','Russia','Australia','Philippines'], price:{amount:30000,unit:'$/tonne',year:2024}, primaryUses:['Batteries (46%)','Superalloys (19%)','Catalysts','Magnets/pigments'] },
+      Ni: { production:{annual:'3.6 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'110 million tonnes',yearsSupply:31}, topProducers:['Indonesia (49%)','Philippines','Russia','New Caledonia','Australia'], price:{amount:16000,unit:'$/tonne',year:2024}, primaryUses:['Stainless steel (65%)','Batteries (15%)','Alloys','Plating'] },
+      Cu: { production:{annual:'22 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'890 million tonnes',yearsSupply:40}, topProducers:['Chile (24%)','DRC','Peru','China','Indonesia'], price:{amount:8500,unit:'$/tonne',year:2024}, primaryUses:['Electrical wire (60%)','Construction (20%)','Transportation','Electronics'] },
+      Zn: { production:{annual:'13 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'210 million tonnes',yearsSupply:16}, topProducers:['China (33%)','Australia','Peru','India','USA'], price:{amount:2700,unit:'$/tonne',year:2024}, primaryUses:['Galvanizing (50%)','Alloys/brass (17%)','Chemicals','Batteries'] },
+      Ga: { production:{annual:'550 tonnes',unit:'tonnes/yr'}, reserves:{amount:'110,000 tonnes',yearsSupply:200}, topProducers:['China (98%)','Japan','South Korea','Russia'], price:{amount:300,unit:'$/kg',year:2024}, primaryUses:['Integrated circuits (43%)','LEDs/optoelectronics (40%)','Solar cells','Research'] },
+      Ge: { production:{annual:'140 tonnes',unit:'tonnes/yr'}, reserves:{amount:'8,600 tonnes',yearsSupply:61}, topProducers:['China (68%)','Russia','USA','Belgium'], price:{amount:1800,unit:'$/kg',year:2024}, primaryUses:['Fiber optics (35%)','Infrared optics (25%)','PET catalysts','Solar cells'] },
+      As: { production:{annual:'35,000 tonnes (arsenic trioxide)',unit:'tonnes/yr'}, reserves:{amount:'Moderate',yearsSupply:null}, topProducers:['China (50%)','Morocco','Russia','Belgium'], price:{amount:1,unit:'$/kg (trioxide)',year:2024}, primaryUses:['Wood preservatives (50%)','Semiconductors (GaAs)','Lead alloys','Pesticides'] },
+      Se: { production:{annual:'2,800 tonnes',unit:'tonnes/yr'}, reserves:{amount:'100,000 tonnes',yearsSupply:36}, topProducers:['China','Japan','Belgium','Germany','Russia'], price:{amount:55,unit:'$/kg',year:2024}, primaryUses:['Glass manufacturing (30%)','Electronics','Solar cells (CdTe)','Metallurgy'] },
+      Br: { production:{annual:'500,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Abundant (seawater)',yearsSupply:null}, topProducers:['China','USA','Israel','Jordan'], price:{amount:2,unit:'$/kg',year:2024}, primaryUses:['Flame retardants (50%)','Drilling fluids','Pesticides','Pharmaceuticals'] },
+      Kr: { production:{note:'Byproduct of air separation — ~10 tonnes/yr'}, topProducers:['USA','EU','Japan','China'], price:{amount:500,unit:'$/m³',year:2024}, primaryUses:['Insulated windows','Photography flash','Fluorescent lighting','Lasers'] },
+      Rb: { production:{note:'No dedicated mining — byproduct of lithium/cesium production'}, topProducers:['Canada','Namibia','Zambia'], price:{amount:12000,unit:'$/kg',year:2024}, primaryUses:['Atomic clocks','Photocells','Specialty glass','Medical imaging'] },
+      Sr: { production:{annual:'210,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'6.8 million tonnes',yearsSupply:32}, topProducers:['Spain','Mexico','China','Iran','Turkey'], price:{amount:700,unit:'$/tonne (celestite)',year:2024}, primaryUses:['Ferrite magnets (55%)','Pyrotechnics','Zinc smelting','Drilling fluids'] },
+      Y:  { production:{annual:'8,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'540,000 tonnes',yearsSupply:68}, topProducers:['China (93%)','Australia','Myanmar','India'], price:{amount:12,unit:'$/kg (oxide)',year:2024}, primaryUses:['Ceramics/phosphors','Superconductors','Lasers','Alloy additive'] },
+      Zr: { production:{annual:'1.4 million tonnes (zircon)',unit:'tonnes/yr'}, reserves:{amount:'67 million tonnes',yearsSupply:48}, topProducers:['Australia','South Africa','Mozambique','China','Indonesia'], price:{amount:2200,unit:'$/tonne (zircon)',year:2024}, primaryUses:['Ceramics (54%)','Nuclear fuel cladding','Refractories','Foundry sands'] },
+      Nb: { production:{annual:'81,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'17 million tonnes',yearsSupply:210}, topProducers:['Brazil (90%)','Canada','Australia','DRC'], price:{amount:42,unit:'$/kg',year:2024}, primaryUses:['HSLA steel (85%)','Superconducting magnets','Superalloys','Jewelry'] },
+      Mo: { production:{annual:'300,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'18 million tonnes',yearsSupply:60}, topProducers:['China (44%)','Chile','USA','Peru','Mexico'], price:{amount:45,unit:'$/kg',year:2024}, primaryUses:['Steel alloys (70%)','Catalysts','Lubricants','Chemicals'] },
+      Tc: { production:{note:'Synthetic — produced in nuclear reactors, ~150 kg/yr for medical use'}, primaryUses:['Medical imaging (Tc-99m)','Industrial radiography'] },
+      Ru: { production:{annual:'38 tonnes',unit:'tonnes/yr'}, reserves:{amount:'5,000 tonnes',yearsSupply:132}, topProducers:['South Africa (93%)','Zimbabwe','Russia','Canada'], price:{amount:14000,unit:'$/kg',year:2024}, primaryUses:['Electronics (42%)','Catalysts','Wear-resistant coatings','Electrochemistry'] },
+      Rh: { production:{annual:'32 tonnes',unit:'tonnes/yr'}, reserves:{amount:'3,000 tonnes',yearsSupply:94}, topProducers:['South Africa (81%)','Russia','Zimbabwe','Canada'], price:{amount:145000,unit:'$/kg',year:2024}, primaryUses:['Catalytic converters (80%)','Chemical catalysts','Jewelry','Glass production'] },
+      Pd: { production:{annual:'210 tonnes',unit:'tonnes/yr'}, reserves:{amount:'9,000 tonnes',yearsSupply:43}, topProducers:['Russia (40%)','South Africa (36%)','Canada','USA','Zimbabwe'], price:{amount:35000,unit:'$/kg',year:2024}, primaryUses:['Catalytic converters (80%)','Electronics','Dentistry','Hydrogen purification'] },
+      Ag: { production:{annual:'26,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'530,000 tonnes',yearsSupply:20}, topProducers:['Mexico','China','Peru','Chile','Poland'], price:{amount:800,unit:'$/kg',year:2024}, primaryUses:['Electronics (30%)','Solar panels (17%)','Jewelry/silverware','Photography'] },
+      Cd: { production:{annual:'23,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'500,000 tonnes',yearsSupply:22}, topProducers:['China (36%)','South Korea','Japan','Canada','Kazakhstan'], price:{amount:3,unit:'$/kg',year:2024}, primaryUses:['NiCd batteries (72%)','Pigments','Coatings','Solar cells (CdTe)'] },
+      In: { production:{annual:'920 tonnes',unit:'tonnes/yr'}, reserves:{amount:'18,000 tonnes',yearsSupply:20}, topProducers:['China (56%)','South Korea','Japan','Canada','France'], price:{amount:280,unit:'$/kg',year:2024}, primaryUses:['ITO for displays (56%)','Solders','Semiconductors','Photovoltaics'] },
+      Sn: { production:{annual:'310,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'4.6 million tonnes',yearsSupply:15}, topProducers:['China (30%)','Indonesia','Myanmar','Peru','DRC'], price:{amount:25000,unit:'$/tonne',year:2024}, primaryUses:['Solder (48%)','Tin plating (14%)','Chemicals','Alloys (bronze/pewter)'] },
+      Sb: { production:{annual:'160,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'1.8 million tonnes',yearsSupply:11}, topProducers:['China (55%)','Tajikistan','Russia','Myanmar','Bolivia'], price:{amount:12,unit:'$/kg',year:2024}, primaryUses:['Flame retardants (60%)','Lead-acid batteries','Plastics catalysts','Ammunition'] },
+      Te: { production:{annual:'580 tonnes',unit:'tonnes/yr'}, reserves:{amount:'31,000 tonnes',yearsSupply:53}, topProducers:['China','Japan','Canada','Sweden','USA'], price:{amount:70,unit:'$/kg',year:2024}, primaryUses:['Solar cells CdTe (40%)','Thermoelectrics','Steel/copper alloys','Rubber vulcanization'] },
+      I:  { production:{annual:'32,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'6 million tonnes',yearsSupply:188}, topProducers:['Chile (57%)','Japan (25%)','USA','Russia','Turkmenistan'], price:{amount:35,unit:'$/kg',year:2024}, primaryUses:['X-ray contrast media','Biocides','Nylon production','Pharmaceuticals'] },
+      Xe: { production:{note:'Byproduct of air separation — ~40 tonnes/yr'}, topProducers:['USA','EU','Japan','China'], price:{amount:3000,unit:'$/m³',year:2024}, primaryUses:['Anesthesia','Ion propulsion','Lighting','Medical imaging'] },
+      Cs: { production:{annual:'30 tonnes',unit:'tonnes/yr'}, reserves:{amount:'170,000 tonnes',yearsSupply:5667}, topProducers:['Australia','Canada','Zimbabwe','Namibia'], price:{amount:78000,unit:'$/kg',year:2024}, primaryUses:['Drilling fluids (50%)','Atomic clocks','Photoelectric cells','Cancer treatment'] },
+      Ba: { production:{annual:'7.5 million tonnes (barite)',unit:'tonnes/yr'}, reserves:{amount:'300 million tonnes',yearsSupply:40}, topProducers:['China (40%)','India','Morocco','Mexico','Turkey'], price:{amount:160,unit:'$/tonne (barite)',year:2024}, primaryUses:['Oil drilling fluids (80%)','Medical imaging','Rubber filler','Glass'] },
+      La: { production:{note:'Included in rare earth totals — ~60,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], primaryUses:['Fluid catalytic cracking (30%)','Battery alloys','Optical glass','Hybrid car batteries'] },
+      Ce: { production:{note:'Most abundant rare earth — ~80,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], primaryUses:['Catalytic converters','Glass polishing','Self-cleaning ovens','Metallurgy'] },
+      Pr: { production:{note:'Rare earth — ~10,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia'], primaryUses:['NdFeB magnets (co-constituent)','Aircraft engines','Ceramics','Glass colorant'] },
+      Nd: { production:{note:'Rare earth — ~40,000 tonnes/yr as oxide'}, topProducers:['China (70%)','Myanmar','Australia','USA'], price:{amount:80,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB permanent magnets (87%)','Lasers','Glass colorant','Capacitors'] },
+      Pm: { production:{note:'Synthetic — trace amounts from nuclear reactors'}, primaryUses:['Nuclear batteries','Research','Luminous paint'] },
+      Sm: { production:{note:'Rare earth — ~2,000 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], price:{amount:4,unit:'$/kg (oxide)',year:2024}, primaryUses:['Samarium-cobalt magnets','Cancer treatment','Nuclear control rods','Catalysts'] },
+      Eu: { production:{note:'Rare earth — ~400 tonnes/yr'}, topProducers:['China (90%)','Myanmar'], price:{amount:30,unit:'$/kg (oxide)',year:2024}, primaryUses:['Red phosphors/LEDs','Euro banknote security','Fluorescent lamps','Nuclear control rods'] },
+      Gd: { production:{note:'Rare earth — ~4,000 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], price:{amount:35,unit:'$/kg (oxide)',year:2024}, primaryUses:['MRI contrast agents','Neutron shielding','Magnets','Phosphors'] },
+      Tb: { production:{note:'Rare earth — ~400 tonnes/yr'}, topProducers:['China (90%)','Myanmar'], price:{amount:1200,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB magnet additive','Green phosphors','Sonar','Fuel cells'] },
+      Dy: { production:{note:'Rare earth — ~2,500 tonnes/yr'}, topProducers:['China (85%)','Myanmar','Australia'], price:{amount:300,unit:'$/kg (oxide)',year:2024}, primaryUses:['NdFeB magnet additive (98%)','Lasers','Nuclear control rods','Lighting'] },
+      Ho: { production:{note:'Rare earth — ~50 tonnes/yr'}, topProducers:['China','Myanmar'], primaryUses:['Magnets','Medical lasers','Nuclear reactors','Spectrophotometry'] },
+      Er: { production:{note:'Rare earth — ~800 tonnes/yr'}, topProducers:['China','Myanmar','Australia'], primaryUses:['Fiber optic amplifiers','Lasers','Nuclear','Glass colorant (pink)'] },
+      Tm: { production:{note:'Rare earth — ~15 tonnes/yr (rarest commercial)'}, topProducers:['China'], primaryUses:['Portable X-ray machines','Lasers','Research'] },
+      Yb: { production:{note:'Rare earth — ~50 tonnes/yr'}, topProducers:['China','Myanmar'], primaryUses:['Fiber optic amplifiers','Atomic clocks','Lasers','Stress gauges'] },
+      Lu: { production:{note:'Rare earth — ~10 tonnes/yr'}, topProducers:['China'], price:{amount:900,unit:'$/kg (oxide)',year:2024}, primaryUses:['PET scan detectors','Oil refining catalysts','LED phosphors','Research'] },
+      Hf: { production:{annual:'70 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Included with zirconium',yearsSupply:null}, topProducers:['France','USA','Ukraine','Russia'], price:{amount:1200,unit:'$/kg',year:2024}, primaryUses:['Nuclear reactor control rods (47%)','Superalloys','Plasma cutting','Microprocessors'] },
+      Ta: { production:{annual:'1,800 tonnes',unit:'tonnes/yr'}, reserves:{amount:'140,000 tonnes',yearsSupply:78}, topProducers:['DRC (37%)','Brazil','Rwanda','Nigeria','China'], price:{amount:190,unit:'$/kg',year:2024}, primaryUses:['Capacitors (60%)','Superalloys','Surgical implants','Chemical equipment'] },
+      W:  { production:{annual:'84,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'3.7 million tonnes',yearsSupply:44}, topProducers:['China (82%)','Vietnam','Russia','Bolivia','Austria'], price:{amount:35,unit:'$/kg',year:2024}, primaryUses:['Cemented carbide tools (60%)','Steel alloys','Mill products','Chemicals'] },
+      Re: { production:{annual:'56 tonnes',unit:'tonnes/yr'}, reserves:{amount:'2,500 tonnes',yearsSupply:45}, topProducers:['Chile','USA','Poland','Uzbekistan','Kazakhstan'], price:{amount:1600,unit:'$/kg',year:2024}, primaryUses:['Jet engine superalloys (80%)','Catalysts','Thermocouples','Filaments'] },
+      Os: { production:{note:'PGM byproduct — ~1 tonne/yr'}, topProducers:['South Africa','Russia'], price:{amount:12000,unit:'$/kg',year:2024}, primaryUses:['Fountain pen tips','Electrical contacts','Catalysts','Fingerprint detection'] },
+      Ir: { production:{annual:'7.5 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Included with PGMs',yearsSupply:null}, topProducers:['South Africa (85%)','Russia','Zimbabwe'], price:{amount:160000,unit:'$/kg',year:2024}, primaryUses:['Spark plugs','Crucibles','Electrochemistry','Fountain pen nibs'] },
+      Pt: { production:{annual:'190 tonnes',unit:'tonnes/yr'}, reserves:{amount:'13,000 tonnes',yearsSupply:68}, topProducers:['South Africa (72%)','Russia','Zimbabwe','Canada','USA'], price:{amount:30000,unit:'$/kg',year:2024}, primaryUses:['Catalytic converters (40%)','Jewelry (30%)','Industrial catalysts','Fuel cells'] },
+      Au: { production:{annual:'3,300 tonnes',unit:'tonnes/yr'}, reserves:{amount:'59,000 tonnes',yearsSupply:18}, topProducers:['China','Australia','Russia','Canada','USA'], price:{amount:65000,unit:'$/kg',year:2024}, primaryUses:['Jewelry (50%)','Investment/central banks (25%)','Electronics (10%)','Dentistry'] },
+      Hg: { production:{annual:'3,700 tonnes',unit:'tonnes/yr'}, reserves:{amount:'580,000 tonnes',yearsSupply:157}, topProducers:['China (80%)','Mexico','Tajikistan'], price:{amount:30,unit:'$/kg',year:2024}, primaryUses:['Small-scale gold mining (37%)','VCM production','Fluorescent lamps','Dental amalgam'] },
+      Tl: { production:{note:'Byproduct of zinc/lead smelting — ~10 tonnes/yr'}, topProducers:['China','Japan','Belgium'], primaryUses:['Semiconductors','Infrared optics','Superconductor research','Medical imaging'] },
+      Pb: { production:{annual:'4.6 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'85 million tonnes',yearsSupply:18}, topProducers:['China (43%)','Australia','USA','Peru','Mexico'], price:{amount:2100,unit:'$/tonne',year:2024}, primaryUses:['Lead-acid batteries (85%)','Ammunition','Cable sheathing','Radiation shielding'] },
+      Bi: { production:{annual:'20,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'370,000 tonnes',yearsSupply:19}, topProducers:['China (80%)','Vietnam','Mexico','Japan','Bolivia'], price:{amount:6,unit:'$/kg',year:2024}, primaryUses:['Pharmaceuticals (Pepto-Bismol)','Cosmetics','Lead-free solder','Fire sprinkler alloys'] },
+      Po: { production:{note:'Produced in nuclear reactors — ~100 g/yr globally'}, primaryUses:['Static eliminators','Nuclear research','Satellite heat sources'] },
+      At: { production:{note:'Synthetic — total worldwide less than 1 μg at any time'}, primaryUses:['Cancer radiotherapy research'] },
+      Rn: { production:{note:'Naturally occurring radioactive decay product — not commercially produced'}, primaryUses:['Radon testing/mitigation','Earthquake prediction research'] },
+      Fr: { production:{note:'Synthetic — most unstable natural element, produced in accelerators'}, primaryUses:['Research only'] },
+      Ra: { production:{note:'Not commercially produced — extremely radioactive'}, primaryUses:['Cancer treatment (historic)','Research'] },
+      Ac: { production:{note:'Trace amounts from nuclear reactors for research'}, primaryUses:['Targeted alpha therapy research','Neutron source'] },
+      Th: { production:{annual:'~10,000 tonnes (byproduct)',unit:'tonnes/yr'}, reserves:{amount:'6.4 million tonnes',yearsSupply:640}, topProducers:['India','Brazil','Australia','USA','Egypt'], price:{amount:80,unit:'$/kg',year:2024}, primaryUses:['Potential nuclear fuel','Gas mantles','Welding electrodes','Optical coatings'] },
+      Pa: { production:{note:'Extremely rare — ~130 g total isolated historically'}, primaryUses:['Research','Ocean sediment dating'] },
+      U:  { production:{annual:'58,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'6.1 million tonnes',yearsSupply:105}, topProducers:['Kazakhstan (43%)','Namibia','Canada','Australia','Uzbekistan'], price:{amount:130,unit:'$/kg (U₃O₈)',year:2024}, primaryUses:['Nuclear power (96%)','Research reactors','Nuclear weapons','Radiation shielding (depleted)'] },
+      Np: { production:{note:'Byproduct of nuclear reactors — a few kg/yr'}, primaryUses:['Neutron detection','Precursor to Pu-238','Research'] },
+      Pu: { production:{note:'Produced in nuclear reactors — ~70 tonnes/yr worldwide'}, primaryUses:['Nuclear weapons','MOX fuel','RTGs for space probes','Research'] },
+      Am: { production:{note:'Produced in nuclear reactors — ~10 g/yr for commercial use'}, primaryUses:['Smoke detectors','Neutron sources','Research'] },
+      Cm: { production:{note:'Produced in nuclear reactors — milligram quantities'}, primaryUses:['Space probe RTGs','Alpha particle source','Research'] },
+      Bk: { production:{note:'Synthetic — microgram quantities in nuclear reactors'}, primaryUses:['Research','Target for heavier element synthesis'] },
+      Cf: { production:{note:'Produced at ORNL and RIAR — ~0.5 g/yr globally'}, price:{amount:27000000,unit:'$/g',year:2024}, primaryUses:['Neutron source (oil well logging)','Nuclear reactor startup','Cancer treatment','Mineral analysis'] },
+      Es: { production:{note:'Synthetic — microgram quantities'}, primaryUses:['Research only'] },
+      Fm: { production:{note:'Synthetic — produced in nuclear reactors'}, primaryUses:['Research only'] },
+      Md: { production:{note:'Synthetic — only atoms at a time in particle accelerators'}, primaryUses:['Research only'] },
+      No: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Lr: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Rf: { production:{note:'Synthetic — atoms at a time in particle accelerators'}, primaryUses:['Research only'] },
+      Db: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Sg: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Bh: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Hs: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Mt: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Ds: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Rg: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Cn: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Nh: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Fl: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Mc: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Lv: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Ts: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+      Og: { production:{note:'Synthetic — atoms at a time'}, primaryUses:['Research only'] },
+    };
+
+    // Merge world data into ELEMENTS
+    ELEMENTS.forEach(e => {
+      const wd = ELEMENT_WORLD_DATA[e.symbol];
+      if (wd) Object.assign(e, { worldData: wd });
+    });
+
+    // ══════════════════════════════════════
+    // MATERIAL WORLD DATA (USGS/World Bank 2024)
+    // ══════════════════════════════════════
+    const MATERIAL_WORLD_DATA = {
+      'Iron Ore': { production:{annual:'2.5 billion tonnes',growth:'+1.5%/yr'}, energyCost:'0.5 GJ per tonne (mining)', topProducers:['Australia (37%)','Brazil (17%)','China (14%)','India (10%)'], co2:'0.04 tonnes CO₂ per tonne' },
+      'Steel': { production:{annual:'1.9 billion tonnes',growth:'+3.2%/yr'}, inputChain:[{material:'Iron Ore',ratio:'2.5 tonnes per tonne steel'},{material:'Coal/Coke',ratio:'0.6 tonnes per tonne steel'},{material:'Limestone',ratio:'0.2 tonnes per tonne steel'}], energyCost:'20 GJ per tonne', topProducers:['China (54%)','India (7%)','Japan (5%)','USA (5%)'], co2:'1.85 tonnes CO₂ per tonne steel' },
+      'Wood / Timber': { production:{annual:'4 billion m³ (roundwood)',growth:'+0.5%/yr'}, topProducers:['USA','India','China','Brazil','Russia'], co2:'Net carbon sink when sustainably managed' },
+      'Lumber': { production:{annual:'500 million m³ (sawnwood)',growth:'+1.0%/yr'}, energyCost:'1.5 GJ per m³', topProducers:['USA','China','Canada','Russia','Germany'], co2:'Stores ~250 kg CO₂ per m³' },
+      'Sand': { production:{annual:'50 billion tonnes',growth:'+5.5%/yr'}, topProducers:['China','USA','India','EU','Australia'], co2:'Minimal (extraction only)' },
+      'Glass': { production:{annual:'200 million tonnes',growth:'+3.5%/yr'}, inputChain:[{material:'Sand (SiO₂)',ratio:'72%'},{material:'Soda ash',ratio:'14%'},{material:'Limestone',ratio:'10%'}], energyCost:'7-10 GJ per tonne', topProducers:['China (50%)','EU','USA','India','Japan'], co2:'0.6 tonnes CO₂ per tonne' },
+      'Clay': { production:{annual:'Billions of tonnes (not fully tracked)',growth:'Stable'}, topProducers:['China','USA','Germany','UK','India'] },
+      'Concrete': { production:{annual:'14 billion m³ (~33 billion tonnes)',growth:'+2.5%/yr'}, inputChain:[{material:'Cement',ratio:'10-15%'},{material:'Sand',ratio:'25-30%'},{material:'Gravel',ratio:'35-40%'},{material:'Water',ratio:'15-20%'}], energyCost:'1.5-2 GJ per tonne', topProducers:['China (55%)','India','USA','Turkey','Brazil'], co2:'0.1-0.2 tonnes CO₂ per tonne concrete' },
+      'Aluminum Ore (Bauxite)': { production:{annual:'380 million tonnes',growth:'+2.5%/yr'}, topProducers:['Australia (28%)','Guinea (22%)','China (16%)','Brazil','Indonesia'], co2:'0.01 tonnes CO₂ per tonne (mining)' },
+      'Aluminum': { production:{annual:'69 million tonnes',growth:'+2.8%/yr'}, inputChain:[{material:'Bauxite',ratio:'4-5 tonnes per tonne aluminum'},{material:'Alumina',ratio:'2 tonnes per tonne aluminum'},{material:'Electricity',ratio:'14 MWh per tonne'}], energyCost:'170 GJ per tonne', topProducers:['China (57%)','India (6%)','Russia (5%)','Canada (5%)','UAE (4%)'], co2:'12 tonnes CO₂ per tonne (global avg)' },
+      'Copper Ore (Chalcopyrite)': { production:{annual:'22 million tonnes (Cu content)',growth:'+2.0%/yr'}, topProducers:['Chile (24%)','DRC (12%)','Peru (10%)','China','Indonesia'], co2:'Varies by mine' },
+      'Brass': { production:{annual:'~6 million tonnes',growth:'+2%/yr'}, inputChain:[{material:'Copper',ratio:'60-70%'},{material:'Zinc',ratio:'30-40%'}], energyCost:'8 GJ per tonne', topProducers:['China','Germany','Japan','USA','Italy'] },
+      'Bronze': { production:{annual:'~1 million tonnes',growth:'+1%/yr'}, inputChain:[{material:'Copper',ratio:'88-95%'},{material:'Tin',ratio:'5-12%'}], energyCost:'9 GJ per tonne', topProducers:['China','USA','Japan','Germany','South Korea'] },
+      'Stainless Steel': { production:{annual:'58 million tonnes',growth:'+4.5%/yr'}, inputChain:[{material:'Iron/Steel',ratio:'70-75%'},{material:'Chromium',ratio:'10.5-18%'},{material:'Nickel',ratio:'8-12%'}], energyCost:'30 GJ per tonne', topProducers:['China (56%)','India (7%)','Japan (5%)','EU','USA'], co2:'2.8 tonnes CO₂ per tonne' },
+      'Titanium': { production:{annual:'220,000 tonnes (metal)',growth:'+3%/yr'}, inputChain:[{material:'Ilmenite/Rutile ore',ratio:'~10 tonnes ore per tonne metal'},{material:'Magnesium (Kroll process)',ratio:'1 tonne per tonne Ti'}], energyCost:'360 GJ per tonne', topProducers:['China','Russia','Japan','Kazakhstan','USA'], co2:'8.6 tonnes CO₂ per tonne' },
+      'Zinc': { production:{annual:'13 million tonnes',growth:'+1.5%/yr'}, inputChain:[{material:'Sphalerite ore',ratio:'~3 tonnes per tonne zinc'}], energyCost:'35 GJ per tonne', topProducers:['China (42%)','Peru','Australia','India','USA'], co2:'2.5 tonnes CO₂ per tonne' },
+      'Lead': { production:{annual:'4.6 million tonnes',growth:'+1.0%/yr'}, inputChain:[{material:'Galena ore',ratio:'~3 tonnes per tonne lead'}], energyCost:'15 GJ per tonne', topProducers:['China (43%)','Australia','USA','Peru','Mexico'], co2:'1.0 tonnes CO₂ per tonne' },
+      'Tin': { production:{annual:'310,000 tonnes',growth:'+1.2%/yr'}, inputChain:[{material:'Cassiterite ore',ratio:'~5 tonnes per tonne tin'}], energyCost:'20 GJ per tonne', topProducers:['China (30%)','Indonesia','Myanmar','Peru','DRC'], co2:'1.5 tonnes CO₂ per tonne' },
+      'Nickel': { production:{annual:'3.6 million tonnes',growth:'+6%/yr'}, inputChain:[{material:'Laterite/Sulfide ore',ratio:'~50-100 tonnes ore per tonne Ni'}], energyCost:'110 GJ per tonne', topProducers:['Indonesia (49%)','Philippines','Russia','New Caledonia','Australia'], co2:'10 tonnes CO₂ per tonne' },
+      'Cotton': { production:{annual:'25 million tonnes',growth:'+0.5%/yr'}, energyCost:'55 GJ per tonne (field to fabric)', topProducers:['India (23%)','China (22%)','USA (14%)','Brazil','Pakistan'], co2:'5 tonnes CO₂ per tonne' },
+      'Wool': { production:{annual:'1.1 million tonnes (greasy)',growth:'-0.5%/yr'}, topProducers:['Australia (21%)','China (18%)','New Zealand','UK','Turkey'], co2:'26 kg CO₂ per kg (high due to methane)' },
+      'Leather': { production:{annual:'20 billion sq ft',growth:'+1%/yr'}, topProducers:['China','Italy','Brazil','India','Vietnam'] },
+      'Rubber (Natural)': { production:{annual:'14 million tonnes',growth:'+2%/yr'}, topProducers:['Thailand (34%)','Indonesia (24%)','Vietnam','China','India'], co2:'Low (trees absorb CO₂)' },
+      'Paper': { production:{annual:'410 million tonnes',growth:'+0.5%/yr'}, inputChain:[{material:'Wood',ratio:'2-3 tonnes per tonne paper'},{material:'Water',ratio:'10-20 m³ per tonne'}], energyCost:'20-40 GJ per tonne', topProducers:['China (28%)','USA (17%)','Japan','Germany','India'], co2:'0.5-1.5 tonnes CO₂ per tonne' },
+      'Bamboo': { production:{annual:'~40 million tonnes',growth:'+3%/yr'}, topProducers:['China (65%)','India','Myanmar','Thailand','Vietnam'] },
+      'Hemp': { production:{annual:'280,000 tonnes (fiber)',growth:'+15%/yr'}, topProducers:['China','Canada','France','EU','USA'] },
+      'Cork': { production:{annual:'200,000 tonnes',growth:'+1%/yr'}, topProducers:['Portugal (49%)','Spain (26%)','Morocco','Algeria','Tunisia'] },
+      'Granite': { production:{annual:'~160 million tonnes',growth:'+3%/yr'}, topProducers:['China','India','Brazil','Italy','Spain'] },
+      'Marble': { production:{annual:'~100 million tonnes',growth:'+2%/yr'}, topProducers:['China','India','Turkey','Italy','Iran'] },
+      'Limestone': { production:{annual:'~7 billion tonnes',growth:'+2%/yr'}, topProducers:['China','USA','India','Russia','Japan'] },
+      'Cement': { production:{annual:'4.1 billion tonnes',growth:'+1.5%/yr'}, inputChain:[{material:'Limestone',ratio:'1.5 tonnes per tonne cement'},{material:'Clay',ratio:'0.3 tonnes per tonne'},{material:'Gypsum',ratio:'5%'}], energyCost:'4.5 GJ per tonne', topProducers:['China (55%)','India (8%)','Vietnam','USA','Turkey'], co2:'0.6 tonnes CO₂ per tonne cement' },
+      'Brick': { production:{annual:'1.5 trillion bricks/yr',growth:'+2%/yr'}, energyCost:'2-5 GJ per 1000 bricks', topProducers:['China (60%)','India','Pakistan','Bangladesh','Indonesia'], co2:'0.2 kg CO₂ per brick' },
+      'Porcelain': { production:{annual:'~400 million tonnes (all ceramics)',growth:'+3%/yr'}, topProducers:['China (65%)','Italy','Spain','India','Turkey'] },
+      'Fiberglass': { production:{annual:'~6 million tonnes',growth:'+5%/yr'}, inputChain:[{material:'Glass fiber',ratio:'60-70%'},{material:'Polymer resin',ratio:'30-40%'}], energyCost:'30 GJ per tonne', topProducers:['China','USA','EU','India','Japan'] },
+      'Plastic (Polyethylene)': { production:{annual:'100 million tonnes (PE only); 400M total plastics',growth:'+3.5%/yr'}, inputChain:[{material:'Crude oil/natural gas',ratio:'~2 tonnes oil per tonne PE'}], energyCost:'70-80 GJ per tonne', topProducers:['China (32%)','USA','EU','South Korea','Saudi Arabia'], co2:'2-3 tonnes CO₂ per tonne' },
+      'PVC (Polyvinyl Chloride)': { production:{annual:'45 million tonnes',growth:'+3%/yr'}, inputChain:[{material:'Ethylene (from oil)',ratio:'43%'},{material:'Chlorine (from salt)',ratio:'57%'}], energyCost:'55 GJ per tonne', topProducers:['China (40%)','USA','EU','India','Japan'], co2:'2 tonnes CO₂ per tonne' },
+      'Nylon': { production:{annual:'8 million tonnes',growth:'+4%/yr'}, energyCost:'120 GJ per tonne', topProducers:['China','USA','EU','Taiwan','South Korea'], co2:'7 tonnes CO₂ per tonne' },
+      'Carbon Fiber': { production:{annual:'120,000 tonnes',growth:'+12%/yr'}, inputChain:[{material:'PAN precursor',ratio:'2 tonnes per tonne CF'},{material:'Energy (carbonization)',ratio:'Very high'}], energyCost:'600 GJ per tonne', topProducers:['Japan (Toray 34%)','China','USA','EU','Taiwan'], co2:'20-40 tonnes CO₂ per tonne' },
+      'Kevlar': { production:{annual:'~70,000 tonnes (all aramids)',growth:'+5%/yr'}, energyCost:'200 GJ per tonne', topProducers:['USA (DuPont)','Japan (Teijin)','South Korea','EU'] },
+      'Plywood': { production:{annual:'170 million m³',growth:'+3%/yr'}, inputChain:[{material:'Wood veneers',ratio:'~1.5 m³ log per m³ plywood'},{material:'Adhesive',ratio:'5-10% by weight'}], energyCost:'5 GJ per m³', topProducers:['China (66%)','Indonesia','Russia','USA','India'] },
+      'MDF (Medium-Density Fiberboard)': { production:{annual:'100 million m³',growth:'+4%/yr'}, inputChain:[{material:'Wood fiber',ratio:'85-90%'},{material:'UF resin',ratio:'10-15%'}], energyCost:'6 GJ per m³', topProducers:['China (50%)','Turkey','Brazil','EU','USA'] },
+      'Coal': { production:{annual:'8.7 billion tonnes',growth:'-0.5%/yr'}, topProducers:['China (52%)','India (10%)','Indonesia (8%)','USA (6%)','Australia (6%)'], co2:'2.86 tonnes CO₂ per tonne burned' },
+      'Petroleum (Crude Oil)': { production:{annual:'4.4 billion tonnes (100M barrels/day)',growth:'+0.5%/yr'}, topProducers:['USA (20%)','Saudi Arabia (12%)','Russia (11%)','Canada','Iraq'], co2:'3.1 tonnes CO₂ per tonne burned' },
+      'Natural Gas': { production:{annual:'4.0 trillion m³',growth:'+2%/yr'}, topProducers:['USA (25%)','Russia (15%)','Iran','China','Canada'], co2:'2.0 tonnes CO₂ per 1000 m³ burned' },
+    };
+
+    // Merge world data into MATERIALS
+    MATERIALS.forEach(m => {
+      const wd = MATERIAL_WORLD_DATA[m.name];
+      if (wd) Object.assign(m, { worldData: wd });
+    });
+
     const ELEMENT_CATEGORIES = [...new Set(ELEMENTS.map(e => e.category))];
     let elementCatFilter = '';
     let selectedElement = null;
@@ -2873,6 +3112,25 @@
               ${e.uses.map(u => `<span style="background:rgba(255,136,17,0.1);color:var(--accent);font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:10px;">${u}</span>`).join('')}
             </div>
           </div>
+          ${e.worldData ? `
+          <details style="margin-top:0.6rem;border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.6rem;background:rgba(0,255,136,0.03);">
+            <summary style="cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--accent);">🌍 World Data</summary>
+            <div style="margin-top:0.4rem;font-size:0.75rem;line-height:1.6;">
+              ${e.worldData.production ? (e.worldData.production.annual
+                ? '<div><strong>Annual Production:</strong> '+e.worldData.production.annual+'</div>'
+                : '<div><em>'+e.worldData.production.note+'</em></div>') : ''}
+              ${e.worldData.reserves ? (e.worldData.reserves.amount
+                ? '<div><strong>Reserves:</strong> '+e.worldData.reserves.amount
+                  +(e.worldData.reserves.yearsSupply!=null
+                    ? ' <span style="padding:0.1rem 0.4rem;border-radius:8px;font-size:0.7rem;font-weight:600;background:'
+                      +(e.worldData.reserves.yearsSupply>100?'rgba(0,200,83,0.2);color:#0c6':'rgba(255,160,0,0.2);color:#f90')
+                      +'">~'+e.worldData.reserves.yearsSupply+' years</span>'
+                    : '')+'</div>' : '') : ''}
+              ${e.worldData.topProducers ? '<div><strong>Top Producers:</strong> '+e.worldData.topProducers.join(', ')+'</div>' : ''}
+              ${e.worldData.price && e.worldData.price.amount ? '<div><strong>Price:</strong> '+e.worldData.price.amount.toLocaleString()+' '+e.worldData.price.unit+' ('+e.worldData.price.year+')</div>' : ''}
+              ${e.worldData.primaryUses ? '<div><strong>Primary Uses:</strong> '+e.worldData.primaryUses.join(', ')+'</div>' : ''}
+            </div>
+          </details>` : ''}
           <div style="margin-top:0.5rem;">${srcLinks}</div>
         </div>`;
     }
@@ -3197,10 +3455,85 @@
           <div style="margin:0.6rem 0;"><strong style="font-size:0.75rem;color:var(--text-muted);">PROCESSING:</strong>
             <div class="processing-chain" style="margin-top:0.3rem;font-size:0.8rem;">${m.processing.split('→').map((s,i) => (i>0?'<span class="chain-arrow">→</span>':'')+`<span>${s.trim()}</span>`).join('')}</div>
           </div>
+          ${m.worldData ? `
+          <details style="margin-top:0.6rem;border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.6rem;background:rgba(0,255,136,0.03);">
+            <summary style="cursor:pointer;font-size:0.8rem;font-weight:600;color:var(--accent);">🌍 World Data</summary>
+            <div style="margin-top:0.4rem;font-size:0.75rem;line-height:1.6;">
+              ${m.worldData.production ? '<div><strong>Annual Production:</strong> '+m.worldData.production.annual+(m.worldData.production.growth?' ('+m.worldData.production.growth+')':'')+'</div>' : ''}
+              ${m.worldData.inputChain ? '<div><strong>Input Chain:</strong><ul style="margin:0.2rem 0 0.2rem 1.2rem;padding:0;">'+m.worldData.inputChain.map(ic => '<li>'+ic.material+': '+ic.ratio+'</li>').join('')+'</ul></div>' : ''}
+              ${m.worldData.energyCost ? '<div><strong>Energy Cost:</strong> '+m.worldData.energyCost+'</div>' : ''}
+              ${m.worldData.topProducers ? '<div><strong>Top Producers:</strong> '+m.worldData.topProducers.join(', ')+'</div>' : ''}
+              ${m.worldData.co2 ? '<div><strong>CO₂ Footprint:</strong> '+m.worldData.co2+'</div>' : ''}
+            </div>
+          </details>` : ''}
           <div style="margin-top:0.5rem;">${srcLinks}</div>
         </div>`;
     }
     renderMaterials();
+
+    // ══════════════════════════════════════
+    // WORLD DASHBOARD — Chart & Facts
+    // ══════════════════════════════════════
+    (function initWorldDash() {
+      // Bar chart — top resources by production value
+      const chartData = [
+        {label:'Oil',value:3200,color:'#444'},
+        {label:'Coal',value:900,color:'#666'},
+        {label:'Iron',value:300,color:'#b44'},
+        {label:'Gold',value:215,color:'#da0'},
+        {label:'Copper',value:187,color:'#c73'},
+        {label:'Al',value:166,color:'#888'},
+        {label:'Gas',value:150,color:'#69c'},
+        {label:'Ni',value:58,color:'#5a5'},
+        {label:'Zn',value:35,color:'#77a'},
+        {label:'Li',value:22,color:'#c6f'},
+      ];
+      const canvas = document.getElementById('world-dash-chart');
+      if (canvas && canvas.getContext) {
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        const maxVal = Math.max(...chartData.map(d=>d.value));
+        const barW = (W - 80) / chartData.length;
+        const topPad = 25, bottomPad = 35, leftPad = 45;
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(0,0,W,H);
+        ctx.fillStyle = '#aaa'; ctx.font = '11px system-ui';
+        ctx.fillText('Top Resources by Annual Value ($B)', leftPad, 14);
+        chartData.forEach((d,i) => {
+          const barH = (d.value / maxVal) * (H - topPad - bottomPad);
+          const x = leftPad + i * barW + 4;
+          const y = H - bottomPad - barH;
+          ctx.fillStyle = d.color;
+          ctx.fillRect(x, y, barW - 8, barH);
+          ctx.fillStyle = '#ccc'; ctx.font = '9px system-ui';
+          ctx.save(); ctx.translate(x + barW/2 - 4, H - 5);
+          ctx.rotate(-0.5); ctx.fillText(d.label, 0, 0); ctx.restore();
+          ctx.fillStyle = '#eee'; ctx.font = '9px system-ui';
+          ctx.fillText('$'+d.value+'B', x + 2, y - 3);
+        });
+      }
+      // Rotating facts
+      const facts = [
+        '💡 Earth produces enough food for 10+ billion people — waste is the problem, not production.',
+        '⛏️ Most "scarce" resources have 50-200+ years of known reserves at current consumption.',
+        '☀️ Solar electricity is now cheaper than coal in most markets worldwide.',
+        '📉 Global extreme poverty dropped from 36% to 9% in 25 years.',
+        '📚 Global literacy has risen from 12% (1820) to 87% today.',
+        '👶 Child mortality has dropped 60% since 1990.',
+        '🔋 Global battery production tripled in 3 years (2021-2024).',
+        '🌊 Earth has 1.4 billion km³ of water — desalination costs have dropped 70% since 2000.',
+        '🏗️ Humanity produces 4.1 billion tonnes of cement every year — enough for 33B tonnes of concrete.',
+        '⚡ A single uranium fuel pellet (7g) contains as much energy as 1 tonne of coal.',
+        '🌍 The world\'s proven oil reserves today are larger than they were 40 years ago despite consumption.',
+        '🚀 Humanity launches 200+ rockets per year — double the rate of a decade ago.',
+      ];
+      const factEl = document.getElementById('world-dash-fact');
+      if (factEl) {
+        let idx = Math.floor(Math.random() * facts.length);
+        factEl.textContent = facts[idx];
+        setInterval(() => { idx = (idx + 1) % facts.length; factEl.textContent = facts[idx]; }, 12000);
+      }
+    })();
 
     // ══════════════════════════════════════
     // PERSONAL INVENTORY
