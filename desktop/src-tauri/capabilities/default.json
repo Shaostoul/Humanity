@@ -4,7 +4,8 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:allow-set-title"
+    "core:window:allow-set-title",
+    "updater:default"
   ],
   "remote": {
     "urls": ["https://united-humanity.us/*", "https://*.united-humanity.us/*"]

@@ -55,6 +55,9 @@ jobs:
 
       - name: Build Tauri app
         working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: npx tauri build --target ${{ matrix.target }}
 
       - name: Upload artifacts
@@ -72,7 +75,84 @@ jobs:
           generate_release_notes: true
           files: |
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe.sig
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi.sig
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.tar.gz
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.tar.gz.sig
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage.sig
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+
+  publish-update:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate latest.json
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NOTES="Release ${GITHUB_REF_NAME}"
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Find signature files
+          find artifacts -name "*.sig" -type f | while read f; do echo "$f: $(cat "$f")"; done
+
+          # Build platform entries
+          LINUX_SIG=$(find artifacts -name "*.AppImage.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
+          LINUX_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts -name "*.AppImage" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
+
+          WIN_NSIS_SIG=$(find artifacts -name "*-setup.exe.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
+          WIN_NSIS_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts -name "*-setup.exe" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
+          
+          WIN_MSI_SIG=$(find artifacts -name "*.msi.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
+          WIN_MSI_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts -name "*.msi" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
+
+          MACOS_ARM_SIG=$(find artifacts/humanity-macos-arm64 -name "*.tar.gz.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
+          MACOS_ARM_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts/humanity-macos-arm64 -name "*.tar.gz" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
+
+          MACOS_X64_SIG=$(find artifacts/humanity-macos-x64 -name "*.tar.gz.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
+          MACOS_X64_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts/humanity-macos-x64 -name "*.tar.gz" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
+
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": "${NOTES}",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "${LINUX_SIG}",
+                "url": "${LINUX_URL}"
+              },
+              "windows-x86_64": {
+                "signature": "${WIN_NSIS_SIG:-${WIN_MSI_SIG}}",
+                "url": "${WIN_NSIS_URL:-${WIN_MSI_URL}}"
+              },
+              "darwin-aarch64": {
+                "signature": "${MACOS_ARM_SIG}",
+                "url": "${MACOS_ARM_URL}"
+              },
+              "darwin-x86_64": {
+                "signature": "${MACOS_X64_SIG}",
+                "url": "${MACOS_X64_URL}"
+              }
+            }
+          }
+          EOF
+
+          cat latest.json
+
+      - name: Upload latest.json to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: latest.json
