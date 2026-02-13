@@ -1,4 +1,4 @@
-const CACHE_NAME = 'humanity-v4';
+const CACHE_NAME = 'humanity-v5';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
