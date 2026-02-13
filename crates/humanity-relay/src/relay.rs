@@ -110,6 +110,8 @@ pub struct RelayState {
     pub user_statuses: RwLock<HashMap<String, (String, String)>>,
     /// Per-key last search time (rate limiting: 1 search per 2 seconds).
     pub last_search_times: std::sync::Mutex<HashMap<String, std::time::Instant>>,
+    /// Active stream (only one at a time for MVP).
+    pub active_stream: RwLock<Option<ActiveStream>>,
     /// Active federation connections (server_id → FederatedConnection).
     pub federation_connections: RwLock<HashMap<String, FederatedConnection>>,
     /// Rate limiter for federation message forwarding (server_id → last send times).
@@ -166,6 +168,7 @@ impl RelayState {
             voice_rooms: RwLock::new(HashMap::new()),
             user_statuses: RwLock::new(HashMap::new()),
             last_search_times: std::sync::Mutex::new(HashMap::new()),
+            active_stream: RwLock::new(None),
             federation_connections: RwLock::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
         }
@@ -1031,6 +1034,126 @@ pub enum RelayMessage {
     FederationStatus {
         servers: Vec<FederationServerStatus>,
     },
+
+    // ── Streaming messages ──
+
+    /// Admin starts a stream session.
+    #[serde(rename = "stream_start")]
+    StreamStart {
+        title: String,
+        #[serde(default)]
+        category: String,
+    },
+
+    /// Stop the active stream.
+    #[serde(rename = "stream_stop")]
+    StreamStop {},
+
+    /// WebRTC signaling: streamer sends offer to relay/viewer.
+    #[serde(rename = "stream_offer")]
+    StreamOffer {
+        from: String,
+        to: String,
+        data: serde_json::Value,
+    },
+
+    /// WebRTC signaling: viewer sends answer back.
+    #[serde(rename = "stream_answer")]
+    StreamAnswer {
+        from: String,
+        to: String,
+        data: serde_json::Value,
+    },
+
+    /// WebRTC signaling: ICE candidate exchange.
+    #[serde(rename = "stream_ice")]
+    StreamIce {
+        from: String,
+        to: String,
+        data: serde_json::Value,
+    },
+
+    /// Viewer joins a stream.
+    #[serde(rename = "stream_viewer_join")]
+    StreamViewerJoin {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        stream_id: Option<String>,
+    },
+
+    /// Viewer leaves a stream.
+    #[serde(rename = "stream_viewer_leave")]
+    StreamViewerLeave {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        stream_id: Option<String>,
+    },
+
+    /// Stream chat message (unified: Humanity + external platforms).
+    #[serde(rename = "stream_chat")]
+    StreamChat {
+        content: String,
+        #[serde(default = "default_stream_source")]
+        source: String,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        source_user: Option<String>,
+        /// Populated server-side.
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        from: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        from_name: Option<String>,
+        #[serde(default)]
+        timestamp: u64,
+    },
+
+    /// Server broadcasts current stream info to all clients.
+    #[serde(rename = "stream_info")]
+    StreamInfo {
+        active: bool,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        streamer_name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        streamer_key: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        title: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        category: Option<String>,
+        #[serde(default)]
+        viewer_count: u32,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        started_at: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        external_urls: Option<Vec<StreamExternalUrl>>,
+    },
+
+    /// Client requests current stream info.
+    #[serde(rename = "stream_info_request")]
+    StreamInfoRequest {},
+
+    /// Set external stream URLs (admin can add Twitch/YouTube/Rumble links).
+    #[serde(rename = "stream_set_external")]
+    StreamSetExternal {
+        urls: Vec<StreamExternalUrl>,
+    },
+}
+
+fn default_stream_source() -> String { "humanity".to_string() }
+
+/// External stream URL (e.g. Twitch/YouTube/Rumble embed links).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamExternalUrl {
+    pub platform: String,
+    pub url: String,
+}
+
+/// Active stream state tracked in memory.
+pub struct ActiveStream {
+    pub streamer_key: String,
+    pub streamer_name: String,
+    pub title: String,
+    pub category: String,
+    pub started_at: u64,
+    pub viewer_keys: HashSet<String>,
+    pub external_urls: Vec<StreamExternalUrl>,
+    pub db_id: Option<i64>,
 }
 
 /// Federation server connection status (sent to clients).
@@ -1792,6 +1915,17 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 if to != &my_key_for_broadcast {
                     continue;
                 }
+            }
+
+            // Stream signaling: only deliver to the target peer.
+            if let RelayMessage::StreamOffer { ref to, .. } = msg {
+                if to != &my_key_for_broadcast { continue; }
+            }
+            if let RelayMessage::StreamAnswer { ref to, .. } = msg {
+                if to != &my_key_for_broadcast { continue; }
+            }
+            if let RelayMessage::StreamIce { ref to, .. } = msg {
+                if to != &my_key_for_broadcast { continue; }
             }
 
             // FollowList: only deliver to the target client.
@@ -4771,6 +4905,237 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 tracing::info!("Federation: welcome from {} — federated channels: {:?}", name, channels);
                                 let _ = state_clone.db.update_federated_server_status(&server_id, "online");
                             }
+
+                            // ── Streaming ──
+
+                            RelayMessage::StreamStart { title, category } => {
+                                // Admin-only check.
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role != "admin" {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can stream to the relay.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                } else {
+                                    let now = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default()
+                                        .as_millis() as u64;
+                                    let streamer_name = {
+                                        let peers = state_clone.peers.read().await;
+                                        peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Unknown".to_string())
+                                    };
+                                    // Store in DB.
+                                    let db_id = state_clone.db.create_stream(&my_key_for_recv, &title, &category).ok();
+                                    let stream = ActiveStream {
+                                        streamer_key: my_key_for_recv.clone(),
+                                        streamer_name: streamer_name.clone(),
+                                        title: title.clone(),
+                                        category: category.clone(),
+                                        started_at: now,
+                                        viewer_keys: HashSet::new(),
+                                        external_urls: Vec::new(),
+                                        db_id,
+                                    };
+                                    *state_clone.active_stream.write().await = Some(stream);
+                                    info!("Stream started by {} ({}): {}", streamer_name, my_key_for_recv, title);
+                                    // Broadcast stream info.
+                                    let info_msg = RelayMessage::StreamInfo {
+                                        active: true,
+                                        streamer_name: Some(streamer_name),
+                                        streamer_key: Some(my_key_for_recv.clone()),
+                                        title: Some(title),
+                                        category: Some(category),
+                                        viewer_count: 0,
+                                        started_at: Some(now),
+                                        external_urls: None,
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(info_msg);
+                                }
+                            }
+
+                            RelayMessage::StreamStop {} => {
+                                let mut stream_lock = state_clone.active_stream.write().await;
+                                if let Some(ref stream) = *stream_lock {
+                                    // Only the streamer or an admin can stop.
+                                    let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                    if stream.streamer_key == my_key_for_recv || role == "admin" {
+                                        let viewer_peak = stream.viewer_keys.len() as i64;
+                                        if let Some(db_id) = stream.db_id {
+                                            let _ = state_clone.db.end_stream(db_id, viewer_peak);
+                                        }
+                                        info!("Stream stopped by {}", my_key_for_recv);
+                                        *stream_lock = None;
+                                        drop(stream_lock);
+                                        let info_msg = RelayMessage::StreamInfo {
+                                            active: false,
+                                            streamer_name: None,
+                                            streamer_key: None,
+                                            title: None,
+                                            category: None,
+                                            viewer_count: 0,
+                                            started_at: None,
+                                            external_urls: None,
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(info_msg);
+                                    }
+                                }
+                            }
+
+                            RelayMessage::StreamOffer { to, data, .. } => {
+                                let _ = state_clone.broadcast_tx.send(RelayMessage::StreamOffer {
+                                    from: my_key_for_recv.clone(),
+                                    to,
+                                    data,
+                                });
+                            }
+
+                            RelayMessage::StreamAnswer { to, data, .. } => {
+                                let _ = state_clone.broadcast_tx.send(RelayMessage::StreamAnswer {
+                                    from: my_key_for_recv.clone(),
+                                    to,
+                                    data,
+                                });
+                            }
+
+                            RelayMessage::StreamIce { to, data, .. } => {
+                                let _ = state_clone.broadcast_tx.send(RelayMessage::StreamIce {
+                                    from: my_key_for_recv.clone(),
+                                    to,
+                                    data,
+                                });
+                            }
+
+                            RelayMessage::StreamViewerJoin { .. } => {
+                                let mut stream_lock = state_clone.active_stream.write().await;
+                                if let Some(ref mut stream) = *stream_lock {
+                                    stream.viewer_keys.insert(my_key_for_recv.clone());
+                                    let count = stream.viewer_keys.len() as u32;
+                                    let info_msg = RelayMessage::StreamInfo {
+                                        active: true,
+                                        streamer_name: Some(stream.streamer_name.clone()),
+                                        streamer_key: Some(stream.streamer_key.clone()),
+                                        title: Some(stream.title.clone()),
+                                        category: Some(stream.category.clone()),
+                                        viewer_count: count,
+                                        started_at: Some(stream.started_at),
+                                        external_urls: Some(stream.external_urls.clone()),
+                                    };
+                                    drop(stream_lock);
+                                    let _ = state_clone.broadcast_tx.send(info_msg);
+                                }
+                            }
+
+                            RelayMessage::StreamViewerLeave { .. } => {
+                                let mut stream_lock = state_clone.active_stream.write().await;
+                                if let Some(ref mut stream) = *stream_lock {
+                                    stream.viewer_keys.remove(&my_key_for_recv);
+                                    let count = stream.viewer_keys.len() as u32;
+                                    let peak = stream.viewer_keys.len() as i64;
+                                    if let Some(db_id) = stream.db_id {
+                                        let _ = state_clone.db.update_stream_viewer_peak(db_id, peak);
+                                    }
+                                    let info_msg = RelayMessage::StreamInfo {
+                                        active: true,
+                                        streamer_name: Some(stream.streamer_name.clone()),
+                                        streamer_key: Some(stream.streamer_key.clone()),
+                                        title: Some(stream.title.clone()),
+                                        category: Some(stream.category.clone()),
+                                        viewer_count: count,
+                                        started_at: Some(stream.started_at),
+                                        external_urls: Some(stream.external_urls.clone()),
+                                    };
+                                    drop(stream_lock);
+                                    let _ = state_clone.broadcast_tx.send(info_msg);
+                                }
+                            }
+
+                            RelayMessage::StreamChat { content, source, source_user, .. } => {
+                                let now = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_millis() as u64;
+                                let from_name = {
+                                    let peers = state_clone.peers.read().await;
+                                    peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone())
+                                };
+                                // Store in DB if stream is active.
+                                {
+                                    let stream = state_clone.active_stream.read().await;
+                                    if let Some(ref s) = *stream {
+                                        if let Some(db_id) = s.db_id {
+                                            let _ = state_clone.db.store_stream_chat(
+                                                db_id, &content,
+                                                from_name.as_deref().unwrap_or("Unknown"),
+                                                &source,
+                                            );
+                                        }
+                                    }
+                                }
+                                let chat_msg = RelayMessage::StreamChat {
+                                    content,
+                                    source,
+                                    source_user,
+                                    from: Some(my_key_for_recv.clone()),
+                                    from_name,
+                                    timestamp: now,
+                                };
+                                let _ = state_clone.broadcast_tx.send(chat_msg);
+                            }
+
+                            RelayMessage::StreamInfoRequest {} => {
+                                let stream = state_clone.active_stream.read().await;
+                                let info_msg = if let Some(ref s) = *stream {
+                                    RelayMessage::StreamInfo {
+                                        active: true,
+                                        streamer_name: Some(s.streamer_name.clone()),
+                                        streamer_key: Some(s.streamer_key.clone()),
+                                        title: Some(s.title.clone()),
+                                        category: Some(s.category.clone()),
+                                        viewer_count: s.viewer_keys.len() as u32,
+                                        started_at: Some(s.started_at),
+                                        external_urls: Some(s.external_urls.clone()),
+                                    }
+                                } else {
+                                    RelayMessage::StreamInfo {
+                                        active: false,
+                                        streamer_name: None,
+                                        streamer_key: None,
+                                        title: None,
+                                        category: None,
+                                        viewer_count: 0,
+                                        started_at: None,
+                                        external_urls: None,
+                                    }
+                                };
+                                // Send only to requester (use Private-style targeting via broadcast + from filter in send loop).
+                                // For simplicity, broadcast it — clients will update their UI.
+                                let _ = state_clone.broadcast_tx.send(info_msg);
+                            }
+
+                            RelayMessage::StreamSetExternal { urls } => {
+                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if role == "admin" {
+                                    let mut stream_lock = state_clone.active_stream.write().await;
+                                    if let Some(ref mut stream) = *stream_lock {
+                                        stream.external_urls = urls;
+                                        let info_msg = RelayMessage::StreamInfo {
+                                            active: true,
+                                            streamer_name: Some(stream.streamer_name.clone()),
+                                            streamer_key: Some(stream.streamer_key.clone()),
+                                            title: Some(stream.title.clone()),
+                                            category: Some(stream.category.clone()),
+                                            viewer_count: stream.viewer_keys.len() as u32,
+                                            started_at: Some(stream.started_at),
+                                            external_urls: Some(stream.external_urls.clone()),
+                                        };
+                                        drop(stream_lock);
+                                        let _ = state_clone.broadcast_tx.send(info_msg);
+                                    }
+                                }
+                            }
+
                             _ => {
                                 // Ignore other message types from clients.
                             }

@@ -734,80 +734,212 @@
 
   <!-- Streams Tab -->
   <div id="tab-streams" class="tab-content">
+    <style>
+      #tab-streams .stream-grid { display:grid; grid-template-columns:1fr 320px; gap:1rem; }
+      @media (max-width:768px) { #tab-streams .stream-grid { grid-template-columns:1fr; } }
+      #tab-streams .stream-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1rem; }
+      #tab-streams .stream-preview { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
+      #tab-streams .stream-preview canvas,
+      #tab-streams .stream-preview video { width:100%; height:100%; object-fit:contain; }
+      #tab-streams .pip-overlay { position:absolute; border:2px solid rgba(153,102,255,0.6); border-radius:6px; cursor:move; z-index:2; overflow:hidden; }
+      #tab-streams .pip-overlay video { width:100%; height:100%; object-fit:cover; }
+      #tab-streams .stream-stats { display:flex; gap:1rem; flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted); margin:0.6rem 0; }
+      #tab-streams .stream-stats span { display:flex; align-items:center; gap:0.3rem; }
+      #tab-streams .stream-setting { display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0; font-size:0.82rem; }
+      #tab-streams .stream-setting label { color:var(--text-muted); min-width:100px; }
+      #tab-streams .stream-setting input[type="text"],
+      #tab-streams .stream-setting select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; flex:1; font-size:0.8rem; }
+      #tab-streams .stream-setting input[type="checkbox"] { accent-color:var(--accent); }
+      #tab-streams .corner-picker { display:grid; grid-template-columns:1fr 1fr; gap:2px; width:36px; }
+      #tab-streams .corner-picker span { width:16px; height:16px; border:1px solid var(--border); border-radius:3px; cursor:pointer; background:rgba(255,255,255,0.03); }
+      #tab-streams .corner-picker span.active { background:var(--accent); border-color:var(--accent); }
+      #tab-streams .stream-chat-panel { display:flex; flex-direction:column; height:400px; }
+      #tab-streams .stream-chat-tabs { display:flex; gap:0.3rem; margin-bottom:0.5rem; flex-wrap:wrap; }
+      #tab-streams .stream-chat-tabs button { font-size:0.72rem; padding:0.2rem 0.5rem; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; }
+      #tab-streams .stream-chat-tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+      #tab-streams .stream-chat-messages { flex:1; overflow-y:auto; font-size:0.8rem; padding:0.3rem; background:rgba(0,0,0,0.2); border-radius:6px; }
+      #tab-streams .stream-chat-msg { padding:0.15rem 0; }
+      #tab-streams .stream-chat-msg .src-humanity { color:#f90; }
+      #tab-streams .stream-chat-msg .src-twitch { color:#9146ff; }
+      #tab-streams .stream-chat-msg .src-youtube { color:#e55; }
+      #tab-streams .stream-chat-msg .src-rumble { color:#6c5; }
+      #tab-streams .stream-chat-input { display:flex; gap:0.3rem; margin-top:0.4rem; }
+      #tab-streams .stream-chat-input input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; font-size:0.8rem; }
+      #tab-streams .stream-chat-input button { padding:0.3rem 0.7rem; }
+      #tab-streams .viewer-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; }
+      #tab-streams .viewer-card:hover { border-color:var(--accent); }
+      #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:2.5rem; }
+      #tab-streams .viewer-card .meta { padding:0.6rem; }
+      #tab-streams .viewer-card .meta h3 { font-size:0.9rem; margin:0 0 0.2rem; }
+      #tab-streams .viewer-card .meta .sub { font-size:0.75rem; color:var(--text-muted); }
+      #tab-streams .stream-section { margin-bottom:1rem; }
+      #tab-streams #stream-viewer-panel { display:none; }
+      #tab-streams #stream-viewer-panel.active { display:block; }
+    </style>
+
     <div class="card-grid">
 
-      <!-- ── How It Works ── -->
-      <div class="panel reality-card" id="streams-howitworks">
-        <h2 class="reality-card-header" onclick="toggleStreamsCard('howitworks')">🎬 How It Works <span class="collapse-icon" id="howitworks-collapse">▼</span></h2>
-        <div class="reality-card-body" id="howitworks-body">
-          <p style="margin-bottom:0.8rem;">Peer-assisted streaming: the more viewers, the <em>better</em> it works.</p>
-          <!-- Visual diagram -->
-          <div style="display:flex;align-items:center;justify-content:center;gap:0.3rem;flex-wrap:wrap;margin:1rem 0;font-size:0.75rem;">
-            <div style="text-align:center;padding:0.6rem;background:rgba(153,102,255,0.15);border:1px solid rgba(153,102,255,0.3);border-radius:8px;min-width:80px;">
-              <div style="font-size:1.3rem;">🎥</div>
-              <div style="color:var(--text);font-weight:600;">Creator</div>
-              <div style="color:var(--text-muted);font-size:0.65rem;">Captures screen/cam</div>
+      <!-- ── Streamer Dashboard (collapsible) ── -->
+      <div class="panel reality-card" id="streams-dashboard">
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('dashboard')">📡 Stream Control <span class="collapse-icon" id="dashboard-collapse">▼</span></h2>
+        <div class="reality-card-body" id="dashboard-body">
+          <div class="stream-grid">
+            <!-- Left: Preview -->
+            <div>
+              <div class="stream-preview" id="stream-preview-container">
+                <canvas id="stream-composite-canvas" width="1920" height="1080"></canvas>
+                <div class="pip-overlay" id="pip-overlay" style="display:none;width:240px;height:180px;bottom:10px;right:10px;">
+                  <video id="pip-webcam-video" autoplay muted playsinline></video>
+                </div>
+                <div id="stream-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text-muted);font-size:0.85rem;">
+                  <div style="font-size:2.5rem;margin-bottom:0.5rem;">🎬</div>
+                  <div>Start screen capture to preview</div>
+                </div>
+              </div>
+              <div class="stream-stats" id="stream-stats-bar">
+                <span id="stream-stat-viewers">👁 0 viewers</span>
+                <span id="stream-stat-duration">⏱ --:--</span>
+                <span id="stream-stat-quality">📊 --</span>
+                <span id="stream-stat-bitrate">📶 --</span>
+              </div>
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+                <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">🔴 GO LIVE</button>
+                <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">⏹ Stop</button>
+              </div>
             </div>
-            <div style="color:var(--text-muted);font-size:1.2rem;">→</div>
-            <div style="text-align:center;padding:0.6rem;background:rgba(68,136,255,0.15);border:1px solid rgba(68,136,255,0.3);border-radius:8px;min-width:80px;">
-              <div style="font-size:1.3rem;">🖥️</div>
-              <div style="color:var(--text);font-weight:600;">Relay</div>
-              <div style="color:var(--text-muted);font-size:0.65rem;">Distributes to first viewers</div>
-            </div>
-            <div style="color:var(--text-muted);font-size:1.2rem;">→</div>
-            <div style="text-align:center;padding:0.6rem;background:rgba(68,204,102,0.15);border:1px solid rgba(68,204,102,0.3);border-radius:8px;min-width:80px;">
-              <div style="font-size:1.3rem;">👥</div>
-              <div style="color:var(--text);font-weight:600;">Viewers</div>
-              <div style="color:var(--text-muted);font-size:0.65rem;">Seed to each other (mesh)</div>
+
+            <!-- Right: Settings -->
+            <div>
+              <div class="stream-panel" style="margin-bottom:0.8rem;">
+                <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Stream Settings</div>
+                <div class="stream-setting">
+                  <input type="checkbox" id="stream-screen-cb" checked onchange="streamToggleScreen()">
+                  <label for="stream-screen-cb" style="min-width:auto;">Screen Capture</label>
+                  <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.4rem;margin-left:auto;" onclick="streamStartScreen()">Select</button>
+                </div>
+                <div class="stream-setting">
+                  <input type="checkbox" id="stream-webcam-cb" onchange="streamToggleWebcam()">
+                  <label for="stream-webcam-cb" style="min-width:auto;">Webcam Overlay</label>
+                  <select id="stream-webcam-size" onchange="streamUpdatePipSize()" style="width:80px;flex:none;">
+                    <option value="small">Small</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="large">Large</option>
+                  </select>
+                </div>
+                <div class="stream-setting" style="margin-left:1.4rem;">
+                  <label style="min-width:auto;font-size:0.75rem;">Position:</label>
+                  <div class="corner-picker" id="pip-corner-picker">
+                    <span data-corner="tl" onclick="streamSetPipCorner('tl')"></span>
+                    <span data-corner="tr" onclick="streamSetPipCorner('tr')"></span>
+                    <span data-corner="bl" onclick="streamSetPipCorner('bl')"></span>
+                    <span data-corner="br" class="active" onclick="streamSetPipCorner('br')"></span>
+                  </div>
+                </div>
+                <div class="stream-setting">
+                  <label>Title</label>
+                  <input type="text" id="stream-title" placeholder="My Stream" maxlength="100">
+                </div>
+                <div class="stream-setting">
+                  <label>Category</label>
+                  <input type="text" id="stream-category" placeholder="Just Chatting" maxlength="50">
+                </div>
+              </div>
+
+              <div class="stream-panel">
+                <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Restream To</div>
+                <div class="stream-setting">
+                  <input type="checkbox" id="stream-relay-cb" checked>
+                  <label for="stream-relay-cb" style="min-width:auto;">Relay (direct)</label>
+                  <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">Admin only</span>
+                </div>
+                <div class="stream-setting">
+                  <input type="checkbox" id="stream-twitch-cb">
+                  <label for="stream-twitch-cb" style="min-width:auto;">Twitch</label>
+                  <input type="text" id="stream-twitch-url" placeholder="twitch.tv/username" style="flex:1;">
+                </div>
+                <div class="stream-setting">
+                  <input type="checkbox" id="stream-youtube-cb">
+                  <label for="stream-youtube-cb" style="min-width:auto;">YouTube</label>
+                  <input type="text" id="stream-youtube-url" placeholder="youtube.com/live/..." style="flex:1;">
+                </div>
+                <div class="stream-setting">
+                  <input type="checkbox" id="stream-rumble-cb">
+                  <label for="stream-rumble-cb" style="min-width:auto;">Rumble</label>
+                  <input type="text" id="stream-rumble-url" placeholder="rumble.com/user/..." style="flex:1;">
+                </div>
+              </div>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.6rem;margin-top:0.8rem;">
-            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-              <strong style="color:var(--accent);">1. You stream</strong><br>Your camera/screen goes to the relay server.
+
+          <!-- Stream Chat -->
+          <div class="stream-panel stream-chat-panel" style="margin-top:1rem;" id="stream-chat-section">
+            <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.4rem;">💬 Stream Chat</div>
+            <div class="stream-chat-tabs" id="stream-chat-tabs">
+              <button class="active" onclick="streamChatFilter('all')">All</button>
+              <button onclick="streamChatFilter('humanity')">Humanity</button>
+              <button onclick="streamChatFilter('twitch')">Twitch</button>
+              <button onclick="streamChatFilter('youtube')">YouTube</button>
+              <button onclick="streamChatFilter('rumble')">Rumble</button>
             </div>
-            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-              <strong style="color:var(--accent);">2. Relay distributes</strong><br>Server sends to the first viewers.
-            </div>
-            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-              <strong style="color:var(--accent);">3. Viewers seed</strong><br>Each viewer shares chunks with others. More = better.
-            </div>
-            <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;font-size:0.8rem;">
-              <strong style="color:var(--accent);">4. You control BW</strong><br>Set your upload contribution. Gaming? Low. Idle? Crank it.
+            <div class="stream-chat-messages" id="stream-chat-messages"></div>
+            <div class="stream-chat-input">
+              <input type="text" id="stream-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend()">
+              <button class="btn btn-clickable" onclick="streamChatSend()">Send</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ── Go Live ── -->
-      <div class="panel reality-card" id="streams-golive">
-        <h2 class="reality-card-header" onclick="toggleStreamsCard('golive')">📡 Go Live <span class="collapse-icon" id="golive-collapse">▼</span></h2>
-        <div class="reality-card-body" id="golive-body">
-          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Streaming infrastructure coming soon — for now, test your camera/screen capture.</p>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.8rem;">
-            <button class="btn btn-clickable" id="capture-camera-btn" onclick="startCapture('camera')">📷 Camera</button>
-            <button class="btn btn-clickable" id="capture-screen-btn" onclick="startCapture('screen')">🖥️ Screen</button>
-            <button class="btn btn-disabled" id="capture-stop-btn" onclick="stopCapture()" style="display:none;">⏹ Stop</button>
-          </div>
-          <div id="capture-status" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;"></div>
-          <video id="capture-preview" autoplay muted playsinline style="display:none;width:100%;max-height:300px;border-radius:8px;background:#000;"></video>
-        </div>
-      </div>
-
-      <!-- ── Live Streams ── -->
+      <!-- ── Live Streams (viewer) ── -->
       <div class="panel reality-card" id="streams-live">
-        <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">📺 Live Streams <span class="collapse-icon" id="live-collapse">▼</span></h2>
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">📺 Live Now <span class="collapse-icon" id="live-collapse">▼</span></h2>
         <div class="reality-card-body" id="live-body">
-          <div style="text-align:center;padding:2rem 1rem;">
-            <div style="font-size:2rem;margin-bottom:0.5rem;">📺</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
-            <div style="color:var(--text-muted);font-size:0.75rem;margin-top:0.3rem;">Be the first to test your capture above!</div>
+          <div id="stream-live-list">
+            <div id="stream-live-empty" style="text-align:center;padding:2rem 1rem;">
+              <div style="font-size:2rem;margin-bottom:0.5rem;">📺</div>
+              <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Viewer Panel (shown when watching) ── -->
+      <div class="panel reality-card" id="stream-viewer-panel">
+        <h2 class="reality-card-header">
+          <span id="viewer-stream-title">📺 Watching Stream</span>
+          <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.5rem;margin-left:auto;" onclick="streamViewerLeave()">✕ Close</button>
+        </h2>
+        <div class="reality-card-body">
+          <div class="stream-preview" id="viewer-video-container">
+            <video id="viewer-video" autoplay playsinline style="width:100%;height:100%;"></video>
+            <div id="viewer-embed-container" style="display:none;width:100%;height:100%;"></div>
+          </div>
+          <div class="stream-stats" id="viewer-stats-bar">
+            <span id="viewer-stat-viewers">👁 0</span>
+            <span id="viewer-stat-duration">⏱ --:--</span>
+            <span id="viewer-stat-quality">📊 --</span>
+          </div>
+          <!-- Viewer chat -->
+          <div class="stream-panel stream-chat-panel" style="margin-top:0.6rem;height:300px;">
+            <div class="stream-chat-tabs" id="viewer-chat-tabs">
+              <button class="active" onclick="streamChatFilter('all','viewer')">All</button>
+              <button onclick="streamChatFilter('humanity','viewer')">Humanity</button>
+              <button onclick="streamChatFilter('twitch','viewer')">Twitch</button>
+              <button onclick="streamChatFilter('youtube','viewer')">YouTube</button>
+              <button onclick="streamChatFilter('rumble','viewer')">Rumble</button>
+            </div>
+            <div class="stream-chat-messages" id="viewer-chat-messages"></div>
+            <div class="stream-chat-input">
+              <input type="text" id="viewer-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend('viewer')">
+              <button class="btn btn-clickable" onclick="streamChatSend('viewer')">Send</button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- ── Server List ── -->
       <div class="panel reality-card" id="streams-servers">
-        <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">🖥️ Server List <span class="collapse-icon" id="servers-collapse">▼</span></h2>
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">🖥️ Servers <span class="collapse-icon" id="servers-collapse">▼</span></h2>
         <div class="reality-card-body" id="servers-body">
           <div id="stream-servers-list">
             <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
@@ -816,10 +948,9 @@
                 <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
                 <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
               </div>
-              <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);">0 live</span>
+              <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);" id="server-live-count">0 live</span>
             </div>
           </div>
-          <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;font-style:italic;">Federated server list coming soon.</p>
         </div>
       </div>
 
@@ -1639,20 +1770,7 @@
       }, 100);
     }
 
-    function toggleGoLive(btn) {
-      if (btn.classList.contains('btn-channeling')) {
-        btn.classList.remove('btn-channeling');
-        btn.classList.add('btn-clickable');
-        btn.textContent = 'Start Stream';
-        document.getElementById('stream-status').textContent = 'Not streaming';
-        document.getElementById('stream-status').style.color = 'var(--text-muted)';
-      } else {
-        btn.classList.remove('btn-clickable');
-        btn.classList.add('btn-channeling');
-        btn.textContent = 'Stop Stream';
-        document.getElementById('stream-status').innerHTML = '<span style="color:#e55;">●</span> Streaming (demo mode)';
-      }
-    }
+    // toggleGoLive removed — replaced by streamGoLive/streamStop
 
     function toggleChannel(btn) {
       if (btn.classList.contains('btn-channeling')) {
@@ -2977,6 +3095,7 @@
 
     let marketListings = [];
     let marketWs = null;
+    let ws = null; // Alias for streaming code to use
     let marketMyKey = null;
     let marketMyName = null;
     let marketMyRole = '';
@@ -3016,10 +3135,15 @@
           marketWs.send(JSON.stringify({ type: 'identify', public_key: marketMyKey, display_name: null }));
         }
       };
+      ws = marketWs; // Alias for streaming code
       marketWs.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
           handleMarketMessage(msg);
+          // Route stream messages
+          if (msg.type && msg.type.startsWith('stream_')) {
+            streamHandleMessage(msg);
+          }
         } catch {}
       };
       marketWs.onclose = () => { setTimeout(marketConnect, 3000); };
@@ -3041,6 +3165,8 @@
           if (marketWs && marketWs.readyState === 1) {
             marketWs.send(JSON.stringify({ type: 'listing_browse' }));
           }
+          // Request stream info
+          streamRequestInfo();
           break;
         case 'listing_list':
           marketListings = msg.listings || [];
@@ -3766,52 +3892,471 @@
       if (card) card.classList.toggle('collapsed');
       localStorage.setItem('streams_collapsed_' + id, card.classList.contains('collapsed'));
     }
-    ['howitworks', 'golive', 'live', 'servers'].forEach(id => {
+    ['dashboard', 'live', 'servers'].forEach(id => {
       if (localStorage.getItem('streams_collapsed_' + id) === 'true') {
         const card = document.getElementById('streams-' + id);
         if (card) card.classList.add('collapsed');
       }
     });
 
-    let captureStream = null;
+    // ── Stream State ──
+    let streamScreenStream = null;   // Screen capture MediaStream
+    let streamWebcamStream = null;   // Webcam MediaStream
+    let streamCompositeStream = null; // Canvas composite output MediaStream
+    let streamIsLive = false;
+    let streamStartTime = null;
+    let streamDurationTimer = null;
+    let streamPeerConnection = null;
+    let streamViewerPC = null;
+    let streamChatMessages = [];
+    let streamChatFilter_ = 'all';
+    let streamCurrentInfo = { active: false };
+    let streamPipCorner = 'br';
+    let streamCompositeAnimFrame = null;
 
-    async function startCapture(type) {
-      try {
-        stopCapture();
-        if (type === 'camera') {
-          captureStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        } else {
-          captureStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    // Twitch IRC WebSocket for chat integration
+    let twitchChatWs = null;
+
+    // ── PiP Compositing ──
+    const compositeCanvas = document.getElementById('stream-composite-canvas');
+    const compositeCtx = compositeCanvas ? compositeCanvas.getContext('2d') : null;
+    const hiddenScreenVideo = document.createElement('video');
+    hiddenScreenVideo.muted = true; hiddenScreenVideo.playsInline = true;
+
+    function streamCompositeLoop() {
+      if (!compositeCtx) return;
+      const w = compositeCanvas.width, h = compositeCanvas.height;
+      compositeCtx.fillStyle = '#000';
+      compositeCtx.fillRect(0, 0, w, h);
+
+      // Draw screen capture
+      if (streamScreenStream && hiddenScreenVideo.readyState >= 2) {
+        const vw = hiddenScreenVideo.videoWidth, vh = hiddenScreenVideo.videoHeight;
+        if (vw && vh) {
+          const scale = Math.min(w / vw, h / vh);
+          const dw = vw * scale, dh = vh * scale;
+          compositeCtx.drawImage(hiddenScreenVideo, (w - dw) / 2, (h - dh) / 2, dw, dh);
         }
-        const video = document.getElementById('capture-preview');
-        video.srcObject = captureStream;
-        video.style.display = 'block';
-        document.getElementById('capture-status').innerHTML = '<span style="color:#4a8;">● Capturing ' + type + '</span> — local preview only, not streaming anywhere.';
-        document.getElementById('capture-stop-btn').style.display = 'inline-flex';
-        document.getElementById('capture-stop-btn').classList.remove('btn-disabled');
-        document.getElementById('capture-stop-btn').classList.add('btn-activated');
+      }
 
-        // Track end
-        captureStream.getTracks().forEach(t => t.onended = () => stopCapture());
+      // Draw webcam PiP overlay
+      const pipVideo = document.getElementById('pip-webcam-video');
+      if (streamWebcamStream && pipVideo && pipVideo.readyState >= 2 && document.getElementById('stream-webcam-cb').checked) {
+        const sizeMap = { small: 0.15, medium: 0.2, large: 0.3 };
+        const sizeFrac = sizeMap[document.getElementById('stream-webcam-size').value] || 0.2;
+        const pw = w * sizeFrac;
+        const ph = pw * (pipVideo.videoHeight / pipVideo.videoWidth || 0.75);
+        const margin = 16;
+        let px, py;
+        if (streamPipCorner === 'tl') { px = margin; py = margin; }
+        else if (streamPipCorner === 'tr') { px = w - pw - margin; py = margin; }
+        else if (streamPipCorner === 'bl') { px = margin; py = h - ph - margin; }
+        else { px = w - pw - margin; py = h - ph - margin; }
 
-        // Unlock achievement
-        unlockAchievement('streamer');
-      } catch (e) {
-        document.getElementById('capture-status').innerHTML = '<span style="color:#e55;">⚠ ' + (e.name === 'NotAllowedError' ? 'Permission denied' : e.message) + '</span>';
+        compositeCtx.save();
+        compositeCtx.beginPath();
+        compositeCtx.roundRect(px, py, pw, ph, 12);
+        compositeCtx.clip();
+        compositeCtx.drawImage(pipVideo, px, py, pw, ph);
+        compositeCtx.restore();
+        // Border
+        compositeCtx.strokeStyle = 'rgba(153,102,255,0.6)';
+        compositeCtx.lineWidth = 3;
+        compositeCtx.beginPath();
+        compositeCtx.roundRect(px, py, pw, ph, 12);
+        compositeCtx.stroke();
+      }
+
+      streamCompositeAnimFrame = requestAnimationFrame(streamCompositeLoop);
+    }
+
+    function streamStartCompositing() {
+      if (streamCompositeAnimFrame) cancelAnimationFrame(streamCompositeAnimFrame);
+      streamCompositeLoop();
+      document.getElementById('stream-preview-placeholder').style.display = 'none';
+      // Create output stream from canvas
+      streamCompositeStream = compositeCanvas.captureStream(30);
+      // Add audio from screen if available
+      if (streamScreenStream) {
+        streamScreenStream.getAudioTracks().forEach(t => streamCompositeStream.addTrack(t));
       }
     }
 
-    function stopCapture() {
-      if (captureStream) {
-        captureStream.getTracks().forEach(t => t.stop());
-        captureStream = null;
+    function streamStopCompositing() {
+      if (streamCompositeAnimFrame) { cancelAnimationFrame(streamCompositeAnimFrame); streamCompositeAnimFrame = null; }
+      streamCompositeStream = null;
+      document.getElementById('stream-preview-placeholder').style.display = 'flex';
+    }
+
+    // ── Screen Capture ──
+    async function streamStartScreen() {
+      try {
+        if (streamScreenStream) { streamScreenStream.getTracks().forEach(t => t.stop()); }
+        streamScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: true });
+        hiddenScreenVideo.srcObject = streamScreenStream;
+        await hiddenScreenVideo.play();
+        streamScreenStream.getVideoTracks()[0].onended = () => {
+          streamScreenStream = null;
+          hiddenScreenVideo.srcObject = null;
+          if (!streamWebcamStream) streamStopCompositing();
+        };
+        document.getElementById('stream-screen-cb').checked = true;
+        streamStartCompositing();
+        unlockAchievement('streamer');
+      } catch (e) {
+        console.warn('Screen capture failed:', e);
       }
-      const video = document.getElementById('capture-preview');
-      if (video) { video.srcObject = null; video.style.display = 'none'; }
-      const status = document.getElementById('capture-status');
-      if (status) status.textContent = '';
-      const stopBtn = document.getElementById('capture-stop-btn');
-      if (stopBtn) { stopBtn.style.display = 'none'; }
+    }
+
+    function streamToggleScreen() {
+      if (!document.getElementById('stream-screen-cb').checked && streamScreenStream) {
+        streamScreenStream.getTracks().forEach(t => t.stop());
+        streamScreenStream = null;
+        hiddenScreenVideo.srcObject = null;
+        if (!streamWebcamStream) streamStopCompositing();
+      }
+    }
+
+    // ── Webcam ──
+    async function streamToggleWebcam() {
+      const cb = document.getElementById('stream-webcam-cb');
+      const overlay = document.getElementById('pip-overlay');
+      if (cb.checked) {
+        try {
+          streamWebcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          const pipVid = document.getElementById('pip-webcam-video');
+          pipVid.srcObject = streamWebcamStream;
+          overlay.style.display = 'block';
+          if (!streamCompositeAnimFrame) streamStartCompositing();
+        } catch (e) {
+          cb.checked = false;
+          console.warn('Webcam failed:', e);
+        }
+      } else {
+        if (streamWebcamStream) { streamWebcamStream.getTracks().forEach(t => t.stop()); streamWebcamStream = null; }
+        overlay.style.display = 'none';
+        document.getElementById('pip-webcam-video').srcObject = null;
+      }
+    }
+
+    function streamUpdatePipSize() { /* Compositing loop reads the select value each frame */ }
+
+    function streamSetPipCorner(corner) {
+      streamPipCorner = corner;
+      document.querySelectorAll('#pip-corner-picker span').forEach(s => s.classList.toggle('active', s.dataset.corner === corner));
+    }
+
+    // ── Go Live / Stop ──
+    async function streamGoLive() {
+      if (streamIsLive) return;
+      if (!streamCompositeStream && !streamScreenStream) {
+        await streamStartScreen();
+        if (!streamScreenStream) return;
+      }
+      const title = document.getElementById('stream-title').value || 'Untitled Stream';
+      const category = document.getElementById('stream-category').value || '';
+
+      // Send StreamStart to relay
+      if (typeof ws !== 'undefined' && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'stream_start', title, category }));
+      }
+
+      streamIsLive = true;
+      streamStartTime = Date.now();
+      document.getElementById('stream-go-live-btn').style.display = 'none';
+      document.getElementById('stream-stop-btn').style.display = 'inline-flex';
+      document.getElementById('stream-stop-btn').classList.remove('btn-disabled');
+      document.getElementById('stream-stop-btn').classList.add('btn-activated');
+
+      // Duration timer
+      streamDurationTimer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - streamStartTime) / 1000);
+        const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const s = (elapsed % 60).toString().padStart(2, '0');
+        document.getElementById('stream-stat-duration').textContent = '⏱ ' + m + ':' + s;
+      }, 1000);
+
+      // Update quality stats
+      if (streamScreenStream) {
+        const vt = streamScreenStream.getVideoTracks()[0];
+        if (vt) {
+          const settings = vt.getSettings();
+          document.getElementById('stream-stat-quality').textContent = '📊 ' + (settings.width || '?') + 'x' + (settings.height || '?') + ' @ ' + (settings.frameRate ? Math.round(settings.frameRate) + 'fps' : '?');
+        }
+      }
+
+      // Set up external stream URLs if checked
+      const externalUrls = [];
+      if (document.getElementById('stream-twitch-cb').checked) {
+        externalUrls.push({ platform: 'twitch', url: document.getElementById('stream-twitch-url').value });
+      }
+      if (document.getElementById('stream-youtube-cb').checked) {
+        externalUrls.push({ platform: 'youtube', url: document.getElementById('stream-youtube-url').value });
+      }
+      if (document.getElementById('stream-rumble-cb').checked) {
+        externalUrls.push({ platform: 'rumble', url: document.getElementById('stream-rumble-url').value });
+      }
+      if (externalUrls.length > 0 && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'stream_set_external', urls: externalUrls }));
+      }
+
+      // Connect Twitch chat if enabled
+      const twitchUrl = document.getElementById('stream-twitch-url').value;
+      if (document.getElementById('stream-twitch-cb').checked && twitchUrl) {
+        const twitchChannel = twitchUrl.replace(/.*twitch\.tv\/?/i, '').replace(/\//g, '').toLowerCase();
+        if (twitchChannel) connectTwitchChat(twitchChannel);
+      }
+    }
+
+    function streamStop() {
+      if (!streamIsLive) return;
+      streamIsLive = false;
+      if (streamDurationTimer) { clearInterval(streamDurationTimer); streamDurationTimer = null; }
+      document.getElementById('stream-go-live-btn').style.display = 'inline-flex';
+      document.getElementById('stream-stop-btn').style.display = 'none';
+      document.getElementById('stream-stat-duration').textContent = '⏱ --:--';
+      document.getElementById('stream-stat-quality').textContent = '📊 --';
+      document.getElementById('stream-stat-bitrate').textContent = '📶 --';
+
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'stream_stop' }));
+      }
+
+      // Close WebRTC
+      if (streamPeerConnection) { streamPeerConnection.close(); streamPeerConnection = null; }
+      // Disconnect Twitch chat
+      if (twitchChatWs) { twitchChatWs.close(); twitchChatWs = null; }
+    }
+
+    // ── Stream Chat ──
+    function streamChatFilter(filter, context) {
+      streamChatFilter_ = filter;
+      const tabsId = context === 'viewer' ? 'viewer-chat-tabs' : 'stream-chat-tabs';
+      document.querySelectorAll('#' + tabsId + ' button').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase() === filter || (filter === 'all' && b.textContent === 'All')));
+      streamRenderChat(context);
+    }
+
+    function streamRenderChat(context) {
+      const containerId = context === 'viewer' ? 'viewer-chat-messages' : 'stream-chat-messages';
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      const filtered = streamChatFilter_ === 'all' ? streamChatMessages : streamChatMessages.filter(m => m.source === streamChatFilter_);
+      container.innerHTML = filtered.map(m => {
+        const srcClass = 'src-' + (m.source || 'humanity');
+        const srcIcon = { humanity: '🟠', twitch: '🟣', youtube: '🔴', rumble: '🟢' }[m.source] || '⚪';
+        const name = m.from_name || m.source_user || 'Anonymous';
+        return '<div class="stream-chat-msg">' + srcIcon + ' <span class="' + srcClass + '" style="font-weight:600;">' + escapeHtml(name) + '</span>: ' + escapeHtml(m.content) + '</div>';
+      }).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function streamChatSend(context) {
+      const inputId = context === 'viewer' ? 'viewer-chat-input' : 'stream-chat-input';
+      const input = document.getElementById(inputId);
+      if (!input || !input.value.trim()) return;
+      const content = input.value.trim();
+      input.value = '';
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'stream_chat', content, source: 'humanity' }));
+      }
+    }
+
+    function streamHandleMessage(msg) {
+      switch (msg.type) {
+        case 'stream_info':
+          streamCurrentInfo = msg;
+          streamUpdateLiveList();
+          // Update viewer counts
+          document.getElementById('stream-stat-viewers').textContent = '👁 ' + (msg.viewer_count || 0) + ' viewers';
+          if (document.getElementById('viewer-stat-viewers')) {
+            document.getElementById('viewer-stat-viewers').textContent = '👁 ' + (msg.viewer_count || 0);
+          }
+          // Update server live count
+          document.getElementById('server-live-count').textContent = msg.active ? '1 live' : '0 live';
+          break;
+
+        case 'stream_chat': {
+          streamChatMessages.push(msg);
+          if (streamChatMessages.length > 500) streamChatMessages.shift();
+          streamRenderChat();
+          streamRenderChat('viewer');
+          break;
+        }
+
+        case 'stream_offer':
+        case 'stream_answer':
+        case 'stream_ice':
+          streamHandleSignaling(msg);
+          break;
+      }
+    }
+
+    function streamUpdateLiveList() {
+      const container = document.getElementById('stream-live-list');
+      const empty = document.getElementById('stream-live-empty');
+      if (!streamCurrentInfo.active) {
+        if (empty) empty.style.display = 'block';
+        // Remove any live cards
+        container.querySelectorAll('.viewer-card').forEach(c => c.remove());
+        document.getElementById('stream-viewer-panel').classList.remove('active');
+        return;
+      }
+      if (empty) empty.style.display = 'none';
+      // Remove old cards
+      container.querySelectorAll('.viewer-card').forEach(c => c.remove());
+
+      // Main relay stream card
+      const card = document.createElement('div');
+      card.className = 'viewer-card';
+      card.onclick = () => streamViewerJoin();
+      card.innerHTML = '<div class="thumb">🔴</div><div class="meta"><h3>' + escapeHtml(streamCurrentInfo.title || 'Live Stream') + '</h3><div class="sub">' + escapeHtml(streamCurrentInfo.streamer_name || 'Unknown') + ' · 👁 ' + (streamCurrentInfo.viewer_count || 0) + (streamCurrentInfo.category ? ' · ' + escapeHtml(streamCurrentInfo.category) : '') + '</div></div>';
+      container.appendChild(card);
+
+      // External platform cards
+      if (streamCurrentInfo.external_urls) {
+        streamCurrentInfo.external_urls.forEach(eu => {
+          const ecard = document.createElement('div');
+          ecard.className = 'viewer-card';
+          ecard.onclick = () => streamViewerJoinExternal(eu.platform, eu.url);
+          const icon = { twitch: '🟣', youtube: '🔴', rumble: '🟢' }[eu.platform] || '📺';
+          ecard.innerHTML = '<div class="thumb">' + icon + '</div><div class="meta"><h3>' + escapeHtml(eu.platform.charAt(0).toUpperCase() + eu.platform.slice(1)) + '</h3><div class="sub">' + escapeHtml(eu.url) + '</div></div>';
+          container.appendChild(ecard);
+        });
+      }
+    }
+
+    // ── Viewer: Join/Leave Stream ──
+    function streamViewerJoin() {
+      const panel = document.getElementById('stream-viewer-panel');
+      panel.classList.add('active');
+      document.getElementById('viewer-stream-title').textContent = '📺 ' + (streamCurrentInfo.title || 'Live Stream');
+
+      // Send viewer join
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'stream_viewer_join' }));
+      }
+
+      // Request WebRTC offer from streamer (relay forwards)
+      // The streamer will send an offer when they see our join
+    }
+
+    function streamViewerJoinExternal(platform, url) {
+      const panel = document.getElementById('stream-viewer-panel');
+      panel.classList.add('active');
+      document.getElementById('viewer-stream-title').textContent = '📺 ' + platform.charAt(0).toUpperCase() + platform.slice(1) + ' Stream';
+      document.getElementById('viewer-video').style.display = 'none';
+      const embedContainer = document.getElementById('viewer-embed-container');
+      embedContainer.style.display = 'block';
+
+      // Build embed based on platform
+      if (platform === 'twitch') {
+        const channel = url.replace(/.*twitch\.tv\/?/i, '').replace(/\//g, '');
+        embedContainer.innerHTML = '<iframe src="https://player.twitch.tv/?channel=' + encodeURIComponent(channel) + '&parent=' + location.hostname + '" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>';
+        // Also connect Twitch chat
+        if (channel) connectTwitchChat(channel);
+      } else if (platform === 'youtube') {
+        const videoId = url.match(/(?:live\/|watch\?v=|youtu\.be\/)([^&?/]+)/);
+        if (videoId) {
+          embedContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(videoId[1]) + '?autoplay=1" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>';
+        }
+      } else if (platform === 'rumble') {
+        embedContainer.innerHTML = '<iframe src="' + escapeHtml(url) + '" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>';
+      }
+    }
+
+    function streamViewerLeave() {
+      document.getElementById('stream-viewer-panel').classList.remove('active');
+      document.getElementById('viewer-video').style.display = 'block';
+      document.getElementById('viewer-embed-container').style.display = 'none';
+      document.getElementById('viewer-embed-container').innerHTML = '';
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'stream_viewer_leave' }));
+      }
+      if (streamViewerPC) { streamViewerPC.close(); streamViewerPC = null; }
+      if (twitchChatWs) { twitchChatWs.close(); twitchChatWs = null; }
+    }
+
+    // ── WebRTC Signaling ──
+    function streamHandleSignaling(msg) {
+      // For viewer: handle offer from streamer
+      if (msg.type === 'stream_offer' && !streamIsLive) {
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        streamViewerPC = pc;
+        pc.ontrack = (e) => {
+          document.getElementById('viewer-video').srcObject = e.streams[0];
+        };
+        pc.onicecandidate = (e) => {
+          if (e.candidate && ws && ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'stream_ice', to: msg.from, data: e.candidate }));
+          }
+        };
+        pc.setRemoteDescription(new RTCSessionDescription(msg.data)).then(() => pc.createAnswer()).then(answer => {
+          pc.setLocalDescription(answer);
+          if (ws && ws.readyState === 1) {
+            ws.send(JSON.stringify({ type: 'stream_answer', to: msg.from, data: answer }));
+          }
+        }).catch(e => console.warn('WebRTC answer failed:', e));
+      }
+
+      // For streamer: handle answer from viewer
+      if (msg.type === 'stream_answer' && streamIsLive && streamPeerConnection) {
+        streamPeerConnection.setRemoteDescription(new RTCSessionDescription(msg.data)).catch(e => console.warn('setRemoteDescription failed:', e));
+      }
+
+      // ICE candidates
+      if (msg.type === 'stream_ice') {
+        const pc = streamIsLive ? streamPeerConnection : streamViewerPC;
+        if (pc) {
+          pc.addIceCandidate(new RTCIceCandidate(msg.data)).catch(e => console.warn('addIceCandidate failed:', e));
+        }
+      }
+    }
+
+    // ── Twitch IRC Chat Integration ──
+    function connectTwitchChat(channel) {
+      if (twitchChatWs) { twitchChatWs.close(); }
+      try {
+        twitchChatWs = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
+        twitchChatWs.onopen = () => {
+          twitchChatWs.send('CAP REQ :twitch.tv/tags');
+          twitchChatWs.send('NICK justinfan' + Math.floor(Math.random() * 99999));
+          twitchChatWs.send('JOIN #' + channel.toLowerCase());
+        };
+        twitchChatWs.onmessage = (e) => {
+          const lines = e.data.split('\r\n');
+          for (const line of lines) {
+            if (line.startsWith('PING')) {
+              twitchChatWs.send('PONG :tmi.twitch.tv');
+              continue;
+            }
+            // Parse PRIVMSG
+            const privmsgMatch = line.match(/:([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)/);
+            if (privmsgMatch) {
+              const twitchUser = privmsgMatch[1];
+              const twitchMsg = privmsgMatch[2];
+              streamChatMessages.push({ content: twitchMsg, source: 'twitch', source_user: twitchUser, from_name: twitchUser, timestamp: Date.now() });
+              if (streamChatMessages.length > 500) streamChatMessages.shift();
+              streamRenderChat();
+              streamRenderChat('viewer');
+            }
+          }
+        };
+        twitchChatWs.onerror = () => {};
+        twitchChatWs.onclose = () => { twitchChatWs = null; };
+      } catch (e) { console.warn('Twitch chat connect failed:', e); }
+    }
+
+    // Helper: escape HTML
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return '';
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ── Request stream info on connect ──
+    function streamRequestInfo() {
+      if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'stream_info_request' }));
+      }
     }
 
     // Track tab visits for explorer achievement
