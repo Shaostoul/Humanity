@@ -5076,6 +5076,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
 
                             RelayMessage::StreamViewerJoin { .. } => {
+                                info!("Stream viewer join from {}", my_key_for_recv);
                                 let mut stream_lock = state_clone.active_stream.write().await;
                                 if let Some(ref mut stream) = *stream_lock {
                                     stream.viewer_keys.insert(my_key_for_recv.clone());
@@ -5099,6 +5100,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         message: format!("__stream_viewer_ready__:{}", my_key_for_recv),
                                     };
                                     let _ = state_clone.broadcast_tx.send(notify);
+                                    info!("Sent __stream_viewer_ready__ to streamer {} for viewer {}", streamer_key, my_key_for_recv);
                                 }
                             }
 
