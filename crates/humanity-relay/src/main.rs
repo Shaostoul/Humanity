@@ -10,7 +10,7 @@ mod storage;
 
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{get, post, delete},
     extract::ws::{WebSocket, WebSocketUpgrade},
     response::IntoResponse,
 };
@@ -109,6 +109,8 @@ async fn main() {
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/server-info", get(api::get_server_info))
+        .route("/api/assets", get(api::get_assets).post(api::create_asset))
+        .route("/api/assets/:id", delete(api::delete_asset))
         .route("/api/listings", get(api::get_listings).post(api::create_listing))
         .route("/api/federation/servers", get(api::list_federation_servers))
         .route("/api/search", get(api::search_messages))

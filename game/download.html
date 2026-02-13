@@ -6,409 +6,342 @@
   <title>Humanity — Download</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
   <style>
-    :root {
-      --bg: #1a1a2e;
-      --bg-secondary: #16213e;
-      --bg-panel: #1e1e3a;
-      --bg-hover: #2a2a4a;
-      --border: #2d2d5e;
-      --text: #e0e0e0;
-      --text-muted: #8888aa;
-      --accent: #e07020;
-      --accent-hover: #f08030;
-      --success: #4a8;
-    }
+    body { line-height: 1.7; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    nav {
-      display: flex;
-      align-items: center;
-      background: var(--bg-secondary);
-      border-bottom: 1px solid var(--border);
-      padding: 0 1rem;
-      height: 48px;
-      gap: 1rem;
-      flex-shrink: 0;
-    }
-    nav .brand {
-      font-weight: 700;
-      color: var(--accent);
-      font-size: 1.1rem;
-      text-decoration: none;
-    }
-    nav .spacer { flex: 1; }
-    nav a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; padding: 0.3rem 0.6rem; border-radius: 4px; }
-    nav a:hover { color: var(--text); background: var(--bg-hover); }
-
-    main {
-      flex: 1;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem;
-      width: 100%;
-    }
-
-    h1 {
-      font-size: 1.8rem;
-      margin-bottom: 0.5rem;
-    }
-    .subtitle {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-bottom: 2rem;
-      line-height: 1.5;
-    }
-
-    /* Detected platform card */
-    #detected-platform {
-      background: var(--bg-panel);
-      border: 2px solid var(--accent);
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
+    /* Hero */
+    .dl-hero {
       text-align: center;
+      padding: 60px 0 40px;
     }
-    #detected-platform .platform-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
-    #detected-platform .platform-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.3rem; }
-    #detected-platform .platform-detail { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; }
-
-    .download-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.8rem 2rem;
-      background: var(--accent);
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 600;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.15s;
+    .dl-hero h1 {
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 800;
+      margin-bottom: 12px;
     }
-    .download-btn:hover { background: var(--accent-hover); }
-    .download-btn.disabled {
-      background: var(--bg-hover);
+    .dl-hero h1 em { font-style: normal; color: var(--accent); }
+    .dl-hero p {
       color: var(--text-muted);
-      cursor: not-allowed;
-    }
-
-    .coming-soon-label {
-      display: block;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 0.5rem;
-    }
-
-    /* All platforms grid */
-    h2 {
       font-size: 1.1rem;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 1rem;
-      font-size: 0.8rem;
+      max-width: 560px;
+      margin: 0 auto 32px;
     }
 
+    /* Detected platform hero card */
+    .detected-card {
+      background: var(--bg-card);
+      border: 2px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      margin-bottom: 48px;
+      box-shadow: 0 0 30px rgba(255, 136, 17, 0.08);
+    }
+    .detected-card .platform-icon { font-size: 3rem; margin-bottom: 8px; }
+    .detected-card .platform-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+    .detected-card .platform-detail { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 20px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px; border-radius: 8px; font-size: 1.05rem;
+      font-weight: 700; border: none; cursor: pointer;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: var(--accent-hover); color: #000; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,136,17,0.2); }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.disabled { background: var(--bg-card); color: var(--text-muted); cursor: not-allowed; pointer-events: none; }
+
+    .detected-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; }
+
+    /* Section headings */
+    .section-label {
+      text-transform: uppercase; letter-spacing: 2px; font-size: 0.78rem;
+      color: var(--accent); font-weight: 600; margin-bottom: 10px;
+    }
+    h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+    .section-desc { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px; }
+
+    /* Platform grid */
     .platform-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 48px;
     }
-
     .platform-card {
-      background: var(--bg-panel);
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.2rem;
-      transition: border-color 0.15s;
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: all 0.2s;
     }
-    .platform-card:hover { border-color: var(--accent); }
+    .platform-card:hover { border-color: rgba(255,136,17,0.4); background: var(--bg-card-hover); }
     .platform-card.detected { border-color: var(--accent); border-width: 2px; }
-
-    .platform-card .icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
-    .platform-card .name { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.2rem; }
-    .platform-card .detail { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.8rem; line-height: 1.4; }
-    .platform-card .status {
-      font-size: 0.75rem;
-      padding: 0.25rem 0.6rem;
-      border-radius: 4px;
-      display: inline-block;
+    .platform-card .icon { font-size: 2rem; margin-bottom: 10px; }
+    .platform-card .name { font-weight: 700; font-size: 1rem; margin-bottom: 2px; }
+    .platform-card .arch { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; }
+    .platform-card .detail { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
+    .platform-card .card-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 6px; font-size: 0.82rem;
+      font-weight: 600; text-decoration: none; transition: all 0.2s;
+      background: var(--accent); color: #000;
     }
-    .platform-card .status.available { background: rgba(68,170,136,0.15); color: var(--success); }
-    .platform-card .status.planned { background: rgba(136,136,170,0.15); color: var(--text-muted); }
+    .platform-card .card-btn:hover { background: var(--accent-hover); }
+    .platform-card .card-btn.planned { background: var(--bg-card-hover); color: var(--text-muted); pointer-events: none; }
 
-    .platform-card a {
-      display: inline-block;
-      margin-top: 0.5rem;
-      color: var(--accent);
-      text-decoration: none;
-      font-size: 0.8rem;
-      font-weight: 600;
-    }
-    .platform-card a:hover { text-decoration: underline; }
-
-    /* Info section */
+    /* Info panels */
     .info-panel {
-      background: var(--bg-panel);
+      background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.2rem 1.5rem;
-      margin-bottom: 1.5rem;
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      margin-bottom: 20px;
     }
-    .info-panel h3 {
-      font-size: 0.9rem;
-      color: var(--accent);
-      margin-bottom: 0.5rem;
-    }
-    .info-panel p, .info-panel li {
+    .info-panel h3 { font-size: 1rem; color: var(--accent); margin-bottom: 8px; }
+    .info-panel p, .info-panel li { font-size: 0.88rem; color: var(--text-muted); line-height: 1.7; }
+    .info-panel ul { padding-left: 1.4rem; }
+    .info-panel a { color: var(--accent); text-decoration: none; }
+    .info-panel a:hover { text-decoration: underline; }
+    .info-panel code {
+      background: var(--bg); padding: 2px 6px; border-radius: 4px;
       font-size: 0.82rem;
-      color: var(--text-muted);
-      line-height: 1.6;
     }
-    .info-panel ul { padding-left: 1.2rem; }
+    .info-panel pre {
+      background: var(--bg); padding: 12px 16px; border-radius: 6px;
+      font-size: 0.8rem; overflow-x: auto; margin-top: 8px;
+    }
 
-    footer {
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border);
-      padding: 0.4rem 1rem;
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      text-align: center;
-      flex-shrink: 0;
+    /* Version badge */
+    .version-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,136,17,0.1); border: 1px solid rgba(255,136,17,0.25);
+      border-radius: 20px; padding: 4px 14px; font-size: 0.78rem;
+      color: var(--accent); font-weight: 600; margin-bottom: 24px;
     }
-    footer a { color: var(--accent); text-decoration: none; }
+
+    /* Open source banner */
+    .oss-banner {
+      text-align: center; padding: 40px 0 20px;
+      border-top: 1px solid var(--border); margin-top: 28px;
+    }
+    .oss-banner p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px; }
+    .oss-banner a { color: var(--accent); text-decoration: none; font-weight: 600; }
 
     @media (max-width: 600px) {
-      main { padding: 1rem; }
-      h1 { font-size: 1.4rem; }
+      .dl-hero { padding: 40px 0 24px; }
       .platform-grid { grid-template-columns: 1fr; }
+      .detected-card { padding: 24px 16px; }
     }
   </style>
 </head>
 <body>
-  <nav>
-    <a href="/" class="brand">🅷 Humanity</a>
-    <div class="spacer"></div>
-    <a href="/chat">Chat</a>
-    <a href="https://github.com/Shaostoul/Humanity">GitHub</a>
-  </nav>
+  <script src="/shared/shell.js" data-active="download"></script>
+  <script src="/shared/settings.js"></script>
 
-  <main>
-    <h1>⬇ Download Humanity</h1>
-    <p class="subtitle">
-      One app, every device. No app stores, no gatekeepers, no tracking.<br>
-      Download directly from GitHub — always free, always open source.
-    </p>
+  <div class="container">
+    <!-- Hero -->
+    <div class="dl-hero">
+      <h1>Download <em>Humanity</em></h1>
+      <p>One app, every device. No app stores, no gatekeepers, no tracking. Always free, always open source.</p>
+      <span class="version-badge">🏷️ Current release: v0.2.0</span>
+    </div>
 
     <!-- Auto-detected platform -->
-    <div id="detected-platform">
+    <div class="detected-card" id="detected-card">
       <div class="platform-icon" id="detected-icon">🔍</div>
       <div class="platform-name" id="detected-name">Detecting your device…</div>
       <div class="platform-detail" id="detected-detail"></div>
-      <a href="#" class="download-btn disabled" id="detected-download">
-        🚧 Coming Soon
+      <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="btn btn-primary" id="detected-download" target="_blank">
+        ⬇ Download
       </a>
-      <span class="coming-soon-label" id="detected-subtext">Native apps are in development. Use the web version for now.</span>
+      <div class="detected-sub" id="detected-sub">Downloads from GitHub Releases</div>
     </div>
 
-    <h2>All platforms</h2>
+    <!-- All Platforms -->
+    <div class="section-label">All Platforms</div>
+    <h2>Choose your platform</h2>
+    <p class="section-desc">Download directly from GitHub — always free, always verifiable.</p>
+
     <div class="platform-grid">
       <div class="platform-card" id="card-windows">
         <div class="icon">🪟</div>
         <div class="name">Windows</div>
-        <div class="detail">Windows 10+ (x64)<br>.exe / .msi installer — no store required</div>
-        <span class="status available">✓ Available</span>
-        <br><a href="https://github.com/Shaostoul/Humanity/releases/latest">Download →</a>
+        <div class="arch">x64 · .msi installer</div>
+        <div class="detail">Windows 10+ — no store required. You may see a SmartScreen warning (see below).</div>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download .msi</a>
       </div>
-      <div class="platform-card" id="card-macos">
+      <div class="platform-card" id="card-macos-arm">
         <div class="icon">🍎</div>
         <div class="name">macOS</div>
-        <div class="detail">macOS 12+ (Apple Silicon)<br>.dmg — drag to Applications</div>
-        <span class="status available">✓ Available</span>
-        <br><a href="https://github.com/Shaostoul/Humanity/releases/latest">Download →</a>
+        <div class="arch">Apple Silicon (M1/M2/M3) · .dmg</div>
+        <div class="detail">macOS 12+ — drag to Applications.</div>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download .dmg</a>
+      </div>
+      <div class="platform-card" id="card-macos-intel">
+        <div class="icon">🍎</div>
+        <div class="name">macOS</div>
+        <div class="arch">Intel (x64) · .dmg</div>
+        <div class="detail">macOS 12+ — drag to Applications.</div>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download .dmg</a>
       </div>
       <div class="platform-card" id="card-linux">
         <div class="icon">🐧</div>
         <div class="name">Linux</div>
-        <div class="detail">AppImage (universal) + .deb (Debian/Ubuntu)<br>Works on most distros</div>
-        <span class="status available">✓ Available</span>
-        <br><a href="https://github.com/Shaostoul/Humanity/releases/latest">Download →</a>
+        <div class="arch">x64 · .AppImage / .deb</div>
+        <div class="detail">Works on most distros. AppImage is universal; .deb for Debian/Ubuntu.</div>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download</a>
       </div>
       <div class="platform-card" id="card-android">
         <div class="icon">🤖</div>
         <div class="name">Android</div>
-        <div class="detail">Android 8+ (ARM64 / x86_64)<br>.apk — sideload directly</div>
-        <span class="status planned">🚧 Planned</span>
+        <div class="arch">ARM64 / x86_64</div>
+        <div class="detail">Install as PWA from your browser (see instructions below). Native APK planned.</div>
+        <span class="card-btn planned">🚧 PWA Available</span>
       </div>
       <div class="platform-card" id="card-ios">
         <div class="icon">📱</div>
         <div class="name">iOS / iPadOS</div>
-        <div class="detail">Sideload via AltStore or TrollStore<br>No Apple Developer fee required</div>
-        <span class="status planned">🚧 Planned</span>
+        <div class="arch">ARM64</div>
+        <div class="detail">Install as PWA from Safari (see instructions below).</div>
+        <span class="card-btn planned">🚧 PWA Available</span>
       </div>
       <div class="platform-card" id="card-web">
         <div class="icon">🌐</div>
         <div class="name">Web</div>
-        <div class="detail">Works in any modern browser<br>No download needed — just open</div>
-        <span class="status available">✓ Available now</span>
-        <br><a href="/chat">Open web app →</a>
+        <div class="arch">Any modern browser</div>
+        <div class="detail">No download needed — works instantly. Full feature set.</div>
+        <a href="/chat" class="card-btn">🚀 Open Web App</a>
       </div>
     </div>
 
+    <!-- SmartScreen Warning -->
     <div class="info-panel">
-      <h3>Why direct downloads?</h3>
+      <h3>⚠️ Windows SmartScreen Warning</h3>
+      <p>Windows may show "Windows protected your PC" — this is normal for open-source software without a paid code signing certificate ($300+/year).</p>
+      <ul>
+        <li>Click <strong>"More info"</strong> → <strong>"Run anyway"</strong></li>
+        <li>The app is fully open source — <a href="https://github.com/Shaostoul/Humanity" target="_blank">verify the source code</a> yourself</li>
+      </ul>
+    </div>
+
+    <!-- PWA Instructions -->
+    <div class="info-panel">
+      <h3>📱 Install as PWA (No App Store)</h3>
+      <p>Works like a native app — homescreen icon, no browser chrome, push notifications.</p>
+      <ul>
+        <li><strong>iOS Safari:</strong> Open <a href="https://united-humanity.us/chat" target="_blank">united-humanity.us/chat</a> → tap <strong>Share</strong> (□↑) → <strong>"Add to Home Screen"</strong></li>
+        <li><strong>Android Chrome:</strong> Open <a href="https://united-humanity.us/chat" target="_blank">united-humanity.us/chat</a> → tap the install banner, or <strong>Menu (⋮)</strong> → <strong>"Install app"</strong></li>
+        <li><strong>Desktop Chrome/Edge:</strong> Look for the <strong>install icon</strong> (⊕) in the address bar → click to install</li>
+      </ul>
+    </div>
+
+    <!-- Why Direct Downloads -->
+    <div class="info-panel">
+      <h3>🔓 Why direct downloads?</h3>
       <p>App stores charge fees, impose restrictions, and can remove apps at will. We distribute directly from GitHub so:</p>
       <ul>
         <li>No 30% tax on donations</li>
         <li>No corporate gatekeeper can pull the app</li>
-        <li>Updates ship when they're ready, not when approved</li>
+        <li>Updates ship when ready, not when approved</li>
         <li>You can verify the source code matches the binary</li>
       </ul>
-      <p style="margin-top:0.5rem;">We may add app store listings later for convenience, but direct download will always be available.</p>
     </div>
 
+    <!-- Build from Source -->
     <div class="info-panel">
-      <h3>⚠️ Windows SmartScreen Warning</h3>
-      <p>Windows may show a "Windows protected your PC" warning from SmartScreen. This is normal for open-source software without a paid code signing certificate.</p>
-      <ul>
-        <li>Click <strong>"More info"</strong> → <strong>"Run anyway"</strong> to proceed</li>
-        <li>The app is open source — you can <a href="https://github.com/Shaostoul/Humanity" style="color:var(--accent)">verify the source code</a> yourself</li>
-        <li>Current release: <strong>v0.2.0</strong></li>
-      </ul>
-    </div>
-
-    <div class="info-panel">
-      <h3>📱 Mobile — Install as PWA</h3>
-      <p>No app store needed. Install Humanity directly from your browser:</p>
-      <ul>
-        <li><strong>iOS Safari:</strong> Open <a href="https://united-humanity.us/chat" style="color:var(--accent)">united-humanity.us/chat</a> → tap Share → "Add to Home Screen"</li>
-        <li><strong>Android Chrome:</strong> Open <a href="https://united-humanity.us/chat" style="color:var(--accent)">united-humanity.us/chat</a> → tap the install banner or Menu → "Install app"</li>
-        <li><strong>Desktop Chrome/Edge:</strong> Click the install icon in the address bar</li>
-      </ul>
-      <p style="margin-top:0.5rem;">The PWA runs like a native app — homescreen icon, no browser chrome, push notifications.</p>
-    </div>
-
-    <div class="info-panel">
-      <h3>Build from source</h3>
+      <h3>🛠️ Build from source</h3>
       <p>Everything is open source under CC0. Clone, build, verify:</p>
-      <pre style="background:var(--bg);padding:0.6rem;border-radius:4px;font-size:0.78rem;color:var(--text);overflow-x:auto;margin-top:0.5rem;"><code>git clone https://github.com/Shaostoul/Humanity.git
+      <pre><code>git clone https://github.com/Shaostoul/Humanity.git
 cd Humanity/desktop
 npm install
 npx tauri build</code></pre>
     </div>
-  </main>
 
-  <footer>
-    <a href="https://united-humanity.us">Humanity</a> — Public domain · CC0 1.0 ·
-    <a href="https://github.com/Shaostoul/Humanity">GitHub</a>
-  </footer>
+    <!-- Open Source Banner -->
+    <div class="oss-banner">
+      <p>Humanity is <strong>public domain</strong> (CC0 1.0). No permission needed. This belongs to everyone.</p>
+      <a href="https://github.com/Shaostoul/Humanity" target="_blank">📦 View on GitHub →</a>
+    </div>
+  </div>
 
   <script>
     // ── Platform Detection ──
     function detectPlatform() {
-      const ua = navigator.userAgent || '';
-      const platform = navigator.platform || '';
-      const uaData = navigator.userAgentData; // Chrome 90+
+      var ua = navigator.userAgent || '';
+      var uaData = navigator.userAgentData;
+      var os = 'unknown', arch = '', icon = '🌐', cardId = 'card-web';
 
-      let os = 'unknown';
-      let arch = '';
-      let detail = '';
-      let icon = '🌐';
-      let cardId = 'card-web';
-
-      // Use UA-CH (User-Agent Client Hints) if available — more reliable
       if (uaData) {
-        const p = uaData.platform?.toLowerCase() || '';
+        var p = (uaData.platform || '').toLowerCase();
         if (p === 'windows') { os = 'windows'; icon = '🪟'; cardId = 'card-windows'; }
-        else if (p === 'macos') { os = 'macos'; icon = '🍎'; cardId = 'card-macos'; }
+        else if (p === 'macos') { os = 'macos'; icon = '🍎'; cardId = 'card-macos-arm'; }
         else if (p === 'linux') { os = 'linux'; icon = '🐧'; cardId = 'card-linux'; }
         else if (p === 'android') { os = 'android'; icon = '🤖'; cardId = 'card-android'; }
         else if (p === 'ios') { os = 'ios'; icon = '📱'; cardId = 'card-ios'; }
 
-        // Try to get architecture
         if (uaData.getHighEntropyValues) {
-          uaData.getHighEntropyValues(['architecture', 'bitness', 'model', 'platformVersion'])
-            .then(hints => {
-              arch = hints.architecture || '';
-              const bits = hints.bitness || '';
-              const ver = hints.platformVersion || '';
-              const model = hints.model || '';
-              updateDetection(os, arch, bits, ver, model, icon, cardId);
+          uaData.getHighEntropyValues(['architecture', 'bitness'])
+            .then(function(h) {
+              arch = h.architecture || '';
+              if (os === 'macos') cardId = (arch === 'arm' || arch === 'arm64') ? 'card-macos-arm' : 'card-macos-intel';
+              updateUI(os, arch, icon, cardId);
             })
-            .catch(() => updateDetection(os, arch, '', '', '', icon, cardId));
-          return; // async path
+            .catch(function() { updateUI(os, arch, icon, cardId); });
+          return;
         }
       }
 
-      // Fallback: parse UA string
       if (/Windows/.test(ua)) { os = 'windows'; icon = '🪟'; cardId = 'card-windows'; }
-      else if (/Macintosh|Mac OS X/.test(ua)) { os = 'macos'; icon = '🍎'; cardId = 'card-macos'; }
+      else if (/Macintosh/.test(ua)) {
+        os = 'macos'; icon = '🍎';
+        cardId = /ARM64|arm64/.test(ua) ? 'card-macos-arm' : (/Intel/.test(ua) ? 'card-macos-intel' : 'card-macos-arm');
+      }
       else if (/Android/.test(ua)) { os = 'android'; icon = '🤖'; cardId = 'card-android'; }
       else if (/iPhone|iPad|iPod/.test(ua)) { os = 'ios'; icon = '📱'; cardId = 'card-ios'; }
       else if (/Linux/.test(ua)) { os = 'linux'; icon = '🐧'; cardId = 'card-linux'; }
-      else if (/CrOS/.test(ua)) { os = 'linux'; icon = '🐧'; cardId = 'card-linux'; detail = 'ChromeOS (Linux)'; }
 
-      // Arch from UA
       if (/arm64|aarch64/i.test(ua)) arch = 'arm64';
       else if (/x86_64|x64|Win64|WOW64|amd64/i.test(ua) || /Intel Mac/.test(ua)) arch = 'x64';
-      else if (/armv7|arm /i.test(ua)) arch = 'arm32';
 
-      updateDetection(os, arch, '', '', '', icon, cardId);
+      updateUI(os, arch, icon, cardId);
     }
 
-    function updateDetection(os, arch, bits, ver, model, icon, cardId) {
-      const names = {
-        windows: 'Windows',
-        macos: 'macOS',
-        linux: 'Linux',
-        android: 'Android',
-        ios: 'iOS',
-        unknown: 'Unknown Device'
-      };
-
-      const archLabel = arch === 'arm64' ? 'ARM64' : arch === 'x64' ? 'x64' : arch === 'arm32' ? 'ARM32' : '';
-      let detail = names[os] || 'Unknown';
-      if (archLabel) detail += ' · ' + archLabel;
-      if (ver) detail += ' · v' + ver;
-      if (model) detail += ' · ' + model;
+    function updateUI(os, arch, icon, cardId) {
+      var names = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iOS', unknown: 'your device' };
+      var archLabel = arch === 'arm64' || arch === 'arm' ? 'ARM64' : arch === 'x64' ? 'x64' : '';
+      var detail = (names[os] || 'Unknown') + (archLabel ? ' · ' + archLabel : '');
 
       document.getElementById('detected-icon').textContent = icon;
       document.getElementById('detected-name').textContent = 'Detected: ' + (names[os] || 'Unknown');
       document.getElementById('detected-detail').textContent = detail;
 
-      // Highlight the matching card
-      document.querySelectorAll('.platform-card').forEach(c => c.classList.remove('detected'));
-      const card = document.getElementById(cardId);
+      document.querySelectorAll('.platform-card').forEach(function(c) { c.classList.remove('detected'); });
+      var card = document.getElementById(cardId);
       if (card) card.classList.add('detected');
 
-      // Web is always available
-      if (os === 'unknown') {
-        document.getElementById('detected-download').textContent = '🌐 Open Web App';
-        document.getElementById('detected-download').href = '/chat';
-        document.getElementById('detected-download').classList.remove('disabled');
-        document.getElementById('detected-subtext').textContent = '';
-      }
-      // Desktop platforms link to GitHub Releases
+      var btn = document.getElementById('detected-download');
+      var sub = document.getElementById('detected-sub');
+
       if (['windows', 'macos', 'linux'].includes(os)) {
-        const btn = document.getElementById('detected-download');
+        btn.textContent = '⬇ Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
-        btn.textContent = '⬇ Download for ' + (names[os] || os);
         btn.classList.remove('disabled');
-        document.getElementById('detected-subtext').textContent = 'Downloads from GitHub Releases';
+        sub.textContent = 'Downloads from GitHub Releases · v0.2.0';
+      } else if (['android', 'ios'].includes(os)) {
+        btn.textContent = '📱 Install as PWA';
+        btn.href = '/chat';
+        btn.classList.remove('disabled');
+        sub.textContent = 'Open in browser, then install to homescreen';
+      } else {
+        btn.textContent = '🌐 Open Web App';
+        btn.href = '/chat';
+        btn.classList.remove('disabled');
+        sub.textContent = 'Works in any modern browser';
       }
     }
 

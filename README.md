@@ -19,7 +19,7 @@ A tabbed interface with 11 sections — **Chat, Board, Reality, Fantasy, Market,
 - **Threaded replies** — reply to any message with collapsible threads
 - **Groups** — private group conversations (foundation)
 - **Voice channels** — persistent, always-on WebRTC mesh rooms to join/leave
-- **Voice & video calling** — WebRTC peer-to-peer 1-on-1 calls with audio and video
+- **Voice & video calling** — WebRTC peer-to-peer 1-on-1 calls with audio, video, screen share, PiP, camera selection
 - **@mentions** with highlighting and notifications
 - **Emoji reactions** (persistent, synced across sessions)
 - **Message editing and deletion**
@@ -47,7 +47,7 @@ A tabbed interface with 11 sections — **Chat, Board, Reality, Fantasy, Market,
 - **Pin system** — server pins (mod/admin) and personal pins (local)
 
 ### Hub Tools
-- **Project board** — kanban-style task management
+- **Project board** — kanban-style task management with visible task IDs on cards
 - **Marketplace** — peer-to-peer listings for goods and services, kiosks
 - **Universal catalog** — 118 elements, 44 materials, processing chains
 - **Browse tab** — web directory with 52 curated sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
@@ -59,7 +59,8 @@ A tabbed interface with 11 sections — **Chat, Board, Reality, Fantasy, Market,
 
 ### Game & Creative
 - **Fantasy tab** — character sheet, lore entries, world map, achievements
-- **Streams tab** — local capture demo (real streaming coming soon)
+- **Streaming system** — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC integration, viewer interface
+- **Video calling** — WebRTC P2P with camera, screen share, picture-in-picture, camera selection
 - **Concept art** — multi-km spaceships, virtual malls, in-game spaces
 
 ### Platform
@@ -103,14 +104,14 @@ A tabbed interface with 11 sections — **Chat, Board, Reality, Fantasy, Market,
 | Component | Technology |
 |-----------|-----------|
 | Server | Rust (axum + tokio) |
-| Client | Single-file HTML/JS |
+| Client | Modular HTML/CSS/JS (split files) |
 | Identity | Ed25519 (signing) + ECDH P-256 (encryption) |
 | Storage | SQLite |
 | Transport | WebSocket + WebRTC |
 | Desktop | Tauri v2 |
 | Layout | Cargo workspace |
 
-The client is a single HTML file with no build step — open it in a browser and it works. The server is a Rust binary that handles WebSocket connections, message persistence, identity verification, and file uploads.
+The client is split into modular HTML/CSS/JS files with no build step — open it in a browser and it works. The server is a Rust binary that handles WebSocket connections, message persistence, identity verification, and file uploads.
 
 ---
 

@@ -16,6 +16,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use rand::Rng;
 use crate::relay::{RelayMessage, RelayState, Peer, PeerInfo, SearchResultData};
 
 /// Constant-time byte comparison (M-2: prevent timing attacks on HMAC).
@@ -260,10 +261,11 @@ pub async fn upload_file(
         "png", "jpg", "jpeg", "gif", "webp",
         "mp3", "ogg", "wav", "mp4", "webm",
         "pdf", "txt", "md", "json", "zip", "tar.gz", "gz",
+        "blend", "stl", "obj", "gltf", "glb", "svg",
     ];
     const BLOCKED_EXTENSIONS: &[&str] = &[
         "exe", "sh", "bat", "cmd", "msi", "dmg", "app", "com", "scr", "pif",
-        "svg", "html", "htm", "xhtml", "xml", "js", "mjs",
+        "html", "htm", "xhtml", "xml", "js", "mjs",
     ];
     /// Maximum total size of all uploads on disk (default 500MB).
     const MAX_TOTAL_UPLOAD_BYTES: u64 = 500 * 1024 * 1024;
@@ -377,6 +379,7 @@ pub async fn upload_file(
         let file_type = if content_type.starts_with("image/") { "image" }
             else if content_type.starts_with("audio/") || ["mp3", "ogg", "wav"].contains(&ext) { "audio" }
             else if content_type.starts_with("video/") || ["mp4", "webm"].contains(&ext) { "video" }
+            else if ["blend", "stl", "obj", "gltf", "glb"].contains(&ext) { "3d_model" }
             else if ["zip", "tar.gz", "gz"].contains(&ext) { "archive" }
             else { "document" };
         let ts = std::time::SystemTime::now()
@@ -1027,5 +1030,117 @@ pub async fn search_messages(
             })))
         }
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Search error: {e}"))),
+    }
+}
+
+// ── Asset Library API ──
+
+#[derive(Debug, Deserialize)]
+pub struct AssetQuery {
+    pub category: Option<String>,
+    pub file_type: Option<String>,
+    pub search: Option<String>,
+    pub owner: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateAssetRequest {
+    pub filename: String,
+    pub url: String,
+    pub file_type: String,
+    pub category: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub size_bytes: u64,
+    #[serde(default)]
+    pub description: String,
+    /// Public key of the owner (required).
+    pub owner_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssetDeleteQuery {
+    pub key: Option<String>,
+    pub token: Option<String>,
+}
+
+/// GET /api/assets — list assets with optional filters.
+pub async fn get_assets(
+    State(state): State<Arc<RelayState>>,
+    Query(query): Query<AssetQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let limit = query.limit.unwrap_or(100).min(500);
+    match state.db.get_assets(
+        query.category.as_deref(),
+        query.file_type.as_deref(),
+        query.search.as_deref(),
+        query.owner.as_deref(),
+        limit,
+    ) {
+        Ok(assets) => Ok(Json(serde_json::json!({ "assets": assets }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
+    }
+}
+
+/// POST /api/assets — create asset metadata record after upload.
+pub async fn create_asset(
+    State(state): State<Arc<RelayState>>,
+    Json(body): Json<CreateAssetRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Verify the owner is connected
+    {
+        let peers = state.peers.read().await;
+        if !peers.contains_key(&body.owner_key) {
+            return Err((StatusCode::FORBIDDEN, "Owner key is not connected.".into()));
+        }
+    }
+
+    let id = format!("{}_{}", 
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
+        rand::rng().random::<u32>()
+    );
+
+    match state.db.create_asset(
+        &id,
+        &body.owner_key,
+        &body.filename,
+        &body.file_type,
+        &body.category,
+        &serde_json::to_string(&body.tags).unwrap_or_else(|_| "[]".to_string()),
+        body.size_bytes as i64,
+        &body.url,
+        &body.description,
+    ) {
+        Ok(_) => Ok(Json(serde_json::json!({ "id": id, "status": "created" }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
+    }
+}
+
+/// DELETE /api/assets/:id — delete an asset record.
+pub async fn delete_asset(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(asset_id): axum::extract::Path<String>,
+    Query(query): Query<AssetDeleteQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Resolve key from token or key param
+    let public_key = if let Some(ref token) = query.token {
+        let tokens = state.upload_tokens.read().await;
+        tokens.get(token).cloned().ok_or_else(|| (StatusCode::FORBIDDEN, "Invalid token.".into()))?
+    } else if let Some(ref k) = query.key {
+        k.clone()
+    } else {
+        return Err((StatusCode::BAD_REQUEST, "Missing key or token.".into()));
+    };
+
+    let is_admin = {
+        let role = state.db.get_role(&public_key).unwrap_or_default();
+        role == "admin" || role == "mod"
+    };
+
+    match state.db.delete_asset(&asset_id, &public_key, is_admin) {
+        Ok(true) => Ok(Json(serde_json::json!({ "status": "deleted" }))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, "Asset not found or not authorized.".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
     }
 }

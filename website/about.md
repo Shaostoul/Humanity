@@ -64,7 +64,7 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 **What's built and live:**
 - E2E encrypted DMs — ECDH P-256 + AES-256-GCM, server never sees plaintext
 - Channels, groups (foundation), threaded replies
-- Voice & video calling — WebRTC P2P with audio and video
+- Voice & video calling — WebRTC P2P with audio, video, screen share, PiP, camera selection
 - Persistent voice channels — always-on WebRTC mesh rooms
 - Message search — full-text search across conversations
 - Follow/friend system (mutual follow = friends)
@@ -78,7 +78,8 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 - Universal catalog — 118 elements, 44 materials, processing chains
 - Personal inventory, notes, todos, garden tracker
 - Fantasy tab (character sheet, lore, world map, achievements)
-- Streams tab (local capture demo)
+- Streaming system — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC, viewer interface
+- Video calling with camera, screen share, PiP, camera selection
 - Key backup/export/import, encrypted user data sync
 - PWA installable on mobile
 - Desktop app — Tauri v2 with auto-updater (Windows, macOS ARM64 + x64, Linux)

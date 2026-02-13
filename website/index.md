@@ -28,7 +28,7 @@ A fully operational communication platform and personal hub with 11 tabs — **C
 - **E2E encrypted DMs** — ECDH P-256 key exchange + AES-256-GCM, server never sees plaintext
 - **Threaded replies** — reply to any message with collapsible threads
 - **Groups** — private group conversations (foundation)
-- **Voice & video calling** — WebRTC peer-to-peer 1-on-1 calls with audio and video
+- **Voice & video calling** — WebRTC P2P with camera, screen share, PiP, camera selection
 - **Persistent voice channels** — always-on WebRTC mesh rooms to join/leave
 - **Message search** — full-text search across conversations
 - **@mentions**, emoji reactions (persistent), message editing, image sharing
@@ -42,7 +42,7 @@ A fully operational communication platform and personal hub with 11 tabs — **C
 - **Blocking and reporting** tools
 
 ### Hub Tools
-- **Project board** — kanban-style task management
+- **Project board** — kanban-style task management with visible task IDs
 - **Marketplace** — peer-to-peer listings for goods and services, kiosks
 - **Universal catalog** — 118 elements, 44 materials, processing chains
 - **Browse tab** — web directory with 52 curated sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
@@ -54,7 +54,7 @@ A fully operational communication platform and personal hub with 11 tabs — **C
 
 ### Game & Creative
 - **Fantasy tab** — character sheet, lore entries, world map, achievements
-- **Streams tab** — local capture demo (real streaming coming soon)
+- **Streaming system** — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC, viewer interface
 - **Concept art** — multi-km spaceships, virtual malls, in-game spaces
 
 ### Platform
@@ -80,7 +80,8 @@ A fully operational communication platform and personal hub with 11 tabs — **C
 
 ## What's Planned
 
-- **Actual WebRTC streaming** — peer-assisted streaming (creator → relay → peer mesh)
+- **Asset library system** — organized art/models/audio with tags and cloud backup
+- **Peer-assisted streaming** — WebRTC peer mesh distribution (creator → relay → viewers)
 - **Native game client** — first-person Rust client with in-game chat + AI
 - **P2P game distribution** — GitHub Releases, no app stores, no middlemen
 - **In-game commerce** — virtual mall with real retailer kiosks

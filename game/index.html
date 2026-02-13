@@ -656,6 +656,79 @@
         </div>
       </div>
     </div>
+
+    <!-- ── Asset Library ── -->
+    <div class="panel reality-card" id="reality-assets">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('assets')">📁 Asset Library <span class="collapse-icon" id="assets-collapse">▼</span></h2>
+      <div class="reality-card-body" id="assets-body">
+        <!-- Upload area -->
+        <div id="asset-dropzone" style="border:2px dashed var(--border);border-radius:10px;padding:1.5rem;text-align:center;margin-bottom:0.8rem;transition:border-color 0.2s,background 0.2s;cursor:pointer;" onclick="document.getElementById('asset-file-input').click()">
+          <div style="font-size:1.5rem;margin-bottom:0.3rem;">📤</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);">Drag &amp; drop files here or click to browse</div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.3rem;">Images, 3D Models, Audio, Documents</div>
+          <input type="file" id="asset-file-input" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.blend,.stl,.obj,.gltf,.glb,.mp3,.wav,.ogg,.pdf,.txt,.md" style="display:none" onchange="handleAssetFiles(this.files)">
+        </div>
+        <div id="asset-upload-progress" style="display:none;margin-bottom:0.8rem;">
+          <div style="background:var(--bg-input);border-radius:6px;overflow:hidden;height:6px;">
+            <div id="asset-upload-bar" style="height:100%;background:var(--accent);width:0%;transition:width 0.3s;"></div>
+          </div>
+          <div id="asset-upload-status" style="font-size:0.7rem;color:var(--text-muted);margin-top:0.2rem;"></div>
+        </div>
+
+        <!-- Toolbar -->
+        <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;flex-wrap:wrap;align-items:center;">
+          <input type="text" id="asset-search" placeholder="🔍 Search assets…" oninput="renderAssets()" style="flex:1;min-width:120px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.8rem;outline:none;">
+          <button onclick="toggleAssetView()" id="asset-view-toggle" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.75rem;cursor:pointer;" title="Toggle grid/list view">☰</button>
+          <select id="asset-tag-filter" onchange="renderAssets()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.75rem;">
+            <option value="">All Tags</option>
+          </select>
+        </div>
+
+        <!-- Category pills -->
+        <div style="display:flex;gap:0.3rem;margin-bottom:0.8rem;flex-wrap:wrap;">
+          <span class="filter-pill active" onclick="setAssetCategory('')" id="asset-cat-all" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">All</span>
+          <span class="filter-pill" onclick="setAssetCategory('image')" id="asset-cat-image" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🖼️ Images</span>
+          <span class="filter-pill" onclick="setAssetCategory('3d_model')" id="asset-cat-3d_model" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🧊 3D Models</span>
+          <span class="filter-pill" onclick="setAssetCategory('audio')" id="asset-cat-audio" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🎵 Audio</span>
+          <span class="filter-pill" onclick="setAssetCategory('document')" id="asset-cat-document" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">📄 Documents</span>
+        </div>
+
+        <!-- Asset grid/list -->
+        <div id="asset-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.6rem;"></div>
+        <div id="asset-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:2rem;font-size:0.85rem;display:none;">No assets yet. Upload some files to get started!</div>
+      </div>
+    </div>
+
+    <!-- Asset Preview Modal -->
+    <div id="asset-preview-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.8);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeAssetPreview()">
+      <div style="max-width:700px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+          <h3 id="asset-preview-title" style="color:var(--text);margin:0;font-size:1rem;"></h3>
+          <button onclick="closeAssetPreview()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;">✕</button>
+        </div>
+        <div id="asset-preview-content" style="margin-bottom:1rem;"></div>
+        <div id="asset-preview-meta" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:1rem;"></div>
+        <div id="asset-preview-tags" style="margin-bottom:0.8rem;"></div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">
+          <button onclick="editAssetTags()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;">🏷️ Edit Tags</button>
+          <button onclick="shareAsset()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;">🔗 Share</button>
+          <button onclick="listAssetOnMarket()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;">🏪 List on Marketplace</button>
+          <button onclick="deleteCurrentAsset()" class="btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.75rem;color:var(--error);">🗑️ Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Asset Tag Edit Modal -->
+    <div id="asset-tag-modal" style="display:none;position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);" onclick="if(event.target===this)closeAssetTagModal()">
+      <div style="max-width:400px;margin:5rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+        <h3 style="color:var(--text);margin:0 0 0.8rem;font-size:0.95rem;">Edit Tags</h3>
+        <input type="text" id="asset-tag-input" placeholder="Comma-separated tags" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;margin-bottom:0.8rem;">
+        <div style="display:flex;gap:0.4rem;justify-content:flex-end;">
+          <button onclick="closeAssetTagModal()" class="btn" style="min-width:60px;min-height:32px;padding:0.25rem 0.6rem;font-size:0.8rem;">Cancel</button>
+          <button onclick="saveAssetTags()" class="btn btn-clickable" style="min-width:60px;min-height:32px;padding:0.25rem 0.6rem;font-size:0.8rem;">Save</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Fantasy Tab -->
@@ -1460,7 +1533,7 @@
           <option value="">All Categories</option>
           <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
           <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
-          <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>Other</option>
+          <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
         </select>
         <select id="market-condition-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
           <option value="">Any Condition</option>
@@ -1519,7 +1592,7 @@
               <select id="listing-category" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
                 <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
                 <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
-                <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>Other</option>
+                <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
               </select>
             </div>
             <div>
@@ -1529,9 +1602,22 @@
               </select>
             </div>
           </div>
+          <div id="listing-3d-subcategory-wrap" style="display:none;">
+            <label style="font-size:0.75rem;color:var(--text-muted);">Model Subcategory</label>
+            <select id="listing-3d-subcategory" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+              <option value="">None</option>
+              <option>Vehicles</option><option>Architecture</option><option>Characters</option><option>Props</option>
+              <option>Weapons</option><option>Nature</option><option>Sci-Fi</option><option>Other</option>
+            </select>
+          </div>
           <div>
             <label style="font-size:0.75rem;color:var(--text-muted);">Price</label>
             <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+            <div style="display:flex;gap:0.3rem;margin-top:0.3rem;flex-wrap:wrap;">
+              <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Free</button>
+              <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Donations Welcome</button>
+              <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Pay What You Want</button>
+            </div>
           </div>
           <div>
             <label style="font-size:0.75rem;color:var(--text-muted);">Payment Methods</label>
@@ -1789,7 +1875,7 @@
     // ══════════════════════════════════════
 
     // ── Card collapse ──
-    const REALITY_CARDS = ['todo', 'notes', 'garden', 'references', 'elements', 'materials', 'inventory'];
+    const REALITY_CARDS = ['todo', 'notes', 'garden', 'references', 'elements', 'materials', 'inventory', 'assets'];
     function toggleRealityCard(id) {
       const card = document.getElementById('reality-' + id);
       if (card) card.classList.toggle('collapsed');
@@ -3071,6 +3157,366 @@
     renderInventory();
 
     // ══════════════════════════════════════
+    // ASSET LIBRARY
+    // ══════════════════════════════════════
+
+    let assetLibrary = [];
+    let assetCategoryFilter = '';
+    let assetViewMode = 'grid'; // 'grid' or 'list'
+    let currentPreviewAsset = null;
+
+    function loadAssetLibrary() {
+      try { return JSON.parse(localStorage.getItem('humanity_assets')) || []; } catch { return []; }
+    }
+    function saveAssetLibrary(assets) {
+      localStorage.setItem('humanity_assets', JSON.stringify(assets));
+    }
+
+    assetLibrary = loadAssetLibrary();
+
+    // Drag-and-drop
+    const dropzone = document.getElementById('asset-dropzone');
+    if (dropzone) {
+      dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = 'var(--accent)'; dropzone.style.background = 'rgba(255,136,17,0.05)'; });
+      dropzone.addEventListener('dragleave', () => { dropzone.style.borderColor = 'var(--border)'; dropzone.style.background = ''; });
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = 'var(--border)';
+        dropzone.style.background = '';
+        if (e.dataTransfer.files.length) handleAssetFiles(e.dataTransfer.files);
+      });
+    }
+
+    function categorizeFile(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      if (['png','jpg','jpeg','gif','webp','svg'].includes(ext)) return 'image';
+      if (['blend','stl','obj','gltf','glb'].includes(ext)) return '3d_model';
+      if (['mp3','wav','ogg'].includes(ext)) return 'audio';
+      if (['pdf','txt','md'].includes(ext)) return 'document';
+      return 'document';
+    }
+
+    function fileTypeIcon(category) {
+      const icons = { image: '🖼️', '3d_model': '🧊', audio: '🎵', document: '📄' };
+      return icons[category] || '📎';
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    async function handleAssetFiles(files) {
+      const token = localStorage.getItem('humanity_upload_token');
+      const key = localStorage.getItem('humanity_key');
+      if (!token && !key) { alert('You must be connected to upload files.'); return; }
+
+      const progress = document.getElementById('asset-upload-progress');
+      const bar = document.getElementById('asset-upload-bar');
+      const status = document.getElementById('asset-upload-status');
+      progress.style.display = '';
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        bar.style.width = ((i / files.length) * 100) + '%';
+        status.textContent = `Uploading ${file.name} (${i + 1}/${files.length})…`;
+
+        try {
+          const form = new FormData();
+          form.append('file', file, file.name);
+          const params = token ? `?token=${encodeURIComponent(token)}` : `?key=${encodeURIComponent(key)}`;
+          const res = await fetch('/api/upload' + params, { method: 'POST', body: form });
+          if (!res.ok) { const err = await res.text(); throw new Error(err); }
+          const data = await res.json();
+
+          const category = categorizeFile(file.name);
+          const asset = {
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+            filename: file.name,
+            url: data.url,
+            type: data.type || category,
+            category: category,
+            tags: [],
+            size: file.size,
+            uploadedAt: new Date().toISOString(),
+            description: '',
+          };
+
+          assetLibrary.unshift(asset);
+          saveAssetLibrary(assetLibrary);
+
+          // Also create server-side record
+          try {
+            await fetch('/api/assets', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                filename: asset.filename,
+                url: asset.url,
+                file_type: asset.type,
+                category: asset.category,
+                tags: asset.tags,
+                size_bytes: asset.size,
+                description: asset.description,
+                owner_key: key,
+              }),
+            });
+          } catch (e) { console.warn('Failed to create server asset record:', e); }
+        } catch (err) {
+          console.error('Upload failed:', err);
+          status.textContent = `Failed: ${file.name} — ${err.message}`;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+
+      bar.style.width = '100%';
+      status.textContent = 'Done!';
+      setTimeout(() => { progress.style.display = 'none'; bar.style.width = '0%'; }, 1500);
+      renderAssets();
+      updateAssetTagFilter();
+    }
+
+    function setAssetCategory(cat) {
+      assetCategoryFilter = cat;
+      document.querySelectorAll('[id^="asset-cat-"]').forEach(el => el.classList.remove('active'));
+      document.getElementById('asset-cat-' + (cat || 'all')).classList.add('active');
+      renderAssets();
+    }
+
+    function toggleAssetView() {
+      assetViewMode = assetViewMode === 'grid' ? 'list' : 'grid';
+      const btn = document.getElementById('asset-view-toggle');
+      btn.textContent = assetViewMode === 'grid' ? '☰' : '▦';
+      renderAssets();
+    }
+
+    function renderAssets() {
+      const search = (document.getElementById('asset-search').value || '').toLowerCase();
+      const tagFilter = document.getElementById('asset-tag-filter').value;
+
+      let filtered = assetLibrary.filter(a => {
+        if (assetCategoryFilter && a.category !== assetCategoryFilter) return false;
+        if (tagFilter && !(a.tags || []).includes(tagFilter)) return false;
+        if (search && !a.filename.toLowerCase().includes(search) && !(a.tags || []).some(t => t.toLowerCase().includes(search)) && !(a.description || '').toLowerCase().includes(search)) return false;
+        return true;
+      });
+
+      const grid = document.getElementById('asset-grid');
+      const empty = document.getElementById('asset-empty');
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = '';
+        return;
+      }
+      empty.style.display = 'none';
+
+      if (assetViewMode === 'grid') {
+        grid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(180px,1fr))';
+        grid.innerHTML = filtered.map(a => {
+          const icon = fileTypeIcon(a.category);
+          const thumb = a.category === 'image' ? `<div style="height:100px;background:url('${a.url}') center/cover no-repeat;border-radius:6px 6px 0 0;"></div>` :
+            `<div style="height:100px;display:flex;align-items:center;justify-content:center;background:var(--bg-panel);border-radius:6px 6px 0 0;font-size:2rem;">${icon}</div>`;
+          return `<div onclick="previewAsset('${a.id}')" style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;overflow:hidden;cursor:pointer;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'">
+            ${thumb}
+            <div style="padding:0.5rem;">
+              <div style="font-size:0.78rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(a.filename)}">${escHtml(a.filename)}</div>
+              <div style="font-size:0.65rem;color:var(--text-muted);display:flex;justify-content:space-between;">
+                <span>${formatFileSize(a.size)}</span>
+                <span>${a.uploadedAt ? new Date(a.uploadedAt).toLocaleDateString() : ''}</span>
+              </div>
+              ${(a.tags || []).length ? `<div style="display:flex;gap:0.2rem;flex-wrap:wrap;margin-top:0.3rem;">${a.tags.slice(0, 3).map(t => `<span style="font-size:0.55rem;background:rgba(255,136,17,0.15);color:var(--accent);padding:0.1rem 0.3rem;border-radius:3px;">${escHtml(t)}</span>`).join('')}</div>` : ''}
+            </div>
+          </div>`;
+        }).join('');
+      } else {
+        grid.style.gridTemplateColumns = '1fr';
+        grid.innerHTML = filtered.map(a => {
+          const icon = fileTypeIcon(a.category);
+          return `<div onclick="previewAsset('${a.id}')" style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'">
+            <span style="font-size:1.3rem;">${icon}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.8rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(a.filename)}</div>
+              <div style="font-size:0.65rem;color:var(--text-muted);">${formatFileSize(a.size)} · ${a.uploadedAt ? new Date(a.uploadedAt).toLocaleDateString() : ''}</div>
+            </div>
+            <div style="display:flex;gap:0.2rem;">${(a.tags || []).slice(0, 2).map(t => `<span style="font-size:0.55rem;background:rgba(255,136,17,0.15);color:var(--accent);padding:0.1rem 0.3rem;border-radius:3px;">${escHtml(t)}</span>`).join('')}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    function previewAsset(id) {
+      const asset = assetLibrary.find(a => a.id === id);
+      if (!asset) return;
+      currentPreviewAsset = asset;
+
+      document.getElementById('asset-preview-title').textContent = asset.filename;
+
+      // Build preview content
+      let content = '';
+      if (asset.category === 'image') {
+        content = `<img src="${asset.url}" style="max-width:100%;max-height:400px;border-radius:8px;display:block;margin:0 auto;">`;
+      } else if (asset.category === 'audio') {
+        content = `<audio controls src="${asset.url}" style="width:100%;"></audio>`;
+      } else if (asset.category === '3d_model') {
+        const ext = asset.filename.split('.').pop().toUpperCase();
+        content = `<div style="text-align:center;padding:2rem;background:var(--bg-panel);border-radius:8px;">
+          <div style="font-size:3rem;margin-bottom:0.5rem;">🧊</div>
+          <div style="font-size:0.9rem;color:var(--text);">${ext} 3D Model</div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem;">${formatFileSize(asset.size)}</div>
+          <a href="${asset.url}" download="${escHtml(asset.filename)}" style="display:inline-block;margin-top:0.8rem;padding:0.4rem 1rem;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.8rem;">⬇️ Download</a>
+        </div>`;
+      } else if (asset.category === 'document') {
+        const ext = asset.filename.split('.').pop().toLowerCase();
+        if (ext === 'txt' || ext === 'md') {
+          content = `<div id="asset-text-preview" style="background:var(--bg-panel);padding:1rem;border-radius:8px;font-size:0.8rem;color:var(--text);max-height:400px;overflow-y:auto;white-space:pre-wrap;font-family:monospace;">Loading…</div>`;
+          fetch(asset.url).then(r => r.text()).then(text => {
+            const el = document.getElementById('asset-text-preview');
+            if (el) el.textContent = text.slice(0, 10000);
+          }).catch(() => {});
+        } else {
+          content = `<div style="text-align:center;padding:2rem;">
+            <div style="font-size:3rem;">📄</div>
+            <a href="${asset.url}" target="_blank" style="color:var(--accent);font-size:0.85rem;">Open Document</a>
+          </div>`;
+        }
+      }
+      document.getElementById('asset-preview-content').innerHTML = content;
+
+      // Meta info
+      document.getElementById('asset-preview-meta').innerHTML = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.3rem;">
+          <div>📁 ${escHtml(asset.category)}</div>
+          <div>💾 ${formatFileSize(asset.size)}</div>
+          <div>📅 ${asset.uploadedAt ? new Date(asset.uploadedAt).toLocaleString() : 'Unknown'}</div>
+          <div>🔗 <a href="${asset.url}" target="_blank" style="color:var(--accent);">Direct Link</a></div>
+        </div>
+        ${asset.description ? `<div style="margin-top:0.4rem;">📝 ${escHtml(asset.description)}</div>` : ''}
+      `;
+
+      // Tags
+      document.getElementById('asset-preview-tags').innerHTML = (asset.tags || []).length ?
+        `<div style="display:flex;gap:0.3rem;flex-wrap:wrap;">${asset.tags.map(t => `<span style="font-size:0.7rem;background:rgba(255,136,17,0.15);color:var(--accent);padding:0.15rem 0.4rem;border-radius:4px;">${escHtml(t)}</span>`).join('')}</div>` : '';
+
+      document.getElementById('asset-preview-modal').style.display = '';
+    }
+
+    function closeAssetPreview() {
+      document.getElementById('asset-preview-modal').style.display = 'none';
+      currentPreviewAsset = null;
+    }
+
+    function editAssetTags() {
+      if (!currentPreviewAsset) return;
+      document.getElementById('asset-tag-input').value = (currentPreviewAsset.tags || []).join(', ');
+      document.getElementById('asset-tag-modal').style.display = '';
+    }
+
+    function closeAssetTagModal() {
+      document.getElementById('asset-tag-modal').style.display = 'none';
+    }
+
+    function saveAssetTags() {
+      if (!currentPreviewAsset) return;
+      const tags = document.getElementById('asset-tag-input').value.split(',').map(t => t.trim()).filter(Boolean);
+      const idx = assetLibrary.findIndex(a => a.id === currentPreviewAsset.id);
+      if (idx >= 0) {
+        assetLibrary[idx].tags = tags;
+        currentPreviewAsset.tags = tags;
+        saveAssetLibrary(assetLibrary);
+        renderAssets();
+        updateAssetTagFilter();
+        // Re-render tags in preview
+        document.getElementById('asset-preview-tags').innerHTML = tags.length ?
+          `<div style="display:flex;gap:0.3rem;flex-wrap:wrap;">${tags.map(t => `<span style="font-size:0.7rem;background:rgba(255,136,17,0.15);color:var(--accent);padding:0.15rem 0.4rem;border-radius:4px;">${escHtml(t)}</span>`).join('')}</div>` : '';
+      }
+      closeAssetTagModal();
+    }
+
+    function shareAsset() {
+      if (!currentPreviewAsset) return;
+      const url = window.location.origin + currentPreviewAsset.url;
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Link copied to clipboard!');
+      }).catch(() => {
+        prompt('Share link:', url);
+      });
+    }
+
+    function listAssetOnMarket() {
+      if (!currentPreviewAsset) return;
+      const a = currentPreviewAsset;
+      closeAssetPreview();
+      switchTab('market');
+      showMarketSection('marketplace');
+
+      // Determine category mapping
+      const catMap = { 'image': 'Crafts', '3d_model': 'Gaming', 'audio': 'Books/Media', 'document': 'Books/Media' };
+      const modelCats = ['Vehicles','Architecture','Characters','Props','Weapons','Nature','Sci-Fi','Other'];
+      const category = a.category === '3d_model' ? '3D Models' : (catMap[a.category] || 'Other');
+
+      openListingModal({
+        title: a.filename,
+        description: (a.description || '') + `\n\nFile: ${a.filename} (${formatFileSize(a.size)})` + (a.category === '3d_model' ? `\nFormat: ${a.filename.split('.').pop().toUpperCase()}` : ''),
+        category: category,
+        condition: 'N/A',
+        price: 'Free (donations welcome)',
+        asset_url: a.url,
+      });
+    }
+
+    function deleteCurrentAsset() {
+      if (!currentPreviewAsset) return;
+      if (!confirm('Delete this asset?')) return;
+      const id = currentPreviewAsset.id;
+      assetLibrary = assetLibrary.filter(a => a.id !== id);
+      saveAssetLibrary(assetLibrary);
+      closeAssetPreview();
+      renderAssets();
+      updateAssetTagFilter();
+
+      // Also try to delete server-side
+      const key = localStorage.getItem('humanity_key');
+      const token = localStorage.getItem('humanity_upload_token');
+      const params = token ? `?token=${encodeURIComponent(token)}` : (key ? `?key=${encodeURIComponent(key)}` : '');
+      fetch(`/api/assets/${id}${params}`, { method: 'DELETE' }).catch(() => {});
+    }
+
+    function updateAssetTagFilter() {
+      const allTags = new Set();
+      assetLibrary.forEach(a => (a.tags || []).forEach(t => allTags.add(t)));
+      const sel = document.getElementById('asset-tag-filter');
+      const current = sel.value;
+      sel.innerHTML = '<option value="">All Tags</option>' + [...allTags].sort().map(t => `<option value="${escHtml(t)}"${t === current ? ' selected' : ''}>${escHtml(t)}</option>`).join('');
+    }
+
+    // Include assets in universal search
+    const origUniversalSearch = universalSearch;
+    universalSearch = function(query) {
+      origUniversalSearch(query);
+      if (!query || query.length < 2) return;
+      const q = query.toLowerCase();
+      const assetHits = assetLibrary.filter(a => a.filename.toLowerCase().includes(q) || (a.tags || []).some(t => t.toLowerCase().includes(q)));
+      if (assetHits.length > 0) {
+        const results = document.getElementById('universal-search-results');
+        const existingResults = window.universalSearchResults || [];
+        assetHits.slice(0, 5).forEach((a, i) => {
+          existingResults.push(() => previewAsset(a.id));
+          const div = document.createElement('div');
+          div.className = 'catalog-result-item';
+          div.onclick = () => previewAsset(a.id);
+          div.innerHTML = `<span class="catalog-result-badge" style="background:#ff881122;color:#ff8811;">Asset</span><span style="color:var(--text);">${escHtml(a.filename)}</span>`;
+          results.appendChild(div);
+        });
+        window.universalSearchResults = existingResults;
+      }
+    };
+
+    renderAssets();
+    updateAssetTagFilter();
+
+    // ══════════════════════════════════════
     // MARKETPLACE
     // ══════════════════════════════════════
 
@@ -3089,9 +3535,9 @@
       { name: "GitHub Sponsors", url: "https://github.com/sponsors", icon: "💝", category: "Creator Support", description: "Fund open source developers" },
     ];
 
-    const LISTING_CATEGORIES = ['Electronics','Vehicles','Clothing','Tools','Furniture','Home','Books/Media','Gaming','Sports','Crafts','Food/Garden','Services','Other'];
+    const LISTING_CATEGORIES = ['Electronics','Vehicles','Clothing','Tools','Furniture','Home','Books/Media','Gaming','Sports','Crafts','Food/Garden','Services','3D Models','Other'];
     const LISTING_CONDITIONS = ['New','Like New','Good','Fair','Poor','N/A'];
-    const CATEGORY_COLORS = {Electronics:'#08f',Vehicles:'#f80',Clothing:'#f0a',Tools:'#fa0',Furniture:'#a66',Home:'#4a8','Books/Media':'#84f',Gaming:'#0cf',Sports:'#4c4',Crafts:'#c4a','Food/Garden':'#6a4',Services:'#48f',Other:'#888'};
+    const CATEGORY_COLORS = {Electronics:'#08f',Vehicles:'#f80',Clothing:'#f0a',Tools:'#fa0',Furniture:'#a66',Home:'#4a8','Books/Media':'#84f',Gaming:'#0cf',Sports:'#4c4',Crafts:'#c4a','Food/Garden':'#6a4',Services:'#48f','3D Models':'#a6f',Other:'#888'};
 
     let marketListings = [];
     let marketWs = null;
@@ -3251,7 +3697,7 @@
                           l.status === 'withdrawn' ? '<span style="background:#888;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">WITHDRAWN</span>' : '';
       return `
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'" onclick="showListingDetail('${l.id}')">
-          <div style="height:120px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.06));display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem;">📦</div>
+          <div style="height:120px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.06));display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem;">${l.category === '3D Models' ? '🧊' : '📦'}</div>
           <div style="padding:0.8rem;">
             <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.3rem;">
               <span style="font-weight:600;font-size:0.85rem;color:var(--text);flex:1;">${escHtml(l.title)}${statusBadge}</span>
@@ -3330,7 +3776,15 @@
       document.getElementById('listing-payment').value = (prefill && prefill.payment_methods) || '';
       document.getElementById('listing-location').value = (prefill && prefill.location) || '';
       document.getElementById('listing-modal').style.display = '';
+      updateListingSubcategory();
     }
+
+    function updateListingSubcategory() {
+      const cat = document.getElementById('listing-category').value;
+      document.getElementById('listing-3d-subcategory-wrap').style.display = cat === '3D Models' ? '' : 'none';
+    }
+    // Hook category change
+    document.getElementById('listing-category').addEventListener('change', updateListingSubcategory);
 
     function closeListingModal() {
       document.getElementById('listing-modal').style.display = 'none';

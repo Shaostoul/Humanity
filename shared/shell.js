@@ -214,6 +214,18 @@
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
 
+  // ── Fix external links for Tauri desktop app ──
+  // target="_blank" doesn't work in Tauri's single webview; window.open() opens system browser
+  document.body.addEventListener('click', function(e) {
+    var link = e.target.closest('a[href]');
+    if (!link) return;
+    var href = link.getAttribute('href');
+    if (href && (href.startsWith('http://') || href.startsWith('https://')) && link.target === '_blank') {
+      e.preventDefault();
+      window.open(href, '_blank');
+    }
+  });
+
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
     const link = e.target.closest('a[href]');
