@@ -4534,17 +4534,8 @@
     }
 
     // Connect marketplace WS when market tab is shown
-    let marketConnected = false;
-    // Use a MutationObserver on the tab to detect when it becomes active
-    const marketTabEl = document.getElementById('tab-market');
-    if (marketTabEl) {
-      new MutationObserver(() => {
-        if (marketTabEl.classList.contains('active') && !marketConnected) {
-          marketConnected = true;
-          marketConnect();
-        }
-      }).observe(marketTabEl, { attributes: true, attributeFilter: ['class'] });
-    }
+    // Connect WS immediately — needed for streaming, skills, board, etc.
+    marketConnect();
 
     // ══════════════════════════════════════
     // UNIVERSAL SEARCH
