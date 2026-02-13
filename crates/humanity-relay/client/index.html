@@ -2097,13 +2097,26 @@
       background: #111;
       border-radius: 8px;
       overflow: hidden;
-      max-width: 640px;
+      max-width: 80vw;
+      max-height: 70vh;
     }
     #video-panel.active { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; }
+    /* Gallery view: grow videos to fill space */
+    #video-panel.gallery { max-width: 90vw; }
     #video-panel .video-wrapper {
       position: relative;
       width: 200px;
       height: 150px;
+      flex-shrink: 0;
+    }
+    /* When only 1 remote video, make it larger */
+    #video-panel.single-remote .video-wrapper:not(.self-view) {
+      width: 480px;
+      height: 360px;
+    }
+    #video-panel.single-remote .video-wrapper:not(.self-view) video {
+      width: 480px;
+      height: 360px;
     }
     #video-panel video {
       width: 200px;
@@ -2122,6 +2135,21 @@
       border-radius: 2px;
       color: #fff;
     }
+    #video-panel .video-pip-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(0,0,0,0.6);
+      border: none;
+      color: #fff;
+      font-size: 0.7rem;
+      padding: 2px 5px;
+      border-radius: 3px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    #video-panel .video-wrapper:hover .video-pip-btn { opacity: 1; }
     #video-panel .self-view {
       position: relative;
       width: 120px;
@@ -2132,6 +2160,34 @@
       height: 90px;
       transform: scaleX(-1);
     }
+    /* Camera selector dropdown */
+    .camera-selector {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.3rem 0;
+      min-width: 200px;
+      z-index: 310;
+      display: none;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .camera-selector.open { display: block; }
+    .camera-selector .cam-option {
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .camera-selector .cam-option:hover { background: var(--bg-hover); }
+    .camera-selector .cam-option.selected { color: var(--accent); font-weight: 600; }
     /* Connection quality indicator */
     .vr-participant .quality-indicator { margin-left: 4px; font-size: 0.6rem; }
     .btn-video {
@@ -2367,8 +2423,9 @@
           <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
           <div class="vc-bar-controls">
             <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()" title="Mute/Unmute">🎤</button>
-            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" title="Toggle Camera">📹</button>
+            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')" title="Toggle Camera (right-click to select device)">📹</button>
             <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()" title="Screen Share">🖥️</button>
+            <button id="vc-pip-btn" onclick="togglePiP()" title="Picture-in-Picture">📌</button>
             <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100" title="Master volume" oninput="setVoiceRoomVolume(this.value)">
             <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect">🔌</button>
           </div>
@@ -2393,9 +2450,11 @@
           </div>
           <div class="call-actions">
             <button class="btn-mute" id="mute-btn" onclick="toggleMute()">🎤 Mute</button>
-            <button class="btn-video" id="video-btn" onclick="toggleVideo()">📹 Video</button>
+            <button class="btn-video" id="video-btn" onclick="toggleVideo()" oncontextmenu="event.preventDefault();showCameraSelector('dm')">📹 Video</button>
             <button class="btn-video" id="screen-btn" onclick="toggleScreenShare()">🖥️ Screen</button>
+            <button class="btn-video" id="pip-btn" onclick="togglePiP()">📌 PiP</button>
             <button class="btn-hangup" onclick="hangupCall()">📵 Hangup</button>
+            <div class="camera-selector" id="camera-selector-dm"></div>
           </div>
         </div>
         <div id="ringing-status">📞 Calling…</div>
@@ -7946,7 +8005,10 @@ function getPeerEcdhPublic(peerKey) {
     try {
       // Stop screen share if active
       if (dmScreenActive) stopDmScreenShare();
-      dmVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+      dmVideoStream = await navigator.mediaDevices.getUserMedia({ video: getCameraConstraints(), audio: false });
+      // Remember the selected camera
+      const usedTrack = dmVideoStream.getVideoTracks()[0];
+      if (usedTrack && usedTrack.getSettings().deviceId) setPreferredCamera(usedTrack.getSettings().deviceId);
       const videoTrack = dmVideoStream.getVideoTracks()[0];
       const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
       if (sender) {
@@ -8082,7 +8144,9 @@ function getPeerEcdhPublic(peerKey) {
   async function startVrVideo() {
     try {
       if (vrScreenActive) stopVrScreenShare();
-      vrVideoStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+      vrVideoStream = await navigator.mediaDevices.getUserMedia({ video: getCameraConstraints(), audio: false });
+      const usedVrTrack = vrVideoStream.getVideoTracks()[0];
+      if (usedVrTrack && usedVrTrack.getSettings().deviceId) setPreferredCamera(usedVrTrack.getSettings().deviceId);
       const videoTrack = vrVideoStream.getVideoTracks()[0];
       // Add video track to all peer connections
       for (const [key, pc] of Object.entries(window._roomPeerConnections)) {
@@ -8223,8 +8287,14 @@ function getPeerEcdhPublic(peerKey) {
     const label = document.createElement('div');
     label.className = 'video-label';
     label.textContent = name;
+    const pipBtn = document.createElement('button');
+    pipBtn.className = 'video-pip-btn';
+    pipBtn.textContent = '📌';
+    pipBtn.title = 'Picture-in-Picture';
+    pipBtn.onclick = () => { video.requestPictureInPicture().catch(() => {}); };
     wrapper.appendChild(video);
     wrapper.appendChild(label);
+    if (document.pictureInPictureEnabled) wrapper.appendChild(pipBtn);
     panel.appendChild(wrapper);
     video.play().catch(() => {});
     updateVideoPanel();
@@ -8237,8 +8307,106 @@ function getPeerEcdhPublic(peerKey) {
 
   function updateVideoPanel() {
     const panel = document.getElementById('video-panel');
-    const hasVideos = panel.querySelectorAll('.video-wrapper').length > 0;
+    const wrappers = panel.querySelectorAll('.video-wrapper');
+    const hasVideos = wrappers.length > 0;
     panel.classList.toggle('active', hasVideos);
+    // Single-remote mode for 1-on-1 calls (1 remote + optional self)
+    const remotes = panel.querySelectorAll('.video-wrapper:not(.self-view)');
+    panel.classList.toggle('single-remote', remotes.length === 1);
+    // Gallery mode for 3+ videos
+    panel.classList.toggle('gallery', wrappers.length >= 3);
+  }
+
+  // --- Picture-in-Picture ---
+  function togglePiP() {
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => {});
+      return;
+    }
+    // Find first remote video
+    const remoteVideo = document.querySelector('#video-panel .video-wrapper:not(.self-view) video');
+    if (remoteVideo) {
+      remoteVideo.requestPictureInPicture().catch(() => {
+        addSystemMessage('⚠️ Picture-in-Picture not supported.');
+      });
+    } else {
+      addSystemMessage('ℹ️ No remote video to display in PiP.');
+    }
+  }
+
+  // --- Camera Selection ---
+  async function getVideoDevices() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter(d => d.kind === 'videoinput');
+    } catch (e) { return []; }
+  }
+
+  function getPreferredCamera() {
+    return localStorage.getItem('humanity-preferred-camera') || null;
+  }
+  function setPreferredCamera(deviceId) {
+    localStorage.setItem('humanity-preferred-camera', deviceId);
+  }
+
+  function getCameraConstraints() {
+    const preferred = getPreferredCamera();
+    const video = { width: 640, height: 480 };
+    if (preferred) video.deviceId = { ideal: preferred };
+    return video;
+  }
+
+  async function showCameraSelector(context) {
+    const selectorId = context === 'dm' ? 'camera-selector-dm' : null;
+    // Create inline selector near the button
+    let selector = selectorId ? document.getElementById(selectorId) : null;
+    if (!selector) {
+      // For voice room, create a temporary popup
+      selector = document.createElement('div');
+      selector.className = 'camera-selector';
+      selector.style.position = 'fixed';
+      selector.style.bottom = '60px';
+      selector.style.right = '20px';
+      document.body.appendChild(selector);
+      setTimeout(() => { if (selector.parentNode) selector.parentNode.removeChild(selector); }, 10000);
+    }
+    selector.innerHTML = '';
+    const devices = await getVideoDevices();
+    if (devices.length === 0) {
+      const opt = document.createElement('div');
+      opt.className = 'cam-option';
+      opt.textContent = 'No cameras found';
+      selector.appendChild(opt);
+    } else {
+      const preferred = getPreferredCamera();
+      devices.forEach((d, i) => {
+        const opt = document.createElement('div');
+        opt.className = 'cam-option' + (d.deviceId === preferred ? ' selected' : '');
+        opt.textContent = d.label || `Camera ${i + 1}`;
+        opt.onclick = async () => {
+          setPreferredCamera(d.deviceId);
+          selector.classList.remove('open');
+          // If video is active, switch to new camera
+          if (context === 'dm' && dmVideoActive) {
+            stopDmVideo();
+            await startDmVideo();
+          } else if (context === 'vr' && vrVideoActive) {
+            stopVrVideo();
+            await startVrVideo();
+          }
+        };
+        selector.appendChild(opt);
+      });
+    }
+    selector.classList.toggle('open');
+    // Close on outside click
+    const closeHandler = (e) => {
+      if (!selector.contains(e.target)) {
+        selector.classList.remove('open');
+        document.removeEventListener('click', closeHandler);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeHandler), 10);
   }
 
   // ── Phase 3: Connection Quality Stats ──
