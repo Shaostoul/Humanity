@@ -5099,8 +5099,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         to: streamer_key,
                                         message: format!("__stream_viewer_ready__:{}", my_key_for_recv),
                                     };
-                                    let _ = state_clone.broadcast_tx.send(notify);
                                     info!("Sent __stream_viewer_ready__ to streamer {} for viewer {}", streamer_key, my_key_for_recv);
+                                    let _ = state_clone.broadcast_tx.send(notify);
                                 }
                             }
 
