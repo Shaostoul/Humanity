@@ -4199,11 +4199,19 @@
           }
           // Handle stream viewer ready notification (streamer creates WebRTC offer)
           // Relay converts Private→System, so check msg.type === 'system'
-          if (msg.type === 'system' && msg.message && msg.message.startsWith('__stream_viewer_ready__:')) {
-            const viewerKey = msg.message.slice('__stream_viewer_ready__:'.length);
-            if (streamIsLive && streamCompositeStream) {
-              streamCreateOfferForViewer(viewerKey);
+          if (msg.type === 'system' && msg.message) {
+            console.log('[STREAM-DEBUG] system msg:', msg.message.substring(0, 60));
+            if (msg.message.startsWith('__stream_viewer_ready__:')) {
+              const viewerKey = msg.message.slice('__stream_viewer_ready__:'.length);
+              console.log('[STREAM-DEBUG] viewer ready:', viewerKey.substring(0, 16), 'isLive:', streamIsLive, 'hasComposite:', !!streamCompositeStream);
+              if (streamIsLive && streamCompositeStream) {
+                streamCreateOfferForViewer(viewerKey);
+              }
             }
+          }
+          // Debug: log all stream messages
+          if (msg.type && msg.type.startsWith('stream_')) {
+            console.log('[STREAM-DEBUG] msg:', msg.type, msg.from ? msg.from.substring(0,16) : '');
           }
           // Handle skill verification messages via Private/system
           if (msg.type === 'private' && msg.message) {
@@ -6627,6 +6635,7 @@
       document.getElementById('viewer-stream-title').textContent = '📺 ' + (streamCurrentInfo.title || 'Live Stream');
 
       // Send viewer join
+      console.log('[STREAM-DEBUG] sending stream_viewer_join, ws ready:', ws && ws.readyState === 1);
       if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({ type: 'stream_viewer_join' }));
       }
@@ -6676,6 +6685,7 @@
     const streamViewerPCs = {};
 
     function streamCreateOfferForViewer(viewerKey) {
+      console.log('[STREAM-DEBUG] creating offer for viewer:', viewerKey.substring(0, 16), 'tracks:', streamCompositeStream ? streamCompositeStream.getTracks().length : 0);
       // Close existing connection to this viewer if any
       if (streamViewerPCs[viewerKey]) { streamViewerPCs[viewerKey].close(); }
       const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
