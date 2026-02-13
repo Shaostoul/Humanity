@@ -44,6 +44,8 @@
       overflow-y: auto;
     }
     .tab-content.active { display: block; }
+    #tab-browse.active { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+    #tab-map.active { display: flex; flex-direction: column; height: 100%; overflow: hidden; padding: 0; }
 
     .panel {
       background: var(--bg-card);
@@ -1951,7 +1953,7 @@
   </div>
 
   <!-- Browse Tab -->
-  <div id="tab-browse" class="tab-content" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+  <div id="tab-browse" class="tab-content">
     <div id="browse-quickbar" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;align-items:center;">
       <span style="font-size:0.75rem;color:var(--text-muted);white-space:nowrap;">⚡ Quick:</span>
       <div id="quickbar-sites" style="display:flex;gap:0.4rem;"></div>
