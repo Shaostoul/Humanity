@@ -4192,6 +4192,10 @@
       marketWs.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
+          // Debug: log every message type
+          if (msg.type !== 'peer_list' && msg.type !== 'channel_list' && msg.type !== 'chat') {
+            console.log('[HUB-WS] type=' + msg.type + (msg.from ? ' from=' + msg.from.substring(0,8) : '') + (msg.to ? ' to=' + msg.to.substring(0,8) : ''));
+          }
           handleMarketMessage(msg);
           // Route stream messages
           if (msg.type && msg.type.startsWith('stream_')) {
