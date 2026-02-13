@@ -5672,3 +5672,4 @@ handleMessage = function(msg) {
     _origHandleMessageSearch(msg);
   }
 };
+})();
