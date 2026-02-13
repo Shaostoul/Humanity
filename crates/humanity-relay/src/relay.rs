@@ -266,6 +266,15 @@ pub struct ReplyRef {
     pub timestamp: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceInfo {
+    pub public_key: String,
+    pub label: Option<String>,
+    pub registered_at: u64,
+    pub is_current: bool,
+    pub is_online: bool,
+}
+
 /// Messages sent over the relay WebSocket (JSON framing for MVP).
 ///
 /// In production, these would be CBOR-encoded signed objects.
@@ -948,6 +957,31 @@ pub enum RelayMessage {
         /// Target member key — only deliver to this client (stripped before sending).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         target: Option<String>,
+    },
+
+    /// Client requests their device list.
+    #[serde(rename = "device_list_request")]
+    DeviceListRequest {},
+
+    /// Server responds with device list.
+    #[serde(rename = "device_list")]
+    DeviceList {
+        devices: Vec<DeviceInfo>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
+    },
+
+    /// Client labels a device key.
+    #[serde(rename = "device_label")]
+    DeviceLabel {
+        public_key: String,
+        label: String,
+    },
+
+    /// Client revokes a device key.
+    #[serde(rename = "device_revoke")]
+    DeviceRevoke {
+        key_prefix: String,
     },
 }
 
@@ -1748,6 +1782,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
             // ThreadResponse: only deliver to the target client.
             if let RelayMessage::ThreadResponse { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // DeviceList: only deliver to the target client.
+            if let RelayMessage::DeviceList { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -4420,6 +4463,125 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             target: Some(member_key),
                                         };
                                         let _ = state_clone.broadcast_tx.send(gm);
+                                    }
+                                }
+                            }
+
+                            // ── Device management ──
+                            RelayMessage::DeviceListRequest {} => {
+                                if let Ok(Some(name)) = state_clone.db.name_for_key(&my_key_for_recv) {
+                                    match state_clone.db.keys_for_name_detailed(&name) {
+                                        Ok(keys) => {
+                                            let peers = state_clone.peers.read().await;
+                                            let devices: Vec<DeviceInfo> = keys.into_iter().map(|(key, label, reg_at)| {
+                                                let is_online = peers.values().any(|p| p.public_key_hex == key);
+                                                DeviceInfo {
+                                                    is_current: key == my_key_for_recv,
+                                                    public_key: key,
+                                                    label,
+                                                    registered_at: reg_at as u64,
+                                                    is_online,
+                                                }
+                                            }).collect();
+                                            drop(peers);
+                                            let resp = RelayMessage::DeviceList { devices, target: Some(my_key_for_recv.clone()) };
+                                            let _ = state_clone.broadcast_tx.send(resp);
+                                        }
+                                        Err(e) => {
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: format!("Failed to load devices: {e}"),
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+
+                            RelayMessage::DeviceLabel { public_key, label } => {
+                                if let Ok(Some(name)) = state_clone.db.name_for_key(&my_key_for_recv) {
+                                    let keys = state_clone.db.keys_for_name(&name).unwrap_or_default();
+                                    if keys.contains(&public_key) {
+                                        let label_trimmed = label.trim();
+                                        if label_trimmed.len() > 32 {
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Label must be 32 characters or less.".to_string(),
+                                            });
+                                        } else {
+                                            let _ = state_clone.db.label_key(&name, &public_key, label_trimmed);
+                                            // Send updated device list
+                                            if let Ok(keys) = state_clone.db.keys_for_name_detailed(&name) {
+                                                let peers = state_clone.peers.read().await;
+                                                let devices: Vec<DeviceInfo> = keys.into_iter().map(|(key, label, reg_at)| {
+                                                    let is_online = peers.values().any(|p| p.public_key_hex == key);
+                                                    DeviceInfo {
+                                                        is_current: key == my_key_for_recv,
+                                                        public_key: key,
+                                                        label,
+                                                        registered_at: reg_at as u64,
+                                                        is_online,
+                                                    }
+                                                }).collect();
+                                                drop(peers);
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::DeviceList { devices, target: Some(my_key_for_recv.clone()) });
+                                            }
+                                        }
+                                    } else {
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "That key doesn't belong to you.".to_string(),
+                                        });
+                                    }
+                                }
+                            }
+
+                            RelayMessage::DeviceRevoke { key_prefix } => {
+                                if let Ok(Some(name)) = state_clone.db.name_for_key(&my_key_for_recv) {
+                                    if my_key_for_recv.starts_with(&key_prefix) {
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Cannot revoke your current device. Use another device to revoke this one.".to_string(),
+                                        });
+                                    } else {
+                                        match state_clone.db.revoke_device(&name, &key_prefix) {
+                                            Ok(revoked_keys) if !revoked_keys.is_empty() => {
+                                                let first = &revoked_keys[0];
+                                                let short: String = first.chars().take(16).collect();
+                                                let notice = format!("Device revoked: {}…", short);
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: notice,
+                                                });
+                                                // Send updated device list
+                                                if let Ok(keys) = state_clone.db.keys_for_name_detailed(&name) {
+                                                    let peers = state_clone.peers.read().await;
+                                                    let devices: Vec<DeviceInfo> = keys.into_iter().map(|(key, label, reg_at)| {
+                                                        let is_online = peers.values().any(|p| p.public_key_hex == key);
+                                                        DeviceInfo {
+                                                            is_current: key == my_key_for_recv,
+                                                            public_key: key,
+                                                            label,
+                                                            registered_at: reg_at as u64,
+                                                            is_online,
+                                                        }
+                                                    }).collect();
+                                                    drop(peers);
+                                                    let _ = state_clone.broadcast_tx.send(RelayMessage::DeviceList { devices, target: Some(my_key_for_recv.clone()) });
+                                                }
+                                            }
+                                            Ok(_) => {
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: "No matching key found for your account.".to_string(),
+                                                });
+                                            }
+                                            Err(e) => {
+                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                                    to: my_key_for_recv.clone(),
+                                                    message: format!("Revoke failed: {e}"),
+                                                });
+                                            }
+                                        }
                                     }
                                 }
                             }

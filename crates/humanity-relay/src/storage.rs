@@ -417,6 +417,14 @@ impl Storage {
                 ON messages(reply_to_from, reply_to_timestamp);"
         )?;
 
+        // Migration: add label column to registered_names for device labeling.
+        if conn.prepare("SELECT label FROM registered_names LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE registered_names ADD COLUMN label TEXT DEFAULT NULL;"
+            )?;
+            info!("Migration: added label column to registered_names");
+        }
+
         // Follows table (social system).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS follows (
@@ -972,6 +980,29 @@ impl Storage {
             .filter_map(|r| r.ok())
             .collect();
         Ok(keys)
+    }
+
+    /// Get all keys for a name with their labels and registration dates.
+    pub fn keys_for_name_detailed(&self, name: &str) -> Result<Vec<(String, Option<String>, i64)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT public_key, label, registered_at FROM registered_names WHERE name = ?1 COLLATE NOCASE ORDER BY registered_at"
+        )?;
+        let keys = stmt.query_map(params![name], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(keys)
+    }
+
+    /// Set a label for a specific key belonging to a name.
+    pub fn label_key(&self, name: &str, public_key: &str, label: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let label_val = if label.is_empty() { None } else { Some(label) };
+        let count = conn.execute(
+            "UPDATE registered_names SET label = ?1 WHERE name = ?2 COLLATE NOCASE AND public_key = ?3",
+            params![label_val, name, public_key],
+        )?;
+        Ok(count > 0)
     }
 
     /// List all registered names with their highest role.

@@ -2325,6 +2325,7 @@
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
           <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
           <button id="export-identity-btn" onclick="downloadIdentityBackup(myName)" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">📥 Export Identity</button>
+          <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
           <button class="sidebar-tab active" data-tab="servers">🏠 Servers</button>
@@ -2559,6 +2560,17 @@
     <button class="status-clear-btn" onclick="clearMyStatus()">Clear Status</button>
   </div>
 
+  <!-- Device Management Modal -->
+  <div id="device-panel-overlay" class="profile-modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="profile-modal" onclick="event.stopPropagation()" style="max-width:420px;">
+      <button class="close-btn" onclick="document.getElementById('device-panel-overlay').classList.remove('open')">✕</button>
+      <h2>🔑 My Devices</h2>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">Keys linked to your account. Label them to remember which device is which.</p>
+      <div id="device-list"></div>
+      <button onclick="requestDeviceList()" style="margin-top:0.5rem;font-size:0.8rem;padding:0.3rem 0.6rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">↻ Refresh</button>
+    </div>
+  </div>
+
   <!-- View Profile Modal -->
   <div id="view-profile-overlay" class="profile-modal-overlay" onclick="closeViewProfileModal(event)">
     <div class="profile-modal" id="view-profile-card" onclick="event.stopPropagation()">
@@ -2781,6 +2793,63 @@ async function exportIdentityJSON(name) {
 }
 
 /** Download identity as a JSON file. */
+function openDevicePanel() {
+  document.getElementById('device-panel-overlay').classList.add('open');
+  requestDeviceList();
+}
+
+function requestDeviceList() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'device_list_request' }));
+  }
+}
+
+function renderDeviceList(devices) {
+  const container = document.getElementById('device-list');
+  if (!container) return;
+  container.innerHTML = '';
+  devices.forEach(d => {
+    const div = document.createElement('div');
+    div.style.cssText = 'padding:0.5rem;margin-bottom:0.4rem;background:var(--bg-secondary);border-radius:6px;border:1px solid var(--border);';
+    const keyShort = d.public_key.substring(0, 16) + '…';
+    const statusDot = d.is_online ? '🟢' : '⚫';
+    const currentBadge = d.is_current ? ' <span style="color:var(--accent);font-size:0.7rem">(this device)</span>' : '';
+    const date = new Date(d.registered_at).toLocaleDateString();
+    div.innerHTML = `
+      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem">
+        <span>${statusDot}</span>
+        <code style="font-size:0.75rem;color:var(--text-muted)">${keyShort}</code>
+        ${currentBadge}
+      </div>
+      <div style="display:flex;align-items:center;gap:0.3rem;margin-bottom:0.3rem">
+        <input type="text" value="${(d.label || '').replace(/"/g, '&quot;')}"
+               placeholder="Label (e.g. PC, Phone, Laptop)"
+               maxlength="32"
+               style="flex:1;font-size:0.8rem;padding:0.2rem 0.4rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text)"
+               onchange="labelDevice('${d.public_key}', this.value)">
+        ${!d.is_current ? `<button onclick="revokeDevice('${d.public_key.substring(0, 8)}')"
+                style="font-size:0.75rem;padding:0.2rem 0.5rem;background:#c0392b;border:none;border-radius:4px;color:#fff;cursor:pointer"
+                title="Remove this device">✕</button>` : ''}
+      </div>
+      <div style="font-size:0.7rem;color:var(--text-muted)">Registered: ${date}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function labelDevice(publicKey, label) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'device_label', public_key: publicKey, label: label }));
+  }
+}
+
+function revokeDevice(keyPrefix) {
+  if (!confirm('Revoke this device? It will be disconnected and removed from your account.')) return;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'device_revoke', key_prefix: keyPrefix }));
+  }
+}
+
 async function downloadIdentityBackup(name) {
   const data = await exportIdentityJSON(name);
   if (!data) {
@@ -3640,6 +3709,9 @@ function getPeerEcdhPublic(peerKey) {
           }
           break;
         }
+        case 'device_list':
+          renderDeviceList(msg.devices);
+          break;
         case 'system':
           // Handle sync data responses (encoded as system messages with prefix).
           if (msg.message && msg.message.startsWith('__sync_data__:')) {
