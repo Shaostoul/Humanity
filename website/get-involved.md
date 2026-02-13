@@ -28,10 +28,17 @@ The Accord and documentation need clear, accessible language. Help us refine ide
 Project Universe needs concept art, UI design, 3D models, and visual identity.
 
 **Developers**
-The engine is built in Rust. Tooling may use Python. If you can code, there's work to do.
+The server is built in Rust (axum + tokio). The client is single-file HTML/JS. The desktop app uses Tauri v2. If you can code in Rust, JavaScript, HTML/CSS, or TypeScript — there's work to do.
+
+**Current technical needs:**
+- WebRTC streaming infrastructure
+- Federation protocol improvements
+- Game client development (Rust)
+- UI/UX refinements across all 11 hub tabs
+- Testing and bug reports
 
 **Subject Matter Experts**
-Homesteading, agriculture, construction, medicine, engineering—if you know how to do something useful, we want to teach it.
+Homesteading, agriculture, construction, medicine, engineering — if you know how to do something useful, we want to teach it.
 
 **Translators**
 Humanity speaks many languages. The mission should too.
@@ -49,7 +56,9 @@ Humanity speaks many languages. The mission should too.
 3. **Explore the repo** — see what exists, what's planned
    → [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 
-4. **Pick something small** — fix a typo, clarify a sentence, add a detail. Small contributions matter.
+4. **Download the app** — try the [desktop app (v0.2.0)](https://github.com/Shaostoul/Humanity/releases/latest) or install the PWA on mobile
+
+5. **Pick something small** — fix a typo, clarify a sentence, add a detail. Small contributions matter.
 
 ---
 

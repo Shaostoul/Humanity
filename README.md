@@ -10,51 +10,85 @@ An open-source cooperative project to end poverty through education and technolo
 
 ## What's Live
 
-### Humanity Chat
-A real-time communication platform built on cryptographic identity. No accounts, no tracking, no analytics.
+### Humanity Hub
+A tabbed interface with 11 sections — **Chat, Board, Reality, Fantasy, Market, Browse, Dashboard, Streams, Info, Source, Debug** — the foundation for everything we're building.
 
-**Identity & Privacy**
-- Ed25519 cryptographic identity — keys stored in your browser, never on our server
-- Multi-device key linking — use the same identity across devices
-- Key backup, export, and import
-- No IP logging, no analytics, no tracking
-- 18+ by-entry confirmation
+### Communication
+- **Channels** — admin-created rooms with descriptions
+- **E2E encrypted DMs** — ECDH P-256 key exchange + AES-256-GCM, server never sees plaintext
+- **Threaded replies** — reply to any message with collapsible threads
+- **Groups** — private group conversations (foundation)
+- **Voice channels** — persistent, always-on WebRTC mesh rooms to join/leave
+- **Voice & video calling** — WebRTC peer-to-peer 1-on-1 calls with audio and video
+- **@mentions** with highlighting and notifications
+- **Emoji reactions** (persistent, synced across sessions)
+- **Message editing and deletion**
+- **Message search** — full-text search across conversations
+- **Image sharing** with lazy-loaded placeholders
+- **Browser push notifications** and 6 notification sound options
+- **Typing indicators** and unread markers
 
-**Communication**
-- Channels with admin-created rooms and descriptions
-- Direct messages between users
-- @mentions with highlighting and notifications
-- Emoji reactions (persistent, synced across sessions)
-- Reply/quote system with collapsible blocks
-- Message editing and deletion
-- Image sharing with lazy-loaded placeholders
-- Browser push notifications and notification sounds
-- Typing indicators and unread markers
+### Identity & Privacy
+- **Ed25519 cryptographic identity** — keys stored in your browser, never on our server
+- **Multi-device key linking** — use the same identity across devices
+- **Device management** — list, label, and revoke linked keys
+- **Key backup, export, and import** — own your identity completely
+- **Encrypted user data sync** — settings, follows, and profile sync encrypted to server
+- **No IP logging, no analytics, no tracking**
+- **18+ only** by-entry confirmation — free speech platform
 
-**Community**
-- User profiles with bio and social links
-- Unique pixel-art identicons per user
-- Client-side user blocking
-- Report system with rate limiting
-- Pin system — server pins (mod/admin) and personal pins (local)
+### Social
+- **Follow/friend system** — mutual follow = friends, friends unlock DMs
+- **Friend codes** — 8-character codes with 24-hour expiry, auto-mutual-follow
+- **User profiles** with bio and social links
+- **Unique pixel-art identicons** per user
+- **Client-side user blocking**
+- **Report system** with rate limiting
+- **Pin system** — server pins (mod/admin) and personal pins (local)
 
-**Moderation**
+### Hub Tools
+- **Project board** — kanban-style task management
+- **Marketplace** — peer-to-peer listings for goods and services, kiosks
+- **Universal catalog** — 118 elements, 44 materials, processing chains
+- **Browse tab** — web directory with 52 curated sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
+- **Dashboard tab** — 10 widget types with customizable drag-and-drop layout
+- **Personal inventory** — track what you own
+- **Notes** — private note-taking
+- **Todos** — personal task lists
+- **Garden tracker** — plan and track your garden
+
+### Game & Creative
+- **Fantasy tab** — character sheet, lore entries, world map, achievements
+- **Streams tab** — local capture demo (real streaming coming soon)
+- **Concept art** — multi-km spaceships, virtual malls, in-game spaces
+
+### Platform
+- **PWA installable** — works on mobile, add to homescreen
+- **Desktop app** — [Tauri v2](https://tauri.app/) with auto-updater for Windows, macOS, Linux
+- **Command palette** — quick access to everything
+- **Settings panel** — accent colors, font sizes, theme customization
+- **Auto-reload on deploy** — client updates instantly without manual refresh
+- **Auto-login** — seamless reconnection with stored keys
+
+### Moderation
 - Role-based system: admin 👑, mod 🛡️, verified ✦, donor 💎
 - Kick/ban with instant WebSocket disconnection
 - Auto-lockdown when no mods online
 - Invite codes for controlled access
 
-### Hub
-A tabbed interface with sections for Chat, Reality, Fantasy, Streams, and Debug — the foundation for everything we're building.
-
-### Shared Design System
-Centralized styles (`theme.css`) and navigation shell (`shell.js`) shared across all pages. Download page with OS auto-detection.
+### Federation
+- **Phase 1** — server discovery, trust tiers, anyone can host a server
+- **Phase 2** — cross-server identity and room directory
+- Single binary, zero dependencies, under 10 minutes to set up
+- Verified servers that adopt the [Humanity Accord](accord/humanity_accord.md) earn the highest trust tier
 
 ---
 
 ## Security
 
 - Server-side Ed25519 signature verification on every message
+- E2E encrypted DMs (ECDH P-256 + AES-256-GCM) — server never sees plaintext
+- Encrypted user data sync — profile, settings, follows encrypted at rest
 - Fibonacci rate limiting + new-account slow mode
 - Content Security Policy (CSP), HSTS, TLS 1.2+ only
 - No IP logging — we don't store what we don't need
@@ -70,9 +104,10 @@ Centralized styles (`theme.css`) and navigation shell (`shell.js`) shared across
 |-----------|-----------|
 | Server | Rust (axum + tokio) |
 | Client | Single-file HTML/JS |
-| Identity | Ed25519 |
+| Identity | Ed25519 (signing) + ECDH P-256 (encryption) |
 | Storage | SQLite |
-| Transport | WebSocket |
+| Transport | WebSocket + WebRTC |
+| Desktop | Tauri v2 |
 | Layout | Cargo workspace |
 
 The client is a single HTML file with no build step — open it in a browser and it works. The server is a Rust binary that handles WebSocket connections, message persistence, identity verification, and file uploads.
@@ -91,6 +126,18 @@ Federated communication built on cryptographic identity. No central servers owni
 
 ### Project Universe
 A free game teaching practical skills — homesteading, agriculture, building, health, survival. Learn to provide for yourself and your community.
+
+---
+
+## Desktop App
+
+A native desktop app is available for Windows, macOS (ARM64 + x64), and Linux — built with [Tauri v2](https://tauri.app/). It wraps the web client in a native window with auto-updater, so you always get the latest version.
+
+**[Download the latest release (v0.2.0) →](https://github.com/Shaostoul/Humanity/releases/latest)**
+
+> **Windows users:** You may see a SmartScreen warning ("Unknown publisher"). This is normal for open-source software without a code signing certificate. Click "More info" → "Run anyway" to proceed.
+
+To build from source, see [`desktop/README.md`](desktop/README.md).
 
 ---
 
@@ -131,16 +178,6 @@ Want verified status? Contact [@Shaostoul on X](https://x.com/Shaostoul). Public
 - 🎥 [YouTube](https://youtube.com/@Shaostoul) · 📺 [Twitch](https://twitch.tv/Shaostoul) · 🟢 [Rumble](https://rumble.com/user/Shaostoul)
 - 𝕏 [X/Twitter](https://x.com/Shaostoul) · 📷 [Instagram](https://instagram.com/shaostoul) · 🔵 [Bluesky](https://bsky.app/profile/shaostoul.bsky.social)
 - 🟠 [Reddit](https://reddit.com/user/Shaostoul) · 👤 [Facebook](https://www.facebook.com/2571477392923654) · 🎮 [Steam](https://steamcommunity.com/id/Shaostoul)
-
----
-
-## Desktop App
-
-A native desktop app is available for Windows, macOS, and Linux — built with [Tauri v2](https://tauri.app/). It wraps the web client in a native window, so updates are instant without needing to update the app.
-
-**[Download the latest release →](https://github.com/Shaostoul/Humanity/releases/latest)**
-
-To build from source, see [`desktop/README.md`](desktop/README.md).
 
 ---
 

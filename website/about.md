@@ -62,29 +62,37 @@ The **Humanity Network** is a federated communication protocol built on Ed25519 
 Anyone can host a server. Servers are meeting places, not gatekeepers. Your identity is portable across all of them. A tiered trust system (verified + Accord adoption) helps users find reliable communities.
 
 **What's built and live:**
-- Channels, direct messages (friend requirement), groups
-- Voice chat — WebRTC P2P 1-on-1 calls
-- Persistent voice channels — always-on rooms
-- Follow/friend social system (mutual follow = friends)
+- E2E encrypted DMs — ECDH P-256 + AES-256-GCM, server never sees plaintext
+- Channels, groups (foundation), threaded replies
+- Voice & video calling — WebRTC P2P with audio and video
+- Persistent voice channels — always-on WebRTC mesh rooms
+- Message search — full-text search across conversations
+- Follow/friend system (mutual follow = friends)
+- Friend codes — 8-character codes, 24-hour expiry, auto-mutual-follow
+- Device management — list, label, and revoke linked keys
 - User profiles with bio and social links, identicons
 - @mentions, persistent emoji reactions, message editing, image sharing
-- Project board (kanban), marketplace (P2P listings)
-- Universal catalog (elements, materials, processing chains)
+- Browse tab — web directory with 52 sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
+- Dashboard tab — 10 widget types, customizable drag-and-drop layout
+- Project board (kanban), marketplace (P2P listings, kiosks)
+- Universal catalog — 118 elements, 44 materials, processing chains
 - Personal inventory, notes, todos, garden tracker
 - Fantasy tab (character sheet, lore, world map, achievements)
 - Streams tab (local capture demo)
-- Key backup/export/import, auto-sync user data
+- Key backup/export/import, encrypted user data sync
 - PWA installable on mobile
+- Desktop app — Tauri v2 with auto-updater (Windows, macOS ARM64 + x64, Linux)
 - Settings panel (accent colors, font size, themes), command palette
+- Auto-reload on deploy, auto-login
 - Notification sounds (6 options), browser notifications
 - Pin system (server + personal), blocking, reporting
 - Admin/mod tools, lockdown, invite codes, rate limiting
 - Security hardened: CSP, HSTS, TLS 1.2+, upload validation
-- Server federation Phase 1 — discovery, trust tiers
+- Federation Phase 1 — server discovery, trust tiers
+- Federation Phase 2 — cross-server identity and room directory
+- 11 hub tabs: Chat, Board, Reality, Fantasy, Market, Browse, Dashboard, Streams, Info, Source, Debug
 
-**What's designed (specs complete, building next):**
-- E2E encrypted DMs (X25519 + XChaCha20-Poly1305)
-- Federation Phase 2 (server-to-server messaging)
+**What's designed (building next):**
 - Peer-assisted streaming (many seeds, small slices)
 - Content-addressed file sharing
 

@@ -21,26 +21,32 @@ Platform is **18+ only**. Free speech — the line is genuine threats, doxxing, 
 
 **[united-humanity.us/chat](https://united-humanity.us/chat)**
 
-A fully operational communication platform and personal hub. No account needed — your cryptographic identity (Ed25519) lives in your browser.
+A fully operational communication platform and personal hub with 11 tabs — **Chat, Board, Reality, Fantasy, Market, Browse, Dashboard, Streams, Info, Source, Debug**. No account needed — your cryptographic identity (Ed25519) lives in your browser.
 
 ### Communication
 - **Channels** — public rooms for group conversation
-- **Direct messages** — private 1-on-1 chat (friend requirement for privacy)
-- **Groups** — private group conversations
-- **Voice chat** — WebRTC peer-to-peer 1-on-1 voice calls
-- **Persistent voice channels** — always-on voice rooms to join/leave
+- **E2E encrypted DMs** — ECDH P-256 key exchange + AES-256-GCM, server never sees plaintext
+- **Threaded replies** — reply to any message with collapsible threads
+- **Groups** — private group conversations (foundation)
+- **Voice & video calling** — WebRTC peer-to-peer 1-on-1 calls with audio and video
+- **Persistent voice channels** — always-on WebRTC mesh rooms to join/leave
+- **Message search** — full-text search across conversations
 - **@mentions**, emoji reactions (persistent), message editing, image sharing
 - **Browser notifications** with 6 notification sound options
 
 ### Social
 - **Follow/friend system** — mutual follow = friends, friends unlock DMs
+- **Friend codes** — 8-character codes with 24-hour expiry, auto-mutual-follow
 - **User profiles** — bio, social links, identicons
+- **Device management** — list, label, and revoke linked keys
 - **Blocking and reporting** tools
 
 ### Hub Tools
 - **Project board** — kanban-style task management
-- **Marketplace** — peer-to-peer listings for goods and services
-- **Universal catalog** — elements, materials, processing chains
+- **Marketplace** — peer-to-peer listings for goods and services, kiosks
+- **Universal catalog** — 118 elements, 44 materials, processing chains
+- **Browse tab** — web directory with 52 curated sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
+- **Dashboard tab** — 10 widget types with customizable drag-and-drop layout
 - **Personal inventory** — track what you own
 - **Notes** — private note-taking
 - **Todos** — personal task lists
@@ -53,15 +59,19 @@ A fully operational communication platform and personal hub. No account needed �
 
 ### Platform
 - **PWA** — installable on mobile, works offline-capable
+- **Desktop app** — Tauri v2 with auto-updater for Windows, macOS (ARM64 + x64), Linux
 - **Settings panel** — accent colors, font sizes, theme customization
 - **Command palette** — quick access to everything
 - **Key backup/export/import** — own your identity, move between devices
-- **Auto-sync** — user data syncs to server automatically
+- **Encrypted user data sync** — profile, settings, follows encrypted to server
+- **Auto-reload on deploy** — client updates instantly without manual refresh
+- **Auto-login** — seamless reconnection with stored keys
 - **Security hardened** — rate limiting, upload validation, CSP headers, TLS 1.2+
 - **Moderation tools** — admin/mod roles, lockdown, invite codes
 
 ### Federation & Self-Hosting
-- **Server federation Phase 1** — server discovery, trust tiers, anyone can host a server
+- **Federation Phase 1** — server discovery, trust tiers, anyone can host a server
+- **Federation Phase 2** — cross-server identity and room directory
 - Single binary, zero dependencies, under 10 minutes to set up
 - Verified servers that adopt the [Humanity Accord](accord) earn the highest trust tier
 - [Self-hosting guide →](https://github.com/Shaostoul/Humanity/blob/main/SELF-HOSTING.md) · [Federation spec →](https://github.com/Shaostoul/Humanity/blob/main/design/network/server_federation.md)
@@ -70,10 +80,6 @@ A fully operational communication platform and personal hub. No account needed �
 
 ## What's Planned
 
-- **E2E encrypted DMs** — X25519 key exchange, server never sees plaintext
-- **Federation Phase 2** — server-to-server messaging across instances
-- **Desktop app** — Tauri-based native binary for Windows/Mac/Linux
-- **Video calls** — add video to existing WebRTC voice system
 - **Actual WebRTC streaming** — peer-assisted streaming (creator → relay → peer mesh)
 - **Native game client** — first-person Rust client with in-game chat + AI
 - **P2P game distribution** — GitHub Releases, no app stores, no middlemen
@@ -115,6 +121,7 @@ This is an open project. It belongs to everyone.
 - **Discord:** [Join the community](https://discord.gg/9XxmmeQnWC)
 - **GitHub:** [Explore the repo](https://github.com/Shaostoul/Humanity)
 - **Docs:** [shaostoul.github.io/Humanity](https://shaostoul.github.io/Humanity)
+- **Download:** [Desktop app (v0.2.0)](https://github.com/Shaostoul/Humanity/releases/latest) — Windows, macOS, Linux
 
 ### Find Us Everywhere
 
