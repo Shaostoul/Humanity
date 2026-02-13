@@ -7817,7 +7817,7 @@
             const locked = !checkPrereqs(data, skillId);
             const color = LEVEL_COLORS[lv];
             const verCount = (data.verifications || []).filter(v => v.skill === skillId).length;
-            html += `<div class="sd-tile ${locked?'locked':''}" onclick="${locked?'':'window._sdOpenSkill(\\''+containerId+'\\',\\''+skillId+'\\',\\''+mode+'\\')'}">`;
+            html += '<div class="sd-tile ' + (locked?'locked':'') + '" onclick="' + (locked?'':("window._sdOpenSkill('"+containerId+"','"+skillId+"','"+mode+"')")) + '">';
             html += `<div class="sd-icon">${meta.icon}</div>`;
             html += `<div class="sd-name">${meta.name}</div>`;
             html += `<div class="sd-level" style="color:${color}">Lv ${lv} ${verCount?'✓':''}</div>`;
