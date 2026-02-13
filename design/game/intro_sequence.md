@@ -51,9 +51,10 @@ The first-time player experience. No menus, no tutorials, no text walls. Pure ci
 - The docking clamps engage. Hiss of pressurization.
 - The player pulls up their wrist device / holographic Map
 - **Earth Status: 🟢 Healthy**
-- It was a dream. Earth is fine. They're already among the stars.
-- The calamity hasn't happened. Maybe it never will — if they build well enough.
-- **Feeling: relief, awe, purpose**
+- It was just a dream. Earth is fine. It was always fine.
+- The calamity never happened. Humanity left Earth not out of desperation — but out of curiosity, ambition, and love for exploration.
+- Turns out, humans who travel far from the home system occasionally have vivid nightmares about Earth being destroyed. It's a known phenomenon — deep ancestral anxiety, the fear of home being gone while you're away. Every spacefarer gets it. It's just part of being human among the stars.
+- **Feeling: relief, warmth, wonder, motivation**
 
 ### Act 5: The Game Begins
 - The quarters door opens — the ship's corridor stretches ahead
@@ -106,13 +107,13 @@ For the current web client, this could be:
 
 ### The Subtext
 The intro is Project Universe's mission statement:
-1. **Earth is beautiful** — worth protecting
-2. **Catastrophe is possible** — not guaranteed, but possible
-3. **Humanity can survive** — if we prepare, collaborate, build
-4. **It's not too late** — Earth is healthy. We have time.
-5. **What you build matters** — the game is the training ground
+1. **Earth is beautiful** — worth cherishing
+2. **Humanity chose to explore** — not fleeing, but reaching outward
+3. **Fear is natural** — even among the stars, we dream of home
+4. **Earth is healthy** — the nightmare is just a nightmare
+5. **What you build matters** — you're part of something vast
 
-The dream shows the worst case. The awakening shows reality. The gap between them is what the player fills.
+The dream shows what we fear. The awakening shows what's real. The game is what we build together. No apocalypse backstory, no trauma motivation — just curiosity, ambition, and the deep human need to explore and create.
 
 ## Variations
 - **Returning players**: Skip the full intro. Instead, brief "Previously..." or just wake up at home.
