@@ -5668,3 +5668,7 @@ const _origHandleMessageSearch = handleMessage;
 handleMessage = function(msg) {
   if (msg.type === 'search_results') {
     renderSearchResults(msg);
+  } else {
+    _origHandleMessageSearch(msg);
+  }
+};
