@@ -1164,9 +1164,11 @@
       #tab-streams .stream-section { margin-bottom:1rem; }
       #tab-streams #stream-viewer-panel { display:none; }
       #tab-streams #stream-viewer-panel.active { display:block; }
+      #tab-streams .streams-layout { display:flex; flex-direction:column; gap:1rem; padding:1rem; }
+      #tab-streams .streams-layout > .panel { width:100%; }
     </style>
 
-    <div class="card-grid">
+    <div class="streams-layout">
 
       <!-- ── Streamer Dashboard (collapsible) ── -->
       <div class="panel reality-card" id="streams-dashboard">
