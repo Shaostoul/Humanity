@@ -5080,6 +5080,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 if let Some(ref mut stream) = *stream_lock {
                                     stream.viewer_keys.insert(my_key_for_recv.clone());
                                     let count = stream.viewer_keys.len() as u32;
+                                    let streamer_key = stream.streamer_key.clone();
                                     let info_msg = RelayMessage::StreamInfo {
                                         active: true,
                                         streamer_name: Some(stream.streamer_name.clone()),
@@ -5092,6 +5093,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     };
                                     drop(stream_lock);
                                     let _ = state_clone.broadcast_tx.send(info_msg);
+                                    // Notify streamer about the new viewer so they can create a WebRTC offer
+                                    let notify = RelayMessage::Private {
+                                        to: streamer_key,
+                                        message: format!("__stream_viewer_ready__:{}", my_key_for_recv),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(notify);
                                 }
                             }
 

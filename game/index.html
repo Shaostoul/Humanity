@@ -1155,15 +1155,16 @@
       #tab-streams .stream-chat-input { display:flex; gap:0.3rem; margin-top:0.4rem; }
       #tab-streams .stream-chat-input input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; font-size:0.8rem; }
       #tab-streams .stream-chat-input button { padding:0.3rem 0.7rem; }
-      #tab-streams .viewer-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; }
+      #tab-streams #stream-live-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.8rem; }
+      #tab-streams .viewer-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; max-width:300px; }
       #tab-streams .viewer-card:hover { border-color:var(--accent); }
-      #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:2.5rem; }
-      #tab-streams .viewer-card .meta { padding:0.6rem; }
-      #tab-streams .viewer-card .meta h3 { font-size:0.9rem; margin:0 0 0.2rem; }
-      #tab-streams .viewer-card .meta .sub { font-size:0.75rem; color:var(--text-muted); }
+      #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
+      #tab-streams .viewer-card .meta { padding:0.4rem 0.6rem; }
+      #tab-streams .viewer-card .meta h3 { font-size:0.8rem; margin:0 0 0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      #tab-streams .viewer-card .meta .sub { font-size:0.7rem; color:var(--text-muted); }
       #tab-streams .stream-section { margin-bottom:1rem; }
       #tab-streams #stream-viewer-panel { display:none; }
-      #tab-streams #stream-viewer-panel.active { display:block; }
+      #tab-streams #stream-viewer-panel.active { display:flex; flex-direction:column; max-height:60vh; }
       #tab-streams .streams-layout { display:flex; flex-direction:column; gap:1rem; padding:1rem; }
       #tab-streams .streams-layout > .panel { width:100%; }
     </style>
@@ -4196,6 +4197,13 @@
           if (msg.type && msg.type.startsWith('stream_')) {
             streamHandleMessage(msg);
           }
+          // Handle stream viewer ready notification (streamer creates WebRTC offer)
+          if (msg.type === 'private' && msg.message && msg.message.startsWith('__stream_viewer_ready__:')) {
+            const viewerKey = msg.message.slice('__stream_viewer_ready__:'.length);
+            if (streamIsLive && streamCompositeStream) {
+              streamCreateOfferForViewer(viewerKey);
+            }
+          }
           // Handle skill verification messages via Private/system
           if (msg.type === 'private' && msg.message) {
             if (msg.message.startsWith('__skill_verify_req__:')) {
@@ -6663,6 +6671,36 @@
     }
 
     // ── WebRTC Signaling ──
+    // Map of viewer key → RTCPeerConnection for multi-viewer support
+    const streamViewerPCs = {};
+
+    function streamCreateOfferForViewer(viewerKey) {
+      // Close existing connection to this viewer if any
+      if (streamViewerPCs[viewerKey]) { streamViewerPCs[viewerKey].close(); }
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      streamViewerPCs[viewerKey] = pc;
+      // Also set as the single peerConnection for backward compat
+      streamPeerConnection = pc;
+
+      // Add composite stream tracks (video + audio)
+      if (streamCompositeStream) {
+        streamCompositeStream.getTracks().forEach(t => pc.addTrack(t, streamCompositeStream));
+      }
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate && ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'stream_ice', to: viewerKey, data: e.candidate }));
+        }
+      };
+
+      pc.createOffer().then(offer => {
+        pc.setLocalDescription(offer);
+        if (ws && ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'stream_offer', to: viewerKey, data: offer }));
+        }
+      }).catch(e => console.warn('WebRTC offer failed:', e));
+    }
+
     function streamHandleSignaling(msg) {
       // For viewer: handle offer from streamer
       if (msg.type === 'stream_offer' && !streamIsLive) {
