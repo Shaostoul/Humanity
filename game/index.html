@@ -505,6 +505,7 @@
   <script src="/shared/shell.js"></script>
   <script src="/shared/settings.js"></script>
   <script>
+    document.querySelectorAll('.hub-nav .tab[href^="/map"]').forEach(el => el.setAttribute('data-tab', 'map'));
     document.querySelectorAll('.hub-nav .tab[href^="/board"]').forEach(el => el.setAttribute('data-tab', 'board'));
     document.querySelectorAll('.hub-nav .tab[href^="/reality"]').forEach(el => el.setAttribute('data-tab', 'reality'));
     document.querySelectorAll('.hub-nav .tab[href^="/fantasy"]').forEach(el => el.setAttribute('data-tab', 'fantasy'));
@@ -515,6 +516,43 @@
     document.querySelectorAll('.hub-nav .tab[href^="/dashboard"]').forEach(el => el.setAttribute('data-tab', 'dashboard'));
     document.querySelectorAll('.hub-nav .tab[href^="/debug"]').forEach(el => el.setAttribute('data-tab', 'debug'));
   </script>
+
+  <!-- Map Tab -->
+  <div id="tab-map" class="tab-content" style="display:none;flex-direction:column;height:100%;overflow:hidden;padding:0;">
+    <!-- Mode bar -->
+    <div id="map-modes" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap;">
+      <span style="font-size:0.8rem;color:var(--text-muted);">🧘 Astral Projection:</span>
+      <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;">🌍 Surface</button>
+      <button onclick="mapSetView('system')" class="map-mode-btn" data-mode="system" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">☀️ Solar System</button>
+      <button onclick="mapSetView('sector')" class="map-mode-btn" data-mode="sector" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">⭐ Stellar Neighborhood</button>
+      <button onclick="mapSetView('galaxy')" class="map-mode-btn" data-mode="galaxy" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">🌌 Galaxy</button>
+      <span style="flex:1;"></span>
+      <span id="map-coords" style="font-size:0.7rem;color:var(--text-muted);font-family:monospace;"></span>
+    </div>
+    <div style="display:flex;flex:1;min-height:0;">
+      <!-- Map canvas area -->
+      <div id="map-canvas-container" style="flex:1;position:relative;background:#0a0a1a;overflow:hidden;">
+        <canvas id="map-canvas" style="width:100%;height:100%;display:block;"></canvas>
+        <!-- Overlay controls -->
+        <div id="map-overlay-controls" style="position:absolute;top:0.5rem;right:0.5rem;display:flex;flex-direction:column;gap:0.3rem;z-index:10;">
+          <button onclick="mapZoomIn()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">+</button>
+          <button onclick="mapZoomOut()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">−</button>
+          <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Go to home location">🏠</button>
+          <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="My location (GPS)">📍</button>
+          <button onclick="mapToggleWeather()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle weather overlay">🌤️</button>
+          <button onclick="mapToggleGrid()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle icosphere grid">📐</button>
+        </div>
+        <!-- Search bar overlay -->
+        <div style="position:absolute;top:0.5rem;left:0.5rem;right:3.5rem;z-index:10;">
+          <input type="text" id="map-search" placeholder="Search location, star, planet..." style="width:100%;max-width:350px;background:rgba(26,26,46,0.9);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.8rem;border-radius:8px;font-size:0.8rem;backdrop-filter:blur(4px);outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')mapDoSearch()">
+        </div>
+      </div>
+      <!-- Info sidebar -->
+      <div id="map-sidebar" style="width:320px;border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;background:var(--bg-card,#141414);">
+        <div id="map-info-panel" style="padding:0.8rem;font-size:0.82rem;"></div>
+      </div>
+    </div>
+  </div>
 
   <!-- Board Tab -->
   <div id="tab-board" class="tab-content" style="padding:1rem;overflow-y:auto;">
@@ -1074,6 +1112,7 @@
         <!-- Nearby stars (shown in system view) -->
         <div id="cel-nearby" style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted);"></div>
         <p style="text-align:center;margin-top:0.6rem;font-size:0.7rem;color:var(--text-muted);">Click stars/planets to inspect · Scroll to zoom · Drag to pan · Double-click to enter system</p>
+        <p style="text-align:center;margin-top:0.3rem;font-size:0.75rem;color:#6cc;">🧘 For the full astral projection experience with Earth maps, weather, and GPS — open the <a href="/map" onclick="if(typeof switchTab==='function'){switchTab('map');return false;}" style="color:var(--accent);text-decoration:underline;cursor:pointer;">🗺️ Map tab</a></p>
       </div>
     </div>
 
@@ -1971,7 +2010,7 @@
 
   <script>
     // ── Hub Tab System (SPA with pushState) ──
-    const HUB_TABS = ['board', 'reality', 'fantasy', 'market', 'browse', 'dashboard', 'streams', 'info', 'source', 'debug'];
+    const HUB_TABS = ['map', 'board', 'reality', 'fantasy', 'market', 'browse', 'dashboard', 'streams', 'info', 'source', 'debug'];
     let currentTab = 'reality';
 
     function getTabFromPath() {
@@ -1995,7 +2034,7 @@
       if (tabEl) tabEl.classList.add('active');
 
       // Update page title
-      const titles = { board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', browse: 'Browse', dashboard: 'Dashboard', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
+      const titles = { map: 'Map', board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', browse: 'Browse', dashboard: 'Dashboard', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
       document.title = 'Humanity — ' + (titles[tabId] || 'Hub');
 
       // Update URL
@@ -8230,6 +8269,920 @@
       style.textContent = '@media (max-width: 768px) { #tab-browse > div:nth-child(2) { flex-direction: column !important; } #browse-directory { width: 100% !important; min-width: auto !important; max-height: 40vh; border-right: none !important; border-bottom: 1px solid var(--border); } #dashboard-grid { grid-template-columns: 1fr !important; } .dashboard-widget { grid-column: span 1 !important; } }';
       document.head.appendChild(style);
     })();
+
+    // ══════════════════════════════════════
+    // MAP TAB
+    // ══════════════════════════════════════
+    (function initMapSystem() {
+      // Fix display style for map tab (needs flex, not block)
+      const mapTabEl = document.getElementById('tab-map');
+      if (!mapTabEl) return;
+      const origActive = mapTabEl.classList.contains('active');
+      // Override .active display for map tab
+      const mapStyle = document.createElement('style');
+      mapStyle.textContent = '#tab-map.active { display:flex !important; } .map-mode-btn.active { background:rgba(100,200,150,0.3)!important; border-color:rgba(100,200,150,0.6)!important; color:#fff!important; } @media(max-width:768px){#map-sidebar{display:none!important;}}';
+      document.head.appendChild(mapStyle);
+
+      const canvas = document.getElementById('map-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      // ── State ──
+      let mapView = 'surface'; // surface | system | sector | galaxy
+      let mapPan = {x:0, y:0};
+      let mapZoom = 1.0;
+      let mapDragging = false;
+      let mapDragStart = {x:0,y:0};
+      let mapPanStart = {x:0,y:0};
+      let mapShowGrid = false;
+      let mapShowWeather = false;
+      let mapSelectedLocation = null; // {lat, lng}
+      let mapInitialized = false;
+      let mapWeatherCache = {};
+      let mapWeatherTimer = null;
+      let mapAnimating = false;
+
+      // ── Home & Pins ──
+      function loadHome() {
+        try { return JSON.parse(localStorage.getItem('humanity_map_home')); } catch { return null; }
+      }
+      function saveHome(h) { localStorage.setItem('humanity_map_home', JSON.stringify(h)); }
+      function loadPins() {
+        try { return JSON.parse(localStorage.getItem('humanity_map_pins')) || []; } catch { return []; }
+      }
+      function savePins(p) { localStorage.setItem('humanity_map_pins', JSON.stringify(p)); }
+
+      // Default home: Paradise, Mount Rainier
+      if (!loadHome()) {
+        saveHome({lat:46.7853,lng:-121.7365,name:'Paradise, Mount Rainier',icosphere:'F7.L5.T142'});
+      }
+
+      // ── GPS ↔ Icosphere Conversion ──
+      // Icosahedron base vertices
+      const PHI = (1 + Math.sqrt(5)) / 2;
+      const ICO_VERTS = [
+        [0,1,PHI],[0,-1,PHI],[0,1,-PHI],[0,-1,-PHI],
+        [1,PHI,0],[-1,PHI,0],[1,-PHI,0],[-1,-PHI,0],
+        [PHI,0,1],[-PHI,0,1],[PHI,0,-1],[-PHI,0,-1]
+      ].map(v => { const l=Math.sqrt(v[0]**2+v[1]**2+v[2]**2); return [v[0]/l,v[1]/l,v[2]/l]; });
+
+      const ICO_FACES = [
+        [0,1,8],[0,8,4],[0,4,5],[0,5,9],[0,9,1],
+        [1,6,8],[8,6,10],[8,10,4],[4,10,2],[4,2,5],
+        [5,2,11],[5,11,9],[9,11,7],[9,7,1],[1,7,6],
+        [3,6,7],[3,7,11],[3,11,2],[3,2,10],[3,10,6]
+      ];
+
+      function gpsTo3D(lat, lng) {
+        const phi = (90 - lat) * Math.PI / 180;
+        const theta = (lng + 180) * Math.PI / 180;
+        return {
+          x: Math.sin(phi) * Math.cos(theta),
+          y: Math.cos(phi),
+          z: Math.sin(phi) * Math.sin(theta)
+        };
+      }
+
+      function dot3(a, b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+      function cross3(a, b) { return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]; }
+      function norm3(v) { const l=Math.sqrt(v[0]**2+v[1]**2+v[2]**2); return [v[0]/l,v[1]/l,v[2]/l]; }
+      function mid3(a,b) { return norm3([(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2]); }
+
+      function pointInTriangle3D(p, a, b, c) {
+        const n = cross3([b[0]-a[0],b[1]-a[1],b[2]-a[2]],[c[0]-a[0],c[1]-a[1],c[2]-a[2]]);
+        const d1 = dot3(cross3([b[0]-a[0],b[1]-a[1],b[2]-a[2]],[p[0]-a[0],p[1]-a[1],p[2]-a[2]]),n);
+        const d2 = dot3(cross3([c[0]-b[0],c[1]-b[1],c[2]-b[2]],[p[0]-b[0],p[1]-b[1],p[2]-b[2]]),n);
+        const d3 = dot3(cross3([a[0]-c[0],a[1]-c[1],a[2]-c[2]],[p[0]-c[0],p[1]-c[1],p[2]-c[2]]),n);
+        return (d1>=0&&d2>=0&&d3>=0)||(d1<=0&&d2<=0&&d3<=0);
+      }
+
+      function pointToIcosphere(lat, lng, level) {
+        const p3 = gpsTo3D(lat, lng);
+        const pt = [p3.x, p3.y, p3.z];
+        // Find base face
+        let face = 0;
+        for (let f = 0; f < 20; f++) {
+          const a = ICO_VERTS[ICO_FACES[f][0]];
+          const b = ICO_VERTS[ICO_FACES[f][1]];
+          const c = ICO_VERTS[ICO_FACES[f][2]];
+          if (pointInTriangle3D(pt, a, b, c)) { face = f; break; }
+        }
+        // Subdivide to find triangle path
+        let a = ICO_VERTS[ICO_FACES[face][0]];
+        let b = ICO_VERTS[ICO_FACES[face][1]];
+        let c = ICO_VERTS[ICO_FACES[face][2]];
+        let triIdx = 0;
+        let path = [];
+        for (let lv = 0; lv < Math.min(level, 8); lv++) {
+          const ab = mid3(a,b), bc = mid3(b,c), ca = mid3(c,a);
+          // 4 sub-triangles: 0=a-ab-ca, 1=ab-b-bc, 2=ca-bc-c, 3=ab-bc-ca (center)
+          if (pointInTriangle3D(pt, a, ab, ca)) { b=ab; c=ca; path.push(0); }
+          else if (pointInTriangle3D(pt, ab, b, bc)) { a=ab; c=bc; path.push(1); }
+          else if (pointInTriangle3D(pt, ca, bc, c)) { a=ca; b=bc; path.push(2); }
+          else { a=ab; b=bc; c=ca; path.push(3); }
+        }
+        // Compute triangle index from path
+        for (let i = 0; i < path.length; i++) triIdx = triIdx * 4 + path[i];
+        return { face, level: Math.min(level, 8), triangle: triIdx, address: 'F'+face+'.L'+Math.min(level,8)+'.T'+triIdx };
+      }
+
+      function icosphereToGPS(face, level, triangle) {
+        let a = ICO_VERTS[ICO_FACES[face][0]];
+        let b = ICO_VERTS[ICO_FACES[face][1]];
+        let c = ICO_VERTS[ICO_FACES[face][2]];
+        // Decode path from triangle index
+        let path = [];
+        let t = triangle;
+        for (let i = 0; i < level; i++) { path.unshift(t % 4); t = Math.floor(t / 4); }
+        for (const p of path) {
+          const ab = mid3(a,b), bc = mid3(b,c), ca = mid3(c,a);
+          if (p===0) { b=ab; c=ca; }
+          else if (p===1) { a=ab; c=bc; }
+          else if (p===2) { a=ca; b=bc; }
+          else { a=ab; b=bc; c=ca; }
+        }
+        const centroid = norm3([(a[0]+b[0]+c[0])/3,(a[1]+b[1]+c[1])/3,(a[2]+b[2]+c[2])/3]);
+        const lat = 90 - Math.acos(centroid[1]) * 180 / Math.PI;
+        const lng = Math.atan2(centroid[2], centroid[0]) * 180 / Math.PI - 180;
+        return {lat, lng: lng < -180 ? lng + 360 : lng};
+      }
+
+      // ── 50 Major Cities ──
+      const CITIES = [
+        {name:'New York',lat:40.71,lng:-74.01},{name:'London',lat:51.51,lng:-0.13},{name:'Tokyo',lat:35.68,lng:139.69},
+        {name:'Paris',lat:48.86,lng:2.35},{name:'Sydney',lat:-33.87,lng:151.21},{name:'Moscow',lat:55.76,lng:37.62},
+        {name:'Dubai',lat:25.20,lng:55.27},{name:'Shanghai',lat:31.23,lng:121.47},{name:'São Paulo',lat:-23.55,lng:-46.63},
+        {name:'Mumbai',lat:19.08,lng:72.88},{name:'Beijing',lat:39.90,lng:116.40},{name:'Cairo',lat:30.04,lng:31.24},
+        {name:'Mexico City',lat:19.43,lng:-99.13},{name:'Lagos',lat:6.52,lng:3.38},{name:'Istanbul',lat:41.01,lng:28.98},
+        {name:'Buenos Aires',lat:-34.60,lng:-58.38},{name:'Kolkata',lat:22.57,lng:88.36},{name:'Kinshasa',lat:-4.32,lng:15.31},
+        {name:'Manila',lat:14.60,lng:120.98},{name:'Rio de Janeiro',lat:-22.91,lng:-43.17},{name:'Riyadh',lat:24.77,lng:46.74},
+        {name:'Bangkok',lat:13.76,lng:100.50},{name:'Lima',lat:-12.05,lng:-77.04},{name:'Tehran',lat:35.69,lng:51.39},
+        {name:'Jakarta',lat:-6.21,lng:106.85},{name:'Bogotá',lat:4.71,lng:-74.07},{name:'Hong Kong',lat:22.40,lng:114.11},
+        {name:'Seoul',lat:37.57,lng:126.98},{name:'Baghdad',lat:33.31,lng:44.37},{name:'Santiago',lat:-33.45,lng:-70.67},
+        {name:'Singapore',lat:1.35,lng:103.82},{name:'Toronto',lat:43.65,lng:-79.38},{name:'Berlin',lat:52.52,lng:13.41},
+        {name:'Madrid',lat:40.42,lng:-3.70},{name:'Rome',lat:41.90,lng:12.50},{name:'Nairobi',lat:-1.29,lng:36.82},
+        {name:'Cape Town',lat:-33.93,lng:18.42},{name:'Delhi',lat:28.61,lng:77.21},{name:'Karachi',lat:24.86,lng:67.01},
+        {name:'Dhaka',lat:23.81,lng:90.41},{name:'Los Angeles',lat:34.05,lng:-118.24},{name:'Chicago',lat:41.88,lng:-87.63},
+        {name:'Houston',lat:29.76,lng:-95.37},{name:'Johannesburg',lat:-26.20,lng:28.05},{name:'Addis Ababa',lat:9.02,lng:38.75},
+        {name:'Casablanca',lat:33.57,lng:-7.59},{name:'Melbourne',lat:-37.81,lng:144.96},{name:'Osaka',lat:34.69,lng:135.50},
+        {name:'Taipei',lat:25.03,lng:121.57},{name:'Vancouver',lat:49.28,lng:-123.12}
+      ];
+
+      // ── Simplified Continent Coastlines (lat/lng arrays) ──
+      // ~2000 points total, simplified from Natural Earth
+      const COASTLINES = [
+        // North America (simplified)
+        [[71,-156],[70,-141],[60,-139],[55,-131],[49,-125],[42,-124],[34,-120],[32,-117],[28,-113],[23,-110],[20,-105],[18,-97],[18,-88],[21,-87],[25,-80],[27,-80],[30,-81],[30,-85],[29,-89],[29,-94],[26,-97],[28,-97],[33,-97],[36,-95],[37,-89],[41,-87],[43,-82],[42,-79],[41,-74],[40,-74],[39,-75],[38,-76],[37,-76],[35,-76],[35,-75],[38,-73],[40,-74],[41,-72],[42,-71],[43,-70],[44,-67],[47,-68],[45,-67],[44,-64],[47,-61],[47,-56],[52,-56],[51,-57],[47,-59],[46,-61],[45,-62],[46,-64],[48,-65],[48,-69],[47,-70],[49,-67],[53,-60],[52,-56],[55,-60],[60,-64],[63,-68],[66,-62],[70,-55],[73,-56],[76,-68],[73,-80],[70,-88],[70,-100],[69,-105],[71,-111],[70,-130],[71,-141],[71,-156]],
+        // South America
+        [[-5,-81],[-3,-80],[1,-80],[4,-77],[8,-77],[12,-72],[12,-68],[11,-75],[8,-77],[6,-77],[2,-80],[-1,-80],[-5,-81],[-5,-78],[-6,-77],[-4,-74],[0,-70],[2,-67],[6,-61],[7,-58],[5,-54],[3,-51],[1,-50],[-1,-48],[-3,-45],[-5,-35],[-8,-35],[-13,-39],[-18,-40],[-23,-41],[-24,-47],[-28,-49],[-33,-52],[-35,-57],[-40,-62],[-43,-65],[-46,-67],[-52,-70],[-54,-69],[-55,-67],[-52,-69],[-48,-66],[-42,-64],[-37,-57],[-33,-52],[-28,-49],[-23,-44],[-20,-40],[-15,-39],[-10,-37],[-5,-35],[-3,-40],[-2,-44],[-3,-48],[-2,-50],[0,-51],[2,-52],[4,-52],[5,-54],[3,-51],[1,-50]],
+        // Europe
+        [[36,-6],[37,-2],[38,0],[39,0],[41,2],[43,3],[43,5],[44,8],[44,12],[41,13],[40,15],[38,16],[40,18],[39,20],[38,24],[37,24],[35,25],[35,33],[32,35],[37,36],[39,26],[41,29],[42,28],[44,29],[46,30],[46,34],[48,38],[50,37],[51,40],[55,40],[57,43],[60,43],[65,41],[70,32],[71,28],[71,26],[70,20],[63,5],[58,7],[57,12],[55,13],[55,8],[57,8],[58,7],[56,3],[55,8],[54,9],[54,12],[57,12],[56,16],[55,21],[54,19],[54,14],[53,14],[52,5],[51,4],[49,0],[48,-5],[43,-9],[43,-3],[44,0],[43,3],[42,3],[39,-1],[37,-2],[37,-6],[38,-9],[37,-9],[36,-6]],
+        // Africa
+        [[37,-9],[35,-6],[32,-1],[33,12],[31,32],[30,33],[22,37],[15,42],[12,44],[11,50],[2,51],[-1,42],[-5,40],[-11,40],[-15,41],[-25,35],[-34,26],[-34,18],[-30,16],[-23,14],[-17,12],[-12,14],[-6,12],[0,10],[5,1],[4,-7],[5,-12],[3,-10],[0,-9],[-5,-12],[-4,-9],[0,-1],[4,-7],[5,-1],[7,1],[5,4],[4,10],[0,10],[-5,12],[-4,8],[-1,7],[4,2],[6,-2],[5,-4],[4,-5],[5,-8],[10,-15],[15,-17],[20,-17],[25,-15],[28,-13],[33,-8],[35,-6],[37,-2],[37,-9]],
+        // Asia
+        [[42,28],[41,29],[42,36],[37,36],[34,36],[33,44],[30,48],[27,50],[26,56],[25,60],[25,66],[21,60],[16,52],[12,44],[8,45],[5,45],[0,42],[-1,42],[-6,40],[-8,40],[-6,35],[0,39],[8,44],[12,44],[15,42],[22,37],[26,34],[30,33],[31,32],[33,36],[34,36],[37,40],[40,44],[41,48],[38,48],[37,53],[40,53],[44,50],[45,52],[50,52],[52,55],[55,59],[57,60],[60,57],[65,55],[60,60],[55,65],[50,70],[53,73],[55,73],[57,68],[60,64],[65,68],[70,70],[72,73],[73,80],[68,77],[65,75],[60,73],[55,73],[52,77],[55,80],[60,77],[65,80],[65,87],[64,100],[68,105],[72,115],[72,130],[70,136],[64,140],[62,150],[60,160],[65,171],[66,180],[66,170],[64,173],[60,165],[56,163],[54,155],[50,143],[47,140],[45,143],[43,146],[45,150],[50,155],[55,160],[59,163],[55,163],[50,156],[44,145],[42,140],[46,143],[44,135],[40,132],[35,129],[34,126],[36,127],[38,130],[39,122],[35,119],[32,122],[30,122],[26,120],[22,114],[22,108],[20,106],[18,107],[10,106],[8,105],[2,104],[1,104],[-2,106],[-6,106],[-8,110],[-8,115],[-7,120],[-6,106],[-8,110],[-8,115],[-5,119],[0,117],[1,110],[8,98],[15,100],[22,108],[22,114],[26,120],[30,122],[32,122],[34,109],[30,105],[28,97],[22,89],[21,86],[27,89],[28,97],[30,79],[27,70],[22,69],[18,73],[15,75],[10,77],[8,78],[8,73],[10,77],[13,80],[22,89],[22,69],[25,66],[30,75],[30,79],[33,74],[37,72],[40,64],[39,53],[42,59],[44,50]],
+        // Australia
+        [[-12,130],[-12,136],[-15,137],[-14,130],[-16,124],[-20,119],[-22,114],[-27,114],[-31,115],[-34,116],[-35,117],[-35,118],[-34,121],[-34,124],[-32,127],[-32,133],[-35,137],[-38,141],[-39,144],[-39,146],[-38,148],[-37,150],[-33,152],[-28,153],[-25,152],[-23,150],[-20,149],[-19,147],[-16,146],[-15,145],[-13,142],[-12,142],[-11,137],[-12,136],[-12,130]],
+        // Antarctica (simplified)
+        [[-70,-60],[-68,-62],[-72,-70],[-75,-80],[-78,-90],[-78,-105],[-75,-115],[-72,-120],[-70,-130],[-70,-145],[-73,-155],[-78,-165],[-80,-170],[-78,170],[-74,165],[-70,160],[-67,145],[-66,130],[-66,110],[-68,100],[-70,80],[-68,70],[-66,50],[-67,35],[-68,20],[-70,0],[-69,-10],[-70,-30],[-68,-45],[-70,-60]]
+      ];
+
+      // ── Weather ──
+      function weatherEmoji(code) {
+        if (code === 0) return '☀️';
+        if (code <= 3) return '⛅';
+        if (code <= 48) return '🌫️';
+        if (code <= 57) return '🌧️';
+        if (code <= 67) return '🌧️';
+        if (code <= 77) return '🌨️';
+        if (code <= 82) return '⛈️';
+        if (code <= 86) return '🌨️';
+        if (code >= 95) return '⛈️';
+        return '🌡️';
+      }
+
+      function weatherDesc(code) {
+        if (code===0) return 'Clear sky';
+        if (code<=3) return 'Partly cloudy';
+        if (code<=48) return 'Fog';
+        if (code<=57) return 'Drizzle';
+        if (code<=67) return 'Rain';
+        if (code<=77) return 'Snow';
+        if (code<=82) return 'Showers';
+        if (code<=86) return 'Snow showers';
+        if (code>=95) return 'Thunderstorm';
+        return 'Unknown';
+      }
+
+      async function getWeather(lat, lng) {
+        const key = lat.toFixed(2)+','+lng.toFixed(2);
+        if (mapWeatherCache[key] && Date.now() - mapWeatherCache[key].ts < 900000) return mapWeatherCache[key].data;
+        try {
+          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,precipitation&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto&forecast_days=3`;
+          const res = await fetch(url);
+          const data = await res.json();
+          mapWeatherCache[key] = {data, ts: Date.now()};
+          return data;
+        } catch { return null; }
+      }
+
+      // ── Equirectangular projection helpers ──
+      function latLngToScreen(lat, lng, cw, ch) {
+        const x = (lng + 180) / 360 * cw * mapZoom + mapPan.x + cw/2 * (1 - mapZoom);
+        const y = (90 - lat) / 180 * ch * mapZoom + mapPan.y + ch/2 * (1 - mapZoom);
+        return {x, y};
+      }
+
+      function screenToLatLng(sx, sy, cw, ch) {
+        const lng = (sx - mapPan.x - cw/2*(1-mapZoom)) / (cw * mapZoom) * 360 - 180;
+        const lat = 90 - (sy - mapPan.y - ch/2*(1-mapZoom)) / (ch * mapZoom) * 180;
+        return {lat: Math.max(-90,Math.min(90,lat)), lng: ((lng+540)%360)-180};
+      }
+
+      // ── Render Surface (Earth Map) ──
+      function renderSurface(cw, ch) {
+        // Ocean
+        ctx.fillStyle = '#0c1a3a';
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Draw coastlines
+        ctx.strokeStyle = 'rgba(100,200,150,0.5)';
+        ctx.fillStyle = 'rgba(30,80,50,0.4)';
+        ctx.lineWidth = 1;
+        for (const coast of COASTLINES) {
+          ctx.beginPath();
+          for (let i = 0; i < coast.length; i++) {
+            const p = latLngToScreen(coast[i][0], coast[i][1], cw, ch);
+            if (i === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Lat/lng grid
+        ctx.strokeStyle = 'rgba(100,150,200,0.1)';
+        ctx.lineWidth = 0.5;
+        for (let lat = -60; lat <= 60; lat += 30) {
+          const p1 = latLngToScreen(lat, -180, cw, ch);
+          const p2 = latLngToScreen(lat, 180, cw, ch);
+          ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+        }
+        for (let lng = -180; lng <= 180; lng += 30) {
+          const p1 = latLngToScreen(90, lng, cw, ch);
+          const p2 = latLngToScreen(-90, lng, cw, ch);
+          ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+        }
+
+        // Icosphere grid overlay
+        if (mapShowGrid) {
+          ctx.strokeStyle = 'rgba(150,100,255,0.2)';
+          ctx.lineWidth = 0.8;
+          // Draw base icosahedron edges projected
+          for (const face of ICO_FACES) {
+            for (let i = 0; i < 3; i++) {
+              const v1 = ICO_VERTS[face[i]];
+              const v2 = ICO_VERTS[face[(i+1)%3]];
+              // Convert 3D to lat/lng
+              const lat1 = 90 - Math.acos(Math.max(-1,Math.min(1,v1[1]))) * 180/Math.PI;
+              const lng1 = Math.atan2(v1[2],v1[0]) * 180/Math.PI - 180;
+              const lat2 = 90 - Math.acos(Math.max(-1,Math.min(1,v2[1]))) * 180/Math.PI;
+              const lng2 = Math.atan2(v2[2],v2[0]) * 180/Math.PI - 180;
+              const p1 = latLngToScreen(lat1, lng1 < -180 ? lng1+360 : lng1, cw, ch);
+              const p2 = latLngToScreen(lat2, lng2 < -180 ? lng2+360 : lng2, cw, ch);
+              // Skip wrap-around edges
+              if (Math.abs(p1.x - p2.x) < cw * 0.5) {
+                ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+              }
+            }
+          }
+        }
+
+        // Cities
+        ctx.font = (mapZoom > 1.5 ? '9' : '7') + 'px sans-serif';
+        for (const city of CITIES) {
+          const p = latLngToScreen(city.lat, city.lng, cw, ch);
+          if (p.x < -10 || p.x > cw+10 || p.y < -10 || p.y > ch+10) continue;
+          ctx.fillStyle = 'rgba(255,200,100,0.8)';
+          ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+          if (mapZoom > 0.8) {
+            ctx.fillStyle = 'rgba(255,200,100,0.6)';
+            ctx.textAlign = 'center';
+            ctx.fillText(city.name, p.x, p.y - 5);
+          }
+        }
+
+        // Pins
+        const pins = loadPins();
+        for (const pin of pins) {
+          const p = latLngToScreen(pin.lat, pin.lng, cw, ch);
+          ctx.fillStyle = '#ff4444';
+          ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.textAlign = 'center';
+          ctx.font = '8px sans-serif';
+          ctx.fillText(pin.name || 'Pin', p.x, p.y - 7);
+        }
+
+        // Home marker
+        const home = loadHome();
+        if (home) {
+          const p = latLngToScreen(home.lat, home.lng, cw, ch);
+          ctx.font = '14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('🏠', p.x, p.y + 5);
+          ctx.font = '8px sans-serif';
+          ctx.fillStyle = 'rgba(100,200,150,0.8)';
+          ctx.fillText(home.name || 'Home', p.x, p.y - 10);
+        }
+
+        // Selected location
+        if (mapSelectedLocation) {
+          const p = latLngToScreen(mapSelectedLocation.lat, mapSelectedLocation.lng, cw, ch);
+          ctx.strokeStyle = '#ff8811';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI*2); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(p.x-12,p.y); ctx.lineTo(p.x+12,p.y); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(p.x,p.y-12); ctx.lineTo(p.x,p.y+12); ctx.stroke();
+        }
+
+        // Scale bar
+        ctx.fillStyle = 'rgba(200,210,255,0.5)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'left';
+        const kmPerPx = 40075 / (cw * mapZoom);
+        let scaleKm = 1000;
+        if (kmPerPx < 5) scaleKm = 500;
+        if (kmPerPx < 2) scaleKm = 200;
+        if (kmPerPx < 1) scaleKm = 100;
+        const scalePx = scaleKm / kmPerPx;
+        if (scalePx > 20 && scalePx < cw*0.5) {
+          ctx.fillRect(10, ch-20, scalePx, 2);
+          ctx.fillText(scaleKm + ' km', 10, ch-25);
+        }
+      }
+
+      // ── Celestial views (reuse from Fantasy tab data via globals) ──
+      // We re-implement simplified versions here since the data is in an IIFE
+
+      // Solar System Data (compact inline)
+      const MAP_PLANETS = [
+        {id:'mercury',name:'Mercury',symbol:'☿',semiMajor:0.387,eccentricity:0.2056,period:87.97,color:'#8c7e6d',type:'terrestrial',meanLongitude:252.25},
+        {id:'venus',name:'Venus',symbol:'♀',semiMajor:0.723,eccentricity:0.0068,period:224.7,color:'#e8cda0',type:'terrestrial',meanLongitude:181.98},
+        {id:'earth',name:'Earth',symbol:'🌍',semiMajor:1.0,eccentricity:0.0167,period:365.25,color:'#4488ff',type:'terrestrial',meanLongitude:100.46},
+        {id:'mars',name:'Mars',symbol:'♂',semiMajor:1.524,eccentricity:0.0934,period:686.97,color:'#cc5533',type:'terrestrial',meanLongitude:355.45},
+        {id:'jupiter',name:'Jupiter',symbol:'♃',semiMajor:5.203,eccentricity:0.0489,period:4332.59,color:'#c8a55a',type:'gas_giant',meanLongitude:34.40},
+        {id:'saturn',name:'Saturn',symbol:'♄',semiMajor:9.537,eccentricity:0.0565,period:10759.22,color:'#e0c878',type:'gas_giant',meanLongitude:49.94},
+        {id:'uranus',name:'Uranus',symbol:'⛢',semiMajor:19.19,eccentricity:0.0457,period:30688.5,color:'#7ec8c8',type:'ice_giant',meanLongitude:313.23},
+        {id:'neptune',name:'Neptune',symbol:'♆',semiMajor:30.07,eccentricity:0.0113,period:60182,color:'#4466dd',type:'ice_giant',meanLongitude:304.88}
+      ];
+
+      const MAP_STARS = [
+        ['Proxima Centauri',-1.55,-1.18,-0.77,'M5.5V',11.13,'Proxima Centauri'],
+        ['Alpha Centauri A',-1.55,-1.18,-0.77,'G2V',0.01,'Rigil Kentaurus'],
+        ["Barnard's Star",-0.06,-1.82,0.15,'M4V',9.51,"Barnard's Star"],
+        ['Wolf 359',1.94,0.99,0.59,'M6V',13.44,'Wolf 359'],
+        ['Sirius',1.68,0.25,-1.33,'A1V',-1.46,'Sirius'],
+        ['Luyten 726-8',-0.52,-0.37,-2.27,'M5.5V',12.54,'BL Ceti'],
+        ['Epsilon Eridani',-2.13,-0.36,-1.90,'K2V',3.73,'Epsilon Eridani'],
+        ['Procyon',2.83,-0.87,-2.11,'F5IV-V',0.34,'Procyon'],
+        ['61 Cygni',2.17,3.02,1.62,'K5V',5.21,'61 Cygni'],
+        ['Tau Ceti',-3.36,0.47,-1.40,'G8.5V',3.49,'Tau Ceti'],
+        ['Altair',2.29,4.07,-2.40,'A7V',0.76,'Altair'],
+        ['Vega',0.69,6.19,0.21,'A0Va',0.03,'Vega'],
+        ['Fomalhaut',-4.23,1.30,-5.01,'A3V',1.16,'Fomalhaut'],
+        ['Gliese 581',-1.75,-3.29,-3.21,'M3V',10.56,'Gliese 581'],
+        ['Gliese 667C',-3.68,-2.53,-2.57,'M1.5V',10.22,'Gliese 667C'],
+        ['40 Eridani',-3.50,-0.29,-3.79,'K0.5V',4.43,'40 Eridani'],
+        ['Sigma Draconis',2.44,4.82,1.20,'G9V',4.68,'Sigma Draconis'],
+        ['Eta Cassiopeiae',5.11,1.54,1.64,'G3V',3.44,'Eta Cassiopeiae'],
+        ['82 Eridani',-5.03,0.71,-2.28,'G8V',4.27,'82 Eridani'],
+        ['Delta Pavonis',-2.48,0.69,-5.27,'G8IV',3.55,'Delta Pavonis']
+      ];
+
+      function mapSpectralColor(sp) {
+        if (!sp) return '#fff';
+        const c = sp[0].toUpperCase();
+        return {O:'#9bb0ff',B:'#aabfff',A:'#cad7ff',F:'#f8f7ff',G:'#fff4ea',K:'#ffd2a1',M:'#ffcc6f',D:'#fff'}[c]||'#fff';
+      }
+
+      function renderSystem(cw, ch) {
+        ctx.fillStyle = '#05050f';
+        ctx.fillRect(0, 0, cw, ch);
+        // Background stars
+        let bgSeed = 99;
+        const bgRng = () => { bgSeed=(bgSeed*16807)%2147483647; return (bgSeed-1)/2147483646; };
+        for (let i=0;i<150;i++){
+          ctx.fillStyle = `rgba(200,210,255,${bgRng()*0.3+0.1})`;
+          ctx.beginPath(); ctx.arc(bgRng()*cw,bgRng()*ch,bgRng()*0.8+0.2,0,Math.PI*2); ctx.fill();
+        }
+
+        const cx = cw/2 + mapPan.x;
+        const cy = ch/2 + mapPan.y;
+        function auToR(au){ return (30+Math.log2(au+0.1)*35)*mapZoom; }
+
+        // Sun
+        ctx.fillStyle='#FFF5E0';
+        ctx.beginPath(); ctx.arc(cx,cy,8*Math.min(mapZoom,2),0,Math.PI*2); ctx.fill();
+        const sg=ctx.createRadialGradient(cx,cy,0,cx,cy,20*Math.min(mapZoom,2));
+        sg.addColorStop(0,'rgba(255,245,224,0.3)'); sg.addColorStop(1,'transparent');
+        ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(cx,cy,20*Math.min(mapZoom,2),0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(255,245,224,0.8)'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.fillText('☀ Sol',cx,cy-14*Math.min(mapZoom,2));
+
+        const now=Date.now();
+        const J2000=Date.UTC(2000,0,1,12,0,0);
+        const days=(now-J2000)/86400000;
+        for (const p of MAP_PLANETS) {
+          const orbitR=auToR(p.semiMajor);
+          ctx.strokeStyle='rgba(100,150,255,0.12)'; ctx.lineWidth=0.8;
+          ctx.beginPath(); ctx.ellipse(cx,cy,orbitR,orbitR*(1-p.eccentricity*0.3),0,0,Math.PI*2); ctx.stroke();
+          const angle=((p.meanLongitude||0)+(360/p.period)*days)%360*Math.PI/180;
+          const px=cx+Math.cos(angle)*orbitR;
+          const py=cy+Math.sin(angle)*orbitR*(1-p.eccentricity*0.3);
+          let pr=p.type==='gas_giant'?6:p.type==='ice_giant'?5:3.5;
+          pr*=Math.min(mapZoom,2);
+          ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
+          ctx.fillStyle='rgba(200,210,255,0.7)'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+          ctx.fillText(p.symbol+' '+p.name,px,py-pr-4);
+        }
+      }
+
+      function renderSector(cw, ch) {
+        ctx.fillStyle='#05050f'; ctx.fillRect(0,0,cw,ch);
+        let bgSeed=12345;
+        const bgRng=()=>{bgSeed=(bgSeed*16807)%2147483647;return(bgSeed-1)/2147483646;};
+        for(let i=0;i<200;i++){ctx.fillStyle=`rgba(200,210,255,${bgRng()*0.4+0.1})`;ctx.beginPath();ctx.arc(bgRng()*cw,bgRng()*ch,bgRng()*0.8+0.2,0,Math.PI*2);ctx.fill();}
+
+        const cx=cw/2+mapPan.x, cy=ch/2+mapPan.y;
+        const scale=25*mapZoom;
+
+        // Grid
+        ctx.strokeStyle='rgba(50,70,120,0.15)'; ctx.lineWidth=0.5;
+        const gPx=5*scale;
+        if(gPx>20){for(let gx=cx%gPx;gx<cw;gx+=gPx){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,ch);ctx.stroke();}for(let gy=cy%gPx;gy<ch;gy+=gPx){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(cw,gy);ctx.stroke();}}
+
+        // Sol
+        function drawStar(x,y,color,radius,label){
+          const g=ctx.createRadialGradient(x,y,0,x,y,radius*3);g.addColorStop(0,color);g.addColorStop(1,'transparent');
+          ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,radius*3,0,Math.PI*2);ctx.fill();
+          ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();
+          if(label){ctx.fillStyle='rgba(200,210,255,0.7)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText(label,x,y-radius-4);}
+        }
+        drawStar(cx,cy,'#FFF5E0',4,'Sol');
+
+        for(const s of MAP_STARS){
+          const sx=cx+s[1]*scale, sy=cy-s[3]*scale;
+          const col=mapSpectralColor(s[4]);
+          const r=Math.max(1.5,Math.min(4,(8-s[5])*0.3))*Math.min(mapZoom,2);
+          if(sx>-20&&sx<cw+20&&sy>-20&&sy<ch+20) drawStar(sx,sy,col,r,mapZoom>0.8?(s[6]||''):'');
+        }
+
+        ctx.fillStyle='rgba(100,150,255,0.5)'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+        const sBarPx=5*scale;
+        if(sBarPx>20&&sBarPx<cw*0.6){ctx.fillRect(10,ch-20,sBarPx,2);ctx.fillText('5 pc',10,ch-25);}
+      }
+
+      function renderGalaxy(cw, ch) {
+        ctx.fillStyle='#020208'; ctx.fillRect(0,0,cw,ch);
+        // Background stars
+        let bgSeed=777;
+        const bgRng=()=>{bgSeed=(bgSeed*16807)%2147483647;return(bgSeed-1)/2147483646;};
+        for(let i=0;i<300;i++){ctx.fillStyle=`rgba(200,210,255,${bgRng()*0.2+0.05})`;ctx.beginPath();ctx.arc(bgRng()*cw,bgRng()*ch,bgRng()*0.6+0.1,0,Math.PI*2);ctx.fill();}
+
+        const cx=cw/2+mapPan.x, cy=ch/2+mapPan.y;
+        // Stylized spiral galaxy
+        ctx.save();
+        for(let arm=0;arm<4;arm++){
+          const armAngle=arm*Math.PI/2;
+          for(let t=0;t<200;t++){
+            const r=(t/200)*Math.min(cw,ch)*0.4*mapZoom;
+            const a=armAngle+t*0.05;
+            const x=cx+Math.cos(a)*r;
+            const y=cy+Math.sin(a)*r*0.4; // edge-on tilt
+            const spread=bgRng()*20-10;
+            const alpha=Math.max(0.02,(1-t/200)*0.4);
+            ctx.fillStyle=`rgba(180,160,220,${alpha})`;
+            ctx.beginPath();ctx.arc(x+spread,y+spread*0.4,bgRng()*2+0.5,0,Math.PI*2);ctx.fill();
+          }
+        }
+        // Central bulge
+        const bulge=ctx.createRadialGradient(cx,cy,0,cx,cy,30*mapZoom);
+        bulge.addColorStop(0,'rgba(255,240,200,0.5)');bulge.addColorStop(1,'transparent');
+        ctx.fillStyle=bulge;ctx.beginPath();ctx.arc(cx,cy,30*mapZoom,0,Math.PI*2);ctx.fill();
+        // "You are here" marker
+        const solX=cx+60*mapZoom, solY=cy+5*mapZoom;
+        ctx.fillStyle='#ff4444';ctx.beginPath();ctx.arc(solX,solY,3,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='rgba(255,100,100,0.8)';ctx.font='9px sans-serif';ctx.textAlign='left';
+        ctx.fillText('← You are here (Sol)',solX+6,solY+3);
+        ctx.restore();
+
+        // Label
+        ctx.fillStyle='rgba(200,210,255,0.4)';ctx.font='12px sans-serif';ctx.textAlign='center';
+        ctx.fillText('Milky Way Galaxy',cx,ch-15);
+        ctx.fillStyle='rgba(200,210,255,0.25)';ctx.font='10px sans-serif';
+        ctx.fillText('~200 billion stars · ~100,000 ly diameter',cx,ch-3);
+      }
+
+      // ── Main render ──
+      function mapRender() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.clientWidth * dpr;
+        canvas.height = canvas.clientHeight * dpr;
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        const cw = canvas.clientWidth, ch = canvas.clientHeight;
+
+        if (mapView === 'surface') renderSurface(cw, ch);
+        else if (mapView === 'system') renderSystem(cw, ch);
+        else if (mapView === 'sector') renderSector(cw, ch);
+        else if (mapView === 'galaxy') renderGalaxy(cw, ch);
+      }
+
+      // ── View switching with animation ──
+      const viewNames = {surface:'🌍 Earth Surface',system:'☀️ Solar System',sector:'⭐ Stellar Neighborhood',galaxy:'🌌 Milky Way Galaxy'};
+      window.mapSetView = function(view) {
+        if (view === mapView) return;
+        // Animation: brief darken
+        mapAnimating = true;
+        const canvasEl = canvas;
+        canvasEl.style.transition = 'opacity 0.2s';
+        canvasEl.style.opacity = '0.3';
+        setTimeout(() => {
+          mapView = view;
+          mapPan = {x:0,y:0};
+          mapZoom = 1.0;
+          // Update mode buttons
+          document.querySelectorAll('.map-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === view));
+          mapRender();
+          updateSidebar();
+          canvasEl.style.opacity = '1';
+          setTimeout(() => { canvasEl.style.transition = ''; mapAnimating = false; }, 200);
+        }, 200);
+      };
+
+      // ── Zoom ──
+      window.mapZoomIn = function() { mapZoom = Math.min(mapZoom*1.4, 50); mapRender(); };
+      window.mapZoomOut = function() { mapZoom = Math.max(mapZoom/1.4, 0.3); mapRender(); };
+
+      // ── Home ──
+      window.mapGoHome = function() {
+        const home = loadHome();
+        if (!home) return;
+        if (mapView !== 'surface') { mapSetView('surface'); setTimeout(() => mapGoHome(), 500); return; }
+        const container = document.getElementById('map-canvas-container');
+        const cw = container.clientWidth, ch = container.clientHeight;
+        mapZoom = 4;
+        const target = latLngToScreen(home.lat, home.lng, cw, ch);
+        mapPan.x = cw/2 - (home.lng+180)/360*cw*mapZoom - cw/2*(1-mapZoom) + mapPan.x + cw/2 - target.x;
+        mapPan.y = ch/2 - (90-home.lat)/180*ch*mapZoom - ch/2*(1-mapZoom) + mapPan.y + ch/2 - target.y;
+        mapSelectedLocation = {lat:home.lat,lng:home.lng};
+        mapRender();
+        updateCoordsBar(home.lat, home.lng);
+        showLocationInfo(home.lat, home.lng, home.name);
+      };
+
+      // ── GPS ──
+      window.mapLocateMe = function() {
+        if (!navigator.geolocation) { alert('Geolocation not available'); return; }
+        navigator.geolocation.getCurrentPosition(pos => {
+          const lat = pos.coords.latitude, lng = pos.coords.longitude;
+          if (mapView !== 'surface') mapSetView('surface');
+          setTimeout(() => {
+            const container = document.getElementById('map-canvas-container');
+            const cw = container.clientWidth, ch = container.clientHeight;
+            mapZoom = 6;
+            mapPan = {x:0,y:0};
+            const target = latLngToScreen(lat, lng, cw, ch);
+            mapPan.x = cw/2 - target.x;
+            mapPan.y = ch/2 - target.y;
+            mapSelectedLocation = {lat, lng};
+            mapRender();
+            updateCoordsBar(lat, lng);
+            showLocationInfo(lat, lng, 'My Location');
+          }, mapView !== 'surface' ? 500 : 0);
+        }, err => { alert('Could not get location: ' + err.message); });
+      };
+
+      // ── Toggle Weather ──
+      window.mapToggleWeather = function() {
+        mapShowWeather = !mapShowWeather;
+        if (mapShowWeather && mapSelectedLocation) {
+          showLocationInfo(mapSelectedLocation.lat, mapSelectedLocation.lng);
+        }
+        updateSidebar();
+      };
+
+      // ── Toggle Grid ──
+      window.mapToggleGrid = function() {
+        mapShowGrid = !mapShowGrid;
+        mapRender();
+      };
+
+      // ── Coords bar ──
+      function updateCoordsBar(lat, lng) {
+        const el = document.getElementById('map-coords');
+        if (!el) return;
+        const ico = pointToIcosphere(lat, lng, 5);
+        el.textContent = `GPS: ${lat.toFixed(4)}°, ${lng.toFixed(4)}° | Ico: ${ico.address}`;
+      }
+
+      // ── Sidebar ──
+      function updateSidebar() {
+        const panel = document.getElementById('map-info-panel');
+        if (!panel) return;
+
+        let html = `<div style="margin-bottom:0.8rem;">
+          <div style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:0.3rem;">🧘 Astral Projection Active</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);font-style:italic;margin-bottom:0.5rem;">Your consciousness expands beyond your physical form...</div>
+          <div style="font-size:0.82rem;color:var(--text);">Currently viewing: <strong>${viewNames[mapView]||mapView}</strong></div>
+        </div>`;
+
+        if (mapView === 'surface') {
+          const home = loadHome();
+          if (home) {
+            html += `<div style="background:rgba(100,200,150,0.1);border:1px solid rgba(100,200,150,0.2);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
+              <div style="font-weight:700;font-size:0.85rem;">🏠 ${home.name||'Home'}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);">${home.lat.toFixed(4)}°, ${home.lng.toFixed(4)}° · ${home.icosphere||pointToIcosphere(home.lat,home.lng,5).address}</div>
+            </div>`;
+          }
+          const pins = loadPins();
+          if (pins.length) {
+            html += `<div style="margin-bottom:0.8rem;"><div style="font-weight:600;font-size:0.82rem;margin-bottom:0.3rem;">📌 Pins (${pins.length})</div>`;
+            for (const pin of pins) {
+              html += `<div style="font-size:0.75rem;padding:0.2rem 0;cursor:pointer;color:var(--text-muted);" onclick="mapGoToPin(${pin.lat},${pin.lng},'${(pin.name||'').replace(/'/g,"\\'")}')">${pin.name||'Pin'} — ${pin.lat.toFixed(2)}°, ${pin.lng.toFixed(2)}°</div>`;
+            }
+            html += '</div>';
+          }
+          html += `<div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem;">Click map to select location · Right-click to pin</div>`;
+        }
+
+        html += `<details style="margin-top:0.8rem;"><summary style="cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--accent);">📊 Data Sources</summary>
+          <div style="font-size:0.7rem;color:var(--text-muted);line-height:1.8;padding:0.3rem 0;">
+            ⭐ Stars: HYG Database v4.1<br>
+            <span style="font-size:0.65rem;">github.com/astronexus/HYG-Database</span><br>
+            🪐 Planets: JPL Solar System Dynamics<br>
+            🌤️ Weather: Open-Meteo (free, no tracking)<br>
+            📐 Coordinates: WGS84 GPS + Icosphere<br>
+            🌍 Coastlines: Natural Earth (simplified)
+          </div>
+        </details>`;
+
+        panel.innerHTML = html;
+      }
+
+      // ── Show location info with weather ──
+      async function showLocationInfo(lat, lng, name) {
+        const panel = document.getElementById('map-info-panel');
+        if (!panel) return;
+        const ico = pointToIcosphere(lat, lng, 5);
+        let html = `<div style="margin-bottom:0.8rem;">
+          <div style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:0.3rem;">🧘 Astral Projection Active</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);font-style:italic;">Your consciousness expands beyond your physical form...</div>
+        </div>`;
+
+        html += `<div style="background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.2);border-radius:8px;padding:0.6rem;margin-bottom:0.8rem;">
+          <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.3rem;">📍 ${name || 'Selected Location'}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace;">
+            GPS: ${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E<br>
+            Icosphere: ${ico.address}
+          </div>
+          <div style="display:flex;gap:0.3rem;margin-top:0.4rem;flex-wrap:wrap;">
+            <button onclick="mapSetAsHome(${lat},${lng},'${(name||'').replace(/'/g,"\\'")}')" style="font-size:0.7rem;padding:2px 8px;background:rgba(100,200,150,0.2);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:4px;cursor:pointer;">🏠 Set Home</button>
+            <button onclick="mapAddPin(${lat},${lng})" style="font-size:0.7rem;padding:2px 8px;background:rgba(255,68,68,0.2);border:1px solid rgba(255,68,68,0.3);color:#f66;border-radius:4px;cursor:pointer;">📌 Add Pin</button>
+          </div>
+        </div>`;
+
+        // Weather
+        if (mapShowWeather || true) {
+          html += `<div id="map-weather-section" style="margin-bottom:0.8rem;"><div style="font-size:0.75rem;color:var(--text-muted);">Loading weather...</div></div>`;
+          panel.innerHTML = html + buildDataSources();
+          // Fetch weather async
+          const weather = await getWeather(lat, lng);
+          const ws = document.getElementById('map-weather-section');
+          if (ws && weather && weather.current) {
+            const c = weather.current;
+            let whtml = `<div style="background:rgba(50,100,200,0.1);border:1px solid rgba(50,100,200,0.2);border-radius:8px;padding:0.6rem;">
+              <div style="font-weight:700;font-size:0.85rem;margin-bottom:0.3rem;">🌤️ Current Weather</div>
+              <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;">
+                <span style="font-size:2rem;">${weatherEmoji(c.weather_code)}</span>
+                <div>
+                  <div style="font-size:1.2rem;font-weight:700;">${c.temperature_2m}°C</div>
+                  <div style="font-size:0.72rem;color:var(--text-muted);">${weatherDesc(c.weather_code)}</div>
+                </div>
+              </div>
+              <div style="font-size:0.75rem;display:grid;grid-template-columns:1fr 1fr;gap:0.2rem;">
+                <div>💧 Humidity: ${c.relative_humidity_2m}%</div>
+                <div>💨 Wind: ${c.wind_speed_10m} km/h</div>
+                <div>🌧️ Precip: ${c.precipitation} mm</div>
+              </div>`;
+            if (weather.daily) {
+              whtml += `<div style="margin-top:0.5rem;font-weight:600;font-size:0.78rem;">3-Day Forecast</div>
+              <div style="display:flex;gap:0.5rem;margin-top:0.3rem;">`;
+              for (let i = 0; i < Math.min(3, weather.daily.time.length); i++) {
+                const d = weather.daily;
+                whtml += `<div style="flex:1;text-align:center;background:rgba(255,255,255,0.03);border-radius:6px;padding:0.3rem;">
+                  <div style="font-size:0.65rem;color:var(--text-muted);">${d.time[i].slice(5)}</div>
+                  <div style="font-size:1.2rem;">${weatherEmoji(d.weather_code[i])}</div>
+                  <div style="font-size:0.7rem;">${d.temperature_2m_max[i]}°/${d.temperature_2m_min[i]}°</div>
+                </div>`;
+              }
+              whtml += '</div>';
+            }
+            whtml += '</div>';
+            ws.innerHTML = whtml;
+          } else if (ws) {
+            ws.innerHTML = '<div style="font-size:0.72rem;color:var(--text-muted);">Weather unavailable</div>';
+          }
+        } else {
+          panel.innerHTML = html + buildDataSources();
+        }
+      }
+
+      function buildDataSources() {
+        return `<details style="margin-top:0.8rem;"><summary style="cursor:pointer;font-size:0.78rem;font-weight:600;color:var(--accent);">📊 Data Sources</summary>
+          <div style="font-size:0.7rem;color:var(--text-muted);line-height:1.8;padding:0.3rem 0;">
+            ⭐ Stars: HYG Database v4.1<br>
+            <span style="font-size:0.65rem;">github.com/astronexus/HYG-Database</span><br>
+            🪐 Planets: JPL Solar System Dynamics<br>
+            🌤️ Weather: Open-Meteo (free, no tracking)<br>
+            📐 Coordinates: WGS84 GPS + Icosphere<br>
+            🌍 Coastlines: Natural Earth (simplified)
+          </div>
+        </details>`;
+      }
+
+      // ── Pin management ──
+      window.mapSetAsHome = function(lat, lng, name) {
+        const ico = pointToIcosphere(lat, lng, 5);
+        saveHome({lat, lng, name: name || prompt('Name this location:', '') || 'Home', icosphere: ico.address});
+        mapRender();
+        updateSidebar();
+      };
+
+      window.mapAddPin = function(lat, lng) {
+        const name = prompt('Pin name:', '');
+        if (name === null) return;
+        const pins = loadPins();
+        pins.push({lat, lng, name: name || 'Pin', notes: '', ts: Date.now()});
+        savePins(pins);
+        mapRender();
+        updateSidebar();
+      };
+
+      window.mapGoToPin = function(lat, lng, name) {
+        if (mapView !== 'surface') mapSetView('surface');
+        const container = document.getElementById('map-canvas-container');
+        const cw = container.clientWidth, ch = container.clientHeight;
+        mapZoom = 4;
+        mapPan = {x:0,y:0};
+        const target = latLngToScreen(lat, lng, cw, ch);
+        mapPan.x = cw/2 - target.x;
+        mapPan.y = ch/2 - target.y;
+        mapSelectedLocation = {lat, lng};
+        mapRender();
+        updateCoordsBar(lat, lng);
+        showLocationInfo(lat, lng, name);
+      };
+
+      // ── Search ──
+      window.mapDoSearch = function() {
+        const q = document.getElementById('map-search').value.trim().toLowerCase();
+        if (!q) return;
+        // Check GPS coords format
+        const gpsMatch = q.match(/^(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)$/);
+        if (gpsMatch) {
+          const lat = parseFloat(gpsMatch[1]), lng = parseFloat(gpsMatch[2]);
+          if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            mapSetView('surface');
+            setTimeout(() => mapGoToPin(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`), 300);
+            return;
+          }
+        }
+        // Check icosphere format
+        const icoMatch = q.match(/^f(\d+)\.l(\d+)\.t(\d+)$/i);
+        if (icoMatch) {
+          const face = parseInt(icoMatch[1]), level = parseInt(icoMatch[2]), tri = parseInt(icoMatch[3]);
+          const gps = icosphereToGPS(face, level, tri);
+          mapSetView('surface');
+          setTimeout(() => mapGoToPin(gps.lat, gps.lng, `${q.toUpperCase()}`), 300);
+          return;
+        }
+        // Search cities
+        const city = CITIES.find(c => c.name.toLowerCase().includes(q));
+        if (city) { mapSetView('surface'); setTimeout(() => mapGoToPin(city.lat, city.lng, city.name), 300); return; }
+        // Search planets
+        const planet = MAP_PLANETS.find(p => p.name.toLowerCase().includes(q));
+        if (planet) { mapSetView('system'); return; }
+        // Search stars
+        const star = MAP_STARS.find(s => (s[6]||s[0]).toLowerCase().includes(q));
+        if (star) { mapSetView('sector'); return; }
+        // Galaxy
+        if (q.includes('galaxy') || q.includes('milky')) { mapSetView('galaxy'); return; }
+      };
+
+      // ── Mouse Events ──
+      canvas.addEventListener('mousedown', e => {
+        if (mapAnimating) return;
+        mapDragging = true;
+        const rect = canvas.getBoundingClientRect();
+        mapDragStart = {x:e.clientX-rect.left, y:e.clientY-rect.top};
+        mapPanStart = {...mapPan};
+      });
+
+      canvas.addEventListener('mousemove', e => {
+        if (!mapDragging || mapAnimating) return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+        mapPan.x = mapPanStart.x + (mx - mapDragStart.x);
+        mapPan.y = mapPanStart.y + (my - mapDragStart.y);
+        mapRender();
+        // Update coords on surface
+        if (mapView === 'surface') {
+          const ll = screenToLatLng(mx, my, canvas.clientWidth, canvas.clientHeight);
+          updateCoordsBar(ll.lat, ll.lng);
+        }
+      });
+
+      canvas.addEventListener('mouseup', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+        const wasDrag = Math.abs(mx-mapDragStart.x)>5 || Math.abs(my-mapDragStart.y)>5;
+        mapDragging = false;
+        if (!wasDrag && mapView === 'surface') {
+          const ll = screenToLatLng(mx, my, canvas.clientWidth, canvas.clientHeight);
+          mapSelectedLocation = ll;
+          updateCoordsBar(ll.lat, ll.lng);
+          mapRender();
+          showLocationInfo(ll.lat, ll.lng);
+        }
+      });
+
+      canvas.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        if (mapView !== 'surface') return;
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+        const ll = screenToLatLng(mx, my, canvas.clientWidth, canvas.clientHeight);
+        const choice = prompt(`${ll.lat.toFixed(4)}°, ${ll.lng.toFixed(4)}°\n\n1 = Set as Home\n2 = Add Pin\n\nEnter choice:`, '2');
+        if (choice === '1') mapSetAsHome(ll.lat, ll.lng, '');
+        else if (choice === '2') mapAddPin(ll.lat, ll.lng);
+      });
+
+      canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 0.87;
+        mapZoom = Math.max(0.3, Math.min(50, mapZoom * factor));
+        mapRender();
+        if (mapView === 'surface') {
+          const rect = canvas.getBoundingClientRect();
+          const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+          const ll = screenToLatLng(mx, my, canvas.clientWidth, canvas.clientHeight);
+          updateCoordsBar(ll.lat, ll.lng);
+        }
+      }, {passive:false});
+
+      // Touch support
+      let mapTouchDist = 0;
+      canvas.addEventListener('touchstart', e => {
+        if (e.touches.length===1){ mapDragging=true; mapDragStart={x:e.touches[0].clientX,y:e.touches[0].clientY}; mapPanStart={...mapPan}; }
+        else if(e.touches.length===2){ mapTouchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); }
+      },{passive:true});
+      canvas.addEventListener('touchmove', e => {
+        if(e.touches.length===1&&mapDragging){ mapPan.x=mapPanStart.x+(e.touches[0].clientX-mapDragStart.x); mapPan.y=mapPanStart.y+(e.touches[0].clientY-mapDragStart.y); mapRender(); }
+        else if(e.touches.length===2){ const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); mapZoom=Math.max(0.3,Math.min(50,mapZoom*(nd/mapTouchDist))); mapTouchDist=nd; mapRender(); }
+      },{passive:true});
+      canvas.addEventListener('touchend',()=>{mapDragging=false;},{passive:true});
+
+      // ── Init function (called on tab switch) ──
+      window.initMapTab = function() {
+        if (mapInitialized) { mapRender(); return; }
+        mapInitialized = true;
+        setTimeout(() => { mapRender(); updateSidebar(); }, 50);
+      };
+
+      // Resize
+      window.addEventListener('resize', () => { if (document.getElementById('tab-map').classList.contains('active')) mapRender(); });
+
+      // Also handle mousemove on surface for live coords
+      canvas.addEventListener('mousemove', e => {
+        if (mapView === 'surface' && !mapDragging) {
+          const rect = canvas.getBoundingClientRect();
+          const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+          const ll = screenToLatLng(mx, my, canvas.clientWidth, canvas.clientHeight);
+          updateCoordsBar(ll.lat, ll.lng);
+        }
+      });
+    })();
+
+    // ── Map tab activation ──
+    {
+      const origSwitchTabMap = switchTab;
+      switchTab = function(tabId, pushState) {
+        origSwitchTabMap(tabId, pushState);
+        if (tabId === 'map' && typeof initMapTab === 'function') initMapTab();
+      };
+      if (initialTab === 'map' && typeof initMapTab === 'function') initMapTab();
+    }
 
     // ── Auto-refresh on server update ──
     (function() {

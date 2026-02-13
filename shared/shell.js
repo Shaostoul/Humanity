@@ -15,6 +15,7 @@
     const p = location.pathname;
     if (p === '/') active = 'home';
     else if (p.startsWith('/chat')) active = 'chat';
+    else if (p.startsWith('/map')) active = 'map';
     else if (p.startsWith('/board')) active = 'board';
     else if (p.startsWith('/reality')) active = 'reality';
     else if (p.startsWith('/fantasy')) active = 'fantasy';
@@ -197,6 +198,7 @@
     '<nav class="hub-nav">' +
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
       '<a href="/chat" class="' + cls('chat') + '">💬 Chat</a>' +
+      '<a href="/map" class="' + cls('map') + '">🗺️ Map</a>' +
       '<a href="/board" class="' + cls('board') + '">📋 Board</a>' +
       '<a href="/reality" class="' + cls('reality') + '">🟢 Reality</a>' +
       '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Fantasy</a>' +
@@ -233,7 +235,7 @@
     if (!link) return;
     const href = link.getAttribute('href');
     /* NOTE: nginx hub regex needs /market added */
-    const hubPaths = ['/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard', '/streams', '/info', '/source', '/debug'];
+    const hubPaths = ['/map', '/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard', '/streams', '/info', '/source', '/debug'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub = hubPaths.some(function(p) { return href === p; });
     if (currentIsHub && targetIsHub && href !== location.pathname) {
