@@ -170,7 +170,7 @@ async function decryptSyncData(data) {
 }
 
 const SYNC_KEYS = [
-  'humanity_settings', 'humanity_notes', 'humanity_todos', 'humanity_garden',
+  'humanity_settings', 'humanity_notes', 'humanity_todos', 'humanity_garden', 'humanity_garden_v2',
   'humanity_blocked', 'humanity_pins', 'humanity_default_tab',
   'humanity_browse', 'humanity_dashboard',
   'footer_collapsed', 'sidebar_tab'

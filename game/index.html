@@ -288,33 +288,11 @@
     .note-item:hover .note-delete { opacity: 1; }
     .note-delete:hover { color: var(--danger, #c44); }
 
-    /* Garden */
-    #garden-grid {
-      display: grid;
-      gap: 4px;
-    }
-    .garden-plot {
-      aspect-ratio: 1;
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      cursor: pointer;
-      text-align: center;
-      padding: 2px;
-      word-break: break-word;
-      transition: border-color 0.15s;
-    }
-    .garden-plot:hover { border-color: var(--accent); }
-    .garden-plot.planted {
-      background: rgba(68,170,68,0.1);
-      border-color: rgba(68,170,68,0.3);
-      color: var(--text);
-      font-weight: 600;
+    /* Garden Manager */
+    #garden-manager { font-size: 0.85rem; }
+    @media (max-width: 600px) {
+      #garden-manager { flex-direction: column !important; }
+      #garden-left { width: 100% !important; min-width: 0 !important; border-right: none !important; border-bottom: 1px solid var(--border); max-height: 200px; }
     }
 
     /* ── Catalog System ── */
@@ -559,21 +537,164 @@
       </div>
     </div>
 
-    <!-- ── Garden Tracker ── -->
+    <!-- ── Garden Manager ── -->
     <div class="panel reality-card" id="reality-garden">
-      <h2 class="reality-card-header" onclick="toggleRealityCard('garden')">🌱 Garden Tracker <span class="collapse-icon" id="garden-collapse">▼</span></h2>
+      <h2 class="reality-card-header" onclick="toggleRealityCard('garden')">🌱 Garden Manager <span class="collapse-icon" id="garden-collapse">▼</span></h2>
       <div class="reality-card-body" id="garden-body">
-        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;">Click a plot to set what's planted. Your garden, your data.</p>
-        <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;align-items:center;">
-          <label style="font-size:0.8rem;color:var(--text-muted);">Grid:</label>
-          <select id="garden-size" onchange="resizeGarden()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.5rem;border-radius:4px;font-size:0.8rem;">
-            <option value="3">3×3</option>
-            <option value="4" selected>4×4</option>
-            <option value="5">5×5</option>
-            <option value="6">6×6</option>
-          </select>
+        <div id="garden-manager" style="display:flex;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:500px;background:var(--bg-card);">
+          <!-- Left: Zone Tree -->
+          <div id="garden-left" style="width:220px;min-width:180px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:rgba(0,0,0,0.15);">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.6rem;border-bottom:1px solid var(--border);">
+              <span style="font-weight:700;font-size:0.8rem;color:var(--text);">ZONES</span>
+              <button onclick="gardenAddZone()" style="background:var(--accent);color:#fff;border:none;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;font-weight:600;">+ New</button>
+            </div>
+            <div id="garden-zone-tree" style="flex:1;overflow-y:auto;padding:0.3rem;font-size:0.8rem;"></div>
+          </div>
+          <!-- Right: Zone Detail -->
+          <div id="garden-right" style="flex:1;overflow-y:auto;padding:1rem;">
+            <div id="garden-empty" style="text-align:center;color:var(--text-muted);padding:3rem 1rem;">
+              <div style="font-size:2.5rem;margin-bottom:0.5rem;">🌱</div>
+              <div style="font-size:0.9rem;">No zones yet. Click <strong>+ New</strong> to create your first growing zone.</div>
+            </div>
+            <div id="garden-zone-detail" style="display:none;"></div>
+          </div>
         </div>
-        <div id="garden-grid"></div>
+        <!-- Recommended Hardware (expandable) -->
+        <details style="margin-top:1rem;">
+          <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;color:var(--accent);padding:0.4rem 0;">📡 Recommended Monitoring Hardware</summary>
+          <div style="font-size:0.78rem;color:var(--text-muted);line-height:1.8;padding:0.5rem 0;">
+            <strong>pH Meters:</strong> Apera PH20, Bluelab pH Pen (~$50-100) — manual dip readings<br>
+            <strong>EC/TDS Meters:</strong> Apera EC20, HM Digital (~$20-50) — nutrient concentration<br>
+            <strong>Temp/Humidity:</strong> Govee H5075 (Bluetooth, ~$12) — ambient monitoring<br>
+            <strong>Soil Moisture:</strong> Xiaomi Flora (~$15) or capacitive probes<br>
+            <strong>Light Meter (PAR):</strong> Photone app (free) or Apogee MQ-500 (~$500)<br>
+            <strong>Water Level:</strong> Ultrasonic HC-SR04 (~$3) with Arduino/ESP32<br>
+            <strong>DO Meter:</strong> Milwaukee MW600 (~$80) — dissolved oxygen for hydro/aqua<br>
+            <strong>CO2 Sensor:</strong> SCD30/SCD40 (~$30-50) with ESP32<br>
+            <strong>All-in-one:</strong> Ecowitt weather station (~$80) — temp, humidity, soil moisture, rainfall<br>
+            <strong>Camera:</strong> ESP32-CAM (~$5) for timelapse/visual monitoring<br>
+            <strong>Smart Plugs:</strong> Kasa/Wemo (~$10) — automate pumps, lights, fans
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- Garden Plant Detail Modal -->
+    <div id="garden-plant-modal" class="catalog-modal-overlay">
+      <div class="catalog-modal" style="max-width:620px;">
+        <button class="modal-close" onclick="gardenClosePlantModal()">✕</button>
+        <div id="garden-plant-modal-content"></div>
+      </div>
+    </div>
+
+    <!-- Garden Zone Edit Modal -->
+    <div id="garden-zone-modal" class="catalog-modal-overlay">
+      <div class="catalog-modal" style="max-width:500px;">
+        <button class="modal-close" onclick="gardenCloseZoneModal()">✕</button>
+        <h3 style="color:var(--text);margin:0 0 0.8rem;" id="garden-zone-modal-title">New Zone</h3>
+        <label>Name *</label><input type="text" id="gz-name" maxlength="60">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>Type</label><select id="gz-type">
+            <option value="field">Field</option><option value="raised_bed">Raised Bed</option>
+            <option value="container">Container/Pot</option><option value="hydro_dwc">Hydro — DWC</option>
+            <option value="hydro_nft">Hydro — NFT</option><option value="hydro_drip">Hydro — Drip</option>
+            <option value="hydro_ebb_flow">Hydro — Ebb &amp; Flow</option>
+            <option value="aeroponic">Aeroponic</option><option value="aquaponic">Aquaponic</option>
+          </select></div>
+          <div><label>Location</label><select id="gz-location">
+            <option value="outdoor">Outdoor</option><option value="indoor">Indoor</option><option value="greenhouse">Greenhouse</option>
+          </select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+          <div><label>Length</label><input type="number" id="gz-length" min="0" step="0.5"></div>
+          <div><label>Width</label><input type="number" id="gz-width" min="0" step="0.5"></div>
+          <div><label>Unit</label><select id="gz-unit"><option value="ft">ft</option><option value="m">m</option><option value="in">in</option></select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>Medium</label><select id="gz-medium">
+            <option value="soil">Soil</option><option value="coco_coir">Coco Coir</option><option value="perlite">Perlite</option>
+            <option value="clay_pebbles">Clay Pebbles</option><option value="rockwool">Rockwool</option>
+            <option value="water">Water</option><option value="air">Air</option>
+          </select></div>
+          <div><label>Light Source</label><select id="gz-light">
+            <option value="natural">Natural</option><option value="led">LED</option><option value="hps">HPS</option>
+            <option value="fluorescent">Fluorescent</option><option value="mixed">Mixed</option>
+          </select></div>
+        </div>
+        <label>Light Schedule (hours on/off)</label><input type="text" id="gz-schedule" placeholder="14/10" maxlength="10">
+        <label>Notes</label><textarea id="gz-notes" rows="2"></textarea>
+        <input type="hidden" id="gz-edit-id">
+        <div class="modal-actions">
+          <button onclick="gardenCloseZoneModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+          <button onclick="gardenSaveZone()" style="background:var(--accent);color:#fff;">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Garden Add Plant Modal -->
+    <div id="garden-add-plant-modal" class="catalog-modal-overlay">
+      <div class="catalog-modal" style="max-width:500px;">
+        <button class="modal-close" onclick="gardenCloseAddPlantModal()">✕</button>
+        <h3 style="color:var(--text);margin:0 0 0.8rem;" id="garden-plant-modal-title2">Add Plant</h3>
+        <input type="hidden" id="gp-edit-id">
+        <input type="hidden" id="gp-zone-id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>Species *</label><input type="text" id="gp-species" maxlength="50" placeholder="Tomato"></div>
+          <div><label>Variety</label><input type="text" id="gp-variety" maxlength="50" placeholder="Roma"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>Stage</label><select id="gp-stage">
+            <option value="seed">Seed</option><option value="germination">Germination</option><option value="seedling">Seedling</option>
+            <option value="vegetative" selected>Vegetative</option><option value="flowering">Flowering</option>
+            <option value="fruiting">Fruiting</option><option value="harvest">Harvest</option><option value="dormant">Dormant</option>
+          </select></div>
+          <div><label>Health</label><select id="gp-health">
+            <option value="healthy" selected>Healthy</option><option value="stressed">Stressed</option><option value="diseased">Diseased</option>
+            <option value="pest">Pest</option><option value="nutrient_deficiency">Nutrient Deficiency</option>
+            <option value="overwatered">Overwatered</option><option value="underwatered">Underwatered</option>
+          </select></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>Planted Date</label><input type="date" id="gp-planted"></div>
+          <div><label>Expected Harvest</label><input type="date" id="gp-harvest"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.5rem;">
+          <div><label>Row</label><input type="number" id="gp-row" min="1" placeholder="1"></div>
+          <div><label>Col</label><input type="number" id="gp-col" min="1" placeholder="1"></div>
+          <div><label>Slot (aero)</label><input type="number" id="gp-slot" min="1" placeholder=""></div>
+        </div>
+        <label>Notes</label><textarea id="gp-notes" rows="2"></textarea>
+        <div class="modal-actions">
+          <button onclick="gardenCloseAddPlantModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+          <button onclick="gardenSavePlant()" style="background:var(--accent);color:#fff;">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Garden Log Reading Modal -->
+    <div id="garden-reading-modal" class="catalog-modal-overlay">
+      <div class="catalog-modal" style="max-width:480px;">
+        <button class="modal-close" onclick="document.getElementById('garden-reading-modal').classList.remove('open')">✕</button>
+        <h3 style="color:var(--text);margin:0 0 0.8rem;">Log Reading</h3>
+        <input type="hidden" id="gr-zone-id">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+          <div><label>pH</label><input type="number" id="gr-ph" step="0.1" min="0" max="14"></div>
+          <div><label>EC (mS/cm)</label><input type="number" id="gr-ec" step="0.1" min="0"></div>
+          <div><label>TDS (ppm)</label><input type="number" id="gr-tds" step="1" min="0"></div>
+          <div><label>Water Temp (°F)</label><input type="number" id="gr-watertemp" step="0.1"></div>
+          <div><label>Air Temp (°F)</label><input type="number" id="gr-airtemp" step="0.1"></div>
+          <div><label>Humidity (%)</label><input type="number" id="gr-humidity" step="1" min="0" max="100"></div>
+          <div><label>Soil Moisture (%)</label><input type="number" id="gr-moisture" step="1" min="0" max="100"></div>
+          <div><label>Light PPFD</label><input type="number" id="gr-par" step="1" min="0"></div>
+          <div><label>CO2 (ppm)</label><input type="number" id="gr-co2" step="1" min="0"></div>
+          <div><label>Dissolved O2 (mg/L)</label><input type="number" id="gr-do" step="0.1" min="0"></div>
+          <div><label>Water Level (%)</label><input type="number" id="gr-waterlevel" step="1" min="0" max="100"></div>
+          <div><label>DLI (mol/m²/day)</label><input type="number" id="gr-dli" step="0.1" min="0"></div>
+        </div>
+        <div class="modal-actions">
+          <button onclick="document.getElementById('garden-reading-modal').classList.remove('open')" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
+          <button onclick="gardenSaveReading()" style="background:var(--accent);color:#fff;">Save</button>
+        </div>
       </div>
     </div>
 
@@ -4064,50 +4185,483 @@
       renderNotes();
     }
 
-    // ── GARDEN ──
-    function loadGarden() {
-      try { return JSON.parse(localStorage.getItem('humanity_garden')) || { size: 4, plots: {} }; } catch { return { size: 4, plots: {} }; }
+    // ── GARDEN MANAGER v2 ──
+    const OPTIMAL_RANGES = {
+      soil: { ph:{min:6.0,max:7.0,unit:'',label:'pH'}, moisture:{min:40,max:60,unit:'%',label:'Soil Moisture'}, temperature:{min:60,max:85,unit:'°F',label:'Air Temperature'} },
+      hydroponic: { ph:{min:5.5,max:6.5,unit:'',label:'pH'}, ec:{min:1.0,max:2.5,unit:'mS/cm',label:'EC'}, waterTemp:{min:65,max:75,unit:'°F',label:'Water Temp'}, dissolvedO2:{min:5,max:8,unit:'mg/L',label:'Dissolved O2'} },
+      aeroponic: { ph:{min:5.5,max:6.5,unit:'',label:'pH'}, ec:{min:1.0,max:2.0,unit:'mS/cm',label:'EC'}, rootTemp:{min:65,max:72,unit:'°F',label:'Root Zone Temp'} },
+      aquaponic: { ph:{min:6.8,max:7.2,unit:'',label:'pH'}, ammonia:{min:0,max:0.5,unit:'ppm',label:'Ammonia'}, nitrite:{min:0,max:0.5,unit:'ppm',label:'Nitrite'}, nitrate:{min:10,max:150,unit:'ppm',label:'Nitrate'}, waterTemp:{min:72,max:82,unit:'°F',label:'Water Temp'}, dissolvedO2:{min:5,max:8,unit:'mg/L',label:'Dissolved O2'} },
+      general: { humidity:{min:40,max:70,unit:'%',label:'Humidity'}, co2:{min:400,max:1500,unit:'ppm',label:'CO2'}, lightPar:{min:200,max:800,unit:'µmol/m²/s',label:'PPFD'}, lightDli:{min:12,max:40,unit:'mol/m²/day',label:'DLI'} }
+    };
+
+    const ZONE_ICONS = { field:'🌾', raised_bed:'🌿', container:'🪴', hydro_dwc:'💧', hydro_nft:'💧', hydro_drip:'💧', hydro_ebb_flow:'💧', aeroponic:'🌫️', aquaponic:'🐟' };
+    const ZONE_LABELS = { field:'Field', raised_bed:'Raised Bed', container:'Container', hydro_dwc:'Hydro DWC', hydro_nft:'Hydro NFT', hydro_drip:'Hydro Drip', hydro_ebb_flow:'Hydro Ebb/Flow', aeroponic:'Aeroponic', aquaponic:'Aquaponic' };
+    const STAGE_ICONS = { seed:'🌰', germination:'🌱', seedling:'🌿', vegetative:'🪴', flowering:'🌸', fruiting:'🍎', harvest:'🧺', dormant:'💤' };
+    const HEALTH_ICONS = { healthy:'✓', stressed:'⚠', diseased:'🦠', pest:'🐛', nutrient_deficiency:'🟡', overwatered:'💦', underwatered:'🏜️' };
+
+    let gardenData = null;
+    let gardenSelectedZone = null;
+
+    function loadGardenV2() {
+      if (gardenData) return gardenData;
+      try { gardenData = JSON.parse(localStorage.getItem('humanity_garden_v2')) || { zones:[], plants:[], sensors:[], settings:{units:'imperial'} }; }
+      catch { gardenData = { zones:[], plants:[], sensors:[], settings:{units:'imperial'} }; }
+      return gardenData;
     }
-    function saveGarden(g) { localStorage.setItem('humanity_garden', JSON.stringify(g)); }
+    function saveGardenV2() { localStorage.setItem('humanity_garden_v2', JSON.stringify(gardenData)); }
+
+    function gardenRangeColor(value, range) {
+      if (value == null || !range) return '';
+      const span = range.max - range.min;
+      const margin = span * 0.1;
+      if (value >= range.min && value <= range.max) return '#4a8';
+      if (value >= range.min - margin && value <= range.max + margin) return '#eb4';
+      return '#e55';
+    }
+
+    function gardenGetRanges(zone) {
+      const t = zone.type;
+      if (t.startsWith('hydro')) return {...OPTIMAL_RANGES.general, ...OPTIMAL_RANGES.hydroponic};
+      if (t === 'aeroponic') return {...OPTIMAL_RANGES.general, ...OPTIMAL_RANGES.aeroponic};
+      if (t === 'aquaponic') return {...OPTIMAL_RANGES.general, ...OPTIMAL_RANGES.aquaponic};
+      return {...OPTIMAL_RANGES.general, ...OPTIMAL_RANGES.soil};
+    }
+
+    function renderGardenZoneTree() {
+      const g = loadGardenV2();
+      const tree = document.getElementById('garden-zone-tree');
+      const grouped = { outdoor:[], indoor:[], greenhouse:[] };
+      g.zones.forEach(z => { (grouped[z.location] || grouped.outdoor).push(z); });
+      const locLabels = { outdoor:'📁 Outdoor', indoor:'📁 Indoor', greenhouse:'📁 Greenhouse' };
+      let html = '';
+      for (const [loc, zones] of Object.entries(grouped)) {
+        if (zones.length === 0) continue;
+        html += `<div style="margin-bottom:0.4rem;">
+          <div style="font-weight:600;font-size:0.72rem;color:var(--text-muted);padding:0.2rem 0.3rem;cursor:pointer;user-select:none;" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">${locLabels[loc]}</div>
+          <div>`;
+        zones.forEach(z => {
+          const sel = gardenSelectedZone === z.id ? 'background:rgba(255,136,17,0.15);color:var(--accent);font-weight:600;' : '';
+          const plantCount = g.plants.filter(p => p.zoneId === z.id).length;
+          html += `<div onclick="gardenSelectZone('${z.id}')" style="padding:0.25rem 0.4rem 0.25rem 1rem;cursor:pointer;border-radius:4px;font-size:0.78rem;display:flex;align-items:center;gap:0.3rem;${sel}" title="${ZONE_LABELS[z.type]}">
+            <span>${ZONE_ICONS[z.type]||'🌱'}</span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(z.name)}</span>
+            <span style="font-size:0.65rem;color:var(--text-muted);">${plantCount}</span>
+          </div>`;
+        });
+        html += '</div></div>';
+      }
+      if (g.zones.length === 0) html = '<div style="text-align:center;color:var(--text-muted);font-size:0.75rem;padding:1rem;">No zones</div>';
+      tree.innerHTML = html;
+      document.getElementById('garden-empty').style.display = g.zones.length === 0 ? '' : 'none';
+      document.getElementById('garden-zone-detail').style.display = g.zones.length > 0 && gardenSelectedZone ? '' : 'none';
+    }
+
+    function gardenSelectZone(zoneId) {
+      gardenSelectedZone = zoneId;
+      renderGardenZoneTree();
+      renderGardenZoneDetail();
+    }
+
+    function renderGardenZoneDetail() {
+      const g = loadGardenV2();
+      const zone = g.zones.find(z => z.id === gardenSelectedZone);
+      const det = document.getElementById('garden-zone-detail');
+      if (!zone) { det.style.display = 'none'; return; }
+      det.style.display = '';
+      const plants = g.plants.filter(p => p.zoneId === zone.id);
+      const sensor = g.sensors.find(s => s.zoneId === zone.id);
+      const lastReading = sensor && sensor.readings.length > 0 ? sensor.readings[sensor.readings.length - 1].metrics : {};
+      const ranges = gardenGetRanges(zone);
+      const dim = zone.dimensions ? `${zone.dimensions.length}×${zone.dimensions.width} ${zone.dimensions.unit}` : '—';
+
+      // Dashboard cards
+      const metricKeys = [
+        ['ph','pH',lastReading.ph],['ec','EC',lastReading.ec],['airTemp','Temp',lastReading.airTemp],
+        ['humidity','RH',lastReading.humidity],['soilMoisture','Moisture',lastReading.soilMoisture],
+        ['lightPar','PPFD',lastReading.lightPar],['waterTemp','Water',lastReading.waterTemp],
+        ['dissolvedO2','DO',lastReading.dissolvedO2],['co2','CO2',lastReading.co2]
+      ].filter(m => m[2] != null);
+
+      let dashHtml = '';
+      metricKeys.forEach(([key,label,val]) => {
+        const r = ranges[key];
+        const col = gardenRangeColor(val, r);
+        const unit = r ? r.unit : '';
+        dashHtml += `<div style="background:var(--bg-input);border-radius:6px;padding:0.4rem 0.6rem;text-align:center;border-left:3px solid ${col||'var(--border)'};">
+          <div style="font-size:0.65rem;color:var(--text-muted);">${label}</div>
+          <div style="font-size:1rem;font-weight:700;color:${col||'var(--text)'}">${val}${unit?' '+unit:''}</div>
+        </div>`;
+      });
+
+      // Plant list
+      let plantHtml = '';
+      plants.forEach(p => {
+        const hIcon = HEALTH_ICONS[p.health] || '✓';
+        const hCol = p.health === 'healthy' ? '#4a8' : (p.health === 'stressed' || p.health === 'nutrient_deficiency' ? '#eb4' : '#e55');
+        plantHtml += `<div onclick="gardenShowPlant('${p.id}')" style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.5rem;cursor:pointer;border-radius:4px;font-size:0.82rem;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+          <span>${STAGE_ICONS[p.stage]||'🌱'}</span>
+          <span style="flex:1;">${escHtml(p.species)}${p.variety?' — '+escHtml(p.variety):''}</span>
+          <span style="font-size:0.7rem;color:var(--text-muted);">[${p.stage}]</span>
+          <span style="color:${hCol};font-size:0.8rem;" title="${p.health}">${hIcon}</span>
+        </div>`;
+      });
+
+      // Readings chart (simple canvas line for pH over last 7 readings)
+      const chartId = 'garden-chart-' + zone.id;
+
+      det.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;">
+          <div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--text);">${ZONE_ICONS[zone.type]||'🌱'} ${escHtml(zone.name)}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">Type: ${ZONE_LABELS[zone.type]} (${zone.medium || 'soil'}) · Size: ${dim} · Plants: ${plants.length} · Light: ${zone.lightSource||'natural'} ${zone.lightSchedule||''}</div>
+          </div>
+          <div style="display:flex;gap:0.3rem;">
+            <button onclick="gardenEditZone('${zone.id}')" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">✏️ Edit</button>
+            <button onclick="gardenDeleteZone('${zone.id}')" style="background:var(--bg-input);border:1px solid var(--border);color:var(--error);padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🗑️</button>
+          </div>
+        </div>
+        ${metricKeys.length > 0 ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:0.4rem;margin-bottom:1rem;">${dashHtml}</div>` : ''}
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.4rem;">
+          <div style="font-weight:600;font-size:0.85rem;color:var(--text);">Plants</div>
+          <button onclick="gardenAddPlant('${zone.id}')" style="background:var(--accent);color:#fff;border:none;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;font-weight:600;">+ Add Plant</button>
+        </div>
+        ${plants.length > 0 ? plantHtml : '<div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;padding:0.5rem;">No plants yet</div>'}
+        <div style="display:flex;gap:0.3rem;margin-top:0.8rem;">
+          <button onclick="gardenLogReading('${zone.id}')" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;">📊 Log Reading</button>
+        </div>
+        ${sensor && sensor.readings.length > 1 ? `<div style="margin-top:1rem;"><div style="font-weight:600;font-size:0.85rem;color:var(--text);margin-bottom:0.4rem;">Readings (last 7)</div><canvas id="${chartId}" width="500" height="140" style="width:100%;border-radius:6px;background:var(--bg-input);"></canvas></div>` : ''}
+        ${sensor && sensor.readings.length > 0 ? gardenReadingsTable(sensor, ranges) : ''}
+        ${zone.notes ? `<div style="margin-top:0.8rem;font-size:0.78rem;color:var(--text-muted);"><strong>Notes:</strong> ${escHtml(zone.notes)}</div>` : ''}
+      `;
+
+      // Draw chart
+      if (sensor && sensor.readings.length > 1) {
+        setTimeout(() => gardenDrawChart(chartId, sensor.readings.slice(-7)), 50);
+      }
+    }
+
+    function gardenReadingsTable(sensor, ranges) {
+      const readings = sensor.readings.slice(-10).reverse();
+      let html = '<div style="margin-top:0.8rem;overflow-x:auto;"><table style="width:100%;font-size:0.72rem;border-collapse:collapse;">';
+      html += '<tr style="border-bottom:1px solid var(--border);color:var(--text-muted);"><th style="padding:0.2rem 0.4rem;text-align:left;">Date</th><th>pH</th><th>EC</th><th>Temp</th><th>RH</th><th>Moisture</th><th>PPFD</th></tr>';
+      readings.forEach(r => {
+        const m = r.metrics;
+        const d = new Date(r.date).toLocaleDateString();
+        const c = (k,v) => { const col = gardenRangeColor(v, ranges[k]); return col ? `color:${col}` : ''; };
+        html += `<tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+          <td style="padding:0.2rem 0.4rem;">${d}</td>
+          <td style="text-align:center;${c('ph',m.ph)}">${m.ph??'—'}</td>
+          <td style="text-align:center;${c('ec',m.ec)}">${m.ec??'—'}</td>
+          <td style="text-align:center;${c('airTemp',m.airTemp)}">${m.airTemp??'—'}</td>
+          <td style="text-align:center;${c('humidity',m.humidity)}">${m.humidity??'—'}</td>
+          <td style="text-align:center;${c('soilMoisture',m.soilMoisture)}">${m.soilMoisture??'—'}</td>
+          <td style="text-align:center;${c('lightPar',m.lightPar)}">${m.lightPar??'—'}</td>
+        </tr>`;
+      });
+      html += '</table></div>';
+      return html;
+    }
+
+    function gardenDrawChart(canvasId, readings) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0,0,w,h);
+      const phVals = readings.map(r => r.metrics.ph).filter(v => v != null);
+      if (phVals.length < 2) return;
+      const min = Math.min(...phVals) - 0.5, max = Math.max(...phVals) + 0.5;
+      const pad = {t:20,b:20,l:30,r:10};
+      ctx.strokeStyle = '#4a8'; ctx.lineWidth = 2; ctx.beginPath();
+      phVals.forEach((v,i) => {
+        const x = pad.l + (i / (phVals.length-1)) * (w-pad.l-pad.r);
+        const y = pad.t + (1 - (v-min)/(max-min)) * (h-pad.t-pad.b);
+        i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      // dots
+      phVals.forEach((v,i) => {
+        const x = pad.l + (i / (phVals.length-1)) * (w-pad.l-pad.r);
+        const y = pad.t + (1 - (v-min)/(max-min)) * (h-pad.t-pad.b);
+        ctx.fillStyle='#4a8'; ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+      });
+      // labels
+      ctx.fillStyle='#888'; ctx.font='10px sans-serif'; ctx.textAlign='right';
+      ctx.fillText(max.toFixed(1), pad.l-4, pad.t+4);
+      ctx.fillText(min.toFixed(1), pad.l-4, h-pad.b+4);
+      ctx.fillText('pH', pad.l-4, 12);
+    }
+
+    function gardenAddZone() {
+      document.getElementById('gz-edit-id').value = '';
+      document.getElementById('gz-name').value = '';
+      document.getElementById('gz-type').value = 'raised_bed';
+      document.getElementById('gz-location').value = 'outdoor';
+      document.getElementById('gz-length').value = '';
+      document.getElementById('gz-width').value = '';
+      document.getElementById('gz-unit').value = 'ft';
+      document.getElementById('gz-medium').value = 'soil';
+      document.getElementById('gz-light').value = 'natural';
+      document.getElementById('gz-schedule').value = '';
+      document.getElementById('gz-notes').value = '';
+      document.getElementById('garden-zone-modal-title').textContent = 'New Zone';
+      document.getElementById('garden-zone-modal').classList.add('open');
+    }
+
+    function gardenEditZone(id) {
+      const g = loadGardenV2();
+      const z = g.zones.find(x => x.id === id);
+      if (!z) return;
+      document.getElementById('gz-edit-id').value = z.id;
+      document.getElementById('gz-name').value = z.name;
+      document.getElementById('gz-type').value = z.type;
+      document.getElementById('gz-location').value = z.location;
+      document.getElementById('gz-length').value = z.dimensions?.length || '';
+      document.getElementById('gz-width').value = z.dimensions?.width || '';
+      document.getElementById('gz-unit').value = z.dimensions?.unit || 'ft';
+      document.getElementById('gz-medium').value = z.medium || 'soil';
+      document.getElementById('gz-light').value = z.lightSource || 'natural';
+      document.getElementById('gz-schedule').value = z.lightSchedule || '';
+      document.getElementById('gz-notes').value = z.notes || '';
+      document.getElementById('garden-zone-modal-title').textContent = 'Edit Zone';
+      document.getElementById('garden-zone-modal').classList.add('open');
+    }
+
+    function gardenCloseZoneModal() { document.getElementById('garden-zone-modal').classList.remove('open'); }
+
+    function gardenSaveZone() {
+      const g = loadGardenV2();
+      const editId = document.getElementById('gz-edit-id').value;
+      const name = document.getElementById('gz-name').value.trim();
+      if (!name) { alert('Name is required'); return; }
+      const zoneData = {
+        name, type: document.getElementById('gz-type').value,
+        location: document.getElementById('gz-location').value,
+        dimensions: { length: parseFloat(document.getElementById('gz-length').value)||0, width: parseFloat(document.getElementById('gz-width').value)||0, unit: document.getElementById('gz-unit').value },
+        medium: document.getElementById('gz-medium').value,
+        lightSource: document.getElementById('gz-light').value,
+        lightSchedule: document.getElementById('gz-schedule').value,
+        notes: document.getElementById('gz-notes').value
+      };
+      if (editId) {
+        const idx = g.zones.findIndex(z => z.id === editId);
+        if (idx >= 0) Object.assign(g.zones[idx], zoneData);
+      } else {
+        zoneData.id = 'zone-' + Date.now();
+        zoneData.createdAt = Date.now();
+        g.zones.push(zoneData);
+        gardenSelectedZone = zoneData.id;
+      }
+      gardenData = g; saveGardenV2();
+      gardenCloseZoneModal();
+      renderGardenZoneTree();
+      renderGardenZoneDetail();
+    }
+
+    function gardenDeleteZone(id) {
+      if (!confirm('Delete this zone and all its plants?')) return;
+      const g = loadGardenV2();
+      g.zones = g.zones.filter(z => z.id !== id);
+      g.plants = g.plants.filter(p => p.zoneId !== id);
+      g.sensors = g.sensors.filter(s => s.zoneId !== id);
+      if (gardenSelectedZone === id) gardenSelectedZone = g.zones.length > 0 ? g.zones[0].id : null;
+      gardenData = g; saveGardenV2();
+      renderGardenZoneTree();
+      renderGardenZoneDetail();
+    }
+
+    function gardenAddPlant(zoneId) {
+      document.getElementById('gp-edit-id').value = '';
+      document.getElementById('gp-zone-id').value = zoneId;
+      document.getElementById('gp-species').value = '';
+      document.getElementById('gp-variety').value = '';
+      document.getElementById('gp-stage').value = 'vegetative';
+      document.getElementById('gp-health').value = 'healthy';
+      document.getElementById('gp-planted').value = new Date().toISOString().split('T')[0];
+      document.getElementById('gp-harvest').value = '';
+      document.getElementById('gp-row').value = '';
+      document.getElementById('gp-col').value = '';
+      document.getElementById('gp-slot').value = '';
+      document.getElementById('gp-notes').value = '';
+      document.getElementById('garden-plant-modal-title2').textContent = 'Add Plant';
+      document.getElementById('garden-add-plant-modal').classList.add('open');
+    }
+
+    function gardenCloseAddPlantModal() { document.getElementById('garden-add-plant-modal').classList.remove('open'); }
+
+    function gardenSavePlant() {
+      const g = loadGardenV2();
+      const editId = document.getElementById('gp-edit-id').value;
+      const species = document.getElementById('gp-species').value.trim();
+      if (!species) { alert('Species is required'); return; }
+      const zoneId = document.getElementById('gp-zone-id').value;
+      const plantData = {
+        zoneId, species, variety: document.getElementById('gp-variety').value.trim(),
+        stage: document.getElementById('gp-stage').value, health: document.getElementById('gp-health').value,
+        plantedDate: document.getElementById('gp-planted').value ? new Date(document.getElementById('gp-planted').value).getTime() : null,
+        expectedHarvest: document.getElementById('gp-harvest').value ? new Date(document.getElementById('gp-harvest').value).getTime() : null,
+        position: { row: parseInt(document.getElementById('gp-row').value)||null, col: parseInt(document.getElementById('gp-col').value)||null },
+        slot: parseInt(document.getElementById('gp-slot').value)||null,
+        notes: document.getElementById('gp-notes').value, yields:[], waterings:[], prunings:[], photos:[]
+      };
+      if (editId) {
+        const idx = g.plants.findIndex(p => p.id === editId);
+        if (idx >= 0) { const old = g.plants[idx]; Object.assign(old, plantData); old.yields = old.yields||[]; old.waterings = old.waterings||[]; }
+      } else {
+        plantData.id = 'plant-' + Date.now();
+        g.plants.push(plantData);
+      }
+      gardenData = g; saveGardenV2();
+      gardenCloseAddPlantModal();
+      renderGardenZoneDetail();
+    }
+
+    function gardenShowPlant(plantId) {
+      const g = loadGardenV2();
+      const p = g.plants.find(x => x.id === plantId);
+      if (!p) return;
+      const zone = g.zones.find(z => z.id === p.zoneId);
+      const stages = ['seed','germination','seedling','vegetative','flowering','fruiting','harvest','dormant'];
+      const stageIdx = stages.indexOf(p.stage);
+      let timelineHtml = '<div style="display:flex;gap:0.15rem;margin:0.6rem 0;">';
+      stages.forEach((s,i) => {
+        const active = i <= stageIdx;
+        timelineHtml += `<div style="flex:1;height:6px;border-radius:3px;background:${active?'#4a8':'var(--bg-input)'}" title="${s}"></div>`;
+      });
+      timelineHtml += '</div>';
+
+      let yieldHtml = '';
+      if (p.yields && p.yields.length > 0) {
+        yieldHtml = '<div style="margin-top:0.6rem;"><strong style="font-size:0.78rem;">Yield History</strong>';
+        p.yields.forEach(y => { yieldHtml += `<div style="font-size:0.75rem;color:var(--text-muted);">${new Date(y.date).toLocaleDateString()} — ${y.amount} ${y.unit}</div>`; });
+        yieldHtml += '</div>';
+      }
+
+      let waterHtml = '';
+      if (p.waterings && p.waterings.length > 0) {
+        waterHtml = '<div style="margin-top:0.6rem;"><strong style="font-size:0.78rem;">Watering Log</strong>';
+        p.waterings.slice(-5).forEach(w => { waterHtml += `<div style="font-size:0.75rem;color:var(--text-muted);">${new Date(w.date).toLocaleDateString()} — ${w.amount}${w.nutrientMix?' ('+w.nutrientMix+')':''}</div>`; });
+        waterHtml += '</div>';
+      }
+
+      document.getElementById('garden-plant-modal-content').innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.6rem;">
+          <span style="font-size:1.5rem;">${STAGE_ICONS[p.stage]||'🌱'}</span>
+          <div>
+            <div style="font-size:1.1rem;font-weight:700;color:var(--text);">${escHtml(p.species)}${p.variety?' — '+escHtml(p.variety):''}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">Zone: ${zone?escHtml(zone.name):'—'} · Stage: ${p.stage} · Health: ${p.health}</div>
+          </div>
+        </div>
+        <div style="font-size:0.78rem;color:var(--text-muted);">Growth Timeline</div>
+        ${timelineHtml}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.8rem;">
+          <div><strong>Planted:</strong> ${p.plantedDate?new Date(p.plantedDate).toLocaleDateString():'—'}</div>
+          <div><strong>Expected Harvest:</strong> ${p.expectedHarvest?new Date(p.expectedHarvest).toLocaleDateString():'—'}</div>
+          ${p.position?.row?`<div><strong>Position:</strong> Row ${p.position.row}, Col ${p.position.col||'—'}</div>`:''}
+          ${p.slot?`<div><strong>Slot:</strong> ${p.slot}</div>`:''}
+        </div>
+        ${yieldHtml}
+        ${waterHtml}
+        ${p.notes?`<div style="margin-top:0.6rem;font-size:0.8rem;"><strong>Notes:</strong> ${escHtml(p.notes)}</div>`:''}
+        <div style="display:flex;gap:0.3rem;margin-top:1rem;">
+          <button onclick="gardenEditPlant('${p.id}')" style="background:var(--accent);color:#fff;border:none;padding:0.3rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;">✏️ Edit</button>
+          <button onclick="gardenLogWatering('${p.id}')" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;">💧 Water</button>
+          <button onclick="gardenLogYield('${p.id}')" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;">🧺 Yield</button>
+          <button onclick="gardenDeletePlant('${p.id}')" style="background:var(--bg-input);border:1px solid var(--border);color:var(--error);padding:0.3rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;">🗑️</button>
+        </div>
+      `;
+      document.getElementById('garden-plant-modal').classList.add('open');
+    }
+
+    function gardenClosePlantModal() { document.getElementById('garden-plant-modal').classList.remove('open'); }
+
+    function gardenEditPlant(id) {
+      gardenClosePlantModal();
+      const g = loadGardenV2();
+      const p = g.plants.find(x => x.id === id);
+      if (!p) return;
+      document.getElementById('gp-edit-id').value = p.id;
+      document.getElementById('gp-zone-id').value = p.zoneId;
+      document.getElementById('gp-species').value = p.species;
+      document.getElementById('gp-variety').value = p.variety||'';
+      document.getElementById('gp-stage').value = p.stage;
+      document.getElementById('gp-health').value = p.health;
+      document.getElementById('gp-planted').value = p.plantedDate ? new Date(p.plantedDate).toISOString().split('T')[0] : '';
+      document.getElementById('gp-harvest').value = p.expectedHarvest ? new Date(p.expectedHarvest).toISOString().split('T')[0] : '';
+      document.getElementById('gp-row').value = p.position?.row||'';
+      document.getElementById('gp-col').value = p.position?.col||'';
+      document.getElementById('gp-slot').value = p.slot||'';
+      document.getElementById('gp-notes').value = p.notes||'';
+      document.getElementById('garden-plant-modal-title2').textContent = 'Edit Plant';
+      document.getElementById('garden-add-plant-modal').classList.add('open');
+    }
+
+    function gardenDeletePlant(id) {
+      if (!confirm('Delete this plant?')) return;
+      const g = loadGardenV2();
+      g.plants = g.plants.filter(p => p.id !== id);
+      gardenData = g; saveGardenV2();
+      gardenClosePlantModal();
+      renderGardenZoneDetail();
+    }
+
+    function gardenLogWatering(plantId) {
+      const amount = prompt('Water amount (e.g. "1 gal")');
+      if (!amount) return;
+      const mix = prompt('Nutrient mix (optional)', '');
+      const g = loadGardenV2();
+      const p = g.plants.find(x => x.id === plantId);
+      if (!p) return;
+      if (!p.waterings) p.waterings = [];
+      p.waterings.push({ date: Date.now(), amount, nutrientMix: mix||'' });
+      gardenData = g; saveGardenV2();
+      gardenShowPlant(plantId);
+    }
+
+    function gardenLogYield(plantId) {
+      const amount = prompt('Yield amount (number)');
+      if (!amount) return;
+      const unit = prompt('Unit (e.g. lb, oz, kg)', 'lb');
+      const g = loadGardenV2();
+      const p = g.plants.find(x => x.id === plantId);
+      if (!p) return;
+      if (!p.yields) p.yields = [];
+      p.yields.push({ date: Date.now(), amount: parseFloat(amount)||0, unit: unit||'lb' });
+      gardenData = g; saveGardenV2();
+      gardenShowPlant(plantId);
+    }
+
+    function gardenLogReading(zoneId) {
+      document.getElementById('gr-zone-id').value = zoneId;
+      ['ph','ec','tds','watertemp','airtemp','humidity','moisture','par','co2','do','waterlevel','dli'].forEach(k => {
+        document.getElementById('gr-'+k).value = '';
+      });
+      document.getElementById('garden-reading-modal').classList.add('open');
+    }
+
+    function gardenSaveReading() {
+      const g = loadGardenV2();
+      const zoneId = document.getElementById('gr-zone-id').value;
+      let sensor = g.sensors.find(s => s.zoneId === zoneId);
+      if (!sensor) { sensor = { id:'sensor-'+Date.now(), zoneId, type:'manual', readings:[] }; g.sensors.push(sensor); }
+      const metrics = {};
+      const map = {ph:'ph',ec:'ec',tds:'tds',watertemp:'waterTemp',airtemp:'airTemp',humidity:'humidity',moisture:'soilMoisture',par:'lightPar',co2:'co2',do:'dissolvedO2',waterlevel:'waterLevel',dli:'lightDli'};
+      for (const [k,v] of Object.entries(map)) {
+        const val = parseFloat(document.getElementById('gr-'+k).value);
+        if (!isNaN(val)) metrics[v] = val;
+      }
+      if (Object.keys(metrics).length === 0) { alert('Enter at least one reading'); return; }
+      sensor.readings.push({ date: Date.now(), metrics });
+      gardenData = g; saveGardenV2();
+      document.getElementById('garden-reading-modal').classList.remove('open');
+      renderGardenZoneDetail();
+    }
 
     function renderGarden() {
-      const g = loadGarden();
-      const grid = document.getElementById('garden-grid');
-      const sizeSelect = document.getElementById('garden-size');
-      sizeSelect.value = g.size || 4;
-      grid.style.gridTemplateColumns = `repeat(${g.size}, 1fr)`;
-      grid.innerHTML = '';
-      for (let i = 0; i < g.size * g.size; i++) {
-        const plot = document.createElement('div');
-        const data = g.plots[i];
-        plot.className = 'garden-plot' + (data ? ' planted' : '');
-        plot.textContent = data ? data.plant : '🌱';
-        plot.title = data ? `${data.plant}${data.planted ? '\nPlanted: ' + data.planted : ''}` : 'Empty plot — click to plant';
-        plot.onclick = () => editPlot(i);
-        grid.appendChild(plot);
-      }
-    }
-
-    function editPlot(index) {
-      const g = loadGarden();
-      const existing = g.plots[index];
-      const plant = prompt('What is planted here?' + (existing ? ' (clear to remove)' : ''), existing ? existing.plant : '');
-      if (plant === null) return;
-      if (plant.trim() === '') {
-        delete g.plots[index];
-      } else {
-        const planted = existing ? existing.planted : new Date().toISOString().split('T')[0];
-        g.plots[index] = { plant: plant.trim(), planted };
-      }
-      saveGarden(g);
-      renderGarden();
-    }
-
-    function resizeGarden() {
-      const g = loadGarden();
-      g.size = parseInt(document.getElementById('garden-size').value) || 4;
-      saveGarden(g);
-      renderGarden();
+      loadGardenV2();
+      if (gardenData.zones.length > 0 && !gardenSelectedZone) gardenSelectedZone = gardenData.zones[0].id;
+      renderGardenZoneTree();
+      if (gardenSelectedZone) renderGardenZoneDetail();
     }
 
     function escHtml(s) {

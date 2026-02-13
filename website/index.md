@@ -43,7 +43,8 @@ A fully operational communication platform and personal hub with 11 tabs — **C
 
 ### Hub Tools
 - **Project board** — kanban-style task management with visible task IDs
-- **Marketplace** — peer-to-peer listings for goods and services, kiosks
+- **Marketplace** — peer-to-peer listings for goods and services, kiosks, 3D model subcategories, donation pricing presets
+- **Asset library** — file upload (drag-drop), browse by category, grid/list views, tags, search, preview modal, asset-to-listing bridge
 - **Universal catalog** — 118 elements, 44 materials, processing chains
 - **Browse tab** — web directory with 52 curated sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
 - **Dashboard tab** — 10 widget types with customizable drag-and-drop layout
@@ -54,7 +55,7 @@ A fully operational communication platform and personal hub with 11 tabs — **C
 
 ### Game & Creative
 - **Fantasy tab** — character sheet, lore entries, world map, achievements
-- **Streaming system** — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC, viewer interface
+- **Streaming system** — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC, viewer interface, stream stats, stream history
 - **Concept art** — multi-km spaceships, virtual malls, in-game spaces
 
 ### Platform
@@ -80,12 +81,9 @@ A fully operational communication platform and personal hub with 11 tabs — **C
 
 ## What's Planned
 
-- **Asset library system** — organized art/models/audio with tags and cloud backup
-- **Peer-assisted streaming** — WebRTC peer mesh distribution (creator → relay → viewers)
 - **Native game client** — first-person Rust client with in-game chat + AI
 - **P2P game distribution** — GitHub Releases, no app stores, no middlemen
 - **In-game commerce** — virtual mall with real retailer kiosks
-- **Asset library system** — organized art/models/audio with tags and cloud backup
 
 ---
 

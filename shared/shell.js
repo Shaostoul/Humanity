@@ -209,8 +209,9 @@
       '<a href="/debug" class="' + cls('debug') + '">🔧 Debug</a>' +
       '<span class="spacer"></span>' +
       '<a href="/download" class="' + cls('download') + '">' + dlIcon + ' Download</a>' +
-      '<a href="https://github.com/Shaostoul/Humanity" class="tab" target="_blank">' + ghIcon + ' GitHub</a>' +
+      '<a href="https://github.com/Shaostoul/Humanity" class="tab" onclick="openWebviewTab(\'https://github.com/Shaostoul/Humanity\',\'GitHub\');return false;">' + ghIcon + ' GitHub</a>' +
     '</nav>' +
+    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
 
@@ -254,7 +255,7 @@
         '<div class="footer-links">' +
           '<a href="/">Home</a>' +
           '<a href="/chat">Chat</a>' +
-          '<a href="https://shaostoul.github.io/Humanity" target="_blank">Docs</a>' +
+          '<a href="https://shaostoul.github.io/Humanity" onclick="openWebviewTab(\'https://shaostoul.github.io/Humanity\',\'Docs\');return false;">Docs</a>' +
           '<a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>' +
           '<a href="https://discord.gg/9XxmmeQnWC" target="_blank">Discord</a>' +
           '<a href="https://youtube.com/@Shaostoul" target="_blank">YouTube</a>' +
@@ -263,6 +264,93 @@
       '</div>' +
     '</footer>';
   document.body.appendChild(footer);
+
+  // ── Webview Tab System ──
+  var webviewTabs = {};
+  var webviewCounter = 0;
+  var activeWebviewTab = null;
+
+  window.openWebviewTab = function(url, title) {
+    // Check if already open with this URL
+    for (var id in webviewTabs) {
+      if (webviewTabs[id].url === url) { switchWebviewTab(id); return; }
+    }
+    var tabId = 'wv-' + (++webviewCounter);
+    webviewTabs[tabId] = { url: url, title: title || url };
+
+    // Create content container
+    var content = document.createElement('div');
+    content.id = 'webview-content-' + tabId;
+    content.className = 'webview-tab-content';
+    content.style.cssText = 'display:none;flex-direction:column;height:calc(100vh - 80px);position:fixed;top:0;left:0;right:0;bottom:0;z-index:150;background:var(--bg,#0a0a0a);';
+    content.innerHTML =
+      '<div style="display:flex;gap:0.3rem;padding:0.3rem 0.5rem;border-bottom:1px solid #333;align-items:center;background:rgba(13,13,13,0.95);height:36px;flex-shrink:0;">' +
+        '<button onclick="webviewBack(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#888;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">←</button>' +
+        '<button onclick="webviewForward(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#888;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">→</button>' +
+        '<button onclick="webviewRefresh(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#888;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">↻</button>' +
+        '<input type="text" readonly value="' + url.replace(/"/g, '&quot;') + '" style="flex:1;background:#1a1a1a;border:1px solid #333;color:#aaa;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.78rem;font-family:monospace;">' +
+        '<button onclick="closeWebviewTab(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#e55;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">✕</button>' +
+      '</div>' +
+      '<iframe src="' + url.replace(/"/g, '&quot;') + '" style="flex:1;border:none;width:100%;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>';
+    document.body.appendChild(content);
+
+    switchWebviewTab(tabId);
+    renderWebviewTabBar();
+  };
+
+  function switchWebviewTab(tabId) {
+    // Hide all webview contents
+    for (var id in webviewTabs) {
+      var el = document.getElementById('webview-content-' + id);
+      if (el) el.style.display = 'none';
+    }
+    var el = document.getElementById('webview-content-' + tabId);
+    if (el) el.style.display = 'flex';
+    activeWebviewTab = tabId;
+    renderWebviewTabBar();
+  }
+
+  window.closeWebviewTab = function(tabId) {
+    var el = document.getElementById('webview-content-' + tabId);
+    if (el) el.remove();
+    delete webviewTabs[tabId];
+    if (activeWebviewTab === tabId) {
+      var keys = Object.keys(webviewTabs);
+      activeWebviewTab = keys.length > 0 ? keys[keys.length - 1] : null;
+      if (activeWebviewTab) switchWebviewTab(activeWebviewTab);
+    }
+    renderWebviewTabBar();
+  };
+
+  window.webviewBack = function(tabId) {
+    var el = document.getElementById('webview-content-' + tabId);
+    if (el) { var iframe = el.querySelector('iframe'); try { iframe.contentWindow.history.back(); } catch(e){} }
+  };
+  window.webviewForward = function(tabId) {
+    var el = document.getElementById('webview-content-' + tabId);
+    if (el) { var iframe = el.querySelector('iframe'); try { iframe.contentWindow.history.forward(); } catch(e){} }
+  };
+  window.webviewRefresh = function(tabId) {
+    var el = document.getElementById('webview-content-' + tabId);
+    if (el) { var iframe = el.querySelector('iframe'); iframe.src = iframe.src; }
+  };
+
+  function renderWebviewTabBar() {
+    var bar = document.getElementById('webview-tabs-bar');
+    if (!bar) return;
+    var keys = Object.keys(webviewTabs);
+    if (keys.length === 0) { bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    bar.innerHTML = '';
+    keys.forEach(function(id) {
+      var tab = webviewTabs[id];
+      var btn = document.createElement('button');
+      btn.style.cssText = 'display:flex;align-items:center;gap:0.3rem;padding:0.15rem 0.6rem;border-radius:4px;border:1px solid ' + (id===activeWebviewTab?'#FF8811':'#333') + ';background:' + (id===activeWebviewTab?'rgba(255,136,17,0.15)':'transparent') + ';color:' + (id===activeWebviewTab?'#FF8811':'#888') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;';
+      btn.innerHTML = '<span onclick="switchWebviewTab(\'' + id + '\')">' + (tab.title||'Tab').substring(0,20) + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:0.3rem;color:#e55;font-weight:700;">✕</span>';
+      btn.onclick = function() { switchWebviewTab(id); };
+      bar.appendChild(btn);
+    });
+  }
 
   // ── Footer toggle logic ──
   document.getElementById('footer-toggle').addEventListener('click', function () {

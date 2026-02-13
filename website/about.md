@@ -74,12 +74,13 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 - @mentions, persistent emoji reactions, message editing, image sharing
 - Browse tab — web directory with 52 sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
 - Dashboard tab — 10 widget types, customizable drag-and-drop layout
-- Project board (kanban), marketplace (P2P listings, kiosks)
+- Project board (kanban), marketplace (P2P listings, kiosks, 3D model subcategories, donation pricing)
+- Asset library — file upload (drag-drop), browse by category, grid/list views, tags, search, preview modal
 - Universal catalog — 118 elements, 44 materials, processing chains
 - Personal inventory, notes, todos, garden tracker
 - Fantasy tab (character sheet, lore, world map, achievements)
-- Streaming system — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC, viewer interface
-- Video calling with camera, screen share, PiP, camera selection
+- Streaming system — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC, viewer interface, stream stats, stream history
+- Video calling with camera, screen share, PiP, camera selection, gallery view
 - Key backup/export/import, encrypted user data sync
 - PWA installable on mobile
 - Desktop app — Tauri v2 with auto-updater (Windows, macOS ARM64 + x64, Linux)
@@ -94,7 +95,7 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 - 11 hub tabs: Chat, Board, Reality, Fantasy, Market, Browse, Dashboard, Streams, Info, Source, Debug
 
 **What's designed (building next):**
-- Peer-assisted streaming (many seeds, small slices)
+- Native game client (Rust)
 - Content-addressed file sharing
 
 **It's live now:** [united-humanity.us/chat](https://united-humanity.us/chat)

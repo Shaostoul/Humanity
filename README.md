@@ -48,7 +48,8 @@ A tabbed interface with 11 sections — **Chat, Board, Reality, Fantasy, Market,
 
 ### Hub Tools
 - **Project board** — kanban-style task management with visible task IDs on cards
-- **Marketplace** — peer-to-peer listings for goods and services, kiosks
+- **Marketplace** — peer-to-peer listings for goods and services, kiosks, 3D model subcategories, donation pricing presets
+- **Asset library** — file upload (drag-drop), browse by category, grid/list views, tags, search, preview modal
 - **Universal catalog** — 118 elements, 44 materials, processing chains
 - **Browse tab** — web directory with 52 curated sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
 - **Dashboard tab** — 10 widget types with customizable drag-and-drop layout
@@ -59,13 +60,14 @@ A tabbed interface with 11 sections — **Chat, Board, Reality, Fantasy, Market,
 
 ### Game & Creative
 - **Fantasy tab** — character sheet, lore entries, world map, achievements
-- **Streaming system** — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC integration, viewer interface
-- **Video calling** — WebRTC P2P with camera, screen share, picture-in-picture, camera selection
+- **Streaming system** — PiP compositing, admin-only relay streaming, unified chat with Twitch IRC integration, viewer interface, stream stats, stream history
+- **Asset-to-listing bridge** — upload assets and publish directly to marketplace
 - **Concept art** — multi-km spaceships, virtual malls, in-game spaces
 
 ### Platform
 - **PWA installable** — works on mobile, add to homescreen
 - **Desktop app** — [Tauri v2](https://tauri.app/) with auto-updater for Windows, macOS, Linux
+- **Download page** — 7 platform cards, PWA instructions, SmartScreen guidance
 - **Command palette** — quick access to everything
 - **Settings panel** — accent colors, font sizes, theme customization
 - **Auto-reload on deploy** — client updates instantly without manual refresh
