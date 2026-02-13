@@ -2220,15 +2220,32 @@ impl Storage {
     }
 
     /// Load user data blob. Returns (data_json, updated_at) or None.
+    /// Resolves by name: finds the most recently updated data across all keys for the same user.
     pub fn load_user_data(&self, public_key: &str) -> Result<Option<(String, i64)>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        match conn.query_row(
-            "SELECT data, updated_at FROM user_data WHERE public_key = ?1",
+        // First try: load data from any key belonging to the same name (most recent wins).
+        let result = conn.query_row(
+            "SELECT ud.data, ud.updated_at FROM user_data ud
+             INNER JOIN registered_names rn ON ud.public_key = rn.public_key
+             WHERE rn.name = (SELECT name FROM registered_names WHERE public_key = ?1 LIMIT 1)
+             ORDER BY ud.updated_at DESC LIMIT 1",
             params![public_key],
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
-        ) {
-            Ok(result) => Ok(Some(result)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        );
+        match result {
+            Ok(data) => Ok(Some(data)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                // Fallback: try direct key lookup (for unregistered users).
+                match conn.query_row(
+                    "SELECT data, updated_at FROM user_data WHERE public_key = ?1",
+                    params![public_key],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+                ) {
+                    Ok(data) => Ok(Some(data)),
+                    Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                    Err(e) => Err(e),
+                }
+            }
             Err(e) => Err(e),
         }
     }
