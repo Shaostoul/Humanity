@@ -526,6 +526,7 @@
       <button onclick="mapSetView('system')" class="map-mode-btn" data-mode="system" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">☀️ Solar System</button>
       <button onclick="mapSetView('sector')" class="map-mode-btn" data-mode="sector" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">⭐ Stellar Neighborhood</button>
       <button onclick="mapSetView('galaxy')" class="map-mode-btn" data-mode="galaxy" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">🌌 Galaxy</button>
+      <button onclick="mapSetView('skyview')" class="map-mode-btn" data-mode="skyview" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(180,140,255,0.3);color:#b48cff;border-radius:4px;cursor:pointer;">🔭 Sky View</button>
       <span style="flex:1;"></span>
       <span id="map-coords" style="font-size:0.7rem;color:var(--text-muted);font-family:monospace;"></span>
     </div>
@@ -8796,10 +8797,11 @@
         else if (mapView === 'system') renderSystem(cw, ch);
         else if (mapView === 'sector') renderSector(cw, ch);
         else if (mapView === 'galaxy') renderGalaxy(cw, ch);
+        else if (mapView === 'skyview') renderSkyView(cw, ch);
       }
 
       // ── View switching with animation ──
-      const viewNames = {surface:'🌍 Earth Surface',system:'☀️ Solar System',sector:'⭐ Stellar Neighborhood',galaxy:'🌌 Milky Way Galaxy'};
+      const viewNames = {surface:'🌍 Earth Surface',system:'☀️ Solar System',sector:'⭐ Stellar Neighborhood',galaxy:'🌌 Milky Way Galaxy',skyview:'🔭 Sky View'};
       window.mapSetView = function(view) {
         if (view === mapView) return;
         // Animation: brief darken
