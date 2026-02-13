@@ -231,6 +231,60 @@
       font-size: 0.78rem;
     }
 
+    /* ── Skill DNA ── */
+    .skill-dna { display:flex; gap:0; border:1px solid var(--border); border-radius:10px; overflow:hidden; min-height:420px; background:var(--bg-card); }
+    .skill-dna-sidebar { width:180px; min-width:150px; border-right:1px solid var(--border); display:flex; flex-direction:column; background:rgba(0,0,0,0.15); }
+    .skill-dna-sidebar .sd-cat { padding:0.45rem 0.6rem; font-size:0.8rem; cursor:pointer; border-bottom:1px solid rgba(255,255,255,0.04); display:flex; align-items:center; gap:0.4rem; color:var(--text-muted); transition:background 0.15s; }
+    .skill-dna-sidebar .sd-cat:hover, .skill-dna-sidebar .sd-cat.active { background:rgba(255,255,255,0.06); color:var(--text); }
+    .skill-dna-sidebar .sd-cat.active { border-left:3px solid var(--accent); }
+    .skill-dna-main { flex:1; overflow-y:auto; padding:0.8rem; }
+    .skill-dna-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; }
+    .skill-dna-header h3 { margin:0; font-size:0.95rem; }
+    .sd-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:0.5rem; }
+    .sd-tile { background:var(--bg-input); border:1px solid var(--border); border-radius:8px; padding:0.5rem; text-align:center; cursor:pointer; transition:all 0.15s; position:relative; }
+    .sd-tile:hover { border-color:var(--accent); transform:translateY(-1px); }
+    .sd-tile .sd-icon { font-size:1.3rem; }
+    .sd-tile .sd-name { font-size:0.72rem; color:var(--text); margin:0.2rem 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .sd-tile .sd-level { font-size:0.65rem; font-weight:700; }
+    .sd-tile .sd-bar { height:3px; background:rgba(255,255,255,0.08); border-radius:2px; margin-top:0.25rem; overflow:hidden; }
+    .sd-tile .sd-bar-fill { height:100%; border-radius:2px; transition:width 0.3s; }
+    .sd-tile.locked { opacity:0.5; }
+    .sd-tile.locked::after { content:'🔒'; position:absolute; top:0.25rem; right:0.25rem; font-size:0.6rem; }
+    .sd-stats { margin-top:0.8rem; padding:0.6rem; background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.78rem; color:var(--text-muted); }
+    .sd-stats div { margin:0.15rem 0; }
+    .sd-stats span { color:var(--text); font-weight:600; }
+    /* Skill Card Modal */
+    .sd-card-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1000; display:flex; align-items:center; justify-content:center; }
+    .sd-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; max-width:420px; width:90%; max-height:80vh; overflow-y:auto; }
+    .sd-card h3 { margin:0 0 0.4rem; display:flex; align-items:center; justify-content:space-between; }
+    .sd-card .sd-xp-bars { margin:0.6rem 0; }
+    .sd-card .sd-xp-row { display:flex; align-items:center; gap:0.5rem; margin:0.3rem 0; font-size:0.8rem; }
+    .sd-card .sd-xp-row .bar { flex:1; height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden; }
+    .sd-card .sd-xp-row .bar-fill { height:100%; border-radius:4px; }
+    .sd-card .sd-subskills { margin:0.6rem 0; }
+    .sd-card .sd-subskill { display:flex; align-items:center; gap:0.4rem; margin:0.25rem 0; font-size:0.78rem; }
+    .sd-card .sd-verifications, .sd-card .sd-activity { margin:0.5rem 0; font-size:0.78rem; }
+    .sd-card .sd-actions { display:flex; gap:0.5rem; margin-top:0.8rem; }
+    .sd-card .sd-actions button { flex:1; padding:0.4rem; border-radius:6px; border:1px solid var(--border); background:var(--bg-input); color:var(--text); font-size:0.8rem; cursor:pointer; font-family:inherit; }
+    .sd-card .sd-actions button:hover { border-color:var(--accent); }
+    /* Log Modal */
+    .sd-log-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1001; display:flex; align-items:center; justify-content:center; }
+    .sd-log-modal { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; max-width:380px; width:90%; }
+    .sd-log-modal h3 { margin:0 0 0.8rem; }
+    .sd-log-modal label { display:block; font-size:0.78rem; color:var(--text-muted); margin:0.4rem 0 0.15rem; }
+    .sd-log-modal input, .sd-log-modal select, .sd-log-modal textarea { width:100%; background:var(--bg-input); border:1px solid var(--border); color:var(--text); padding:0.35rem 0.5rem; border-radius:6px; font-size:0.82rem; font-family:inherit; box-sizing:border-box; }
+    .sd-log-modal .sd-type-toggle { display:flex; gap:0.5rem; margin:0.3rem 0; }
+    .sd-log-modal .sd-type-toggle label { display:flex; align-items:center; gap:0.25rem; cursor:pointer; color:var(--text); }
+    .sd-log-modal .sd-log-actions { display:flex; gap:0.5rem; margin-top:0.8rem; }
+    .sd-log-modal .sd-log-actions button { flex:1; padding:0.4rem; border-radius:6px; font-size:0.82rem; cursor:pointer; font-family:inherit; border:none; }
+    /* Find People */
+    .sd-find-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); z-index:1001; display:flex; align-items:center; justify-content:center; }
+    .sd-find-modal { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; max-width:500px; width:90%; max-height:80vh; overflow-y:auto; }
+    .sd-find-modal h3 { margin:0 0 0.6rem; }
+    .sd-find-result { padding:0.5rem; border:1px solid var(--border); border-radius:8px; margin:0.4rem 0; display:flex; align-items:center; gap:0.6rem; }
+    .sd-find-result .sd-fr-skills { font-size:0.75rem; color:var(--text-muted); }
+    @media (max-width:600px) { .skill-dna { flex-direction:column; } .skill-dna-sidebar { width:100%; min-width:auto; border-right:none; border-bottom:1px solid var(--border); flex-direction:row; overflow-x:auto; } .skill-dna-sidebar .sd-cat { white-space:nowrap; border-bottom:none; } .skill-dna-sidebar .sd-cat.active { border-left:none; border-bottom:3px solid var(--accent); } }
+
     /* ── Reality Cards ── */
     .reality-card-header {
       cursor: pointer;
@@ -508,6 +562,14 @@
     <div class="panel" style="margin-bottom:1rem;">
       <h2>🟢 Reality</h2>
       <p>Your real-world dashboard. Knowledge base, catalogs, and personal tools — all local-first.</p>
+    </div>
+
+    <!-- ── Skill DNA ── -->
+    <div class="panel reality-card" id="reality-skills">
+      <h2 class="reality-card-header" onclick="toggleRealityCard('skills')">🧬 Skill DNA <span class="collapse-icon" id="skills-collapse">▼</span></h2>
+      <div class="reality-card-body" id="skills-body">
+        <div id="skill-dna-reality"></div>
+      </div>
     </div>
 
     <!-- ── Todo List ── -->
@@ -920,6 +982,15 @@
         <h2 class="reality-card-header" onclick="toggleFantasyCard('achievements')" style="color:var(--fantasy-accent,#9966ff);">🏆 Achievements <span class="collapse-icon" id="achievements-collapse">▼</span></h2>
         <div class="reality-card-body" id="achievements-body">
           <div id="achievement-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.5rem;"></div>
+        </div>
+      </div>
+
+      <!-- ── Skill DNA (Fantasy) ── -->
+      <div class="panel reality-card" id="fantasy-skills" style="border-color:rgba(120,80,200,0.2);">
+        <h2 class="reality-card-header" onclick="toggleFantasyCard('fskills')" style="color:var(--fantasy-accent,#9966ff);">🧬 Skill DNA (Fantasy) <span class="collapse-icon" id="fskills-collapse">▼</span></h2>
+        <div class="reality-card-body" id="fskills-body">
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.6rem;font-style:italic;">🎮 Game activities will auto-track Fantasy XP in the future. For now, log activities manually.</p>
+          <div id="skill-dna-fantasy"></div>
         </div>
       </div>
 

@@ -785,6 +785,113 @@ pub async fn create_task(
     }
 }
 
+/// Request body for PATCH /api/tasks/:id.
+#[derive(Debug, Deserialize)]
+pub struct UpdateTaskRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub assignee: Option<String>,
+    pub labels: Option<String>,
+}
+
+/// PATCH /api/tasks/:id — update a task via bot API (requires API_SECRET auth).
+pub async fn update_task(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    axum::extract::Path(task_id): axum::extract::Path<i64>,
+    Json(req): Json<UpdateTaskRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+
+    // Get existing task.
+    let existing = state.db.get_task(task_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Task {} not found.", task_id)))?;
+
+    // Handle status change via move_task.
+    if let Some(ref new_status) = req.status {
+        let valid_statuses = ["backlog", "in_progress", "testing", "done"];
+        if !valid_statuses.contains(&new_status.as_str()) {
+            return Err((StatusCode::BAD_REQUEST, format!("Invalid status '{}'. Must be one of: backlog, in_progress, testing, done.", new_status)));
+        }
+        if new_status != &existing.status {
+            state.db.move_task(task_id, new_status)
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to move task: {e}")))?;
+        }
+    }
+
+    // Handle field updates via update_task.
+    let title = req.title.as_deref().unwrap_or(&existing.title);
+    let description = req.description.as_deref().unwrap_or(&existing.description);
+    let priority = req.priority.as_deref().unwrap_or(&existing.priority);
+    let assignee = req.assignee.as_deref().or(existing.assignee.as_deref());
+    let labels = req.labels.as_deref().unwrap_or(&existing.labels);
+
+    if title.is_empty() || title.len() > 200 {
+        return Err((StatusCode::BAD_REQUEST, "Title must be 1-200 characters.".into()));
+    }
+
+    let valid_priorities = ["low", "medium", "high", "critical"];
+    if !valid_priorities.contains(&priority) {
+        return Err((StatusCode::BAD_REQUEST, format!("Invalid priority '{}'.", priority)));
+    }
+
+    // Only call update if non-status fields changed.
+    let fields_changed = req.title.is_some() || req.description.is_some() || req.priority.is_some() || req.assignee.is_some() || req.labels.is_some();
+    if fields_changed {
+        state.db.update_task(task_id, title, description, priority, assignee, labels)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update task: {e}")))?;
+    }
+
+    // Return updated task.
+    let updated = state.db.get_task(task_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?
+        .ok_or_else(|| (StatusCode::INTERNAL_SERVER_ERROR, "Task disappeared after update.".into()))?;
+
+    // Broadcast update to WebSocket clients.
+    let counts = state.db.get_task_comment_counts().unwrap_or_default();
+    let cc = *counts.get(&task_id).unwrap_or(&0);
+    let td = crate::relay::TaskData {
+        id: updated.id, title: updated.title.clone(), description: updated.description.clone(),
+        status: updated.status.clone(), priority: updated.priority.clone(), assignee: updated.assignee.clone(),
+        created_by: updated.created_by.clone(), created_at: updated.created_at,
+        updated_at: updated.updated_at, position: updated.position, labels: updated.labels.clone(),
+        comment_count: cc,
+    };
+    let _ = state.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
+
+    Ok(Json(serde_json::json!({
+        "id": updated.id,
+        "title": updated.title,
+        "description": updated.description,
+        "status": updated.status,
+        "priority": updated.priority,
+        "assignee": updated.assignee,
+        "labels": updated.labels,
+        "updated_at": updated.updated_at,
+    })))
+}
+
+/// DELETE /api/tasks/:id — delete a task via bot API (requires API_SECRET auth).
+pub async fn delete_task(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    axum::extract::Path(task_id): axum::extract::Path<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+
+    match state.db.delete_task(task_id) {
+        Ok(true) => {
+            let _ = state.broadcast_tx.send(RelayMessage::TaskDeleted { id: task_id });
+            Ok(Json(serde_json::json!({ "status": "deleted", "id": task_id })))
+        }
+        Ok(false) => Err((StatusCode::NOT_FOUND, format!("Task {} not found.", task_id))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete task: {e}"))),
+    }
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,

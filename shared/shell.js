@@ -208,7 +208,7 @@
       '<a href="/source" class="' + cls('source') + '">📜 Source</a>' +
       '<a href="/debug" class="' + cls('debug') + '">🔧 Debug</a>' +
       '<span class="spacer"></span>' +
-      '<a href="/download" class="' + cls('download') + '">' + dlIcon + ' Download</a>' +
+      '<a href="/download" class="' + cls('download') + '" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">' + dlIcon + ' Download</a>' +
       '<a href="https://github.com/Shaostoul/Humanity" class="tab" onclick="openWebviewTab(\'https://github.com/Shaostoul/Humanity\',\'GitHub\');return false;">' + ghIcon + ' GitHub</a>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
