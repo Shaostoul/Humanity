@@ -5052,6 +5052,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
 
                             RelayMessage::StreamOffer { to, data, .. } => {
+                                info!("StreamOffer from {} to {}", &my_key_for_recv[..8], &to[..8]);
                                 let _ = state_clone.broadcast_tx.send(RelayMessage::StreamOffer {
                                     from: my_key_for_recv.clone(),
                                     to,
@@ -5060,6 +5061,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
 
                             RelayMessage::StreamAnswer { to, data, .. } => {
+                                info!("StreamAnswer from {} to {}", &my_key_for_recv[..8], &to[..8]);
                                 let _ = state_clone.broadcast_tx.send(RelayMessage::StreamAnswer {
                                     from: my_key_for_recv.clone(),
                                     to,
@@ -5068,6 +5070,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
 
                             RelayMessage::StreamIce { to, data, .. } => {
+                                info!("StreamIce from {} to {}", &my_key_for_recv[..8], &to[..8]);
                                 let _ = state_clone.broadcast_tx.send(RelayMessage::StreamIce {
                                     from: my_key_for_recv.clone(),
                                     to,
