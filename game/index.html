@@ -1433,6 +1433,13 @@
         </div>
         <div id="browse-categories" style="padding:0.4rem 0.5rem;display:flex;flex-wrap:wrap;gap:0.3rem;border-bottom:1px solid var(--border);"></div>
         <div id="browse-collections" style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);max-height:120px;overflow-y:auto;"></div>
+        <div id="browse-sort" style="padding:0.3rem 0.5rem;display:flex;gap:0.3rem;border-bottom:1px solid var(--border);align-items:center;">
+          <span style="font-size:0.7rem;color:var(--text-muted);">Sort:</span>
+          <span class="filter-pill active" onclick="setBrowseSort('popular')" id="sort-popular" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">🔥 Popular</span>
+          <span class="filter-pill" onclick="setBrowseSort('used')" id="sort-used" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">⭐ Most Used</span>
+          <span class="filter-pill" onclick="setBrowseSort('recent')" id="sort-recent" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">🕐 Recent</span>
+          <span class="filter-pill" onclick="setBrowseSort('az')" id="sort-az" style="font-size:0.68rem;padding:0.1rem 0.4rem;cursor:pointer;">🔤 A-Z</span>
+        </div>
         <div id="browse-sites" style="flex:1;overflow-y:auto;padding:0.4rem;"></div>
       </div>
       <div id="browse-panel" style="flex:1;display:flex;flex-direction:column;">
@@ -4187,6 +4194,130 @@
     })();
 
     // ── Browse Tab ──
+    const TRANCO_RANKS = {
+      'google.com': 1, 'youtube.com': 2, 'facebook.com': 3, 'amazon.com': 8,
+      'wikipedia.org': 10, 'reddit.com': 15, 'netflix.com': 20, 'github.com': 25,
+      'discord.com': 30, 'twitch.tv': 35, 'ebay.com': 40, 'aliexpress.com': 45,
+      'stackoverflow.com': 50, 'fonts.google.com': 50, 'spotify.com': 55,
+      'imdb.com': 60, 'duckduckgo.com': 70, 'bbc.com': 80,
+      'store.steampowered.com': 100, 'etsy.com': 120, 'deepl.com': 150,
+      'gitlab.com': 150, 'craigslist.org': 200, 'coursera.org': 200,
+      'soundcloud.com': 200, 'reuters.com': 250, 'archive.org': 250,
+      'apnews.com': 300, 'figma.com': 300, 'khanacademy.org': 350,
+      'news.ycombinator.com': 400, 'proton.me': 400, 'unsplash.com': 500,
+      'arstechnica.com': 500, 'libgen.is': 500, 'dev.to': 600,
+      'codepen.io': 700, 'newegg.com': 800, 'wolframalpha.com': 900,
+      'itch.io': 1000, 'nexusmods.com': 1500, 'blender.org': 2000,
+      'regex101.com': 2000, 'coolors.co': 3000, 'bitwarden.com': 3000,
+      'thingiverse.com': 4000, 'mastodon.social': 5000, 'excalidraw.com': 5000,
+      'howlongtobeat.com': 5000, 'signal.org': 6000, 'lemmy.world': 8000,
+      'pcgamingwiki.com': 10000, 'isthereanydeal.com': 15000, 'allsides.com': 20000,
+    };
+
+    function getDomainFromUrl(url) {
+      try { return new URL(url.startsWith('http') ? url : 'https://'+url).hostname.replace(/^www\./,''); } catch { return ''; }
+    }
+    function getTrancoRank(url) {
+      const domain = getDomainFromUrl(url);
+      return TRANCO_RANKS[domain] || TRANCO_RANKS[domain.replace(/^[^.]+\./, '')] || 999999;
+    }
+
+    // Uptime ping system
+    const _pingCache = {}; // { domain: { status: 'up'|'down'|'checking', ts: Date.now() } }
+    const PING_TTL = 5 * 60 * 1000;
+    function getPingStatus(url) {
+      const domain = getDomainFromUrl(url);
+      const cached = _pingCache[domain];
+      if (cached && Date.now() - cached.ts < PING_TTL) return cached.status;
+      return 'unchecked';
+    }
+    function getPingDot(url) {
+      const s = getPingStatus(url);
+      if (s === 'up') return '🟢';
+      if (s === 'down') return '🔴';
+      return '⚪';
+    }
+    let _pingQueue = [];
+    let _pinging = false;
+    async function pingBatch() {
+      if (_pinging) return;
+      _pinging = true;
+      while (_pingQueue.length > 0) {
+        const batch = _pingQueue.splice(0, 5);
+        await Promise.all(batch.map(async url => {
+          const domain = getDomainFromUrl(url);
+          if (_pingCache[domain] && Date.now() - _pingCache[domain].ts < PING_TTL) return;
+          _pingCache[domain] = { status: 'checking', ts: Date.now() };
+          try {
+            await fetch(url + '/favicon.ico', { mode: 'no-cors', signal: AbortSignal.timeout(5000) });
+            _pingCache[domain] = { status: 'up', ts: Date.now() };
+          } catch {
+            _pingCache[domain] = { status: 'down', ts: Date.now() };
+          }
+        }));
+        renderBrowseSiteCards();
+        if (_pingQueue.length > 0) await new Promise(r => setTimeout(r, 300));
+      }
+      _pinging = false;
+    }
+    function enqueuePings(sites) {
+      sites.forEach(s => {
+        const domain = getDomainFromUrl(s.url);
+        if (!_pingCache[domain] || Date.now() - _pingCache[domain].ts >= PING_TTL) {
+          if (!_pingQueue.includes(s.url)) _pingQueue.push(s.url);
+        }
+      });
+      pingBatch();
+    }
+
+    // RDAP system
+    const RDAP_CACHE_KEY = 'humanity_rdap_cache';
+    function loadRdapCache() { try { return JSON.parse(localStorage.getItem(RDAP_CACHE_KEY)) || {}; } catch { return {}; } }
+    function saveRdapCache(cache) { localStorage.setItem(RDAP_CACHE_KEY, JSON.stringify(cache)); }
+    const _rdapFetching = {};
+    async function fetchRdap(url) {
+      const domain = getDomainFromUrl(url);
+      const cache = loadRdapCache();
+      if (cache[domain] && Date.now() - cache[domain].ts < 24*60*60*1000) return cache[domain].data;
+      if (_rdapFetching[domain]) return null;
+      _rdapFetching[domain] = true;
+      try {
+        const resp = await fetch('https://rdap.org/domain/' + domain);
+        if (!resp.ok) throw new Error('RDAP error');
+        const json = await resp.json();
+        let regYear = null, registrar = null;
+        (json.events || []).forEach(e => { if (e.eventAction === 'registration' && e.eventDate) regYear = new Date(e.eventDate).getFullYear(); });
+        (json.entities || []).forEach(e => { if ((e.roles || []).includes('registrar')) registrar = e.vcardArray?.[1]?.find(v=>v[0]==='fn')?.[3] || e.handle || null; });
+        const data = { regYear, registrar };
+        cache[domain] = { data, ts: Date.now() };
+        saveRdapCache(cache);
+        delete _rdapFetching[domain];
+        return data;
+      } catch { delete _rdapFetching[domain]; return null; }
+    }
+    function getRdapDisplay(url) {
+      const domain = getDomainFromUrl(url);
+      const cache = loadRdapCache();
+      if (cache[domain] && Date.now() - cache[domain].ts < 24*60*60*1000) {
+        const d = cache[domain].data;
+        const parts = [];
+        if (d.regYear) parts.push('📅 ' + d.regYear);
+        if (d.registrar) parts.push('🏢 ' + d.registrar);
+        return parts.length ? parts.join(' · ') + ' · ' : '';
+      }
+      return '';
+    }
+
+    let browseCurrentSort = 'popular';
+    function setBrowseSort(sort) {
+      browseCurrentSort = sort;
+      ['popular','used','recent','az'].forEach(s => {
+        const el = document.getElementById('sort-' + s);
+        if (el) el.classList.toggle('active', s === sort);
+      });
+      renderBrowseSites();
+    }
+
     const DEFAULT_SITES = [
       { url:'https://github.com', name:'GitHub', description:'Code hosting and collaboration', category:'Tech', icon:'🐙' },
       { url:'https://stackoverflow.com', name:'Stack Overflow', description:'Programming Q&A', category:'Tech', icon:'📚' },
@@ -4251,6 +4382,8 @@
       if (!data.collections) data.collections = {};
       if (!data.hidden) data.hidden = [];
       if (!data.customSites) data.customSites = [];
+      if (!data.clickCounts) data.clickCounts = {};
+      if (!data.lastVisited) data.lastVisited = {};
       return data;
     }
     function getAllSites() { const data = getBrowseData(); return [...DEFAULT_SITES, ...data.customSites]; }
@@ -4291,6 +4424,17 @@
       }).join('') + `<button onclick="createCollection()" style="font-size:0.72rem;color:var(--accent);background:none;border:none;cursor:pointer;padding:0.2rem;">+ New Collection</button>`;
     }
 
+    function sortBrowseSites(sites, data) {
+      const sorted = [...sites];
+      switch (browseCurrentSort) {
+        case 'popular': sorted.sort((a, b) => getTrancoRank(a.url) - getTrancoRank(b.url)); break;
+        case 'used': sorted.sort((a, b) => (data.clickCounts[b.url]||0) - (data.clickCounts[a.url]||0)); break;
+        case 'recent': sorted.sort((a, b) => (data.lastVisited[b.url]||0) - (data.lastVisited[a.url]||0)); break;
+        case 'az': sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+      }
+      return sorted;
+    }
+    let _lastRenderedSites = [];
     function renderBrowseSites() {
       renderBrowseCategories(); renderCollections();
       const data = getBrowseData();
@@ -4302,12 +4446,51 @@
         sites = sites.filter(s => collUrls.includes(s.url));
       } else if (browseActiveCategory) { sites = sites.filter(s => s.category === browseActiveCategory); }
       if (search) { sites = sites.filter(s => s.name.toLowerCase().includes(search) || s.description.toLowerCase().includes(search) || s.url.toLowerCase().includes(search)); }
+      sites = sortBrowseSites(sites, data);
+      _lastRenderedSites = sites;
       const container = document.getElementById('browse-sites');
       if (!container) return;
-      container.innerHTML = sites.map(s => `<div class="browse-site-card" style="padding:0.5rem;margin-bottom:0.3rem;background:var(--bg-secondary);border-radius:6px;cursor:pointer;border:1px solid var(--border);" onclick="browseNavigate('${s.url}')" oncontextmenu="event.preventDefault();showSiteContextMenu(event,'${s.url.replace(/'/g,"\\'")}','${s.name.replace(/'/g,"\\'")}')"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:600;font-size:0.85rem;">${s.icon} ${s.name}</span><span style="font-size:0.65rem;color:var(--text-muted);background:var(--bg);padding:0.1rem 0.4rem;border-radius:8px;">${s.category}</span></div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;">${s.description}</div><div style="font-size:0.65rem;color:var(--accent);margin-top:0.15rem;">${s.url}</div></div>`).join('') || '<div style="padding:1rem;color:var(--text-muted);text-align:center;">No sites found</div>';
+      renderBrowseSiteCards();
+      enqueuePings(sites);
+    }
+    function renderBrowseSiteCards() {
+      const sites = _lastRenderedSites;
+      const data = getBrowseData();
+      const container = document.getElementById('browse-sites');
+      if (!container) return;
+      container.innerHTML = sites.map(s => {
+        const rank = getTrancoRank(s.url);
+        const rankStr = rank < 999999 ? `#${rank} globally` : '';
+        const dot = getPingDot(s.url);
+        const rdap = getRdapDisplay(s.url);
+        const domain = getDomainFromUrl(s.url);
+        return `<div class="browse-site-card" style="padding:0.5rem;margin-bottom:0.3rem;background:var(--bg-secondary);border-radius:6px;cursor:pointer;border:1px solid var(--border);" onclick="browseNavigateTracked('${s.url.replace(/'/g,"\\'")}')" oncontextmenu="event.preventDefault();showSiteContextMenu(event,'${s.url.replace(/'/g,"\\'")}','${s.name.replace(/'/g,"\\'")}');" onmouseenter="lazyFetchRdap('${s.url.replace(/'/g,"\\'")}')">`+
+          `<div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-weight:600;font-size:0.85rem;">${s.icon} ${s.name} ${dot}</span><span style="font-size:0.65rem;color:var(--text-muted);background:var(--bg);padding:0.1rem 0.4rem;border-radius:8px;">${s.category}</span></div>`+
+          (rankStr ? `<div style="font-size:0.62rem;color:var(--text-muted);margin-top:0.1rem;">${rankStr}</div>` : '')+
+          `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem;">${s.description}</div>`+
+          `<div style="font-size:0.62rem;color:var(--accent);margin-top:0.15rem;">${rdap}${domain}</div></div>`;
+      }).join('') || '<div style="padding:1rem;color:var(--text-muted);text-align:center;">No sites found</div>';
     }
 
     function filterBrowseSites() { renderBrowseSites(); }
+    function browseNavigateTracked(url) {
+      if (!url) return;
+      const status = getPingStatus(url.startsWith('http') ? url : 'https://'+url);
+      if (status === 'down') {
+        if (!confirm('⚠️ This site may be down. Continue anyway?')) return;
+      }
+      const data = getBrowseData();
+      data.clickCounts[url] = (data.clickCounts[url] || 0) + 1;
+      data.lastVisited[url] = Date.now();
+      saveBrowseData(data);
+      browseNavigate(url);
+    }
+    function lazyFetchRdap(url) {
+      const domain = getDomainFromUrl(url);
+      const cache = loadRdapCache();
+      if (cache[domain] && Date.now() - cache[domain].ts < 24*60*60*1000) return;
+      fetchRdap(url).then(() => renderBrowseSiteCards());
+    }
     function browseNavigate(url) {
       if (!url) return;
       if (!url.startsWith('http')) url = 'https://' + url;
