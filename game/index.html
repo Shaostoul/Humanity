@@ -6740,12 +6740,14 @@
       return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // ── Request stream info on connect ──
+    // ── Request stream info on connect + periodically ──
     function streamRequestInfo() {
       if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({ type: 'stream_info_request' }));
       }
     }
+    // Poll stream info every 15s so viewers see streams that started after page load
+    setInterval(streamRequestInfo, 15000);
 
     // Track tab visits for explorer achievement
     const visitedTabs = JSON.parse(localStorage.getItem('humanity_visited_tabs') || '[]');
@@ -6759,6 +6761,8 @@
       if (['reality', 'fantasy', 'streams', 'debug'].every(t => visitedTabs.includes(t))) {
         unlockAchievement('explorer');
       }
+      // Refresh stream info when switching to Streams tab
+      if (tabId === 'streams') streamRequestInfo();
     };
 
     // ══════════════════════════════════════
