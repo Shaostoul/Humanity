@@ -2948,6 +2948,17 @@
       };
       boardWs.onclose = () => { setTimeout(boardConnect, 3000); };
       boardWs.onerror = () => {};
+      // Fallback: if tasks don't load via WS within 3s, fetch via REST API
+      setTimeout(() => {
+        if (boardTasks.length === 0) {
+          fetch('/api/tasks').then(r => r.json()).then(data => {
+            if (data.tasks && data.tasks.length > 0 && boardTasks.length === 0) {
+              boardTasks = data.tasks;
+              renderBoard();
+            }
+          }).catch(() => {});
+        }
+      }, 3000);
     }
 
     function handleBoardMessage(msg) {
