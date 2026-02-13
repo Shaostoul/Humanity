@@ -5095,11 +5095,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     drop(stream_lock);
                                     let _ = state_clone.broadcast_tx.send(info_msg);
                                     // Notify streamer about the new viewer so they can create a WebRTC offer
+                                    info!("Sending __stream_viewer_ready__ to streamer {} for viewer {}", streamer_key, my_key_for_recv);
                                     let notify = RelayMessage::Private {
                                         to: streamer_key,
                                         message: format!("__stream_viewer_ready__:{}", my_key_for_recv),
                                     };
-                                    info!("Sent __stream_viewer_ready__ to streamer {} for viewer {}", streamer_key, my_key_for_recv);
                                     let _ = state_clone.broadcast_tx.send(notify);
                                 }
                             }
