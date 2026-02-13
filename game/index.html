@@ -1226,6 +1226,7 @@
                     <span class="metric-label">RTT</span><span class="metric-value" id="sm-rtt">--</span>
                     <span class="metric-label">Jitter</span><span class="metric-value" id="sm-jitter">--</span>
                     <span class="metric-label">Total sent</span><span class="metric-value" id="sm-total">--</span>
+                    <span class="metric-label">Connections</span><span class="metric-value" id="sm-connections">--</span>
                   </div>
                 </div>
               </div>
@@ -6880,7 +6881,12 @@
 
     async function streamCollectMetrics() {
       // Streamer metrics: aggregate from all viewer PCs
-      const pcs = Object.values(streamViewerPCs);
+      const pcEntries = Object.entries(streamViewerPCs);
+      const pcs = pcEntries.map(e => e[1]);
+      // Show PC states in stats bar for debugging
+      const states = pcEntries.map(([k,pc]) => k.substring(0,6) + ':' + pc.connectionState).join(' ');
+      const stateEl = document.getElementById('stream-stat-bitrate');
+      if (stateEl && pcEntries.length > 0) stateEl.title = 'PCs: ' + states;
       if (pcs.length === 0) return;
       // Use the first PC for codec/resolution info, aggregate bandwidth
       let totalBytesSent = 0, totalPacketsSent = 0, totalPacketsLost = 0;
@@ -6937,6 +6943,7 @@
       el('sm-rtt').textContent = rtt ? (rtt * 1000).toFixed(0) + ' ms' : '--';
       el('sm-jitter').textContent = jitter ? (jitter * 1000).toFixed(1) + ' ms' : '--';
       el('sm-total').textContent = formatBytes(totalBytesSent);
+      el('sm-connections').textContent = pcCount + '/' + pcs.length + ' (' + states + ')';
     }
 
     async function viewerCollectMetrics() {
