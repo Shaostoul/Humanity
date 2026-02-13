@@ -41,22 +41,38 @@ The first-time player experience. No menus, no tutorials, no text walls. Pure ci
 - Camera follows the fleet as Earth (scarred, but still there) shrinks to a point of light
 - **Feeling: determination, hope, scale**
 
-### Act 4: The Awakening (~15 seconds)
+### Act 4: The Awakening (~30 seconds)
 - **Sudden cut to black**
-- Sound of breathing. A heartbeat.
-- Eyes open — back on the deck at Mount Rainier
-- Morning light. Birds chirping. Coffee steam rising.
-- The player looks at their wrist device / pulls up the Map
+- Sound of breathing. A heartbeat. A low hum — the ship's reactor.
+- Eyes open — player is in their quarters aboard **Humanity 1**, the mothership
+- Through the viewport: stars. The gentle curve of a habitat ring. Distant nebula.
+- A chime sounds — a shuttle is approaching
+- Player looks out the window: a small craft glides in and docks at their **private landing port**
+- The docking clamps engage. Hiss of pressurization.
+- The player pulls up their wrist device / holographic Map
 - **Earth Status: 🟢 Healthy**
-- Everything is fine. It was a dream.
-- But the dream was a warning.
-- **Feeling: relief, purpose, motivation**
+- It was a dream. Earth is fine. They're already among the stars.
+- The calamity hasn't happened. Maybe it never will — if they build well enough.
+- **Feeling: relief, awe, purpose**
 
 ### Act 5: The Game Begins
-- The map opens (Astral Projection activates naturally)
-- A gentle prompt: *"Good morning. What would you like to build today?"*
+- The quarters door opens — the ship's corridor stretches ahead
+- Through windows: the interior of Humanity 1 — a multi-kilometer vessel with residential towers, greenspace, rail cars, market districts
+- A gentle prompt from the ship's AI: *"Good morning. The fleet awaits your direction. What would you like to build today?"*
 - The full game interface reveals itself
-- The player is home. The real work begins.
+- The player steps out into their ship. The real work begins.
+
+### Setting: Humanity 1
+- A generation ship — multi-kilometer scale
+- Residential towers with private quarters (player's home)
+- Private landing ports for personal shuttles
+- Rail car transport system between sections
+- Market districts with kiosks (links to the Marketplace)
+- Greenspace and agriculture sections (links to Garden Tracker)
+- Command deck with the Map (Astral Projection)
+- Engineering sections (crafting, Skill DNA)
+- Observatory dome (Sky View / Stargazer)
+- The fleet consists of multiple ships — other players' servers are other ships
 
 ## Technical Notes
 
