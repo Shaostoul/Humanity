@@ -4203,9 +4203,15 @@
             console.log('[STREAM-DEBUG] system msg:', msg.message.substring(0, 60));
             if (msg.message.startsWith('__stream_viewer_ready__:')) {
               const viewerKey = msg.message.slice('__stream_viewer_ready__:'.length);
-              console.log('[STREAM-DEBUG] viewer ready:', viewerKey.substring(0, 16), 'isLive:', streamIsLive, 'hasComposite:', !!streamCompositeStream);
+              const dbg = '[OFFER] viewer=' + viewerKey.substring(0,8) + ' live=' + streamIsLive + ' composite=' + !!streamCompositeStream;
+              console.log(dbg);
+              // Visual debug on streamer stats bar
+              const statBar = document.getElementById('stream-stats-bar');
+              if (statBar) statBar.insertAdjacentHTML('beforeend', '<span style="color:#0f0;font-size:0.7rem;">' + dbg + '</span>');
               if (streamIsLive && streamCompositeStream) {
                 streamCreateOfferForViewer(viewerKey);
+              } else {
+                if (statBar) statBar.insertAdjacentHTML('beforeend', '<span style="color:red;font-size:0.7rem;">SKIP: not live or no composite</span>');
               }
             }
           }
@@ -6685,7 +6691,10 @@
     const streamViewerPCs = {};
 
     function streamCreateOfferForViewer(viewerKey) {
-      console.log('[STREAM-DEBUG] creating offer for viewer:', viewerKey.substring(0, 16), 'tracks:', streamCompositeStream ? streamCompositeStream.getTracks().length : 0);
+      const trackCount = streamCompositeStream ? streamCompositeStream.getTracks().length : 0;
+      console.log('[STREAM-DEBUG] creating offer for viewer:', viewerKey.substring(0, 16), 'tracks:', trackCount);
+      const statBar = document.getElementById('stream-stats-bar');
+      if (statBar) statBar.insertAdjacentHTML('beforeend', '<span style="color:#0f0;font-size:0.7rem;">OFFER tracks=' + trackCount + '</span>');
       // Close existing connection to this viewer if any
       if (streamViewerPCs[viewerKey]) { streamViewerPCs[viewerKey].close(); }
       const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
@@ -6714,7 +6723,9 @@
 
     function streamHandleSignaling(msg) {
       // For viewer: handle offer from streamer
+      console.log('[STREAM-DEBUG] signaling:', msg.type, 'from:', msg.from ? msg.from.substring(0,8) : 'none');
       if (msg.type === 'stream_offer' && !streamIsLive) {
+        console.log('[STREAM-DEBUG] RECEIVED OFFER, creating answer');
         const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         streamViewerPC = pc;
         pc.ontrack = (e) => {
