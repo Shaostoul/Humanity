@@ -1130,7 +1130,7 @@
       #tab-streams .stream-preview { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
       #tab-streams .stream-preview canvas,
       #tab-streams .stream-preview video { width:100%; height:100%; object-fit:contain; }
-      #tab-streams .pip-overlay { position:absolute; border:2px solid rgba(153,102,255,0.6); border-radius:6px; cursor:move; z-index:2; overflow:hidden; }
+      #tab-streams .pip-overlay { position:absolute; width:0; height:0; overflow:hidden; pointer-events:none; opacity:0; }
       #tab-streams .pip-overlay video { width:100%; height:100%; object-fit:cover; }
       #tab-streams .stream-stats { display:flex; gap:1rem; flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted); margin:0.6rem 0; }
       #tab-streams .stream-stats span { display:flex; align-items:center; gap:0.3rem; }
@@ -6415,7 +6415,6 @@
           streamWebcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
           const pipVid = document.getElementById('pip-webcam-video');
           pipVid.srcObject = streamWebcamStream;
-          overlay.style.display = 'block';
           if (!streamCompositeAnimFrame) streamStartCompositing();
         } catch (e) {
           cb.checked = false;
@@ -6423,7 +6422,6 @@
         }
       } else {
         if (streamWebcamStream) { streamWebcamStream.getTracks().forEach(t => t.stop()); streamWebcamStream = null; }
-        overlay.style.display = 'none';
         document.getElementById('pip-webcam-video').srcObject = null;
       }
     }
