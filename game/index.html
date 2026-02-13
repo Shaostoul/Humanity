@@ -2924,41 +2924,42 @@
     const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
     const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
 
+    const API_BASE = 'https://united-humanity.us';
+
     function boardConnect() {
-      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-      boardWs = new WebSocket(proto + '//' + location.host + '/ws');
-      boardWs.onopen = () => {
-        // Try to identify with stored key
-        const storedKey = localStorage.getItem('humanity_key');
-        const storedName = localStorage.getItem('humanity_name');
-        if (storedKey) {
-          boardMyKey = storedKey;
-          boardWs.send(JSON.stringify({ type: 'identify', public_key: storedKey, display_name: storedName || null }));
-        } else {
-          // Generate ephemeral key for read-only
-          boardMyKey = 'viewer_' + Math.random().toString(36).slice(2, 10);
-          boardWs.send(JSON.stringify({ type: 'identify', public_key: boardMyKey, display_name: null }));
+      // Always try REST API first (reliable, works everywhere)
+      fetch(API_BASE + '/api/tasks').then(r => r.json()).then(data => {
+        if (data.tasks && data.tasks.length > 0) {
+          boardTasks = data.tasks;
+          renderBoard();
         }
-      };
-      boardWs.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          handleBoardMessage(msg);
-        } catch {}
-      };
-      boardWs.onclose = () => { setTimeout(boardConnect, 3000); };
-      boardWs.onerror = () => {};
-      // Fallback: if tasks don't load via WS within 3s, fetch via REST API
-      setTimeout(() => {
-        if (boardTasks.length === 0) {
-          fetch('/api/tasks').then(r => r.json()).then(data => {
-            if (data.tasks && data.tasks.length > 0 && boardTasks.length === 0) {
-              boardTasks = data.tasks;
-              renderBoard();
-            }
-          }).catch(() => {});
-        }
-      }, 3000);
+      }).catch(e => console.warn('Board REST fetch failed:', e));
+
+      // Also connect WebSocket for real-time updates
+      try {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = location.host || 'united-humanity.us';
+        boardWs = new WebSocket(proto + '//' + host + '/ws');
+        boardWs.onopen = () => {
+          const storedKey = localStorage.getItem('humanity_key');
+          const storedName = localStorage.getItem('humanity_name');
+          if (storedKey) {
+            boardMyKey = storedKey;
+            boardWs.send(JSON.stringify({ type: 'identify', public_key: storedKey, display_name: storedName || null }));
+          } else {
+            boardMyKey = 'viewer_' + Math.random().toString(36).slice(2, 10);
+            boardWs.send(JSON.stringify({ type: 'identify', public_key: boardMyKey, display_name: null }));
+          }
+        };
+        boardWs.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            handleBoardMessage(msg);
+          } catch {}
+        };
+        boardWs.onclose = () => { setTimeout(boardConnect, 5000); };
+        boardWs.onerror = () => {};
+      } catch (e) { console.warn('Board WS failed:', e); }
     }
 
     function handleBoardMessage(msg) {

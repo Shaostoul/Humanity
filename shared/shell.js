@@ -159,7 +159,7 @@
     .site-footer .footer-links a:hover { color: #FF8811; }
     .footer-toggle {
       position: absolute;
-      top: -24px;
+      top: -20px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(13, 13, 13, 0.95);
@@ -168,8 +168,9 @@
       border-radius: 8px 8px 0 0;
       color: #888;
       cursor: pointer;
-      padding: 2px 16px;
+      padding: 1px 16px;
       font-size: 0.7rem;
+      line-height: 1;
       z-index: 101;
     }
     .footer-toggle:hover { color: #FF8811; }
