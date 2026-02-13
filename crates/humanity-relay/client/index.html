@@ -3378,6 +3378,18 @@ function getPeerEcdhPublic(peerKey) {
           // Update last-seen to the newest message timestamp.
           const newest = data.messages[data.messages.length - 1];
           if (newest) localStorage.setItem('humanity_last_seen', String(newest.timestamp));
+
+          // Scroll: if there's a "New messages" divider, scroll to it; otherwise scroll to bottom.
+          const messagesDiv = document.getElementById('messages');
+          const newDivider = messagesDiv.querySelector('.new-messages-divider');
+          if (newDivider) {
+            newDivider.scrollIntoView({ behavior: 'instant', block: 'center' });
+          } else {
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          }
+        } else {
+          // No history — ensure we're at bottom for new messages.
+          document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
         }
       } catch (e) {
         console.warn('Failed to load history:', e);
