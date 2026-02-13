@@ -4314,16 +4314,7 @@
           if (msg.type && msg.type.startsWith('stream_')) {
             streamHandleMessage(msg);
           }
-          // Handle stream viewer ready notification (streamer creates WebRTC offer)
-          // Relay converts Private→System, so check msg.type === 'system'
-          if (msg.type === 'system' && msg.message) {
-            if (msg.message.startsWith('__stream_viewer_ready__:')) {
-              const viewerKey = msg.message.slice('__stream_viewer_ready__:'.length);
-              if (streamIsLive && streamCompositeStream) {
-                streamCreateOfferForViewer(viewerKey);
-              }
-            }
-          }
+          // (stream_viewer_ready via Private/System removed — using direct stream_offer request instead)
           // Handle skill verification messages via Private/system
           if (msg.type === 'private' && msg.message) {
             if (msg.message.startsWith('__skill_verify_req__:')) {
@@ -7155,7 +7146,7 @@
       // Close existing connection to this viewer
       streamCleanupViewerPC(viewerKey);
 
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' }] });
       streamViewerPCs[viewerKey] = pc;
       streamPeerConnection = pc;
 
@@ -7207,10 +7198,17 @@
 
       // Viewer: handle offer from streamer
       if (msg.type === 'stream_offer' && !streamIsLive && msg.data && msg.data.type !== 'request') {
-        // Close previous viewer PC (fixes retry bug)
-        if (streamViewerPC) { streamViewerPC.close(); streamViewerPC = null; }
+        // Close previous viewer PC (fixes retry + duplicate offer bug)
+        if (streamViewerPC) {
+          if (streamViewerPC.connectionState === 'connecting' || streamViewerPC.connectionState === 'connected') {
+            // Already handling an offer, skip duplicate
+            return;
+          }
+          streamViewerPC.close();
+          streamViewerPC = null;
+        }
 
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+        const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' }] });
         streamViewerPC = pc;
         pc.ontrack = (e) => {
           document.getElementById('viewer-video').srcObject = e.streams[0];
