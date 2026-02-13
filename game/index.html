@@ -4168,7 +4168,14 @@
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       marketWs = new WebSocket(proto + '//' + location.host + '/ws');
       marketWs.onopen = () => {
-        const storedKey = localStorage.getItem('humanity_key');
+        let storedKey = localStorage.getItem('humanity_key');
+        // Also check the Ed25519 key backup (set by chat client's crypto.js)
+        if (!storedKey) {
+          try {
+            const backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
+            if (backup && backup.publicKeyHex) storedKey = backup.publicKeyHex;
+          } catch(e) {}
+        }
         const storedName = localStorage.getItem('humanity_name');
         if (storedKey) {
           marketMyKey = storedKey;
