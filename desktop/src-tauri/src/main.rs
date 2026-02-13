@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::Manager;
+use tauri_plugin_updater::UpdaterExt;
 
 fn main() {
     tauri::Builder::default()
@@ -14,13 +15,19 @@ fn main() {
             // Check for updates in the background
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // Wait a few seconds before checking
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                if let Ok(updater) = handle.updater().check().await {
-                    if let Some(update) = updater {
-                        // Download and install silently
-                        let _ = update.download_and_install(|_, _| {}, || {}).await;
+                match handle.updater() {
+                    Ok(updater) => {
+                        if let Ok(Some(update)) = updater.check().await {
+                            let _ = update.download_and_install(
+                                |downloaded, total| {
+                                    let _ = (downloaded, total);
+                                },
+                                || {},
+                            ).await;
+                        }
                     }
+                    Err(e) => eprintln!("Updater error: {e}"),
                 }
             });
 
