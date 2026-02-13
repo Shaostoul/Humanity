@@ -82,6 +82,19 @@ async fn main() {
 
     let state = Arc::new(RelayState::new(db));
 
+    // Federation Phase 2: start outbound connections to verified federated servers.
+    {
+        let fed_state = state.clone();
+        tokio::spawn(async move {
+            // Small delay to let the server finish starting.
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            let count = relay::start_federation_connections(&fed_state).await;
+            if count > 0 {
+                tracing::info!("Federation: initiated connections to {} servers", count);
+            }
+        });
+    }
+
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .route("/health", get(health))

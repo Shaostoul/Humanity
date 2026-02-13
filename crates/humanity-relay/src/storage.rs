@@ -425,6 +425,14 @@ impl Storage {
             info!("Migration: added label column to registered_names");
         }
 
+        // Migration: add federated column to channels for federation phase 2.
+        if conn.prepare("SELECT federated FROM channels LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN federated INTEGER DEFAULT 0;"
+            )?;
+            info!("Migration: added federated column to channels");
+        }
+
         // Follows table (social system).
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS follows (
@@ -2349,6 +2357,39 @@ impl Storage {
             params![name, public_key, accord_compliant as i32, now, server_id],
         )?;
         Ok(rows > 0)
+    }
+
+    // ── Channel Federation methods ──
+
+    /// Mark a channel as federated (or un-federate it).
+    pub fn set_channel_federated(&self, channel_id: &str, federated: bool) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let rows = conn.execute(
+            "UPDATE channels SET federated = ?1 WHERE id = ?2",
+            params![federated as i32, channel_id],
+        )?;
+        Ok(rows > 0)
+    }
+
+    /// Check if a channel is federated.
+    pub fn is_channel_federated(&self, channel_id: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let val: i32 = conn.query_row(
+            "SELECT COALESCE(federated, 0) FROM channels WHERE id = ?1",
+            params![channel_id],
+            |row| row.get(0),
+        ).unwrap_or(0);
+        Ok(val != 0)
+    }
+
+    /// Get all federated channel IDs.
+    pub fn get_federated_channels(&self) -> Result<Vec<String>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT id FROM channels WHERE federated = 1")?;
+        let ids = stmt.query_map([], |row| row.get(0))?
+            .filter_map(|r| r.ok())
+            .collect();
+        Ok(ids)
     }
 
     // ── Voice Channel methods ──

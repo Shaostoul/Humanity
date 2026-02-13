@@ -43,3 +43,4 @@ futures = "0.3"
 rand = "0.9"
 regex = "1"
 url = "2"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }

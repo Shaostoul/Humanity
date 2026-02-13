@@ -2257,6 +2257,25 @@
       width: 100%;
     }
     .status-clear-btn:hover { color: var(--text); border-color: var(--text-muted); }
+
+    /* Federation Phase 2 styles */
+    .fed-badge {
+      display: inline-block;
+      background: #5865f2;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: 3px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .federated-msg { border-left: 2px solid #5865f2; padding-left: 8px; }
+    .fed-icon { font-size: 0.75rem; margin-left: 2px; opacity: 0.7; }
+    .fed-server-status { display: flex; align-items: center; gap: 6px; padding: 2px 8px; font-size: 0.8rem; }
+    .fed-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .fed-dot.connected { background: #57f287; }
+    .fed-dot.disconnected { background: #ed4245; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
   <style>
@@ -3556,6 +3575,25 @@ function getPeerEcdhPublic(peerKey) {
           }
           break;
         }
+        case 'federated_chat': {
+          // Cross-server federated message — display with server badge.
+          const fedChannel = msg.channel || 'general';
+          if (fedChannel !== activeChannel) return;
+          const fedKey = 'fed:' + msg.server_id + ':' + msg.timestamp;
+          if (seenTimestamps.has(fedKey)) return;
+          seenTimestamps.add(fedKey);
+          const badgeHtml = `<span class="fed-badge" title="From ${esc(msg.server_name)}">[${esc(msg.server_name)}]</span> `;
+          const fedAuthor = badgeHtml + esc(msg.from_name);
+          addChatMessage(fedAuthor, msg.content, msg.timestamp, 'fed:' + msg.server_id, false, !!msg.signature, null, null, true);
+          break;
+        }
+        case 'federation_status': {
+          // Update federation server connection states.
+          if (msg.servers && typeof updateFederationStatus === 'function') {
+            updateFederationStatus(msg.servers);
+          }
+          break;
+        }
         case 'peer_joined':
           // Update peerData with new peer info — sidebar handles visibility.
           peerData[msg.public_key] = { public_key: msg.public_key, display_name: msg.display_name, role: msg.role || '', ecdh_public: msg.ecdh_public || null };
@@ -3874,18 +3912,19 @@ function getPeerEcdhPublic(peerKey) {
     }
 
     // ── Rendering ──
-    function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount) {
+    function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated) {
       // Skip messages from blocked users entirely.
       if (author && isBlocked(author)) return;
 
       const el = document.createElement('div');
-      el.className = 'message';
+      el.className = 'message' + (isFederated ? ' federated-msg' : '');
       el.dataset.from = fromKey;
       el.dataset.timestamp = timestamp;
 
       const time = formatTime(timestamp);
       const isMe = fromKey === myKey;
       const isBot = fromKey && fromKey.startsWith('bot_');
+      const isFed = fromKey && fromKey.startsWith('fed:');
 
       let authorClass = '';
       if (isMe) {
@@ -3957,7 +3996,7 @@ function getPeerEcdhPublic(peerKey) {
         ${replyIndicatorHtml}
         <div class="meta">
           ${identiconHtml}
-          <span class="author${authorClass}" data-username="${esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${esc(author)}</span>${badge}
+          <span class="author${authorClass}" data-username="${isFed ? '' : esc(author)}" data-pubkey="${esc(fromKey)}" style="cursor:pointer;">${isFed ? author : esc(author)}</span>${badge}
           ${sigBadge}
           <span class="time">${time}</span>
         </div>
@@ -4222,7 +4261,8 @@ function getPeerEcdhPublic(peerKey) {
         const isActive = ch.id === activeChannel && !activeDmPartner;
         const title = ch.description ? ` title="${esc(ch.description)}"` : '';
         const lock = ch.read_only ? ' 🔒' : '';
-        return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}</div>`;
+        const fedIcon = ch.federated ? '<span class="fed-icon" title="Federated">🌐</span>' : '';
+        return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}${fedIcon}</div>`;
       }).join('');
       if (window.twemoji) twemoji.parse(list);
       // Re-apply unread dots after re-rendering.
@@ -6447,7 +6487,8 @@ function getPeerEcdhPublic(peerKey) {
           html += '<div style="padding:0.3rem 0.5rem 0.1rem;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Federation</div>';
           for (const s of federatedServers) {
             const tierBadge = s.trust_tier === 3 ? '🟢' : s.trust_tier === 2 ? '🟡' : s.trust_tier === 1 ? '🔵' : '⚪';
-            const statusDot = s.status === 'online' ? '🟢' : s.status === 'unreachable' ? '⚫' : '🟡';
+            const fedLive = (window._federationStatus || {})[s.server_id];
+            const statusDot = (fedLive && fedLive.connected) ? '🟢' : s.status === 'online' ? '🟡' : s.status === 'unreachable' ? '🔴' : '⚫';
             html += `<div class="server-group" data-server="${esc(s.name)}">
               <div class="server-group-header" data-federated-url="${esc(s.url)}" title="Tier ${s.trust_tier} — ${esc(s.status)}\n${esc(s.url)}">
                 <span>${statusDot} ${tierBadge} ${esc(s.name)}</span>
@@ -6469,6 +6510,15 @@ function getPeerEcdhPublic(peerKey) {
         if (typeof renderUnreadDots === 'function') renderUnreadDots();
       }
       window.renderServerList = renderServerList;
+
+      // Federation Phase 2: track live connection status.
+      window._federationStatus = {};
+      window.updateFederationStatus = function(servers) {
+        for (const s of servers) {
+          window._federationStatus[s.server_id] = s;
+        }
+        renderServerList();
+      };
       window.switchSidebarTab = switchSidebarTab;
 
       // Prompt to add a federated server via /server-add command.
