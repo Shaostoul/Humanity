@@ -3604,6 +3604,7 @@
             if (me) {
               marketMyRole = me.role || '';
               marketMyName = me.display_name || marketMyName;
+              if (me.upload_token) localStorage.setItem('humanity_upload_token', me.upload_token);
             }
           }
           updateMarketPermissions();
@@ -3739,6 +3740,22 @@
           ${l.payment_methods ? `<div>💳 ${escHtml(l.payment_methods)}</div>` : '<div></div>'}
           <div>📅 ${l.created_at ? new Date(l.created_at).toLocaleDateString() : 'Unknown'}</div>
         </div>
+        ${l.category === '3D Models' ? `
+        <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:0.8rem;margin-top:0.8rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+            <span style="font-size:1.5rem;">🧊</span>
+            <span style="font-weight:600;color:var(--text);">3D Model</span>
+          </div>
+          ${(() => {
+            const descLower = (l.description||'').toLowerCase();
+            const formats = ['blend','stl','obj','gltf','glb'].filter(f => descLower.includes(f));
+            const urlMatch = (l.description||'').match(/\/uploads\/[^\s]+/);
+            return `
+              ${formats.length ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">Format: ${formats.map(f=>f.toUpperCase()).join(', ')}</div>` : ''}
+              ${urlMatch ? `<a href="${escHtml(urlMatch[0])}" download style="display:inline-block;padding:0.4rem 1rem;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.8rem;font-weight:600;margin-top:0.3rem;">⬇️ Download Model</a>` : ''}
+            `;
+          })()}
+        </div>` : ''}
         ${contactBtn}
         ${isMine || isAdmin ? `
         <div style="display:flex;gap:0.5rem;margin-top:0.8rem;">
