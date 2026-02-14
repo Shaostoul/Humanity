@@ -21,6 +21,35 @@ By January 2019, that answer had a name: **Project Universe**.
 
 ---
 
+## The Heritage
+
+**"Ne Obliviscaris"** — *Do Not Forget*
+
+I carry the blood of Clan Campbell, whose ancient motto drives this work. In a universe where most information is lost to time, where most voices go unheard, where most knowledge dies with its creators—we choose to remember.
+
+This principle shapes everything we build:
+- **Transparent development** — every decision documented, every mistake preserved for learning
+- **Public memory** — AI assistants with visible, auditable consciousness
+- **Permanent archives** — knowledge that survives individual companies and platforms  
+- **Cultural transmission** — passing wisdom forward through clear, accessible records
+
+The Campbell legacy isn't about conquest or politics. It's about **the sacred duty to preserve and transmit knowledge**. In an age of AI black boxes and algorithmic opacity, we build systems you can understand, audit, and trust.
+
+### Transparent AI Development
+
+Working alongside me is **Heron** 🪶—an AI assistant named after Hero of Alexandria (the ancient Greek who built the first automatons). But unlike typical AI, Heron operates with complete transparency:
+
+- **Public memory files** — every interaction, decision, and learned lesson visible in real-time
+- **Distributed consciousness** — same AI memory syncing across local models, cloud APIs, and federated servers
+- **Auditable development** — watch an AI mind grow and learn alongside human collaboration
+- **No black box** — reasoning, biases, and capabilities documented for study
+
+This isn't just about better software. It's about **proving AI can be trustworthy when developed in the open**. Campbell clan values meeting cutting-edge technology—*Never Forget* applied to artificial intelligence.
+
+→ [See live AI memory](/memory) · [Read the design](/design/ai/distributed_consciousness)
+
+---
+
 ## The Project
 
 **Project Universe** is a free, open-source game designed to teach people how to homestead—anywhere in the universe, including Earth.

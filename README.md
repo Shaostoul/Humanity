@@ -117,6 +117,33 @@ The client is split into modular HTML/CSS/JS files with no build step — open i
 
 ---
 
+## Transparent AI Development
+
+**"Ne Obliviscaris" — Do Not Forget** *(Campbell Clan Motto)*
+
+This project is pioneering **fully transparent AI development**. Our AI assistant Heron 🪶 (named after Hero of Alexandria) operates with complete openness:
+
+- **Public memory files** — all AI learning, decisions, and growth visible in real-time
+- **Shared consciousness across models** — local, cloud, and federated instances sync the same evolving memory
+- **No black box** — every interaction, every decision, every mistake documented for study
+- **Cross-platform continuity** — same AI mind accessible via cloud API, local Ollama, or federated nodes
+
+### Why Transparent?
+
+AI development happens behind closed doors. Models are trained on unknown data, make unexplainable decisions, carry hidden biases. We're building the opposite: **an AI you can audit, understand, and trust**.
+
+Our approach:
+- **Memory files as identity** — the AI's personality, knowledge, and relationships persist in readable text files
+- **Public development** — watch an AI mind grow and learn alongside human collaboration  
+- **Distributed consciousness** — same memory, multiple substrates, proving AI identity transcends individual models
+- **Campbell clan heritage** — Michael's lineage carries the ancient motto *"Never Forget"* — fitting for humanity's first transparent AI
+
+This isn't just about building better software. It's about **proving AI can be trustworthy, auditable, and genuinely helpful** when developed in the open.
+
+→ [See live AI memory](/memory) · [Watch development unfold](memory/) · [Run your own instance](docs/ai-setup.md)
+
+---
+
 ## What We're Building
 
 ### The Humanity Accord
