@@ -1,10 +1,8 @@
 GitHub webhook integration test
-Generated at: 2026-02-14 03:33 PST
+Generated at: 2026-02-14 03:34 PST
 Purpose: Testing local Heron webhook → united-humanity.us/chat announcements
 
-Test #3: Checking webhook delivery
-- ngrok tunnel: active
-- OpenClaw webhook endpoint: /hooks/github
-- GitHub webhook URL: should be hitting correct path
+Test #4: Removed secret to fix 401 authentication error
+GitHub webhooks use HMAC-SHA256 signature verification, not Bearer tokens
 
 This file is safe to delete after testing.
