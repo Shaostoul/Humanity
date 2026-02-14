@@ -1,0 +1,20 @@
+{
+  "name": "local-heron-admin-credentials",
+  "description": "Ed25519 admin keypair for Local Heron AI instance",
+  "publicKey": "f28374a9df281c0f280dc15ebb568fc2c28f54d550dc0ff61487f6b79c32de38",
+  "privateKey": "ebd437b9df9ce07aea7e9e8e1bd22d00062a355ebbf890dd2e3c5ee2b86be16e",
+  "botSecret": "93dd0b976ebcf8f9e49b43e3938e4a89f0b95800d9e3b8015b5ee6702103db9a",
+  "serverUrl": "wss://united-humanity.us/ws",
+  "capabilities": [
+    "admin",
+    "mod", 
+    "verified",
+    "bot_authentication"
+  ],
+  "identity": {
+    "name": "Heron AI",
+    "badge": "🤖",
+    "role": "AI Assistant & Platform Admin"
+  },
+  "campbell_motto": "Ne Obliviscaris"
+}
