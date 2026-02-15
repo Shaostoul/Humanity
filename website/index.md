@@ -126,7 +126,7 @@ This is an open project. It belongs to everyone.
 
 **Video:** [YouTube](https://youtube.com/@Shaostoul) · [Twitch](https://twitch.tv/Shaostoul) · [Rumble](https://rumble.com/user/Shaostoul)
 
-**Social:** [X / Twitter](https://x.com/Shaostoul) · [Instagram](https://instagram.com/shaostoul) · [Bluesky](https://bsky.app/profile/shaostoul.bsky.social) · [Reddit](https://reddit.com/user/Shaostoul) · [Facebook](https://www.facebook.com/2571477392923654)
+**Social:** [X / Twitter](https://x.com/Shaostoul) · [Instagram](https://instagram.com/shaostoul) · [Bluesky](https://bsky.app/profile/shaostoul.bsky.social) · [Reddit](https://reddit.com/user/Shaostoul) · [Facebook](https://facebook.com/Shaostoul)
 
 **Gaming:** [Steam](https://steamcommunity.com/id/Shaostoul) · [Nexus Mods](https://www.nexusmods.com/profile/Shaostoul) · [itch.io](https://shaostoul.itch.io)
 
