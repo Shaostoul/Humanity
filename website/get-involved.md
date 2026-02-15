@@ -84,7 +84,7 @@ Find us everywhere — follow, share, and help spread the word.
 
 **Social:**
 - 𝕏 [X / Twitter](https://x.com/Shaostoul) · 📷 [Instagram](https://instagram.com/shaostoul) · 🔵 [Bluesky](https://bsky.app/profile/shaostoul.bsky.social)
-- 🟠 [Reddit](https://reddit.com/user/Shaostoul) · 👤 [Facebook](https://www.facebook.com/2571477392923654)
+- 🟠 [Reddit](https://reddit.com/user/Shaostoul) · 👤 [Facebook](https://facebook.com/Shaostoul)
 
 **Gaming:**
 - 🎮 [Steam](https://steamcommunity.com/id/Shaostoul) · 🎯 [Nexus Mods](https://www.nexusmods.com/profile/Shaostoul) · 🕹️ [itch.io](https://shaostoul.itch.io)

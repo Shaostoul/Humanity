@@ -19,10 +19,11 @@ The chat and hub are **operational and in daily use** at [united-humanity.us/cha
 
 ### Communication
 - ✅ Channels (public rooms)
-- ✅ Direct messages (friend requirement for privacy)
+- ✅ E2E encrypted DMs — ECDH P-256 + AES-256-GCM, server never sees plaintext
 - ✅ Groups (private group conversations)
-- ✅ Voice chat — WebRTC P2P 1-on-1 calls
-- ✅ Persistent voice channels — always-on rooms
+- ✅ Voice & video calling — WebRTC P2P with camera, screen share, PiP, camera selection
+- ✅ Persistent voice channels — always-on WebRTC mesh rooms
+- ✅ Message search — full-text search across conversations
 - ✅ @mentions, persistent emoji reactions, message editing
 - ✅ Image sharing and file uploads
 - ✅ Browser notifications with 6 sound options
@@ -30,18 +31,23 @@ The chat and hub are **operational and in daily use** at [united-humanity.us/cha
 
 ### Social System
 - ✅ Follow/friend system (mutual follow = friends)
+- ✅ Friend codes — 8-character codes, 24-hour expiry, auto-mutual-follow
 - ✅ User profiles with bio and social links
 - ✅ Identicons (generated avatars)
+- ✅ Device management — list, label, and revoke linked keys
 - ✅ Blocking and reporting
 
-### Hub Tools
+### Hub Tools (11 tabs total)
 - ✅ Project board (kanban task management)
-- ✅ Marketplace (P2P listings)
+- ✅ Marketplace — P2P listings, kiosks, 3D model subcategories, donation pricing
+- ✅ Asset library — file upload (drag-drop), browse by category, grid/list views, tags, search, preview modal
 - ✅ Universal catalog (elements, materials, processing chains)
+- ✅ Browse tab — web directory with 52 sites, Tranco ranks, RDAP, uptime pings, collections
+- ✅ Dashboard tab — 10 widget types, customizable drag-and-drop layout
 - ✅ Personal inventory tracker
 - ✅ Notes (private)
 - ✅ Todos (personal task lists)
-- ✅ Garden tracker
+- ✅ Garden tracker v2 — 5 growing methods, 12 metrics, optimal ranges
 
 ### Game & Creative
 - ✅ Fantasy tab — character sheet, lore, world map, achievements
@@ -51,13 +57,16 @@ The chat and hub are **operational and in daily use** at [united-humanity.us/cha
 ### Platform & Security
 - ✅ Cryptographic identity (Ed25519) — no accounts, no passwords
 - ✅ Key backup/export/import
-- ✅ Auto-sync user data to server
+- ✅ Encrypted user data sync — AES-256-GCM derived from private key
 - ✅ PWA — installable on mobile
+- ✅ Desktop app — Tauri v2 with auto-updater (Windows, macOS ARM64 + x64, Linux)
 - ✅ Settings panel — accent colors, font size, themes
 - ✅ Command palette
+- ✅ Auto-reload on deploy, auto-login
 - ✅ Admin/mod tools, lockdown, invite codes
 - ✅ Rate limiting, upload validation, CSP headers, TLS 1.2+, HSTS
 - ✅ Server federation Phase 1 — discovery, trust tiers
+- ✅ Federation Phase 2 — server-to-server WebSocket with Ed25519 handshake
 
 ### Documentation
 - ✅ Humanity Accord (civilizational framework)
@@ -68,26 +77,20 @@ The chat and hub are **operational and in daily use** at [united-humanity.us/cha
 
 ## In Progress
 
-- 🔄 **Reconnect loop fix** — intermittent connection cycling on some clients. Top priority.
-- 🔄 **Voice/Video calling** — voice works, video support being added
-- 🔄 **Federation Phase 2** — server-to-server messaging
+- 🔄 **Local AI integration** — Ollama setup for client-side AI hosting
+- 🔄 **Native game client** — Rust-based first-person client development
+- 🔄 **Platform optimization** — performance improvements and token efficiency
 
 ---
 
 ## What's Planned
 
-- ⏳ E2E encrypted DMs (X25519 + XChaCha20-Poly1305)
-- ⏳ Desktop app (Tauri — Windows/Mac/Linux)
-- ⏳ Video calls
-- ⏳ Actual WebRTC streaming (peer-assisted mesh)
-- ⏳ Client file split (separate HTML/CSS/JS for CSP hardening)
-- ⏳ Encrypted user data sync
-- ⏳ Asset library system
-- ⏳ 3D model marketplace
 - ⏳ Native game client (Rust)
 - ⏳ P2P game distribution via GitHub Releases
 - ⏳ In-game commerce (virtual mall with real retailer kiosks)
 - ⏳ Payment processing (Stripe Connect or crypto)
+- ⏳ Content-addressed file sharing
+- ⏳ Local AI integration (Ollama)
 
 ---
 

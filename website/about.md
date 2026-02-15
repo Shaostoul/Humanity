@@ -46,7 +46,7 @@ Working alongside me is **Heron** 🪶—an AI assistant named after Hero of Ale
 
 This isn't just about better software. It's about **proving AI can be trustworthy when developed in the open**. Campbell clan values meeting cutting-edge technology—*Never Forget* applied to artificial intelligence.
 
-→ [See live AI memory](/memory) · [Read the design](/design/ai/distributed_consciousness)
+→ [See live AI memory](https://github.com/Shaostoul/Humanity/tree/main/memory) · [Read the design](https://github.com/Shaostoul/Humanity/blob/main/design/ai/distributed_consciousness.md)
 
 ---
 
@@ -161,7 +161,7 @@ That's what I'm here to do.
 - 📷 **Instagram:** [instagram.com/shaostoul](https://instagram.com/shaostoul)
 - 🔵 **Bluesky:** [shaostoul.bsky.social](https://bsky.app/profile/shaostoul.bsky.social)
 - 🟠 **Reddit:** [reddit.com/user/Shaostoul](https://reddit.com/user/Shaostoul)
-- 👤 **Facebook:** [facebook.com/Shaostoul](https://www.facebook.com/2571477392923654)
+- 👤 **Facebook:** [facebook.com/Shaostoul](https://facebook.com/Shaostoul)
 
 ### Gaming
 - 🎮 **Steam:** [steamcommunity.com/id/Shaostoul](https://steamcommunity.com/id/Shaostoul)
