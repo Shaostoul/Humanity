@@ -1,3 +1,5 @@
+# Bittensor Subnet
+
 **Humanity Chat / United Humanity Network as a Bittensor Subnet**  
 **Version 1.0 – February 19, 2026**   
 **With technical synthesis from Grok (xAI)**  
