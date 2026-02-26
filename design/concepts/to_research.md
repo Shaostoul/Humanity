@@ -1,0 +1,7 @@
+- WireGuard for the encrypted tun
+- QUIC/TCP inside the tunnel for reliable transport
+- Signal Protocol/Double Ratchet for msg-level forward secrecy if you need it
+- Tailscale/Headscale or manual config for peer discovery and NAT traversal
+- Tor for metadata
+- reticulum, meshcore, lora and alternative communication mediums which do not rely on the internet.
+- NOSTR
