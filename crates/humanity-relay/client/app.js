@@ -3416,9 +3416,6 @@ var federatedServersFetched = false;
       } else {
         voiceHtml += `<button class="vr-btn vr-join" data-action="vc-join" data-vc-id="${vc.id}">Join</button>`;
       }
-      if (myRoleCh === 'admin' || myRoleCh === 'mod') {
-        voiceHtml += ` <button class="vr-btn vr-delete" data-action="vc-delete" data-vc-id="${vc.id}" style="float:right;color:var(--text-muted);font-size:0.65rem;" title="Delete voice channel">✕</button>`;
-      }
       voiceHtml += '</div></div>';
     }
     if (myRoleCh === 'admin' || myRoleCh === 'mod') {
@@ -3533,9 +3530,6 @@ var federatedServersFetched = false;
         if (vcId) joinVoiceRoom(vcId);
       } else if (action === 'vc-leave') {
         leaveVoiceRoom();
-      } else if (action === 'vc-delete') {
-        const vcId = actionBtn.getAttribute('data-vc-id');
-        if (vcId) deleteVoiceChannel(vcId);
       } else if (action === 'vc-create') {
         createVoiceRoom();
       } else if (action === 'create-text-channel') {
