@@ -2431,8 +2431,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         }
                                         "/channel-delete" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                            if role != "admin" {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can delete channels.".to_string() };
+                                            if role != "admin" && role != "mod" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can delete channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
                                                 let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("");
