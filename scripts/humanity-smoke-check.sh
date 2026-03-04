@@ -26,6 +26,7 @@ check_sync() {
   echo "[smoke] ${label}_sync=ok hash=$repo_hash"
 }
 
+check_sync "/opt/Humanity/crates/humanity-relay/client/index.html" "/var/www/humanity/chat/index.html" "chat_index_html"
 check_sync "/opt/Humanity/crates/humanity-relay/client/app.js" "/var/www/humanity/chat/app.js" "chat_js"
 check_sync "/opt/Humanity/crates/humanity-relay/client/style.css" "/var/www/humanity/chat/style.css" "chat_css"
 check_sync "/opt/Humanity/shared/shell.js" "/var/www/humanity/shared/shell.js" "shared_shell_js"
