@@ -3507,8 +3507,14 @@ var federatedServersFetched = false;
       } else if (action === 'create-text-channel') {
         const name = prompt('Channel name (letters, numbers, dashes, underscores):');
         if (name && name.trim() && ws && ws.readyState === WebSocket.OPEN) {
-          const cmd = '/channel-create ' + name.trim().toLowerCase();
-          ws.send(JSON.stringify({ type: 'chat', content: cmd, timestamp: Date.now(), channel: activeChannel || 'general' }));
+          const normalized = name.trim().replace(/^#/, '').toLowerCase();
+          if (!/^[a-z0-9_-]{1,24}$/.test(normalized)) {
+            addSystemMessage('Invalid channel name. Use 1-24 chars: letters, numbers, dashes, underscores.');
+          } else {
+            const cmd = '/channel-create ' + normalized;
+            // Route admin channel-management commands through #general for consistent server handling.
+            ws.send(JSON.stringify({ type: 'chat', content: cmd, timestamp: Date.now(), channel: 'general' }));
+          }
         }
       }
       return;
