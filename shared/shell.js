@@ -183,10 +183,26 @@
       .hub-nav {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
+        padding: 0 0.4rem;
+        gap: 0.2rem;
+        height: 36px;
+      }
+      .hub-nav .brand {
+        margin-right: 0.35rem;
+        padding: 0.2rem 0.45rem;
+        font-size: 0.95rem;
       }
       .hub-nav .tab {
         white-space: nowrap;
         flex-shrink: 0;
+        height: 24px;
+        padding: 0.2rem 0.5rem;
+        font-size: 0.72rem;
+        gap: 0.25rem;
+      }
+      .hub-nav .tab svg {
+        width: 12px;
+        height: 12px;
       }
     }
   `;
@@ -213,7 +229,7 @@
       '<a href="/download" class="' + cls('download') + '" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">' + dlIcon + ' Download</a>' +
       '<a href="https://github.com/Shaostoul/Humanity" class="tab" onclick="openWebviewTab(\'https://github.com/Shaostoul/Humanity\',\'GitHub\');return false;">' + ghIcon + ' GitHub</a>' +
     '</nav>' +
-    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;display:flex;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
+    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
 

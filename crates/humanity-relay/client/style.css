@@ -1084,6 +1084,55 @@ header h1 {
     padding: 0.4rem 0.5rem;
     min-height: 36px;
   }
+
+  /* Call controls: wrap cleanly on narrow screens */
+  #call-bar {
+    padding: 0.45rem 0.55rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  #call-bar .call-info {
+    width: 100%;
+    font-size: 0.78rem;
+  }
+  #call-bar .call-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+  }
+  #call-bar .call-actions button {
+    width: 100%;
+    min-height: 34px;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.72rem;
+  }
+
+  /* Floating video panel: keep inside viewport on mobile */
+  #video-panel {
+    left: 8px;
+    right: 8px;
+    bottom: 72px;
+    max-width: calc(100vw - 16px);
+    max-height: 48vh;
+    border-radius: 10px;
+  }
+  #video-panel .video-wrapper,
+  #video-panel video {
+    width: 150px;
+    height: 100px;
+  }
+  #video-panel .self-view,
+  #video-panel .self-view video {
+    width: 100px;
+    height: 72px;
+  }
+  #video-panel.single-remote .video-wrapper:not(.self-view),
+  #video-panel.single-remote .video-wrapper:not(.self-view) video {
+    width: min(96vw, 360px);
+    height: min(56vw, 220px);
+  }
 }
 
 /* ── Profile Modals ── */

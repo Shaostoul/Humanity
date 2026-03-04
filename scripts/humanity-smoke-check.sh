@@ -9,16 +9,26 @@ echo "[smoke] checking service health"
 systemctl is-active --quiet "$SERVICE"
 echo "[smoke] service_active=ok"
 
-echo "[smoke] checking runtime/repo js sync"
-REPO_HASH="$(sha256sum "$REPO_JS" | awk '{print $1}')"
-RUNTIME_HASH="$(sha256sum "$RUNTIME_JS" | awk '{print $1}')"
-if [[ "$REPO_HASH" != "$RUNTIME_HASH" ]]; then
-  echo "[smoke] ERROR: web runtime drift detected"
-  echo "[smoke] repo_hash=$REPO_HASH"
-  echo "[smoke] runtime_hash=$RUNTIME_HASH"
-  exit 2
-fi
-echo "[smoke] js_sync=ok hash=$REPO_HASH"
+echo "[smoke] checking runtime/repo asset sync"
+check_sync() {
+  local repo_file="$1"
+  local runtime_file="$2"
+  local label="$3"
+  local repo_hash runtime_hash
+  repo_hash="$(sha256sum "$repo_file" | awk '{print $1}')"
+  runtime_hash="$(sha256sum "$runtime_file" | awk '{print $1}')"
+  if [[ "$repo_hash" != "$runtime_hash" ]]; then
+    echo "[smoke] ERROR: drift detected for $label"
+    echo "[smoke] repo_hash=$repo_hash"
+    echo "[smoke] runtime_hash=$runtime_hash"
+    exit 2
+  fi
+  echo "[smoke] ${label}_sync=ok hash=$repo_hash"
+}
+
+check_sync "/opt/Humanity/crates/humanity-relay/client/app.js" "/var/www/humanity/chat/app.js" "chat_js"
+check_sync "/opt/Humanity/crates/humanity-relay/client/style.css" "/var/www/humanity/chat/style.css" "chat_css"
+check_sync "/opt/Humanity/shared/shell.js" "/var/www/humanity/shared/shell.js" "shared_shell_js"
 
 echo "[smoke] checking command handlers in source"
 SRC="/opt/Humanity/crates/humanity-relay/src/relay.rs"
