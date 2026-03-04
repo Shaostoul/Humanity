@@ -3411,6 +3411,9 @@ var federatedServersFetched = false;
     // Render the active tab's content
     if (tabName === 'servers') renderServerList();
     if (tabName === 'dms') renderDmList();
+    if (typeof renderPresenceSidebarForActiveContext === 'function') {
+      renderPresenceSidebarForActiveContext();
+    }
   }
   window.switchSidebarTab = switchSidebarTab;
 
@@ -4596,6 +4599,7 @@ function openGroup(groupId) {
     ws.send(JSON.stringify({ type: 'group_history_request', group_id: groupId }));
   }
   renderGroupList();
+  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
 }
 
 // When switching to a channel, clear group view
@@ -4604,6 +4608,7 @@ switchChannel = function(channelId) {
   activeGroupId = null;
   activeGroupName = '';
   _origSwitchChannelFollow(channelId);
+  if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
 };
 
 // Helper to add a message to the chat (for groups)
@@ -4968,12 +4973,66 @@ openSocket = function() {
   }
 };
 
-// Add 📞 call buttons to user list
-const _origUpdateUserList = updateUserList;
-updateUserList = function(users) {
-  _origUpdateUserList(users);
-  // Add call buttons to online users (not self, not bots)
+let allUsersSnapshot = [];
+
+function getActiveSidebarTabName() {
+  const el = document.querySelector('#sidebar-tabs .sidebar-tab.active');
+  return el ? el.getAttribute('data-tab') : 'servers';
+}
+
+function renderPresenceSidebarForActiveContext() {
   const peerList = document.getElementById('peer-list');
+  const usersHeader = document.querySelector('#right-sidebar h3');
+  if (!peerList) return;
+
+  const tab = getActiveSidebarTabName();
+
+  if (tab === 'servers') {
+    if (usersHeader) usersHeader.textContent = 'Users';
+    // Re-render normal global list from snapshot.
+    if (Array.isArray(allUsersSnapshot) && allUsersSnapshot.length > 0) {
+      _origUpdateUserList(allUsersSnapshot);
+      addCallButtonsToPeerList();
+      if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
+    }
+    return;
+  }
+
+  if (tab === 'dms') {
+    if (usersHeader) usersHeader.textContent = 'DM Presence';
+    const byKey = new Map((allUsersSnapshot || []).map(u => [u.public_key, u]));
+    if (!dmConversations || dmConversations.length === 0) {
+      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">No DM contacts yet.</div>';
+      return;
+    }
+    const rows = dmConversations.map(c => {
+      const u = byKey.get(c.partner_key);
+      const online = !!(u && u.online);
+      const dot = online ? '🟢' : '⚫';
+      const name = esc(c.partner_name || shortKey(c.partner_key));
+      const unread = c.unread_count ? ` <span style="color:var(--accent);font-size:0.68rem;">(${c.unread_count})</span>` : '';
+      return `<div class="peer" data-pubkey="${esc(c.partner_key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${unread}</div>`;
+    }).join('');
+    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">DM Contacts</div>${rows}`;
+    return;
+  }
+
+  if (tab === 'groups') {
+    if (usersHeader) usersHeader.textContent = 'Group Presence';
+    if (!activeGroupId) {
+      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Open a group to view its activity context.</div>';
+    } else {
+      const g = (myGroups || []).find(x => x.id === activeGroupId);
+      const gName = g ? esc(g.name) : 'Current Group';
+      peerList.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Viewing <b>${gName}</b>.<br>Member presence panel is next pass.</div>`;
+    }
+    return;
+  }
+}
+
+function addCallButtonsToPeerList() {
+  const peerList = document.getElementById('peer-list');
+  if (!peerList) return;
   peerList.querySelectorAll('.peer[data-pubkey]').forEach(el => {
     const pk = el.dataset.pubkey;
     const name = el.dataset.username;
@@ -4993,6 +5052,15 @@ updateUserList = function(users) {
     el.appendChild(btn);
     if (window.twemoji) twemoji.parse(btn);
   });
+}
+
+// Add 📞 call buttons to user list
+const _origUpdateUserList = updateUserList;
+updateUserList = function(users) {
+  allUsersSnapshot = Array.isArray(users) ? users : [];
+  _origUpdateUserList(users);
+  addCallButtonsToPeerList();
+  renderPresenceSidebarForActiveContext();
 };
 
   // ── Phase 2: Video Calls + Screen Share ──
