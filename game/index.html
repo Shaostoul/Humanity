@@ -1132,386 +1132,386 @@
 
  <!-- Streams Tab -->
  <div id="tab-streams" class="tab-content">
-  <style>
-   #tab-streams .stream-grid { display:grid; grid-template-columns:1fr 360px; gap:1rem; }
-   @media (max-width:768px) { #tab-streams .stream-grid { grid-template-columns:1fr; } }
-   #tab-streams .stream-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1rem; }
-   #tab-streams .stream-preview { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
-   #tab-streams .stream-preview canvas,
-   #tab-streams .stream-preview video { width:100%; height:100%; object-fit:contain; }
-   #tab-streams .pip-overlay { position:absolute; left:-9999px; top:-9999px; width:240px; height:180px; pointer-events:none; }
-   #tab-streams .pip-overlay video { width:100%; height:100%; object-fit:cover; }
-   #tab-streams .stream-stats { display:flex; gap:1rem; flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted); margin:0.6rem 0; }
-   #tab-streams .stream-stats span { display:flex; align-items:center; gap:0.3rem; }
-   #tab-streams .stream-setting { display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0; font-size:0.82rem; }
-   #tab-streams .stream-setting label { color:var(--text-muted); min-width:90px; }
-   #tab-streams .stream-setting input[type="text"],
-   #tab-streams .stream-setting select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; flex:1; font-size:0.8rem; min-width:0; max-width:100%; }
-   #tab-streams .stream-setting input[type="checkbox"] { accent-color:var(--accent); }
-   #tab-streams .stream-setting input[type="range"] { flex:1; accent-color:var(--accent); }
-   #tab-streams .corner-picker { display:grid; grid-template-columns:1fr 1fr; gap:2px; width:36px; }
-   #tab-streams .corner-picker span { width:16px; height:16px; border:1px solid var(--border); border-radius:3px; cursor:pointer; background:rgba(255,255,255,0.03); }
-   #tab-streams .corner-picker span.active { background:var(--accent); border-color:var(--accent); }
-   #tab-streams .stream-chat-panel { display:flex; flex-direction:column; height:400px; }
-   #tab-streams .stream-chat-tabs { display:flex; gap:0.3rem; margin-bottom:0.5rem; flex-wrap:wrap; }
-   #tab-streams .stream-chat-tabs button { font-size:0.72rem; padding:0.2rem 0.5rem; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; }
-   #tab-streams .stream-chat-tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-   #tab-streams .stream-chat-messages { flex:1; overflow-y:auto; font-size:0.8rem; padding:0.3rem; background:rgba(0,0,0,0.2); border-radius:6px; }
-   #tab-streams .stream-chat-msg { padding:0.15rem 0; }
-   #tab-streams .stream-chat-msg .src-humanity { color:#f90; }
-   #tab-streams .stream-chat-msg .src-twitch { color:#9146ff; }
-   #tab-streams .stream-chat-msg .src-youtube { color:#e55; }
-   #tab-streams .stream-chat-msg .src-rumble { color:#6c5; }
-   #tab-streams .stream-chat-input { display:flex; gap:0.3rem; margin-top:0.4rem; }
-   #tab-streams .stream-chat-input input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; font-size:0.8rem; }
-   #tab-streams .stream-chat-input button { padding:0.3rem 0.7rem; }
-   #tab-streams #stream-live-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.8rem; }
-   #tab-streams .viewer-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; max-width:300px; }
-   #tab-streams .viewer-card:hover { border-color:var(--accent); }
-   #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
-   #tab-streams .viewer-card .meta { padding:0.4rem 0.6rem; }
-   #tab-streams .viewer-card .meta h3 { font-size:0.8rem; margin:0 0 0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-   #tab-streams .viewer-card .meta .sub { font-size:0.7rem; color:var(--text-muted); }
-   #tab-streams .stream-section { margin-bottom:1rem; }
-   #tab-streams #stream-viewer-panel { display:none; }
-   #tab-streams #stream-viewer-panel.active { display:flex; flex-direction:column; max-height:60vh; }
-   #tab-streams .streams-layout { display:flex; flex-direction:column; gap:1rem; padding:1rem; }
-   #tab-streams .streams-layout > .panel { width:100%; }
-   #tab-streams .settings-section { margin-bottom:0.8rem; }
-   #tab-streams .settings-section-title { font-weight:600; font-size:0.82rem; color:var(--accent); margin-bottom:0.4rem; border-bottom:1px solid var(--border); padding-bottom:0.2rem; }
-   #tab-streams .metrics-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; margin-top:0.8rem; overflow:hidden; }
-   #tab-streams .metrics-header { padding:0.5rem 1rem; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; user-select:none; }
-   #tab-streams .metrics-header:hover { background:rgba(255,255,255,0.03); }
-   #tab-streams .metrics-body { padding:0 1rem 0.8rem; display:none; }
-   #tab-streams .metrics-body.open { display:block; }
-   #tab-streams .metrics-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.2rem 1rem; font-size:0.78rem; }
-   #tab-streams .metrics-grid .metric-label { color:var(--text-muted); }
-   #tab-streams .metrics-grid .metric-value { color:var(--text); font-variant-numeric:tabular-nums; text-align:right; }
-   #tab-streams .mic-toggle { width:32px; height:32px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-   #tab-streams .mic-toggle.muted { background:rgba(255,50,50,0.2); border-color:#f55; }
-   #tab-streams #stream-mic-status { font-size:0.74rem; color:var(--text-muted); margin-top:0.35rem; }
-   @media (max-width: 640px) {
-    #tab-streams .streams-layout { padding:0.55rem; gap:0.55rem; }
-    #tab-streams .stream-panel { padding:0.65rem; border-radius:8px; }
-    #tab-streams .stream-grid { gap:0.55rem; }
-    #tab-streams .stream-setting { flex-wrap: wrap; align-items:flex-start; gap:0.35rem; margin:0.32rem 0; }
-    #tab-streams .stream-setting label { min-width:auto; width:100%; font-size:0.74rem; }
-    #tab-streams .stream-setting input[type="text"],
-    #tab-streams .stream-setting select { width:100%; min-width:0; max-width:100%; font-size:0.78rem; }
-    #tab-streams .stream-setting input[type="range"] { width:100%; }
-    #tab-streams .stream-setting > span { width:100%; text-align:left !important; min-width:0 !important; }
-    #tab-streams .stream-stats { gap:0.45rem; font-size:0.72rem; }
-    #tab-streams .stream-stats span { white-space:nowrap; }
-    #tab-streams .stream-chat-panel { height:320px; }
-    #tab-streams #stream-live-list { grid-template-columns: 1fr; }
-    #tab-streams .viewer-card { max-width:none; }
-   }
-  </style>
+ <style>
+ #tab-streams .stream-grid { display:grid; grid-template-columns:1fr 360px; gap:1rem; }
+ @media (max-width:768px) { #tab-streams .stream-grid { grid-template-columns:1fr; } }
+ #tab-streams .stream-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1rem; }
+ #tab-streams .stream-preview { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
+ #tab-streams .stream-preview canvas,
+ #tab-streams .stream-preview video { width:100%; height:100%; object-fit:contain; }
+ #tab-streams .pip-overlay { position:absolute; left:-9999px; top:-9999px; width:240px; height:180px; pointer-events:none; }
+ #tab-streams .pip-overlay video { width:100%; height:100%; object-fit:cover; }
+ #tab-streams .stream-stats { display:flex; gap:1rem; flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted); margin:0.6rem 0; }
+ #tab-streams .stream-stats span { display:flex; align-items:center; gap:0.3rem; }
+ #tab-streams .stream-setting { display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0; font-size:0.82rem; }
+ #tab-streams .stream-setting label { color:var(--text-muted); min-width:90px; }
+ #tab-streams .stream-setting input[type="text"],
+ #tab-streams .stream-setting select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; flex:1; font-size:0.8rem; min-width:0; max-width:100%; }
+ #tab-streams .stream-setting input[type="checkbox"] { accent-color:var(--accent); }
+ #tab-streams .stream-setting input[type="range"] { flex:1; accent-color:var(--accent); }
+ #tab-streams .corner-picker { display:grid; grid-template-columns:1fr 1fr; gap:2px; width:36px; }
+ #tab-streams .corner-picker span { width:16px; height:16px; border:1px solid var(--border); border-radius:3px; cursor:pointer; background:rgba(255,255,255,0.03); }
+ #tab-streams .corner-picker span.active { background:var(--accent); border-color:var(--accent); }
+ #tab-streams .stream-chat-panel { display:flex; flex-direction:column; height:400px; }
+ #tab-streams .stream-chat-tabs { display:flex; gap:0.3rem; margin-bottom:0.5rem; flex-wrap:wrap; }
+ #tab-streams .stream-chat-tabs button { font-size:0.72rem; padding:0.2rem 0.5rem; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; }
+ #tab-streams .stream-chat-tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+ #tab-streams .stream-chat-messages { flex:1; overflow-y:auto; font-size:0.8rem; padding:0.3rem; background:rgba(0,0,0,0.2); border-radius:6px; }
+ #tab-streams .stream-chat-msg { padding:0.15rem 0; }
+ #tab-streams .stream-chat-msg .src-humanity { color:#f90; }
+ #tab-streams .stream-chat-msg .src-twitch { color:#9146ff; }
+ #tab-streams .stream-chat-msg .src-youtube { color:#e55; }
+ #tab-streams .stream-chat-msg .src-rumble { color:#6c5; }
+ #tab-streams .stream-chat-input { display:flex; gap:0.3rem; margin-top:0.4rem; }
+ #tab-streams .stream-chat-input input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; font-size:0.8rem; }
+ #tab-streams .stream-chat-input button { padding:0.3rem 0.7rem; }
+ #tab-streams #stream-live-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.8rem; }
+ #tab-streams .viewer-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; max-width:300px; }
+ #tab-streams .viewer-card:hover { border-color:var(--accent); }
+ #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
+ #tab-streams .viewer-card .meta { padding:0.4rem 0.6rem; }
+ #tab-streams .viewer-card .meta h3 { font-size:0.8rem; margin:0 0 0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+ #tab-streams .viewer-card .meta .sub { font-size:0.7rem; color:var(--text-muted); }
+ #tab-streams .stream-section { margin-bottom:1rem; }
+ #tab-streams #stream-viewer-panel { display:none; }
+ #tab-streams #stream-viewer-panel.active { display:flex; flex-direction:column; max-height:60vh; }
+ #tab-streams .streams-layout { display:flex; flex-direction:column; gap:1rem; padding:1rem; }
+ #tab-streams .streams-layout > .panel { width:100%; }
+ #tab-streams .settings-section { margin-bottom:0.8rem; }
+ #tab-streams .settings-section-title { font-weight:600; font-size:0.82rem; color:var(--accent); margin-bottom:0.4rem; border-bottom:1px solid var(--border); padding-bottom:0.2rem; }
+ #tab-streams .metrics-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; margin-top:0.8rem; overflow:hidden; }
+ #tab-streams .metrics-header { padding:0.5rem 1rem; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; user-select:none; }
+ #tab-streams .metrics-header:hover { background:rgba(255,255,255,0.03); }
+ #tab-streams .metrics-body { padding:0 1rem 0.8rem; display:none; }
+ #tab-streams .metrics-body.open { display:block; }
+ #tab-streams .metrics-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.2rem 1rem; font-size:0.78rem; }
+ #tab-streams .metrics-grid .metric-label { color:var(--text-muted); }
+ #tab-streams .metrics-grid .metric-value { color:var(--text); font-variant-numeric:tabular-nums; text-align:right; }
+ #tab-streams .mic-toggle { width:32px; height:32px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+ #tab-streams .mic-toggle.muted { background:rgba(255,50,50,0.2); border-color:#f55; }
+ #tab-streams #stream-mic-status { font-size:0.74rem; color:var(--text-muted); margin-top:0.35rem; }
+ @media (max-width: 640px) {
+ #tab-streams .streams-layout { padding:0.55rem; gap:0.55rem; }
+ #tab-streams .stream-panel { padding:0.65rem; border-radius:8px; }
+ #tab-streams .stream-grid { gap:0.55rem; }
+ #tab-streams .stream-setting { flex-wrap: wrap; align-items:flex-start; gap:0.35rem; margin:0.32rem 0; }
+ #tab-streams .stream-setting label { min-width:auto; width:100%; font-size:0.74rem; }
+ #tab-streams .stream-setting input[type="text"],
+ #tab-streams .stream-setting select { width:100%; min-width:0; max-width:100%; font-size:0.78rem; }
+ #tab-streams .stream-setting input[type="range"] { width:100%; }
+ #tab-streams .stream-setting > span { width:100%; text-align:left !important; min-width:0 !important; }
+ #tab-streams .stream-stats { gap:0.45rem; font-size:0.72rem; }
+ #tab-streams .stream-stats span { white-space:nowrap; }
+ #tab-streams .stream-chat-panel { height:320px; }
+ #tab-streams #stream-live-list { grid-template-columns: 1fr; }
+ #tab-streams .viewer-card { max-width:none; }
+ }
+ </style>
 
-  <div class="streams-layout">
+ <div class="streams-layout">
 
-   <!-- â”€â”€ Streamer Dashboard (collapsible) â”€â”€ -->
-   <div class="panel reality-card" id="streams-dashboard">
-    <h2 class="reality-card-header" onclick="toggleStreamsCard('dashboard')">ðŸ“¡ Stream Control <span class="collapse-icon" id="dashboard-collapse">▼</span></h2>
-    <div class="reality-card-body" id="dashboard-body">
-     <div class="stream-grid">
-      <!-- Left: Preview -->
-      <div>
-       <div class="stream-preview" id="stream-preview-container">
-        <canvas id="stream-composite-canvas" width="1920" height="1080"></canvas>
-        <div class="pip-overlay" id="pip-overlay" style="display:none;width:240px;height:180px;bottom:10px;right:10px;">
-         <video id="pip-webcam-video" autoplay muted playsinline></video>
-        </div>
-        <div id="stream-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text-muted);font-size:0.85rem;">
-         <div style="font-size:1.1rem;margin-bottom:0.5rem;letter-spacing:0.08em;">PREVIEW</div>
-         <div>Start screen capture to preview</div>
-        </div>
-       </div>
-       <div class="stream-stats" id="stream-stats-bar">
-        <span id="stream-stat-viewers">Viewers: 0</span>
-        <span id="stream-stat-duration">Duration: --:--</span>
-        <span id="stream-stat-quality">Quality: --</span>
-        <span id="stream-stat-bitrate">Bitrate: --</span>
-       </div>
-       <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
-        <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">GO LIVE</button>
-        <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">END</button>
-        <button class="btn" id="stream-brb-btn" onclick="streamToggleBrb()" style="display:none;">BRB</button>
-       </div>
+ <!-- ”€”€ Streamer Dashboard (collapsible) ”€”€ -->
+ <div class="panel reality-card" id="streams-dashboard">
+ <h2 class="reality-card-header" onclick="toggleStreamsCard('dashboard')">Ÿ“¡ Stream Control <span class="collapse-icon" id="dashboard-collapse">▼</span></h2>
+ <div class="reality-card-body" id="dashboard-body">
+ <div class="stream-grid">
+ <!-- Left: Preview -->
+ <div>
+ <div class="stream-preview" id="stream-preview-container">
+ <canvas id="stream-composite-canvas" width="1920" height="1080"></canvas>
+ <div class="pip-overlay" id="pip-overlay" style="display:none;width:240px;height:180px;bottom:10px;right:10px;">
+ <video id="pip-webcam-video" autoplay muted playsinline></video>
+ </div>
+ <div id="stream-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text-muted);font-size:0.85rem;">
+ <div style="font-size:1.1rem;margin-bottom:0.5rem;letter-spacing:0.08em;">PREVIEW</div>
+ <div>Start screen capture to preview</div>
+ </div>
+ </div>
+ <div class="stream-stats" id="stream-stats-bar">
+ <span id="stream-stat-viewers">Viewers: 0</span>
+ <span id="stream-stat-duration">Duration: --:--</span>
+ <span id="stream-stat-quality">Quality: --</span>
+ <span id="stream-stat-bitrate">Bitrate: --</span>
+ </div>
+ <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+ <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">GO LIVE</button>
+ <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">END</button>
+ <button class="btn" id="stream-brb-btn" onclick="streamToggleBrb()" style="display:none;">BRB</button>
+ </div>
 
-       <!-- Streamer Metrics -->
-       <div class="metrics-panel" id="streamer-metrics-panel">
-        <div class="metrics-header" onclick="document.getElementById('streamer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('streamer-metrics-body').classList.contains('open') ? '▲' : '▼';">Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
-        <div class="metrics-body" id="streamer-metrics-body">
-         <div class="metrics-grid" id="streamer-metrics-grid">
-          <span class="metric-label">Upload</span><span class="metric-value" id="sm-upload">--</span>
-          <span class="metric-label">Packets sent</span><span class="metric-value" id="sm-pkts-sent">--</span>
-          <span class="metric-label">Packets lost</span><span class="metric-value" id="sm-pkts-lost">--</span>
-          <span class="metric-label">Frame rate</span><span class="metric-value" id="sm-fps">--</span>
-          <span class="metric-label">Resolution</span><span class="metric-value" id="sm-resolution">--</span>
-          <span class="metric-label">Codec</span><span class="metric-value" id="sm-codec">--</span>
-          <span class="metric-label">RTT</span><span class="metric-value" id="sm-rtt">--</span>
-          <span class="metric-label">Jitter</span><span class="metric-value" id="sm-jitter">--</span>
-          <span class="metric-label">Total sent</span><span class="metric-value" id="sm-total">--</span>
-          <span class="metric-label">Connections</span><span class="metric-value" id="sm-connections">--</span>
-         </div>
-        </div>
-       </div>
-      </div>
+ <!-- Streamer Metrics -->
+ <div class="metrics-panel" id="streamer-metrics-panel">
+ <div class="metrics-header" onclick="document.getElementById('streamer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('streamer-metrics-body').classList.contains('open') ? '▲' : '▼';">Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
+ <div class="metrics-body" id="streamer-metrics-body">
+ <div class="metrics-grid" id="streamer-metrics-grid">
+ <span class="metric-label">Upload</span><span class="metric-value" id="sm-upload">--</span>
+ <span class="metric-label">Packets sent</span><span class="metric-value" id="sm-pkts-sent">--</span>
+ <span class="metric-label">Packets lost</span><span class="metric-value" id="sm-pkts-lost">--</span>
+ <span class="metric-label">Frame rate</span><span class="metric-value" id="sm-fps">--</span>
+ <span class="metric-label">Resolution</span><span class="metric-value" id="sm-resolution">--</span>
+ <span class="metric-label">Codec</span><span class="metric-value" id="sm-codec">--</span>
+ <span class="metric-label">RTT</span><span class="metric-value" id="sm-rtt">--</span>
+ <span class="metric-label">Jitter</span><span class="metric-value" id="sm-jitter">--</span>
+ <span class="metric-label">Total sent</span><span class="metric-value" id="sm-total">--</span>
+ <span class="metric-label">Connections</span><span class="metric-value" id="sm-connections">--</span>
+ </div>
+ </div>
+ </div>
+ </div>
 
-      <!-- Right: Settings -->
-      <div>
-       <!-- Stream Info -->
-       <div class="stream-panel" style="margin-bottom:0.8rem;">
-        <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Stream Info</div>
-        <div class="stream-setting">
-         <label>Title</label>
-         <input type="text" id="stream-title" placeholder="My Stream" maxlength="100">
-        </div>
-        <div class="stream-setting">
-         <label>Category</label>
-         <input type="text" id="stream-category" placeholder="Just Chatting" maxlength="50">
-        </div>
-       </div>
+ <!-- Right: Settings -->
+ <div>
+ <!-- Stream Info -->
+ <div class="stream-panel" style="margin-bottom:0.8rem;">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Stream Info</div>
+ <div class="stream-setting">
+ <label>Title</label>
+ <input type="text" id="stream-title" placeholder="My Stream" maxlength="100">
+ </div>
+ <div class="stream-setting">
+ <label>Category</label>
+ <input type="text" id="stream-category" placeholder="Just Chatting" maxlength="50">
+ </div>
+ </div>
 
-       <!-- Scenes v1 -->
-       <div class="stream-panel" style="margin-bottom:0.8rem;">
-        <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">PREVIEW Scenes</div>
-        <div class="stream-setting">
-         <label>Scene</label>
-         <select id="stream-scene-select"></select>
-        </div>
-        <div class="stream-setting" style="gap:0.35rem;flex-wrap:wrap;">
-         <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamApplySelectedScene()">Apply</button>
-         <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamSaveCurrentScene()">Save Current</button>
-         <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamCreateScene()">+ New</button>
-         <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamDeleteScene()">Delete</button>
-        </div>
-        <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Scenes store stream layout/settings presets locally.</div>
-       </div>
+ <!-- Scenes v1 -->
+ <div class="stream-panel" style="margin-bottom:0.8rem;">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">PREVIEW Scenes</div>
+ <div class="stream-setting">
+ <label>Scene</label>
+ <select id="stream-scene-select"></select>
+ </div>
+ <div class="stream-setting" style="gap:0.35rem;flex-wrap:wrap;">
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamApplySelectedScene()">Apply</button>
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamSaveCurrentScene()">Save Current</button>
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamCreateScene()">+ New</button>
+ <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamDeleteScene()">Delete</button>
+ </div>
+ <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Scenes store stream layout/settings presets locally.</div>
+ </div>
 
-       <!-- Video Settings -->
-       <div class="stream-panel" style="margin-bottom:0.8rem;">
-        <div class="settings-section">
-         <div class="settings-section-title">ðŸ–¥ï¸ Video</div>
-         <div class="stream-setting">
-          <input type="checkbox" id="stream-screen-cb" checked onchange="streamToggleScreen()">
-          <label for="stream-screen-cb" style="min-width:auto;">Screen Capture</label>
-          <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.4rem;margin-left:auto;" onclick="streamStartScreen()">Select</button>
-         </div>
-         <div class="stream-setting">
-          <label>Resolution</label>
-          <select id="stream-resolution" onchange="streamSaveSetting('resolution', this.value)">
-           <option value="source">Match Source</option>
-           <option value="720">720p</option>
-           <option value="1080" selected>1080p</option>
-           <option value="1440">1440p</option>
-           <option value="2160">4K</option>
-          </select>
-         </div>
-         <div class="stream-setting">
-          <label>Frame Rate</label>
-          <select id="stream-fps" onchange="streamSaveSetting('fps', this.value)">
-           <option value="30" selected>30 fps</option>
-           <option value="60">60 fps</option>
-           <option value="120">120 fps</option>
-          </select>
-         </div>
-         <div class="stream-setting">
-          <label>Bitrate</label>
-          <input type="range" id="stream-bitrate" min="1" max="20" value="6" step="0.5" oninput="document.getElementById('stream-bitrate-val').textContent=this.value+'Mbps'; streamSaveSetting('bitrate', this.value); streamApplyBitrate();">
-          <span id="stream-bitrate-val" style="font-size:0.75rem;min-width:50px;text-align:right;">6Mbps</span>
-         </div>
-        </div>
+ <!-- Video Settings -->
+ <div class="stream-panel" style="margin-bottom:0.8rem;">
+ <div class="settings-section">
+ <div class="settings-section-title">Ÿ–¥ï¸ Video</div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-screen-cb" checked onchange="streamToggleScreen()">
+ <label for="stream-screen-cb" style="min-width:auto;">Screen Capture</label>
+ <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.4rem;margin-left:auto;" onclick="streamStartScreen()">Select</button>
+ </div>
+ <div class="stream-setting">
+ <label>Resolution</label>
+ <select id="stream-resolution" onchange="streamSaveSetting('resolution', this.value)">
+ <option value="source">Match Source</option>
+ <option value="720">720p</option>
+ <option value="1080" selected>1080p</option>
+ <option value="1440">1440p</option>
+ <option value="2160">4K</option>
+ </select>
+ </div>
+ <div class="stream-setting">
+ <label>Frame Rate</label>
+ <select id="stream-fps" onchange="streamSaveSetting('fps', this.value)">
+ <option value="30" selected>30 fps</option>
+ <option value="60">60 fps</option>
+ <option value="120">120 fps</option>
+ </select>
+ </div>
+ <div class="stream-setting">
+ <label>Bitrate</label>
+ <input type="range" id="stream-bitrate" min="1" max="20" value="6" step="0.5" oninput="document.getElementById('stream-bitrate-val').textContent=this.value+'Mbps'; streamSaveSetting('bitrate', this.value); streamApplyBitrate();">
+ <span id="stream-bitrate-val" style="font-size:0.75rem;min-width:50px;text-align:right;">6Mbps</span>
+ </div>
+ </div>
 
-        <!-- Audio Settings -->
-        <div class="settings-section">
-         <div class="settings-section-title">ðŸŽ™ï¸ Audio</div>
-         <div class="stream-setting">
-          <label>Microphone</label>
-          <select id="stream-mic-device" onchange="streamSwitchMic()"></select>
-          <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">Mic</button>
-         </div>
-         <div class="stream-setting" style="margin-top:0.2rem;">
-          <input type="checkbox" id="stream-advanced-devices" onchange="streamSaveSetting('advancedDevices', this.checked); streamEnumerateDevices();">
-          <label for="stream-advanced-devices" style="min-width:auto;">Show advanced devices</label>
-         </div>
-         <div id="stream-mic-status">Mic status: idle</div>
-         <div class="stream-setting">
-          <label>Mic Volume</label>
-          <input type="range" id="stream-mic-volume" min="0" max="200" value="100" step="5" oninput="streamSetMicVolume(this.value); document.getElementById('stream-mic-vol-val').textContent=this.value+'%';">
-          <span id="stream-mic-vol-val" style="font-size:0.75rem;min-width:35px;text-align:right;">100%</span>
-         </div>
-         <div class="stream-setting">
-          <input type="checkbox" id="stream-desktop-audio-cb" checked onchange="streamToggleDesktopAudio()">
-          <label for="stream-desktop-audio-cb" style="min-width:auto;">Desktop Audio</label>
-         </div>
-        </div>
+ <!-- Audio Settings -->
+ <div class="settings-section">
+ <div class="settings-section-title">Mic On Audio</div>
+ <div class="stream-setting">
+ <label>Microphone</label>
+ <select id="stream-mic-device" onchange="streamSwitchMic()"></select>
+ <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">Mic</button>
+ </div>
+ <div class="stream-setting" style="margin-top:0.2rem;">
+ <input type="checkbox" id="stream-advanced-devices" onchange="streamSaveSetting('advancedDevices', this.checked); streamEnumerateDevices();">
+ <label for="stream-advanced-devices" style="min-width:auto;">Show advanced devices</label>
+ </div>
+ <div id="stream-mic-status">Mic status: idle</div>
+ <div class="stream-setting">
+ <label>Mic Volume</label>
+ <input type="range" id="stream-mic-volume" min="0" max="200" value="100" step="5" oninput="streamSetMicVolume(this.value); document.getElementById('stream-mic-vol-val').textContent=this.value+'%';">
+ <span id="stream-mic-vol-val" style="font-size:0.75rem;min-width:35px;text-align:right;">100%</span>
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-desktop-audio-cb" checked onchange="streamToggleDesktopAudio()">
+ <label for="stream-desktop-audio-cb" style="min-width:auto;">Desktop Audio</label>
+ </div>
+ </div>
 
-        <!-- Camera Settings -->
-        <div class="settings-section">
-         <div class="settings-section-title">ðŸ“· Camera</div>
-         <div class="stream-setting">
-          <input type="checkbox" id="stream-webcam-cb" onchange="streamToggleWebcam()">
-          <label for="stream-webcam-cb" style="min-width:auto;">Webcam Overlay</label>
-         </div>
-         <div class="stream-setting" style="margin-left:1.4rem;">
-          <label>Device</label>
-          <select id="stream-webcam-device" onchange="streamSwitchWebcam()"></select>
-         </div>
-         <div class="stream-setting" style="margin-left:1.4rem;">
-          <label>Size</label>
-          <select id="stream-webcam-size" onchange="streamUpdatePipSize(); streamSaveSetting('webcamSize', this.value)">
-           <option value="small">Small</option>
-           <option value="medium" selected>Medium</option>
-           <option value="large">Large</option>
-          </select>
-         </div>
-         <div class="stream-setting" style="margin-left:1.4rem;">
-          <label>Quality</label>
-          <select id="stream-webcam-quality" onchange="streamSwitchWebcam(); streamSaveSetting('webcamQuality', this.value)">
-           <option value="low">Low (480p)</option>
-           <option value="medium" selected>Medium (720p)</option>
-           <option value="high">High (1080p)</option>
-          </select>
-         </div>
-         <div class="stream-setting" style="margin-left:1.4rem;">
-          <label style="min-width:auto;font-size:0.75rem;">Position:</label>
-          <div class="corner-picker" id="pip-corner-picker">
-           <span data-corner="tl" onclick="streamSetPipCorner('tl')"></span>
-           <span data-corner="tr" onclick="streamSetPipCorner('tr')"></span>
-           <span data-corner="bl" onclick="streamSetPipCorner('bl')"></span>
-           <span data-corner="br" class="active" onclick="streamSetPipCorner('br')"></span>
-          </div>
-         </div>
-        </div>
-       </div>
+ <!-- Camera Settings -->
+ <div class="settings-section">
+ <div class="settings-section-title">Ÿ“· Camera</div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-webcam-cb" onchange="streamToggleWebcam()">
+ <label for="stream-webcam-cb" style="min-width:auto;">Webcam Overlay</label>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label>Device</label>
+ <select id="stream-webcam-device" onchange="streamSwitchWebcam()"></select>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label>Size</label>
+ <select id="stream-webcam-size" onchange="streamUpdatePipSize(); streamSaveSetting('webcamSize', this.value)">
+ <option value="small">Small</option>
+ <option value="medium" selected>Medium</option>
+ <option value="large">Large</option>
+ </select>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label>Quality</label>
+ <select id="stream-webcam-quality" onchange="streamSwitchWebcam(); streamSaveSetting('webcamQuality', this.value)">
+ <option value="low">Low (480p)</option>
+ <option value="medium" selected>Medium (720p)</option>
+ <option value="high">High (1080p)</option>
+ </select>
+ </div>
+ <div class="stream-setting" style="margin-left:1.4rem;">
+ <label style="min-width:auto;font-size:0.75rem;">Position:</label>
+ <div class="corner-picker" id="pip-corner-picker">
+ <span data-corner="tl" onclick="streamSetPipCorner('tl')"></span>
+ <span data-corner="tr" onclick="streamSetPipCorner('tr')"></span>
+ <span data-corner="bl" onclick="streamSetPipCorner('bl')"></span>
+ <span data-corner="br" class="active" onclick="streamSetPipCorner('br')"></span>
+ </div>
+ </div>
+ </div>
+ </div>
 
-       <!-- Restream -->
-       <div class="stream-panel">
-        <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Restream To</div>
-        <div class="stream-setting">
-         <input type="checkbox" id="stream-relay-cb" checked>
-         <label for="stream-relay-cb" style="min-width:auto;">Relay (direct)</label>
-         <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">Admin only</span>
-        </div>
-        <div class="stream-setting">
-         <input type="checkbox" id="stream-twitch-cb">
-         <label for="stream-twitch-cb" style="min-width:auto;">Twitch</label>
-         <input type="text" id="stream-twitch-url" placeholder="twitch.tv/username" style="flex:1;">
-        </div>
-        <div class="stream-setting">
-         <input type="checkbox" id="stream-youtube-cb">
-         <label for="stream-youtube-cb" style="min-width:auto;">YouTube</label>
-         <input type="text" id="stream-youtube-url" placeholder="youtube.com/live/..." style="flex:1;">
-        </div>
-        <div class="stream-setting">
-         <input type="checkbox" id="stream-rumble-cb">
-         <label for="stream-rumble-cb" style="min-width:auto;">Rumble</label>
-         <input type="text" id="stream-rumble-url" placeholder="rumble.com/user/..." style="flex:1;">
-        </div>
-       </div>
-      </div>
-     </div>
+ <!-- Restream -->
+ <div class="stream-panel">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Restream To</div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-relay-cb" checked>
+ <label for="stream-relay-cb" style="min-width:auto;">Relay (direct)</label>
+ <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">Admin only</span>
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-twitch-cb">
+ <label for="stream-twitch-cb" style="min-width:auto;">Twitch</label>
+ <input type="text" id="stream-twitch-url" placeholder="twitch.tv/username" style="flex:1;">
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-youtube-cb">
+ <label for="stream-youtube-cb" style="min-width:auto;">YouTube</label>
+ <input type="text" id="stream-youtube-url" placeholder="youtube.com/live/..." style="flex:1;">
+ </div>
+ <div class="stream-setting">
+ <input type="checkbox" id="stream-rumble-cb">
+ <label for="stream-rumble-cb" style="min-width:auto;">Rumble</label>
+ <input type="text" id="stream-rumble-url" placeholder="rumble.com/user/..." style="flex:1;">
+ </div>
+ </div>
+ </div>
+ </div>
 
-     <!-- Stream Chat -->
-     <div class="stream-panel stream-chat-panel" style="margin-top:1rem;" id="stream-chat-section">
-      <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.4rem;">ðŸ’¬ Stream Chat</div>
-      <div class="stream-chat-tabs" id="stream-chat-tabs">
-       <button class="active" onclick="streamChatFilter('all')">All</button>
-       <button onclick="streamChatFilter('humanity')">Humanity</button>
-       <button onclick="streamChatFilter('twitch')">Twitch</button>
-       <button onclick="streamChatFilter('youtube')">YouTube</button>
-       <button onclick="streamChatFilter('rumble')">Rumble</button>
-      </div>
-      <div class="stream-chat-messages" id="stream-chat-messages"></div>
-      <div class="stream-chat-input">
-       <input type="text" id="stream-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend()">
-       <button class="btn btn-clickable" onclick="streamChatSend()">Send</button>
-      </div>
-     </div>
-    </div>
-   </div>
+ <!-- Stream Chat -->
+ <div class="stream-panel stream-chat-panel" style="margin-top:1rem;" id="stream-chat-section">
+ <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.4rem;">Ÿ’¬ Stream Chat</div>
+ <div class="stream-chat-tabs" id="stream-chat-tabs">
+ <button class="active" onclick="streamChatFilter('all')">All</button>
+ <button onclick="streamChatFilter('humanity')">Humanity</button>
+ <button onclick="streamChatFilter('twitch')">Twitch</button>
+ <button onclick="streamChatFilter('youtube')">YouTube</button>
+ <button onclick="streamChatFilter('rumble')">Rumble</button>
+ </div>
+ <div class="stream-chat-messages" id="stream-chat-messages"></div>
+ <div class="stream-chat-input">
+ <input type="text" id="stream-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend()">
+ <button class="btn btn-clickable" onclick="streamChatSend()">Send</button>
+ </div>
+ </div>
+ </div>
+ </div>
 
-   <!-- â”€â”€ Live Streams (viewer) â”€â”€ -->
-   <div class="panel reality-card" id="streams-live">
-    <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">LIVE Live Now <span class="collapse-icon" id="live-collapse">▼</span></h2>
-    <div class="reality-card-body" id="live-body">
-     <div id="stream-live-list">
-      <div id="stream-live-empty" style="text-align:center;padding:2rem 1rem;">
-       <div style="font-size:2rem;margin-bottom:0.5rem;">LIVE</div>
-       <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
-      </div>
-     </div>
-    </div>
-   </div>
+ <!-- ”€”€ Live Streams (viewer) ”€”€ -->
+ <div class="panel reality-card" id="streams-live">
+ <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">LIVE Live Now <span class="collapse-icon" id="live-collapse">▼</span></h2>
+ <div class="reality-card-body" id="live-body">
+ <div id="stream-live-list">
+ <div id="stream-live-empty" style="text-align:center;padding:2rem 1rem;">
+ <div style="font-size:2rem;margin-bottom:0.5rem;">LIVE</div>
+ <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
+ </div>
+ </div>
+ </div>
+ </div>
 
-   <!-- â”€â”€ Viewer Panel (shown when watching) â”€â”€ -->
-   <div class="panel reality-card" id="stream-viewer-panel">
-    <h2 class="reality-card-header">
-     <span id="viewer-stream-title">LIVE Watching Stream</span>
-     <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.5rem;margin-left:auto;" onclick="streamViewerLeave()">Close Close</button>
-    </h2>
-    <div class="reality-card-body">
-     <div class="stream-preview" id="viewer-video-container">
-      <video id="viewer-video" autoplay playsinline style="width:100%;height:100%;"></video>
-      <div id="viewer-embed-container" style="display:none;width:100%;height:100%;"></div>
-     </div>
-     <div class="stream-stats" id="viewer-stats-bar">
-      <span id="viewer-stat-viewers">Viewers 0</span>
-      <span id="viewer-stat-duration">Duration --:--</span>
-     </div>
-     <!-- Viewer Metrics -->
-     <div class="metrics-panel" id="viewer-metrics-panel">
-      <div class="metrics-header" onclick="document.getElementById('viewer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('viewer-metrics-body').classList.contains('open') ? '▲' : '▼';">Quality Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
-      <div class="metrics-body" id="viewer-metrics-body">
-       <div class="metrics-grid" id="viewer-metrics-grid">
-        <span class="metric-label">Download</span><span class="metric-value" id="vm-download">--</span>
-        <span class="metric-label">Packets recv</span><span class="metric-value" id="vm-pkts-recv">--</span>
-        <span class="metric-label">Packets lost</span><span class="metric-value" id="vm-pkts-lost">--</span>
-        <span class="metric-label">Frame rate</span><span class="metric-value" id="vm-fps">--</span>
-        <span class="metric-label">Resolution</span><span class="metric-value" id="vm-resolution">--</span>
-        <span class="metric-label">Codec</span><span class="metric-value" id="vm-codec">--</span>
-        <span class="metric-label">Jitter buffer</span><span class="metric-value" id="vm-jitter">--</span>
-       </div>
-      </div>
-     </div>
-     <!-- Viewer chat -->
-     <div class="stream-panel stream-chat-panel" style="margin-top:0.6rem;height:300px;">
-      <div class="stream-chat-tabs" id="viewer-chat-tabs">
-       <button class="active" onclick="streamChatFilter('all','viewer')">All</button>
-       <button onclick="streamChatFilter('humanity','viewer')">Humanity</button>
-       <button onclick="streamChatFilter('twitch','viewer')">Twitch</button>
-       <button onclick="streamChatFilter('youtube','viewer')">YouTube</button>
-       <button onclick="streamChatFilter('rumble','viewer')">Rumble</button>
-      </div>
-      <div class="stream-chat-messages" id="viewer-chat-messages"></div>
-      <div class="stream-chat-input">
-       <input type="text" id="viewer-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend('viewer')">
-       <button class="btn btn-clickable" onclick="streamChatSend('viewer')">Send</button>
-      </div>
-     </div>
-    </div>
-   </div>
+ <!-- ”€”€ Viewer Panel (shown when watching) ”€”€ -->
+ <div class="panel reality-card" id="stream-viewer-panel">
+ <h2 class="reality-card-header">
+ <span id="viewer-stream-title">LIVE Watching Stream</span>
+ <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.5rem;margin-left:auto;" onclick="streamViewerLeave()">Close Close</button>
+ </h2>
+ <div class="reality-card-body">
+ <div class="stream-preview" id="viewer-video-container">
+ <video id="viewer-video" autoplay playsinline style="width:100%;height:100%;"></video>
+ <div id="viewer-embed-container" style="display:none;width:100%;height:100%;"></div>
+ </div>
+ <div class="stream-stats" id="viewer-stats-bar">
+ <span id="viewer-stat-viewers">Viewers 0</span>
+ <span id="viewer-stat-duration">Duration --:--</span>
+ </div>
+ <!-- Viewer Metrics -->
+ <div class="metrics-panel" id="viewer-metrics-panel">
+ <div class="metrics-header" onclick="document.getElementById('viewer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('viewer-metrics-body').classList.contains('open') ? '▲' : '▼';">Quality Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
+ <div class="metrics-body" id="viewer-metrics-body">
+ <div class="metrics-grid" id="viewer-metrics-grid">
+ <span class="metric-label">Download</span><span class="metric-value" id="vm-download">--</span>
+ <span class="metric-label">Packets recv</span><span class="metric-value" id="vm-pkts-recv">--</span>
+ <span class="metric-label">Packets lost</span><span class="metric-value" id="vm-pkts-lost">--</span>
+ <span class="metric-label">Frame rate</span><span class="metric-value" id="vm-fps">--</span>
+ <span class="metric-label">Resolution</span><span class="metric-value" id="vm-resolution">--</span>
+ <span class="metric-label">Codec</span><span class="metric-value" id="vm-codec">--</span>
+ <span class="metric-label">Jitter buffer</span><span class="metric-value" id="vm-jitter">--</span>
+ </div>
+ </div>
+ </div>
+ <!-- Viewer chat -->
+ <div class="stream-panel stream-chat-panel" style="margin-top:0.6rem;height:300px;">
+ <div class="stream-chat-tabs" id="viewer-chat-tabs">
+ <button class="active" onclick="streamChatFilter('all','viewer')">All</button>
+ <button onclick="streamChatFilter('humanity','viewer')">Humanity</button>
+ <button onclick="streamChatFilter('twitch','viewer')">Twitch</button>
+ <button onclick="streamChatFilter('youtube','viewer')">YouTube</button>
+ <button onclick="streamChatFilter('rumble','viewer')">Rumble</button>
+ </div>
+ <div class="stream-chat-messages" id="viewer-chat-messages"></div>
+ <div class="stream-chat-input">
+ <input type="text" id="viewer-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend('viewer')">
+ <button class="btn btn-clickable" onclick="streamChatSend('viewer')">Send</button>
+ </div>
+ </div>
+ </div>
+ </div>
 
-   <!-- â”€â”€ Server List â”€â”€ -->
-   <div class="panel reality-card" id="streams-servers">
-    <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">ðŸ–¥ï¸ Servers <span class="collapse-icon" id="servers-collapse">▼</span></h2>
-    <div class="reality-card-body" id="servers-body">
-     <div id="stream-servers-list">
-      <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
-       <span style="font-size:1.1rem;" id="server-status-dot">ðŸŸ¢</span>
-       <div>
-        <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
-        <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
-       </div>
-       <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);" id="server-live-count">0 live</span>
-      </div>
-     </div>
-    </div>
-   </div>
+ <!-- ”€”€ Server List ”€”€ -->
+ <div class="panel reality-card" id="streams-servers">
+ <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">Ÿ–¥ï¸ Servers <span class="collapse-icon" id="servers-collapse">▼</span></h2>
+ <div class="reality-card-body" id="servers-body">
+ <div id="stream-servers-list">
+ <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
+ <span style="font-size:1.1rem;" id="server-status-dot">ŸŸ¢</span>
+ <div>
+ <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
+ <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
+ </div>
+ <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);" id="server-live-count">0 live</span>
+ </div>
+ </div>
+ </div>
+ </div>
 
-  </div>
+ </div>
  </div>
 
  <!-- Info Tab -->

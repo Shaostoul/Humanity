@@ -42,4 +42,21 @@ for needle in '"/channel-edit"' '"/channel-delete"'; do
 done
 echo "[smoke] command_handlers=ok"
 
+echo "[smoke] checking stream block for mojibake markers"
+python3 - <<'PY'
+from pathlib import Path
+import re, sys
+s = Path('/var/www/humanity/app.html').read_text(encoding='utf-8', errors='ignore')
+a = s.find('<div id="tab-streams"')
+b = s.find('<div id="tab-info"', a)
+if a == -1 or b == -1:
+    print('[smoke] ERROR: stream block boundary not found')
+    sys.exit(4)
+blk = s[a:b]
+if re.search(r'(Â|â|ð|�|dY)', blk):
+    print('[smoke] ERROR: mojibake marker detected in stream block')
+    sys.exit(5)
+print('[smoke] stream_mojibake_check=ok')
+PY
+
 echo "[smoke] all checks passed"
