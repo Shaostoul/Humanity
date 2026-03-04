@@ -6470,6 +6470,14 @@
     // Default stream mic status on tab load.
     setTimeout(() => streamSetMicStatus('Mic status: idle', 'neutral'), 0);
 
+    // Warn before leaving while live (browser safety; desktop nav guard handled in shared shell).
+    window.addEventListener('beforeunload', function(e) {
+      if (streamIsLive) {
+        e.preventDefault();
+        e.returnValue = 'You are currently live. Leaving this page may stop your stream.';
+      }
+    });
+
     // ── Settings persistence ──
     function streamSaveSetting(key, val) {
       try {

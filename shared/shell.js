@@ -245,6 +245,13 @@
     }
   });
 
+  function isLikelyLiveStreamingSession() {
+    var stopBtn = document.getElementById('stream-stop-btn');
+    if (!stopBtn) return false;
+    var display = stopBtn.style && stopBtn.style.display ? stopBtn.style.display : '';
+    return display !== 'none';
+  }
+
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
     const link = e.target.closest('a[href]');
@@ -254,6 +261,23 @@
     const hubPaths = ['/map', '/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard', '/streams', '/info', '/source', '/debug'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub = hubPaths.some(function(p) { return href === p; });
+
+    // Streaming continuity guard: when live on /streams, keep the stream page loaded
+    // and open other hub pages in a webview tab instead of switching away.
+    if (location.pathname === '/streams' && targetIsHub && href !== '/streams' && isLikelyLiveStreamingSession()) {
+      e.preventDefault();
+      var title = (link.textContent || href).trim();
+      if (typeof openWebviewTab === 'function') {
+        openWebviewTab(href, title);
+      } else {
+        // Browser fallback: explicit warning (switching route can break media capture state).
+        if (confirm('A live stream appears active. Switching tabs may interrupt your stream. Continue?')) {
+          location.href = href;
+        }
+      }
+      return;
+    }
+
     if (currentIsHub && targetIsHub && href !== location.pathname) {
       e.preventDefault();
       history.pushState({}, '', href);
