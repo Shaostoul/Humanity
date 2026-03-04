@@ -1,6 +1,8 @@
 param(
   [string]$Checkpoint = "unspecified task",
-  [int]$TimeoutSeconds = 90
+  [int]$TimeoutSeconds = 90,
+  [string]$NotifyChannel = "discord",
+  [string]$NotifyTarget = "119318268300361728"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -71,3 +73,14 @@ if (-not $healthy) {
 
 Write-Info "gateway_healthy_discord_ok"
 Write-Info "resume_checkpoint=$Checkpoint"
+
+# Proactive notification so user never has to ask "are you there?"
+try {
+  if ($NotifyChannel -eq 'discord') {
+    openclaw message send --channel discord --account default --target ("user:" + $NotifyTarget) --message ("Restart complete. I'm back online and running. Resuming: " + $Checkpoint) | Out-Host
+  }
+  Write-Info "proactive_notify_sent"
+}
+catch {
+  Write-Info "proactive_notify_failed=$($_.Exception.Message)"
+}
