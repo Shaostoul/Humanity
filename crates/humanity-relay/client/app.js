@@ -4570,6 +4570,13 @@ function promptCreateGroup() {
   }
 }
 
+function promptJoinGroup() {
+  const code = prompt('Enter group invite code:');
+  if (code && code.trim() && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'group_join', invite_code: code.trim() }));
+  }
+}
+
 function openGroup(groupId) {
   const group = myGroups.find(g => g.id === groupId);
   if (!group) return;

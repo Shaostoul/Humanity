@@ -95,7 +95,13 @@
           <div id="server-list"></div>
         </div>
         <div id="tab-groups" class="sidebar-tab-content">
-          <div class="groups-placeholder">P2P group chats — coming soon</div>
+          <div class="groups-placeholder" style="padding:0.5rem;color:var(--text-muted);font-size:0.8rem;">
+            No groups yet.<br>Use the buttons below or commands:<br><code>/group-create &lt;name&gt;</code>, <code>/group-join &lt;invite&gt;</code>
+            <div style="display:flex;gap:0.35rem;margin-top:0.45rem;">
+              <button class="vr-btn" onclick="promptCreateGroup()" style="font-size:0.72rem;">+ Create Group</button>
+              <button class="vr-btn" onclick="promptJoinGroup()" style="font-size:0.72rem;">Join by Invite</button>
+            </div>
+          </div>
         </div>
         <div id="tab-dms" class="sidebar-tab-content">
           <div id="dm-list"></div>
