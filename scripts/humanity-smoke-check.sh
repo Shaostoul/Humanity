@@ -2,8 +2,6 @@
 set -euo pipefail
 
 SERVICE="humanity-relay.service"
-REPO_JS="/opt/Humanity/crates/humanity-relay/client/app.js"
-RUNTIME_JS="/var/www/humanity/chat/app.js"
 
 echo "[smoke] checking service health"
 systemctl is-active --quiet "$SERVICE"
@@ -31,6 +29,7 @@ check_sync "/opt/Humanity/crates/humanity-relay/client/app.js" "/var/www/humanit
 check_sync "/opt/Humanity/crates/humanity-relay/client/style.css" "/var/www/humanity/chat/style.css" "chat_css"
 check_sync "/opt/Humanity/shared/shell.js" "/var/www/humanity/shared/shell.js" "shared_shell_js"
 check_sync "/opt/Humanity/game/index.html" "/var/www/humanity/game/index.html" "game_index_html"
+check_sync "/opt/Humanity/game/index.html" "/var/www/humanity/app.html" "app_html"
 
 echo "[smoke] checking command handlers in source"
 SRC="/opt/Humanity/crates/humanity-relay/src/relay.rs"
