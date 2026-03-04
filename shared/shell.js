@@ -107,6 +107,7 @@
       flex-shrink: 0;
     }
     .hub-nav .tab .tab-icon { display:inline-flex; align-items:center; justify-content:center; min-width: 14px; }
+    .hub-nav .tab .tab-icon img { width:14px; height:14px; object-fit:contain; display:block; }
     .hub-nav .tab .tab-label { display: inline; }
     .hub-nav.compact .tab .tab-label { display: none; }
     .hub-nav.compact .tab.no-icon .tab-label { display: inline; }
@@ -264,18 +265,18 @@
     if (!navEl) return;
 
     var tabMeta = {
-      '/map': { icon: 'M', label: 'Map' },
-      '/board': { icon: 'B', label: 'Board' },
-      '/reality': { icon: 'R', label: 'Reality' },
-      '/fantasy': { icon: 'F', label: 'Fantasy' },
-      '/market': { icon: '$', label: 'Market' },
-      '/browse': { icon: 'BR', label: 'Browse' },
-      '/dashboard': { icon: 'D', label: 'Dashboard' },
-      '/streams': { icon: 'S', label: 'Streams' },
-      '/info': { icon: 'I', label: 'Info' },
-      '/source': { icon: 'SRC', label: 'Source' },
-      '/debug': { icon: 'DBG', label: 'Debug' },
-      '/download': { icon: 'DL', label: 'Download' }
+      '/map': { icon: '/shared/ui-icons/map.png', label: 'Map' },
+      '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Board' },
+      '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Reality' },
+      '/fantasy': { icon: '/shared/ui-icons/galaxy.png', label: 'Fantasy' },
+      '/market': { icon: '/shared/ui-icons/market.png', label: 'Market' },
+      '/browse': { icon: '/shared/ui-icons/website.png', label: 'Browse' },
+      '/dashboard': { icon: '/shared/ui-icons/controls.png', label: 'Dashboard' },
+      '/streams': { icon: '/shared/ui-icons/audio.png', label: 'Streams' },
+      '/info': { icon: '/shared/ui-icons/codex.png', label: 'Info' },
+      '/source': { icon: '/shared/ui-icons/components.png', label: 'Source' },
+      '/debug': { icon: '/shared/ui-icons/logs.png', label: 'Debug' },
+      '/download': { icon: '/shared/ui-icons/save.png', label: 'Download' }
     };
 
     navEl.querySelectorAll('a.tab').forEach(function(a) {
@@ -284,12 +285,16 @@
       var label = meta ? meta.label : ((a.textContent || '').replace(/\s+/g, ' ').trim() || href || 'Tab');
       var icon = meta ? meta.icon : '';
 
-      if (/github\.com/i.test(href)) { label = 'GitHub'; icon = 'GH'; }
+      if (/github\.com/i.test(href)) { label = 'GitHub'; icon = '/shared/ui-icons/discord.png'; }
 
       a.setAttribute('data-tip', label);
       a.setAttribute('title', label);
       a.classList.toggle('no-icon', !icon);
-      a.innerHTML = (icon ? ('<span class="tab-icon">' + icon + '</span> ') : '') + '<span class="tab-label">' + label + '</span>';
+      var iconHtml = '';
+      if (icon) {
+        iconHtml = '<span class="tab-icon"><img src="' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/shared/ui-icons/warning.png\';"></span> ';
+      }
+      a.innerHTML = iconHtml + '<span class="tab-label">' + label + '</span>';
       if (a.dataset) a.dataset.prepared = '1';
     });
 

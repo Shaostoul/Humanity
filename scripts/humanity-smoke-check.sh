@@ -30,6 +30,7 @@ check_sync "/opt/Humanity/crates/humanity-relay/client/style.css" "/var/www/huma
 check_sync "/opt/Humanity/shared/shell.js" "/var/www/humanity/shared/shell.js" "shared_shell_js"
 check_sync "/opt/Humanity/game/index.html" "/var/www/humanity/game/index.html" "game_index_html"
 check_sync "/opt/Humanity/game/index.html" "/var/www/humanity/app.html" "app_html"
+check_sync "/opt/Humanity/assets/ui/icons/warning.png" "/var/www/humanity/shared/ui-icons/warning.png" "ui_icon_warning"
 
 echo "[smoke] checking command handlers in source"
 SRC="/opt/Humanity/crates/humanity-relay/src/relay.rs"
