@@ -747,7 +747,8 @@ async function handleMessage(msg) {
         break;
       }
       if (msg.message === 'sync_ack') break; // Silent ack
-      addSystemMessage(msg.message);
+      const handledAdminFeedback = handleChannelAdminFeedback(msg.message);
+      if (!handledAdminFeedback) addSystemMessage(msg.message);
       break;
     case 'name_taken': {
       // Stop reconnecting — this is a permanent error, not a transient disconnect.
@@ -825,6 +826,51 @@ async function sendMessage() {
   input.value = '';
   input.style.height = 'auto'; // Reset textarea height after sending.
   input.focus();
+}
+
+let channelAdminCmdInFlight = null;
+
+function beginChannelAdminCmd(opLabel) {
+  if (channelAdminCmdInFlight) {
+    addSystemMessage('⏳ Another channel action is still in progress. Please wait.');
+    return false;
+  }
+  const timeout = setTimeout(() => {
+    if (channelAdminCmdInFlight) {
+      addSystemMessage('❌ Channel action timed out. Please retry.');
+      channelAdminCmdInFlight = null;
+    }
+  }, 12000);
+  channelAdminCmdInFlight = { opLabel, timeout };
+  return true;
+}
+
+function resolveChannelAdminCmd(successText) {
+  if (!channelAdminCmdInFlight) return;
+  clearTimeout(channelAdminCmdInFlight.timeout);
+  channelAdminCmdInFlight = null;
+  if (successText) addSystemMessage(successText);
+}
+
+function failChannelAdminCmd(reasonText) {
+  if (!channelAdminCmdInFlight) return;
+  clearTimeout(channelAdminCmdInFlight.timeout);
+  channelAdminCmdInFlight = null;
+  addSystemMessage('❌ ' + reasonText);
+}
+
+function handleChannelAdminFeedback(message) {
+  if (!message || !channelAdminCmdInFlight) return false;
+  const m = String(message);
+  if (/^Channel #.+ created\.$/i.test(m) || /^Channel #.+ deleted\.$/i.test(m) || /^Channel #.+ renamed to #.+\.$/i.test(m)) {
+    resolveChannelAdminCmd('✅ ' + m);
+    return true;
+  }
+  if (/(Only admins|Only admins and mods|Cannot delete|Cannot rename|not found|Invalid channel name|Unable to rename|Usage: \/channel-)/i.test(m)) {
+    failChannelAdminCmd(m);
+    return true;
+  }
+  return false;
 }
 
 async function sendChatCommand(command, channelOverride) {
@@ -3542,9 +3588,10 @@ var federatedServersFetched = false;
             addSystemMessage('Invalid channel name. Use 1-24 chars: letters, numbers, dashes, underscores.');
           } else {
             const cmd = '/channel-create ' + normalized;
+            if (!beginChannelAdminCmd('create')) return;
             addSystemMessage('⏳ Creating #' + normalized + ' ...');
             // Route admin channel-management commands through #general for consistent server handling.
-            sendChatCommand(cmd, 'general').catch(console.error);
+            sendChatCommand(cmd, 'general').then(ok => { if (!ok) failChannelAdminCmd('Create command failed to send.'); }).catch(console.error);
           }
         }
       }
@@ -4211,16 +4258,18 @@ async function handleVoiceRoomSignal(msg) {
         if (action === 'rename') {
           const newName = prompt('New channel name:', name);
           if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
+            if (!beginChannelAdminCmd('rename')) return;
             addSystemMessage('⏳ Renaming #' + name + ' → #' + newName.trim().toLowerCase() + ' ...');
-            sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general').catch(console.error);
+            sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general').then(ok => { if (!ok) failChannelAdminCmd('Rename command failed to send.'); }).catch(console.error);
           }
         } else if (action === 'delete') {
           if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
             if (ws && ws.readyState === WebSocket.OPEN) {
               const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
+              if (!beginChannelAdminCmd('delete')) return;
               addSystemMessage('⏳ Deleting #' + normalized + ' ...');
               // Route admin channel-management commands through #general for consistent server handling.
-              sendChatCommand('/channel-delete ' + normalized, 'general').catch(console.error);
+              sendChatCommand('/channel-delete ' + normalized, 'general').then(ok => { if (!ok) failChannelAdminCmd('Delete command failed to send.'); }).catch(console.error);
             }
           }
         }
