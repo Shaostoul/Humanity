@@ -6505,13 +6505,17 @@
     // ── Enumerate devices ──
     function streamPrettyDeviceLabel(label) {
       let s = String(label || '').trim();
-      // Windows/WebRTC may append endpoint keys in trailing parentheses.
-      // Strip common forms like (194f:0302), (0x...), (GUID-like strings).
-      s = s.replace(/\s*\(([0-9a-f]{4}:[0-9a-f]{4}|0x[0-9a-f]{6,}|[a-z0-9:_\-]{8,})\)$/i, '');
       // Remove role prefixes that create duplicate-looking rows.
       s = s.replace(/^(Default|Communications)\s*-\s*/i, '');
-      // Collapse repeated whitespace.
-      s = s.replace(/\s+/g, ' ').trim();
+      // Remove trailing parenthesized endpoint metadata aggressively.
+      s = s.replace(/\s*\([^)]*\)\s*$/i, '');
+      // Remove Windows endpoint id fragments like {0.0.1.00000000}.{GUID}
+      s = s.replace(/\{[0-9a-fA-F.\-]+\}/g, '');
+      // Remove long hex-ish tokens often appended by audio stacks.
+      s = s.replace(/\b(?:0x)?[0-9a-fA-F]{8,}\b/g, '');
+      // Collapse repeated separators and whitespace.
+      s = s.replace(/\s*-\s*$/g, '').replace(/\s+/g, ' ').trim();
+      if (!s) return 'Microphone';
       return s;
     }
 
@@ -6535,7 +6539,8 @@
             const norm = pretty.toLowerCase();
             if (seenMics.has(norm)) return;
             seenMics.add(norm);
-            micSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(pretty) + '</option>';
+            const short = pretty.length > 42 ? pretty.slice(0, 39) + '…' : pretty;
+            micSel.innerHTML += '<option value="' + d.deviceId + '" title="' + escapeHtml(pretty) + '">' + escapeHtml(short) + '</option>';
           }
           if (d.kind === 'videoinput') {
             const rawLabel = (d.label || '').trim();
@@ -6545,7 +6550,8 @@
             const norm = pretty.toLowerCase();
             if (seenCams.has(norm)) return;
             seenCams.add(norm);
-            camSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(pretty) + '</option>';
+            const short = pretty.length > 42 ? pretty.slice(0, 39) + '…' : pretty;
+            camSel.innerHTML += '<option value="' + d.deviceId + '" title="' + escapeHtml(pretty) + '">' + escapeHtml(short) + '</option>';
           }
         });
       } catch(e) {}
