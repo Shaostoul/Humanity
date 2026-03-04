@@ -2377,6 +2377,58 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 }
                                             }
                                         }
+                                        "/channel-edit" => {
+                                            let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                            if role != "admin" {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins can edit channels.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                // Syntax: /channel-edit <old_name> name <new_name>
+                                                let mut parts = trimmed.split_whitespace();
+                                                let _cmd = parts.next();
+                                                let old_name = parts.next().unwrap_or("").trim().to_lowercase();
+                                                let field = parts.next().unwrap_or("").trim();
+                                                let new_name = parts.collect::<Vec<_>>().join(" ").trim().to_lowercase();
+
+                                                if old_name.is_empty() || field != "name" || new_name.is_empty() {
+                                                    let private = RelayMessage::Private {
+                                                        to: my_key_for_recv.clone(),
+                                                        message: "Usage: /channel-edit <old_name> name <new_name>".to_string(),
+                                                    };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else if !new_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') || new_name.len() > 24 {
+                                                    let private = RelayMessage::Private {
+                                                        to: my_key_for_recv.clone(),
+                                                        message: "Invalid channel name. Use 1-24 chars: letters/numbers/dashes/underscores.".to_string(),
+                                                    };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else if old_name == "general" {
+                                                    let private = RelayMessage::Private {
+                                                        to: my_key_for_recv.clone(),
+                                                        message: "Cannot rename the general channel.".to_string(),
+                                                    };
+                                                    let _ = state_clone.broadcast_tx.send(private);
+                                                } else {
+                                                    match state_clone.db.rename_channel(&old_name, &new_name) {
+                                                        Ok(true) => {
+                                                            broadcast_channel_list(&state_clone);
+                                                            let sys = RelayMessage::System {
+                                                                message: format!("Channel #{} renamed to #{}.", old_name, new_name),
+                                                            };
+                                                            let _ = state_clone.broadcast_tx.send(sys);
+                                                        }
+                                                        Ok(false) => {
+                                                            let private = RelayMessage::Private {
+                                                                to: my_key_for_recv.clone(),
+                                                                message: format!("Unable to rename channel '{}' (not found or destination exists).", old_name),
+                                                            };
+                                                            let _ = state_clone.broadcast_tx.send(private);
+                                                        }
+                                                        Err(e) => tracing::error!("Channel edit error: {e}"),
+                                                    }
+                                                }
+                                            }
+                                        }
                                         "/channel-delete" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                             if role != "admin" {

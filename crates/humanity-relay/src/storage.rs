@@ -831,6 +831,43 @@ impl Storage {
         Ok(rows > 0)
     }
 
+    /// Rename a channel ID/name and migrate message-scoped data.
+    /// Returns true when a channel was renamed.
+    pub fn rename_channel(&self, old_id: &str, new_id: &str) -> Result<bool, rusqlite::Error> {
+        let mut conn = self.conn.lock().unwrap();
+
+        // Refuse if destination already exists.
+        let dest_exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM channels WHERE id = ?1",
+            params![new_id],
+            |row| row.get(0),
+        )?;
+        if dest_exists > 0 {
+            return Ok(false);
+        }
+
+        let tx = conn.transaction()?;
+
+        // Rename channel row.
+        let changed = tx.execute(
+            "UPDATE channels SET id = ?1, name = ?1 WHERE id = ?2",
+            params![new_id, old_id],
+        )?;
+
+        if changed == 0 {
+            tx.rollback()?;
+            return Ok(false);
+        }
+
+        // Migrate message and channel-scoped metadata.
+        tx.execute("UPDATE messages SET channel_id = ?1 WHERE channel_id = ?2", params![new_id, old_id])?;
+        tx.execute("UPDATE reactions SET channel = ?1 WHERE channel = ?2", params![new_id, old_id])?;
+        tx.execute("UPDATE pinned_messages SET channel = ?1 WHERE channel = ?2", params![new_id, old_id])?;
+
+        tx.commit()?;
+        Ok(true)
+    }
+
     /// List all channels (id, name, description, read_only, category_id).
     pub fn list_channels(&self) -> Result<Vec<(String, String, Option<String>, bool)>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
