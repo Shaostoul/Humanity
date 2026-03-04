@@ -557,6 +557,10 @@ async function handleMessage(msg) {
       document.getElementById('msg-input').focus();
       updateStats();
       updatePeerList(msg.peers);
+      // Refresh DM sidebar conversations on connect/reconnect.
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/dms', timestamp: Date.now(), channel: 'general' }));
+      }
       break;
     case 'full_user_list':
       updateUserList(msg.users || []);
@@ -640,9 +644,11 @@ async function handleMessage(msg) {
       break;
     }
     case 'dm': {
-      // Incoming DM — if we're viewing this conversation, show it.
+      // Incoming/outgoing DM event.
       const dmFrom = msg.from;
       const dmFromName = msg.from_name || shortKey(dmFrom);
+      const dmPartnerKey = (dmFrom === myKey) ? msg.to : dmFrom;
+      const dmPartnerName = (dmFrom === myKey) ? (peerData[msg.to]?.display_name || shortKey(msg.to || '')) : dmFromName;
       let dmContent = msg.content;
       let dmIsEncrypted = !!msg.encrypted;
       // E2EE: Decrypt if encrypted.
@@ -659,6 +665,7 @@ async function handleMessage(msg) {
           dmContent = '🔒 [Cannot decrypt — missing sender key]';
         }
       }
+      upsertDmConversation(dmPartnerKey, dmPartnerName, dmIsEncrypted ? '🔒 Encrypted message' : dmContent, msg.timestamp, dmFrom !== myKey);
       if (activeDmPartner && (dmFrom === activeDmPartner || dmFrom === myKey)) {
         addDmMessage(dmFromName, dmContent, msg.timestamp, dmFrom, msg.to, dmIsEncrypted);
       }
@@ -3228,8 +3235,10 @@ sendMessage = async function() {
         }
       }
       ws.send(JSON.stringify(dmPayload));
-      // Show locally immediately (plaintext).
-      addDmMessage(myName, val, Date.now(), myKey, activeDmPartner, false);
+      // Show locally immediately (plaintext) and keep DM list persistent.
+      const sentTs = Date.now();
+      addDmMessage(myName, val, sentTs, myKey, activeDmPartner, false);
+      upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), val, sentTs, false);
       input.value = '';
       input.style.height = 'auto';
     }
@@ -3243,6 +3252,30 @@ let activeDmPartner = null; // Public key of active DM partner, or null for chan
 let activeDmPartnerName = '';
 let dmConversations = []; // Array of { partner_key, partner_name, last_message, last_timestamp, unread_count }
 
+function upsertDmConversation(partnerKey, partnerName, lastMessage, lastTimestamp, incoming) {
+  if (!partnerKey) return;
+  const idx = dmConversations.findIndex(c => c.partner_key === partnerKey);
+  if (idx >= 0) {
+    const row = dmConversations[idx];
+    row.partner_name = partnerName || row.partner_name;
+    row.last_message = String(lastMessage || row.last_message || '');
+    row.last_timestamp = Number(lastTimestamp || row.last_timestamp || Date.now());
+    if (incoming && activeDmPartner !== partnerKey) {
+      row.unread_count = Number(row.unread_count || 0) + 1;
+    }
+  } else {
+    dmConversations.push({
+      partner_key: partnerKey,
+      partner_name: partnerName || shortKey(partnerKey),
+      last_message: String(lastMessage || ''),
+      last_timestamp: Number(lastTimestamp || Date.now()),
+      unread_count: (incoming && activeDmPartner !== partnerKey) ? 1 : 0,
+    });
+  }
+  dmConversations.sort((a, b) => Number(b.last_timestamp || 0) - Number(a.last_timestamp || 0));
+  renderDmList();
+}
+
 /** Switch to DM conversation view. */
 function openDmConversation(partnerKey, partnerName) {
   activeDmPartner = partnerKey;
@@ -3251,7 +3284,9 @@ function openDmConversation(partnerKey, partnerName) {
   // Switch to DMs tab in sidebar.
   if (typeof switchSidebarTab === 'function') switchSidebarTab('dms', true);
 
-  // Update sidebar highlighting.
+  // Clear unread for this conversation and update sidebar highlighting.
+  const row = dmConversations.find(c => c.partner_key === partnerKey);
+  if (row) row.unread_count = 0;
   renderDmList();
   renderChannelList(); // Deselect channels
 
