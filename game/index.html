@@ -1306,6 +1306,10 @@
                     <select id="stream-mic-device" onchange="streamSwitchMic()"></select>
                     <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">🎙️</button>
                   </div>
+                  <div class="stream-setting" style="margin-top:0.2rem;">
+                    <input type="checkbox" id="stream-advanced-devices" onchange="streamSaveSetting('advancedDevices', this.checked); streamEnumerateDevices();">
+                    <label for="stream-advanced-devices" style="min-width:auto;">Show advanced devices</label>
+                  </div>
                   <div id="stream-mic-status">Mic status: idle</div>
                   <div class="stream-setting">
                     <label>Mic Volume</label>
@@ -6498,6 +6502,7 @@
         if (s.webcamSize) document.getElementById('stream-webcam-size').value = s.webcamSize;
         if (s.webcamQuality) document.getElementById('stream-webcam-quality').value = s.webcamQuality;
         if (s.pipCorner) streamSetPipCorner(s.pipCorner);
+        if (typeof s.advancedDevices !== 'undefined') document.getElementById('stream-advanced-devices').checked = !!s.advancedDevices;
       } catch(e) {}
     }
     streamLoadSettings();
@@ -6524,11 +6529,14 @@
         const devices = await navigator.mediaDevices.enumerateDevices();
         const micSel = document.getElementById('stream-mic-device');
         const camSel = document.getElementById('stream-webcam-device');
+        const showAdvanced = !!document.getElementById('stream-advanced-devices')?.checked;
         micSel.innerHTML = '<option value="">Default Microphone</option>';
         camSel.innerHTML = '<option value="">Default Camera</option>';
 
         const seenMics = new Set();
         const seenCams = new Set();
+
+        if (!showAdvanced) return;
 
         devices.forEach(d => {
           if (d.kind === 'audioinput') {
