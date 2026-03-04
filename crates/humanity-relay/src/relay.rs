@@ -2386,7 +2386,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 // Syntax: /channel-edit <old_name> name <new_name>
                                                 let mut parts = trimmed.split_whitespace();
                                                 let _cmd = parts.next();
-                                                let old_name = parts.next().unwrap_or("").trim().to_lowercase();
+                                                let old_name = parts
+                                                    .next()
+                                                    .unwrap_or("")
+                                                    .trim()
+                                                    .trim_start_matches('#')
+                                                    .to_lowercase();
                                                 let field = parts.next().unwrap_or("").trim();
                                                 let new_name = parts.collect::<Vec<_>>().join(" ").trim().to_lowercase();
 
@@ -2435,7 +2440,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can delete channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
-                                                let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("").trim().to_lowercase();
+                                                let ch_name = trimmed
+                                                    .split_whitespace()
+                                                    .nth(1)
+                                                    .unwrap_or("")
+                                                    .trim()
+                                                    .trim_start_matches('#')
+                                                    .to_lowercase();
                                                 if ch_name == "general" {
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Cannot delete the general channel.".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
