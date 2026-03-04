@@ -828,12 +828,13 @@ async function sendMessage() {
 }
 
 async function sendChatCommand(command, channelOverride) {
-  if (!command || !ws || ws.readyState !== WebSocket.OPEN) return;
-  const timestamp = Date.now();
-  let signature = null;
-  if (myIdentity && myIdentity.canSign) {
-    signature = await signMessage(myIdentity.privateKey, command, timestamp);
+  if (!command) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    addSystemMessage('Not connected. Please reconnect and try again.');
+    return;
   }
+
+  const timestamp = Date.now();
   const msg = {
     type: 'chat',
     from: myKey,
@@ -842,8 +843,22 @@ async function sendChatCommand(command, channelOverride) {
     timestamp,
     channel: channelOverride || activeChannel || 'general',
   };
-  if (signature) msg.signature = signature;
-  ws.send(JSON.stringify(msg));
+
+  try {
+    if (myIdentity && myIdentity.canSign) {
+      const signature = await signMessage(myIdentity.privateKey, command, timestamp);
+      if (signature) msg.signature = signature;
+    }
+  } catch (e) {
+    console.warn('sendChatCommand: signature failed, sending unsigned command', e);
+  }
+
+  try {
+    ws.send(JSON.stringify(msg));
+  } catch (e) {
+    console.error('sendChatCommand: ws.send failed', e);
+    addSystemMessage('Command failed to send. Check connection and try again.');
+  }
 }
 
 // ── Rendering ──
@@ -3532,7 +3547,7 @@ var federatedServersFetched = false;
           } else {
             const cmd = '/channel-create ' + normalized;
             // Route admin channel-management commands through #general for consistent server handling.
-            sendChatCommand(cmd, 'general');
+            sendChatCommand(cmd, 'general').catch(console.error);
           }
         }
       }
@@ -4199,14 +4214,14 @@ async function handleVoiceRoomSignal(msg) {
         if (action === 'rename') {
           const newName = prompt('New channel name:', name);
           if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
-            sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general');
+            sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general').catch(console.error);
           }
         } else if (action === 'delete') {
           if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
             if (ws && ws.readyState === WebSocket.OPEN) {
               const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
               // Route admin channel-management commands through #general for consistent server handling.
-              sendChatCommand('/channel-delete ' + normalized, 'general');
+              sendChatCommand('/channel-delete ' + normalized, 'general').catch(console.error);
             }
           }
         }
