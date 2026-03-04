@@ -106,6 +106,7 @@
       vertical-align: middle;
       flex-shrink: 0;
     }
+    .hub-nav .tab .tab-icon { display:inline-flex; align-items:center; justify-content:center; min-width: 14px; }
     .hub-nav .tab .tab-label { display: inline; }
     .hub-nav.compact .tab .tab-label { display: none; }
     .hub-nav.compact .tab {
@@ -262,18 +263,23 @@
     if (!navEl) return;
 
     navEl.querySelectorAll('a.tab').forEach(function(a) {
-      if (a.querySelector('.tab-label')) return;
+      if (a.dataset && a.dataset.prepared === '1') return;
       var txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
-      // Keep icon-like first token, label is the rest.
-      var parts = txt.split(' ');
-      var label = parts.length > 1 ? parts.slice(1).join(' ') : txt;
-      if (!label) return;
+      if (!txt) return;
+
+      var icon = '';
+      var label = txt;
+      var firstSpace = txt.indexOf(' ');
+      if (firstSpace > 0) {
+        icon = txt.slice(0, firstSpace);
+        label = txt.slice(firstSpace + 1).trim();
+      }
+      if (!label) label = txt;
+
       a.setAttribute('data-tip', label);
       a.setAttribute('title', label);
-      // Replace trailing text node with wrapped label while preserving existing SVG/icon HTML.
-      var html = a.innerHTML;
-      var stripped = html.replace(/\s+[^<\s][^<]*$/m, '');
-      a.innerHTML = stripped + ' <span class="tab-label">' + label + '</span>';
+      a.innerHTML = (icon ? ('<span class="tab-icon">' + icon + '</span> ') : '') + '<span class="tab-label">' + label + '</span>';
+      if (a.dataset) a.dataset.prepared = '1';
     });
 
     var shouldCompact = navEl.scrollWidth > navEl.clientWidth + 4 || window.innerWidth < 1180;

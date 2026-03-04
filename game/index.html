@@ -1227,6 +1227,7 @@
               <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
                 <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">GO LIVE</button>
                 <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">END</button>
+                <button class="btn" id="stream-brb-btn" onclick="streamToggleBrb()" style="display:none;">BRB</button>
               </div>
 
               <!-- Streamer Metrics -->
@@ -6470,6 +6471,8 @@
     let streamMicSourceNode = null;
     let streamMicDestNode = null;
     let streamMicMuted = false;
+    let streamBrbActive = false;
+    let streamBrbStartAt = 0;
 
     // Twitch IRC WebSocket for chat integration
     let twitchChatWs = null;
@@ -6499,6 +6502,20 @@
         const icon = hdr.querySelector('.collapse-icon');
         hdr.textContent = 'Stream Control ';
         if (icon) hdr.appendChild(icon);
+      }
+
+      const liveHdr = document.querySelector('#streams-live .reality-card-header');
+      if (liveHdr) {
+        const icon = liveHdr.querySelector('.collapse-icon');
+        liveHdr.textContent = 'Live Now ';
+        if (icon) liveHdr.appendChild(icon);
+      }
+
+      const serversHdr = document.querySelector('#streams-servers .reality-card-header');
+      if (serversHdr) {
+        const icon = serversHdr.querySelector('.collapse-icon');
+        serversHdr.textContent = 'Servers ';
+        if (icon) serversHdr.appendChild(icon);
       }
 
       const sectionTitles = document.querySelectorAll('#tab-streams .settings-section-title');
@@ -6798,6 +6815,24 @@
         compositeCtx.stroke();
       }
 
+      if (streamBrbActive) {
+        const elapsed = Math.max(0, Math.floor((Date.now() - streamBrbStartAt) / 1000));
+        const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
+        const ss = String(elapsed % 60).padStart(2, '0');
+
+        compositeCtx.save();
+        compositeCtx.fillStyle = 'rgba(0,0,0,0.58)';
+        compositeCtx.fillRect(0, 0, w, h);
+
+        compositeCtx.fillStyle = '#f5f5f5';
+        compositeCtx.textAlign = 'center';
+        compositeCtx.font = 'bold 84px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        compositeCtx.fillText('BRB', w / 2, h / 2 - 20);
+        compositeCtx.font = '500 36px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+        compositeCtx.fillText('AFK ' + mm + ':' + ss, w / 2, h / 2 + 42);
+        compositeCtx.restore();
+      }
+
       streamCompositeAnimFrame = requestAnimationFrame(streamCompositeLoop);
     }
 
@@ -7061,6 +7096,7 @@
       streamStartTime = Date.now();
       document.getElementById('stream-go-live-btn').style.display = 'none';
       document.getElementById('stream-stop-btn').style.display = 'inline-flex';
+      document.getElementById('stream-brb-btn').style.display = 'inline-flex';
       document.getElementById('stream-stop-btn').classList.remove('btn-disabled');
       document.getElementById('stream-stop-btn').classList.add('btn-activated');
 
@@ -7110,6 +7146,26 @@
       }
     }
 
+    function streamToggleBrb() {
+      if (!streamIsLive) return;
+      streamBrbActive = !streamBrbActive;
+      const btn = document.getElementById('stream-brb-btn');
+      if (streamBrbActive) {
+        streamBrbStartAt = Date.now();
+        if (btn) {
+          btn.textContent = 'BACK';
+          btn.classList.add('btn-activated');
+        }
+        streamSetMicStatus('Mic status: BRB mode', 'warn');
+      } else {
+        if (btn) {
+          btn.textContent = 'BRB';
+          btn.classList.remove('btn-activated');
+        }
+        streamSetMicStatus('Mic status: active', 'good');
+      }
+    }
+
     function streamStop() {
       if (!streamIsLive) return;
       streamIsLive = false;
@@ -7117,6 +7173,11 @@
       if (streamMetricsTimer) { clearInterval(streamMetricsTimer); streamMetricsTimer = null; }
       document.getElementById('stream-go-live-btn').style.display = 'inline-flex';
       document.getElementById('stream-stop-btn').style.display = 'none';
+      document.getElementById('stream-brb-btn').style.display = 'none';
+      document.getElementById('stream-brb-btn').textContent = 'BRB';
+      document.getElementById('stream-brb-btn').classList.remove('btn-activated');
+      streamBrbActive = false;
+      streamBrbStartAt = 0;
       document.getElementById('stream-stat-duration').textContent = 'Duration: --:--';
       document.getElementById('stream-stat-quality').textContent = 'Quality: --';
       document.getElementById('stream-stat-bitrate').textContent = 'Bitrate: --';
