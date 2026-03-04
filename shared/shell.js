@@ -106,6 +106,30 @@
       vertical-align: middle;
       flex-shrink: 0;
     }
+    .hub-nav .tab .tab-label { display: inline; }
+    .hub-nav.compact .tab .tab-label { display: none; }
+    .hub-nav.compact .tab {
+      min-width: 30px;
+      justify-content: center;
+      padding: 0.2rem 0.45rem;
+      position: relative;
+    }
+    .hub-nav.compact .tab:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,10,10,0.95);
+      color: #ddd;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 0.18rem 0.45rem;
+      font-size: 0.68rem;
+      white-space: nowrap;
+      z-index: 1200;
+      pointer-events: none;
+    }
     .hub-nav .spacer { flex: 1; }
     @keyframes channeling {
       0%   { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
@@ -232,6 +256,32 @@
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
+
+  function applyNavLabelWrappingAndCompaction() {
+    var navEl = document.querySelector('.hub-nav');
+    if (!navEl) return;
+
+    navEl.querySelectorAll('a.tab').forEach(function(a) {
+      if (a.querySelector('.tab-label')) return;
+      var txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      // Keep icon-like first token, label is the rest.
+      var parts = txt.split(' ');
+      var label = parts.length > 1 ? parts.slice(1).join(' ') : txt;
+      if (!label) return;
+      a.setAttribute('data-tip', label);
+      a.setAttribute('title', label);
+      // Replace trailing text node with wrapped label while preserving existing SVG/icon HTML.
+      var html = a.innerHTML;
+      var stripped = html.replace(/\s+[^<\s][^<]*$/m, '');
+      a.innerHTML = stripped + ' <span class="tab-label">' + label + '</span>';
+    });
+
+    var shouldCompact = navEl.scrollWidth > navEl.clientWidth + 4 || window.innerWidth < 1180;
+    navEl.classList.toggle('compact', shouldCompact);
+  }
+
+  applyNavLabelWrappingAndCompaction();
+  window.addEventListener('resize', applyNavLabelWrappingAndCompaction);
 
   // ── Fix external links for Tauri desktop app ──
   // target="_blank" doesn't work in Tauri's single webview; window.open() opens system browser

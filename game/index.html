@@ -6487,8 +6487,40 @@
       el.style.color = colors[tone || 'neutral'] || colors.neutral;
     }
 
+    function streamNormalizeUiText() {
+      // Repair any mojibake-heavy labels in Streams UI with plain text fallbacks.
+      const goBtn = document.getElementById('stream-go-live-btn');
+      if (goBtn) goBtn.textContent = 'GO LIVE';
+      const stopBtn = document.getElementById('stream-stop-btn');
+      if (stopBtn) stopBtn.textContent = 'END';
+
+      const hdr = document.querySelector('#streams-dashboard .reality-card-header');
+      if (hdr) {
+        const icon = hdr.querySelector('.collapse-icon');
+        hdr.textContent = 'Stream Control ';
+        if (icon) hdr.appendChild(icon);
+      }
+
+      const sectionTitles = document.querySelectorAll('#tab-streams .settings-section-title');
+      if (sectionTitles[0]) sectionTitles[0].textContent = 'Video';
+      if (sectionTitles[1]) sectionTitles[1].textContent = 'Audio';
+      if (sectionTitles[2]) sectionTitles[2].textContent = 'Camera';
+
+      const panelTitles = document.querySelectorAll('#tab-streams .stream-panel > div[style*="font-weight:600"]');
+      panelTitles.forEach(el => {
+        const t = (el.textContent || '').toLowerCase();
+        if (t.includes('scene')) el.textContent = 'Scenes';
+        else if (t.includes('stream metrics')) el.textContent = 'Stream Metrics';
+        else if (t.includes('stream info')) el.textContent = 'Stream Info';
+        else if (t.includes('restream')) el.textContent = 'Restream To';
+      });
+    }
+
     // Default stream mic status on tab load.
-    setTimeout(() => streamSetMicStatus('Mic status: idle', 'neutral'), 0);
+    setTimeout(() => {
+      streamSetMicStatus('Mic status: idle', 'neutral');
+      streamNormalizeUiText();
+    }, 0);
 
     // Warn before leaving while live (browser safety; desktop nav guard handled in shared shell).
     window.addEventListener('beforeunload', function(e) {
