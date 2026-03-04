@@ -832,12 +832,12 @@ let channelAdminCmdInFlight = null;
 
 function beginChannelAdminCmd(opLabel) {
   if (channelAdminCmdInFlight) {
-    addSystemMessage('⏳ Another channel action is still in progress. Please wait.');
+    addNotice('Another channel action is still in progress. Please wait.', 'yellow', 6);
     return false;
   }
   const timeout = setTimeout(() => {
     if (channelAdminCmdInFlight) {
-      addSystemMessage('❌ Channel action timed out. Please retry.');
+      addNotice('Channel action timed out. Please retry.', 'red', 8);
       channelAdminCmdInFlight = null;
     }
   }, 12000);
@@ -849,14 +849,14 @@ function resolveChannelAdminCmd(successText) {
   if (!channelAdminCmdInFlight) return;
   clearTimeout(channelAdminCmdInFlight.timeout);
   channelAdminCmdInFlight = null;
-  if (successText) addSystemMessage(successText);
+  if (successText) addNotice(successText, 'green', 6);
 }
 
 function failChannelAdminCmd(reasonText) {
   if (!channelAdminCmdInFlight) return;
   clearTimeout(channelAdminCmdInFlight.timeout);
   channelAdminCmdInFlight = null;
-  addSystemMessage('❌ ' + reasonText);
+  addNotice(reasonText, 'red', 10);
 }
 
 function handleChannelAdminFeedback(message) {
@@ -3582,7 +3582,11 @@ var federatedServersFetched = false;
         createVoiceRoom();
       } else if (action === 'create-text-channel') {
         const name = prompt('Channel name (letters, numbers, dashes, underscores):');
-        if (name && name.trim() && ws && ws.readyState === WebSocket.OPEN) {
+        if (name && name.trim()) {
+          if (!ws || ws.readyState !== WebSocket.OPEN) {
+            addNotice('Not connected. Reconnect, then retry create.', 'red', 8);
+            return;
+          }
           const normalized = name.trim().replace(/^#/, '').toLowerCase();
           if (!/^[a-z0-9_-]{1,24}$/.test(normalized)) {
             addSystemMessage('Invalid channel name. Use 1-24 chars: letters, numbers, dashes, underscores.');
@@ -4257,20 +4261,26 @@ async function handleVoiceRoomSignal(msg) {
         const action = item.dataset.cogAction;
         if (action === 'rename') {
           const newName = prompt('New channel name:', name);
-          if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
+          if (newName && newName.trim() && newName.trim() !== name) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+              addNotice('Not connected. Reconnect, then retry rename.', 'red', 8);
+              return;
+            }
             if (!beginChannelAdminCmd('rename')) return;
             addSystemMessage('⏳ Renaming #' + name + ' → #' + newName.trim().toLowerCase() + ' ...');
             sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general').then(ok => { if (!ok) failChannelAdminCmd('Rename command failed to send.'); }).catch(console.error);
           }
         } else if (action === 'delete') {
           if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
-              if (!beginChannelAdminCmd('delete')) return;
-              addSystemMessage('⏳ Deleting #' + normalized + ' ...');
-              // Route admin channel-management commands through #general for consistent server handling.
-              sendChatCommand('/channel-delete ' + normalized, 'general').then(ok => { if (!ok) failChannelAdminCmd('Delete command failed to send.'); }).catch(console.error);
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+              addNotice('Not connected. Reconnect, then retry delete.', 'red', 8);
+              return;
             }
+            const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
+            if (!beginChannelAdminCmd('delete')) return;
+            addSystemMessage('⏳ Deleting #' + normalized + ' ...');
+            // Route admin channel-management commands through #general for consistent server handling.
+            sendChatCommand('/channel-delete ' + normalized, 'general').then(ok => { if (!ok) failChannelAdminCmd('Delete command failed to send.'); }).catch(console.error);
           }
         }
         dropdown.remove();
@@ -4287,14 +4297,22 @@ async function handleVoiceRoomSignal(msg) {
         const action = item.dataset.cogAction;
         if (action === 'rename') {
           const newName = prompt('New voice channel name:', name);
-          if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
+          if (newName && newName.trim() && newName.trim() !== name) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+              addNotice('Not connected. Reconnect, then retry voice rename.', 'red', 8);
+              return;
+            }
             ws.send(JSON.stringify({ type: 'voice_room', action: 'rename', room_id: String(id), room_name: newName.trim() }));
+            addNotice('Voice channel rename sent.', 'cyan', 4);
           }
         } else if (action === 'delete') {
           if (confirm('Delete voice channel "' + name + '"?')) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'voice_room', action: 'delete', room_id: String(id) }));
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+              addNotice('Not connected. Reconnect, then retry voice delete.', 'red', 8);
+              return;
             }
+            ws.send(JSON.stringify({ type: 'voice_room', action: 'delete', room_id: String(id) }));
+            addNotice('Voice channel delete sent.', 'cyan', 4);
           }
         }
         dropdown.remove();

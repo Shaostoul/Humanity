@@ -20,6 +20,12 @@ This should:
 sudo /usr/local/bin/humanity-smoke-check
 ```
 
+## Last deploy report
+
+```bash
+sudo /usr/local/bin/humanity-deploy-last-report
+```
+
 Checks:
 - relay service active,
 - runtime `/var/www/humanity/chat/app.js` hash matches repo `/opt/Humanity/crates/humanity-relay/client/app.js`,
