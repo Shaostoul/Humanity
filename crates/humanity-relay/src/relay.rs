@@ -2435,11 +2435,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can delete channels.".to_string() };
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
-                                                let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("");
+                                                let ch_name = trimmed.split_whitespace().nth(1).unwrap_or("").trim().to_lowercase();
                                                 if ch_name == "general" {
                                                     let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Cannot delete the general channel.".to_string() };
                                                     let _ = state_clone.broadcast_tx.send(private);
-                                                } else if state_clone.db.delete_channel(ch_name).unwrap_or(false) {
+                                                } else if state_clone.db.delete_channel(&ch_name).unwrap_or(false) {
                                                     broadcast_channel_list(&state_clone);
                                                     let sys = RelayMessage::System { message: format!("Channel #{} deleted.", ch_name) };
                                                     let _ = state_clone.broadcast_tx.send(sys);
