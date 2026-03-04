@@ -919,6 +919,12 @@ pub enum RelayMessage {
         content: String,
     },
 
+    /// Client requests group message history.
+    #[serde(rename = "group_history_request")]
+    GroupHistoryRequest {
+        group_id: String,
+    },
+
     /// Client requests a thread (all replies to a specific message).
     #[serde(rename = "thread_request")]
     ThreadRequest {
@@ -4853,6 +4859,37 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         let _ = state_clone.broadcast_tx.send(private);
                                     }
                                     Err(e) => tracing::error!("Group leave error: {e}"),
+                                }
+                            }
+                            RelayMessage::GroupHistoryRequest { group_id } => {
+                                let is_member = state_clone.db.is_group_member(&group_id, &my_key_for_recv).unwrap_or(false);
+                                if !is_member {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You are not a member of this group.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+
+                                match state_clone.db.load_group_messages(&group_id, 200) {
+                                    Ok(rows) => {
+                                        let messages: Vec<GroupMessageData> = rows
+                                            .into_iter()
+                                            .map(|(from, from_name, content, timestamp)| GroupMessageData {
+                                                from,
+                                                from_name,
+                                                content,
+                                                timestamp,
+                                            })
+                                            .collect();
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::GroupHistory {
+                                            target: Some(my_key_for_recv.clone()),
+                                            group_id,
+                                            messages,
+                                        });
+                                    }
+                                    Err(e) => tracing::error!("Group history error: {e}"),
                                 }
                             }
                             RelayMessage::GroupMsg { group_id, content } => {

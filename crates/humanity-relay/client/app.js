@@ -4583,8 +4583,11 @@ function openGroup(groupId) {
     header.querySelector('.ch-name').textContent = '👥 ' + group.name;
     header.querySelector('.ch-desc').textContent = 'Group • Invite: ' + group.invite_code;
   }
-  // Clear messages and load group history (if server supports it)
-  document.getElementById('messages').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Group: ' + esc(group.name) + '<br>Invite code: <code>' + group.invite_code + '</code></div>';
+  // Clear messages and request group history.
+  document.getElementById('messages').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'group_history_request', group_id: groupId }));
+  }
   renderGroupList();
 }
 
