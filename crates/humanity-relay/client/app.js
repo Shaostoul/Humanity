@@ -4179,7 +4179,9 @@ async function handleVoiceRoomSignal(msg) {
         } else if (action === 'delete') {
           if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
             if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'chat', content: '/channel-delete ' + name, timestamp: Date.now(), channel: activeChannel || 'general' }));
+              const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
+              // Route admin channel-management commands through #general for consistent server handling.
+              ws.send(JSON.stringify({ type: 'chat', content: '/channel-delete ' + normalized, timestamp: Date.now(), channel: 'general' }));
             }
           }
         }
