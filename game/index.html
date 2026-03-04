@@ -1201,9 +1201,9 @@
 
     <div class="streams-layout">
 
-      <!-- â”€â”€ Streamer Dashboard (collapsible) â”€â”€ -->
+      <!-- Streamer Dashboard (collapsible) -->
       <div class="panel reality-card" id="streams-dashboard">
-        <h2 class="reality-card-header" onclick="toggleStreamsCard('dashboard')">ðŸ“¡ Stream Control <span class="collapse-icon" id="dashboard-collapse">â–¼</span></h2>
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('dashboard')">Stream Control <span class="collapse-icon" id="dashboard-collapse">▼</span></h2>
         <div class="reality-card-body" id="dashboard-body">
           <div class="stream-grid">
             <!-- Left: Preview -->
@@ -1266,8 +1266,8 @@
               </div>
 
               <!-- Scenes v1 -->
-              <div class="stream-panel" style="margin-bottom:0.8rem;">
-                <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">ðŸŽ¬ Scenes</div>
+              <div class="stream-panel" id="stream-scenes-panel" style="margin-bottom:0.8rem;">
+                <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Scenes</div>
                 <div class="stream-setting">
                   <label>Scene</label>
                   <select id="stream-scene-select"></select>
@@ -1424,13 +1424,13 @@
         </div>
       </div>
 
-      <!-- â”€â”€ Live Streams (viewer) â”€â”€ -->
+      <!-- Live Streams (viewer) -->
       <div class="panel reality-card" id="streams-live">
-        <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">ðŸ“º Live Now <span class="collapse-icon" id="live-collapse">â–¼</span></h2>
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">Live Now <span class="collapse-icon" id="live-collapse">▼</span></h2>
         <div class="reality-card-body" id="live-body">
           <div id="stream-live-list">
             <div id="stream-live-empty" style="text-align:center;padding:2rem 1rem;">
-              <div style="font-size:2rem;margin-bottom:0.5rem;">ðŸ“º</div>
+              <div style="font-size:1.1rem;margin-bottom:0.5rem;letter-spacing:0.08em;">LIVE</div>
               <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
             </div>
           </div>
@@ -1485,16 +1485,16 @@
         </div>
       </div>
 
-      <!-- â”€â”€ Server List â”€â”€ -->
+      <!-- Server List -->
       <div class="panel reality-card" id="streams-servers">
-        <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">ðŸ–¥ï¸ Servers <span class="collapse-icon" id="servers-collapse">â–¼</span></h2>
+        <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">Servers <span class="collapse-icon" id="servers-collapse">▼</span></h2>
         <div class="reality-card-body" id="servers-body">
           <div id="stream-servers-list">
             <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
-              <span style="font-size:1.1rem;" id="server-status-dot">ðŸŸ¢</span>
+              <span style="font-size:1.1rem;" id="server-status-dot">●</span>
               <div>
                 <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
-                <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us Â· Verified + Accord</div>
+                <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
               </div>
               <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);" id="server-live-count">0 live</span>
             </div>
@@ -6437,7 +6437,40 @@
       if (card) card.classList.toggle('collapsed');
       localStorage.setItem('streams_collapsed_' + id, card.classList.contains('collapsed'));
     }
-    ['dashboard', 'live', 'servers'].forEach(id => {
+
+    function streamSplitPanelsIfNeeded() {
+      const dashboard = document.getElementById('streams-dashboard');
+      if (!dashboard) return;
+
+      const scenesPanel = document.getElementById('stream-scenes-panel');
+      if (scenesPanel && !document.getElementById('streams-design')) {
+        const designCard = document.createElement('div');
+        designCard.className = 'panel reality-card';
+        designCard.id = 'streams-design';
+        designCard.innerHTML = '<h2 class="reality-card-header" onclick="toggleStreamsCard(\'design\')">Stream Design <span class="collapse-icon" id="design-collapse">▼</span></h2><div class="reality-card-body" id="design-body"></div>';
+        dashboard.insertAdjacentElement('afterend', designCard);
+        const designBody = designCard.querySelector('#design-body');
+        if (designBody) designBody.appendChild(scenesPanel);
+      }
+
+      const chatSection = document.getElementById('stream-chat-section');
+      if (chatSection && !document.getElementById('streams-chat')) {
+        const card = document.createElement('div');
+        card.className = 'panel reality-card';
+        card.id = 'streams-chat';
+        card.innerHTML = '<h2 class="reality-card-header" onclick="toggleStreamsCard(\'chat\')">Stream Chat <span class="collapse-icon" id="chat-collapse">▼</span></h2><div class="reality-card-body" id="chat-body"></div>';
+
+        const insertAfter = document.getElementById('streams-design') || dashboard;
+        insertAfter.insertAdjacentElement('afterend', card);
+        const body = card.querySelector('#chat-body');
+        if (body) body.appendChild(chatSection);
+        chatSection.style.marginTop = '0';
+      }
+    }
+
+    streamSplitPanelsIfNeeded();
+
+    ['dashboard', 'design', 'chat', 'live', 'servers'].forEach(id => {
       if (localStorage.getItem('streams_collapsed_' + id) === 'true') {
         const card = document.getElementById('streams-' + id);
         if (card) card.classList.add('collapsed');
@@ -6496,27 +6529,30 @@
       if (goBtn) goBtn.textContent = 'GO LIVE';
       const stopBtn = document.getElementById('stream-stop-btn');
       if (stopBtn) stopBtn.textContent = 'END';
+      const brbBtn = document.getElementById('stream-brb-btn');
+      if (brbBtn && !streamBrbActive) brbBtn.textContent = 'BRB';
 
-      const hdr = document.querySelector('#streams-dashboard .reality-card-header');
-      if (hdr) {
+      const headerMap = [
+        ['#streams-dashboard .reality-card-header', 'Stream Control'],
+        ['#streams-chat .reality-card-header', 'Stream Chat'],
+        ['#streams-live .reality-card-header', 'Live Now'],
+        ['#streams-servers .reality-card-header', 'Servers']
+      ];
+      headerMap.forEach(([sel, label]) => {
+        const hdr = document.querySelector(sel);
+        if (!hdr) return;
         const icon = hdr.querySelector('.collapse-icon');
-        hdr.textContent = 'Stream Control ';
-        if (icon) hdr.appendChild(icon);
-      }
+        hdr.textContent = label + ' ';
+        if (icon) {
+          icon.textContent = '▼';
+          hdr.appendChild(icon);
+        }
+      });
 
-      const liveHdr = document.querySelector('#streams-live .reality-card-header');
-      if (liveHdr) {
-        const icon = liveHdr.querySelector('.collapse-icon');
-        liveHdr.textContent = 'Live Now ';
-        if (icon) liveHdr.appendChild(icon);
-      }
-
-      const serversHdr = document.querySelector('#streams-servers .reality-card-header');
-      if (serversHdr) {
-        const icon = serversHdr.querySelector('.collapse-icon');
-        serversHdr.textContent = 'Servers ';
-        if (icon) serversHdr.appendChild(icon);
-      }
+      document.querySelectorAll('#tab-streams .collapse-icon').forEach(el => {
+        const c = el.textContent || '';
+        if (!/[▼▲]/.test(c)) el.textContent = '▼';
+      });
 
       const sectionTitles = document.querySelectorAll('#tab-streams .settings-section-title');
       if (sectionTitles[0]) sectionTitles[0].textContent = 'Video';
@@ -6530,7 +6566,19 @@
         else if (t.includes('stream metrics')) el.textContent = 'Stream Metrics';
         else if (t.includes('stream info')) el.textContent = 'Stream Info';
         else if (t.includes('restream')) el.textContent = 'Restream To';
+        else if (t.includes('stream chat')) el.textContent = 'Stream Chat';
       });
+
+      const liveEmptyTitle = document.querySelector('#stream-live-empty > div:first-child');
+      if (liveEmptyTitle) liveEmptyTitle.textContent = 'LIVE';
+      const viewerTitle = document.getElementById('viewer-stream-title');
+      if (viewerTitle) viewerTitle.textContent = 'Watching Stream';
+      const viewerClose = document.querySelector('#stream-viewer-panel .reality-card-header button');
+      if (viewerClose) viewerClose.textContent = 'Close';
+      const viewerStatsV = document.getElementById('viewer-stat-viewers');
+      if (viewerStatsV && /[^ -]/.test(viewerStatsV.textContent || '')) viewerStatsV.textContent = 'Viewers: 0';
+      const viewerStatsD = document.getElementById('viewer-stat-duration');
+      if (viewerStatsD && /[^ -]/.test(viewerStatsD.textContent || '')) viewerStatsD.textContent = 'Duration: --:--';
     }
 
     // Default stream mic status on tab load.
@@ -7354,7 +7402,7 @@
           streamUpdateLiveList();
           document.getElementById('stream-stat-viewers').textContent = 'Viewers: ' + (msg.viewer_count || 0);
           if (document.getElementById('viewer-stat-viewers')) {
-            document.getElementById('viewer-stat-viewers').textContent = 'ðŸ‘ ' + (msg.viewer_count || 0);
+            document.getElementById('viewer-stat-viewers').textContent = 'Viewers: ' + (msg.viewer_count || 0);
           }
           document.getElementById('server-live-count').textContent = msg.active ? '1 live' : '0 live';
           break;
@@ -7390,7 +7438,7 @@
       const card = document.createElement('div');
       card.className = 'viewer-card';
       card.onclick = () => streamViewerJoin();
-      card.innerHTML = '<div class="thumb">ðŸ”´</div><div class="meta"><h3>' + escapeHtml(streamCurrentInfo.title || 'Live Stream') + '</h3><div class="sub">' + escapeHtml(streamCurrentInfo.streamer_name || 'Unknown') + ' Â· ðŸ‘ ' + (streamCurrentInfo.viewer_count || 0) + (streamCurrentInfo.category ? ' Â· ' + escapeHtml(streamCurrentInfo.category) : '') + '</div></div>';
+      card.innerHTML = '<div class="thumb">LIVE</div><div class="meta"><h3>' + escapeHtml(streamCurrentInfo.title || 'Live Stream') + '</h3><div class="sub">' + escapeHtml(streamCurrentInfo.streamer_name || 'Unknown') + ' · Viewers: ' + (streamCurrentInfo.viewer_count || 0) + (streamCurrentInfo.category ? ' · ' + escapeHtml(streamCurrentInfo.category) : '') + '</div></div>';
       container.appendChild(card);
 
       if (streamCurrentInfo.external_urls) {
@@ -7398,7 +7446,7 @@
           const ecard = document.createElement('div');
           ecard.className = 'viewer-card';
           ecard.onclick = () => streamViewerJoinExternal(eu.platform, eu.url);
-          const icon = { twitch: 'ðŸŸ£', youtube: 'ðŸ”´', rumble: 'ðŸŸ¢' }[eu.platform] || 'ðŸ“º';
+          const icon = { twitch: 'TW', youtube: 'YT', rumble: 'RU' }[eu.platform] || 'EXT';
           ecard.innerHTML = '<div class="thumb">' + icon + '</div><div class="meta"><h3>' + escapeHtml(eu.platform.charAt(0).toUpperCase() + eu.platform.slice(1)) + '</h3><div class="sub">' + escapeHtml(eu.url) + '</div></div>';
           container.appendChild(ecard);
         });

@@ -109,6 +109,7 @@
     .hub-nav .tab .tab-icon { display:inline-flex; align-items:center; justify-content:center; min-width: 14px; }
     .hub-nav .tab .tab-label { display: inline; }
     .hub-nav.compact .tab .tab-label { display: none; }
+    .hub-nav.compact .tab.no-icon .tab-label { display: inline; }
     .hub-nav.compact .tab {
       min-width: 30px;
       justify-content: center;
@@ -276,8 +277,15 @@
       }
       if (!label) label = txt;
 
+      // If first token looks like plain word text, treat as label-only tab.
+      if (/^[a-z0-9_-]+$/i.test(icon)) {
+        label = txt;
+        icon = '';
+      }
+
       a.setAttribute('data-tip', label);
       a.setAttribute('title', label);
+      a.classList.toggle('no-icon', !icon);
       a.innerHTML = (icon ? ('<span class="tab-icon">' + icon + '</span> ') : '') + '<span class="tab-label">' + label + '</span>';
       if (a.dataset) a.dataset.prepared = '1';
     });
