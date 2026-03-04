@@ -828,10 +828,10 @@ async function sendMessage() {
 }
 
 async function sendChatCommand(command, channelOverride) {
-  if (!command) return;
+  if (!command) return false;
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     addSystemMessage('Not connected. Please reconnect and try again.');
-    return;
+    return false;
   }
 
   const timestamp = Date.now();
@@ -855,9 +855,11 @@ async function sendChatCommand(command, channelOverride) {
 
   try {
     ws.send(JSON.stringify(msg));
+    return true;
   } catch (e) {
     console.error('sendChatCommand: ws.send failed', e);
     addSystemMessage('Command failed to send. Check connection and try again.');
+    return false;
   }
 }
 
@@ -3540,6 +3542,7 @@ var federatedServersFetched = false;
             addSystemMessage('Invalid channel name. Use 1-24 chars: letters, numbers, dashes, underscores.');
           } else {
             const cmd = '/channel-create ' + normalized;
+            addSystemMessage('⏳ Creating #' + normalized + ' ...');
             // Route admin channel-management commands through #general for consistent server handling.
             sendChatCommand(cmd, 'general').catch(console.error);
           }
@@ -4208,12 +4211,14 @@ async function handleVoiceRoomSignal(msg) {
         if (action === 'rename') {
           const newName = prompt('New channel name:', name);
           if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
+            addSystemMessage('⏳ Renaming #' + name + ' → #' + newName.trim().toLowerCase() + ' ...');
             sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general').catch(console.error);
           }
         } else if (action === 'delete') {
           if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
             if (ws && ws.readyState === WebSocket.OPEN) {
               const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
+              addSystemMessage('⏳ Deleting #' + normalized + ' ...');
               // Route admin channel-management commands through #general for consistent server handling.
               sendChatCommand('/channel-delete ' + normalized, 'general').catch(console.error);
             }
