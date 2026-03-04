@@ -4370,6 +4370,7 @@ let myFollowers = new Set(); // keys following me
 let activeGroupId = null; // Currently viewing group
 let activeGroupName = '';
 let myGroups = []; // Array of { id, name, invite_code, role }
+let groupMembersByGroup = {}; // group_id -> [{ key, role }]
 
 function isFriend(key) {
   return myFollowing.has(key) && myFollowers.has(key);
@@ -4435,6 +4436,11 @@ handleMessage = function(msg) {
         addMessageToChat(m.from_name || shortKey(m.from), m.content, m.timestamp, isYou, m.from);
       }
     }
+    return;
+  }
+  if (msg.type === 'group_members') {
+    groupMembersByGroup[msg.group_id] = (msg.members || []).map(([key, role]) => ({ key, role }));
+    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
     return;
   }
   _origHandleMessageFollow(msg);
@@ -4597,6 +4603,7 @@ function openGroup(groupId) {
   document.getElementById('messages').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'group_history_request', group_id: groupId }));
+    ws.send(JSON.stringify({ type: 'group_members_request', group_id: groupId }));
   }
   renderGroupList();
   if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
@@ -4999,33 +5006,48 @@ function renderPresenceSidebarForActiveContext() {
   }
 
   if (tab === 'dms') {
-    if (usersHeader) usersHeader.textContent = 'DM Presence';
+    if (usersHeader) usersHeader.textContent = 'Friends (DM)';
     const byKey = new Map((allUsersSnapshot || []).map(u => [u.public_key, u]));
-    if (!dmConversations || dmConversations.length === 0) {
-      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">No DM contacts yet.</div>';
+    const friendRows = (allUsersSnapshot || []).filter(u => u.public_key !== myKey && isFriend(u.public_key));
+    if (friendRows.length === 0) {
+      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">No friends yet. Mutual follow is required for DMs.</div>';
       return;
     }
-    const rows = dmConversations.map(c => {
-      const u = byKey.get(c.partner_key);
-      const online = !!(u && u.online);
+    const rows = friendRows.map(u => {
+      const online = !!u.online;
       const dot = online ? '🟢' : '⚫';
-      const name = esc(c.partner_name || shortKey(c.partner_key));
-      const unread = c.unread_count ? ` <span style="color:var(--accent);font-size:0.68rem;">(${c.unread_count})</span>` : '';
-      return `<div class="peer" data-pubkey="${esc(c.partner_key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${unread}</div>`;
+      const name = esc(u.name || shortKey(u.public_key));
+      const dmConv = (dmConversations || []).find(c => c.partner_key === u.public_key);
+      const unread = dmConv && dmConv.unread_count ? ` <span style="color:var(--accent);font-size:0.68rem;">(${dmConv.unread_count})</span>` : '';
+      return `<div class="peer" data-pubkey="${esc(u.public_key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${unread}</div>`;
     }).join('');
-    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">DM Contacts</div>${rows}`;
+    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">Friends</div>${rows}`;
     return;
   }
 
   if (tab === 'groups') {
-    if (usersHeader) usersHeader.textContent = 'Group Presence';
+    if (usersHeader) usersHeader.textContent = 'Group Members';
     if (!activeGroupId) {
-      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Open a group to view its activity context.</div>';
-    } else {
-      const g = (myGroups || []).find(x => x.id === activeGroupId);
-      const gName = g ? esc(g.name) : 'Current Group';
-      peerList.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Viewing <b>${gName}</b>.<br>Member presence panel is next pass.</div>`;
+      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Open a group to view members.</div>';
+      return;
     }
+    const g = (myGroups || []).find(x => x.id === activeGroupId);
+    const gName = g ? esc(g.name) : 'Current Group';
+    const members = groupMembersByGroup[activeGroupId] || [];
+    const byKey = new Map((allUsersSnapshot || []).map(u => [u.public_key, u]));
+    if (members.length === 0) {
+      peerList.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Loading members for <b>${gName}</b>...</div>`;
+      return;
+    }
+    const rows = members.map(m => {
+      const u = byKey.get(m.key);
+      const online = !!(u && u.online);
+      const dot = online ? '🟢' : '⚫';
+      const name = esc((u && u.name) ? u.name : shortKey(m.key));
+      const role = m.role ? ` <span style="font-size:0.64rem;color:var(--text-muted);">(${esc(m.role)})</span>` : '';
+      return `<div class="peer" data-pubkey="${esc(m.key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${role}</div>`;
+    }).join('');
+    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">${gName} (${members.length})</div>${rows}`;
     return;
   }
 }

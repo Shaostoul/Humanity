@@ -925,6 +925,12 @@ pub enum RelayMessage {
         group_id: String,
     },
 
+    /// Client requests group member list.
+    #[serde(rename = "group_members_request")]
+    GroupMembersRequest {
+        group_id: String,
+    },
+
     /// Client requests a thread (all replies to a specific message).
     #[serde(rename = "thread_request")]
     ThreadRequest {
@@ -974,6 +980,15 @@ pub enum RelayMessage {
         /// Target member key — only deliver to this client (stripped before sending).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         target: Option<String>,
+    },
+
+    /// Server sends group members list.
+    #[serde(rename = "group_members")]
+    GroupMembers {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        group_id: String,
+        members: Vec<(String, String)>, // (member_key, role)
     },
 
     /// Client requests their device list.
@@ -1945,6 +1960,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
             // GroupList: only deliver to the target client.
             if let RelayMessage::GroupList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // GroupMembers: only deliver to the target client.
+            if let RelayMessage::GroupMembers { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -4890,6 +4914,28 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         });
                                     }
                                     Err(e) => tracing::error!("Group history error: {e}"),
+                                }
+                            }
+                            RelayMessage::GroupMembersRequest { group_id } => {
+                                let is_member = state_clone.db.is_group_member(&group_id, &my_key_for_recv).unwrap_or(false);
+                                if !is_member {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "You are not a member of this group.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+
+                                match state_clone.db.get_group_members(&group_id) {
+                                    Ok(members) => {
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::GroupMembers {
+                                            target: Some(my_key_for_recv.clone()),
+                                            group_id,
+                                            members,
+                                        });
+                                    }
+                                    Err(e) => tracing::error!("Group members error: {e}"),
                                 }
                             }
                             RelayMessage::GroupMsg { group_id, content } => {
