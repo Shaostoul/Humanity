@@ -29,6 +29,7 @@ check_sync() {
 check_sync "/opt/Humanity/crates/humanity-relay/client/app.js" "/var/www/humanity/chat/app.js" "chat_js"
 check_sync "/opt/Humanity/crates/humanity-relay/client/style.css" "/var/www/humanity/chat/style.css" "chat_css"
 check_sync "/opt/Humanity/shared/shell.js" "/var/www/humanity/shared/shell.js" "shared_shell_js"
+check_sync "/opt/Humanity/game/index.html" "/var/www/humanity/game/index.html" "game_index_html"
 
 echo "[smoke] checking command handlers in source"
 SRC="/opt/Humanity/crates/humanity-relay/src/relay.rs"

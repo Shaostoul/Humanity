@@ -1180,6 +1180,23 @@
       #tab-streams .metrics-grid .metric-value { color:var(--text); font-variant-numeric:tabular-nums; text-align:right; }
       #tab-streams .mic-toggle { width:32px; height:32px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
       #tab-streams .mic-toggle.muted { background:rgba(255,50,50,0.2); border-color:#f55; }
+      #tab-streams #stream-mic-status { font-size:0.74rem; color:var(--text-muted); margin-top:0.35rem; }
+      @media (max-width: 640px) {
+        #tab-streams .streams-layout { padding:0.55rem; gap:0.55rem; }
+        #tab-streams .stream-panel { padding:0.65rem; border-radius:8px; }
+        #tab-streams .stream-grid { gap:0.55rem; }
+        #tab-streams .stream-setting { flex-wrap: wrap; align-items:flex-start; gap:0.35rem; margin:0.32rem 0; }
+        #tab-streams .stream-setting label { min-width:auto; width:100%; font-size:0.74rem; }
+        #tab-streams .stream-setting input[type="text"],
+        #tab-streams .stream-setting select { width:100%; min-width:0; font-size:0.78rem; }
+        #tab-streams .stream-setting input[type="range"] { width:100%; }
+        #tab-streams .stream-setting > span { width:100%; text-align:left !important; min-width:0 !important; }
+        #tab-streams .stream-stats { gap:0.45rem; font-size:0.72rem; }
+        #tab-streams .stream-stats span { white-space:nowrap; }
+        #tab-streams .stream-chat-panel { height:320px; }
+        #tab-streams #stream-live-list { grid-template-columns: 1fr; }
+        #tab-streams .viewer-card { max-width:none; }
+      }
     </style>
 
     <div class="streams-layout">
@@ -1289,6 +1306,7 @@
                     <select id="stream-mic-device" onchange="streamSwitchMic()"></select>
                     <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">🎙️</button>
                   </div>
+                  <div id="stream-mic-status">Mic status: idle</div>
                   <div class="stream-setting">
                     <label>Mic Volume</label>
                     <input type="range" id="stream-mic-volume" min="0" max="200" value="100" step="5" oninput="streamSetMicVolume(this.value); document.getElementById('stream-mic-vol-val').textContent=this.value+'%';">
@@ -6436,6 +6454,22 @@
     // Twitch IRC WebSocket for chat integration
     let twitchChatWs = null;
 
+    function streamSetMicStatus(text, tone) {
+      const el = document.getElementById('stream-mic-status');
+      if (!el) return;
+      el.textContent = text;
+      const colors = {
+        neutral: 'var(--text-muted)',
+        good: 'var(--success)',
+        warn: '#e0c860',
+        bad: '#ff6b6b'
+      };
+      el.style.color = colors[tone || 'neutral'] || colors.neutral;
+    }
+
+    // Default stream mic status on tab load.
+    setTimeout(() => streamSetMicStatus('Mic status: idle', 'neutral'), 0);
+
     // ── Settings persistence ──
     function streamSaveSetting(key, val) {
       try {
@@ -6644,8 +6678,10 @@
         }
         // Re-enumerate to get labels
         streamEnumerateDevices();
+        streamSetMicStatus('Mic status: active', 'good');
       } catch(e) {
         console.warn('Mic start failed:', e);
+        streamSetMicStatus('Mic status: unavailable or denied', 'bad');
       }
     }
 
@@ -6661,6 +6697,7 @@
         }
         streamMicDestNode = null;
       }
+      streamSetMicStatus('Mic status: idle', 'neutral');
     }
 
     async function streamSwitchMic() {
@@ -6770,9 +6807,13 @@
           streamStartCompositing();
         }
       }
-      // Start mic if a device is selected and we don't have one
-      if (!streamMicStream && document.getElementById('stream-mic-device').value) {
-        await streamStartMic(document.getElementById('stream-mic-device').value);
+      // Ensure microphone path is attempted (selected device or default mic).
+      if (!streamMicStream) {
+        const selectedMic = document.getElementById('stream-mic-device').value || undefined;
+        await streamStartMic(selectedMic);
+        if (!streamMicStream) {
+          streamSetMicStatus('Mic status: missing (streaming without mic)', 'warn');
+        }
       }
 
       const title = document.getElementById('stream-title').value || 'Untitled Stream';
