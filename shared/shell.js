@@ -109,6 +109,7 @@
     .hub-nav .tab .tab-icon { display:inline-flex; align-items:center; justify-content:center; min-width: 14px; }
     .hub-nav .tab .tab-label { display: inline; }
     .hub-nav.compact .tab .tab-label { display: none; }
+    .hub-nav.compact .tab.no-icon .tab-label { display: inline; }
     .hub-nav.compact .tab {
       min-width: 30px;
       justify-content: center;
@@ -262,22 +263,32 @@
     var navEl = document.querySelector('.hub-nav');
     if (!navEl) return;
 
-    navEl.querySelectorAll('a.tab').forEach(function(a) {
-      if (a.dataset && a.dataset.prepared === '1') return;
-      var txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
-      if (!txt) return;
+    var tabMeta = {
+      '/map': { icon: 'M', label: 'Map' },
+      '/board': { icon: 'B', label: 'Board' },
+      '/reality': { icon: 'R', label: 'Reality' },
+      '/fantasy': { icon: 'F', label: 'Fantasy' },
+      '/market': { icon: '$', label: 'Market' },
+      '/browse': { icon: 'BR', label: 'Browse' },
+      '/dashboard': { icon: 'D', label: 'Dashboard' },
+      '/streams': { icon: 'S', label: 'Streams' },
+      '/info': { icon: 'I', label: 'Info' },
+      '/source': { icon: 'SRC', label: 'Source' },
+      '/debug': { icon: 'DBG', label: 'Debug' },
+      '/download': { icon: 'DL', label: 'Download' }
+    };
 
-      var icon = '';
-      var label = txt;
-      var firstSpace = txt.indexOf(' ');
-      if (firstSpace > 0) {
-        icon = txt.slice(0, firstSpace);
-        label = txt.slice(firstSpace + 1).trim();
-      }
-      if (!label) label = txt;
+    navEl.querySelectorAll('a.tab').forEach(function(a) {
+      var href = (a.getAttribute('href') || '').trim();
+      var meta = tabMeta[href] || null;
+      var label = meta ? meta.label : ((a.textContent || '').replace(/\s+/g, ' ').trim() || href || 'Tab');
+      var icon = meta ? meta.icon : '';
+
+      if (/github\.com/i.test(href)) { label = 'GitHub'; icon = 'GH'; }
 
       a.setAttribute('data-tip', label);
       a.setAttribute('title', label);
+      a.classList.toggle('no-icon', !icon);
       a.innerHTML = (icon ? ('<span class="tab-icon">' + icon + '</span> ') : '') + '<span class="tab-label">' + label + '</span>';
       if (a.dataset) a.dataset.prepared = '1';
     });

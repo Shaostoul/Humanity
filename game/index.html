@@ -299,6 +299,15 @@
       font-size: 0.7rem;
       color: var(--text-muted);
       transition: transform 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 0.9rem;
+      min-width: 0.9rem;
+    }
+    .reality-card-header .collapse-icon::before {
+      content: '▼';
+      line-height: 1;
     }
     .reality-card.collapsed .reality-card-body { display: none; }
     .reality-card.collapsed .collapse-icon { transform: rotate(-90deg); }
@@ -2197,7 +2206,7 @@
 
       // Update page title
       const titles = { map: 'Map', board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', browse: 'Browse', dashboard: 'Dashboard', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
-      document.title = 'Humanity â€” ' + (titles[tabId] || 'Hub');
+      document.title = 'Humanity - ' + (titles[tabId] || 'Hub');
 
       // Update URL
       if (pushState !== false) {
@@ -2206,6 +2215,36 @@
           history.pushState({ tab: tabId }, '', newPath);
         }
       }
+
+      sanitizeUiMojibake();
+    }
+
+    function sanitizeUiMojibake() {
+      // Normalize card headers that picked up mojibake bytes.
+      document.querySelectorAll('.reality-card-header').forEach(h => {
+        const icon = h.querySelector('.collapse-icon');
+        let label = '';
+        h.childNodes.forEach(n => {
+          if (n.nodeType === Node.TEXT_NODE) label += n.nodeValue || '';
+        });
+        label = label.replace(/[^\x20-\x7E]+/g, ' ').replace(/\s+/g, ' ').trim();
+        if (label) {
+          if (h.firstChild && h.firstChild.nodeType === Node.TEXT_NODE) {
+            h.firstChild.nodeValue = label + ' ';
+          } else {
+            h.prepend(document.createTextNode(label + ' '));
+          }
+        }
+        if (icon) icon.textContent = '';
+      });
+
+      const statusDot = document.getElementById('server-status-dot');
+      if (statusDot) statusDot.textContent = '●';
+
+      const v = document.getElementById('viewer-stat-viewers');
+      if (v) v.textContent = (v.textContent || '').replace(/^[^A-Za-z0-9]+\s*/, 'Viewers: ');
+      const d = document.getElementById('viewer-stat-duration');
+      if (d) d.textContent = (d.textContent || '').replace(/^[^A-Za-z0-9]+\s*/, 'Duration: ');
     }
 
     // SPA navigation: intercept hub tab clicks
@@ -6537,6 +6576,7 @@
     setTimeout(() => {
       streamSetMicStatus('Mic status: idle', 'neutral');
       streamNormalizeUiText();
+      sanitizeUiMojibake();
     }, 0);
 
     // Warn before leaving while live (browser safety; desktop nav guard handled in shared shell).
