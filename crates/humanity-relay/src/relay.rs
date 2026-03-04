@@ -4246,6 +4246,37 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     "leave" => {
                                         leave_voice_room(&state_clone, &my_key_for_recv).await;
                                     }
+                                    "rename" => {
+                                        // Admin/mod only.
+                                        if user_role != "admin" && user_role != "mod" {
+                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can rename voice channels.".to_string() };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                        } else if let Some(rid) = room_id {
+                                            let id_num: i64 = rid.parse().unwrap_or(0);
+                                            let new_name = room_name.unwrap_or_default().trim().to_string();
+                                            if id_num <= 0 {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel not found.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else if new_name.is_empty() || new_name.len() > 48 {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel name must be 1-48 characters.".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                match state_clone.db.rename_voice_channel(id_num, &new_name) {
+                                                    Ok(true) => {
+                                                        if let Some(room) = state_clone.voice_rooms.write().await.get_mut(&rid) {
+                                                            room.name = new_name.clone();
+                                                        }
+                                                        broadcast_voice_channel_list(&state_clone).await;
+                                                    }
+                                                    Ok(false) => {
+                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel not found.".to_string() };
+                                                        let _ = state_clone.broadcast_tx.send(private);
+                                                    }
+                                                    Err(e) => tracing::error!("Failed to rename voice channel: {e}"),
+                                                }
+                                            }
+                                        }
+                                    }
                                     "delete" => {
                                         // Admin/mod only.
                                         if user_role != "admin" && user_role != "mod" {

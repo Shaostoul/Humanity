@@ -1,3 +1,40 @@
 /target/
 desktop/node_modules/
 local-heron-admin.json
+
+# Secrets / credentials
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+*.ovpn
+*.kdbx
+*.secrets.json
+**/id_rsa
+**/id_ed25519
+**/authorized_keys
+**/known_hosts
+**/private_key*
+
+# SSH / local auth material
+.ssh/
+**/.ssh/
+
+# Local backups and dumps
+*.bak
+*.backup
+*.dump
+*.sqlite-shm
+*.sqlite-wal
+*.db-shm
+*.db-wal
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp

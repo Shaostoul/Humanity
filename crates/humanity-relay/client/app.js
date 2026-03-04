@@ -4188,14 +4188,19 @@ async function handleVoiceRoomSignal(msg) {
       });
     } else if (type === 'voice') {
       dropdown.innerHTML = `
-        <div class="cog-item" data-cog-action="rename" style="opacity:0.5;cursor:default;" title="Not yet implemented">✏️ Rename (coming soon)</div>
+        <div class="cog-item" data-cog-action="rename">✏️ Rename</div>
         <div class="cog-item danger" data-cog-action="delete">🗑️ Delete</div>
       `;
       dropdown.addEventListener('click', function(ev) {
         const item = ev.target.closest('.cog-item');
         if (!item) return;
         const action = item.dataset.cogAction;
-        if (action === 'delete') {
+        if (action === 'rename') {
+          const newName = prompt('New voice channel name:', name);
+          if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'voice_room', action: 'rename', room_id: String(id), room_name: newName.trim() }));
+          }
+        } else if (action === 'delete') {
           if (confirm('Delete voice channel "' + name + '"?')) {
             if (ws && ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'voice_room', action: 'delete', room_id: String(id) }));
