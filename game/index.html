@@ -1214,24 +1214,24 @@
                   <video id="pip-webcam-video" autoplay muted playsinline></video>
                 </div>
                 <div id="stream-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text-muted);font-size:0.85rem;">
-                  <div style="font-size:2.5rem;margin-bottom:0.5rem;">ðŸŽ¬</div>
+                  <div style="font-size:1.1rem;margin-bottom:0.5rem;letter-spacing:0.08em;">PREVIEW</div>
                   <div>Start screen capture to preview</div>
                 </div>
               </div>
               <div class="stream-stats" id="stream-stats-bar">
-                <span id="stream-stat-viewers">ðŸ‘ 0 viewers</span>
-                <span id="stream-stat-duration">â± --:--</span>
-                <span id="stream-stat-quality">ðŸ“Š --</span>
-                <span id="stream-stat-bitrate">ðŸ“¶ --</span>
+                <span id="stream-stat-viewers">Viewers: 0</span>
+                <span id="stream-stat-duration">Duration: --:--</span>
+                <span id="stream-stat-quality">Quality: --</span>
+                <span id="stream-stat-bitrate">Bitrate: --</span>
               </div>
               <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
-                <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">ðŸ”´ GO LIVE</button>
-                <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">â¹ Stop</button>
+                <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">GO LIVE</button>
+                <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">END</button>
               </div>
 
               <!-- Streamer Metrics -->
               <div class="metrics-panel" id="streamer-metrics-panel">
-                <div class="metrics-header" onclick="document.getElementById('streamer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('streamer-metrics-body').classList.contains('open') ? 'â–²' : 'â–¼';">ðŸ“Š Stream Metrics <span class="mi" style="margin-left:auto;">â–¼</span></div>
+                <div class="metrics-header" onclick="document.getElementById('streamer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('streamer-metrics-body').classList.contains('open') ? '▲' : '▼';">Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
                 <div class="metrics-body" id="streamer-metrics-body">
                   <div class="metrics-grid" id="streamer-metrics-grid">
                     <span class="metric-label">Upload</span><span class="metric-value" id="sm-upload">--</span>
@@ -1271,11 +1271,11 @@
                   <label>Scene</label>
                   <select id="stream-scene-select"></select>
                 </div>
-                <div class="stream-setting" style="gap:0.35rem;">
-                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;" onclick="streamApplySelectedScene()">Apply</button>
-                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;" onclick="streamSaveCurrentScene()">Save Current</button>
-                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;" onclick="streamCreateScene()">+ New</button>
-                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;" onclick="streamDeleteScene()">Delete</button>
+                <div class="stream-setting" style="gap:0.35rem;flex-wrap:wrap;">
+                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamApplySelectedScene()">Apply</button>
+                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamSaveCurrentScene()">Save Current</button>
+                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamCreateScene()">+ New</button>
+                  <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamDeleteScene()">Delete</button>
                 </div>
                 <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Scenes store stream layout/settings presets locally.</div>
               </div>
@@ -1320,7 +1320,7 @@
                   <div class="stream-setting">
                     <label>Microphone</label>
                     <select id="stream-mic-device" onchange="streamSwitchMic()"></select>
-                    <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">ðŸŽ™ï¸</button>
+                    <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">Mic</button>
                   </div>
                   <div class="stream-setting" style="margin-top:0.2rem;">
                     <input type="checkbox" id="stream-advanced-devices" onchange="streamSaveSetting('advancedDevices', this.checked); streamEnumerateDevices();">
@@ -6945,11 +6945,11 @@
       streamMicMuted = !streamMicMuted;
       const btn = document.getElementById('stream-mic-mute-btn');
       if (streamMicMuted) {
-        btn.textContent = 'ðŸ”‡';
+        btn.textContent = 'Mic Off';
         btn.classList.add('muted');
         if (streamMicGainNode) streamMicGainNode.gain.value = 0;
       } else {
-        btn.textContent = 'ðŸŽ™ï¸';
+        btn.textContent = 'Mic On';
         btn.classList.remove('muted');
         if (streamMicGainNode) streamMicGainNode.gain.value = parseInt(document.getElementById('stream-mic-volume').value) / 100;
       }
@@ -7070,7 +7070,7 @@
         const h = Math.floor(elapsed / 3600);
         const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
         const s = (elapsed % 60).toString().padStart(2, '0');
-        document.getElementById('stream-stat-duration').textContent = 'â± ' + (h ? h + ':' : '') + m + ':' + s;
+        document.getElementById('stream-stat-duration').textContent = 'Duration: ' + (h ? h + ':' : '') + m + ':' + s;
       }, 1000);
 
       // Update quality stats
@@ -7078,7 +7078,7 @@
         const vt = streamScreenStream.getVideoTracks()[0];
         if (vt) {
           const settings = vt.getSettings();
-          document.getElementById('stream-stat-quality').textContent = 'ðŸ“Š ' + (settings.width || '?') + 'x' + (settings.height || '?') + ' @ ' + (settings.frameRate ? Math.round(settings.frameRate) + 'fps' : '?');
+          document.getElementById('stream-stat-quality').textContent = 'Quality: ' + (settings.width || '?') + 'x' + (settings.height || '?') + ' @ ' + (settings.frameRate ? Math.round(settings.frameRate) + 'fps' : '?');
         }
       }
 
@@ -7117,9 +7117,9 @@
       if (streamMetricsTimer) { clearInterval(streamMetricsTimer); streamMetricsTimer = null; }
       document.getElementById('stream-go-live-btn').style.display = 'inline-flex';
       document.getElementById('stream-stop-btn').style.display = 'none';
-      document.getElementById('stream-stat-duration').textContent = 'â± --:--';
-      document.getElementById('stream-stat-quality').textContent = 'ðŸ“Š --';
-      document.getElementById('stream-stat-bitrate').textContent = 'ðŸ“¶ --';
+      document.getElementById('stream-stat-duration').textContent = 'Duration: --:--';
+      document.getElementById('stream-stat-quality').textContent = 'Quality: --';
+      document.getElementById('stream-stat-bitrate').textContent = 'Bitrate: --';
 
       if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({ type: 'stream_stop' }));
@@ -7196,7 +7196,7 @@
       const formatBytes = (b) => b > 1073741824 ? (b/1073741824).toFixed(2) + ' GB' : b > 1048576 ? (b/1048576).toFixed(1) + ' MB' : (b/1024).toFixed(0) + ' KB';
 
       // Update stats bar
-      document.getElementById('stream-stat-bitrate').textContent = 'ðŸ“¶ ' + formatBps(bps);
+      document.getElementById('stream-stat-bitrate').textContent = 'Bitrate: ' + formatBps(bps);
 
       // Update metrics panel
       const el = (id) => document.getElementById(id);
@@ -7291,7 +7291,7 @@
         case 'stream_info':
           streamCurrentInfo = msg;
           streamUpdateLiveList();
-          document.getElementById('stream-stat-viewers').textContent = 'ðŸ‘ ' + (msg.viewer_count || 0) + ' viewers';
+          document.getElementById('stream-stat-viewers').textContent = 'Viewers: ' + (msg.viewer_count || 0);
           if (document.getElementById('viewer-stat-viewers')) {
             document.getElementById('viewer-stat-viewers').textContent = 'ðŸ‘ ' + (msg.viewer_count || 0);
           }
@@ -11121,4 +11121,6 @@
   </script>
 </body>
 </html>
+
+
 
