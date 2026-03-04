@@ -1137,7 +1137,7 @@
       #tab-streams .stream-setting { display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0; font-size:0.82rem; }
       #tab-streams .stream-setting label { color:var(--text-muted); min-width:90px; }
       #tab-streams .stream-setting input[type="text"],
-      #tab-streams .stream-setting select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; flex:1; font-size:0.8rem; }
+      #tab-streams .stream-setting select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; flex:1; font-size:0.8rem; min-width:0; max-width:100%; }
       #tab-streams .stream-setting input[type="checkbox"] { accent-color:var(--accent); }
       #tab-streams .stream-setting input[type="range"] { flex:1; accent-color:var(--accent); }
       #tab-streams .corner-picker { display:grid; grid-template-columns:1fr 1fr; gap:2px; width:36px; }
@@ -1188,7 +1188,7 @@
         #tab-streams .stream-setting { flex-wrap: wrap; align-items:flex-start; gap:0.35rem; margin:0.32rem 0; }
         #tab-streams .stream-setting label { min-width:auto; width:100%; font-size:0.74rem; }
         #tab-streams .stream-setting input[type="text"],
-        #tab-streams .stream-setting select { width:100%; min-width:0; font-size:0.78rem; }
+        #tab-streams .stream-setting select { width:100%; min-width:0; max-width:100%; font-size:0.78rem; }
         #tab-streams .stream-setting input[type="range"] { width:100%; }
         #tab-streams .stream-setting > span { width:100%; text-align:left !important; min-width:0 !important; }
         #tab-streams .stream-stats { gap:0.45rem; font-size:0.72rem; }
@@ -6510,12 +6510,28 @@
         const camSel = document.getElementById('stream-webcam-device');
         micSel.innerHTML = '<option value="">Default Microphone</option>';
         camSel.innerHTML = '<option value="">Default Camera</option>';
+
+        const seenMics = new Set();
+        const seenCams = new Set();
+
         devices.forEach(d => {
           if (d.kind === 'audioinput') {
-            micSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(d.label || 'Mic ' + d.deviceId.substring(0,6)) + '</option>';
+            const rawLabel = (d.label || '').trim();
+            if (!rawLabel) return; // skip anonymous duplicates before permission
+            if (/disabled|unplugged/i.test(rawLabel)) return; // hide obviously unavailable devices
+            const norm = rawLabel.toLowerCase();
+            if (seenMics.has(norm)) return;
+            seenMics.add(norm);
+            micSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(rawLabel) + '</option>';
           }
           if (d.kind === 'videoinput') {
-            camSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(d.label || 'Camera ' + d.deviceId.substring(0,6)) + '</option>';
+            const rawLabel = (d.label || '').trim();
+            if (!rawLabel) return;
+            if (/disabled|unplugged/i.test(rawLabel)) return;
+            const norm = rawLabel.toLowerCase();
+            if (seenCams.has(norm)) return;
+            seenCams.add(norm);
+            camSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(rawLabel) + '</option>';
           }
         });
       } catch(e) {}
