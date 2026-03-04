@@ -6503,6 +6503,17 @@
     streamLoadSettings();
 
     // ── Enumerate devices ──
+    function streamPrettyDeviceLabel(label) {
+      let s = String(label || '').trim();
+      // Windows/WebRTC often appends endpoint ids like "(194f:0302)".
+      s = s.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, '');
+      // Remove role prefixes that create duplicate-looking rows.
+      s = s.replace(/^(Default|Communications)\s*-\s*/i, '');
+      // Collapse repeated whitespace.
+      s = s.replace(/\s+/g, ' ').trim();
+      return s;
+    }
+
     async function streamEnumerateDevices() {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -6519,19 +6530,21 @@
             const rawLabel = (d.label || '').trim();
             if (!rawLabel) return; // skip anonymous duplicates before permission
             if (/disabled|unplugged/i.test(rawLabel)) return; // hide obviously unavailable devices
-            const norm = rawLabel.toLowerCase();
+            const pretty = streamPrettyDeviceLabel(rawLabel) || rawLabel;
+            const norm = pretty.toLowerCase();
             if (seenMics.has(norm)) return;
             seenMics.add(norm);
-            micSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(rawLabel) + '</option>';
+            micSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(pretty) + '</option>';
           }
           if (d.kind === 'videoinput') {
             const rawLabel = (d.label || '').trim();
             if (!rawLabel) return;
             if (/disabled|unplugged/i.test(rawLabel)) return;
-            const norm = rawLabel.toLowerCase();
+            const pretty = streamPrettyDeviceLabel(rawLabel) || rawLabel;
+            const norm = pretty.toLowerCase();
             if (seenCams.has(norm)) return;
             seenCams.add(norm);
-            camSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(rawLabel) + '</option>';
+            camSel.innerHTML += '<option value="' + d.deviceId + '">' + escapeHtml(pretty) + '</option>';
           }
         });
       } catch(e) {}
