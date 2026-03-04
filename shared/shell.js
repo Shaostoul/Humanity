@@ -285,7 +285,7 @@
       var label = meta ? meta.label : ((a.textContent || '').replace(/\s+/g, ' ').trim() || href || 'Tab');
       var icon = meta ? meta.icon : '';
 
-      if (/github\.com/i.test(href)) { label = 'GitHub'; icon = '/shared/ui-icons/discord.png'; }
+      if (/github\.com/i.test(href)) { label = 'GitHub'; icon = '/shared/ui-icons/warning.png'; }
 
       a.setAttribute('data-tip', label);
       a.setAttribute('title', label);
