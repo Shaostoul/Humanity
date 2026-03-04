@@ -6505,8 +6505,9 @@
     // ── Enumerate devices ──
     function streamPrettyDeviceLabel(label) {
       let s = String(label || '').trim();
-      // Windows/WebRTC often appends endpoint ids like "(194f:0302)".
-      s = s.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, '');
+      // Windows/WebRTC may append endpoint keys in trailing parentheses.
+      // Strip common forms like (194f:0302), (0x...), (GUID-like strings).
+      s = s.replace(/\s*\(([0-9a-f]{4}:[0-9a-f]{4}|0x[0-9a-f]{6,}|[a-z0-9:_\-]{8,})\)$/i, '');
       // Remove role prefixes that create duplicate-looking rows.
       s = s.replace(/^(Default|Communications)\s*-\s*/i, '');
       // Collapse repeated whitespace.
