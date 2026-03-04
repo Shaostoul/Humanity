@@ -14,7 +14,7 @@ while ((Get-Date) -lt $deadline) {
   $line = ($s -split "`r?`n") | Where-Object { $_ -match "Discord" } | Select-Object -First 1
   if ($line -and $line -match "\bON\b" -and $line -match "\bOK\b") {
     $msg = "Reply exactly with: Restart complete. I'm back online and running. Resuming: __CHECKPOINT__"
-    openclaw agent --to __TARGET__ --channel discord --message $msg --deliver | Out-Null
+    openclaw message send --channel discord --account default --target user:__TARGET__ --message "Restart complete. I'm back online and running. Resuming: __CHECKPOINT__" | Out-Null
     break
   }
   Start-Sleep -Seconds 3
