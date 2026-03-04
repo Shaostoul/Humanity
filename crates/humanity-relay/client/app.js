@@ -827,6 +827,25 @@ async function sendMessage() {
   input.focus();
 }
 
+async function sendChatCommand(command, channelOverride) {
+  if (!command || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const timestamp = Date.now();
+  let signature = null;
+  if (myIdentity && myIdentity.canSign) {
+    signature = await signMessage(myIdentity.privateKey, command, timestamp);
+  }
+  const msg = {
+    type: 'chat',
+    from: myKey,
+    from_name: myName,
+    content: command,
+    timestamp,
+    channel: channelOverride || activeChannel || 'general',
+  };
+  if (signature) msg.signature = signature;
+  ws.send(JSON.stringify(msg));
+}
+
 // ── Rendering ──
 function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated) {
   // Skip messages from blocked users entirely.
@@ -3513,7 +3532,7 @@ var federatedServersFetched = false;
           } else {
             const cmd = '/channel-create ' + normalized;
             // Route admin channel-management commands through #general for consistent server handling.
-            ws.send(JSON.stringify({ type: 'chat', content: cmd, timestamp: Date.now(), channel: 'general' }));
+            sendChatCommand(cmd, 'general');
           }
         }
       }
@@ -4180,14 +4199,14 @@ async function handleVoiceRoomSignal(msg) {
         if (action === 'rename') {
           const newName = prompt('New channel name:', name);
           if (newName && newName.trim() && newName.trim() !== name && ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'chat', content: '/channel-edit ' + name + ' name ' + newName.trim(), timestamp: Date.now(), channel: activeChannel || 'general' }));
+            sendChatCommand('/channel-edit ' + name + ' name ' + newName.trim(), 'general');
           }
         } else if (action === 'delete') {
           if (confirm('Delete channel "' + name + '"? This cannot be undone.')) {
             if (ws && ws.readyState === WebSocket.OPEN) {
               const normalized = String(name || '').trim().replace(/^#/, '').toLowerCase();
               // Route admin channel-management commands through #general for consistent server handling.
-              ws.send(JSON.stringify({ type: 'chat', content: '/channel-delete ' + normalized, timestamp: Date.now(), channel: 'general' }));
+              sendChatCommand('/channel-delete ' + normalized, 'general');
             }
           }
         }
