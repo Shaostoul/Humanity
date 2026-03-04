@@ -5,20 +5,23 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$watcher = @"
-`$ErrorActionPreference = 'SilentlyContinue'
-`$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-while ((Get-Date) -lt `$deadline) {
-  `$s = openclaw status 2>&1 | Out-String
-  `$line = (`$s -split "`r?`n") | Where-Object { `$_ -match "Discord" } | Select-Object -First 1
-  if (`$line -and `$line -match "\bON\b" -and `$line -match "\bOK\b") {
-    $msg = "Reply exactly with: Restart complete. I'm back online and running. Resuming: $Checkpoint"
-    openclaw agent --to $NotifyTarget --channel discord --message $msg --deliver | Out-Null
+
+$template = @'
+$ErrorActionPreference = "SilentlyContinue"
+$deadline = (Get-Date).AddSeconds(__TIMEOUT__)
+while ((Get-Date) -lt $deadline) {
+  $s = openclaw status 2>&1 | Out-String
+  $line = ($s -split "`r?`n") | Where-Object { $_ -match "Discord" } | Select-Object -First 1
+  if ($line -and $line -match "\bON\b" -and $line -match "\bOK\b") {
+    $msg = "Reply exactly with: Restart complete. I'm back online and running. Resuming: __CHECKPOINT__"
+    openclaw agent --to __TARGET__ --channel discord --message $msg --deliver | Out-Null
     break
   }
   Start-Sleep -Seconds 3
 }
-"@
+'@
+
+$watcher = $template.Replace('__TIMEOUT__', [string]$TimeoutSeconds).Replace('__TARGET__', $NotifyTarget).Replace('__CHECKPOINT__', $Checkpoint.Replace('"','\"'))
 
 $watcherPath = "C:\Humanity\scripts\_restart_notify_watcher.ps1"
 Set-Content -Path $watcherPath -Value $watcher -Encoding UTF8
