@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
  <meta charset="UTF-8">
@@ -3187,10 +3187,10 @@
    S: { production:{annual:'80 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Abundant (byproduct)',yearsSupply:null}, topProducers:['China','USA','Russia','Canada','Saudi Arabia'], price:{amount:80,unit:'$/tonne',year:2024}, primaryUses:['Sulfuric acid (60%)','Fertilizer','Rubber vulcanization','Chemicals'] },
    Cl: { production:{annual:'75 million tonnes',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited (sea salt)',yearsSupply:null}, topProducers:['China','USA','EU','India','Japan'], price:{amount:200,unit:'$/tonne',year:2024}, primaryUses:['PVC (35%)','Water treatment','Solvents','Bleach/disinfection'] },
    Ar: { production:{annual:'700,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Unlimited (0.93% of atmosphere)',yearsSupply:null}, topProducers:['China','USA','EU','Japan','India'], price:{amount:3,unit:'$/m³',year:2024}, primaryUses:['Welding shield gas (55%)','Lighting','Insulated windows','Semiconductor fab'] },
-   K: { production:{annual:'45 million tonnes (Kâ''O equiv)',unit:'tonnes/yr'}, reserves:{amount:'3.7 billion tonnes',yearsSupply:82}, topProducers:['Canada (30%)','Russia','Belarus','China','Germany'], price:{amount:300,unit:'$/tonne (KCl)',year:2024}, primaryUses:['Fertilizer (95%)','Soap/glass','Salt substitutes','Industrial chemicals'] },
+   K: { production:{annual:'45 million tonnes (K₂O equiv)',unit:'tonnes/yr'}, reserves:{amount:'3.7 billion tonnes',yearsSupply:82}, topProducers:['Canada (30%)','Russia','Belarus','China','Germany'], price:{amount:300,unit:'$/tonne (KCl)',year:2024}, primaryUses:['Fertilizer (95%)','Soap/glass','Salt substitutes','Industrial chemicals'] },
    Ca: { production:{annual:'350 million tonnes (as lime/limestone)',unit:'tonnes/yr'}, reserves:{amount:'Virtually unlimited',yearsSupply:null}, topProducers:['China','USA','India','Russia','Japan'], price:{amount:100,unit:'$/tonne (lime)',year:2024}, primaryUses:['Cement (70%)','Steel flux','Agriculture','Water treatment'] },
    Sc: { production:{annual:'15-20 tonnes',unit:'tonnes/yr'}, reserves:{amount:'Unknown (scattered deposits)',yearsSupply:null}, topProducers:['China','Russia','Philippines','Ukraine'], price:{amount:3600,unit:'$/kg',year:2024}, primaryUses:['Aluminum-scandium alloys','Solid oxide fuel cells','Sports equipment','Lighting'] },
-   Ti: { production:{annual:'7.5 million tonnes (TiOâ'' concentrate)',unit:'tonnes/yr'}, reserves:{amount:'700 million tonnes',yearsSupply:93}, topProducers:['China','Mozambique','South Africa','Australia','Canada'], price:{amount:11000,unit:'$/tonne (sponge)',year:2024}, primaryUses:['Pigments/TiOâ'' (93%)','Aerospace metal (4%)','Medical implants','Welding rod coatings'] },
+   Ti: { production:{annual:'7.5 million tonnes (TiO₂ concentrate)',unit:'tonnes/yr'}, reserves:{amount:'700 million tonnes',yearsSupply:93}, topProducers:['China','Mozambique','South Africa','Australia','Canada'], price:{amount:11000,unit:'$/tonne (sponge)',year:2024}, primaryUses:['Pigments/TiO₂ (93%)','Aerospace metal (4%)','Medical implants','Welding rod coatings'] },
    V: { production:{annual:'110,000 tonnes',unit:'tonnes/yr'}, reserves:{amount:'24 million tonnes',yearsSupply:218}, topProducers:['China (66%)','Russia','South Africa','Brazil'], price:{amount:28,unit:'$/kg',year:2024}, primaryUses:['Steel alloys (85%)','Titanium alloys','Vanadium redox batteries','Catalysts'] },
    Cr: { production:{annual:'41 million tonnes (ore)',unit:'tonnes/yr'}, reserves:{amount:'570 million tonnes',yearsSupply:14}, topProducers:['South Africa (44%)','Turkey','Kazakhstan','India','Finland'], price:{amount:10000,unit:'$/tonne (ferrochromium)',year:2024}, primaryUses:['Stainless steel (70%)','Chrome plating','Pigments','Refractories'] },
    Mn: { production:{annual:'20 million tonnes (ore)',unit:'tonnes/yr'}, reserves:{amount:'1.7 billion tonnes',yearsSupply:85}, topProducers:['South Africa (37%)','Gabon','Australia','Ghana','China'], price:{amount:1500,unit:'$/tonne (ore)',year:2024}, primaryUses:['Steel production (90%)','Batteries','Aluminum alloys','Chemicals'] },
@@ -3299,29 +3299,29 @@
   // MATERIAL WORLD DATA (USGS/World Bank 2024)
   // ══════════════════════════════════════
   const MATERIAL_WORLD_DATA = {
-   'Iron Ore': { production:{annual:'2.5 billion tonnes',growth:'+1.5%/yr'}, energyCost:'0.5 GJ per tonne (mining)', topProducers:['Australia (37%)','Brazil (17%)','China (14%)','India (10%)'], co2:'0.04 tonnes COâ'' per tonne' },
-   'Steel': { production:{annual:'1.9 billion tonnes',growth:'+3.2%/yr'}, inputChain:[{material:'Iron Ore',ratio:'2.5 tonnes per tonne steel'},{material:'Coal/Coke',ratio:'0.6 tonnes per tonne steel'},{material:'Limestone',ratio:'0.2 tonnes per tonne steel'}], energyCost:'20 GJ per tonne', topProducers:['China (54%)','India (7%)','Japan (5%)','USA (5%)'], co2:'1.85 tonnes COâ'' per tonne steel' },
+   'Iron Ore': { production:{annual:'2.5 billion tonnes',growth:'+1.5%/yr'}, energyCost:'0.5 GJ per tonne (mining)', topProducers:['Australia (37%)','Brazil (17%)','China (14%)','India (10%)'], co2:'0.04 tonnes CO₂ per tonne' },
+   'Steel': { production:{annual:'1.9 billion tonnes',growth:'+3.2%/yr'}, inputChain:[{material:'Iron Ore',ratio:'2.5 tonnes per tonne steel'},{material:'Coal/Coke',ratio:'0.6 tonnes per tonne steel'},{material:'Limestone',ratio:'0.2 tonnes per tonne steel'}], energyCost:'20 GJ per tonne', topProducers:['China (54%)','India (7%)','Japan (5%)','USA (5%)'], co2:'1.85 tonnes CO₂ per tonne steel' },
    'Wood / Timber': { production:{annual:'4 billion m³ (roundwood)',growth:'+0.5%/yr'}, topProducers:['USA','India','China','Brazil','Russia'], co2:'Net carbon sink when sustainably managed' },
    'Lumber': { production:{annual:'500 million m³ (sawnwood)',growth:'+1.0%/yr'}, energyCost:'1.5 GJ per m³', topProducers:['USA','China','Canada','Russia','Germany'], co2:'Stores ~250 kg CO₂ per m³' },
    'Sand': { production:{annual:'50 billion tonnes',growth:'+5.5%/yr'}, topProducers:['China','USA','India','EU','Australia'], co2:'Minimal (extraction only)' },
-   'Glass': { production:{annual:'200 million tonnes',growth:'+3.5%/yr'}, inputChain:[{material:'Sand (SiOâ'')',ratio:'72%'},{material:'Soda ash',ratio:'14%'},{material:'Limestone',ratio:'10%'}], energyCost:'7-10 GJ per tonne', topProducers:['China (50%)','EU','USA','India','Japan'], co2:'0.6 tonnes COâ'' per tonne' },
+   'Glass': { production:{annual:'200 million tonnes',growth:'+3.5%/yr'}, inputChain:[{material:'Sand (SiO₂)',ratio:'72%'},{material:'Soda ash',ratio:'14%'},{material:'Limestone',ratio:'10%'}], energyCost:'7-10 GJ per tonne', topProducers:['China (50%)','EU','USA','India','Japan'], co2:'0.6 tonnes CO₂ per tonne' },
    'Clay': { production:{annual:'Billions of tonnes (not fully tracked)',growth:'Stable'}, topProducers:['China','USA','Germany','UK','India'] },
    'Concrete': { production:{annual:'14 billion m³ (~33 billion tonnes)',growth:'+2.5%/yr'}, inputChain:[{material:'Cement',ratio:'10-15%'},{material:'Sand',ratio:'25-30%'},{material:'Gravel',ratio:'35-40%'},{material:'Water',ratio:'15-20%'}], energyCost:'1.5-2 GJ per tonne', topProducers:['China (55%)','India','USA','Turkey','Brazil'], co2:'0.1-0.2 tonnes CO₂ per tonne concrete' },
-   'Aluminum Ore (Bauxite)': { production:{annual:'380 million tonnes',growth:'+2.5%/yr'}, topProducers:['Australia (28%)','Guinea (22%)','China (16%)','Brazil','Indonesia'], co2:'0.01 tonnes COâ'' per tonne (mining)' },
-   'Aluminum': { production:{annual:'69 million tonnes',growth:'+2.8%/yr'}, inputChain:[{material:'Bauxite',ratio:'4-5 tonnes per tonne aluminum'},{material:'Alumina',ratio:'2 tonnes per tonne aluminum'},{material:'Electricity',ratio:'14 MWh per tonne'}], energyCost:'170 GJ per tonne', topProducers:['China (57%)','India (6%)','Russia (5%)','Canada (5%)','UAE (4%)'], co2:'12 tonnes COâ'' per tonne (global avg)' },
+   'Aluminum Ore (Bauxite)': { production:{annual:'380 million tonnes',growth:'+2.5%/yr'}, topProducers:['Australia (28%)','Guinea (22%)','China (16%)','Brazil','Indonesia'], co2:'0.01 tonnes CO₂ per tonne (mining)' },
+   'Aluminum': { production:{annual:'69 million tonnes',growth:'+2.8%/yr'}, inputChain:[{material:'Bauxite',ratio:'4-5 tonnes per tonne aluminum'},{material:'Alumina',ratio:'2 tonnes per tonne aluminum'},{material:'Electricity',ratio:'14 MWh per tonne'}], energyCost:'170 GJ per tonne', topProducers:['China (57%)','India (6%)','Russia (5%)','Canada (5%)','UAE (4%)'], co2:'12 tonnes CO₂ per tonne (global avg)' },
    'Copper Ore (Chalcopyrite)': { production:{annual:'22 million tonnes (Cu content)',growth:'+2.0%/yr'}, topProducers:['Chile (24%)','DRC (12%)','Peru (10%)','China','Indonesia'], co2:'Varies by mine' },
    'Brass': { production:{annual:'~6 million tonnes',growth:'+2%/yr'}, inputChain:[{material:'Copper',ratio:'60-70%'},{material:'Zinc',ratio:'30-40%'}], energyCost:'8 GJ per tonne', topProducers:['China','Germany','Japan','USA','Italy'] },
    'Bronze': { production:{annual:'~1 million tonnes',growth:'+1%/yr'}, inputChain:[{material:'Copper',ratio:'88-95%'},{material:'Tin',ratio:'5-12%'}], energyCost:'9 GJ per tonne', topProducers:['China','USA','Japan','Germany','South Korea'] },
-   'Stainless Steel': { production:{annual:'58 million tonnes',growth:'+4.5%/yr'}, inputChain:[{material:'Iron/Steel',ratio:'70-75%'},{material:'Chromium',ratio:'10.5-18%'},{material:'Nickel',ratio:'8-12%'}], energyCost:'30 GJ per tonne', topProducers:['China (56%)','India (7%)','Japan (5%)','EU','USA'], co2:'2.8 tonnes COâ'' per tonne' },
-   'Titanium': { production:{annual:'220,000 tonnes (metal)',growth:'+3%/yr'}, inputChain:[{material:'Ilmenite/Rutile ore',ratio:'~10 tonnes ore per tonne metal'},{material:'Magnesium (Kroll process)',ratio:'1 tonne per tonne Ti'}], energyCost:'360 GJ per tonne', topProducers:['China','Russia','Japan','Kazakhstan','USA'], co2:'8.6 tonnes COâ'' per tonne' },
-   'Zinc': { production:{annual:'13 million tonnes',growth:'+1.5%/yr'}, inputChain:[{material:'Sphalerite ore',ratio:'~3 tonnes per tonne zinc'}], energyCost:'35 GJ per tonne', topProducers:['China (42%)','Peru','Australia','India','USA'], co2:'2.5 tonnes COâ'' per tonne' },
-   'Lead': { production:{annual:'4.6 million tonnes',growth:'+1.0%/yr'}, inputChain:[{material:'Galena ore',ratio:'~3 tonnes per tonne lead'}], energyCost:'15 GJ per tonne', topProducers:['China (43%)','Australia','USA','Peru','Mexico'], co2:'1.0 tonnes COâ'' per tonne' },
-   'Tin': { production:{annual:'310,000 tonnes',growth:'+1.2%/yr'}, inputChain:[{material:'Cassiterite ore',ratio:'~5 tonnes per tonne tin'}], energyCost:'20 GJ per tonne', topProducers:['China (30%)','Indonesia','Myanmar','Peru','DRC'], co2:'1.5 tonnes COâ'' per tonne' },
-   'Nickel': { production:{annual:'3.6 million tonnes',growth:'+6%/yr'}, inputChain:[{material:'Laterite/Sulfide ore',ratio:'~50-100 tonnes ore per tonne Ni'}], energyCost:'110 GJ per tonne', topProducers:['Indonesia (49%)','Philippines','Russia','New Caledonia','Australia'], co2:'10 tonnes COâ'' per tonne' },
-   'Cotton': { production:{annual:'25 million tonnes',growth:'+0.5%/yr'}, energyCost:'55 GJ per tonne (field to fabric)', topProducers:['India (23%)','China (22%)','USA (14%)','Brazil','Pakistan'], co2:'5 tonnes COâ'' per tonne' },
-   'Wool': { production:{annual:'1.1 million tonnes (greasy)',growth:'-0.5%/yr'}, topProducers:['Australia (21%)','China (18%)','New Zealand','UK','Turkey'], co2:'26 kg COâ'' per kg (high due to methane)' },
+   'Stainless Steel': { production:{annual:'58 million tonnes',growth:'+4.5%/yr'}, inputChain:[{material:'Iron/Steel',ratio:'70-75%'},{material:'Chromium',ratio:'10.5-18%'},{material:'Nickel',ratio:'8-12%'}], energyCost:'30 GJ per tonne', topProducers:['China (56%)','India (7%)','Japan (5%)','EU','USA'], co2:'2.8 tonnes CO₂ per tonne' },
+   'Titanium': { production:{annual:'220,000 tonnes (metal)',growth:'+3%/yr'}, inputChain:[{material:'Ilmenite/Rutile ore',ratio:'~10 tonnes ore per tonne metal'},{material:'Magnesium (Kroll process)',ratio:'1 tonne per tonne Ti'}], energyCost:'360 GJ per tonne', topProducers:['China','Russia','Japan','Kazakhstan','USA'], co2:'8.6 tonnes CO₂ per tonne' },
+   'Zinc': { production:{annual:'13 million tonnes',growth:'+1.5%/yr'}, inputChain:[{material:'Sphalerite ore',ratio:'~3 tonnes per tonne zinc'}], energyCost:'35 GJ per tonne', topProducers:['China (42%)','Peru','Australia','India','USA'], co2:'2.5 tonnes CO₂ per tonne' },
+   'Lead': { production:{annual:'4.6 million tonnes',growth:'+1.0%/yr'}, inputChain:[{material:'Galena ore',ratio:'~3 tonnes per tonne lead'}], energyCost:'15 GJ per tonne', topProducers:['China (43%)','Australia','USA','Peru','Mexico'], co2:'1.0 tonnes CO₂ per tonne' },
+   'Tin': { production:{annual:'310,000 tonnes',growth:'+1.2%/yr'}, inputChain:[{material:'Cassiterite ore',ratio:'~5 tonnes per tonne tin'}], energyCost:'20 GJ per tonne', topProducers:['China (30%)','Indonesia','Myanmar','Peru','DRC'], co2:'1.5 tonnes CO₂ per tonne' },
+   'Nickel': { production:{annual:'3.6 million tonnes',growth:'+6%/yr'}, inputChain:[{material:'Laterite/Sulfide ore',ratio:'~50-100 tonnes ore per tonne Ni'}], energyCost:'110 GJ per tonne', topProducers:['Indonesia (49%)','Philippines','Russia','New Caledonia','Australia'], co2:'10 tonnes CO₂ per tonne' },
+   'Cotton': { production:{annual:'25 million tonnes',growth:'+0.5%/yr'}, energyCost:'55 GJ per tonne (field to fabric)', topProducers:['India (23%)','China (22%)','USA (14%)','Brazil','Pakistan'], co2:'5 tonnes CO₂ per tonne' },
+   'Wool': { production:{annual:'1.1 million tonnes (greasy)',growth:'-0.5%/yr'}, topProducers:['Australia (21%)','China (18%)','New Zealand','UK','Turkey'], co2:'26 kg CO₂ per kg (high due to methane)' },
    'Leather': { production:{annual:'20 billion sq ft',growth:'+1%/yr'}, topProducers:['China','Italy','Brazil','India','Vietnam'] },
-   'Rubber (Natural)': { production:{annual:'14 million tonnes',growth:'+2%/yr'}, topProducers:['Thailand (34%)','Indonesia (24%)','Vietnam','China','India'], co2:'Low (trees absorb COâ'')' },
+   'Rubber (Natural)': { production:{annual:'14 million tonnes',growth:'+2%/yr'}, topProducers:['Thailand (34%)','Indonesia (24%)','Vietnam','China','India'], co2:'Low (trees absorb CO₂)' },
    'Paper': { production:{annual:'410 million tonnes',growth:'+0.5%/yr'}, inputChain:[{material:'Wood',ratio:'2-3 tonnes per tonne paper'},{material:'Water',ratio:'10-20 m³ per tonne'}], energyCost:'20-40 GJ per tonne', topProducers:['China (28%)','USA (17%)','Japan','Germany','India'], co2:'0.5-1.5 tonnes CO₂ per tonne' },
    'Bamboo': { production:{annual:'~40 million tonnes',growth:'+3%/yr'}, topProducers:['China (65%)','India','Myanmar','Thailand','Vietnam'] },
    'Hemp': { production:{annual:'280,000 tonnes (fiber)',growth:'+15%/yr'}, topProducers:['China','Canada','France','EU','USA'] },
@@ -3329,19 +3329,19 @@
    'Granite': { production:{annual:'~160 million tonnes',growth:'+3%/yr'}, topProducers:['China','India','Brazil','Italy','Spain'] },
    'Marble': { production:{annual:'~100 million tonnes',growth:'+2%/yr'}, topProducers:['China','India','Turkey','Italy','Iran'] },
    'Limestone': { production:{annual:'~7 billion tonnes',growth:'+2%/yr'}, topProducers:['China','USA','India','Russia','Japan'] },
-   'Cement': { production:{annual:'4.1 billion tonnes',growth:'+1.5%/yr'}, inputChain:[{material:'Limestone',ratio:'1.5 tonnes per tonne cement'},{material:'Clay',ratio:'0.3 tonnes per tonne'},{material:'Gypsum',ratio:'5%'}], energyCost:'4.5 GJ per tonne', topProducers:['China (55%)','India (8%)','Vietnam','USA','Turkey'], co2:'0.6 tonnes COâ'' per tonne cement' },
-   'Brick': { production:{annual:'1.5 trillion bricks/yr',growth:'+2%/yr'}, energyCost:'2-5 GJ per 1000 bricks', topProducers:['China (60%)','India','Pakistan','Bangladesh','Indonesia'], co2:'0.2 kg COâ'' per brick' },
+   'Cement': { production:{annual:'4.1 billion tonnes',growth:'+1.5%/yr'}, inputChain:[{material:'Limestone',ratio:'1.5 tonnes per tonne cement'},{material:'Clay',ratio:'0.3 tonnes per tonne'},{material:'Gypsum',ratio:'5%'}], energyCost:'4.5 GJ per tonne', topProducers:['China (55%)','India (8%)','Vietnam','USA','Turkey'], co2:'0.6 tonnes CO₂ per tonne cement' },
+   'Brick': { production:{annual:'1.5 trillion bricks/yr',growth:'+2%/yr'}, energyCost:'2-5 GJ per 1000 bricks', topProducers:['China (60%)','India','Pakistan','Bangladesh','Indonesia'], co2:'0.2 kg CO₂ per brick' },
    'Porcelain': { production:{annual:'~400 million tonnes (all ceramics)',growth:'+3%/yr'}, topProducers:['China (65%)','Italy','Spain','India','Turkey'] },
    'Fiberglass': { production:{annual:'~6 million tonnes',growth:'+5%/yr'}, inputChain:[{material:'Glass fiber',ratio:'60-70%'},{material:'Polymer resin',ratio:'30-40%'}], energyCost:'30 GJ per tonne', topProducers:['China','USA','EU','India','Japan'] },
-   'Plastic (Polyethylene)': { production:{annual:'100 million tonnes (PE only); 400M total plastics',growth:'+3.5%/yr'}, inputChain:[{material:'Crude oil/natural gas',ratio:'~2 tonnes oil per tonne PE'}], energyCost:'70-80 GJ per tonne', topProducers:['China (32%)','USA','EU','South Korea','Saudi Arabia'], co2:'2-3 tonnes COâ'' per tonne' },
-   'PVC (Polyvinyl Chloride)': { production:{annual:'45 million tonnes',growth:'+3%/yr'}, inputChain:[{material:'Ethylene (from oil)',ratio:'43%'},{material:'Chlorine (from salt)',ratio:'57%'}], energyCost:'55 GJ per tonne', topProducers:['China (40%)','USA','EU','India','Japan'], co2:'2 tonnes COâ'' per tonne' },
-   'Nylon': { production:{annual:'8 million tonnes',growth:'+4%/yr'}, energyCost:'120 GJ per tonne', topProducers:['China','USA','EU','Taiwan','South Korea'], co2:'7 tonnes COâ'' per tonne' },
-   'Carbon Fiber': { production:{annual:'120,000 tonnes',growth:'+12%/yr'}, inputChain:[{material:'PAN precursor',ratio:'2 tonnes per tonne CF'},{material:'Energy (carbonization)',ratio:'Very high'}], energyCost:'600 GJ per tonne', topProducers:['Japan (Toray 34%)','China','USA','EU','Taiwan'], co2:'20-40 tonnes COâ'' per tonne' },
+   'Plastic (Polyethylene)': { production:{annual:'100 million tonnes (PE only); 400M total plastics',growth:'+3.5%/yr'}, inputChain:[{material:'Crude oil/natural gas',ratio:'~2 tonnes oil per tonne PE'}], energyCost:'70-80 GJ per tonne', topProducers:['China (32%)','USA','EU','South Korea','Saudi Arabia'], co2:'2-3 tonnes CO₂ per tonne' },
+   'PVC (Polyvinyl Chloride)': { production:{annual:'45 million tonnes',growth:'+3%/yr'}, inputChain:[{material:'Ethylene (from oil)',ratio:'43%'},{material:'Chlorine (from salt)',ratio:'57%'}], energyCost:'55 GJ per tonne', topProducers:['China (40%)','USA','EU','India','Japan'], co2:'2 tonnes CO₂ per tonne' },
+   'Nylon': { production:{annual:'8 million tonnes',growth:'+4%/yr'}, energyCost:'120 GJ per tonne', topProducers:['China','USA','EU','Taiwan','South Korea'], co2:'7 tonnes CO₂ per tonne' },
+   'Carbon Fiber': { production:{annual:'120,000 tonnes',growth:'+12%/yr'}, inputChain:[{material:'PAN precursor',ratio:'2 tonnes per tonne CF'},{material:'Energy (carbonization)',ratio:'Very high'}], energyCost:'600 GJ per tonne', topProducers:['Japan (Toray 34%)','China','USA','EU','Taiwan'], co2:'20-40 tonnes CO₂ per tonne' },
    'Kevlar': { production:{annual:'~70,000 tonnes (all aramids)',growth:'+5%/yr'}, energyCost:'200 GJ per tonne', topProducers:['USA (DuPont)','Japan (Teijin)','South Korea','EU'] },
    'Plywood': { production:{annual:'170 million m³',growth:'+3%/yr'}, inputChain:[{material:'Wood veneers',ratio:'~1.5 m³ log per m³ plywood'},{material:'Adhesive',ratio:'5-10% by weight'}], energyCost:'5 GJ per m³', topProducers:['China (66%)','Indonesia','Russia','USA','India'] },
    'MDF (Medium-Density Fiberboard)': { production:{annual:'100 million m³',growth:'+4%/yr'}, inputChain:[{material:'Wood fiber',ratio:'85-90%'},{material:'UF resin',ratio:'10-15%'}], energyCost:'6 GJ per m³', topProducers:['China (50%)','Turkey','Brazil','EU','USA'] },
-   'Coal': { production:{annual:'8.7 billion tonnes',growth:'-0.5%/yr'}, topProducers:['China (52%)','India (10%)','Indonesia (8%)','USA (6%)','Australia (6%)'], co2:'2.86 tonnes COâ'' per tonne burned' },
-   'Petroleum (Crude Oil)': { production:{annual:'4.4 billion tonnes (100M barrels/day)',growth:'+0.5%/yr'}, topProducers:['USA (20%)','Saudi Arabia (12%)','Russia (11%)','Canada','Iraq'], co2:'3.1 tonnes COâ'' per tonne burned' },
+   'Coal': { production:{annual:'8.7 billion tonnes',growth:'-0.5%/yr'}, topProducers:['China (52%)','India (10%)','Indonesia (8%)','USA (6%)','Australia (6%)'], co2:'2.86 tonnes CO₂ per tonne burned' },
+   'Petroleum (Crude Oil)': { production:{annual:'4.4 billion tonnes (100M barrels/day)',growth:'+0.5%/yr'}, topProducers:['USA (20%)','Saudi Arabia (12%)','Russia (11%)','Canada','Iraq'], co2:'3.1 tonnes CO₂ per tonne burned' },
    'Natural Gas': { production:{annual:'4.0 trillion m³',growth:'+2%/yr'}, topProducers:['USA (25%)','Russia (15%)','Iran','China','Canada'], co2:'2.0 tonnes CO₂ per 1000 m³ burned' },
   };
 
@@ -3758,7 +3758,7 @@
        ${m.worldData.inputChain ? '<div><strong>Input Chain:</strong><ul style="margin:0.2rem 0 0.2rem 1.2rem;padding:0;">'+m.worldData.inputChain.map(ic => '<li>'+ic.material+': '+ic.ratio+'</li>').join('')+'</ul></div>' : ''}
        ${m.worldData.energyCost ? '<div><strong>Energy Cost:</strong> '+m.worldData.energyCost+'</div>' : ''}
        ${m.worldData.topProducers ? '<div><strong>Top Producers:</strong> '+m.worldData.topProducers.join(', ')+'</div>' : ''}
-       ${m.worldData.co2 ? '<div><strong>COâ'' Footprint:</strong> '+m.worldData.co2+'</div>' : ''}
+       ${m.worldData.co2 ? '<div><strong>CO₂ Footprint:</strong> '+m.worldData.co2+'</div>' : ''}
       </div>
      </details>` : ''}
      <div style="margin-top:0.5rem;">${srcLinks}</div>
@@ -5651,7 +5651,7 @@
      moons:[],rings:false,water:false,life:false,colonized:false,
      resources:['iron','nickel','silicon'],color:'#8c7e6d'},
     {id:'venus',name:'Venus',symbol:'♀',starId:'SOL',type:'terrestrial',radius:6052,mass:4.87e24,gravity:8.87,dayLength:2802.0,
-     atmosphere:{composition:{CO2:96.5,N2:3.5},pressure:9200,description:'Dense COâ'', extreme greenhouse'},
+     atmosphere:{composition:{CO2:96.5,N2:3.5},pressure:9200,description:'Dense CO₂, extreme greenhouse'},
      temperature:{min:462,avg:464,max:467},
      orbit:{semiMajor:0.723,eccentricity:0.0068,period:224.7,inclination:3.39,longitudeOfPerihelion:131.53,meanLongitude:181.98},
      moons:[],rings:false,water:false,life:false,colonized:false,
@@ -5663,7 +5663,7 @@
      moons:['luna'],rings:false,water:true,life:true,colonized:true,
      resources:['iron','silicon','aluminum','calcium','sodium','magnesium'],color:'#4488ff'},
     {id:'mars',name:'Mars',symbol:'♂',starId:'SOL',type:'terrestrial',radius:3390,mass:6.42e23,gravity:3.72,dayLength:24.6,
-     atmosphere:{composition:{CO2:95.3,N2:2.7,Ar:1.6},pressure:0.636,description:'Thin COâ'''},
+     atmosphere:{composition:{CO2:95.3,N2:2.7,Ar:1.6},pressure:0.636,description:'Thin CO₂'},
      temperature:{min:-153,avg:-65,max:20},
      orbit:{semiMajor:1.524,eccentricity:0.0934,period:686.97,inclination:1.85,longitudeOfPerihelion:336.04,meanLongitude:355.45},
      moons:['phobos','deimos'],rings:false,water:false,life:false,colonized:false,
@@ -11315,6 +11315,7 @@
  </script>
 </body>
 </html>
+
 
 
 
