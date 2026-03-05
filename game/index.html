@@ -580,11 +580,11 @@
    <div id="fw-notice" style="display:none;margin-bottom:0.45rem;font-size:0.7rem;color:#e8b35a;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
     <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
-    <select id="fw-filter-type" onchange="featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-filter-type" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
     </select>
     <label style="font-size:0.7rem;color:var(--text-muted);">Status</label>
-    <select id="fw-filter-status" onchange="featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-filter-status" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
     </select>
    </div>
@@ -7848,6 +7848,7 @@
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
 
   const FEATURE_WEB_KEY = 'humanity_feature_web_v1';
+  const FEATURE_WEB_FILTERS_KEY = 'humanity_feature_web_filters_v1';
   const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
   const FW_TYPE_COLORS = { feature: '#ff8811', subfeature: '#cf6a13', tech: '#7b5cff', ux: '#18a8a8' };
   let featureWeb = { nodes: [], edges: [] };
@@ -7859,11 +7860,30 @@
    try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
    if (!Array.isArray(featureWeb.nodes)) featureWeb.nodes = [];
    if (!Array.isArray(featureWeb.edges)) featureWeb.edges = [];
+   featureWebLoadFilters();
    featureWebRender();
   }
 
   function featureWebSave() {
    localStorage.setItem(FEATURE_WEB_KEY, JSON.stringify(featureWeb));
+  }
+
+  function featureWebLoadFilters() {
+   let f = null;
+   try { f = JSON.parse(localStorage.getItem(FEATURE_WEB_FILTERS_KEY) || '{}'); } catch {}
+   const typeEl = document.getElementById('fw-filter-type');
+   const statusEl = document.getElementById('fw-filter-status');
+   if (typeEl && f && f.type) typeEl.value = f.type;
+   if (statusEl && f && f.status) statusEl.value = f.status;
+  }
+
+  function featureWebSaveFilters() {
+   const typeEl = document.getElementById('fw-filter-type');
+   const statusEl = document.getElementById('fw-filter-status');
+   localStorage.setItem(FEATURE_WEB_FILTERS_KEY, JSON.stringify({
+    type: (typeEl && typeEl.value) || 'all',
+    status: (statusEl && statusEl.value) || 'all',
+   }));
   }
 
   function featureWebNotice(text) {
