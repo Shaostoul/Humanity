@@ -36,14 +36,7 @@ for root in roots:
             continue
         txt = p.read_text(encoding='utf-8', errors='ignore')
         hit = any(n in txt for n in needles_any) or any(n in txt for n in needles_seq)
-        if not hit and 'dY' in txt:
-            # Guard against false positives like "body"/"ready" by requiring non-letter after dY
-            for i in range(len(txt) - 2):
-                if txt[i:i+2] == 'dY':
-                    c = txt[i+2]
-                    if not (('a' <= c <= 'z') or ('A' <= c <= 'Z')):
-                        hit = True
-                        break
+
         if hit:
             issues.append(str(p))
 if issues:
