@@ -48,3 +48,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File C:\Humanity\scripts\restart-
 - Validate after edit.
 - Rollback immediately if validation fails.
 - See: `knowledge/OPENCLAW_CONFIG_CHANGE_POLICY.md`
+
+## Long-task progress discipline
+Use helper script to send explicit status pings in Discord:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Humanity\scripts\task-progress.ps1 -Mode start -Task "<task>" -Message "begin"
+```
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Humanity\scripts\task-progress.ps1 -Mode update -Task "<task>" -Message "<progress>"
+```
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Humanity\scripts\task-progress.ps1 -Mode done -Task "<task>" -Message "complete"
+```
+
+Optional watchdog ping if silent too long:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\Humanity\scripts\task-watchdog.ps1 -MaxSilenceMinutes 10
+```
