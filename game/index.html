@@ -580,6 +580,7 @@
    <div id="fw-notice" style="display:none;margin-bottom:0.45rem;font-size:0.7rem;color:#e8b35a;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
     <input id="fw-filter-search" type="text" placeholder="Search nodes…" oninput="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.23rem 0.42rem;border-radius:6px;font-size:0.72rem;min-width:150px;">
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-linked-only" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Linked only</label>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-show-edge-labels" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Edge labels</label>
     <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
     <select id="fw-filter-type" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
@@ -7907,12 +7908,14 @@
    const typeEl = document.getElementById('fw-filter-type');
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
+   const linkedOnlyEl = document.getElementById('fw-linked-only');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const domainEl = document.getElementById('fw-filter-domain');
    if (typeEl && f && f.type) typeEl.value = f.type;
    if (statusEl && f && f.status) statusEl.value = f.status;
    if (domainEl && f && f.domain) domainEl.value = f.domain;
    if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
+   if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
    if (labelsEl && f && typeof f.showEdgeLabels === 'boolean') labelsEl.checked = f.showEdgeLabels;
   }
 
@@ -7920,6 +7923,7 @@
    const typeEl = document.getElementById('fw-filter-type');
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
+   const linkedOnlyEl = document.getElementById('fw-linked-only');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const domainEl = document.getElementById('fw-filter-domain');
    localStorage.setItem(FEATURE_WEB_FILTERS_KEY, JSON.stringify({
@@ -7927,6 +7931,7 @@
     status: (statusEl && statusEl.value) || 'all',
     domain: (domainEl && domainEl.value) || 'all',
     search: (searchEl && searchEl.value) || '',
+    linkedOnly: linkedOnlyEl ? !!linkedOnlyEl.checked : false,
     showEdgeLabels: labelsEl ? !!labelsEl.checked : true,
    }));
   }
@@ -7935,12 +7940,14 @@
    const typeEl = document.getElementById('fw-filter-type');
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
+   const linkedOnlyEl = document.getElementById('fw-linked-only');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const domainEl = document.getElementById('fw-filter-domain');
    if (typeEl) typeEl.value = 'all';
    if (statusEl) statusEl.value = 'all';
    if (domainEl) domainEl.value = 'all';
    if (searchEl) searchEl.value = '';
+   if (linkedOnlyEl) linkedOnlyEl.checked = false;
    if (labelsEl) labelsEl.checked = true;
    featureWebSaveFilters();
    featureWebRender();
@@ -8326,10 +8333,12 @@
    const filterStatus = (filterStatusEl && filterStatusEl.value) || 'all';
    const filterDomain = (filterDomainEl && filterDomainEl.value) || 'all';
    const filterSearchEl = document.getElementById('fw-filter-search');
+   const linkedOnlyEl = document.getElementById('fw-linked-only');
    const showEdgeLabelsEl = document.getElementById('fw-show-edge-labels');
    const showEdgeLabels = !showEdgeLabelsEl || !!showEdgeLabelsEl.checked;
+   const linkedOnly = !!(linkedOnlyEl && linkedOnlyEl.checked);
    const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().toLowerCase();
-   const visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
+   const visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || n.taskId != null) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
    const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
    const visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
 
