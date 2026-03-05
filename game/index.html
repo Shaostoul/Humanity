@@ -589,7 +589,8 @@
     </select>
     <button onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
    </div>
-   <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;font-size:0.66rem;color:var(--text-muted);"></div>
+   <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;color:var(--text-muted);"></div>
+   <div id="fw-status-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;font-size:0.66rem;"></div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
     <input id="fw-node-title" type="text" placeholder="Feature / subfeature" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-node-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
@@ -8173,6 +8174,7 @@
    const filterTypeEl = document.getElementById('fw-filter-type');
    const filterStatusEl = document.getElementById('fw-filter-status');
    const legendEl = document.getElementById('fw-legend');
+   const statusSummaryEl = document.getElementById('fw-status-summary');
    if (!nodesEl || !edgesEl) return;
 
    const filterType = (filterTypeEl && filterTypeEl.value) || 'all';
@@ -8187,6 +8189,15 @@
     const typeBits = Object.entries(FW_TYPE_COLORS).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
     const statusBits = Object.entries(FW_STATUS_COLORS).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:2px;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
     legendEl.innerHTML = '<span style="opacity:0.75;">Type:</span> ' + typeBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Status:</span> ' + statusBits.join('<span style="opacity:0.35;">·</span>');
+   }
+
+   if (statusSummaryEl) {
+    const counts = { planned: 0, active: 0, blocked: 0, done: 0 };
+    visibleNodes.forEach(n => { if (counts[n.status] != null) counts[n.status]++; });
+    statusSummaryEl.innerHTML = Object.entries(counts).map(([k, c]) => {
+     const color = FW_STATUS_COLORS[k] || '#666';
+     return '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);"><span style="width:7px;height:7px;border-radius:2px;background:' + color + ';display:inline-block;"></span>' + k + ': <strong style="color:var(--text);font-size:0.67rem;">' + c + '</strong></span>';
+    }).join('');
    }
 
    const options = ['<option value="">Link from…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
