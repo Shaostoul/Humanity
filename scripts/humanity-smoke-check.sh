@@ -25,7 +25,12 @@ python3 - <<'PY'
 from pathlib import Path
 import re, sys
 roots = [Path('/var/www/humanity')]
-patterns = [r'Â', r'â', r'ð', r'�', r'dY[^\s<]{0,10}']
+patterns = [
+    r'�',
+    r'dY[^\sa-zA-Z<]{0,10}',
+    r'â(?:€”|€“|€˜|€™|€œ|€�|€¦|—|–|™|œ|ž|Ÿ)',
+    r'ðŸ'
+]
 rx = re.compile('|'.join(patterns))
 issues = []
 for root in roots:
