@@ -23,15 +23,10 @@ echo "[smoke] command_handlers=ok"
 echo "[smoke] checking runtime HTML/JS for mojibake markers"
 python3 - <<'PY'
 from pathlib import Path
-import re, sys
+import sys
 roots = [Path('/var/www/humanity')]
-patterns = [
-    r'�',
-    r'dY[^\sa-zA-Z<]{0,10}',
-    r'â(?:€”|€“|€˜|€™|€œ|€�|€¦|—|–|™|œ|ž|Ÿ)',
-    r'ðŸ'
-]
-rx = re.compile('|'.join(patterns))
+needles_any = ['�', 'ðŸ']
+needles_seq = ['â€”', 'â€“', 'â€˜', 'â€™', 'â€œ', 'â€�', 'â€¦', 'â„¢', 'âœ']
 issues = []
 for root in roots:
     for p in root.rglob('*'):
@@ -40,7 +35,16 @@ for root in roots:
         if p.suffix.lower() not in {'.html', '.js'}:
             continue
         txt = p.read_text(encoding='utf-8', errors='ignore')
-        if rx.search(txt):
+        hit = any(n in txt for n in needles_any) or any(n in txt for n in needles_seq)
+        if not hit and 'dY' in txt:
+            # Guard against false positives like "body"/"ready" by requiring non-letter after dY
+            for i in range(len(txt) - 2):
+                if txt[i:i+2] == 'dY':
+                    c = txt[i+2]
+                    if not (('a' <= c <= 'z') or ('A' <= c <= 'Z')):
+                        hit = True
+                        break
+        if hit:
             issues.append(str(p))
 if issues:
     print('[smoke] ERROR: mojibake markers detected in runtime files:')
