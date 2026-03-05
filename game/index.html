@@ -577,6 +577,16 @@
     <h3 style="margin:0;font-size:0.95rem;color:var(--text);">🕸️ Feature Web (V1)</h3>
     <div id="feature-web-meta" style="font-size:0.72rem;color:var(--text-muted);">0 nodes · 0 links</div>
    </div>
+   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
+    <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
+    <select id="fw-filter-type" onchange="featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+     <option value="all">All</option><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
+    </select>
+    <label style="font-size:0.7rem;color:var(--text-muted);">Status</label>
+    <select id="fw-filter-status" onchange="featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+     <option value="all">All</option><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
+    </select>
+   </div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
     <input id="fw-node-title" type="text" placeholder="Feature / subfeature" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-node-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
@@ -8006,9 +8016,17 @@
    const toEl = document.getElementById('fw-link-to');
    const editEl = document.getElementById('fw-edit-node');
    const edgeListEl = document.getElementById('fw-edge-list');
+   const filterTypeEl = document.getElementById('fw-filter-type');
+   const filterStatusEl = document.getElementById('fw-filter-status');
    if (!nodesEl || !edgesEl) return;
 
-   if (metaEl) metaEl.textContent = featureWeb.nodes.length + ' nodes · ' + featureWeb.edges.length + ' links';
+   const filterType = (filterTypeEl && filterTypeEl.value) || 'all';
+   const filterStatus = (filterStatusEl && filterStatusEl.value) || 'all';
+   const visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus));
+   const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+   const visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
+
+   if (metaEl) metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links';
 
    const options = ['<option value="">Link from…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
    const toOptions = ['<option value="">Link to…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
@@ -8031,24 +8049,24 @@
    featureWebRenderEditor();
 
    if (edgeListEl) {
-    edgeListEl.innerHTML = featureWeb.edges.length
-     ? featureWeb.edges.map(e => {
+    edgeListEl.innerHTML = visibleEdges.length
+     ? visibleEdges.map(e => {
        const from = featureWeb.nodes.find(n => n.id === e.from);
        const to = featureWeb.nodes.find(n => n.id === e.to);
        if (!from || !to) return '';
        return '<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:999px;padding:0.15rem 0.45rem;margin:0 0.3rem 0.3rem 0;">' + escHtml(from.title) + ' → ' + escHtml(to.title) + '<button onclick="featureWebDeleteEdge(\'' + e.id + '\')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.72rem;">✕</button></span>';
       }).join('')
-     : '<span style="opacity:0.7;">No links yet</span>';
+     : '<span style="opacity:0.7;">No links in current filter</span>';
    }
 
-   edgesEl.innerHTML = featureWeb.edges.map(e => {
+   edgesEl.innerHTML = visibleEdges.map(e => {
     const from = featureWeb.nodes.find(n => n.id === e.from);
     const to = featureWeb.nodes.find(n => n.id === e.to);
     if (!from || !to) return '';
     return '<line x1="' + (from.x + 52) + '" y1="' + (from.y + 20) + '" x2="' + (to.x + 52) + '" y2="' + (to.y + 20) + '" stroke="rgba(255,255,255,0.35)" stroke-width="1.6" marker-end="url(#fwArrow)" />';
    }).join('') + '<defs><marker id="fwArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="rgba(255,255,255,0.35)" /></marker></defs>';
 
-   nodesEl.innerHTML = featureWeb.nodes.map(n => {
+   nodesEl.innerHTML = visibleNodes.map(n => {
     const typeColor = FW_TYPE_COLORS[n.type] || '#888';
     const statusColor = FW_STATUS_COLORS[n.status] || '#666';
     return '<div class="fw-node" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:160px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid rgba(255,255,255,0.15);box-shadow:0 1px 8px rgba(0,0,0,0.35);cursor:grab;">' +
