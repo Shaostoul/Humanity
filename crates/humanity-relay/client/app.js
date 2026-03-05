@@ -782,6 +782,10 @@ async function sendMessage() {
   const input = document.getElementById('msg-input');
   let content = input.value.trim();
   if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!identityConfirmed || !myKey || !myName || myName.toLowerCase() === 'anonymous') {
+    addNotice('Identity still initializing. Please retry in a moment.', 'yellow', 6);
+    return;
+  }
 
   // Enforce character limit (on user's own text, before adding quote).
   const charLimit = getMaxMsgLength();
@@ -882,6 +886,10 @@ function handleChannelAdminFeedback(message) {
 
 async function sendChatCommand(command, channelOverride) {
   if (!command) return false;
+  if (!identityConfirmed || !myKey || !myName || myName.toLowerCase() === 'anonymous') {
+    addSystemMessage('Identity not ready yet. Please wait a moment and retry.');
+    return false;
+  }
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     addSystemMessage('Not connected. Please reconnect and try again.');
     return false;

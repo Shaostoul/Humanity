@@ -7232,8 +7232,42 @@
   function streamStop() {
    if (!streamIsLive) return;
    streamIsLive = false;
+
    if (streamDurationTimer) { clearInterval(streamDurationTimer); streamDurationTimer = null; }
    if (streamMetricsTimer) { clearInterval(streamMetricsTimer); streamMetricsTimer = null; }
+   if (streamViewerPollInt) { clearInterval(streamViewerPollInt); streamViewerPollInt = null; }
+   if (streamStatsPollInt) { clearInterval(streamStatsPollInt); streamStatsPollInt = null; }
+   if (streamHeartbeatInt) { clearInterval(streamHeartbeatInt); streamHeartbeatInt = null; }
+
+   if (streamCompositeAnimFrame) {
+    try { cancelAnimationFrame(streamCompositeAnimFrame); } catch(e) {}
+    streamCompositeAnimFrame = null;
+   }
+
+   // Stop all local capture streams/tracks to prevent lingering GPU/encoder load.
+   [streamScreenStream, streamWebcamStream, streamCompositeStream].forEach(s => {
+    if (!s) return;
+    try { s.getTracks().forEach(t => t.stop()); } catch(e) {}
+   });
+   streamScreenStream = null;
+   streamWebcamStream = null;
+   streamCompositeStream = null;
+
+   // Release media element sources.
+   try {
+    const pv = document.getElementById('stream-preview-video');
+    if (pv) pv.srcObject = null;
+    if (screenVideo) screenVideo.srcObject = null;
+    if (pipVideo) pipVideo.srcObject = null;
+   } catch(e) {}
+
+   // Close WebAudio context used for compositing.
+   try { if (streamAudioCtx) streamAudioCtx.close(); } catch(e) {}
+   streamAudioCtx = null;
+   streamAudioDestNode = null;
+   streamDeskSourceNode = null;
+   streamWebcamAudioSourceNode = null;
+
    document.getElementById('stream-go-live-btn').style.display = 'inline-flex';
    document.getElementById('stream-stop-btn').style.display = 'none';
    document.getElementById('stream-brb-btn').style.display = 'none';
@@ -11245,6 +11279,7 @@
  </script>
 </body>
 </html>
+
 
 
 
