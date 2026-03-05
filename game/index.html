@@ -7850,6 +7850,7 @@
   const FW_TYPE_COLORS = { feature: '#ff8811', subfeature: '#cf6a13', tech: '#7b5cff', ux: '#18a8a8' };
   let featureWeb = { nodes: [], edges: [] };
   let fwDrag = null;
+  let fwSelectedNodeId = '';
 
   function featureWebLoad() {
    try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
@@ -7966,11 +7967,13 @@
    if (!editSelect || !titleEl || !typeEl || !statusEl) return;
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) {
+    fwSelectedNodeId = '';
     titleEl.value = '';
     typeEl.value = 'feature';
     statusEl.value = 'planned';
     return;
    }
+   fwSelectedNodeId = node.id;
    titleEl.value = node.title || '';
    typeEl.value = node.type || 'feature';
    statusEl.value = node.status || 'planned';
@@ -8133,7 +8136,10 @@
    nodesEl.innerHTML = visibleNodes.map(n => {
     const typeColor = FW_TYPE_COLORS[n.type] || '#888';
     const statusColor = FW_STATUS_COLORS[n.status] || '#666';
-    return '<div class="fw-node" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:160px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid rgba(255,255,255,0.15);box-shadow:0 1px 8px rgba(0,0,0,0.35);cursor:grab;">' +
+    const isSelected = fwSelectedNodeId === n.id;
+    const borderColor = isSelected ? 'rgba(255,136,17,0.75)' : 'rgba(255,255,255,0.15)';
+    const glow = isSelected ? '0 0 0 1px rgba(255,136,17,0.25),0 3px 14px rgba(0,0,0,0.45)' : '0 1px 8px rgba(0,0,0,0.35)';
+    return '<div class="fw-node" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:160px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid ' + borderColor + ';box-shadow:' + glow + ';cursor:grab;">' +
      '<div style="font-size:0.67rem;color:' + typeColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.type) + '</div>' +
      '<div style="font-size:0.76rem;color:var(--text);font-weight:600;line-height:1.3;word-break:break-word;">' + escHtml(n.title) + '</div>' +
      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.2rem;gap:0.3rem;">' +
