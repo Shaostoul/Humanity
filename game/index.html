@@ -7895,6 +7895,10 @@
     if (!n.owner) n.owner = '';
     if (!n.priority) n.priority = 'medium';
    });
+   if (!featureWeb.nodes.length && !localStorage.getItem('humanity_feature_web_autoseeded_v2')) {
+    localStorage.setItem('humanity_feature_web_autoseeded_v2', '1');
+    setTimeout(() => featureWebSeedPU(), 0);
+   }
    featureWebLoadFilters();
    featureWebRender();
   }
@@ -7967,39 +7971,76 @@
   }
 
   function featureWebSeedPU() {
-   if (featureWeb.nodes.length && !confirm('Seed Project Universe starter map? This will append nodes/links.')) return;
-   const mk = (title, type, domain, status, x, y, summary, teach) => ({
+   if (featureWeb.nodes.length && !confirm('Seed Project Universe map pack? This will append many nodes/links.')) return;
+   const mk = (title, type, domain, status, x, y, summary, teach, details, owner, priority) => ({
     id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     title, type, domain, status, x, y,
-    summary: summary || '', teach: teach || '', details: '', owner: '', priority: 'medium'
+    summary: summary || '', teach: teach || '', details: details || '', owner: owner || '', priority: priority || 'medium'
    });
    const nodes = [
-    mk('PU Mission', 'feature', 'vision', 'active', 40, 30, 'Prepare humanity for interplanetary civilization.', 'This is the north star for all systems.'),
-    mk('SSPC Business Model', 'org', 'business', 'active', 250, 30, 'Social purpose corporation governance + benefits.', 'Defines legal/financial foundation.'),
-    mk('School Stage 1', 'feature', 'school', 'active', 40, 130, 'Internet-linked baseline curriculum.', 'Onboard contributors quickly with practical skill paths.'),
-    mk('School Stage 2/3', 'subfeature', 'school', 'planned', 250, 130, 'Advanced and integrated education tracks.', 'Bridges from learning into contribution leadership.'),
-    mk('Core Gameplay Loops', 'feature', 'game', 'active', 40, 230, 'Farming, harvesting, crafting, missions, expeditions.', 'Players learn by doing meaningful loops.'),
-    mk('Fleet Economy', 'feature', 'economy', 'planned', 250, 230, 'Resource + reputation + market dynamics.', 'Connects solo effort to shared civilization outcomes.'),
-    mk('Act I-V Roadmap', 'feature', 'roadmap', 'active', 460, 230, 'Staged delivery from core mechanics to full world.', 'Prevents scope collapse while preserving long-term ambition.'),
-    mk('Lore: Murex & Fleet', 'lore', 'lore', 'planned', 460, 130, 'Narrative backbone for mission/events.', 'Story context creates meaning for systems and choices.'),
-    mk('Community Contributors', 'feature', 'community', 'active', 460, 30, 'Volunteers, creators, reps, partners.', 'Social engine that sustains momentum.'),
+    mk('PU Mission', 'feature', 'vision', 'active', 40, 24, 'Prepare humanity for a united interplanetary civilization.', 'Everything should ladder up to reducing suffering and increasing capability.', 'Collaboration + education + technology + game loops.', 'leadership', 'critical'),
+    mk('Intuitive Teaching Goal', 'feature', 'vision', 'active', 40, 94, 'Teach anyone anything through layered experiences.', 'Every system should explain itself in plain language and examples.', 'Short summary -> teach summary -> deep details.', 'education', 'high'),
+    mk('SSPC Legal Entity', 'org', 'business', 'active', 250, 24, 'Washington SPC as governance/business shell.', 'Ensures legal continuity and benefit mandate.', 'Created Dec 2019; social purpose alignment.', 'ops', 'high'),
+    mk('Contributor Benefits Program', 'feature', 'business', 'planned', 250, 94, 'Healthcare/housing/food/utilities/education support model.', 'Contributors should be sustainably supported long-term.', 'Availability varies by country until global partners scale.', 'ops', 'high'),
+    mk('Funding Portfolio', 'feature', 'business', 'active', 250, 164, 'Patreon/PayPal/partners/sponsors/merch/microtransactions.', 'Diversified funding avoids single-point fragility.', 'Historical channels + future partner commissions.', 'finance', 'high'),
+    mk('Community Contribution Pipeline', 'feature', 'community', 'active', 460, 24, 'Volunteers -> trained contributors -> paid roles.', 'People can start helping quickly then specialize.', 'Includes reps, creators, devs, educators.', 'community', 'high'),
+    mk('Jobs & Skill Paths', 'feature', 'community', 'planned', 460, 94, 'Developer, artist, audio, representative tracks.', 'Clear role tracks reduce onboarding confusion.', 'Mapped to School and project demand.', 'community', 'high'),
+    mk('School Stage 1', 'feature', 'school', 'active', 40, 194, 'Curated free/paid external lessons.', 'Fast baseline skill ramp using internet curriculum.', 'Blender/programming starter links.', 'education', 'high'),
+    mk('School Stage 2', 'subfeature', 'school', 'planned', 250, 234, 'Applied project labs + mentorship.', 'Move from passive learning into guided execution.', 'Feature-focused cohort work.', 'education', 'medium'),
+    mk('School Stage 3', 'subfeature', 'school', 'planned', 460, 234, 'Leadership/systems mastery and teaching others.', 'Create multipliers who can train new contributors.', 'Capstone across gameplay + operations.', 'education', 'medium'),
+    mk('Core Gameplay Loops', 'feature', 'game', 'active', 40, 304, 'Farming, harvesting, crafting, missions, expeditions.', 'Players learn by contributing to shared systems.', 'Solo + group loop parity for inclusivity.', 'design', 'critical'),
+    mk('Social MMO Layer', 'feature', 'game', 'active', 250, 304, 'Collaboration-first multiplayer foundations.', 'Healthy social interaction is a core gameplay objective.', 'Supports introvert/extrovert play patterns.', 'design', 'high'),
+    mk('Immersive Environment Layer', 'feature', 'game', 'planned', 460, 304, 'Wide environments, planets/space ambiance, exploration rewards.', 'Immersion supports mental health and learning retention.', 'Space-first with planetary expansion.', 'world', 'high'),
+    mk('Fleet Economy', 'feature', 'economy', 'planned', 40, 404, 'Money + reputation + resources as parallel progression.', 'Different value channels keep gameplay meaningful.', 'Links production, consumption, and upgrades.', 'economy', 'critical'),
+    mk('Global Market (Fleet + Private)', 'subfeature', 'economy', 'planned', 250, 404, 'Public and private supply-demand markets.', 'Enables collaboration and specialization.', 'Fleet market for macro goals; private for player exchange.', 'economy', 'high'),
+    mk('Access Systems (Armory/Cargo)', 'subfeature', 'economy', 'planned', 460, 404, 'Home/guild/fleet storage and loadout logistics.', 'Logistics creates strategic tradeoffs and realism.', 'Inventory movement should have time/capacity constraints.', 'economy', 'medium'),
+    mk('Roadmap: Act I', 'feature', 'roadmap', 'active', 40, 504, 'Core mechanics + PvP sandbox baseline.', 'Focus first on movement/combat/control primitives.', 'Small scope for fast feedback.', 'roadmap', 'high'),
+    mk('Roadmap: Act II', 'subfeature', 'roadmap', 'planned', 250, 504, 'Vehicles + AI + PvE challenge.', 'Introduce purpose loops after movement foundation.', 'At least one per vehicle style.', 'roadmap', 'high'),
+    mk('Roadmap: Act III+', 'subfeature', 'roadmap', 'planned', 460, 504, 'Modularity, events, space conflict, expansion.', 'Scale carefully after core loops are stable.', 'Progressive content depth.', 'roadmap', 'medium'),
+    mk('Lore Core: Murex System', 'lore', 'lore', 'planned', 40, 584, 'Murex mystery, fleet arc, chaptered progression.', 'Story gives context and stakes to systems.', 'Prelude/Chapter One scaffolding.', 'lore', 'medium'),
+    mk('Lore Core: Hungering Dark', 'lore', 'lore', 'planned', 250, 584, 'Primary hostile species arc and tech identity.', 'Faction identity drives mission/event variety.', 'Visual + cultural + gameplay hooks.', 'lore', 'medium'),
+    mk('Dev Toolchain Standards', 'tech', 'tech', 'active', 460, 584, 'Unity/C#/Blender/asset format constraints.', 'Consistent pipeline prevents integration chaos.', 'Binary FBX, BC7 DDS, plugin support.', 'engineering', 'high'),
+    mk('Feature Web (this system)', 'feature', 'operations', 'active', 670, 304, 'Interactive dependency map for whole project.', 'Understand how everything connects before building.', 'Companion to Kanban.', 'ops', 'high'),
+    mk('Kanban Execution Board', 'feature', 'operations', 'active', 670, 404, 'Task flow: backlog/in-progress/testing/done.', 'Execution throughput and ownership clarity.', 'Operational counterpart to feature graph.', 'ops', 'high')
    ];
    const byTitle = Object.fromEntries(nodes.map(n => [n.title, n.id]));
+   const e = (a,b,t) => ({ id:'e_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), from:byTitle[a], to:byTitle[b], type:t });
    const edges = [
-    { id:'e_'+Date.now().toString(36)+'a', from:byTitle['PU Mission'], to:byTitle['Core Gameplay Loops'], type:'enables' },
-    { id:'e_'+Date.now().toString(36)+'b', from:byTitle['PU Mission'], to:byTitle['School Stage 1'], type:'enables' },
-    { id:'e_'+Date.now().toString(36)+'c', from:byTitle['SSPC Business Model'], to:byTitle['Community Contributors'], type:'enables' },
-    { id:'e_'+Date.now().toString(36)+'d', from:byTitle['School Stage 1'], to:byTitle['School Stage 2/3'], type:'depends_on' },
-    { id:'e_'+Date.now().toString(36)+'e', from:byTitle['Core Gameplay Loops'], to:byTitle['Fleet Economy'], type:'enables' },
-    { id:'e_'+Date.now().toString(36)+'f', from:byTitle['Fleet Economy'], to:byTitle['Act I-V Roadmap'], type:'depends_on' },
-    { id:'e_'+Date.now().toString(36)+'g', from:byTitle['Lore: Murex & Fleet'], to:byTitle['Act I-V Roadmap'], type:'teaches' },
-    { id:'e_'+Date.now().toString(36)+'h', from:byTitle['Community Contributors'], to:byTitle['Core Gameplay Loops'], type:'enables' }
-   ];
+    e('PU Mission','Intuitive Teaching Goal','enables'),
+    e('PU Mission','Core Gameplay Loops','enables'),
+    e('PU Mission','School Stage 1','enables'),
+    e('PU Mission','SSPC Legal Entity','enables'),
+    e('SSPC Legal Entity','Contributor Benefits Program','enables'),
+    e('Funding Portfolio','Contributor Benefits Program','enables'),
+    e('Funding Portfolio','Community Contribution Pipeline','enables'),
+    e('Community Contribution Pipeline','Jobs & Skill Paths','enables'),
+    e('School Stage 1','School Stage 2','depends_on'),
+    e('School Stage 2','School Stage 3','depends_on'),
+    e('Jobs & Skill Paths','School Stage 1','depends_on'),
+    e('Core Gameplay Loops','Social MMO Layer','relates_to'),
+    e('Core Gameplay Loops','Fleet Economy','enables'),
+    e('Social MMO Layer','Community Contribution Pipeline','teaches'),
+    e('Immersive Environment Layer','Core Gameplay Loops','enables'),
+    e('Fleet Economy','Global Market (Fleet + Private)','enables'),
+    e('Fleet Economy','Access Systems (Armory/Cargo)','enables'),
+    e('Global Market (Fleet + Private)','Access Systems (Armory/Cargo)','depends_on'),
+    e('Roadmap: Act I','Roadmap: Act II','enables'),
+    e('Roadmap: Act II','Roadmap: Act III+','enables'),
+    e('Core Gameplay Loops','Roadmap: Act I','depends_on'),
+    e('Social MMO Layer','Roadmap: Act II','enables'),
+    e('Lore Core: Murex System','Roadmap: Act III+','teaches'),
+    e('Lore Core: Hungering Dark','Lore Core: Murex System','relates_to'),
+    e('Dev Toolchain Standards','Roadmap: Act I','enables'),
+    e('Feature Web (this system)','Kanban Execution Board','relates_to'),
+    e('Feature Web (this system)','Intuitive Teaching Goal','enables'),
+    e('Kanban Execution Board','Roadmap: Act I','enables')
+   ].filter(x => x.from && x.to);
+
    featureWeb.nodes = featureWeb.nodes.concat(nodes);
    featureWeb.edges = featureWeb.edges.concat(edges);
    featureWebSave();
    featureWebRender();
-   featureWebNotice('Seeded PU starter map');
+   featureWebNotice('Seeded PU map pack (' + nodes.length + ' nodes)');
   }
 
   function featureWebTeachMode() {
