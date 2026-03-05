@@ -590,7 +590,7 @@
    </div>
    <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;font-size:0.66rem;color:var(--text-muted);"></div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
-    <input id="fw-node-title" type="text" placeholder="Feature / subfeature" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
+    <input id="fw-node-title" type="text" placeholder="Feature / subfeature" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-node-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
      <option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
     </select>
@@ -7895,6 +7895,7 @@
    };
    featureWeb.nodes.push(node);
    titleEl.value = '';
+   featureWebNotice('');
    featureWebSave();
    featureWebRender();
   }
@@ -7925,12 +7926,17 @@
    const fromEl = document.getElementById('fw-link-from');
    const toEl = document.getElementById('fw-link-to');
    const typeEl = document.getElementById('fw-link-type');
-   if (!fromEl || !toEl || !fromEl.value || !toEl.value || fromEl.value === toEl.value) return;
+   if (!fromEl || !toEl || !fromEl.value || !toEl.value) return;
+   if (fromEl.value === toEl.value) {
+    featureWebNotice('Link source and target must be different');
+    return;
+   }
    if (featureWeb.edges.some(e => e.from === fromEl.value && e.to === toEl.value)) {
     featureWebNotice('That link already exists');
     return;
    }
    featureWeb.edges.push({ id: 'e_' + Date.now().toString(36), from: fromEl.value, to: toEl.value, type: (typeEl && typeEl.value) || 'depends_on' });
+   featureWebNotice('');
    featureWebSave();
    featureWebRender();
   }
