@@ -31,6 +31,14 @@ Things like:
 - Default speaker: Kitchen HomePod
 ```
 
+## SSH
+
+- VPS alias: `humanity-vps`
+- Host: `server1.shaostoul.com`
+- User: `root`
+- Key: `C:/Users/Shaos/.ssh/humanity_vps`
+- Quick test: `ssh humanity-vps "hostname"`
+
 ## Why Separate?
 
 Skills are shared. Your setup is yours. Keeping them apart means you can update skills without losing your notes, and share skills without leaking your infrastructure.

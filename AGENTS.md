@@ -15,6 +15,7 @@ Before doing anything else:
 3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
 4. Read `OPERATING_CONTRACT.md` for persistent operational rules
 5. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
+6. **If doing infra/deploy/remote ops:** read `TOOLS.md` and run a quick remote-access sanity check before assuming access is unavailable.
 
 Don't ask permission. Just do it.
 
