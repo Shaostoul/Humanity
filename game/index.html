@@ -8031,6 +8031,13 @@
    featureWebRenderEditor();
   }
 
+  function featureWebDeleteSelectedNode() {
+   if (!fwSelectedNodeId) return;
+   featureWebDeleteNode(fwSelectedNodeId);
+   fwSelectedNodeId = '';
+   featureWebNotice('Selected node deleted');
+  }
+
   function featureWebSetHover(id) {
    fwHoveredNodeId = id || '';
    featureWebRender();
@@ -8247,6 +8254,17 @@
    if (!fwDrag) return;
    fwDrag = null;
    featureWebSave();
+  });
+
+  document.addEventListener('keydown', (e) => {
+   const active = document.activeElement;
+   const tag = active && active.tagName ? active.tagName.toLowerCase() : '';
+   const inField = tag === 'input' || tag === 'textarea' || tag === 'select' || (active && active.isContentEditable);
+   if (inField) return;
+   if ((e.key === 'Delete' || e.key === 'Backspace') && fwSelectedNodeId) {
+    e.preventDefault();
+    featureWebDeleteSelectedNode();
+   }
   });
 
   const API_BASE = 'https://united-humanity.us';
