@@ -611,6 +611,7 @@
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
    </div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+    <button onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
     <button onclick="featureWebExport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Export JSON</button>
     <button onclick="featureWebImport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Import JSON</button>
     <button onclick="featureWebReset()" style="background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Reset Web</button>
@@ -7962,6 +7963,24 @@
    if (!editEl) return;
    editEl.value = id;
    featureWebRenderEditor();
+  }
+
+  function featureWebAutoLayout() {
+   const canvas = document.getElementById('feature-web-canvas');
+   if (!canvas || !featureWeb.nodes.length) return;
+   const width = Math.max(220, canvas.clientWidth);
+   const height = Math.max(180, canvas.clientHeight);
+   const cols = Math.max(1, Math.floor((width - 24) / 150));
+   featureWeb.nodes.forEach((n, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    n.x = 16 + col * 150;
+    n.y = 14 + row * 86;
+    n.x = Math.max(4, Math.min(width - 120, n.x));
+    n.y = Math.max(4, Math.min(height - 48, n.y));
+   });
+   featureWebSave();
+   featureWebRender();
   }
 
   function featureWebExport() {
