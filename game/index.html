@@ -572,6 +572,32 @@
    <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">📋 Project Board</h2>
    <button class="btn btn-clickable" id="board-create-btn" style="display:none;min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;" onclick="showCreateTaskModal()">+ New Task</button>
   </div>
+  <div id="feature-web" style="margin-bottom:1rem;background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.8rem;">
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+    <h3 style="margin:0;font-size:0.95rem;color:var(--text);">🕸️ Feature Web (V1)</h3>
+    <div id="feature-web-meta" style="font-size:0.72rem;color:var(--text-muted);">0 nodes · 0 links</div>
+   </div>
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
+    <input id="fw-node-title" type="text" placeholder="Feature / subfeature" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
+    <select id="fw-node-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
+     <option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
+    </select>
+    <select id="fw-node-status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
+     <option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
+    </select>
+    <button onclick="featureWebAddNode()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Add Node</button>
+   </div>
+   <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.5rem;margin-bottom:0.6rem;">
+    <select id="fw-link-from" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
+    <select id="fw-link-to" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
+    <button onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
+   </div>
+   <div id="feature-web-canvas" style="position:relative;height:340px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
+    <svg id="feature-web-edges" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
+    <div id="feature-web-nodes" style="position:absolute;inset:0;"></div>
+   </div>
+  </div>
+
   <div id="board-columns" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;min-height:300px;">
    <div class="board-column" data-status="backlog">
     <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--text-muted);padding:0.4rem 0.5rem;border-bottom:2px solid #555;margin-bottom:0.5rem;">📥 Backlog <span class="board-col-count" data-status="backlog">0</span></div>
@@ -7793,6 +7819,134 @@
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
 
+  const FEATURE_WEB_KEY = 'humanity_feature_web_v1';
+  const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
+  const FW_TYPE_COLORS = { feature: '#ff8811', subfeature: '#cf6a13', tech: '#7b5cff', ux: '#18a8a8' };
+  let featureWeb = { nodes: [], edges: [] };
+  let fwDrag = null;
+
+  function featureWebLoad() {
+   try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
+   if (!Array.isArray(featureWeb.nodes)) featureWeb.nodes = [];
+   if (!Array.isArray(featureWeb.edges)) featureWeb.edges = [];
+   featureWebRender();
+  }
+
+  function featureWebSave() {
+   localStorage.setItem(FEATURE_WEB_KEY, JSON.stringify(featureWeb));
+  }
+
+  function featureWebAddNode() {
+   const titleEl = document.getElementById('fw-node-title');
+   const typeEl = document.getElementById('fw-node-type');
+   const statusEl = document.getElementById('fw-node-status');
+   if (!titleEl || !titleEl.value.trim()) return;
+   const node = {
+    id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title: titleEl.value.trim(),
+    type: typeEl ? typeEl.value : 'feature',
+    status: statusEl ? statusEl.value : 'planned',
+    x: 25 + (featureWeb.nodes.length % 4) * 150,
+    y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
+   };
+   featureWeb.nodes.push(node);
+   titleEl.value = '';
+   featureWebSave();
+   featureWebRender();
+  }
+
+  function featureWebAddEdge() {
+   const fromEl = document.getElementById('fw-link-from');
+   const toEl = document.getElementById('fw-link-to');
+   if (!fromEl || !toEl || !fromEl.value || !toEl.value || fromEl.value === toEl.value) return;
+   if (featureWeb.edges.some(e => e.from === fromEl.value && e.to === toEl.value)) return;
+   featureWeb.edges.push({ id: 'e_' + Date.now().toString(36), from: fromEl.value, to: toEl.value });
+   featureWebSave();
+   featureWebRender();
+  }
+
+  function featureWebDeleteNode(id) {
+   featureWeb.nodes = featureWeb.nodes.filter(n => n.id !== id);
+   featureWeb.edges = featureWeb.edges.filter(e => e.from !== id && e.to !== id);
+   featureWebSave();
+   featureWebRender();
+  }
+
+  function featureWebRender() {
+   const wrap = document.getElementById('feature-web');
+   if (!wrap) return;
+   const nodesEl = document.getElementById('feature-web-nodes');
+   const edgesEl = document.getElementById('feature-web-edges');
+   const metaEl = document.getElementById('feature-web-meta');
+   const fromEl = document.getElementById('fw-link-from');
+   const toEl = document.getElementById('fw-link-to');
+   if (!nodesEl || !edgesEl) return;
+
+   if (metaEl) metaEl.textContent = featureWeb.nodes.length + ' nodes · ' + featureWeb.edges.length + ' links';
+
+   const options = ['<option value="">Link from…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
+   const toOptions = ['<option value="">Link to…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
+   if (fromEl) {
+    const selected = fromEl.value;
+    fromEl.innerHTML = options.join('');
+    fromEl.value = selected;
+   }
+   if (toEl) {
+    const selected = toEl.value;
+    toEl.innerHTML = toOptions.join('');
+    toEl.value = selected;
+   }
+
+   edgesEl.innerHTML = featureWeb.edges.map(e => {
+    const from = featureWeb.nodes.find(n => n.id === e.from);
+    const to = featureWeb.nodes.find(n => n.id === e.to);
+    if (!from || !to) return '';
+    return '<line x1="' + (from.x + 52) + '" y1="' + (from.y + 20) + '" x2="' + (to.x + 52) + '" y2="' + (to.y + 20) + '" stroke="rgba(255,255,255,0.35)" stroke-width="1.6" marker-end="url(#fwArrow)" />';
+   }).join('') + '<defs><marker id="fwArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="rgba(255,255,255,0.35)" /></marker></defs>';
+
+   nodesEl.innerHTML = featureWeb.nodes.map(n => {
+    const typeColor = FW_TYPE_COLORS[n.type] || '#888';
+    const statusColor = FW_STATUS_COLORS[n.status] || '#666';
+    return '<div class="fw-node" data-id="' + n.id + '" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:160px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid rgba(255,255,255,0.15);box-shadow:0 1px 8px rgba(0,0,0,0.35);cursor:grab;">' +
+     '<div style="font-size:0.67rem;color:' + typeColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.type) + '</div>' +
+     '<div style="font-size:0.76rem;color:var(--text);font-weight:600;line-height:1.3;word-break:break-word;">' + escHtml(n.title) + '</div>' +
+     '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.2rem;gap:0.3rem;">' +
+      '<span style="font-size:0.63rem;color:' + statusColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.status) + '</span>' +
+      '<button onclick="event.stopPropagation();featureWebDeleteNode(\'' + n.id + '\')" style="background:none;border:none;color:var(--text-muted);font-size:0.72rem;cursor:pointer;">✕</button>' +
+     '</div>' +
+    '</div>';
+   }).join('');
+
+   nodesEl.querySelectorAll('.fw-node').forEach(el => {
+    el.addEventListener('pointerdown', featureWebDragStart);
+   });
+  }
+
+  function featureWebDragStart(e) {
+   const id = e.currentTarget.dataset.id;
+   const node = featureWeb.nodes.find(n => n.id === id);
+   const canvas = document.getElementById('feature-web-canvas');
+   if (!node || !canvas) return;
+   const rect = canvas.getBoundingClientRect();
+   fwDrag = { id, dx: e.clientX - rect.left - node.x, dy: e.clientY - rect.top - node.y, rect };
+   e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  document.addEventListener('pointermove', (e) => {
+   if (!fwDrag) return;
+   const node = featureWeb.nodes.find(n => n.id === fwDrag.id);
+   if (!node) return;
+   node.x = Math.max(4, Math.min(fwDrag.rect.width - 120, e.clientX - fwDrag.rect.left - fwDrag.dx));
+   node.y = Math.max(4, Math.min(fwDrag.rect.height - 48, e.clientY - fwDrag.rect.top - fwDrag.dy));
+   featureWebRender();
+  });
+
+  document.addEventListener('pointerup', () => {
+   if (!fwDrag) return;
+   fwDrag = null;
+   featureWebSave();
+  });
+
   const API_BASE = 'https://united-humanity.us';
 
   function boardConnect() {
@@ -8135,6 +8289,8 @@
     boardWs.send(JSON.stringify({ type: 'task_list' }));
    }
   };
+
+  featureWebLoad();
 
   // Auto-connect if initial tab is board
   if (initialTab === 'board') boardConnect();
