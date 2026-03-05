@@ -7278,6 +7278,10 @@
    document.getElementById('stream-stat-duration').textContent = 'Duration: --:--';
    document.getElementById('stream-stat-quality').textContent = 'Quality: --';
    document.getElementById('stream-stat-bitrate').textContent = 'Bitrate: --';
+   document.getElementById('stream-stat-tracks').textContent = 'Tracks: --';
+   document.getElementById('stream-stat-loop').textContent = 'Loop: --';
+   streamLastLoopMs = 0;
+   streamLoopLastTs = 0;
 
    if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'stream_stop' }));
