@@ -2243,7 +2243,7 @@
 
    // Global visible-text cleanup fallback for mojibake-heavy labels.
    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-   const badMarker = /(dY[^\s]{0,8}|Â|â|ð|�)/;
+   const badMarker = /(?:d\x59[^\s]{0,8}|\u00C2|\u00E2|\u00F0|\uFFFD)/;
    let node;
    while ((node = walker.nextNode())) {
     const p = node.parentElement;
@@ -2254,12 +2254,12 @@
     if (!badMarker.test(t)) continue;
 
     let clean = t;
-    clean = clean.replace(/dY[^\s]{0,8}/g, '');
+    clean = clean.replace(/d\x59[^\s]{0,8}/g, '');
     clean = clean.replace(/Â/g, '');
     clean = clean.replace(/â–¼/g, '▼').replace(/â–²/g, '▲');
     clean = clean.replace(/â±/g, 'Duration').replace(/ðŸ‘/g, 'Viewers').replace(/ðŸ“Š/g, 'Quality').replace(/ðŸ“¶/g, 'Bitrate');
     clean = clean.replace(/ðŸ“º/g, 'LIVE').replace(/ðŸŽ¬/g, 'PREVIEW');
-    clean = clean.replace(/�/g, '');
+    clean = clean.replace(/\uFFFD/g, '');
     clean = clean.replace(/\s+/g, ' ');
     if (clean !== t) node.nodeValue = clean;
    }
