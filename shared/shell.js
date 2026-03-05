@@ -265,6 +265,7 @@
     if (!navEl) return;
 
     var tabMeta = {
+      '/chat': { icon: '/shared/ui-icons/chat.png', label: 'Chat' },
       '/map': { icon: '/shared/ui-icons/map.png', label: 'Map' },
       '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Board' },
       '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Reality' },

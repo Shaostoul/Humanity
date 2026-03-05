@@ -2203,6 +2203,9 @@
    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
    const tabEl = document.getElementById('tab-' + tabId);
    if (tabEl) tabEl.classList.add('active');
+   if (tabId === 'map' && typeof mapRender === 'function') {
+    requestAnimationFrame(() => mapRender());
+   }
 
    // Update page title
    const titles = { map: 'Map', board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', browse: 'Browse', dashboard: 'Dashboard', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
@@ -6535,6 +6538,10 @@
   let streamMicMuted = false;
   let streamBrbActive = false;
   let streamBrbStartAt = 0;
+  let streamSafeMode = false;
+  let streamPerfSlowFrames = 0;
+  let streamLastLoopMs = 0;
+  let streamLoopLastTs = 0;
 
   // Twitch IRC WebSocket for chat integration
   let twitchChatWs = null;
@@ -6839,6 +6846,7 @@
 
   function streamCompositeLoop() {
    if (!compositeCtx) return;
+   const loopStart = performance.now();
    const w = compositeCanvas.width, h = compositeCanvas.height;
    compositeCtx.fillStyle = '#000';
    compositeCtx.fillRect(0, 0, w, h);
@@ -6853,7 +6861,7 @@
    }
 
    const pipVideo = document.getElementById('pip-webcam-video');
-   if (streamWebcamStream && pipVideo && pipVideo.readyState >= 2 && document.getElementById('stream-webcam-cb').checked) {
+   if (!streamSafeMode && streamWebcamStream && pipVideo && pipVideo.readyState >= 2 && document.getElementById('stream-webcam-cb').checked) {
     const sizeMap = { small: 0.15, medium: 0.2, large: 0.3 };
     const sizeFrac = sizeMap[document.getElementById('stream-webcam-size').value] || 0.2;
     const pw = w * sizeFrac;
@@ -6894,6 +6902,21 @@
     compositeCtx.font = '500 36px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
     compositeCtx.fillText('AFK ' + mm + ':' + ss, w / 2, h / 2 + 42);
     compositeCtx.restore();
+   }
+
+   streamLastLoopMs = Math.max(0, performance.now() - loopStart);
+   streamLoopLastTs = Date.now();
+   if (streamLastLoopMs > 42) streamPerfSlowFrames++; else streamPerfSlowFrames = Math.max(0, streamPerfSlowFrames - 1);
+   if (!streamSafeMode && streamPerfSlowFrames >= 8) {
+    streamSafeMode = true;
+    const webcamCb = document.getElementById('stream-webcam-cb');
+    if (webcamCb) webcamCb.checked = false;
+    streamSetMicStatus('Mic status: safe mode (webcam overlay disabled)', 'warn');
+   }
+   const loopEl = document.getElementById('stream-stat-loop');
+   if (loopEl) {
+    const suffix = streamSafeMode ? ' [SAFE]' : '';
+    loopEl.textContent = 'Loop: ' + streamLastLoopMs.toFixed(1) + 'ms' + suffix;
    }
 
    streamCompositeAnimFrame = requestAnimationFrame(streamCompositeLoop);
@@ -7157,6 +7180,8 @@
 
    streamIsLive = true;
    streamStartTime = Date.now();
+   streamSafeMode = false;
+   streamPerfSlowFrames = 0;
    document.getElementById('stream-go-live-btn').style.display = 'none';
    document.getElementById('stream-stop-btn').style.display = 'inline-flex';
    document.getElementById('stream-brb-btn').style.display = 'inline-flex';
@@ -7275,13 +7300,20 @@
    document.getElementById('stream-brb-btn').classList.remove('btn-activated');
    streamBrbActive = false;
    streamBrbStartAt = 0;
-   document.getElementById('stream-stat-duration').textContent = 'Duration: --:--';
-   document.getElementById('stream-stat-quality').textContent = 'Quality: --';
-   document.getElementById('stream-stat-bitrate').textContent = 'Bitrate: --';
-   document.getElementById('stream-stat-tracks').textContent = 'Tracks: --';
-   document.getElementById('stream-stat-loop').textContent = 'Loop: --';
+   const statDuration = document.getElementById('stream-stat-duration');
+   const statQuality = document.getElementById('stream-stat-quality');
+   const statBitrate = document.getElementById('stream-stat-bitrate');
+   const statTracks = document.getElementById('stream-stat-tracks');
+   const statLoop = document.getElementById('stream-stat-loop');
+   if (statDuration) statDuration.textContent = 'Duration: --:--';
+   if (statQuality) statQuality.textContent = 'Quality: --';
+   if (statBitrate) statBitrate.textContent = 'Bitrate: --';
+   if (statTracks) statTracks.textContent = 'Tracks: --';
+   if (statLoop) statLoop.textContent = 'Loop: --';
    streamLastLoopMs = 0;
    streamLoopLastTs = 0;
+   streamSafeMode = false;
+   streamPerfSlowFrames = 0;
 
    if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'stream_stop' }));

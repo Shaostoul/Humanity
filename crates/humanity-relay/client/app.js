@@ -33,6 +33,16 @@ let identityConfirmed = false;
 let activeChannel = localStorage.getItem('humanity_channel') || 'general';
 let channelList = [];
 let replyTarget = null; // { author, body, fromKey, timestamp, element }
+let peerData = {};
+
+function resolveSenderName(rawName, fromKey) {
+  const given = (rawName || '').trim();
+  if (given && !/^anonymous$/i.test(given)) return given;
+  const peer = fromKey ? peerData[fromKey] : null;
+  const peerName = (peer && (peer.display_name || peer.name) ? String(peer.display_name || peer.name).trim() : '');
+  if (peerName && !/^anonymous$/i.test(peerName)) return peerName;
+  return shortKey(fromKey);
+}
 
 // ── Reply Bar ──
 function setReplyTarget(author, body, fromKey, timestamp, element) {
@@ -360,7 +370,7 @@ async function loadHistory() {
         const key = msg.from + ':' + msg.timestamp;
         seenTimestamps.add(key);
         addChatMessage(
-          msg.from_name || shortKey(msg.from),
+          resolveSenderName(msg.from_name, msg.from),
           msg.content,
           msg.timestamp,
           msg.from,
@@ -480,10 +490,10 @@ async function handleMessage(msg) {
       // If message has a signature, verify it client-side.
       if (hasSig && msg.signature && msg.from && !msg.from.startsWith('bot_')) {
         verifyMessage(msg.from, msg.signature, msg.content, msg.timestamp).then(valid => {
-          addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, valid, msg.reply_to || null, msg.thread_count || null);
+          addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, valid, msg.reply_to || null, msg.thread_count || null);
         });
       } else {
-        addChatMessage(msg.from_name || shortKey(msg.from), msg.content, msg.timestamp, msg.from, false, hasSig, msg.reply_to || null, msg.thread_count || null);
+        addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, hasSig, msg.reply_to || null, msg.thread_count || null);
       }
       // If this message is a reply, update the parent's thread count badge in the DOM.
       if (msg.reply_to) {
@@ -567,7 +577,7 @@ async function handleMessage(msg) {
       break;
     case 'typing': {
       // Show "X is typing…" indicator, clear after 3 seconds.
-      const typerName = msg.from_name || shortKey(msg.from);
+      const typerName = resolveSenderName(msg.from_name, msg.from);
       showTypingIndicator(typerName);
       break;
     }
@@ -646,7 +656,7 @@ async function handleMessage(msg) {
     case 'dm': {
       // Incoming/outgoing DM event.
       const dmFrom = msg.from;
-      const dmFromName = msg.from_name || shortKey(dmFrom);
+      const dmFromName = resolveSenderName(msg.from_name, dmFrom);
       const dmPartnerKey = (dmFrom === myKey) ? msg.to : dmFrom;
       const dmPartnerName = (dmFrom === myKey) ? (peerData[msg.to]?.display_name || shortKey(msg.to || '')) : dmFromName;
       let dmContent = msg.content;
@@ -714,7 +724,7 @@ async function handleMessage(msg) {
               histContent = '🔒 [Cannot decrypt — missing key]';
             }
           }
-          addDmMessage(m.from_name || shortKey(m.from), histContent, m.timestamp, m.from, m.to, histEncrypted);
+          addDmMessage(resolveSenderName(m.from_name, m.from), histContent, m.timestamp, m.from, m.to, histEncrypted);
         }
       }
       break;
@@ -2446,7 +2456,7 @@ handleMessage = function(msg) {
     localStorage.setItem('humanity_last_seen', String(msg.timestamp));
     // Notify if from someone else.
     if (msg.from !== myKey) {
-      notifyNewMessage(msg.from_name || 'Someone', msg.content, false);
+      notifyNewMessage(resolveSenderName(msg.from_name, msg.from) || 'Someone', msg.content, false);
     }
   }
 };
@@ -2715,7 +2725,7 @@ document.getElementById('peer-list').addEventListener('click', function(e) {
 });
 
 // Store peer data (with roles) for context menu lookups.
-let peerData = {};
+peerData = peerData || {};
 
 // ── Profile System ──
 let profileCache = {}; // name (lowercase) → { bio, socials }
@@ -4429,7 +4439,7 @@ handleMessage = function(msg) {
   }
   if (msg.type === 'group_message') {
     if (activeGroupId === msg.group_id) {
-      const name = msg.from_name || shortKey(msg.from);
+      const name = resolveSenderName(msg.from_name, msg.from);
       const isYou = msg.from === myKey;
       addMessageToChat(name, msg.content, msg.timestamp, isYou, msg.from);
     }
@@ -4441,7 +4451,7 @@ handleMessage = function(msg) {
       messagesDiv.innerHTML = '';
       for (const m of (msg.messages || [])) {
         const isYou = m.from === myKey;
-        addMessageToChat(m.from_name || shortKey(m.from), m.content, m.timestamp, isYou, m.from);
+        addMessageToChat(resolveSenderName(m.from_name, m.from), m.content, m.timestamp, isYou, m.from);
       }
     }
     return;
@@ -4915,7 +4925,7 @@ handleMessage = function(msg) {
 };
 
 function handleVoiceCallMessage(msg) {
-  const fromName = msg.from_name || shortKey(msg.from);
+  const fromName = resolveSenderName(msg.from_name, msg.from);
   switch (msg.action) {
     case 'ring':
       if (callState !== 'idle') {
@@ -5630,12 +5640,12 @@ document.removeEventListener('click', requestNotifPerm);
   handleMessage = function(msg) {
 // Notification for incoming DM
 if (msg.type === 'private' && msg.from !== myKey && document.hidden) {
-  const senderName = msg.from_name || shortKey(msg.from);
+  const senderName = resolveSenderName(msg.from_name, msg.from);
   sendSWNotification('DM from ' + senderName, msg.content || 'New message', 'dm-' + msg.from, '/chat');
 }
 // Notification for incoming call
 if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden) {
-  const callerName = msg.from_name || shortKey(msg.from);
+  const callerName = resolveSenderName(msg.from_name, msg.from);
   sendSWNotification('Incoming call from ' + callerName, 'Tap to answer', 'call-' + msg.from, '/chat');
 }
 _origHandleMessage4(msg);
