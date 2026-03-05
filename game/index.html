@@ -7863,6 +7863,28 @@
    featureWebRender();
   }
 
+  function featureWebAddNodeFromTask(taskId) {
+   const task = boardTasks.find(t => t.id === taskId);
+   if (!task) return;
+   const existing = featureWeb.nodes.find(n => n.taskId === taskId);
+   if (existing) {
+    featureWebFocusNode(existing.id);
+    return;
+   }
+   const statusMap = { backlog: 'planned', in_progress: 'active', testing: 'active', done: 'done' };
+   featureWeb.nodes.push({
+    id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    taskId,
+    title: task.title,
+    type: 'feature',
+    status: statusMap[task.status] || 'planned',
+    x: 25 + (featureWeb.nodes.length % 4) * 150,
+    y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
+   });
+   featureWebSave();
+   featureWebRender();
+  }
+
   function featureWebAddEdge() {
    const fromEl = document.getElementById('fw-link-from');
    const toEl = document.getElementById('fw-link-to');
@@ -8163,6 +8185,7 @@
      moves.map(s => '<button onclick="boardMoveTask(' + task.id + ',\'' + s + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.3rem;border-radius:3px;cursor:pointer;" title="Move to ' + (STATUS_LABELS[s]||s) + '">→ ' + (STATUS_LABELS[s]||s).split(' ').pop() + '</button>').join('') +
      '</div>';
    }
+   const addToWebHtml = '<div style="margin-top:0.35rem;" onclick="event.stopPropagation()"><button onclick="featureWebAddNodeFromTask(' + task.id + ')" style="background:none;border:1px solid rgba(255,136,17,0.4);color:var(--accent);font-size:0.62rem;padding:0.1rem 0.35rem;border-radius:4px;cursor:pointer;">+ Web</button></div>';
    return '<div onclick="openTaskModal(' + task.id + ')" style="background:var(--bg-panel,#141414);border:1px solid var(--border);border-left:3px solid ' + pc + ';border-radius:6px;padding:0.5rem 0.6rem;margin-bottom:0.4rem;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor=\'rgba(255,136,17,0.3)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.borderLeftColor=\'' + pc + '\'">' +
     '<div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:0.3rem;">' + escHtml(task.title) + '</div>' +
     '<div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">' +
@@ -8170,6 +8193,7 @@
      labelHtml + assigneeHtml + commentHtml +
     '</div>' +
     moveHtml +
+    addToWebHtml +
     '<div style="text-align:right;margin-top:0.3rem;font-size:0.6rem;color:var(--text-muted);opacity:0.5;">#' + task.id + '</div>' +
    '</div>';
   }
