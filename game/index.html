@@ -577,7 +577,7 @@
     <h3 style="margin:0;font-size:0.95rem;color:var(--text);">🕸️ Feature Web (V1)</h3>
     <div id="feature-web-meta" style="font-size:0.72rem;color:var(--text-muted);">0 nodes · 0 links</div>
    </div>
-   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;">
+   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
     <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
     <select id="fw-filter-type" onchange="featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
@@ -587,6 +587,7 @@
      <option value="all">All</option><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
     </select>
    </div>
+   <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;font-size:0.66rem;color:var(--text-muted);"></div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
     <input id="fw-node-title" type="text" placeholder="Feature / subfeature" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-node-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
@@ -8037,6 +8038,7 @@
    const edgeListEl = document.getElementById('fw-edge-list');
    const filterTypeEl = document.getElementById('fw-filter-type');
    const filterStatusEl = document.getElementById('fw-filter-status');
+   const legendEl = document.getElementById('fw-legend');
    if (!nodesEl || !edgesEl) return;
 
    const filterType = (filterTypeEl && filterTypeEl.value) || 'all';
@@ -8046,6 +8048,12 @@
    const visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
 
    if (metaEl) metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links';
+
+   if (legendEl) {
+    const typeBits = Object.entries(FW_TYPE_COLORS).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
+    const statusBits = Object.entries(FW_STATUS_COLORS).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:2px;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
+    legendEl.innerHTML = '<span style="opacity:0.75;">Type:</span> ' + typeBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Status:</span> ' + statusBits.join('<span style="opacity:0.35;">·</span>');
+   }
 
    const options = ['<option value="">Link from…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
    const toOptions = ['<option value="">Link to…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
