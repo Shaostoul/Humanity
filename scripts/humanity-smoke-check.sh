@@ -25,7 +25,7 @@ python3 - <<'PY'
 from pathlib import Path
 import sys
 roots = [Path('/var/www/humanity')]
-needles_any = ['�']
+needles_any = [chr(0xFFFD)]
 needles_seq = []
 issues = []
 for root in roots:
