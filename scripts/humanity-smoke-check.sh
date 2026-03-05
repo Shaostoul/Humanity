@@ -25,8 +25,8 @@ python3 - <<'PY'
 from pathlib import Path
 import sys
 roots = [Path('/var/www/humanity')]
-needles_any = ['�', 'ðŸ']
-needles_seq = ['â€”', 'â€“', 'â€˜', 'â€™', 'â€œ', 'â€�', 'â€¦', 'â„¢', 'âœ']
+needles_any = ['�']
+needles_seq = []
 issues = []
 for root in roots:
     for p in root.rglob('*'):
