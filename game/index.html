@@ -577,6 +577,7 @@
     <h3 style="margin:0;font-size:0.95rem;color:var(--text);">🕸️ Feature Web (V1)</h3>
     <div id="feature-web-meta" style="font-size:0.72rem;color:var(--text-muted);">0 nodes · 0 links</div>
    </div>
+   <div id="fw-notice" style="display:none;margin-bottom:0.45rem;font-size:0.7rem;color:#e8b35a;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
     <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
     <select id="fw-filter-type" onchange="featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
@@ -7863,11 +7864,27 @@
    localStorage.setItem(FEATURE_WEB_KEY, JSON.stringify(featureWeb));
   }
 
+  function featureWebNotice(text) {
+   const el = document.getElementById('fw-notice');
+   if (!el) return;
+   if (!text) { el.style.display = 'none'; el.textContent = ''; return; }
+   el.textContent = text;
+   el.style.display = 'block';
+   clearTimeout(featureWebNotice._t);
+   featureWebNotice._t = setTimeout(() => {
+    if (el.textContent === text) { el.style.display = 'none'; el.textContent = ''; }
+   }, 2200);
+  }
+
   function featureWebAddNode() {
    const titleEl = document.getElementById('fw-node-title');
    const typeEl = document.getElementById('fw-node-type');
    const statusEl = document.getElementById('fw-node-status');
    if (!titleEl || !titleEl.value.trim()) return;
+   if (featureWeb.nodes.some(n => (n.title || '').toLowerCase() === titleEl.value.trim().toLowerCase())) {
+    featureWebNotice('Node with that title already exists');
+    return;
+   }
    const node = {
     id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     title: titleEl.value.trim(),
@@ -7909,7 +7926,10 @@
    const toEl = document.getElementById('fw-link-to');
    const typeEl = document.getElementById('fw-link-type');
    if (!fromEl || !toEl || !fromEl.value || !toEl.value || fromEl.value === toEl.value) return;
-   if (featureWeb.edges.some(e => e.from === fromEl.value && e.to === toEl.value)) return;
+   if (featureWeb.edges.some(e => e.from === fromEl.value && e.to === toEl.value)) {
+    featureWebNotice('That link already exists');
+    return;
+   }
    featureWeb.edges.push({ id: 'e_' + Date.now().toString(36), from: fromEl.value, to: toEl.value, type: (typeEl && typeEl.value) || 'depends_on' });
    featureWebSave();
    featureWebRender();
