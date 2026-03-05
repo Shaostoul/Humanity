@@ -587,11 +587,12 @@
     </select>
     <button onclick="featureWebAddNode()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Add Node</button>
    </div>
-   <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.5rem;margin-bottom:0.6rem;">
+   <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:0.5rem;margin-bottom:0.4rem;">
     <select id="fw-link-from" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <select id="fw-link-to" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <button onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
+   <div id="fw-edge-list" style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
    <div style="display:grid;grid-template-columns:1fr 1.1fr 0.8fr 0.8fr auto;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
     <select id="fw-edit-node" onchange="featureWebRenderEditor()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <input id="fw-edit-title" type="text" placeholder="Edit title" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
@@ -7879,6 +7880,12 @@
    featureWebRender();
   }
 
+  function featureWebDeleteEdge(id) {
+   featureWeb.edges = featureWeb.edges.filter(e => e.id !== id);
+   featureWebSave();
+   featureWebRender();
+  }
+
   function featureWebRenderEditor() {
    const editSelect = document.getElementById('fw-edit-node');
    const titleEl = document.getElementById('fw-edit-title');
@@ -7929,6 +7936,7 @@
    const fromEl = document.getElementById('fw-link-from');
    const toEl = document.getElementById('fw-link-to');
    const editEl = document.getElementById('fw-edit-node');
+   const edgeListEl = document.getElementById('fw-edge-list');
    if (!nodesEl || !edgesEl) return;
 
    if (metaEl) metaEl.textContent = featureWeb.nodes.length + ' nodes · ' + featureWeb.edges.length + ' links';
@@ -7952,6 +7960,17 @@
     editEl.value = featureWeb.nodes.some(n => n.id === selected) ? selected : '';
    }
    featureWebRenderEditor();
+
+   if (edgeListEl) {
+    edgeListEl.innerHTML = featureWeb.edges.length
+     ? featureWeb.edges.map(e => {
+       const from = featureWeb.nodes.find(n => n.id === e.from);
+       const to = featureWeb.nodes.find(n => n.id === e.to);
+       if (!from || !to) return '';
+       return '<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:999px;padding:0.15rem 0.45rem;margin:0 0.3rem 0.3rem 0;">' + escHtml(from.title) + ' → ' + escHtml(to.title) + '<button onclick="featureWebDeleteEdge(\'' + e.id + '\')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.72rem;">✕</button></span>';
+      }).join('')
+     : '<span style="opacity:0.7;">No links yet</span>';
+   }
 
    edgesEl.innerHTML = featureWeb.edges.map(e => {
     const from = featureWeb.nodes.find(n => n.id === e.from);
