@@ -589,37 +589,55 @@
     <select id="fw-filter-status" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
     </select>
+    <label style="font-size:0.7rem;color:var(--text-muted);">Domain</label>
+    <select id="fw-filter-domain" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+     <option value="all">All</option><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option>
+    </select>
     <button onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
    </div>
    <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;color:var(--text-muted);"></div>
    <div id="fw-status-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.6rem;font-size:0.66rem;"></div>
-   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
+   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
     <input id="fw-node-title" type="text" placeholder="Feature / subfeature" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-node-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
-     <option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
+     <option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option><option value="org">Org</option><option value="lore">Lore</option>
+    </select>
+    <select id="fw-node-domain" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
+     <option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game" selected>Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option>
     </select>
     <select id="fw-node-status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
      <option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
     </select>
     <button onclick="featureWebAddNode()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Add Node</button>
+    <button onclick="featureWebSeedPU()" style="background:#6f49d8;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Seed PU Map</button>
    </div>
    <div style="display:grid;grid-template-columns:1fr 1fr 0.9fr auto;gap:0.5rem;margin-bottom:0.4rem;">
     <select id="fw-link-from" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <select id="fw-link-to" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
-    <select id="fw-link-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="depends_on">Depends on</option><option value="blocks">Blocks</option><option value="relates_to">Relates to</option></select>
+    <select id="fw-link-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="depends_on">Depends on</option><option value="blocks">Blocks</option><option value="relates_to">Relates to</option><option value="teaches">Teaches</option><option value="enables">Enables</option></select>
     <button onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
    <div id="fw-edge-list" style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
-   <div style="display:grid;grid-template-columns:1fr 1.1fr 0.8fr 0.8fr auto;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
+   <div style="display:grid;grid-template-columns:1fr 1.3fr 0.8fr 0.8fr 0.9fr auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
     <select id="fw-edit-node" onchange="featureWebRenderEditor()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <input id="fw-edit-title" type="text" placeholder="Edit title" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
-    <select id="fw-edit-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option></select>
+    <select id="fw-edit-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option><option value="org">Org</option><option value="lore">Lore</option></select>
     <select id="fw-edit-status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option></select>
+    <select id="fw-edit-domain" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option></select>
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
    </div>
+   <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.45rem;">
+    <input id="fw-edit-owner" type="text" placeholder="Owner/team" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-edit-priority" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select>
+   </div>
+   <textarea id="fw-edit-summary" rows="2" placeholder="Short summary (what it is)" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
+   <textarea id="fw-edit-teach" rows="2" placeholder="Teach summary (how you'd explain to a newcomer)" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
+   <textarea id="fw-edit-details" rows="3" placeholder="Details / implementation notes" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.6rem;"></textarea>
+   <div id="fw-teach-panel" style="display:none;white-space:pre-wrap;background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.35);border-radius:8px;padding:0.45rem 0.55rem;font-size:0.73rem;color:var(--text-muted);margin-bottom:0.55rem;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <button onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
     <button onclick="featureWebFitToView()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Fit to View</button>
+    <button onclick="featureWebTeachMode()" style="background:#2f6fed;color:#fff;border:none;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Teach Mode</button>
     <button onclick="featureWebExport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Export JSON</button>
     <button onclick="featureWebImport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Import JSON</button>
     <button onclick="featureWebReset()" style="background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Reset Web</button>
@@ -7854,7 +7872,8 @@
   const FEATURE_WEB_KEY = 'humanity_feature_web_v1';
   const FEATURE_WEB_FILTERS_KEY = 'humanity_feature_web_filters_v1';
   const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
-  const FW_TYPE_COLORS = { feature: '#ff8811', subfeature: '#cf6a13', tech: '#7b5cff', ux: '#18a8a8' };
+  const FW_TYPE_COLORS = { feature: '#ff8811', subfeature: '#cf6a13', tech: '#7b5cff', ux: '#18a8a8', org: '#7e6a4d', lore: '#a55ad9' };
+  const FW_DOMAIN_COLORS = { vision:'#ffb347', business:'#f08c4a', school:'#4eb8e6', game:'#7dd56f', economy:'#f5c451', tech:'#8d7bff', lore:'#cf7cff', roadmap:'#f58e8e', community:'#6fd4c3', operations:'#9aa8b8' };
   let featureWeb = { nodes: [], edges: [] };
   let fwDrag = null;
   let fwSelectedNodeId = '';
@@ -7864,6 +7883,16 @@
    try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
    if (!Array.isArray(featureWeb.nodes)) featureWeb.nodes = [];
    if (!Array.isArray(featureWeb.edges)) featureWeb.edges = [];
+   featureWeb.nodes.forEach(n => {
+    if (!n.type) n.type = 'feature';
+    if (!n.status) n.status = 'planned';
+    if (!n.domain) n.domain = 'game';
+    if (!n.summary) n.summary = '';
+    if (!n.teach) n.teach = '';
+    if (!n.details) n.details = '';
+    if (!n.owner) n.owner = '';
+    if (!n.priority) n.priority = 'medium';
+   });
    featureWebLoadFilters();
    featureWebRender();
   }
@@ -7879,8 +7908,10 @@
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
    const labelsEl = document.getElementById('fw-show-edge-labels');
+   const domainEl = document.getElementById('fw-filter-domain');
    if (typeEl && f && f.type) typeEl.value = f.type;
    if (statusEl && f && f.status) statusEl.value = f.status;
+   if (domainEl && f && f.domain) domainEl.value = f.domain;
    if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
    if (labelsEl && f && typeof f.showEdgeLabels === 'boolean') labelsEl.checked = f.showEdgeLabels;
   }
@@ -7890,9 +7921,11 @@
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
    const labelsEl = document.getElementById('fw-show-edge-labels');
+   const domainEl = document.getElementById('fw-filter-domain');
    localStorage.setItem(FEATURE_WEB_FILTERS_KEY, JSON.stringify({
     type: (typeEl && typeEl.value) || 'all',
     status: (statusEl && statusEl.value) || 'all',
+    domain: (domainEl && domainEl.value) || 'all',
     search: (searchEl && searchEl.value) || '',
     showEdgeLabels: labelsEl ? !!labelsEl.checked : true,
    }));
@@ -7903,8 +7936,10 @@
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
    const labelsEl = document.getElementById('fw-show-edge-labels');
+   const domainEl = document.getElementById('fw-filter-domain');
    if (typeEl) typeEl.value = 'all';
    if (statusEl) statusEl.value = 'all';
+   if (domainEl) domainEl.value = 'all';
    if (searchEl) searchEl.value = '';
    if (labelsEl) labelsEl.checked = true;
    featureWebSaveFilters();
@@ -7923,10 +7958,61 @@
    }, 2200);
   }
 
+  function featureWebSeedPU() {
+   if (featureWeb.nodes.length && !confirm('Seed Project Universe starter map? This will append nodes/links.')) return;
+   const mk = (title, type, domain, status, x, y, summary, teach) => ({
+    id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    title, type, domain, status, x, y,
+    summary: summary || '', teach: teach || '', details: '', owner: '', priority: 'medium'
+   });
+   const nodes = [
+    mk('PU Mission', 'feature', 'vision', 'active', 40, 30, 'Prepare humanity for interplanetary civilization.', 'This is the north star for all systems.'),
+    mk('SSPC Business Model', 'org', 'business', 'active', 250, 30, 'Social purpose corporation governance + benefits.', 'Defines legal/financial foundation.'),
+    mk('School Stage 1', 'feature', 'school', 'active', 40, 130, 'Internet-linked baseline curriculum.', 'Onboard contributors quickly with practical skill paths.'),
+    mk('School Stage 2/3', 'subfeature', 'school', 'planned', 250, 130, 'Advanced and integrated education tracks.', 'Bridges from learning into contribution leadership.'),
+    mk('Core Gameplay Loops', 'feature', 'game', 'active', 40, 230, 'Farming, harvesting, crafting, missions, expeditions.', 'Players learn by doing meaningful loops.'),
+    mk('Fleet Economy', 'feature', 'economy', 'planned', 250, 230, 'Resource + reputation + market dynamics.', 'Connects solo effort to shared civilization outcomes.'),
+    mk('Act I-V Roadmap', 'feature', 'roadmap', 'active', 460, 230, 'Staged delivery from core mechanics to full world.', 'Prevents scope collapse while preserving long-term ambition.'),
+    mk('Lore: Murex & Fleet', 'lore', 'lore', 'planned', 460, 130, 'Narrative backbone for mission/events.', 'Story context creates meaning for systems and choices.'),
+    mk('Community Contributors', 'feature', 'community', 'active', 460, 30, 'Volunteers, creators, reps, partners.', 'Social engine that sustains momentum.'),
+   ];
+   const byTitle = Object.fromEntries(nodes.map(n => [n.title, n.id]));
+   const edges = [
+    { id:'e_'+Date.now().toString(36)+'a', from:byTitle['PU Mission'], to:byTitle['Core Gameplay Loops'], type:'enables' },
+    { id:'e_'+Date.now().toString(36)+'b', from:byTitle['PU Mission'], to:byTitle['School Stage 1'], type:'enables' },
+    { id:'e_'+Date.now().toString(36)+'c', from:byTitle['SSPC Business Model'], to:byTitle['Community Contributors'], type:'enables' },
+    { id:'e_'+Date.now().toString(36)+'d', from:byTitle['School Stage 1'], to:byTitle['School Stage 2/3'], type:'depends_on' },
+    { id:'e_'+Date.now().toString(36)+'e', from:byTitle['Core Gameplay Loops'], to:byTitle['Fleet Economy'], type:'enables' },
+    { id:'e_'+Date.now().toString(36)+'f', from:byTitle['Fleet Economy'], to:byTitle['Act I-V Roadmap'], type:'depends_on' },
+    { id:'e_'+Date.now().toString(36)+'g', from:byTitle['Lore: Murex & Fleet'], to:byTitle['Act I-V Roadmap'], type:'teaches' },
+    { id:'e_'+Date.now().toString(36)+'h', from:byTitle['Community Contributors'], to:byTitle['Core Gameplay Loops'], type:'enables' }
+   ];
+   featureWeb.nodes = featureWeb.nodes.concat(nodes);
+   featureWeb.edges = featureWeb.edges.concat(edges);
+   featureWebSave();
+   featureWebRender();
+   featureWebNotice('Seeded PU starter map');
+  }
+
+  function featureWebTeachMode() {
+   if (!fwSelectedNodeId) { featureWebNotice('Select a node first'); return; }
+   const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
+   if (!node) return;
+   const incoming = featureWeb.edges.filter(e => e.to === node.id).map(e => featureWeb.nodes.find(n => n.id === e.from)).filter(Boolean);
+   const outgoing = featureWeb.edges.filter(e => e.from === node.id).map(e => featureWeb.nodes.find(n => n.id === e.to)).filter(Boolean);
+   const panel = document.getElementById('fw-teach-panel');
+   if (!panel) return;
+   const prereq = incoming.length ? incoming.map(n => '• ' + n.title).join('\n') : '• None';
+   const next = outgoing.length ? outgoing.map(n => '• ' + n.title).join('\n') : '• None yet';
+   panel.style.display = 'block';
+   panel.textContent = (node.teach || node.summary || 'No teach summary yet.') + '\n\nPrerequisites:\n' + prereq + '\n\nSuggested Next:\n' + next;
+  }
+
   function featureWebAddNode() {
    const titleEl = document.getElementById('fw-node-title');
    const typeEl = document.getElementById('fw-node-type');
    const statusEl = document.getElementById('fw-node-status');
+   const domainEl = document.getElementById('fw-node-domain');
    if (!titleEl || !titleEl.value.trim()) return;
    if (featureWeb.nodes.some(n => (n.title || '').toLowerCase() === titleEl.value.trim().toLowerCase())) {
     featureWebNotice('Node with that title already exists');
@@ -7936,7 +8022,13 @@
     id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     title: titleEl.value.trim(),
     type: typeEl ? typeEl.value : 'feature',
+    domain: domainEl ? domainEl.value : 'game',
     status: statusEl ? statusEl.value : 'planned',
+    summary: '',
+    teach: '',
+    details: '',
+    owner: '',
+    priority: 'medium',
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    };
@@ -7961,7 +8053,13 @@
     taskId,
     title: task.title,
     type: 'feature',
+    domain: 'operations',
     status: statusMap[task.status] || 'planned',
+    summary: task.description || '',
+    teach: '',
+    details: '',
+    owner: task.assignee || '',
+    priority: task.priority || 'medium',
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    });
@@ -8025,7 +8123,7 @@
   function featureWebCycleEdgeType(id) {
    const edge = featureWeb.edges.find(e => e.id === id);
    if (!edge) return;
-   const order = ['depends_on', 'blocks', 'relates_to'];
+   const order = ['depends_on', 'blocks', 'relates_to', 'teaches', 'enables'];
    const idx = order.indexOf(edge.type || 'depends_on');
    edge.type = order[(idx + 1) % order.length];
    featureWebSave();
@@ -8037,6 +8135,12 @@
    const titleEl = document.getElementById('fw-edit-title');
    const typeEl = document.getElementById('fw-edit-type');
    const statusEl = document.getElementById('fw-edit-status');
+   const domainEl = document.getElementById('fw-edit-domain');
+   const summaryEl = document.getElementById('fw-edit-summary');
+   const teachEl = document.getElementById('fw-edit-teach');
+   const detailsEl = document.getElementById('fw-edit-details');
+   const ownerEl = document.getElementById('fw-edit-owner');
+   const priorityEl = document.getElementById('fw-edit-priority');
    if (!editSelect || !titleEl || !typeEl || !statusEl) return;
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) {
@@ -8044,12 +8148,24 @@
     titleEl.value = '';
     typeEl.value = 'feature';
     statusEl.value = 'planned';
+    if (domainEl) domainEl.value = 'game';
+    if (summaryEl) summaryEl.value = '';
+    if (teachEl) teachEl.value = '';
+    if (detailsEl) detailsEl.value = '';
+    if (ownerEl) ownerEl.value = '';
+    if (priorityEl) priorityEl.value = 'medium';
     return;
    }
    fwSelectedNodeId = node.id;
    titleEl.value = node.title || '';
    typeEl.value = node.type || 'feature';
    statusEl.value = node.status || 'planned';
+   if (domainEl) domainEl.value = node.domain || 'game';
+   if (summaryEl) summaryEl.value = node.summary || '';
+   if (teachEl) teachEl.value = node.teach || '';
+   if (detailsEl) detailsEl.value = node.details || '';
+   if (ownerEl) ownerEl.value = node.owner || '';
+   if (priorityEl) priorityEl.value = node.priority || 'medium';
   }
 
   function featureWebSaveNodeEdits() {
@@ -8057,6 +8173,12 @@
    const titleEl = document.getElementById('fw-edit-title');
    const typeEl = document.getElementById('fw-edit-type');
    const statusEl = document.getElementById('fw-edit-status');
+   const domainEl = document.getElementById('fw-edit-domain');
+   const summaryEl = document.getElementById('fw-edit-summary');
+   const teachEl = document.getElementById('fw-edit-teach');
+   const detailsEl = document.getElementById('fw-edit-details');
+   const ownerEl = document.getElementById('fw-edit-owner');
+   const priorityEl = document.getElementById('fw-edit-priority');
    if (!editSelect || !titleEl || !typeEl || !statusEl || !editSelect.value) return;
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) return;
@@ -8064,6 +8186,12 @@
    node.title = titleEl.value.trim();
    node.type = typeEl.value;
    node.status = statusEl.value;
+   node.domain = domainEl ? domainEl.value : (node.domain || 'game');
+   node.summary = summaryEl ? summaryEl.value.trim() : (node.summary || '');
+   node.teach = teachEl ? teachEl.value.trim() : (node.teach || '');
+   node.details = detailsEl ? detailsEl.value.trim() : (node.details || '');
+   node.owner = ownerEl ? ownerEl.value.trim() : (node.owner || '');
+   node.priority = priorityEl ? priorityEl.value : (node.priority || 'medium');
    featureWebSyncLinkedTask(node);
    featureWebSave();
    featureWebRender();
@@ -8074,6 +8202,8 @@
    if (!editEl) return;
    editEl.value = id;
    featureWebRenderEditor();
+   const panel = document.getElementById('fw-teach-panel');
+   if (panel) panel.style.display = 'none';
   }
 
   function featureWebDeleteSelectedNode() {
@@ -8187,26 +8317,29 @@
    const edgeListEl = document.getElementById('fw-edge-list');
    const filterTypeEl = document.getElementById('fw-filter-type');
    const filterStatusEl = document.getElementById('fw-filter-status');
+   const filterDomainEl = document.getElementById('fw-filter-domain');
    const legendEl = document.getElementById('fw-legend');
    const statusSummaryEl = document.getElementById('fw-status-summary');
    if (!nodesEl || !edgesEl) return;
 
    const filterType = (filterTypeEl && filterTypeEl.value) || 'all';
    const filterStatus = (filterStatusEl && filterStatusEl.value) || 'all';
+   const filterDomain = (filterDomainEl && filterDomainEl.value) || 'all';
    const filterSearchEl = document.getElementById('fw-filter-search');
    const showEdgeLabelsEl = document.getElementById('fw-show-edge-labels');
    const showEdgeLabels = !showEdgeLabelsEl || !!showEdgeLabelsEl.checked;
    const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().toLowerCase();
-   const visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (!filterSearch || (n.title || '').toLowerCase().includes(filterSearch)));
+   const visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
    const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
    const visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
 
    if (metaEl) metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links';
 
    if (legendEl) {
-    const typeBits = Object.entries(FW_TYPE_COLORS).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
+    const typeBits = Object.entries(FW_TYPE_COLORS).slice(0,4).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
     const statusBits = Object.entries(FW_STATUS_COLORS).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:2px;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
-    legendEl.innerHTML = '<span style="opacity:0.75;">Type:</span> ' + typeBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Status:</span> ' + statusBits.join('<span style="opacity:0.35;">·</span>');
+    const domainBits = Object.entries(FW_DOMAIN_COLORS).slice(0,5).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
+    legendEl.innerHTML = '<span style="opacity:0.75;">Type:</span> ' + typeBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Status:</span> ' + statusBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Domain:</span> ' + domainBits.join('<span style="opacity:0.35;">·</span>');
    }
 
    if (statusSummaryEl) {
@@ -8244,7 +8377,7 @@
        const from = featureWeb.nodes.find(n => n.id === e.from);
        const to = featureWeb.nodes.find(n => n.id === e.to);
        if (!from || !to) return '';
-       const typeLabel = e.type === 'blocks' ? 'blocks' : (e.type === 'relates_to' ? 'relates to' : 'depends on');
+       const typeLabel = e.type === 'blocks' ? 'blocks' : (e.type === 'relates_to' ? 'relates to' : (e.type === 'teaches' ? 'teaches' : (e.type === 'enables' ? 'enables' : 'depends on')));
        return '<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:999px;padding:0.15rem 0.45rem;margin:0 0.3rem 0.3rem 0;">' + escHtml(from.title) + ' → ' + escHtml(to.title) + ' <button onclick="featureWebCycleEdgeType(\'' + e.id + '\')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.66rem;padding:0;">(' + typeLabel + ')</button><button onclick="featureWebDeleteEdge(\'' + e.id + '\')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.72rem;">✕</button></span>';
       }).join('')
      : '<span style="opacity:0.7;">No links in current filter</span>';
@@ -8254,14 +8387,14 @@
     const from = featureWeb.nodes.find(n => n.id === e.from);
     const to = featureWeb.nodes.find(n => n.id === e.to);
     if (!from || !to) return '';
-    const baseStroke = e.type === 'blocks' ? 'rgba(229,85,85,0.55)' : (e.type === 'relates_to' ? 'rgba(120,120,120,0.45)' : 'rgba(255,255,255,0.35)');
+    const baseStroke = e.type === 'blocks' ? 'rgba(229,85,85,0.55)' : (e.type === 'relates_to' ? 'rgba(120,120,120,0.45)' : (e.type === 'teaches' ? 'rgba(94,194,255,0.65)' : (e.type === 'enables' ? 'rgba(122,214,97,0.65)' : 'rgba(255,255,255,0.35)')));
     const isHoverEdge = fwHoveredNodeId && (e.from === fwHoveredNodeId || e.to === fwHoveredNodeId);
     const stroke = isHoverEdge ? 'rgba(255,136,17,0.85)' : baseStroke;
     const strokeWidth = isHoverEdge ? '2.4' : '1.6';
     const dash = e.type === 'relates_to' ? ' stroke-dasharray="4 3"' : '';
     const x1 = from.x + 52, y1 = from.y + 20, x2 = to.x + 52, y2 = to.y + 20;
     const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    const label = e.type === 'blocks' ? 'blocks' : (e.type === 'relates_to' ? 'relates' : 'depends');
+    const label = e.type === 'blocks' ? 'blocks' : (e.type === 'relates_to' ? 'relates' : (e.type === 'teaches' ? 'teaches' : (e.type === 'enables' ? 'enables' : 'depends')));
     const labelFill = isHoverEdge ? 'rgba(255,176,90,0.95)' : 'rgba(255,255,255,0.62)';
     const textHtml = showEdgeLabels ? ('<text x="' + mx + '" y="' + (my - 4) + '" text-anchor="middle" font-size="9" fill="' + labelFill + '">' + label + '</text>') : '';
     return '<g>' +
@@ -8273,11 +8406,12 @@
    nodesEl.innerHTML = visibleNodes.map(n => {
     const typeColor = FW_TYPE_COLORS[n.type] || '#888';
     const statusColor = FW_STATUS_COLORS[n.status] || '#666';
+    const domainColor = FW_DOMAIN_COLORS[n.domain || 'game'] || '#888';
     const isSelected = fwSelectedNodeId === n.id;
     const borderColor = isSelected ? 'rgba(255,136,17,0.75)' : 'rgba(255,255,255,0.15)';
     const glow = isSelected ? '0 0 0 1px rgba(255,136,17,0.25),0 3px 14px rgba(0,0,0,0.45)' : '0 1px 8px rgba(0,0,0,0.35)';
-    return '<div class="fw-node" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" onmouseenter="featureWebSetHover(\'' + n.id + '\')" onmouseleave="featureWebSetHover('')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:160px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid ' + borderColor + ';box-shadow:' + glow + ';cursor:grab;">' +
-     '<div style="font-size:0.67rem;color:' + typeColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.type) + '</div>' +
+    return '<div class="fw-node" title="' + escHtml((n.summary || n.teach || n.details || '').slice(0, 180)) + '" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" onmouseenter="featureWebSetHover(\'' + n.id + '\')" onmouseleave="featureWebSetHover(\'\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:170px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid ' + borderColor + ';box-shadow:' + glow + ';cursor:grab;">' +
+     '<div style="display:flex;justify-content:space-between;align-items:center;gap:0.2rem;"><span style="font-size:0.67rem;color:' + typeColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.type) + '</span><span style="font-size:0.59rem;color:' + domainColor + ';text-transform:uppercase;">' + escHtml(n.domain || 'game') + '</span></div>' +
      '<div style="font-size:0.76rem;color:var(--text);font-weight:600;line-height:1.3;word-break:break-word;">' + escHtml(n.title) + '</div>' +
      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.2rem;gap:0.3rem;">' +
       '<span style="font-size:0.63rem;color:' + statusColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.status) + '</span>' +
