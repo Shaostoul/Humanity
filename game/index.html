@@ -7921,6 +7921,27 @@
    featureWebRender();
   }
 
+  function featureWebSyncLinkedTask(node) {
+   if (!node || node.taskId == null) return;
+   const task = boardTasks.find(t => t.id === node.taskId);
+   const oldTitle = task ? (task.title || '') : '';
+   const statusMap = { planned: 'backlog', active: 'in_progress', blocked: 'testing', done: 'done' };
+   const mapped = statusMap[node.status] || 'backlog';
+   if (boardWs && boardWs.readyState === 1) {
+    if (task && oldTitle !== node.title) {
+     boardWs.send(JSON.stringify({ type: 'task_update', id: node.taskId, title: node.title, description: task.description || '', priority: task.priority || 'medium', assignee: task.assignee || null, labels: task.labels || '[]' }));
+    }
+    if (!task || task.status !== mapped) {
+     boardWs.send(JSON.stringify({ type: 'task_move', id: node.taskId, status: mapped }));
+    }
+   }
+   if (task) {
+    task.title = node.title;
+    task.status = mapped;
+    renderBoard();
+   }
+  }
+
   function featureWebDeleteEdge(id) {
    featureWeb.edges = featureWeb.edges.filter(e => e.id !== id);
    featureWebSave();
@@ -7957,6 +7978,7 @@
    node.title = titleEl.value.trim();
    node.type = typeEl.value;
    node.status = statusEl.value;
+   featureWebSyncLinkedTask(node);
    featureWebSave();
    featureWebRender();
   }
