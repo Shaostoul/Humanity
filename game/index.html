@@ -600,6 +600,11 @@
     <select id="fw-edit-status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option></select>
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
    </div>
+   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+    <button onclick="featureWebExport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Export JSON</button>
+    <button onclick="featureWebImport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Import JSON</button>
+    <button onclick="featureWebReset()" style="background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Reset Web</button>
+   </div>
    <div id="feature-web-canvas" style="position:relative;height:340px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
     <svg id="feature-web-edges" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
     <div id="feature-web-nodes" style="position:absolute;inset:0;"></div>
@@ -7947,6 +7952,48 @@
    if (!editEl) return;
    editEl.value = id;
    featureWebRenderEditor();
+  }
+
+  function featureWebExport() {
+   const blob = new Blob([JSON.stringify(featureWeb, null, 2)], { type: 'application/json' });
+   const a = document.createElement('a');
+   a.href = URL.createObjectURL(blob);
+   a.download = 'feature-web-v1.json';
+   document.body.appendChild(a);
+   a.click();
+   document.body.removeChild(a);
+   setTimeout(() => URL.revokeObjectURL(a.href), 500);
+  }
+
+  function featureWebImport() {
+   const input = document.createElement('input');
+   input.type = 'file';
+   input.accept = 'application/json,.json';
+   input.onchange = () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+     try {
+      const data = JSON.parse(String(reader.result || '{}'));
+      if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
+      featureWeb = { nodes: data.nodes, edges: data.edges };
+      featureWebSave();
+      featureWebRender();
+     } catch {
+      alert('Invalid Feature Web JSON');
+     }
+    };
+    reader.readAsText(file);
+   };
+   input.click();
+  }
+
+  function featureWebReset() {
+   if (!confirm('Reset Feature Web? This clears all nodes and links.')) return;
+   featureWeb = { nodes: [], edges: [] };
+   featureWebSave();
+   featureWebRender();
   }
 
   function featureWebRender() {
