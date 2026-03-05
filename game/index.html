@@ -592,6 +592,13 @@
     <select id="fw-link-to" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <button onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
+   <div style="display:grid;grid-template-columns:1fr 1.1fr 0.8fr 0.8fr auto;gap:0.5rem;align-items:center;margin-bottom:0.6rem;">
+    <select id="fw-edit-node" onchange="featureWebRenderEditor()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
+    <input id="fw-edit-title" type="text" placeholder="Edit title" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
+    <select id="fw-edit-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option></select>
+    <select id="fw-edit-status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option></select>
+    <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
+   </div>
    <div id="feature-web-canvas" style="position:relative;height:340px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
     <svg id="feature-web-edges" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
     <div id="feature-web-nodes" style="position:absolute;inset:0;"></div>
@@ -7872,6 +7879,47 @@
    featureWebRender();
   }
 
+  function featureWebRenderEditor() {
+   const editSelect = document.getElementById('fw-edit-node');
+   const titleEl = document.getElementById('fw-edit-title');
+   const typeEl = document.getElementById('fw-edit-type');
+   const statusEl = document.getElementById('fw-edit-status');
+   if (!editSelect || !titleEl || !typeEl || !statusEl) return;
+   const node = featureWeb.nodes.find(n => n.id === editSelect.value);
+   if (!node) {
+    titleEl.value = '';
+    typeEl.value = 'feature';
+    statusEl.value = 'planned';
+    return;
+   }
+   titleEl.value = node.title || '';
+   typeEl.value = node.type || 'feature';
+   statusEl.value = node.status || 'planned';
+  }
+
+  function featureWebSaveNodeEdits() {
+   const editSelect = document.getElementById('fw-edit-node');
+   const titleEl = document.getElementById('fw-edit-title');
+   const typeEl = document.getElementById('fw-edit-type');
+   const statusEl = document.getElementById('fw-edit-status');
+   if (!editSelect || !titleEl || !typeEl || !statusEl || !editSelect.value) return;
+   const node = featureWeb.nodes.find(n => n.id === editSelect.value);
+   if (!node) return;
+   if (!titleEl.value.trim()) return;
+   node.title = titleEl.value.trim();
+   node.type = typeEl.value;
+   node.status = statusEl.value;
+   featureWebSave();
+   featureWebRender();
+  }
+
+  function featureWebFocusNode(id) {
+   const editEl = document.getElementById('fw-edit-node');
+   if (!editEl) return;
+   editEl.value = id;
+   featureWebRenderEditor();
+  }
+
   function featureWebRender() {
    const wrap = document.getElementById('feature-web');
    if (!wrap) return;
@@ -7880,12 +7928,14 @@
    const metaEl = document.getElementById('feature-web-meta');
    const fromEl = document.getElementById('fw-link-from');
    const toEl = document.getElementById('fw-link-to');
+   const editEl = document.getElementById('fw-edit-node');
    if (!nodesEl || !edgesEl) return;
 
    if (metaEl) metaEl.textContent = featureWeb.nodes.length + ' nodes · ' + featureWeb.edges.length + ' links';
 
    const options = ['<option value="">Link from…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
    const toOptions = ['<option value="">Link to…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
+   const editOptions = ['<option value="">Edit node…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
    if (fromEl) {
     const selected = fromEl.value;
     fromEl.innerHTML = options.join('');
@@ -7896,6 +7946,12 @@
     toEl.innerHTML = toOptions.join('');
     toEl.value = selected;
    }
+   if (editEl) {
+    const selected = editEl.value;
+    editEl.innerHTML = editOptions.join('');
+    editEl.value = featureWeb.nodes.some(n => n.id === selected) ? selected : '';
+   }
+   featureWebRenderEditor();
 
    edgesEl.innerHTML = featureWeb.edges.map(e => {
     const from = featureWeb.nodes.find(n => n.id === e.from);
@@ -7907,7 +7963,7 @@
    nodesEl.innerHTML = featureWeb.nodes.map(n => {
     const typeColor = FW_TYPE_COLORS[n.type] || '#888';
     const statusColor = FW_STATUS_COLORS[n.status] || '#666';
-    return '<div class="fw-node" data-id="' + n.id + '" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:160px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid rgba(255,255,255,0.15);box-shadow:0 1px 8px rgba(0,0,0,0.35);cursor:grab;">' +
+    return '<div class="fw-node" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:160px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid rgba(255,255,255,0.15);box-shadow:0 1px 8px rgba(0,0,0,0.35);cursor:grab;">' +
      '<div style="font-size:0.67rem;color:' + typeColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.type) + '</div>' +
      '<div style="font-size:0.76rem;color:var(--text);font-weight:600;line-height:1.3;word-break:break-word;">' + escHtml(n.title) + '</div>' +
      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.2rem;gap:0.3rem;">' +
