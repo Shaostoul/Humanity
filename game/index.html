@@ -8725,6 +8725,11 @@
     else if (e.key === 'ArrowDown') featureWebNudgeSelected(0, step);
     else if (e.key === 'ArrowLeft') featureWebNudgeSelected(-step, 0);
     else if (e.key === 'ArrowRight') featureWebNudgeSelected(step, 0);
+    return;
+   }
+   if (fwSelectedNodeId && (e.key === 'c' || e.key === 'C')) {
+    e.preventDefault();
+    featureWebCenterSelected();
    }
   });
 
