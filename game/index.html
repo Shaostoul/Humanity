@@ -620,7 +620,7 @@
     <button onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
    <div id="fw-edge-list" style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
-   <div style="display:grid;grid-template-columns:1fr 1.3fr 0.8fr 0.8fr 0.9fr auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
+   <div style="display:grid;grid-template-columns:1fr 1.3fr 0.8fr 0.8fr 0.9fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
     <select id="fw-edit-node" onchange="featureWebRenderEditor()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <input id="fw-edit-title" type="text" placeholder="Edit title" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-edit-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option><option value="org">Org</option><option value="lore">Lore</option></select>
@@ -628,6 +628,10 @@
     <select id="fw-edit-domain" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option></select>
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
     <button id="fw-unlink-btn" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
+   </div>
+   <div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
+    <select id="fw-link-task" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"></select>
+    <button onclick="featureWebLinkSelectedToTask()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Link Task</button>
    </div>
    <div style="display:flex;justify-content:flex-end;margin-bottom:0.35rem;"><button onclick="featureWebToggleAdvanced()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Toggle Details</button></div>
    <div class="fw-advanced" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.45rem;">
@@ -8247,7 +8251,13 @@
    const ownerEl = document.getElementById('fw-edit-owner');
    const priorityEl = document.getElementById('fw-edit-priority');
    const unlinkBtn = document.getElementById('fw-unlink-btn');
+   const linkTaskEl = document.getElementById('fw-link-task');
    if (!editSelect || !titleEl || !typeEl || !statusEl) return;
+   if (linkTaskEl) {
+    const selectedTask = linkTaskEl.value;
+    linkTaskEl.innerHTML = '<option value="">Link to task…</option>' + boardTasks.map(t => '<option value="' + t.id + '">#' + t.id + ' · ' + escHtml(t.title) + '</option>').join('');
+    linkTaskEl.value = selectedTask;
+   }
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) {
     fwSelectedNodeId = '';
@@ -8261,6 +8271,7 @@
     if (ownerEl) ownerEl.value = '';
     if (priorityEl) priorityEl.value = 'medium';
     if (unlinkBtn) unlinkBtn.style.display = 'none';
+    if (linkTaskEl) linkTaskEl.value = '';
     return;
    }
    fwSelectedNodeId = node.id;
@@ -8274,6 +8285,7 @@
    if (ownerEl) ownerEl.value = node.owner || '';
    if (priorityEl) priorityEl.value = node.priority || 'medium';
    if (unlinkBtn) unlinkBtn.style.display = node.taskId != null ? 'inline-block' : 'none';
+   if (linkTaskEl) linkTaskEl.value = node.taskId != null ? String(node.taskId) : '';
   }
 
   function featureWebSaveNodeEdits() {
@@ -8326,6 +8338,25 @@
    featureWebRenderEditor();
    featureWebRender();
    featureWebNotice('Node unlinked from task');
+  }
+
+  function featureWebLinkSelectedToTask() {
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
+   const linkTaskEl = document.getElementById('fw-link-task');
+   if (!linkTaskEl || !linkTaskEl.value) {
+    featureWebNotice('Select a task to link');
+    return;
+   }
+   const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
+   if (!node) return;
+   node.taskId = Number(linkTaskEl.value);
+   featureWebSave();
+   featureWebRenderEditor();
+   featureWebRender();
+   featureWebNotice('Node linked to task');
   }
 
   function featureWebClearSelection() {
