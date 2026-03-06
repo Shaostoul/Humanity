@@ -9335,7 +9335,8 @@
     clearSearchBtnEl.style.opacity = hasSearch ? '1' : '0.45';
     clearSearchBtnEl.style.cursor = hasSearch ? 'pointer' : 'default';
     clearSearchBtnEl.style.visibility = hasSearch ? 'visible' : 'hidden';
-    clearSearchBtnEl.title = hasSearch ? 'Clear current search text' : 'Search is already empty';
+    clearSearchBtnEl.title = hasSearch ? ('Clear current search text (' + filterSearch.length + ' chars)') : 'Search is already empty';
+    clearSearchBtnEl.textContent = hasSearch ? ('Clear Search (' + filterSearch.length + ')') : 'Clear Search';
    }
    if (clearFiltersBtnEl) {
     const activeFilterCount = (filterType !== 'all' ? 1 : 0)
