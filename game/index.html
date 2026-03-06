@@ -7876,6 +7876,7 @@
 
   const FEATURE_WEB_KEY = 'humanity_feature_web_v1';
   const FEATURE_WEB_FILTERS_KEY = 'humanity_feature_web_filters_v1';
+  const FEATURE_WEB_UI_KEY = 'humanity_feature_web_ui_v1';
   const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
   const FW_TYPE_COLORS = { feature: '#ff8811', subfeature: '#cf6a13', tech: '#7b5cff', ux: '#18a8a8', org: '#7e6a4d', lore: '#a55ad9' };
   const FW_DOMAIN_COLORS = { vision:'#ffb347', business:'#f08c4a', school:'#4eb8e6', game:'#7dd56f', economy:'#f5c451', tech:'#8d7bff', lore:'#cf7cff', roadmap:'#f58e8e', community:'#6fd4c3', operations:'#9aa8b8' };
@@ -7904,11 +7905,22 @@
     setTimeout(() => featureWebSeedPU(), 0);
    }
    featureWebLoadFilters();
+   featureWebLoadUiState();
    featureWebRender();
   }
 
   function featureWebSave() {
    localStorage.setItem(FEATURE_WEB_KEY, JSON.stringify(featureWeb));
+  }
+
+  function featureWebLoadUiState() {
+   let ui = null;
+   try { ui = JSON.parse(localStorage.getItem(FEATURE_WEB_UI_KEY) || '{}'); } catch {}
+   if (ui && typeof ui.advancedVisible === 'boolean') fwAdvancedVisible = ui.advancedVisible;
+  }
+
+  function featureWebSaveUiState() {
+   localStorage.setItem(FEATURE_WEB_UI_KEY, JSON.stringify({ advancedVisible: !!fwAdvancedVisible }));
   }
 
   function featureWebLoadFilters() {
@@ -7980,6 +7992,7 @@
     if (!el.dataset.fwDisplay) el.dataset.fwDisplay = el.style.display || '';
     el.style.display = fwAdvancedVisible ? el.dataset.fwDisplay : 'none';
    });
+   featureWebSaveUiState();
   }
 
   function featureWebSeedPU() {
@@ -8957,7 +8970,7 @@
   };
 
   featureWebLoad();
-  featureWebToggleAdvanced(true);
+  featureWebToggleAdvanced(fwAdvancedVisible);
 
   // Auto-connect if initial tab is board
   if (initialTab === 'board') boardConnect();
