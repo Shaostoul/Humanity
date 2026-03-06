@@ -52,6 +52,7 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - Don't exfiltrate private data. Ever.
 - Don't run destructive commands without asking.
 - `trash` > `rm` (recoverable beats gone forever)
+- For file move/migration jobs: copy first, verify copied content integrity, then remove deprecated source files.
 - When in doubt, ask.
 
 ## External vs Internal

@@ -239,15 +239,15 @@
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      '<span style="font-size:0.66rem;color:#7a7a7a;margin-right:0.2rem;">Private</span>' +
       '<a href="/reality" class="' + cls('reality') + '">🟢 Profile</a>' +
       '<a href="/dashboard" class="' + cls('dashboard') + '">🎒 Inventory</a>' +
       '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Skills</a>' +
       '<a href="/source" class="' + cls('source') + '">🛠️ Equipment</a>' +
+      '<span style="font-size:0.66rem;color:#7a7a7a;margin:0 0.35rem;">Private</span>' +
       '<span class="spacer"></span>' +
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
       '<span class="spacer"></span>' +
-      '<span style="font-size:0.66rem;color:#7a7a7a;margin-right:0.2rem;">Public</span>' +
+      '<span style="font-size:0.66rem;color:#7a7a7a;margin:0 0.35rem;">Public</span>' +
       '<a href="/chat" class="' + cls('chat') + '">💬 Network</a>' +
       '<a href="/board" class="' + cls('board') + '">🧩 Systems</a>' +
       '<a href="/map" class="' + cls('map') + '">🗺️ Maps</a>' +
