@@ -9338,12 +9338,23 @@
     clearSearchBtnEl.title = hasSearch ? 'Clear current search text' : 'Search is already empty';
    }
    if (clearFiltersBtnEl) {
-    const atDefaults = filterType === 'all' && filterStatus === 'all' && filterDomain === 'all' && viewMode === 'orbit' && !filterSearch && !linkedOnly && !ownedOnly && !showEdgeLabels && (!focusSelectedEl || focusSelectedEl.checked) && (!simpleUiEl || simpleUiEl.checked);
+    const activeFilterCount = (filterType !== 'all' ? 1 : 0)
+     + (filterStatus !== 'all' ? 1 : 0)
+     + (filterDomain !== 'all' ? 1 : 0)
+     + (viewMode !== 'orbit' ? 1 : 0)
+     + (filterSearch ? 1 : 0)
+     + (linkedOnly ? 1 : 0)
+     + (ownedOnly ? 1 : 0)
+     + (showEdgeLabels ? 1 : 0)
+     + ((focusSelectedEl && !focusSelectedEl.checked) ? 1 : 0)
+     + ((simpleUiEl && !simpleUiEl.checked) ? 1 : 0);
+    const atDefaults = activeFilterCount === 0;
     clearFiltersBtnEl.disabled = atDefaults;
     clearFiltersBtnEl.style.opacity = atDefaults ? '0.45' : '1';
     clearFiltersBtnEl.style.cursor = atDefaults ? 'default' : 'pointer';
     clearFiltersBtnEl.style.visibility = atDefaults ? 'hidden' : 'visible';
-    clearFiltersBtnEl.title = atDefaults ? 'Filters already at defaults' : 'Reset all filters to defaults';
+    clearFiltersBtnEl.title = atDefaults ? 'Filters already at defaults' : ('Reset all filters to defaults (' + activeFilterCount + ' active)');
+    clearFiltersBtnEl.textContent = atDefaults ? 'Clear Filters' : ('Clear Filters (' + activeFilterCount + ')');
    }
    const canvasEl = document.getElementById('feature-web-canvas');
    if (canvasEl) {
