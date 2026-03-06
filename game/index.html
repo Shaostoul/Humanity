@@ -8794,6 +8794,11 @@
    if (fwSelectedNodeId && (e.key === 'd' || e.key === 'D')) {
     e.preventDefault();
     featureWebDuplicateSelected();
+    return;
+   }
+   if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    featureWebFitToView();
    }
   });
 
