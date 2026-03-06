@@ -627,6 +627,7 @@
     <select id="fw-edit-status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option></select>
     <select id="fw-edit-domain" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option></select>
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
+    <button id="fw-unlink-btn" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
    </div>
    <div style="display:flex;justify-content:flex-end;margin-bottom:0.35rem;"><button onclick="featureWebToggleAdvanced()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Toggle Details</button></div>
    <div class="fw-advanced" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.45rem;">
@@ -8245,6 +8246,7 @@
    const detailsEl = document.getElementById('fw-edit-details');
    const ownerEl = document.getElementById('fw-edit-owner');
    const priorityEl = document.getElementById('fw-edit-priority');
+   const unlinkBtn = document.getElementById('fw-unlink-btn');
    if (!editSelect || !titleEl || !typeEl || !statusEl) return;
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) {
@@ -8258,6 +8260,7 @@
     if (detailsEl) detailsEl.value = '';
     if (ownerEl) ownerEl.value = '';
     if (priorityEl) priorityEl.value = 'medium';
+    if (unlinkBtn) unlinkBtn.style.display = 'none';
     return;
    }
    fwSelectedNodeId = node.id;
@@ -8270,6 +8273,7 @@
    if (detailsEl) detailsEl.value = node.details || '';
    if (ownerEl) ownerEl.value = node.owner || '';
    if (priorityEl) priorityEl.value = node.priority || 'medium';
+   if (unlinkBtn) unlinkBtn.style.display = node.taskId != null ? 'inline-block' : 'none';
   }
 
   function featureWebSaveNodeEdits() {
@@ -8308,6 +8312,20 @@
    featureWebRenderEditor();
    const panel = document.getElementById('fw-teach-panel');
    if (panel) panel.style.display = 'none';
+  }
+
+  function featureWebUnlinkSelected() {
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
+   const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
+   if (!node || node.taskId == null) return;
+   node.taskId = null;
+   featureWebSave();
+   featureWebRenderEditor();
+   featureWebRender();
+   featureWebNotice('Node unlinked from task');
   }
 
   function featureWebClearSelection() {
