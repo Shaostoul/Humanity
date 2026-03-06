@@ -8987,11 +8987,15 @@
 
    if (linkSummaryEl) {
     const edgeCounts = { depends_on: 0, blocks: 0, relates_to: 0, teaches: 0, enables: 0 };
+    const totalVisibleLinks = visibleEdges.length;
     visibleEdges.forEach(e => { edgeCounts[e.type || 'depends_on'] = (edgeCounts[e.type || 'depends_on'] || 0) + 1; });
     const edgeColors = { depends_on: 'rgba(255,255,255,0.55)', blocks: 'rgba(229,85,85,0.75)', relates_to: 'rgba(140,140,140,0.75)', teaches: 'rgba(84,194,255,0.8)', enables: 'rgba(120,210,110,0.8)' };
-    linkSummaryEl.innerHTML = Object.entries(edgeCounts).filter(([,c]) => c > 0).map(([k, c]) =>
+    const chips = Object.entries(edgeCounts).filter(([,c]) => c > 0).map(([k, c]) =>
      '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);"><span style="width:8px;height:2px;background:' + (edgeColors[k] || 'rgba(255,255,255,0.55)') + ';display:inline-block;"></span>' + escHtml((k || '').split('_').join(' ')) + ': <strong style="color:var(--text);font-size:0.67rem;">' + c + '</strong></span>'
-    ).join('') || '<span style="opacity:0.7;">No links in current filter</span>';
+    ).join('');
+    linkSummaryEl.innerHTML = chips
+     ? ('<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);">Total links: <strong style="color:var(--text);font-size:0.67rem;">' + totalVisibleLinks + '</strong></span>' + chips)
+     : '<span style="opacity:0.7;">No links in current filter</span>';
    }
 
    if (ownerSummaryEl) {
