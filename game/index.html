@@ -8018,6 +8018,7 @@
   let fwSelectedNodeId = '';
   let fwHoveredNodeId = '';
   let fwAdvancedVisible = true;
+  let fwShortcutsVisible = true;
 
   function featureWebLoad() {
    try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
@@ -8050,10 +8051,11 @@
    let ui = null;
    try { ui = JSON.parse(localStorage.getItem(FEATURE_WEB_UI_KEY) || '{}'); } catch {}
    if (ui && typeof ui.advancedVisible === 'boolean') fwAdvancedVisible = ui.advancedVisible;
+   if (ui && typeof ui.shortcutsVisible === 'boolean') fwShortcutsVisible = ui.shortcutsVisible;
   }
 
   function featureWebSaveUiState() {
-   localStorage.setItem(FEATURE_WEB_UI_KEY, JSON.stringify({ advancedVisible: !!fwAdvancedVisible }));
+   localStorage.setItem(FEATURE_WEB_UI_KEY, JSON.stringify({ advancedVisible: !!fwAdvancedVisible, shortcutsVisible: !!fwShortcutsVisible }));
   }
 
   function featureWebLoadFilters() {
@@ -8152,10 +8154,12 @@
    featureWebSaveUiState();
   }
 
-  function featureWebToggleShortcutHint() {
+  function featureWebToggleShortcutHint(forceState) {
    const hint = document.getElementById('fw-shortcuts-hint');
    if (!hint) return;
-   hint.style.display = hint.style.display === 'none' ? 'block' : 'none';
+   fwShortcutsVisible = typeof forceState === 'boolean' ? forceState : !fwShortcutsVisible;
+   hint.style.display = fwShortcutsVisible ? 'block' : 'none';
+   featureWebSaveUiState();
   }
 
   function featureWebSeedPU() {
@@ -10020,6 +10024,7 @@
 
   featureWebLoad();
   featureWebToggleAdvanced(fwAdvancedVisible);
+  featureWebToggleShortcutHint(fwShortcutsVisible);
 
   // Auto-connect if initial tab is board
   if (initialTab === 'board') boardConnect();
