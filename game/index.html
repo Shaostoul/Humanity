@@ -584,7 +584,7 @@
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-show-edge-labels" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Edge labels</label>
     <label style="font-size:0.7rem;color:var(--text-muted);">View</label>
     <select id="fw-view-mode" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
-     <option value="cards">Card Web</option><option value="constellation">Constellation</option>
+     <option value="cards">Card Web</option><option value="constellation">Constellation</option><option value="orbit">Orbit System</option>
     </select>
     <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
     <select id="fw-filter-type" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
@@ -655,6 +655,7 @@
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <button onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
     <button onclick="featureWebConstellationLayout()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Constellation Layout</button>
+    <button onclick="featureWebOrbitLayout()" style="background:none;border:1px solid rgba(120,170,255,0.55);color:#a9c8ff;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Orbit Layout</button>
     <button onclick="featureWebFitToView()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Fit to View</button>
     <button onclick="featureWebCenterSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Center Selected</button>
     <button onclick="featureWebDuplicateSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Duplicate Selected</button>
@@ -7958,7 +7959,7 @@
    if (typeEl && f && f.type) typeEl.value = f.type;
    if (statusEl && f && f.status) statusEl.value = f.status;
    if (domainEl && f && f.domain) domainEl.value = f.domain;
-   if (viewEl) viewEl.value = (f && f.viewMode) ? f.viewMode : 'constellation';
+   if (viewEl) viewEl.value = (f && f.viewMode) ? f.viewMode : 'orbit';
    if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
    if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
    if (labelsEl && f && typeof f.showEdgeLabels === 'boolean') labelsEl.checked = f.showEdgeLabels;
@@ -8109,7 +8110,7 @@
 
    featureWeb.nodes = featureWeb.nodes.concat(nodes);
    featureWeb.edges = featureWeb.edges.concat(edges);
-   featureWebConstellationLayout();
+   featureWebOrbitLayout();
    featureWebNotice('Seeded PU map pack (' + nodes.length + ' nodes)');
   }
 
@@ -8595,6 +8596,60 @@
    featureWebRender();
   }
 
+  function featureWebOrbitLayout() {
+   const canvas = document.getElementById('feature-web-canvas');
+   const viewEl = document.getElementById('fw-view-mode');
+   if (!canvas || !featureWeb.nodes.length) return;
+   const width = Math.max(360, canvas.clientWidth);
+   const height = Math.max(240, canvas.clientHeight);
+   const centerX = width / 2;
+   const centerY = height / 2;
+   const domains = ['vision','business','school','game','economy','tech','lore','roadmap','community','operations'];
+   const radiusDomain = Math.max(120, Math.min(width, height) * 0.34);
+   const domainCenters = {};
+   domains.forEach((d, i) => {
+    const a = (i / domains.length) * Math.PI * 2 - Math.PI / 2;
+    domainCenters[d] = { x: centerX + Math.cos(a) * radiusDomain, y: centerY + Math.sin(a) * radiusDomain };
+   });
+
+   const byDomain = {};
+   featureWeb.nodes.forEach(n => {
+    const d = n.domain || 'game';
+    if (!byDomain[d]) byDomain[d] = [];
+    byDomain[d].push(n);
+   });
+
+   Object.entries(byDomain).forEach(([d, nodes]) => {
+    const dc = domainCenters[d] || { x: centerX, y: centerY };
+    const planets = nodes.filter(n => n.type !== 'subfeature');
+    const moons = nodes.filter(n => n.type === 'subfeature');
+    planets.forEach((p, i) => {
+      const a = (i / Math.max(1, planets.length)) * Math.PI * 2;
+      const r = Math.max(28, 24 + planets.length * 2);
+      p.x = Math.max(6, Math.min(width - 140, dc.x + Math.cos(a) * r));
+      p.y = Math.max(6, Math.min(height - 60, dc.y + Math.sin(a) * r));
+    });
+    moons.forEach((m, i) => {
+      const parent = planets.length ? planets[i % planets.length] : null;
+      if (parent) {
+        const a = (i / Math.max(1, moons.length)) * Math.PI * 2;
+        const r = 18 + (i % 3) * 8;
+        m.x = Math.max(6, Math.min(width - 140, parent.x + Math.cos(a) * r));
+        m.y = Math.max(6, Math.min(height - 60, parent.y + Math.sin(a) * r));
+      } else {
+        const a = (i / Math.max(1, moons.length)) * Math.PI * 2;
+        m.x = Math.max(6, Math.min(width - 140, dc.x + Math.cos(a) * 20));
+        m.y = Math.max(6, Math.min(height - 60, dc.y + Math.sin(a) * 20));
+      }
+    });
+   });
+
+   if (viewEl) viewEl.value = 'orbit';
+   featureWebSaveFilters();
+   featureWebSave();
+   featureWebRender();
+  }
+
   function featureWebFitToView() {
    const canvas = document.getElementById('feature-web-canvas');
    if (!canvas || featureWeb.nodes.length < 2) return;
@@ -8734,7 +8789,7 @@
    const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().toLowerCase();
    const canvasEl = document.getElementById('feature-web-canvas');
    if (canvasEl) {
-    if (viewMode === 'constellation') {
+    if (viewMode === 'constellation' || viewMode === 'orbit') {
      canvasEl.style.background = 'radial-gradient(circle at 20% 20%, rgba(127,198,255,0.12), transparent 35%), radial-gradient(circle at 80% 30%, rgba(171,120,255,0.10), transparent 38%), radial-gradient(circle at 50% 80%, rgba(120,255,173,0.08), transparent 42%), #0a1019';
      canvasEl.style.border = '1px solid rgba(150,190,255,0.22)';
     } else {
@@ -8825,7 +8880,24 @@
     '</g>';
    }).join('') + '<defs><marker id="fwArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="rgba(255,255,255,0.35)" /></marker></defs>';
 
-   nodesEl.innerHTML = visibleNodes.map(n => {
+   const domainAnchorHtml = (viewMode === 'orbit') ? (() => {
+    const canvas = document.getElementById('feature-web-canvas');
+    if (!canvas) return '';
+    const w = Math.max(360, canvas.clientWidth), h = Math.max(240, canvas.clientHeight);
+    const cx = w / 2, cy = h / 2;
+    const domains = ['vision','business','school','game','economy','tech','lore','roadmap','community','operations'];
+    const rr = Math.max(120, Math.min(w, h) * 0.34);
+    return domains.map((d,i) => {
+      const a = (i / domains.length) * Math.PI * 2 - Math.PI / 2;
+      const x = cx + Math.cos(a) * rr;
+      const y = cy + Math.sin(a) * rr;
+      const c = FW_DOMAIN_COLORS[d] || '#89a';
+      return '<div style="position:absolute;left:' + (x-22) + 'px;top:' + (y-22) + 'px;width:44px;height:44px;border-radius:50%;border:1px dashed rgba(180,210,255,0.22);box-shadow:inset 0 0 22px rgba(120,160,255,0.06);pointer-events:none;">' +
+        '<span style="position:absolute;left:46px;top:12px;white-space:nowrap;font-size:0.58rem;color:' + c + ';text-transform:uppercase;opacity:0.75;">' + d + '</span></div>';
+    }).join('');
+   })() : '';
+
+   nodesEl.innerHTML = domainAnchorHtml + visibleNodes.map(n => {
     const typeColor = FW_TYPE_COLORS[n.type] || '#888';
     const statusColor = FW_STATUS_COLORS[n.status] || '#666';
     const domainColor = FW_DOMAIN_COLORS[n.domain || 'game'] || '#888';
@@ -8833,11 +8905,15 @@
     const borderColor = isSelected ? 'rgba(255,136,17,0.75)' : 'rgba(255,255,255,0.15)';
     const glow = isSelected ? '0 0 0 1px rgba(255,136,17,0.25),0 3px 14px rgba(0,0,0,0.45)' : '0 1px 8px rgba(0,0,0,0.35)';
     const linkedBadge = n.taskId != null ? '<span style="font-size:0.56rem;color:#8fe0a7;background:rgba(47,143,78,0.2);padding:0.03rem 0.22rem;border-radius:999px;font-weight:700;">LINK</span>' : '';
-    if (viewMode === 'constellation') {
-     const nodeSize = isSelected ? 16 : 12;
-     const aura = isSelected ? '0 0 18px rgba(255,136,17,0.55)' : '0 0 12px rgba(255,255,255,0.25)';
-     return '<div class="fw-node" title="' + escHtml((n.summary || n.teach || n.details || '').slice(0, 180)) + '" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" onmouseenter="featureWebSetHover(\'' + n.id + '\')" onmouseleave="featureWebSetHover(\'\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;width:' + nodeSize + 'px;height:' + nodeSize + 'px;border-radius:50%;background:' + statusColor + ';box-shadow:' + aura + ';cursor:grab;border:1px solid ' + borderColor + ';">' +
-      '<span style="position:absolute;left:' + (nodeSize + 6) + 'px;top:-1px;white-space:nowrap;font-size:0.64rem;color:var(--text-muted);">' + escHtml(n.title) + '</span>' +
+    if (viewMode === 'constellation' || viewMode === 'orbit') {
+     const isMoon = n.type === 'subfeature';
+     const isStar = !isMoon && (n.priority === 'critical' || /mission|core|atlas|roadmap/i.test(String(n.title || '')));
+     const nodeSize = viewMode === 'orbit' ? (isStar ? (isSelected ? 24 : 20) : (isMoon ? (isSelected ? 10 : 8) : (isSelected ? 16 : 13))) : (isSelected ? 16 : 12);
+     const baseColor = viewMode === 'orbit' ? (isStar ? '#ffd166' : (isMoon ? '#a6c8ff' : statusColor)) : statusColor;
+     const aura = isSelected ? '0 0 18px rgba(255,136,17,0.55)' : (viewMode === 'orbit' && isStar ? '0 0 20px rgba(255,209,102,0.7)' : '0 0 12px rgba(255,255,255,0.25)');
+     const labelColor = viewMode === 'orbit' ? 'rgba(210,230,255,0.92)' : 'var(--text-muted)';
+     return '<div class="fw-node" title="' + escHtml((n.summary || n.teach || n.details || '').slice(0, 180)) + '" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" onmouseenter="featureWebSetHover(\'' + n.id + '\')" onmouseleave="featureWebSetHover(\'\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;width:' + nodeSize + 'px;height:' + nodeSize + 'px;border-radius:50%;background:' + baseColor + ';box-shadow:' + aura + ';cursor:grab;border:1px solid ' + borderColor + ';">' +
+      '<span style="position:absolute;left:' + (nodeSize + 6) + 'px;top:-1px;white-space:nowrap;font-size:0.64rem;color:' + labelColor + ';">' + escHtml(n.title) + '</span>' +
       '</div>';
     }
     return '<div class="fw-node" title="' + escHtml((n.summary || n.teach || n.details || '').slice(0, 180)) + '" data-id="' + n.id + '" onclick="featureWebFocusNode(\'' + n.id + '\')" onmouseenter="featureWebSetHover(\'' + n.id + '\')" onmouseleave="featureWebSetHover(\'\')" style="position:absolute;left:' + n.x + 'px;top:' + n.y + 'px;min-width:104px;max-width:170px;padding:0.32rem 0.42rem;border-radius:8px;background:var(--bg-card,#1a1a1a);border:1px solid ' + borderColor + ';box-shadow:' + glow + ';cursor:grab;">' +
