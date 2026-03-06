@@ -8136,10 +8136,12 @@
    try { ui = JSON.parse(localStorage.getItem(FEATURE_WEB_UI_KEY) || '{}'); } catch {}
    if (ui && typeof ui.advancedVisible === 'boolean') fwAdvancedVisible = ui.advancedVisible;
    if (ui && typeof ui.shortcutsVisible === 'boolean') fwShortcutsVisible = ui.shortcutsVisible;
+   if (ui && typeof ui.selectedNodeId === 'string') fwSelectedNodeId = ui.selectedNodeId;
+   if (fwSelectedNodeId && !featureWeb.nodes.some(n => n.id === fwSelectedNodeId)) fwSelectedNodeId = '';
   }
 
   function featureWebSaveUiState() {
-   localStorage.setItem(FEATURE_WEB_UI_KEY, JSON.stringify({ advancedVisible: !!fwAdvancedVisible, shortcutsVisible: !!fwShortcutsVisible }));
+   localStorage.setItem(FEATURE_WEB_UI_KEY, JSON.stringify({ advancedVisible: !!fwAdvancedVisible, shortcutsVisible: !!fwShortcutsVisible, selectedNodeId: fwSelectedNodeId || '' }));
   }
 
   function featureWebLoadFilters() {
@@ -8616,6 +8618,7 @@
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) {
     fwSelectedNodeId = '';
+    featureWebSaveUiState();
     titleEl.value = '';
     typeEl.value = 'feature';
     statusEl.value = 'planned';
@@ -8633,6 +8636,7 @@
     return;
    }
    fwSelectedNodeId = node.id;
+   featureWebSaveUiState();
    titleEl.value = node.title || '';
    typeEl.value = node.type || 'feature';
    statusEl.value = node.status || 'planned';
@@ -9061,6 +9065,7 @@
    if (!fwSelectedNodeId) return;
    featureWebDeleteNode(fwSelectedNodeId);
    fwSelectedNodeId = '';
+   featureWebSaveUiState();
    featureWebNotice('Selected node deleted');
   }
 
