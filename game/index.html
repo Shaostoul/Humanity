@@ -606,6 +606,7 @@
    <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;color:var(--text-muted);"></div>
    <div id="fw-status-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
    <div id="fw-link-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
+   <div id="fw-owner-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
    <div style="font-size:0.64rem;color:var(--text-muted);opacity:0.8;margin-bottom:0.6rem;">Shortcuts: <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">/</kbd> search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">K</kbd> add title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Esc</kbd> clear · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Del</kbd> delete · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Arrows</kbd> nudge · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">C</kbd> center · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">D</kbd> duplicate · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">G</kbd> snap · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">O</kbd> open task · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">T</kbd> copy title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">R</kbd> auto layout · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">F</kbd> fit · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">H</kbd> teach</div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
     <input id="fw-node-title" type="text" placeholder="Feature / subfeature" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
@@ -8902,6 +8903,7 @@
    const legendEl = document.getElementById('fw-legend');
    const statusSummaryEl = document.getElementById('fw-status-summary');
    const linkSummaryEl = document.getElementById('fw-link-summary');
+   const ownerSummaryEl = document.getElementById('fw-owner-summary');
    if (!nodesEl || !edgesEl) return;
 
    const filterType = (filterTypeEl && filterTypeEl.value) || 'all';
@@ -8981,6 +8983,13 @@
     linkSummaryEl.innerHTML = Object.entries(edgeCounts).filter(([,c]) => c > 0).map(([k, c]) =>
      '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);"><span style="width:8px;height:2px;background:' + (edgeColors[k] || 'rgba(255,255,255,0.55)') + ';display:inline-block;"></span>' + escHtml((k || '').split('_').join(' ')) + ': <strong style="color:var(--text);font-size:0.67rem;">' + c + '</strong></span>'
     ).join('') || '<span style="opacity:0.7;">No links in current filter</span>';
+   }
+
+   if (ownerSummaryEl) {
+    const owned = visibleNodes.filter(n => n.owner && n.owner.trim());
+    ownerSummaryEl.innerHTML = owned.length
+     ? '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);">👥 Owned nodes: <strong style="color:var(--text);font-size:0.67rem;">' + owned.length + '</strong></span>'
+     : '<span style="opacity:0.7;">No owned nodes in current filter</span>';
    }
 
    const options = ['<option value="">Link from…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
