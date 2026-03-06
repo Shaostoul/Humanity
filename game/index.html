@@ -9319,6 +9319,7 @@
     clearSearchBtnEl.disabled = !hasSearch;
     clearSearchBtnEl.style.opacity = hasSearch ? '1' : '0.45';
     clearSearchBtnEl.style.cursor = hasSearch ? 'pointer' : 'default';
+    clearSearchBtnEl.style.visibility = hasSearch ? 'visible' : 'hidden';
     clearSearchBtnEl.title = hasSearch ? 'Clear current search text' : 'Search is already empty';
    }
    if (clearFiltersBtnEl) {
@@ -9326,6 +9327,7 @@
     clearFiltersBtnEl.disabled = atDefaults;
     clearFiltersBtnEl.style.opacity = atDefaults ? '0.45' : '1';
     clearFiltersBtnEl.style.cursor = atDefaults ? 'default' : 'pointer';
+    clearFiltersBtnEl.style.visibility = atDefaults ? 'hidden' : 'visible';
     clearFiltersBtnEl.title = atDefaults ? 'Filters already at defaults' : 'Reset all filters to defaults';
    }
    const canvasEl = document.getElementById('feature-web-canvas');
