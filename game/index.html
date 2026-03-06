@@ -8296,7 +8296,7 @@
      if (ao !== bo) return ao - bo;
      return (a.id || 0) - (b.id || 0);
     });
-    linkTaskEl.innerHTML = '<option value="">Link to task…</option>' + orderedTasks.map(t => '<option value="' + t.id + '">#' + t.id + ' · ' + escHtml(t.title) + '</option>').join('');
+    linkTaskEl.innerHTML = '<option value="">Link to task…</option>' + orderedTasks.map(t => '<option value="' + t.id + '">#' + t.id + ' [' + escHtml(t.status || 'backlog') + '] · ' + escHtml(t.title) + '</option>').join('');
     linkTaskEl.value = selectedTask;
    }
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
