@@ -11,9 +11,12 @@ This is the parent entry for major documentation areas.
 ## Design
 - [Design README](../design/README.md)
 - [Feature Web](../design/feature_web.md)
-- [App Shell IA](../design/app_shell_information_architecture.md)
-- [Update Distribution](../design/update_distribution_architecture.md)
-- [AI Plugin Runtime](../design/ai_plugin_runtime_architecture.md)
+- [App Shell IA](../design/ui/app_shell_information_architecture.md)
+- [Knowledge Tab IA](../design/ui/knowledge_tab_architecture.md)
+- [Update Distribution](../design/runtime/update_distribution_architecture.md)
+- [AI Plugin Runtime](../design/runtime/ai_plugin_runtime_architecture.md)
+- [Hot Reload Tiers](../design/runtime/hot_reload_tiers.md)
+- [Markdown IA Plan](../design/docs/md_information_architecture_plan.md)
 
 ## Knowledge
 - [Knowledge Index](../knowledge/index.md)
