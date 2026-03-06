@@ -13,11 +13,11 @@ Current top-level navigation is overloaded and inconsistent. Related functions a
 
 ## Proposed Top-Level Header
 
-1. **Home**
-2. **Twin**
-3. **Systems**
-4. **Create**
-5. **Social**
+1. **Private**
+2. **Network**
+3. **Market**
+4. **Twin**
+5. **Build**
 6. **Learn**
 7. **Ops**
 8. **Settings**
@@ -26,31 +26,30 @@ Current top-level navigation is overloaded and inconsistent. Related functions a
 
 ## Section Definitions
 
-## Home
-- personal dashboard
-- quick status cards
-- recent activity
+## Private
+- player-home systems (bedroom, battlestation, garden, workshop, garage)
+- personal dashboard + local planning tools
+- private/local data controls
+
+## Network
+- chat/messages/streams/groups/events
+- public utility and collaboration surfaces
+- fleet communications and social participation
+
+## Market
+- mall kiosks + partner/service catalog
+- mode-aware partner routing (embed, API, external launch)
+- affiliate attribution + compliance disclosures
 
 ## Twin
 - Fleet / Earth mode switch
 - Starseed Atlas / Feature Web
 - map views (2D/3D)
 
-## Systems
-- utilities (power/water/network)
-- logistics/transit
-- industrial/refinery status
-- outage and restoration state
-
-## Create
+## Build
 - workshop/fabrication
 - garden planner
 - structure and vehicle planning
-
-## Social
-- chat/messages
-- groups/community
-- mall/public hubs access
 
 ## Learn
 - school stages
@@ -72,10 +71,10 @@ Current top-level navigation is overloaded and inconsistent. Related functions a
 ## Migration Mapping (from current tabs)
 
 - Map / Board / related planning -> **Twin**
-- Reality/Fantasy/Browse dashboards -> **Home** and **Twin/Create** split
-- Streams -> **Social** (or dedicated icon in Home quick actions)
+- Reality/Fantasy/Browse dashboards -> **Private** and **Twin/Build** split
+- Streams -> **Network**
 - Debug/Source/Info -> **Ops** (with role gating)
-- Market -> **Social** (public) or **Systems** (if tied to economy instrumentation)
+- Market -> **Market** (with utility/economy overlays exposed in **Twin/Network** where needed)
 
 ---
 
