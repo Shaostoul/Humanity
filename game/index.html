@@ -649,6 +649,7 @@
    <div id="fw-teach-panel" style="display:none;white-space:pre-wrap;background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.35);border-radius:8px;padding:0.45rem 0.55rem;font-size:0.73rem;color:var(--text-muted);margin-bottom:0.55rem;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <button onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
+    <button onclick="featureWebConstellationLayout()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Constellation Layout</button>
     <button onclick="featureWebFitToView()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Fit to View</button>
     <button onclick="featureWebCenterSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Center Selected</button>
     <button onclick="featureWebDuplicateSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Duplicate Selected</button>
@@ -7952,7 +7953,7 @@
    if (typeEl && f && f.type) typeEl.value = f.type;
    if (statusEl && f && f.status) statusEl.value = f.status;
    if (domainEl && f && f.domain) domainEl.value = f.domain;
-   if (viewEl && f && f.viewMode) viewEl.value = f.viewMode;
+   if (viewEl) viewEl.value = (f && f.viewMode) ? f.viewMode : 'constellation';
    if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
    if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
    if (labelsEl && f && typeof f.showEdgeLabels === 'boolean') labelsEl.checked = f.showEdgeLabels;
@@ -7988,7 +7989,7 @@
    if (typeEl) typeEl.value = 'all';
    if (statusEl) statusEl.value = 'all';
    if (domainEl) domainEl.value = 'all';
-   if (viewEl) viewEl.value = 'cards';
+   if (viewEl) viewEl.value = 'constellation';
    if (searchEl) searchEl.value = '';
    if (linkedOnlyEl) linkedOnlyEl.checked = false;
    if (labelsEl) labelsEl.checked = true;
@@ -8499,6 +8500,43 @@
    featureWebRender();
   }
 
+  function featureWebConstellationLayout() {
+   const canvas = document.getElementById('feature-web-canvas');
+   const viewEl = document.getElementById('fw-view-mode');
+   if (!canvas || !featureWeb.nodes.length) return;
+   const width = Math.max(320, canvas.clientWidth);
+   const height = Math.max(220, canvas.clientHeight);
+   const domains = ['vision','business','school','game','economy','tech','lore','roadmap','community','operations'];
+   const centerX = width / 2;
+   const centerY = height / 2;
+   const baseR = Math.max(70, Math.min(width, height) * 0.34);
+   const domainCenters = {};
+   domains.forEach((d, i) => {
+    const a = (i / domains.length) * Math.PI * 2;
+    domainCenters[d] = { x: centerX + Math.cos(a) * baseR, y: centerY + Math.sin(a) * baseR };
+   });
+   const byDomain = {};
+   featureWeb.nodes.forEach(n => {
+    const d = n.domain || 'game';
+    if (!byDomain[d]) byDomain[d] = [];
+    byDomain[d].push(n);
+   });
+   Object.entries(byDomain).forEach(([d, nodes]) => {
+    const c = domainCenters[d] || { x: centerX, y: centerY };
+    const ring = Math.max(18, 16 + nodes.length * 2.4);
+    nodes.forEach((n, i) => {
+      const a = (i / Math.max(1, nodes.length)) * Math.PI * 2;
+      const jitter = (i % 3) * 5;
+      n.x = Math.max(4, Math.min(width - 120, c.x + Math.cos(a) * (ring + jitter)));
+      n.y = Math.max(4, Math.min(height - 48, c.y + Math.sin(a) * (ring + jitter)));
+    });
+   });
+   if (viewEl) viewEl.value = 'constellation';
+   featureWebSaveFilters();
+   featureWebSave();
+   featureWebRender();
+  }
+
   function featureWebFitToView() {
    const canvas = document.getElementById('feature-web-canvas');
    if (!canvas || featureWeb.nodes.length < 2) return;
@@ -8636,6 +8674,16 @@
    const showEdgeLabels = !showEdgeLabelsEl || !!showEdgeLabelsEl.checked;
    const linkedOnly = !!(linkedOnlyEl && linkedOnlyEl.checked);
    const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().toLowerCase();
+   const canvasEl = document.getElementById('feature-web-canvas');
+   if (canvasEl) {
+    if (viewMode === 'constellation') {
+     canvasEl.style.background = 'radial-gradient(circle at 20% 20%, rgba(127,198,255,0.12), transparent 35%), radial-gradient(circle at 80% 30%, rgba(171,120,255,0.10), transparent 38%), radial-gradient(circle at 50% 80%, rgba(120,255,173,0.08), transparent 42%), #0a1019';
+     canvasEl.style.border = '1px solid rgba(150,190,255,0.22)';
+    } else {
+     canvasEl.style.background = 'radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111)';
+     canvasEl.style.border = '1px dashed var(--border)';
+    }
+   }
    const visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || n.taskId != null) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
    const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
    const visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
