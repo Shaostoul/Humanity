@@ -683,6 +683,8 @@
     <button onclick="featureWebCenterSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Center Selected</button>
     <button onclick="featureWebDuplicateSelected()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Duplicate Selected</button>
     <button onclick="featureWebDeleteSelectedLinks()" style="background:none;border:1px solid rgba(229,85,85,0.35);color:#e8a7a7;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Delete Links</button>
+    <button onclick="featureWebDeleteOutgoingLinks()" style="background:none;border:1px solid rgba(229,85,85,0.28);color:#d59a9a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Del Out</button>
+    <button onclick="featureWebDeleteIncomingLinks()" style="background:none;border:1px solid rgba(229,85,85,0.28);color:#d59a9a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Del In</button>
     <button onclick="featureWebClearSelection()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Clear Selection</button>
     <button onclick="featureWebNudgeSelected(0,-12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">↑</button>
     <button onclick="featureWebNudgeSelected(-12,0)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">←</button>
@@ -8807,6 +8809,40 @@
    featureWebSave();
    featureWebRender();
    featureWebNotice('Removed ' + removed + ' link' + (removed === 1 ? '' : 's'));
+  }
+
+  function featureWebDeleteOutgoingLinks() {
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
+   const before = featureWeb.edges.length;
+   featureWeb.edges = featureWeb.edges.filter(e => e.from !== fwSelectedNodeId);
+   const removed = before - featureWeb.edges.length;
+   if (!removed) {
+    featureWebNotice('Selected node has no outgoing links');
+    return;
+   }
+   featureWebSave();
+   featureWebRender();
+   featureWebNotice('Removed ' + removed + ' outgoing link' + (removed === 1 ? '' : 's'));
+  }
+
+  function featureWebDeleteIncomingLinks() {
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
+   const before = featureWeb.edges.length;
+   featureWeb.edges = featureWeb.edges.filter(e => e.to !== fwSelectedNodeId);
+   const removed = before - featureWeb.edges.length;
+   if (!removed) {
+    featureWebNotice('Selected node has no incoming links');
+    return;
+   }
+   featureWebSave();
+   featureWebRender();
+   featureWebNotice('Removed ' + removed + ' incoming link' + (removed === 1 ? '' : 's'));
   }
 
   function featureWebDeleteSelectedNode() {
