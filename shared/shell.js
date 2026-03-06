@@ -134,6 +134,22 @@
       pointer-events: none;
     }
     .hub-nav .spacer { flex: 1; }
+    .hub-nav .hub-side {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      min-width: 0;
+    }
+    .hub-nav .hub-side.left { justify-content: flex-end; }
+    .hub-nav .hub-side.right { justify-content: flex-start; }
+    .hub-nav .group-label {
+      font-size: 0.66rem;
+      color: #7a7a7a;
+      margin: 0 0.35rem;
+      white-space: nowrap;
+      opacity: 0.9;
+    }
     @keyframes channeling {
       0%   { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
       16%  { box-shadow: inset 0 0 0 2px #f80, 0 0 10px rgba(255,136,0,0.4); }
@@ -239,23 +255,25 @@
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      '<a href="/reality" class="' + cls('reality') + '">🟢 Profile</a>' +
-      '<a href="/dashboard" class="' + cls('dashboard') + '">🎒 Inventory</a>' +
-      '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Skills</a>' +
-      '<a href="/source" class="' + cls('source') + '">🛠️ Equipment</a>' +
-      '<span style="font-size:0.66rem;color:#7a7a7a;margin:0 0.35rem;">Private</span>' +
-      '<span class="spacer"></span>' +
+      '<div class="hub-side left">' +
+        '<a href="/reality" class="' + cls('reality') + '">🟢 Profile</a>' +
+        '<a href="/dashboard" class="' + cls('dashboard') + '">🎒 Inventory</a>' +
+        '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Skills</a>' +
+        '<a href="/source" class="' + cls('source') + '">🛠️ Equipment</a>' +
+        '<span class="group-label">Private</span>' +
+      '</div>' +
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
-      '<span class="spacer"></span>' +
-      '<span style="font-size:0.66rem;color:#7a7a7a;margin:0 0.35rem;">Public</span>' +
-      '<a href="/chat" class="' + cls('chat') + '">💬 Network</a>' +
-      '<a href="/board" class="' + cls('board') + '">🧩 Systems</a>' +
-      '<a href="/map" class="' + cls('map') + '">🗺️ Maps</a>' +
-      '<a href="/market" class="' + cls('market') + '">🛒 Market</a>' +
-      '<a href="/browse" class="' + cls('browse') + '">🎓 Learn</a>' +
-      '<a href="/info" class="' + cls('info') + '">📚 Knowledge</a>' +
-      '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +
-      '<a href="/debug" class="' + cls('debug') + '">🔧 Ops</a>' +
+      '<div class="hub-side right">' +
+        '<span class="group-label">Public</span>' +
+        '<a href="/chat" class="' + cls('chat') + '">💬 Network</a>' +
+        '<a href="/board" class="' + cls('board') + '">🧩 Systems</a>' +
+        '<a href="/map" class="' + cls('map') + '">🗺️ Maps</a>' +
+        '<a href="/market" class="' + cls('market') + '">🛒 Market</a>' +
+        '<a href="/browse" class="' + cls('browse') + '">🎓 Learn</a>' +
+        '<a href="/info" class="' + cls('info') + '">📚 Knowledge</a>' +
+        '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +
+        '<a href="/debug" class="' + cls('debug') + '">🔧 Ops</a>' +
+      '</div>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
