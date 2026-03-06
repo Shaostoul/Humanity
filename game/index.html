@@ -8510,6 +8510,10 @@
     return;
    }
    featureWeb.edges.push({ id: 'e_' + Date.now().toString(36), from: fromEl.value, to: toEl.value, type: (typeEl && typeEl.value) || 'depends_on' });
+   if (toEl) {
+    toEl.value = '';
+    if (toEl.options && toEl.options.length) toEl.selectedIndex = 0;
+   }
    featureWebNotice('');
    featureWebSave();
    featureWebRender();
