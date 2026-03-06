@@ -1686,6 +1686,71 @@
    #tab-info .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem; }
   </style>
 
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;gap:0.6rem;flex-wrap:wrap;">
+   <h2 style="margin:0;color:var(--accent);font-size:1.05rem;">📚 Knowledge</h2>
+   <div style="font-size:0.72rem;color:var(--text-muted);">Markdown explorer (allowlisted)</div>
+  </div>
+  <div id="knowledge-layout" style="display:grid;grid-template-columns:240px minmax(0,1fr) 240px;gap:0.7rem;margin-bottom:1rem;">
+   <aside style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
+    <input id="knowledge-search" type="text" placeholder="Search docs" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.32rem 0.45rem;border-radius:6px;font-size:0.72rem;margin-bottom:0.45rem;" oninput="knowledgeRenderList()">
+    <div id="knowledge-tree" style="display:flex;flex-direction:column;gap:0.2rem;"></div>
+   </aside>
+   <main style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.7rem;min-height:420px;">
+    <h3 id="knowledge-title" style="margin:0 0 0.45rem;font-size:0.9rem;color:var(--text);">Select a document</h3>
+    <div id="knowledge-body" style="font-size:0.8rem;color:var(--text-muted);line-height:1.6;white-space:pre-wrap;">Pick a file on the left to view quick context.</div>
+   </main>
+   <aside style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
+    <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.35rem;">Doc Info</div>
+    <div id="knowledge-meta" style="font-size:0.72rem;color:var(--text);line-height:1.5;">No file selected.</div>
+   </aside>
+  </div>
+  <script>
+  const KNOWLEDGE_DOCS = [
+   'README.md','AGENTS.md','OPERATING_CONTRACT.md','TOOLS.md','USER.md','SOUL.md',
+   'design/README.md','design/feature_web.md','design/ship_zoning_transit.md','design/earth_fleet_twin.md','design/app_shell_information_architecture.md','design/knowledge_tab_architecture.md','design/market_integration_architecture.md','design/first_third_person_traversal.md','design/camera_modes_architecture.md',
+   'knowledge/OPERATIONS_RUNBOOK.md','knowledge/ECOSYSTEM_RELEASE_CHECKLIST.md',
+   'accord/README.md','accord/humanity_accord.md',
+   'website/README.md','website/index.md','website/design.md','website/accord.md'
+  ];
+  const KNOWLEDGE_TEXT = {
+   'README.md': 'Project root overview and entrypoint for contributors.',
+   'design/feature_web.md': 'Feature Showcase system goals, model, and roadmap.',
+   'design/ship_zoning_transit.md': 'Fleet/private/public zoning and transit architecture.',
+   'design/earth_fleet_twin.md': 'Earth+Fleet digital twin architecture and storage tiers.',
+   'design/app_shell_information_architecture.md': 'Private | H | Public app shell plan.',
+   'design/knowledge_tab_architecture.md': 'Knowledge tab markdown explorer model.',
+   'knowledge/OPERATIONS_RUNBOOK.md': 'Deploy and operations runbook.',
+   'accord/humanity_accord.md': 'Core accord principles and constraints.'
+  };
+  function knowledgeRenderList() {
+   const qEl = document.getElementById('knowledge-search');
+   const treeEl = document.getElementById('knowledge-tree');
+   if (!treeEl) return;
+   const q = ((qEl && qEl.value) || '').trim().toLowerCase();
+   const list = KNOWLEDGE_DOCS.filter(p => !q || p.toLowerCase().includes(q));
+   treeEl.innerHTML = list.map(p => '<button onclick="knowledgeOpenDoc(\'' + p + '\')" style="text-align:left;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">' + p + '</button>').join('');
+  }
+  async function knowledgeOpenDoc(path) {
+   const titleEl = document.getElementById('knowledge-title');
+   const bodyEl = document.getElementById('knowledge-body');
+   const metaEl = document.getElementById('knowledge-meta');
+   if (titleEl) titleEl.textContent = path;
+   if (bodyEl) bodyEl.textContent = 'Loading…';
+   const base = 'https://raw.githubusercontent.com/Shaostoul/Humanity/main/';
+   try {
+    const res = await fetch(base + path, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text = await res.text();
+    if (bodyEl) bodyEl.textContent = text.slice(0, 10000);
+    if (metaEl) metaEl.innerHTML = '<div><strong>Path:</strong> ' + path + '</div><div><strong>Approx length:</strong> ' + text.length + ' chars</div><div><strong>Summary:</strong> ' + (KNOWLEDGE_TEXT[path] || 'No summary yet.') + '</div>';
+   } catch (e) {
+    if (bodyEl) bodyEl.textContent = 'Could not load remote markdown for ' + path + '.\n\n' + (KNOWLEDGE_TEXT[path] || 'No local preview available.');
+    if (metaEl) metaEl.innerHTML = '<div><strong>Path:</strong> ' + path + '</div><div><strong>Status:</strong> load failed</div><div><strong>Summary:</strong> ' + (KNOWLEDGE_TEXT[path] || 'No summary yet.') + '</div>';
+   }
+  }
+  knowledgeRenderList();
+  </script>
+
   <!-- Server Info -->
   <div class="info-section" id="info-server">
    <h2>🖥️ Server Info</h2>

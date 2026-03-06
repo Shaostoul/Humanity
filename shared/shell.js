@@ -239,20 +239,23 @@
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
-      '<a href="/chat" class="' + cls('chat') + '">💬 Chat</a>' +
-      '<a href="/map" class="' + cls('map') + '">🗺️ Map</a>' +
-      '<a href="/board" class="' + cls('board') + '">🧩 Systems</a>' +
-      '<a href="/reality" class="' + cls('reality') + '">🟢 Reality</a>' +
-      '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Fantasy</a>' +
-      '<a href="/market" class="' + cls('market') + '">🛒 Market</a>' +
-      '<a href="/browse" class="' + cls('browse') + '">🌐 Browse</a>' +
-      '<a href="/dashboard" class="' + cls('dashboard') + '">📊 Dashboard</a>' +
-      '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +
-      '<a href="/info" class="' + cls('info') + '">📖 Info</a>' +
-      '<a href="/source" class="' + cls('source') + '">📜 Source</a>' +
-      '<a href="/debug" class="' + cls('debug') + '">🔧 Debug</a>' +
+      '<span style="font-size:0.66rem;color:#7a7a7a;margin-right:0.2rem;">Private</span>' +
+      '<a href="/reality" class="' + cls('reality') + '">🟢 Profile</a>' +
+      '<a href="/dashboard" class="' + cls('dashboard') + '">🎒 Inventory</a>' +
+      '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Skills</a>' +
+      '<a href="/source" class="' + cls('source') + '">🛠️ Equipment</a>' +
       '<span class="spacer"></span>' +
+      '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
+      '<span class="spacer"></span>' +
+      '<span style="font-size:0.66rem;color:#7a7a7a;margin-right:0.2rem;">Public</span>' +
+      '<a href="/chat" class="' + cls('chat') + '">💬 Network</a>' +
+      '<a href="/board" class="' + cls('board') + '">🧩 Systems</a>' +
+      '<a href="/map" class="' + cls('map') + '">🗺️ Maps</a>' +
+      '<a href="/market" class="' + cls('market') + '">🛒 Market</a>' +
+      '<a href="/browse" class="' + cls('browse') + '">🎓 Learn</a>' +
+      '<a href="/info" class="' + cls('info') + '">📚 Knowledge</a>' +
+      '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +
+      '<a href="/debug" class="' + cls('debug') + '">🔧 Ops</a>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
@@ -263,18 +266,18 @@
     if (!navEl) return;
 
     var tabMeta = {
-      '/chat': { icon: '/shared/ui-icons/chat.png', label: 'Chat' },
-      '/map': { icon: '/shared/ui-icons/map.png', label: 'Map' },
+      '/chat': { icon: '/shared/ui-icons/chat.png', label: 'Network' },
+      '/map': { icon: '/shared/ui-icons/map.png', label: 'Maps' },
       '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Systems' },
-      '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Reality' },
-      '/fantasy': { icon: '/shared/ui-icons/galaxy.png', label: 'Fantasy' },
+      '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Profile' },
+      '/fantasy': { icon: '/shared/ui-icons/galaxy.png', label: 'Skills' },
       '/market': { icon: '/shared/ui-icons/market.png', label: 'Market' },
-      '/browse': { icon: '/shared/ui-icons/website.png', label: 'Browse' },
-      '/dashboard': { icon: '/shared/ui-icons/controls.png', label: 'Dashboard' },
+      '/browse': { icon: '/shared/ui-icons/website.png', label: 'Learn' },
+      '/dashboard': { icon: '/shared/ui-icons/controls.png', label: 'Inventory' },
       '/streams': { icon: '/shared/ui-icons/audio.png', label: 'Streams' },
-      '/info': { icon: '/shared/ui-icons/codex.png', label: 'Info' },
-      '/source': { icon: '/shared/ui-icons/components.png', label: 'Source' },
-      '/debug': { icon: '/shared/ui-icons/logs.png', label: 'Debug' },
+      '/info': { icon: '/shared/ui-icons/codex.png', label: 'Knowledge' },
+      '/source': { icon: '/shared/ui-icons/components.png', label: 'Equipment' },
+      '/debug': { icon: '/shared/ui-icons/logs.png', label: 'Ops' },
       '/download': { icon: '/shared/ui-icons/save.png', label: 'Download' }
     };
 
