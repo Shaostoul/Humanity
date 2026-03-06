@@ -8035,7 +8035,13 @@
     mk('Lore Core: Hungering Dark', 'lore', 'lore', 'planned', 250, 584, 'Primary hostile species arc and tech identity.', 'Faction identity drives mission/event variety.', 'Visual + cultural + gameplay hooks.', 'lore', 'medium'),
     mk('Dev Toolchain Standards', 'tech', 'tech', 'active', 460, 584, 'Unity/C#/Blender/asset format constraints.', 'Consistent pipeline prevents integration chaos.', 'Binary FBX, BC7 DDS, plugin support.', 'engineering', 'high'),
     mk('Feature Web (this system)', 'feature', 'operations', 'active', 670, 304, 'Interactive dependency map for whole project.', 'Understand how everything connects before building.', 'Companion to Kanban.', 'ops', 'high'),
-    mk('Kanban Execution Board', 'feature', 'operations', 'active', 670, 404, 'Task flow: backlog/in-progress/testing/done.', 'Execution throughput and ownership clarity.', 'Operational counterpart to feature graph.', 'ops', 'high')
+    mk('Kanban Execution Board', 'feature', 'operations', 'active', 670, 404, 'Task flow: backlog/in-progress/testing/done.', 'Execution throughput and ownership clarity.', 'Operational counterpart to feature graph.', 'ops', 'high'),
+    mk('Main Power Grid', 'tech', 'operations', 'planned', 670, 504, 'Primary electrical generation and distribution.', 'If power fails, dependent gameplay loops shut down until restored.', 'Drives civilian/public/industrial availability gates.', 'utilities', 'critical'),
+    mk('Water & Waste Loop', 'tech', 'operations', 'planned', 860, 504, 'Closed-loop potable water and sanitation systems.', 'Water stability supports habitats, food, health, and morale.', 'Includes treatment, storage, and pressure network.', 'utilities', 'critical'),
+    mk('Network Backbone', 'tech', 'operations', 'planned', 860, 404, 'Fleet communications + data routing fabric.', 'Network outages degrade multiplayer and command systems.', 'Supports messaging, market, dispatch, and coordination.', 'utilities', 'high'),
+    mk('Industrial Refinery Zone', 'feature', 'operations', 'planned', 860, 304, 'Raw materials refinement + production chain.', 'Damage here bottlenecks crafting and infrastructure growth.', 'Feeds fabrication, armories, and fleet expansion.', 'industry', 'high'),
+    mk('Utility Failure Events', 'feature', 'operations', 'planned', 670, 584, 'Cooperative disruptions affecting major systems.', 'Players collaborate to diagnose and restore core utilities.', 'Examples: power cascade, water contamination, network outage.', 'events', 'high'),
+    mk('Public Access Gating', 'feature', 'operations', 'planned', 860, 584, 'Public systems unlock/lock based on utility health.', 'Teaches interdependence between infrastructure and civic life.', 'Mall, transport, fabrication, and training may degrade when upstream systems fail.', 'ops', 'high')
    ];
    const byTitle = Object.fromEntries(nodes.map(n => [n.title, n.id]));
    const e = (a,b,t) => ({ id:'e_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), from:byTitle[a], to:byTitle[b], type:t });
@@ -8067,7 +8073,19 @@
     e('Dev Toolchain Standards','Roadmap: Act I','enables'),
     e('Feature Web (this system)','Kanban Execution Board','relates_to'),
     e('Feature Web (this system)','Intuitive Teaching Goal','enables'),
-    e('Kanban Execution Board','Roadmap: Act I','enables')
+    e('Kanban Execution Board','Roadmap: Act I','enables'),
+    e('Main Power Grid','Industrial Refinery Zone','enables'),
+    e('Water & Waste Loop','Community Contribution Pipeline','enables'),
+    e('Network Backbone','Community Contribution Pipeline','enables'),
+    e('Network Backbone','Global Market (Fleet + Private)','enables'),
+    e('Industrial Refinery Zone','Fleet Economy','enables'),
+    e('Utility Failure Events','Main Power Grid','blocks'),
+    e('Utility Failure Events','Water & Waste Loop','blocks'),
+    e('Utility Failure Events','Network Backbone','blocks'),
+    e('Main Power Grid','Public Access Gating','enables'),
+    e('Water & Waste Loop','Public Access Gating','enables'),
+    e('Network Backbone','Public Access Gating','enables'),
+    e('Public Access Gating','Global Market (Fleet + Private)','relates_to')
    ].filter(x => x.from && x.to);
 
    featureWeb.nodes = featureWeb.nodes.concat(nodes);

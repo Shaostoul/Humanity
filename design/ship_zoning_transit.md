@@ -183,6 +183,41 @@ Examples:
 
 ---
 
+## Utility Systems & Cooperative Restoration
+
+Utilities are first-class gameplay systems and visible to players in both private and public spaces.
+
+### Utility classes
+- Power
+- Water/Waste
+- Network/Comms
+- Industrial throughput (refinement/production)
+
+### Visibility model
+- Player homes expose local usage/readouts (personal consumption and status).
+- Public spaces show district utility health and dependency state.
+- Utility state impacts accessibility and performance of dependent systems.
+
+### Event model
+- Utility failures can trigger fleet-wide cooperative restoration events.
+- Examples:
+  - Main power cascade -> selected gameplay loops disabled/degraded.
+  - Industrial zone damage -> lower refinement rates, production bottlenecks.
+  - Network degradation -> reduced multiplayer/market/coordination capabilities.
+
+### Restoration flow
+1. Diagnose fault chain.
+2. Route players to required modules/roles.
+3. Gather or craft replacement components.
+4. Restore in dependency order.
+5. Verify system stabilization and reopen gated services.
+
+### Design intent
+- Teach infrastructure interdependence in an intuitive, participatory way.
+- Convert outages into meaningful cooperative gameplay rather than passive downtime.
+
+---
+
 ## Implementation Notes (Near-term)
 
 1. Represent these layers/modules as domains in Feature Web.
