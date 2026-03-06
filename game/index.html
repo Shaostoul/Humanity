@@ -607,7 +607,7 @@
    <div id="fw-status-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
    <div id="fw-link-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
    <div id="fw-owner-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
-   <div style="font-size:0.64rem;color:var(--text-muted);opacity:0.8;margin-bottom:0.6rem;">Shortcuts: <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">/</kbd> search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">K</kbd> add title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Esc</kbd> clear · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Del</kbd> delete · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Arrows</kbd> nudge · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">C</kbd> center · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">D</kbd> duplicate · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">G</kbd> snap · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Y</kbd> owned-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">L</kbd> linked-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">E</kbd> edge labels · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">O</kbd> open task · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">T</kbd> copy title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">R</kbd> auto layout · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">F</kbd> fit · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">H</kbd> teach</div>
+   <div style="font-size:0.64rem;color:var(--text-muted);opacity:0.8;margin-bottom:0.6rem;">Shortcuts: <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">/</kbd> search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">K</kbd> add title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Esc</kbd> clear · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Del</kbd> delete · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Arrows</kbd> nudge · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">C</kbd> center · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">D</kbd> duplicate · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">G</kbd> snap · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Y</kbd> owned-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">L</kbd> linked-only · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">E</kbd> edge labels · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">X</kbd> focus selected · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">O</kbd> open task · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">T</kbd> copy title · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">R</kbd> auto layout · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">F</kbd> fit · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">H</kbd> teach</div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
     <input id="fw-node-title" type="text" placeholder="Feature / subfeature" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <input id="fw-node-owner" type="text" placeholder="Owner/team (optional)" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
@@ -9231,6 +9231,16 @@
     if (edgeLabelsEl) {
      e.preventDefault();
      edgeLabelsEl.checked = !edgeLabelsEl.checked;
+     featureWebSaveFilters();
+     featureWebRender();
+    }
+    return;
+   }
+   if (e.key === 'x' || e.key === 'X') {
+    const focusEl = document.getElementById('fw-focus-selected');
+    if (focusEl) {
+     e.preventDefault();
+     focusEl.checked = !focusEl.checked;
      featureWebSaveFilters();
      featureWebRender();
     }
