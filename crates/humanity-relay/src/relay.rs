@@ -35,6 +35,15 @@ const FIB_DELAYS: [u64; 8] = [1, 1, 2, 3, 5, 8, 13, 21];
 /// Duration after which a new identity is no longer considered "new" (10 minutes).
 const NEW_ACCOUNT_WINDOW_SECS: u64 = 600;
 
+/// Whether registrations should stay open by default even when staff are offline.
+/// Controlled by env REGISTRATION_DEFAULT_OPEN (default: true).
+fn registration_default_open() -> bool {
+    std::env::var("REGISTRATION_DEFAULT_OPEN")
+        .ok()
+        .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(true)
+}
+
 /// Flat rate limit for new accounts (seconds).
 const NEW_ACCOUNT_DELAY_SECS: u64 = 5;
 
@@ -145,7 +154,20 @@ impl RelayState {
             .flatten()
             .map(|v| v == "true")
             .unwrap_or(false);
-        if persisted_lockdown {
+
+        // Default-open policy: force-open registrations unless explicitly disabled.
+        let default_open = registration_default_open();
+        let effective_lockdown = if default_open {
+            if persisted_lockdown {
+                let _ = db.set_state("lockdown", "false");
+                info!("Registration default-open policy active; overriding persisted lockdown=true to false");
+            }
+            false
+        } else {
+            persisted_lockdown
+        };
+
+        if effective_lockdown {
             info!("Restored lockdown state from database: locked");
         }
 
@@ -159,7 +181,7 @@ impl RelayState {
             webhook,
             http_client: reqwest::Client::new(),
             rate_limits: RwLock::new(HashMap::new()),
-            lockdown: RwLock::new(persisted_lockdown),
+            lockdown: RwLock::new(effective_lockdown),
             auto_lockdown: RwLock::new(false),
             kicked_keys: RwLock::new(HashSet::new()),
             connection_count: AtomicUsize::new(0),
@@ -5443,7 +5465,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
     // Auto-lockdown with grace period: if no admins/mods remain, wait 30s
     // before locking down. Prevents false lockdowns during deploy restarts.
-    if disconnected_role == "admin" || disconnected_role == "mod" {
+    // Disabled when REGISTRATION_DEFAULT_OPEN=true (default behavior).
+    if (disconnected_role == "admin" || disconnected_role == "mod") && !registration_default_open() {
         let peers = state.peers.read().await;
         let has_staff = peers.values().any(|p| {
             let role = state.db.get_role(&p.public_key_hex).unwrap_or_default();
