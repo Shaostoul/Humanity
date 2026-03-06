@@ -8310,6 +8310,14 @@
    if (panel) panel.style.display = 'none';
   }
 
+  function featureWebClearSelection() {
+   fwSelectedNodeId = '';
+   const editEl = document.getElementById('fw-edit-node');
+   if (editEl) editEl.value = '';
+   featureWebRenderEditor();
+   featureWebRender();
+  }
+
   function featureWebCenterSelected() {
    if (!fwSelectedNodeId) {
     featureWebNotice('Select a node first');
@@ -8617,7 +8625,18 @@
      return;
     }
    }
-   if (inField) return;
+   if (inField) {
+    if (e.key === 'Escape') {
+     const el = document.activeElement;
+     if (el && typeof el.blur === 'function') el.blur();
+    }
+    return;
+   }
+   if (e.key === 'Escape') {
+    e.preventDefault();
+    featureWebClearSelection();
+    return;
+   }
    if ((e.key === 'Delete' || e.key === 'Backspace') && fwSelectedNodeId) {
     e.preventDefault();
     featureWebDeleteSelectedNode();
