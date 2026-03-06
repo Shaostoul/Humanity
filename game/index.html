@@ -643,6 +643,7 @@
    <div id="fw-notice" style="display:none;margin-bottom:0.45rem;font-size:0.7rem;color:#e8b35a;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
     <input id="fw-filter-search" type="text" placeholder="Search nodes…" oninput="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.23rem 0.42rem;border-radius:6px;font-size:0.72rem;min-width:150px;">
+    <button onclick="featureWebClearSearch()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Search</button>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-linked-only" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Linked only</label>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-owned-only" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Owned only</label>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-focus-selected" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Focus selected</label>
@@ -8213,6 +8214,15 @@
    if (labelsEl) labelsEl.checked = false;
    featureWebSaveFilters();
    featureWebRender();
+  }
+
+  function featureWebClearSearch() {
+   const searchEl = document.getElementById('fw-filter-search');
+   if (!searchEl || !searchEl.value) return;
+   searchEl.value = '';
+   featureWebSaveFilters();
+   featureWebRender();
+   searchEl.focus();
   }
 
   function featureWebNotice(text) {
