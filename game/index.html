@@ -628,13 +628,14 @@
     <select id="fw-edit-domain" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option></select>
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
    </div>
-   <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.45rem;">
+   <div style="display:flex;justify-content:flex-end;margin-bottom:0.35rem;"><button onclick="featureWebToggleAdvanced()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Toggle Details</button></div>
+   <div class="fw-advanced" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.45rem;">
     <input id="fw-edit-owner" type="text" placeholder="Owner/team" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;">
     <select id="fw-edit-priority" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select>
    </div>
-   <textarea id="fw-edit-summary" rows="2" placeholder="Short summary (what it is)" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
-   <textarea id="fw-edit-teach" rows="2" placeholder="Teach summary (how you'd explain to a newcomer)" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
-   <textarea id="fw-edit-details" rows="3" placeholder="Details / implementation notes" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.6rem;"></textarea>
+   <textarea class="fw-advanced" id="fw-edit-summary" rows="2" placeholder="Short summary (what it is)" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
+   <textarea class="fw-advanced" id="fw-edit-teach" rows="2" placeholder="Teach summary (how you'd explain to a newcomer)" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
+   <textarea class="fw-advanced" id="fw-edit-details" rows="3" placeholder="Details / implementation notes" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.6rem;"></textarea>
    <div id="fw-teach-panel" style="display:none;white-space:pre-wrap;background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.35);border-radius:8px;padding:0.45rem 0.55rem;font-size:0.73rem;color:var(--text-muted);margin-bottom:0.55rem;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <button onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
@@ -7882,6 +7883,7 @@
   let fwDrag = null;
   let fwSelectedNodeId = '';
   let fwHoveredNodeId = '';
+  let fwAdvancedVisible = true;
 
   function featureWebLoad() {
    try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
@@ -7970,6 +7972,14 @@
    featureWebNotice._t = setTimeout(() => {
     if (el.textContent === text) { el.style.display = 'none'; el.textContent = ''; }
    }, 2200);
+  }
+
+  function featureWebToggleAdvanced(forceState) {
+   fwAdvancedVisible = typeof forceState === 'boolean' ? forceState : !fwAdvancedVisible;
+   document.querySelectorAll('.fw-advanced').forEach(el => {
+    if (!el.dataset.fwDisplay) el.dataset.fwDisplay = el.style.display || '';
+    el.style.display = fwAdvancedVisible ? el.dataset.fwDisplay : 'none';
+   });
   }
 
   function featureWebSeedPU() {
@@ -8938,6 +8948,7 @@
   };
 
   featureWebLoad();
+  featureWebToggleAdvanced(true);
 
   // Auto-connect if initial tab is board
   if (initialTab === 'board') boardConnect();
