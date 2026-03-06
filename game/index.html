@@ -574,7 +574,7 @@
   </div>
   <div id="feature-web" style="margin-bottom:1rem;background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.8rem;">
    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
-    <h3 style="margin:0;font-size:0.95rem;color:var(--text);">🕸️ Feature Web (V1)</h3>
+    <h3 style="margin:0;font-size:0.95rem;color:var(--text);">✨ Feature Showcase</h3>
     <div id="feature-web-meta" style="font-size:0.72rem;color:var(--text-muted);">0 nodes · 0 links</div>
    </div>
    <div id="fw-notice" style="display:none;margin-bottom:0.45rem;font-size:0.7rem;color:#e8b35a;"></div>
@@ -634,9 +634,10 @@
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
     <button id="fw-unlink-btn" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
    </div>
-   <div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:center;margin-bottom:0.2rem;">
+   <div style="display:grid;grid-template-columns:1fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.2rem;">
     <select id="fw-link-task" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"></select>
     <button onclick="featureWebLinkSelectedToTask()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Link Task</button>
+    <button onclick="featureWebSyncNodesToBoard()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Sync Nodes→Tasks</button>
    </div>
    <div id="fw-linked-task-info" style="display:none;font-size:0.67rem;color:var(--text-muted);margin-bottom:0.45rem;"></div>
    <div style="display:flex;justify-content:flex-end;margin-bottom:0.35rem;"><button onclick="featureWebToggleAdvanced()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Toggle Details</button></div>
@@ -8105,8 +8106,7 @@
 
    featureWeb.nodes = featureWeb.nodes.concat(nodes);
    featureWeb.edges = featureWeb.edges.concat(edges);
-   featureWebSave();
-   featureWebRender();
+   featureWebConstellationLayout();
    featureWebNotice('Seeded PU map pack (' + nodes.length + ' nodes)');
   }
 
@@ -8420,6 +8420,36 @@
    featureWebRenderEditor();
    featureWebRender();
    featureWebNotice('Node linked to task');
+  }
+
+  function featureWebSyncNodesToBoard() {
+   if (!boardWs || boardWs.readyState !== 1) {
+    featureWebNotice('Board connection not ready');
+    return;
+   }
+   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+   if (!canEdit) {
+    featureWebNotice('Need admin/mod role to create tasks');
+    return;
+   }
+   let created = 0;
+   featureWeb.nodes.forEach((node) => {
+    if (node.taskId != null) return;
+    const mappedStatus = node.status === 'active' ? 'in_progress' : (node.status === 'done' ? 'done' : (node.status === 'blocked' ? 'testing' : 'backlog'));
+    const marker = '[fw-node:' + node.id + ']';
+    const descParts = [marker, node.summary || '', node.details || ''].filter(Boolean);
+    const payload = {
+      type: 'task_create',
+      title: node.title || 'Untitled Node',
+      description: descParts.join('\n\n'),
+      priority: (node.priority || 'medium'),
+      assignee: (node.owner || null),
+      labels: JSON.stringify([node.domain || 'game', node.type || 'feature']),
+    };
+    boardWs.send(JSON.stringify(payload));
+    created++;
+   });
+   featureWebNotice(created ? ('Queued ' + created + ' task(s) from nodes') : 'All nodes already linked');
   }
 
   function featureWebClearSelection() {
@@ -8950,6 +8980,20 @@
     case 'task_created':
      if (msg.task) {
       boardTasks.push(msg.task);
+      const desc = String(msg.task.description || '');
+      const m = desc.match(/\[fw-node:([^\]]+)\]/);
+      if (m && m[1]) {
+       const node = featureWeb.nodes.find(n => n.id === m[1]);
+       if (node) {
+        node.taskId = msg.task.id;
+        featureWebSave();
+        featureWebRender();
+        const mapped = node.status === 'active' ? 'in_progress' : (node.status === 'done' ? 'done' : (node.status === 'blocked' ? 'testing' : 'backlog'));
+        if (boardWs && boardWs.readyState === 1 && msg.task.status !== mapped) {
+          boardWs.send(JSON.stringify({ type: 'task_move', id: msg.task.id, status: mapped }));
+        }
+       }
+      }
       renderBoard();
      }
      break;
