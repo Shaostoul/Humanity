@@ -28,7 +28,7 @@ AI may not:
 - change data without validation
 - bypass engine determinism
 
-All AI interaction must uphold `design/accord_constraints.md`.
+All AI interaction must uphold `design/core/accord_constraints.md`.
 
 ---
 

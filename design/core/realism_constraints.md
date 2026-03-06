@@ -18,7 +18,7 @@ They apply to all systems, data, assets, tools, and explanations.
 
 These constraints derive authority from:
 - the Humanity Accord
-- `design/accord_constraints.md`
+- `design/core/accord_constraints.md`
 
 No design decision may violate these constraints for convenience.
 

@@ -21,7 +21,7 @@ The data model is constrained by:
 
 - the Humanity Accord
 - design law (`design/`)
-- accord constraints (`design/accord_constraints.md`)
+- accord constraints (`design/core/accord_constraints.md`)
 
 Data does not encode ethics or behavior.  
 It encodes **facts, properties, quantities, and relationships**.

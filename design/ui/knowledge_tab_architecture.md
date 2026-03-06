@@ -44,7 +44,7 @@ Denylist examples:
 
 ```json
 {
-  "path": "design/ship_zoning_transit.md",
+  "path": "design/gameplay/ship_zoning_transit.md",
   "title": "Ship Zoning & Transit Architecture",
   "updatedAt": "2026-03-06T00:00:00Z",
   "tags": ["systems", "transit", "design"],

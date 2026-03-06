@@ -24,7 +24,7 @@ All design documents are constrained by:
 - repair-first responsibility
 
 These constraints are formally defined in:
-- `design/accord_constraints.md`
+- `design/core/accord_constraints.md`
 
 No design decision may bypass or reinterpret those constraints.
 

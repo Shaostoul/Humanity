@@ -24,7 +24,7 @@
 
 ### Memory Schema
 
-See `design/memory_structure.md` for complete documentation.
+See `design/core/memory_structure.md` for complete documentation.
 
 **Quick example:**
 ```json

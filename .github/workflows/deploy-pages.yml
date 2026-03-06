@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           test -f website/_includes/canon/accord/humanity_accord.md
-          test -f website/_includes/canon/design/asset_rules.md
+          test -f website/_includes/canon/design/core/asset_rules.md
 
 
       # Debug dump: if the build fails, you can see what Jekyll actually had.

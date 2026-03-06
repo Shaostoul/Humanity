@@ -4,4 +4,4 @@ title: Testing Philosophy
 permalink: /design/testing
 ---
 
-{% include canon/design/testing_philosophy.md %}
+{% include canon/design/core/testing_philosophy.md %}

@@ -15,9 +15,9 @@ Its purpose is navigational:
 - to help contributors choose bounded work
 
 All systems listed here must comply with:
-- `design/accord_constraints.md`
-- `design/simulation_laws.md`
-- `design/realism_constraints.md`
+- `design/core/accord_constraints.md`
+- `design/core/simulation_laws.md`
+- `design/core/realism_constraints.md`
 
 ---
 

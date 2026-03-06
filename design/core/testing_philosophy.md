@@ -17,7 +17,7 @@ Testing enforces the authority chain:
 
 `accord/` → `design/` → `data/` → `engine/`
 
-Testing must enforce `design/accord_constraints.md`, `design/simulation_laws.md`, and `design/realism_constraints.md`.
+Testing must enforce `design/core/accord_constraints.md`, `design/core/simulation_laws.md`, and `design/core/realism_constraints.md`.
 
 ---
 
