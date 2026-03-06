@@ -689,7 +689,7 @@
    </div>
    <div class="fw-pro" style="display:grid;grid-template-columns:1fr 1fr 0.9fr auto;gap:0.5rem;margin-bottom:0.4rem;">
     <select id="fw-link-from" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
-    <select id="fw-link-to" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
+    <select id="fw-link-to" onkeydown="if(event.key==='Enter')featureWebAddEdge()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <select id="fw-link-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="depends_on">Depends on</option><option value="blocks">Blocks</option><option value="relates_to">Relates to</option><option value="teaches">Teaches</option><option value="enables">Enables</option></select>
     <button onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
