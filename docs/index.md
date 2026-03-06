@@ -11,6 +11,8 @@ This is the parent entry for major documentation areas.
 ## Design
 - [Design README](../design/README.md)
 - [Feature Web](../design/feature_web.md)
+- [Vision](../design/product/vision.md)
+- [Product Roadmap](../design/product/product_roadmap.md)
 - [App Shell IA](../design/ui/app_shell_information_architecture.md)
 - [Knowledge Tab IA](../design/ui/knowledge_tab_architecture.md)
 - [Update Distribution](../design/runtime/update_distribution_architecture.md)
