@@ -8406,9 +8406,15 @@
   }
 
   function featureWebOpenLinkedTask() {
-   if (!fwSelectedNodeId) return;
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node || node.taskId == null) return;
+   if (!node || node.taskId == null) {
+    featureWebNotice('Selected node is not linked to a task');
+    return;
+   }
    openTaskModal(node.taskId);
   }
 
