@@ -8595,6 +8595,15 @@
    const active = document.activeElement;
    const tag = active && active.tagName ? active.tagName.toLowerCase() : '';
    const inField = tag === 'input' || tag === 'textarea' || tag === 'select' || (active && active.isContentEditable);
+   if (!inField && e.key === '/') {
+    const searchEl = document.getElementById('fw-filter-search');
+    if (searchEl) {
+     e.preventDefault();
+     searchEl.focus();
+     searchEl.select();
+     return;
+    }
+   }
    if (inField) return;
    if ((e.key === 'Delete' || e.key === 'Backspace') && fwSelectedNodeId) {
     e.preventDefault();
