@@ -582,7 +582,8 @@
     <input id="fw-filter-search" type="text" placeholder="Search nodes…" oninput="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.23rem 0.42rem;border-radius:6px;font-size:0.72rem;min-width:150px;">
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-linked-only" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Linked only</label>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-focus-selected" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Focus selected</label>
-    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-show-edge-labels" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Edge labels</label>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-simple-ui" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Simple UI</label>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-show-edge-labels" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Edge labels</label>
     <label style="font-size:0.7rem;color:var(--text-muted);">View</label>
     <select id="fw-view-mode" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="cards">Card Web</option><option value="constellation">Constellation</option><option value="orbit">Orbit System</option>
@@ -619,14 +620,15 @@
     <button onclick="featureWebAddNode()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Add Node</button>
     <button onclick="featureWebSeedPU()" style="background:#6f49d8;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Seed PU Map</button>
    </div>
-   <div style="display:grid;grid-template-columns:1fr 1fr 0.9fr auto;gap:0.5rem;margin-bottom:0.4rem;">
+   <div class="fw-pro" style="display:grid;grid-template-columns:1fr 1fr 0.9fr auto;gap:0.5rem;margin-bottom:0.4rem;">
     <select id="fw-link-from" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <select id="fw-link-to" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <select id="fw-link-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="depends_on">Depends on</option><option value="blocks">Blocks</option><option value="relates_to">Relates to</option><option value="teaches">Teaches</option><option value="enables">Enables</option></select>
     <button onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
-   <div id="fw-edge-list" style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
-   <div style="display:grid;grid-template-columns:1fr 1.3fr 0.8fr 0.8fr 0.9fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
+   <div id="fw-quick-list" style="margin-bottom:0.5rem;display:flex;flex-wrap:wrap;gap:0.35rem;"></div>
+   <div id="fw-edge-list" class="fw-pro" style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
+   <div class="fw-pro" style="display:grid;grid-template-columns:1fr 1.3fr 0.8fr 0.8fr 0.9fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
     <select id="fw-edit-node" onchange="featureWebRenderEditor()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <input id="fw-edit-title" type="text" placeholder="Edit title" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-edit-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option><option value="org">Org</option><option value="lore">Lore</option></select>
@@ -635,7 +637,7 @@
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
     <button id="fw-unlink-btn" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
    </div>
-   <div style="display:grid;grid-template-columns:1fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.2rem;">
+   <div class="fw-pro" style="display:grid;grid-template-columns:1fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.2rem;">
     <select id="fw-link-task" onkeydown="if(event.key==='Enter')featureWebLinkSelectedToTask()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"></select>
     <button onclick="featureWebLinkSelectedToTask()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Link Task</button>
     <button onclick="featureWebSyncNodesToBoard()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Sync Nodes→Tasks</button>
@@ -653,7 +655,7 @@
    <textarea class="fw-advanced" id="fw-edit-teach" rows="2" placeholder="Teach summary (how you'd explain to a newcomer)" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
    <textarea class="fw-advanced" id="fw-edit-details" rows="3" placeholder="Details / implementation notes" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.6rem;"></textarea>
    <div id="fw-teach-panel" style="display:none;white-space:pre-wrap;background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.35);border-radius:8px;padding:0.45rem 0.55rem;font-size:0.73rem;color:var(--text-muted);margin-bottom:0.55rem;"></div>
-   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+   <div class="fw-pro" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <button onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
     <button onclick="featureWebConstellationLayout()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Constellation Layout</button>
     <button onclick="featureWebOrbitLayout()" style="background:none;border:1px solid rgba(120,170,255,0.55);color:#a9c8ff;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Orbit Layout</button>
@@ -7955,6 +7957,7 @@
    const searchEl = document.getElementById('fw-filter-search');
    const linkedOnlyEl = document.getElementById('fw-linked-only');
    const focusEl = document.getElementById('fw-focus-selected');
+   const simpleEl = document.getElementById('fw-simple-ui');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
@@ -7965,6 +7968,7 @@
    if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
    if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
    if (focusEl && f && typeof f.focusSelected === 'boolean') focusEl.checked = f.focusSelected;
+   if (simpleEl) simpleEl.checked = !(f && f.simpleUi === false);
    if (labelsEl && f && typeof f.showEdgeLabels === 'boolean') labelsEl.checked = f.showEdgeLabels;
   }
 
@@ -7974,6 +7978,7 @@
    const searchEl = document.getElementById('fw-filter-search');
    const linkedOnlyEl = document.getElementById('fw-linked-only');
    const focusEl = document.getElementById('fw-focus-selected');
+   const simpleEl = document.getElementById('fw-simple-ui');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
@@ -7985,6 +7990,7 @@
     search: (searchEl && searchEl.value) || '',
     linkedOnly: linkedOnlyEl ? !!linkedOnlyEl.checked : false,
     focusSelected: focusEl ? !!focusEl.checked : true,
+    simpleUi: simpleEl ? !!simpleEl.checked : true,
     showEdgeLabels: labelsEl ? !!labelsEl.checked : true,
    }));
   }
@@ -7995,6 +8001,7 @@
    const searchEl = document.getElementById('fw-filter-search');
    const linkedOnlyEl = document.getElementById('fw-linked-only');
    const focusEl = document.getElementById('fw-focus-selected');
+   const simpleEl = document.getElementById('fw-simple-ui');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
@@ -8005,7 +8012,8 @@
    if (searchEl) searchEl.value = '';
    if (linkedOnlyEl) linkedOnlyEl.checked = false;
    if (focusEl) focusEl.checked = true;
-   if (labelsEl) labelsEl.checked = true;
+   if (simpleEl) simpleEl.checked = true;
+   if (labelsEl) labelsEl.checked = false;
    featureWebSaveFilters();
    featureWebRender();
   }
@@ -8847,8 +8855,10 @@
    const showEdgeLabelsEl = document.getElementById('fw-show-edge-labels');
    const viewModeEl = document.getElementById('fw-view-mode');
    const focusSelectedEl = document.getElementById('fw-focus-selected');
+   const simpleUiEl = document.getElementById('fw-simple-ui');
    const viewMode = (viewModeEl && viewModeEl.value) || 'cards';
-   const showEdgeLabels = !showEdgeLabelsEl || !!showEdgeLabelsEl.checked;
+   const simpleUi = !(simpleUiEl && !simpleUiEl.checked);
+   const showEdgeLabels = !showEdgeLabelsEl || (!!showEdgeLabelsEl.checked && !simpleUi);
    const linkedOnly = !!(linkedOnlyEl && linkedOnlyEl.checked);
    const focusSelected = !!(focusSelectedEl && focusSelectedEl.checked && fwSelectedNodeId);
    const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().toLowerCase();
@@ -8862,6 +8872,9 @@
      canvasEl.style.border = '1px dashed var(--border)';
     }
    }
+   document.querySelectorAll('.fw-pro').forEach(el => {
+    el.style.display = simpleUi ? 'none' : '';
+   });
    let visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || n.taskId != null) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
    let visibleNodeIds = new Set(visibleNodes.map(n => n.id));
    let visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
@@ -8874,6 +8887,17 @@
    }
 
    if (metaEl) metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links';
+
+   const quickListEl = document.getElementById('fw-quick-list');
+   if (quickListEl) {
+    const ranked = [...visibleNodes].sort((a,b) => {
+      const wa = ((a.priority==='critical')?4:(a.priority==='high'?3:(a.priority==='medium'?2:1))) + featureWeb.edges.filter(e=>e.from===a.id||e.to===a.id).length * 0.1;
+      const wb = ((b.priority==='critical')?4:(b.priority==='high'?3:(b.priority==='medium'?2:1))) + featureWeb.edges.filter(e=>e.from===b.id||e.to===b.id).length * 0.1;
+      return wb - wa;
+    }).slice(0, simpleUi ? 16 : 10);
+    quickListEl.innerHTML = ranked.map(n => '<button onclick="featureWebFocusNode(\'' + n.id + '\');featureWebCenterSelected();" style="background:' + (n.id===fwSelectedNodeId?'rgba(120,180,255,0.25)':'rgba(255,255,255,0.06)') + ';border:1px solid rgba(255,255,255,0.14);color:var(--text);padding:0.2rem 0.45rem;border-radius:999px;font-size:0.68rem;cursor:pointer;">' + escHtml(n.title) + '</button>').join('');
+    quickListEl.style.display = simpleUi ? 'flex' : 'none';
+   }
 
    if (legendEl) {
     const typeBits = Object.entries(FW_TYPE_COLORS).slice(0,4).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
