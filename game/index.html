@@ -1706,35 +1706,29 @@
    </aside>
   </div>
   <script>
-  const KNOWLEDGE_DOCS = [
-   'docs/index.md','README.md','AGENTS.md','OPERATING_CONTRACT.md','TOOLS.md','USER.md','SOUL.md',
-   'design/README.md','design/feature_web.md','design/ship_zoning_transit.md','design/earth_fleet_twin.md','design/product/vision.md','design/product/product_roadmap.md','design/product/open_questions.md','design/product/mvp_feature_spec.md','design/product/project_universe_integration.md','design/product/ecosystem_architecture.md','design/ui/app_shell_information_architecture.md','design/ui/knowledge_tab_architecture.md','design/market_integration_architecture.md','design/first_third_person_traversal.md','design/camera_modes_architecture.md','design/runtime/update_distribution_architecture.md','design/runtime/ai_plugin_runtime_architecture.md','design/runtime/hot_reload_tiers.md','design/docs/md_information_architecture_plan.md',
-   'knowledge/index.md','knowledge/OPERATIONS_RUNBOOK.md','knowledge/ECOSYSTEM_RELEASE_CHECKLIST.md',
-   'accord/README.md','accord/humanity_accord.md',
-   'website/README.md','website/index.md','website/design.md','website/accord.md'
+  let KNOWLEDGE_DOCS = [
+   'docs/index.md','README.md','AGENTS.md','OPERATING_CONTRACT.md','TOOLS.md',
+   'design/README.md','design/feature_web.md','design/ui/app_shell_information_architecture.md','design/runtime/update_distribution_architecture.md',
+   'knowledge/index.md','knowledge/OPERATIONS_RUNBOOK.md','accord/humanity_accord.md'
   ];
-  const KNOWLEDGE_TEXT = {
+  let KNOWLEDGE_TEXT = {
    'docs/index.md': 'Top-level docs index for easier navigation.',
    'README.md': 'Project root overview and entrypoint for contributors.',
    'design/feature_web.md': 'Feature Showcase system goals, model, and roadmap.',
-   'design/ship_zoning_transit.md': 'Fleet/private/public zoning and transit architecture.',
-   'design/earth_fleet_twin.md': 'Earth+Fleet digital twin architecture and storage tiers.',
-   'design/product/vision.md': 'High-level product vision.',
-   'design/product/product_roadmap.md': 'Product roadmap and phases.',
-   'design/product/open_questions.md': 'Open design/product questions.',
-   'design/product/mvp_feature_spec.md': 'MVP scope and feature constraints.',
-   'design/product/project_universe_integration.md': 'How PU concepts integrate into product.',
-   'design/product/ecosystem_architecture.md': 'Ecosystem-level architecture view.',
-   'design/ui/app_shell_information_architecture.md': 'Private | H | Public app shell plan.',
-   'design/ui/knowledge_tab_architecture.md': 'Knowledge tab markdown explorer model.',
-   'design/runtime/update_distribution_architecture.md': 'Self-hosted async update distribution model.',
-   'design/runtime/ai_plugin_runtime_architecture.md': 'Pluggable optional AI runtime architecture.',
-   'design/runtime/hot_reload_tiers.md': 'Hot/warm/restart update tier definitions.',
-   'design/docs/md_information_architecture_plan.md': 'Markdown folder organization plan.',
-   'knowledge/index.md': 'Knowledge folder index and quick links.',
-   'knowledge/OPERATIONS_RUNBOOK.md': 'Deploy and operations runbook.',
-   'accord/humanity_accord.md': 'Core accord principles and constraints.'
+   'knowledge/OPERATIONS_RUNBOOK.md': 'Deploy and operations runbook.'
   };
+  async function knowledgeLoadManifest() {
+   try {
+    const res = await fetch('/docs/knowledge_manifest.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('manifest http ' + res.status);
+    const data = await res.json();
+    if (data && Array.isArray(data.docs) && data.docs.length) {
+      KNOWLEDGE_DOCS = data.docs.map(d => d.path).filter(Boolean);
+      KNOWLEDGE_TEXT = {};
+      data.docs.forEach(d => { if (d.path) KNOWLEDGE_TEXT[d.path] = d.summary || ''; });
+    }
+   } catch {}
+  }
   function knowledgeRenderList() {
    const qEl = document.getElementById('knowledge-search');
    const treeEl = document.getElementById('knowledge-tree');
@@ -1743,13 +1737,26 @@
    const list = KNOWLEDGE_DOCS.filter(p => !q || p.toLowerCase().includes(q));
    const groups = {};
    list.forEach(p => {
-    const g = p.includes('/') ? p.split('/')[0] : 'root';
+    let g = 'root';
+    if (p.includes('/')) {
+      const parts = p.split('/');
+      g = (parts[0] === 'design' && parts.length > 2) ? parts[1] : parts[0];
+    }
     if (!groups[g]) groups[g] = [];
     groups[g].push(p);
    });
-   const order = ['root','docs','design','knowledge','accord','website'];
+   const order = ['root','docs','design','core','security','gameplay','product','ui','runtime','rfc','knowledge','accord','website'];
    treeEl.innerHTML = order.filter(g => groups[g] && groups[g].length).map(g => {
-    const items = groups[g].map(p => '<button onclick="knowledgeOpenDoc(\'' + p + '\')" style="text-align:left;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">' + p.replace(g + '/', '') + '</button>').join('');
+    const items = groups[g].map(p => {
+      let label = p;
+      if (p.startsWith('design/')) {
+        const parts = p.split('/');
+        label = parts.slice(parts.length > 2 ? 2 : 1).join('/');
+      } else if (p.includes('/')) {
+        label = p.split('/').slice(1).join('/');
+      }
+      return '<button onclick="knowledgeOpenDoc(\'' + p + '\')" style="text-align:left;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">' + label + '</button>';
+    }).join('');
     const label = g === 'root' ? 'root' : g;
     return '<details open><summary style="cursor:pointer;font-size:0.72rem;color:var(--text-muted);">' + label + '</summary><div style="display:flex;flex-direction:column;gap:0.2rem;padding:0.25rem 0 0.25rem 0.45rem;">' + items + '</div></details>';
    }).join('');
@@ -1772,7 +1779,7 @@
     if (metaEl) metaEl.innerHTML = '<div><strong>Path:</strong> ' + path + '</div><div><strong>Status:</strong> load failed</div><div><strong>Summary:</strong> ' + (KNOWLEDGE_TEXT[path] || 'No summary yet.') + '</div>';
    }
   }
-  knowledgeRenderList();
+  knowledgeLoadManifest().then(() => knowledgeRenderList());
   </script>
 
   <!-- Server Info -->
