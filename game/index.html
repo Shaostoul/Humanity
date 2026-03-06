@@ -8352,7 +8352,13 @@
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
    if (!node) return;
-   node.taskId = Number(linkTaskEl.value);
+   const taskId = Number(linkTaskEl.value);
+   const conflict = featureWeb.nodes.find(n => n.id !== node.id && n.taskId === taskId);
+   if (conflict) {
+    featureWebNotice('Task already linked to another node');
+    return;
+   }
+   node.taskId = taskId;
    featureWebSave();
    featureWebRenderEditor();
    featureWebRender();
