@@ -8280,7 +8280,13 @@
    if (!editSelect || !titleEl || !typeEl || !statusEl) return;
    if (linkTaskEl) {
     const selectedTask = linkTaskEl.value;
-    linkTaskEl.innerHTML = '<option value="">Link to task…</option>' + boardTasks.map(t => '<option value="' + t.id + '">#' + t.id + ' · ' + escHtml(t.title) + '</option>').join('');
+    const orderedTasks = boardTasks.slice().sort((a, b) => {
+     const ao = Number.isFinite(+a.position) ? +a.position : 999999;
+     const bo = Number.isFinite(+b.position) ? +b.position : 999999;
+     if (ao !== bo) return ao - bo;
+     return (a.id || 0) - (b.id || 0);
+    });
+    linkTaskEl.innerHTML = '<option value="">Link to task…</option>' + orderedTasks.map(t => '<option value="' + t.id + '">#' + t.id + ' · ' + escHtml(t.title) + '</option>').join('');
     linkTaskEl.value = selectedTask;
    }
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
