@@ -703,6 +703,7 @@
     <select id="fw-edit-domain" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option></select>
     <button onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
     <button onclick="featureWebCopySelectedTitle()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Title</button>
+    <button onclick="featureWebCopySelectedId()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node ID</button>
     <button onclick="featureWebCopySelectedJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node JSON</button>
     <button id="fw-unlink-btn" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
    </div>
@@ -8712,6 +8713,31 @@
    ta.select();
    try { document.execCommand('copy'); featureWebNotice('Node title copied'); }
    catch { featureWebNotice('Could not copy title'); }
+   document.body.removeChild(ta);
+  }
+
+  async function featureWebCopySelectedId() {
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
+   const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
+   if (!node) return;
+   try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+     await navigator.clipboard.writeText(node.id);
+     featureWebNotice('Node ID copied');
+     return;
+    }
+   } catch {}
+   const ta = document.createElement('textarea');
+   ta.value = node.id;
+   ta.style.position = 'fixed';
+   ta.style.left = '-9999px';
+   document.body.appendChild(ta);
+   ta.select();
+   try { document.execCommand('copy'); featureWebNotice('Node ID copied'); }
+   catch { featureWebNotice('Could not copy node ID'); }
    document.body.removeChild(ta);
   }
 
