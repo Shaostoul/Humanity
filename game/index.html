@@ -605,7 +605,7 @@
    <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;color:var(--text-muted);"></div>
    <div id="fw-status-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
    <div id="fw-link-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
-   <div style="font-size:0.64rem;color:var(--text-muted);opacity:0.8;margin-bottom:0.6rem;">Shortcuts: <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">/</kbd> search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Esc</kbd> clear · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Del</kbd> delete · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Arrows</kbd> nudge · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">C</kbd> center · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">D</kbd> duplicate · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">O</kbd> open task · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">F</kbd> fit</div>
+   <div style="font-size:0.64rem;color:var(--text-muted);opacity:0.8;margin-bottom:0.6rem;">Shortcuts: <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">/</kbd> search · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Esc</kbd> clear · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Del</kbd> delete · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">Arrows</kbd> nudge · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">C</kbd> center · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">D</kbd> duplicate · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">G</kbd> snap · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">O</kbd> open task · <kbd style="border:1px solid var(--border);padding:0 0.25rem;border-radius:4px;">F</kbd> fit</div>
    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.5rem;margin-bottom:0.6rem;">
     <input id="fw-node-title" type="text" placeholder="Feature / subfeature" onkeydown="if(event.key==='Enter')featureWebAddNode()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
     <select id="fw-node-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
@@ -666,6 +666,7 @@
     <button onclick="featureWebNudgeSelected(-12,0)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">←</button>
     <button onclick="featureWebNudgeSelected(12,0)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">→</button>
     <button onclick="featureWebNudgeSelected(0,12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">↓</button>
+    <button onclick="featureWebNudgeToGrid(12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Snap Grid</button>
     <button onclick="featureWebTeachMode()" style="background:#2f6fed;color:#fff;border:none;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Teach Mode</button>
     <button onclick="featureWebExport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Export JSON</button>
     <button onclick="featureWebImport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Import JSON</button>
@@ -8600,6 +8601,23 @@
    featureWebRender();
   }
 
+  function featureWebNudgeToGrid(grid) {
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
+   const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
+   const canvas = document.getElementById('feature-web-canvas');
+   if (!node || !canvas) return;
+   const width = Math.max(220, canvas.clientWidth);
+   const height = Math.max(180, canvas.clientHeight);
+   const g = Math.max(4, Number(grid) || 12);
+   node.x = Math.max(4, Math.min(width - 120, Math.round((node.x || 0) / g) * g));
+   node.y = Math.max(4, Math.min(height - 48, Math.round((node.y || 0) / g) * g));
+   featureWebSave();
+   featureWebRender();
+  }
+
   function featureWebDeleteSelectedNode() {
    if (!fwSelectedNodeId) return;
    featureWebDeleteNode(fwSelectedNodeId);
@@ -9112,6 +9130,11 @@
    if (e.key === 'f' || e.key === 'F') {
     e.preventDefault();
     featureWebFitToView();
+    return;
+   }
+   if (fwSelectedNodeId && (e.key === 'g' || e.key === 'G')) {
+    e.preventDefault();
+    featureWebNudgeToGrid(12);
    }
   });
 
