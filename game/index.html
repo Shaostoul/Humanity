@@ -8716,6 +8716,15 @@
    if ((e.key === 'Delete' || e.key === 'Backspace') && fwSelectedNodeId) {
     e.preventDefault();
     featureWebDeleteSelectedNode();
+    return;
+   }
+   if (fwSelectedNodeId && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    e.preventDefault();
+    const step = e.shiftKey ? 24 : 8;
+    if (e.key === 'ArrowUp') featureWebNudgeSelected(0, -step);
+    else if (e.key === 'ArrowDown') featureWebNudgeSelected(0, step);
+    else if (e.key === 'ArrowLeft') featureWebNudgeSelected(-step, 0);
+    else if (e.key === 'ArrowRight') featureWebNudgeSelected(step, 0);
    }
   });
 
