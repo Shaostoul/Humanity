@@ -8789,6 +8789,11 @@
    if (fwSelectedNodeId && (e.key === 'c' || e.key === 'C')) {
     e.preventDefault();
     featureWebCenterSelected();
+    return;
+   }
+   if (fwSelectedNodeId && (e.key === 'd' || e.key === 'D')) {
+    e.preventDefault();
+    featureWebDuplicateSelected();
    }
   });
 
