@@ -581,6 +581,7 @@
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
     <input id="fw-filter-search" type="text" placeholder="Search nodes…" oninput="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.23rem 0.42rem;border-radius:6px;font-size:0.72rem;min-width:150px;">
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-linked-only" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Linked only</label>
+    <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-focus-selected" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Focus selected</label>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-show-edge-labels" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Edge labels</label>
     <label style="font-size:0.7rem;color:var(--text-muted);">View</label>
     <select id="fw-view-mode" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
@@ -670,7 +671,7 @@
     <button onclick="featureWebCopyShare()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy JSON</button>
     <button onclick="featureWebPasteJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Paste JSON</button>
    </div>
-   <div id="feature-web-canvas" ondblclick="featureWebCanvasAdd(event)" style="position:relative;height:340px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
+   <div id="feature-web-canvas" ondblclick="featureWebCanvasAdd(event)" style="position:relative;height:540px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
     <svg id="feature-web-edges" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
     <div id="feature-web-nodes" style="position:absolute;inset:0;"></div>
    </div>
@@ -7953,6 +7954,7 @@
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
    const linkedOnlyEl = document.getElementById('fw-linked-only');
+   const focusEl = document.getElementById('fw-focus-selected');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
@@ -7962,6 +7964,7 @@
    if (viewEl) viewEl.value = (f && f.viewMode) ? f.viewMode : 'orbit';
    if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
    if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
+   if (focusEl && f && typeof f.focusSelected === 'boolean') focusEl.checked = f.focusSelected;
    if (labelsEl && f && typeof f.showEdgeLabels === 'boolean') labelsEl.checked = f.showEdgeLabels;
   }
 
@@ -7970,6 +7973,7 @@
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
    const linkedOnlyEl = document.getElementById('fw-linked-only');
+   const focusEl = document.getElementById('fw-focus-selected');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
@@ -7977,9 +7981,10 @@
     type: (typeEl && typeEl.value) || 'all',
     status: (statusEl && statusEl.value) || 'all',
     domain: (domainEl && domainEl.value) || 'all',
-    viewMode: (viewEl && viewEl.value) || 'cards',
+    viewMode: (viewEl && viewEl.value) || 'orbit',
     search: (searchEl && searchEl.value) || '',
     linkedOnly: linkedOnlyEl ? !!linkedOnlyEl.checked : false,
+    focusSelected: focusEl ? !!focusEl.checked : true,
     showEdgeLabels: labelsEl ? !!labelsEl.checked : true,
    }));
   }
@@ -7989,15 +7994,17 @@
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
    const linkedOnlyEl = document.getElementById('fw-linked-only');
+   const focusEl = document.getElementById('fw-focus-selected');
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
    if (typeEl) typeEl.value = 'all';
    if (statusEl) statusEl.value = 'all';
    if (domainEl) domainEl.value = 'all';
-   if (viewEl) viewEl.value = 'constellation';
+   if (viewEl) viewEl.value = 'orbit';
    if (searchEl) searchEl.value = '';
    if (linkedOnlyEl) linkedOnlyEl.checked = false;
+   if (focusEl) focusEl.checked = true;
    if (labelsEl) labelsEl.checked = true;
    featureWebSaveFilters();
    featureWebRender();
@@ -8107,6 +8114,56 @@
     e('Network Backbone','Public Access Gating','enables'),
     e('Public Access Gating','Global Market (Fleet + Private)','relates_to')
    ].filter(x => x.from && x.to);
+
+   const extraModules = [
+    ['Bedroom','game','active','Private rest + personalization.','Crew Quarters analog.'],
+    ['Battlestation','operations','active','Personal command interface.','Operations Center analog.'],
+    ['Network','operations','active','Messaging/social/fleet links.','Fleet Communications Grid analog.'],
+    ['Garden','game','planned','Real-world-aligned growing practice.','Public Agropark analog.'],
+    ['Workshop','game','planned','Crafting/fabrication practice.','Fabrication Complex analog.'],
+    ['Garage','game','planned','Vehicle setup and dispatch.','Transit/Vehicle Bays analog.'],
+    ['Armory','game','planned','Loadout and combat prep.','Fleet Armory analog.'],
+    ['Living Room','community','planned','Hangout/social/ttrpg/media.','Community Commons analog.'],
+    ['Bathroom & Healthcare','operations','planned','Body/health systems.','Medical & Bio Support analog.'],
+    ['Mall Kiosks','business','planned','Partner commerce access points.','Public market hubs.'],
+    ['Trail System','community','planned','Morale and movement through nature.','Public park circulation.'],
+    ['Monorail Network','operations','planned','Fast horizontal transit.','Inter-hub transport backbone.'],
+    ['Elevator Network','operations','planned','Fast vertical transit.','Layer-switching core transit.'],
+    ['Ramp Fallback Paths','operations','planned','Always-available backup traversal.','Resilience safety path.'],
+    ['Resource Dispatch Drones','economy','planned','Automated mining logistics.','Industrial extraction support.'],
+    ['Fleet Utility Dashboard','operations','planned','Power/water/network telemetry.','Civic utility monitoring.'],
+    ['Outage Repair Missions','operations','planned','Co-op restoration events.','Infrastructure resilience gameplay.'],
+    ['Earth Twin Home Planner','tech','planned','Real home/garden planning mode.','Digital twin practical layer.'],
+    ['Earth Twin Regional Overlay','tech','planned','Roads/utilities/regional context.','Regional twin data layer.'],
+    ['Earth/Fleet Mode Switch','tech','planned','Switch between twins seamlessly.','Unified systems lens.']
+   ];
+   extraModules.forEach((m, i) => {
+    nodes.push(mk(m[0], 'subfeature', m[1], m[2], 980 + (i % 3) * 120, 40 + Math.floor(i / 3) * 42, m[3], m[4], '', '', 'medium'));
+   });
+
+   const byTitle2 = Object.fromEntries(nodes.map(n => [n.title, n.id]));
+   const link = (a,b,t) => { if (byTitle2[a] && byTitle2[b]) edges.push({ id:'e_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), from:byTitle2[a], to:byTitle2[b], type:t }); };
+   link('Bedroom','Intuitive Teaching Goal','teaches');
+   link('Battlestation','Feature Web (this system)','enables');
+   link('Network','Community Contribution Pipeline','enables');
+   link('Garden','Core Gameplay Loops','enables');
+   link('Workshop','Core Gameplay Loops','enables');
+   link('Garage','Core Gameplay Loops','enables');
+   link('Armory','Roadmap: Act II','enables');
+   link('Living Room','Social MMO Layer','enables');
+   link('Bathroom & Healthcare','Contributor Benefits Program','relates_to');
+   link('Mall Kiosks','Funding Portfolio','enables');
+   link('Trail System','Community Contribution Pipeline','enables');
+   link('Monorail Network','Public Access Gating','depends_on');
+   link('Elevator Network','Public Access Gating','depends_on');
+   link('Ramp Fallback Paths','Elevator Network','blocks');
+   link('Resource Dispatch Drones','Industrial Refinery Zone','enables');
+   link('Fleet Utility Dashboard','Main Power Grid','teaches');
+   link('Fleet Utility Dashboard','Water & Waste Loop','teaches');
+   link('Fleet Utility Dashboard','Network Backbone','teaches');
+   link('Outage Repair Missions','Utility Failure Events','relates_to');
+   link('Earth Twin Home Planner','Earth/Fleet Mode Switch','depends_on');
+   link('Earth Twin Regional Overlay','Earth/Fleet Mode Switch','depends_on');
 
    featureWeb.nodes = featureWeb.nodes.concat(nodes);
    featureWeb.edges = featureWeb.edges.concat(edges);
@@ -8789,9 +8846,11 @@
    const linkedOnlyEl = document.getElementById('fw-linked-only');
    const showEdgeLabelsEl = document.getElementById('fw-show-edge-labels');
    const viewModeEl = document.getElementById('fw-view-mode');
+   const focusSelectedEl = document.getElementById('fw-focus-selected');
    const viewMode = (viewModeEl && viewModeEl.value) || 'cards';
    const showEdgeLabels = !showEdgeLabelsEl || !!showEdgeLabelsEl.checked;
    const linkedOnly = !!(linkedOnlyEl && linkedOnlyEl.checked);
+   const focusSelected = !!(focusSelectedEl && focusSelectedEl.checked && fwSelectedNodeId);
    const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().toLowerCase();
    const canvasEl = document.getElementById('feature-web-canvas');
    if (canvasEl) {
@@ -8803,9 +8862,16 @@
      canvasEl.style.border = '1px dashed var(--border)';
     }
    }
-   const visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || n.taskId != null) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
-   const visibleNodeIds = new Set(visibleNodes.map(n => n.id));
-   const visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
+   let visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || n.taskId != null) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
+   let visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+   let visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
+   if (focusSelected) {
+    const neigh = new Set([fwSelectedNodeId]);
+    visibleEdges.forEach(e => { if (e.from === fwSelectedNodeId) neigh.add(e.to); if (e.to === fwSelectedNodeId) neigh.add(e.from); });
+    visibleNodes = visibleNodes.filter(n => neigh.has(n.id));
+    visibleNodeIds = new Set(visibleNodes.map(n => n.id));
+    visibleEdges = visibleEdges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
+   }
 
    if (metaEl) metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links';
 
@@ -8914,7 +8980,10 @@
     if (viewMode === 'constellation' || viewMode === 'orbit') {
      const isMoon = n.type === 'subfeature';
      const isStar = !isMoon && (n.priority === 'critical' || /mission|core|atlas|roadmap/i.test(String(n.title || '')));
-     const nodeSize = viewMode === 'orbit' ? (isStar ? (isSelected ? 24 : 20) : (isMoon ? (isSelected ? 10 : 8) : (isSelected ? 16 : 13))) : (isSelected ? 16 : 12);
+     const incident = featureWeb.edges.reduce((acc,e)=> acc + ((e.from===n.id||e.to===n.id)?1:0), 0);
+     const complexity = Math.min(10, incident + Math.ceil(((n.details||'').length + (n.summary||'').length) / 180));
+     const base = viewMode === 'orbit' ? (isStar ? 18 : (isMoon ? 7 : 11)) : 12;
+     const nodeSize = (isSelected ? 2 : 0) + base + (viewMode === 'orbit' ? Math.min(8, Math.floor(complexity / 2)) : 0);
      const baseColor = viewMode === 'orbit' ? (isStar ? '#ffd166' : (isMoon ? '#a6c8ff' : statusColor)) : statusColor;
      const aura = isSelected ? '0 0 18px rgba(255,136,17,0.55)' : (viewMode === 'orbit' && isStar ? '0 0 20px rgba(255,209,102,0.7)' : '0 0 12px rgba(255,255,255,0.25)');
      const labelColor = viewMode === 'orbit' ? 'rgba(210,230,255,0.92)' : 'var(--text-muted)';
