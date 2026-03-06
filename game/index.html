@@ -577,6 +577,55 @@
    <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">🧩 Systems</h2>
    <button class="btn btn-clickable" id="board-create-btn" style="display:none;min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;" onclick="showCreateTaskModal()">+ New Task</button>
   </div>
+  <div id="systems-clean" style="margin-bottom:0.9rem;background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.75rem;">
+   <div style="display:grid;grid-template-columns:240px minmax(0,1fr) 240px;gap:0.7rem;align-items:start;">
+    <aside style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;max-height:320px;overflow:auto;">
+     <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:0.35rem;">Systems Tree</div>
+     <details open><summary>Project</summary><div style="padding-left:0.5rem;display:flex;flex-direction:column;gap:0.2rem;"><button onclick="featureWebFocusByTitle('PU Mission')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mission</button><button onclick="featureWebFocusByTitle('Act I-V Roadmap')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Roadmap</button></div></details>
+     <details><summary>Utilities</summary><div style="padding-left:0.5rem;display:flex;flex-direction:column;gap:0.2rem;"><button onclick="featureWebFocusByTitle('Main Power Grid')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Power</button><button onclick="featureWebFocusByTitle('Water & Waste Loop')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Water</button><button onclick="featureWebFocusByTitle('Network Backbone')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Network</button></div></details>
+     <details><summary>Twin</summary><div style="padding-left:0.5rem;display:flex;flex-direction:column;gap:0.2rem;"><button onclick="featureWebFocusByTitle('Earth Twin Home Planner')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Earth Twin</button><button onclick="featureWebFocusByTitle('PU Mission')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Fleet Twin</button></div></details>
+    </aside>
+    <main style="border:1px solid var(--border);border-radius:8px;padding:0.55rem;min-height:220px;">
+     <h3 style="margin:0 0 0.4rem;font-size:0.9rem;color:var(--text);">System View</h3>
+     <p style="margin:0;font-size:0.78rem;color:var(--text-muted);line-height:1.5;">Kanban and node-mesh have been removed from active view. This panel is now the clean systems workspace. Select from the left tree and inspect data on the right.</p>
+     <div style="margin-top:0.55rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.45rem;">
+      <div style="border:1px solid var(--border);border-radius:6px;padding:0.4rem;"><div style="font-size:0.68rem;color:var(--text-muted);">Power</div><div style="font-weight:700;color:#9fe69a;">86%</div></div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:0.4rem;"><div style="font-size:0.68rem;color:var(--text-muted);">Water</div><div style="font-weight:700;color:#9fd1ff;">91%</div></div>
+      <div style="border:1px solid var(--border);border-radius:6px;padding:0.4rem;"><div style="font-size:0.68rem;color:var(--text-muted);">Network</div><div style="font-weight:700;color:#f4d68a;">97%</div></div>
+     </div>
+    </main>
+    <aside style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;">
+     <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:0.35rem;">Data</div>
+     <div style="font-size:0.75rem;color:var(--text);line-height:1.45;">
+      <div><strong>Inventory/Stock</strong></div>
+      <div style="opacity:0.8;">Power reserve: 86%</div>
+      <div style="opacity:0.8;">Water reserve: 91%</div>
+      <div style="opacity:0.8;">Food reserve: 63</div>
+      <div style="opacity:0.8;">Network uptime: 97%</div>
+     </div>
+    </aside>
+   </div>
+  </div>
+  <script>
+  (function(){
+    const hideOld = function(){
+      const fw=document.getElementById('feature-web');
+      const bc=document.getElementById('board-columns');
+      const bl=document.getElementById('board-loading');
+      const sl=document.getElementById('systems-layout');
+      if(fw) fw.style.display='none';
+      if(bc) bc.style.display='none';
+      if(bl) bl.style.display='none';
+      if(sl) sl.style.display='none';
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', hideOld, { once: true });
+    } else {
+      hideOld();
+    }
+  })();
+  </script>
+
   <div id="systems-layout" style="display:grid;grid-template-columns:260px minmax(0,1fr) 260px;gap:0.8rem;align-items:start;">
    <aside id="systems-tree" style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
     <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.45rem;">Folders</div>
