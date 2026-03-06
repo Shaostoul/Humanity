@@ -665,7 +665,7 @@
     <select id="fw-filter-domain" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option>
     </select>
-    <button onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
+    <button id="fw-clear-filters-btn" onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
    </div>
    <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;color:var(--text-muted);"></div>
    <div id="fw-status-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
@@ -9306,6 +9306,7 @@
    const focusSelectedEl = document.getElementById('fw-focus-selected');
    const simpleUiEl = document.getElementById('fw-simple-ui');
    const clearSearchBtnEl = document.getElementById('fw-clear-search-btn');
+   const clearFiltersBtnEl = document.getElementById('fw-clear-filters-btn');
    const viewMode = (viewModeEl && viewModeEl.value) || 'cards';
    const simpleUi = !(simpleUiEl && !simpleUiEl.checked);
    const showEdgeLabels = !showEdgeLabelsEl || (!!showEdgeLabelsEl.checked && !simpleUi);
@@ -9319,6 +9320,13 @@
     clearSearchBtnEl.style.opacity = hasSearch ? '1' : '0.45';
     clearSearchBtnEl.style.cursor = hasSearch ? 'pointer' : 'default';
     clearSearchBtnEl.title = hasSearch ? 'Clear current search text' : 'Search is already empty';
+   }
+   if (clearFiltersBtnEl) {
+    const atDefaults = filterType === 'all' && filterStatus === 'all' && filterDomain === 'all' && viewMode === 'orbit' && !filterSearch && !linkedOnly && !ownedOnly && !showEdgeLabels && (!focusSelectedEl || focusSelectedEl.checked) && (!simpleUiEl || simpleUiEl.checked);
+    clearFiltersBtnEl.disabled = atDefaults;
+    clearFiltersBtnEl.style.opacity = atDefaults ? '0.45' : '1';
+    clearFiltersBtnEl.style.cursor = atDefaults ? 'default' : 'pointer';
+    clearFiltersBtnEl.title = atDefaults ? 'Filters already at defaults' : 'Reset all filters to defaults';
    }
    const canvasEl = document.getElementById('feature-web-canvas');
    if (canvasEl) {
