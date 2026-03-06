@@ -46,6 +46,11 @@
   .tab-content.active { display: block; }
   #tab-browse.active { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
   #tab-map.active { display: flex; flex-direction: column; height: 100%; overflow: hidden; padding: 0; }
+  #systems-layout { display:grid; grid-template-columns:260px minmax(0,1fr) 260px; gap:0.8rem; align-items:start; }
+  @media (max-width: 1100px) {
+   #systems-layout { grid-template-columns: 1fr; }
+   #systems-tree, #systems-right { position:static !important; max-height:none !important; }
+  }
 
   .panel {
    background: var(--bg-card);
@@ -569,9 +574,18 @@
  <!-- Board Tab -->
  <div id="tab-board" class="tab-content" style="padding:1rem;overflow-y:auto;">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-   <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">📋 Project Board</h2>
+   <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">🧩 Systems</h2>
    <button class="btn btn-clickable" id="board-create-btn" style="display:none;min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;" onclick="showCreateTaskModal()">+ New Task</button>
   </div>
+  <div id="systems-layout" style="display:grid;grid-template-columns:260px minmax(0,1fr) 260px;gap:0.8rem;align-items:start;">
+   <aside id="systems-tree" style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
+    <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.45rem;">Folders</div>
+    <details open><summary style="cursor:pointer;">Project</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('PU Mission')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mission</button><button onclick="featureWebFocusByTitle('Act I-V Roadmap')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Roadmap</button></div></details>
+    <details><summary style="cursor:pointer;">Utilities</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Main Power Grid')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Power</button><button onclick="featureWebFocusByTitle('Water & Waste Loop')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Water</button><button onclick="featureWebFocusByTitle('Network Backbone')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Network</button></div></details>
+    <details><summary style="cursor:pointer;">Home Modules</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Bedroom')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Bedroom</button><button onclick="featureWebFocusByTitle('Garden')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Garden</button><button onclick="featureWebFocusByTitle('Workshop')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Workshop</button></div></details>
+    <details><summary style="cursor:pointer;">Earth Twin</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Earth Twin Home Planner')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Home Planner</button><button onclick="featureWebFocusByTitle('Earth/Fleet Mode Switch')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mode Switch</button></div></details>
+   </aside>
+   <div>
   <div id="feature-web" style="margin-bottom:1rem;background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.8rem;">
    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <h3 style="margin:0;font-size:0.95rem;color:var(--text);">✨ Feature Showcase</h3>
@@ -706,6 +720,22 @@
    </div>
   </div>
   <div id="board-loading" style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.85rem;">Loading tasks…</div>
+   </div>
+   <aside id="systems-right" style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
+    <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.45rem;">Status</div>
+    <div style="font-size:0.74rem;line-height:1.45;color:var(--text);">
+     <div><strong>Inventory/Stock</strong></div>
+     <div style="opacity:0.8;">Power reserve: <span id="sys-stock-power">--</span></div>
+     <div style="opacity:0.8;">Water reserve: <span id="sys-stock-water">--</span></div>
+     <div style="opacity:0.8;">Food reserve: <span id="sys-stock-food">--</span></div>
+     <div style="opacity:0.8;">Network uptime: <span id="sys-stock-net">--</span></div>
+     <hr style="border:none;border-top:1px solid var(--border);margin:0.55rem 0;">
+     <div><strong>Selected Node</strong></div>
+     <div id="sys-selected-title" style="opacity:0.9;">None</div>
+     <div id="sys-selected-summary" style="opacity:0.7;font-size:0.7rem;margin-top:0.25rem;">Select a node to inspect.</div>
+    </div>
+   </aside>
+  </div>
 
   <!-- Task Modal -->
   <div id="task-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center;">
@@ -8481,6 +8511,19 @@
    featureWebRenderEditor();
    const panel = document.getElementById('fw-teach-panel');
    if (panel) panel.style.display = 'none';
+   const node = featureWeb.nodes.find(n => n.id === id);
+   const t = document.getElementById('sys-selected-title');
+   const s = document.getElementById('sys-selected-summary');
+   if (t) t.textContent = node ? (node.title || 'Untitled') : 'None';
+   if (s) s.textContent = node ? (node.summary || node.teach || node.details || 'No summary yet.') : 'Select a node to inspect.';
+  }
+
+  function featureWebFocusByTitle(title) {
+   const node = featureWeb.nodes.find(n => (n.title || '').toLowerCase() === String(title || '').toLowerCase());
+   if (!node) { featureWebNotice('Not found: ' + title); return; }
+   featureWebFocusNode(node.id);
+   featureWebCenterSelected();
+   featureWebRender();
   }
 
   async function featureWebCopySelectedTitle() {
@@ -8985,6 +9028,17 @@
    }
 
    if (metaEl) metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links';
+   const powerEl = document.getElementById('sys-stock-power');
+   const waterEl = document.getElementById('sys-stock-water');
+   const foodEl = document.getElementById('sys-stock-food');
+   const netEl = document.getElementById('sys-stock-net');
+   const total = Math.max(1, featureWeb.nodes.length);
+   const activeCount = featureWeb.nodes.filter(n => n.status === 'active').length;
+   const doneCount = featureWeb.nodes.filter(n => n.status === 'done').length;
+   if (powerEl) powerEl.textContent = Math.round((activeCount / total) * 100) + '%';
+   if (waterEl) waterEl.textContent = Math.round((doneCount / total) * 100) + '%';
+   if (foodEl) foodEl.textContent = String(featureWeb.nodes.filter(n => (n.domain||'')==='game').length);
+   if (netEl) netEl.textContent = (100 - Math.round((featureWeb.nodes.filter(n => n.status==='blocked').length / total) * 100)) + '%';
 
    const quickListEl = document.getElementById('fw-quick-list');
    if (quickListEl) {

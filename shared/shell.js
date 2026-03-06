@@ -242,7 +242,7 @@
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
       '<a href="/chat" class="' + cls('chat') + '">💬 Chat</a>' +
       '<a href="/map" class="' + cls('map') + '">🗺️ Map</a>' +
-      '<a href="/board" class="' + cls('board') + '">📋 Board</a>' +
+      '<a href="/board" class="' + cls('board') + '">🧩 Systems</a>' +
       '<a href="/reality" class="' + cls('reality') + '">🟢 Reality</a>' +
       '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Fantasy</a>' +
       '<a href="/market" class="' + cls('market') + '">🛒 Market</a>' +
@@ -253,8 +253,6 @@
       '<a href="/source" class="' + cls('source') + '">📜 Source</a>' +
       '<a href="/debug" class="' + cls('debug') + '">🔧 Debug</a>' +
       '<span class="spacer"></span>' +
-      '<a href="/download" class="' + cls('download') + '" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">' + dlIcon + ' Download</a>' +
-      '<a href="https://github.com/Shaostoul/Humanity" class="tab" onclick="openWebviewTab(\'https://github.com/Shaostoul/Humanity\',\'GitHub\');return false;">' + ghIcon + ' GitHub</a>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
@@ -267,7 +265,7 @@
     var tabMeta = {
       '/chat': { icon: '/shared/ui-icons/chat.png', label: 'Chat' },
       '/map': { icon: '/shared/ui-icons/map.png', label: 'Map' },
-      '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Board' },
+      '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Systems' },
       '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Reality' },
       '/fantasy': { icon: '/shared/ui-icons/galaxy.png', label: 'Fantasy' },
       '/market': { icon: '/shared/ui-icons/market.png', label: 'Market' },
@@ -370,6 +368,7 @@
         '<div class="footer-links">' +
           '<a href="/">Home</a>' +
           '<a href="/chat">Chat</a>' +
+          '<a href="/download" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">Download</a>' +
           '<a href="https://shaostoul.github.io/Humanity" onclick="openWebviewTab(\'https://shaostoul.github.io/Humanity\',\'Docs\');return false;">Docs</a>' +
           '<a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>' +
           '<a href="https://discord.gg/9XxmmeQnWC" target="_blank">Discord</a>' +
