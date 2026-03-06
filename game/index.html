@@ -8335,8 +8335,9 @@
    if (linkedInfoEl) {
     if (node.taskId != null) {
      const t = boardTasks.find(x => x.id === node.taskId);
+     const statusLabel = s => (s === 'in_progress' ? 'IN PROGRESS' : s === 'testing' ? 'TESTING' : s === 'done' ? 'DONE' : 'BACKLOG');
      linkedInfoEl.style.display = 'block';
-     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + (t.status || 'backlog') + '] ' + t.title) : ('Linked task: #' + node.taskId);
+     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + statusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + node.taskId);
     } else {
       linkedInfoEl.style.display = 'none';
       linkedInfoEl.textContent = '';
