@@ -8049,6 +8049,7 @@
   let fwHoveredNodeId = '';
   let fwAdvancedVisible = true;
   let fwShortcutsVisible = true;
+  let fwLastSavedAt = 0;
 
   function featureWebLoad() {
    try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
@@ -8075,6 +8076,7 @@
 
   function featureWebSave() {
    localStorage.setItem(FEATURE_WEB_KEY, JSON.stringify(featureWeb));
+   fwLastSavedAt = Date.now();
   }
 
   function featureWebLoadUiState() {
@@ -9244,7 +9246,10 @@
     visibleEdges = visibleEdges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
    }
 
-   if (metaEl) metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links';
+   if (metaEl) {
+    const savedSuffix = fwLastSavedAt ? (' · saved ' + new Date(fwLastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) : '';
+    metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links' + savedSuffix;
+   }
    const powerEl = document.getElementById('sys-stock-power');
    const waterEl = document.getElementById('sys-stock-water');
    const foodEl = document.getElementById('sys-stock-food');
