@@ -8517,6 +8517,7 @@
    featureWebNotice('');
    featureWebSave();
    featureWebRender();
+   if (toEl && typeof toEl.focus === 'function') toEl.focus();
   }
 
   function featureWebDeleteNode(id) {
