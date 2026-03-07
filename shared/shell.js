@@ -135,13 +135,13 @@
     }
     .hub-nav .spacer { flex: 1; }
     .hub-nav .hub-side {
-      flex: 1;
       display: flex;
       align-items: center;
       gap: 0.25rem;
       min-width: 0;
+      flex: 0 0 auto;
     }
-    .hub-nav .hub-side.left { justify-content: flex-end; }
+    .hub-nav .hub-side.left { justify-content: flex-start; }
     .hub-nav .hub-side.right { justify-content: flex-start; }
     .hub-nav .group-label {
       font-size: 0.66rem;
@@ -320,52 +320,48 @@
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      '<div class="hub-side left">' +
-        '<div class="menu" data-menu="private">' +
-          '<button class="menu-btn" type="button">Private ▾</button>' +
-          '<div class="menu-drop">' +
-            '<a href="/reality">Profile</a>' +
-            '<a href="/dashboard">Inventory</a>' +
-            '<a href="/fantasy">Skills</a>' +
-            '<a href="/source">Equipment</a>' +
-            '<a href="/board">Quests</a>' +
-            '<a href="/board">Calendar</a>' +
-            '<a href="/board">Logbook</a>' +
-            '<a href="/">Home</a>' +
-          '</div>' +
+      '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
+      '<div class="menu" data-menu="private">' +
+        '<button class="menu-btn" type="button">Private ▾</button>' +
+        '<div class="menu-drop">' +
+          '<a href="/reality">Profile</a>' +
+          '<a href="/dashboard">Inventory</a>' +
+          '<a href="/fantasy">Skills</a>' +
+          '<a href="/source">Equipment</a>' +
+          '<a href="/board">Quests</a>' +
+          '<a href="/board">Calendar</a>' +
+          '<a href="/board">Logbook</a>' +
+          '<a href="/">Home</a>' +
         '</div>' +
       '</div>' +
-      '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
-      '<div class="hub-side right">' +
-        '<div class="menu" data-menu="public">' +
-          '<button class="menu-btn" type="button">Public ▾</button>' +
-          '<div class="menu-drop">' +
-            '<a href="/chat">Network</a>' +
-            '<a href="/board">Systems</a>' +
-            '<a href="/map">Maps</a>' +
-            '<a href="/market">Market</a>' +
-            '<a href="/browse">Learn</a>' +
-            '<a href="/info">Knowledge</a>' +
-            '<a href="/streams">Streams</a>' +
-          '</div>' +
+      '<div class="menu" data-menu="public">' +
+        '<button class="menu-btn" type="button">Public ▾</button>' +
+        '<div class="menu-drop">' +
+          '<a href="/chat">Network</a>' +
+          '<a href="/board">Systems</a>' +
+          '<a href="/map">Maps</a>' +
+          '<a href="/market">Market</a>' +
+          '<a href="/browse">Learn</a>' +
+          '<a href="/info">Knowledge</a>' +
+          '<a href="/streams">Streams</a>' +
         '</div>' +
-        '<div class="menu" data-menu="ops">' +
-          '<button class="menu-btn" type="button">Ops ▾</button>' +
-          '<div class="menu-drop">' +
-            '<a href="/debug">Health</a>' +
-            '<a href="/debug">Deploy</a>' +
-            '<a href="/debug">Logs</a>' +
-            '<a href="/debug">Debug</a>' +
-            '<a href="/debug">Moderation</a>' +
-          '</div>' +
+      '</div>' +
+      '<div class="menu" data-menu="ops">' +
+        '<button class="menu-btn" type="button">Ops ▾</button>' +
+        '<div class="menu-drop">' +
+          '<a href="/debug">Health</a>' +
+          '<a href="/debug">Deploy</a>' +
+          '<a href="/debug">Logs</a>' +
+          '<a href="/debug">Debug</a>' +
+          '<a href="/debug">Moderation</a>' +
         '</div>' +
-        '<div class="utility">' +
-          '<a href="/info" title="Search">🔎</a>' +
-          '<a href="/source" title="Settings">⚙</a>' +
-          '<a href="/dashboard" title="Data">🗄</a>' +
-          '<a href="/chat" title="Alerts">🔔</a>' +
-          '<a href="/reality" title="Account">👤</a>' +
-        '</div>' +
+      '</div>' +
+      '<div class="utility">' +
+        '<a href="/info" title="Search">🔎</a>' +
+        '<a href="/source" title="Settings">⚙</a>' +
+        '<a href="/dashboard" title="Data">🗄</a>' +
+        '<a href="/chat" title="Alerts">🔔</a>' +
+        '<a href="/reality" title="Account">👤</a>' +
       '</div>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
