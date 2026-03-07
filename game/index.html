@@ -802,7 +802,62 @@
   </div>
  </div>
 
- <!-- Reality Tab -->
+ 
+ <!-- Quests Tab -->
+ <div id="tab-quests" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">🗺️ Quests</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.7rem;">
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Daily</strong><div id="q-count-daily" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Weekly</strong><div id="q-count-weekly" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Milestone</strong><div id="q-count-milestone" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Legacy</strong><div id="q-count-legacy" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
+  </div>
+  <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.6rem;flex-wrap:wrap;">
+   <input id="quests-new-title" placeholder="Add quest goal (e.g., Build utility car)" style="flex:1;min-width:220px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.55rem;border-radius:6px;">
+   <select id="quests-new-track" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;">
+    <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="milestone">Milestone</option><option value="legacy">Legacy</option>
+   </select>
+   <button onclick="questsAdd()" class="btn btn-clickable" style="min-width:auto;min-height:34px;padding:0.3rem 0.75rem;">Add</button>
+  </div>
+  <div id="quests-list" style="display:grid;gap:0.45rem;"></div>
+ </div>
+
+ <!-- Calendar Tab -->
+ <div id="tab-calendar" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">📅 Calendar</h2>
+  <div style="display:flex;gap:0.45rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+   <input id="cal-title" placeholder="Event title" style="flex:1;min-width:220px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.55rem;border-radius:6px;">
+   <input id="cal-date" type="date" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;">
+   <button onclick="calendarAdd()" class="btn btn-clickable" style="min-width:auto;min-height:34px;padding:0.3rem 0.75rem;">Schedule</button>
+  </div>
+  <div id="calendar-list" style="display:grid;gap:0.45rem;"></div>
+ </div>
+
+ <!-- Logbook Tab -->
+ <div id="tab-logbook" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">📓 Logbook</h2>
+  <div style="display:flex;gap:0.45rem;flex-wrap:wrap;margin-bottom:0.6rem;">
+   <select id="logbook-type" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;">
+    <option value="journal">Journal</option><option value="field">Field Note</option><option value="proof">Proof</option>
+   </select>
+   <input id="logbook-title" placeholder="Entry title" style="flex:1;min-width:180px;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.55rem;border-radius:6px;">
+   <button onclick="logbookAdd()" class="btn btn-clickable" style="min-width:auto;min-height:34px;padding:0.3rem 0.75rem;">Add Entry</button>
+  </div>
+  <textarea id="logbook-body" rows="4" placeholder="Write your note/proof details..." style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 0.55rem;border-radius:6px;resize:vertical;margin-bottom:0.6rem;"></textarea>
+  <div id="logbook-list" style="display:grid;gap:0.45rem;"></div>
+ </div>
+
+ <!-- Learn Tab -->
+ <div id="tab-learn" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">🎓 Learn</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.6rem;">
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;"><strong>Onboarding Path</strong><div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;">Start here: Profile → Systems → Quests → Logbook.</div><button onclick="switchTab('reality')" style="margin-top:0.45rem;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:6px;cursor:pointer;">Open Profile</button></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;"><strong>Skill Paths</strong><div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;">Certification-based progression with proof-driven quests.</div><button onclick="switchTab('fantasy')" style="margin-top:0.45rem;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:6px;cursor:pointer;">Open Skills</button></div>
+   <div style="border:1px solid var(--border);border-radius:8px;padding:0.6rem;"><strong>Knowledge Base</strong><div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.35rem;">Embedded markdown/codex for hard data and architecture.</div><button onclick="switchTab('info')" style="margin-top:0.45rem;background:none;border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:6px;cursor:pointer;">Open Knowledge</button></div>
+  </div>
+ </div>
+
+<!-- Reality Tab -->
  <div id="tab-reality" class="tab-content">
   <!-- Universal Search -->
   <div class="catalog-search-bar">
@@ -2477,8 +2532,8 @@
 
  <script>
   // ── Hub Tab System (SPA with pushState) ──
-  const HUB_TABS = ['map', 'board', 'reality', 'fantasy', 'market', 'browse', 'dashboard', 'streams', 'info', 'source', 'debug'];
-  let currentTab = 'reality';
+  const HUB_TABS = ['map', 'board', 'quests', 'calendar', 'logbook', 'reality', 'fantasy', 'market', 'learn', 'browse', 'dashboard', 'streams', 'info', 'source', 'debug'];
+  let currentTab = 'dashboard';
 
   function getTabFromPath() {
    const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '').toLowerCase();
@@ -2487,7 +2542,7 @@
   }
 
   function switchTab(tabId, pushState) {
-   if (!HUB_TABS.includes(tabId)) tabId = 'reality';
+   if (!HUB_TABS.includes(tabId)) tabId = 'dashboard';
    currentTab = tabId;
 
    // Update nav active state
@@ -2504,7 +2559,7 @@
    }
 
    // Update page title
-   const titles = { map: 'Map', board: 'Board', reality: 'Reality', fantasy: 'Fantasy', market: 'Market', browse: 'Browse', dashboard: 'Dashboard', streams: 'Streams', info: 'Info', source: 'Source', debug: 'Debug' };
+   const titles = { map: 'Maps', board: 'Systems', quests: 'Quests', calendar: 'Calendar', logbook: 'Logbook', reality: 'Profile', fantasy: 'Skills', market: 'Market', learn: 'Learn', browse: 'Browse', dashboard: 'Dashboard', streams: 'Streams', info: 'Knowledge', source: 'Equipment', debug: 'Ops' };
    document.title = 'Humanity - ' + (titles[tabId] || 'Hub');
 
    // Update URL
@@ -2569,6 +2624,120 @@
    if (d) d.textContent = (d.textContent || '').replace(/^[^A-Za-z0-9]+\s*/, 'Duration: ');
   }
 
+  // ── Page Models: Quests / Calendar / Logbook ──
+  function loadJson(key, fallback) {
+   try { return JSON.parse(localStorage.getItem(key) || 'null') || fallback; } catch { return fallback; }
+  }
+  function saveJson(key, value) {
+   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  }
+
+  function questsRender() {
+   const listEl = document.getElementById('quests-list');
+   if (!listEl) return;
+   const items = loadJson('humanity_quests_v1', []);
+   const tracks = ['daily','weekly','milestone','legacy'];
+   tracks.forEach(t => {
+    const c = items.filter(q => q.track === t && !q.done).length;
+    const el = document.getElementById('q-count-' + t);
+    if (el) el.textContent = c + ' active';
+   });
+   if (!items.length) {
+    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No quests yet. Add one above.</div>';
+    return;
+   }
+   listEl.innerHTML = items.map((q, i) => '<div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;background:' + (q.done ? 'rgba(122,214,97,0.08)' : 'rgba(255,255,255,0.02)') + ';"><div style="display:flex;justify-content:space-between;gap:0.6rem;"><strong>' + escHtml(q.title) + '</strong><span style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">' + escHtml(q.track) + '</span></div><div style="font-size:0.74rem;color:var(--text-muted);margin-top:0.2rem;">' + new Date(q.ts || Date.now()).toLocaleString() + '</div><div style="margin-top:0.35rem;display:flex;gap:0.35rem;"><button onclick="questsToggle(' + i + ')" style="background:none;border:1px solid var(--border);color:var(--text);padding:0.2rem 0.45rem;border-radius:6px;cursor:pointer;font-size:0.72rem;">' + (q.done ? 'Reopen' : 'Complete') + '</button><button onclick="questsDelete(' + i + ')" style="background:none;border:1px solid rgba(229,85,85,0.45);color:#e88;padding:0.2rem 0.45rem;border-radius:6px;cursor:pointer;font-size:0.72rem;">Delete</button></div></div>').join('');
+   }
+  function questsAdd() {
+   const titleEl = document.getElementById('quests-new-title');
+   const trackEl = document.getElementById('quests-new-track');
+   if (!titleEl || !titleEl.value.trim()) return;
+   const items = loadJson('humanity_quests_v1', []);
+   items.unshift({ title: titleEl.value.trim(), track: (trackEl && trackEl.value) || 'daily', done: false, ts: Date.now() });
+   saveJson('humanity_quests_v1', items);
+   titleEl.value = '';
+   questsRender();
+  }
+  function questsToggle(i) {
+   const items = loadJson('humanity_quests_v1', []);
+   if (!items[i]) return;
+   items[i].done = !items[i].done;
+   saveJson('humanity_quests_v1', items);
+   questsRender();
+  }
+  function questsDelete(i) {
+   const items = loadJson('humanity_quests_v1', []);
+   if (!items[i]) return;
+   items.splice(i, 1);
+   saveJson('humanity_quests_v1', items);
+   questsRender();
+  }
+
+  function calendarRender() {
+   const listEl = document.getElementById('calendar-list');
+   if (!listEl) return;
+   const items = loadJson('humanity_calendar_v1', []);
+   if (!items.length) {
+    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No events scheduled.</div>';
+    return;
+   }
+   listEl.innerHTML = items.map((e, i) => '<div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><div style="display:flex;justify-content:space-between;gap:0.6rem;"><strong>' + escHtml(e.title) + '</strong><span style="font-size:0.73rem;color:var(--text-muted);">' + escHtml(e.date || '--') + '</span></div><div style="margin-top:0.35rem;"><button onclick="calendarDelete(' + i + ')" style="background:none;border:1px solid rgba(229,85,85,0.45);color:#e88;padding:0.2rem 0.45rem;border-radius:6px;cursor:pointer;font-size:0.72rem;">Delete</button></div></div>').join('');
+  }
+  function calendarAdd() {
+   const titleEl = document.getElementById('cal-title');
+   const dateEl = document.getElementById('cal-date');
+   if (!titleEl || !titleEl.value.trim()) return;
+   const items = loadJson('humanity_calendar_v1', []);
+   items.unshift({ title: titleEl.value.trim(), date: (dateEl && dateEl.value) || '' });
+   saveJson('humanity_calendar_v1', items);
+   titleEl.value = '';
+   if (dateEl) dateEl.value = '';
+   calendarRender();
+  }
+  function calendarDelete(i) {
+   const items = loadJson('humanity_calendar_v1', []);
+   if (!items[i]) return;
+   items.splice(i, 1);
+   saveJson('humanity_calendar_v1', items);
+   calendarRender();
+  }
+
+  function logbookRender() {
+   const listEl = document.getElementById('logbook-list');
+   if (!listEl) return;
+   const items = loadJson('humanity_logbook_v1', []);
+   if (!items.length) {
+    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">No log entries yet.</div>';
+    return;
+   }
+   listEl.innerHTML = items.map((it, i) => '<div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><div style="display:flex;justify-content:space-between;gap:0.6rem;"><strong>' + escHtml(it.title) + '</strong><span style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;">' + escHtml(it.type) + '</span></div><div style="font-size:0.74rem;color:var(--text-muted);margin-top:0.2rem;white-space:pre-wrap;">' + escHtml(it.body || '') + '</div><div style="margin-top:0.35rem;"><button onclick="logbookDelete(' + i + ')" style="background:none;border:1px solid rgba(229,85,85,0.45);color:#e88;padding:0.2rem 0.45rem;border-radius:6px;cursor:pointer;font-size:0.72rem;">Delete</button></div></div>').join('');
+  }
+  function logbookAdd() {
+   const typeEl = document.getElementById('logbook-type');
+   const titleEl = document.getElementById('logbook-title');
+   const bodyEl = document.getElementById('logbook-body');
+   if (!titleEl || !titleEl.value.trim()) return;
+   const items = loadJson('humanity_logbook_v1', []);
+   items.unshift({ type: (typeEl && typeEl.value) || 'journal', title: titleEl.value.trim(), body: (bodyEl && bodyEl.value) || '', ts: Date.now() });
+   saveJson('humanity_logbook_v1', items);
+   titleEl.value = '';
+   if (bodyEl) bodyEl.value = '';
+   logbookRender();
+  }
+  function logbookDelete(i) {
+   const items = loadJson('humanity_logbook_v1', []);
+   if (!items[i]) return;
+   items.splice(i, 1);
+   saveJson('humanity_logbook_v1', items);
+   logbookRender();
+  }
+
+  function initPageModels() {
+   questsRender();
+   calendarRender();
+   logbookRender();
+  }
+
   // SPA navigation: intercept hub tab clicks
   document.querySelectorAll('.hub-nav .tab[data-tab]').forEach(link => {
    link.addEventListener('click', (e) => {
@@ -2584,8 +2753,9 @@
   });
 
   // Initialize from URL
-  const initialTab = getTabFromPath() || 'reality';
+  const initialTab = getTabFromPath() || 'dashboard';
   switchTab(initialTab, false);
+  initPageModels();
 
   // ── Debug Info ──
   (function populateDebugInfo() {

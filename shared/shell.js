@@ -331,10 +331,10 @@
           '<a href="/dashboard">Inventory</a>' +
           '<a href="/fantasy">Skills</a>' +
           '<a href="/source">Equipment</a>' +
-          '<a href="/board">Quests</a>' +
-          '<a href="/board">Calendar</a>' +
-          '<a href="/board">Logbook</a>' +
-          '<a href="/">Home</a>' +
+          '<a href="/quests">Quests</a>' +
+          '<a href="/calendar">Calendar</a>' +
+          '<a href="/logbook">Logbook</a>' +
+          '<a href="/dashboard">Home</a>' +
         '</div>' +
       '</div>' +
       '<div class="menu" data-menu="public">' +
@@ -344,7 +344,7 @@
           '<a href="/board">Systems</a>' +
           '<a href="/map">Maps</a>' +
           '<a href="/market">Market</a>' +
-          '<a href="/browse">Learn</a>' +
+          '<a href="/learn">Learn</a>' +
           '<a href="/info">Knowledge</a>' +
           '<a href="/streams">Streams</a>' +
         '</div>' +
