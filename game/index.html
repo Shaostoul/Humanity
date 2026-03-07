@@ -9709,6 +9709,7 @@
    featureWebRenderEditor();
 
    if (edgeListEl) {
+    edgeListEl.setAttribute('aria-live', simpleUi ? 'off' : 'polite');
     edgeListEl.innerHTML = visibleEdges.length
      ? visibleEdges.map(e => {
        const from = featureWeb.nodes.find(n => n.id === e.from);
