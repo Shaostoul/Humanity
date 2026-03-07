@@ -8220,13 +8220,14 @@
    featureWebRender();
   }
 
-  function featureWebClearSearch() {
+  function featureWebClearSearch(opts) {
+   const options = opts || {};
    const searchEl = document.getElementById('fw-filter-search');
    if (!searchEl || !searchEl.value) return;
    searchEl.value = '';
    featureWebSaveFilters();
    featureWebRender();
-   featureWebNotice('Search cleared');
+   if (!options.quiet) featureWebNotice('Search cleared');
    searchEl.focus();
   }
 
@@ -9918,7 +9919,7 @@
     if (e.key === 'Escape') {
      if (el && el.id === 'fw-filter-search' && el.value) {
       e.preventDefault();
-      featureWebClearSearch();
+      featureWebClearSearch({ quiet: true });
       return;
      }
      if (el && typeof el.blur === 'function') el.blur();
