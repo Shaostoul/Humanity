@@ -707,7 +707,7 @@
     <button aria-label="Copy selected Feature Web node title" aria-keyshortcuts="T" onclick="featureWebCopySelectedTitle()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Title</button>
     <button aria-label="Copy selected Feature Web node ID" aria-keyshortcuts="Ctrl+I" onclick="featureWebCopySelectedId()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node ID</button>
     <button aria-label="Copy selected Feature Web node JSON" aria-keyshortcuts="N" onclick="featureWebCopySelectedJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node JSON</button>
-    <button id="fw-unlink-btn" aria-label="Unlink selected Feature Web node from task" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
+    <button id="fw-unlink-btn" aria-label="Unlink selected Feature Web node from task" aria-hidden="true" onclick="featureWebUnlinkSelected()" style="display:none;background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Unlink Task</button>
    </div>
    <div class="fw-pro" role="group" aria-label="Feature Web task linking actions" style="display:grid;grid-template-columns:1fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.2rem;">
     <select id="fw-link-task" aria-label="Select board task to link with Feature Web node" onkeydown="if(event.key==='Enter')featureWebLinkSelectedToTask()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.74rem;"></select>
@@ -8839,7 +8839,10 @@
     if (detailsEl) detailsEl.value = '';
     if (ownerEl) ownerEl.value = '';
     if (priorityEl) priorityEl.value = 'medium';
-    if (unlinkBtn) unlinkBtn.style.display = 'none';
+    if (unlinkBtn) {
+     unlinkBtn.style.display = 'none';
+     unlinkBtn.setAttribute('aria-hidden', 'true');
+    }
     if (linkTaskEl) linkTaskEl.value = '';
     if (linkedInfoEl) { linkedInfoEl.style.display = 'none'; linkedInfoEl.setAttribute('aria-hidden', 'true'); linkedInfoEl.textContent = ''; }
     if (openTaskBtn) {
@@ -8860,7 +8863,11 @@
    if (detailsEl) detailsEl.value = node.details || '';
    if (ownerEl) ownerEl.value = node.owner || '';
    if (priorityEl) priorityEl.value = node.priority || 'medium';
-   if (unlinkBtn) unlinkBtn.style.display = node.taskId != null ? 'inline-block' : 'none';
+   if (unlinkBtn) {
+    const showUnlink = node.taskId != null;
+    unlinkBtn.style.display = showUnlink ? 'inline-block' : 'none';
+    unlinkBtn.setAttribute('aria-hidden', showUnlink ? 'false' : 'true');
+   }
    if (linkTaskEl) linkTaskEl.value = node.taskId != null ? String(node.taskId) : '';
    if (linkedInfoEl) {
     if (node.taskId != null) {
