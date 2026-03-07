@@ -8260,6 +8260,7 @@
    document.querySelectorAll('.fw-advanced').forEach(el => {
     if (!el.dataset.fwDisplay) el.dataset.fwDisplay = el.style.display || '';
     el.style.display = fwAdvancedVisible ? el.dataset.fwDisplay : 'none';
+    el.setAttribute('aria-hidden', fwAdvancedVisible ? 'false' : 'true');
    });
    const btn = document.getElementById('fw-toggle-details-btn');
    if (btn) {
