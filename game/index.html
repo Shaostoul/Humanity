@@ -715,10 +715,10 @@
     <button aria-label="Sync Feature Web nodes to board tasks" aria-keyshortcuts="M,Ctrl+Shift+S" onclick="featureWebSyncNodesToBoard()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Sync Nodes→Tasks</button>
    </div>
    <div style="display:flex;gap:0.45rem;align-items:center;justify-content:space-between;margin-bottom:0.2rem;">
-    <div id="fw-linked-task-info" role="status" aria-live="polite" aria-atomic="true" aria-label="Linked board task info" style="display:none;font-size:0.67rem;color:var(--text-muted);"></div>
+    <div id="fw-linked-task-info" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Linked board task info" style="display:none;font-size:0.67rem;color:var(--text-muted);"></div>
     <button id="fw-open-task-btn" aria-label="Open task linked to selected Feature Web node" aria-keyshortcuts="O" onclick="featureWebOpenLinkedTask()" style="display:none;background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.22rem 0.5rem;border-radius:6px;font-size:0.7rem;cursor:pointer;">Open Task</button>
    </div>
-   <div id="fw-selected-metrics" role="status" aria-live="polite" aria-atomic="true" aria-label="Selected Feature Web node metrics" style="display:none;font-size:0.66rem;color:var(--text-muted);margin-bottom:0.45rem;"></div>
+   <div id="fw-selected-metrics" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Selected Feature Web node metrics" style="display:none;font-size:0.66rem;color:var(--text-muted);margin-bottom:0.45rem;"></div>
    <div style="display:flex;justify-content:flex-end;margin-bottom:0.35rem;"><button id="fw-toggle-details-btn" aria-label="Toggle Feature Web advanced details" aria-controls="fw-edit-owner fw-edit-priority fw-edit-summary fw-edit-teach fw-edit-details" aria-expanded="true" aria-keyshortcuts="B" aria-pressed="true" onclick="featureWebToggleAdvanced()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Hide Details</button></div>
    <div class="fw-advanced" role="group" aria-label="Feature Web advanced node edit fields" style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.45rem;">
     <input id="fw-edit-owner" type="text" aria-label="Edit Feature Web node owner" placeholder="Owner/team" onkeydown="if(event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;">
@@ -8840,9 +8840,9 @@
     if (priorityEl) priorityEl.value = 'medium';
     if (unlinkBtn) unlinkBtn.style.display = 'none';
     if (linkTaskEl) linkTaskEl.value = '';
-    if (linkedInfoEl) { linkedInfoEl.style.display = 'none'; linkedInfoEl.textContent = ''; }
+    if (linkedInfoEl) { linkedInfoEl.style.display = 'none'; linkedInfoEl.setAttribute('aria-hidden', 'true'); linkedInfoEl.textContent = ''; }
     if (openTaskBtn) openTaskBtn.style.display = 'none';
-    if (metricsEl) { metricsEl.style.display = 'none'; metricsEl.textContent = ''; }
+    if (metricsEl) { metricsEl.style.display = 'none'; metricsEl.setAttribute('aria-hidden', 'true'); metricsEl.textContent = ''; }
     return;
    }
    fwSelectedNodeId = node.id;
@@ -8863,10 +8863,12 @@
      const t = boardTasks.find(x => x.id === node.taskId);
      const statusLabel = s => (s === 'in_progress' ? 'IN PROGRESS' : s === 'testing' ? 'TESTING' : s === 'done' ? 'DONE' : 'BACKLOG');
      linkedInfoEl.style.display = 'block';
+     linkedInfoEl.setAttribute('aria-hidden', 'false');
      linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + statusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + node.taskId);
      if (openTaskBtn) openTaskBtn.style.display = t ? 'inline-block' : 'none';
     } else {
       linkedInfoEl.style.display = 'none';
+      linkedInfoEl.setAttribute('aria-hidden', 'true');
       linkedInfoEl.textContent = '';
       if (openTaskBtn) openTaskBtn.style.display = 'none';
     }
@@ -8875,6 +8877,7 @@
     const out = featureWeb.edges.filter(e => e.from === node.id).length;
     const inc = featureWeb.edges.filter(e => e.to === node.id).length;
     metricsEl.style.display = 'block';
+    metricsEl.setAttribute('aria-hidden', 'false');
     metricsEl.textContent = 'Selected node metrics: out-links ' + out + ' · in-links ' + inc;
    }
   }
