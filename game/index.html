@@ -727,7 +727,7 @@
    <textarea class="fw-advanced" id="fw-edit-summary" aria-label="Feature Web node short summary" rows="2" placeholder="Short summary (what it is)" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
    <textarea class="fw-advanced" id="fw-edit-teach" aria-label="Feature Web node teaching summary" rows="2" placeholder="Teach summary (how you'd explain to a newcomer)" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.35rem;"></textarea>
    <textarea class="fw-advanced" id="fw-edit-details" aria-label="Feature Web node implementation details" rows="3" placeholder="Details / implementation notes" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.74rem;resize:vertical;margin-bottom:0.6rem;"></textarea>
-   <div id="fw-teach-panel" role="note" aria-live="polite" aria-atomic="true" aria-label="Feature Web teaching summary" style="display:none;white-space:pre-wrap;background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.35);border-radius:8px;padding:0.45rem 0.55rem;font-size:0.73rem;color:var(--text-muted);margin-bottom:0.55rem;"></div>
+   <div id="fw-teach-panel" role="note" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Feature Web teaching summary" style="display:none;white-space:pre-wrap;background:rgba(255,136,17,0.08);border:1px solid rgba(255,136,17,0.35);border-radius:8px;padding:0.45rem 0.55rem;font-size:0.73rem;color:var(--text-muted);margin-bottom:0.55rem;"></div>
    <div class="fw-pro" role="group" aria-label="Feature Web layout and utility actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <button aria-label="Apply automatic grid layout to Feature Web" aria-keyshortcuts="Ctrl+Shift+R" onclick="featureWebAutoLayout()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Auto Layout</button>
     <button aria-label="Apply constellation layout to Feature Web" aria-keyshortcuts="Ctrl+Shift+C" onclick="featureWebConstellationLayout()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Constellation Layout</button>
@@ -8619,6 +8619,7 @@
    const prereq = incoming.length ? incoming.map(n => '• ' + n.title).join('\n') : '• None';
    const next = outgoing.length ? outgoing.map(n => '• ' + n.title).join('\n') : '• None yet';
    panel.style.display = 'block';
+   panel.setAttribute('aria-hidden', 'false');
    panel.textContent = (node.teach || node.summary || 'No teach summary yet.') + '\n\nPrerequisites:\n' + prereq + '\n\nSuggested Next:\n' + next;
   }
 
@@ -8917,7 +8918,10 @@
    editEl.value = id;
    featureWebRenderEditor();
    const panel = document.getElementById('fw-teach-panel');
-   if (panel) panel.style.display = 'none';
+   if (panel) {
+    panel.style.display = 'none';
+    panel.setAttribute('aria-hidden', 'true');
+   }
    const node = featureWeb.nodes.find(n => n.id === id);
    const t = document.getElementById('sys-selected-title');
    const s = document.getElementById('sys-selected-summary');
