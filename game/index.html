@@ -751,7 +751,7 @@
     <button aria-label="Copy entire Feature Web JSON" onclick="featureWebCopyShare()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy JSON</button>
     <button aria-label="Paste Feature Web JSON" onclick="featureWebPasteJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Paste JSON</button>
    </div>
-   <div id="feature-web-canvas" ondblclick="featureWebCanvasAdd(event)" style="position:relative;height:540px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
+   <div id="feature-web-canvas" role="region" aria-label="Feature Web node graph canvas" ondblclick="featureWebCanvasAdd(event)" style="position:relative;height:540px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
     <svg id="feature-web-edges" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
     <div id="feature-web-nodes" style="position:absolute;inset:0;"></div>
    </div>
