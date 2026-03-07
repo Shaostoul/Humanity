@@ -696,7 +696,7 @@
     <button aria-label="Create Feature Web link" aria-keyshortcuts="Ctrl+Enter" onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
    <div id="fw-quick-list" style="margin-bottom:0.5rem;display:flex;flex-wrap:wrap;gap:0.35rem;"></div>
-   <div id="fw-edge-list" class="fw-pro" style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
+   <div id="fw-edge-list" class="fw-pro" role="list" aria-label="Feature Web visible links" style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
    <div class="fw-pro" style="display:grid;grid-template-columns:1fr 1.3fr 0.8fr 0.8fr 0.9fr auto auto;gap:0.5rem;align-items:center;margin-bottom:0.45rem;">
     <select id="fw-edit-node" aria-label="Select Feature Web node to edit" aria-keyshortcuts="Ctrl+E" onchange="featureWebRenderEditor()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <input id="fw-edit-title" type="text" aria-label="Edit Feature Web node title" placeholder="Edit title" onkeydown="if(event.key==='Enter')featureWebSaveNodeEdits()" onblur="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.5rem;border-radius:6px;font-size:0.78rem;">
@@ -9512,7 +9512,7 @@
        const to = featureWeb.nodes.find(n => n.id === e.to);
        if (!from || !to) return '';
        const typeLabel = e.type === 'blocks' ? 'blocks' : (e.type === 'relates_to' ? 'relates to' : (e.type === 'teaches' ? 'teaches' : (e.type === 'enables' ? 'enables' : 'depends on')));
-       return '<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:999px;padding:0.15rem 0.45rem;margin:0 0.3rem 0.3rem 0;">' + escHtml(from.title) + ' → ' + escHtml(to.title) + ' <button aria-label="Cycle link type" onclick="featureWebCycleEdgeType(\'' + e.id + '\')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.66rem;padding:0;">(' + typeLabel + ')</button><button aria-label="Delete link" onclick="featureWebDeleteEdge(\'' + e.id + '\')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.72rem;">✕</button></span>';
+       return '<span role="listitem" style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:999px;padding:0.15rem 0.45rem;margin:0 0.3rem 0.3rem 0;">' + escHtml(from.title) + ' → ' + escHtml(to.title) + ' <button aria-label="Cycle link type" onclick="featureWebCycleEdgeType(\'' + e.id + '\')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.66rem;padding:0;">(' + typeLabel + ')</button><button aria-label="Delete link" onclick="featureWebDeleteEdge(\'' + e.id + '\')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.72rem;">✕</button></span>';
       }).join('')
      : '<span style="opacity:0.7;">No links in current filter</span>';
    }
