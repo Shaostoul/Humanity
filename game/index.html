@@ -9387,12 +9387,17 @@
 
    if (searchMetaEl) {
     if (filterSearch) {
+     const noMatches = visibleNodes.length === 0;
      searchMetaEl.style.display = 'inline';
      searchMetaEl.textContent = 'Matches: ' + visibleNodes.length + '/' + featureWeb.nodes.length;
-     searchMetaEl.title = 'Visible nodes after current filters and search';
+     searchMetaEl.style.color = noMatches ? '#e88' : 'var(--text-muted)';
+     searchMetaEl.style.fontWeight = noMatches ? '700' : '400';
+     searchMetaEl.title = noMatches ? 'No nodes match current search + filters' : 'Visible nodes after current filters and search';
     } else {
      searchMetaEl.style.display = 'none';
      searchMetaEl.textContent = '';
+     searchMetaEl.style.color = 'var(--text-muted)';
+     searchMetaEl.style.fontWeight = '400';
      searchMetaEl.title = '';
     }
    }
