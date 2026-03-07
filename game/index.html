@@ -651,19 +651,19 @@
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-simple-ui" aria-label="Use simple Feature Web interface" aria-keyshortcuts="U" type="checkbox" checked onchange="featureWebSaveFilters();featureWebRender()">Simple UI</label>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-show-edge-labels" aria-label="Show edge labels" aria-keyshortcuts="E" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Edge labels</label>
     <label style="font-size:0.7rem;color:var(--text-muted);">View</label>
-    <select id="fw-view-mode" aria-label="Feature Web view mode" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-view-mode" aria-label="Feature Web view mode" aria-keyshortcuts="Ctrl+Shift+V,Ctrl+Shift+1,Ctrl+Shift+2,Ctrl+Shift+3,V,1,2,3" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="cards">Card Web</option><option value="constellation">Constellation</option><option value="orbit">Orbit System</option>
     </select>
     <label style="font-size:0.7rem;color:var(--text-muted);">Type</label>
-    <select id="fw-filter-type" aria-label="Filter Feature Web by type" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-filter-type" aria-label="Filter Feature Web by type" aria-keyshortcuts="Ctrl+Shift+F" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option>
     </select>
     <label style="font-size:0.7rem;color:var(--text-muted);">Status</label>
-    <select id="fw-filter-status" aria-label="Filter Feature Web by status" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-filter-status" aria-label="Filter Feature Web by status" aria-keyshortcuts="Ctrl+Shift+P" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
     </select>
     <label style="font-size:0.7rem;color:var(--text-muted);">Domain</label>
-    <select id="fw-filter-domain" aria-label="Filter Feature Web by domain" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
+    <select id="fw-filter-domain" aria-label="Filter Feature Web by domain" aria-keyshortcuts="Ctrl+Shift+D" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option>
     </select>
     <button id="fw-clear-filters-btn" aria-label="Reset Feature Web filters to defaults" aria-keyshortcuts="Ctrl+Shift+0" onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
