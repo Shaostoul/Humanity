@@ -9388,10 +9388,12 @@
    if (searchMetaEl) {
     if (filterSearch) {
      searchMetaEl.style.display = 'inline';
-     searchMetaEl.textContent = 'Matches: ' + visibleNodes.length;
+     searchMetaEl.textContent = 'Matches: ' + visibleNodes.length + '/' + featureWeb.nodes.length;
+     searchMetaEl.title = 'Visible nodes after current filters and search';
     } else {
      searchMetaEl.style.display = 'none';
      searchMetaEl.textContent = '';
+     searchMetaEl.title = '';
     }
    }
 
