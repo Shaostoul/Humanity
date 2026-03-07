@@ -9388,11 +9388,13 @@
    if (searchMetaEl) {
     if (filterSearch) {
      const noMatches = visibleNodes.length === 0;
+     const totalNodes = Math.max(1, featureWeb.nodes.length);
+     const matchPct = Math.round((visibleNodes.length / totalNodes) * 100);
      searchMetaEl.style.display = 'inline';
-     searchMetaEl.textContent = 'Matches: ' + visibleNodes.length + '/' + featureWeb.nodes.length;
+     searchMetaEl.textContent = 'Matches: ' + visibleNodes.length + '/' + featureWeb.nodes.length + ' (' + matchPct + '%)';
      searchMetaEl.style.color = noMatches ? '#e88' : 'var(--text-muted)';
      searchMetaEl.style.fontWeight = noMatches ? '700' : '400';
-     searchMetaEl.title = noMatches ? 'No nodes match current search + filters' : 'Visible nodes after current filters and search';
+     searchMetaEl.title = noMatches ? 'No nodes match current search + filters' : ('Visible nodes after current filters and search (' + matchPct + '%)');
     } else {
      searchMetaEl.style.display = 'none';
      searchMetaEl.textContent = '';
