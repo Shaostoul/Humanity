@@ -9396,6 +9396,7 @@
      const totalNodes = Math.max(1, featureWeb.nodes.length);
      const matchPct = Math.round((visibleNodes.length / totalNodes) * 100);
      searchMetaEl.style.display = 'inline';
+     searchMetaEl.setAttribute('aria-hidden', 'false');
      searchMetaEl.textContent = 'Matches: ' + visibleNodes.length + '/' + featureWeb.nodes.length + ' (' + matchPct + '%)';
      searchMetaEl.style.color = noMatches ? '#e88' : 'var(--text-muted)';
      searchMetaEl.style.fontWeight = noMatches ? '700' : '400';
@@ -9403,6 +9404,7 @@
      searchMetaEl.title = noMatches ? 'No nodes match current search + filters. Click to clear search.' : ('Visible nodes after current filters and search (' + matchPct + '%). Press Enter in search to focus first result, or click here to clear search.');
     } else {
      searchMetaEl.style.display = 'none';
+     searchMetaEl.setAttribute('aria-hidden', 'true');
      searchMetaEl.textContent = '';
      searchMetaEl.style.color = 'var(--text-muted)';
      searchMetaEl.style.fontWeight = '400';
