@@ -8195,7 +8195,8 @@
    }));
   }
 
-  function featureWebClearFilters() {
+  function featureWebClearFilters(opts) {
+   const options = opts || {};
    const typeEl = document.getElementById('fw-filter-type');
    const statusEl = document.getElementById('fw-filter-status');
    const searchEl = document.getElementById('fw-filter-search');
@@ -8218,6 +8219,7 @@
    if (labelsEl) labelsEl.checked = false;
    featureWebSaveFilters();
    featureWebRender();
+   if (!options.quiet) featureWebNotice('Filters cleared');
    if (searchEl) searchEl.focus();
   }
 
@@ -9895,7 +9897,7 @@
    }
    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === '0') {
     e.preventDefault();
-    featureWebClearFilters();
+    featureWebClearFilters({ quiet: true });
     featureWebNotice('Filters cleared');
     return;
    }
