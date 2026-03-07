@@ -9581,7 +9581,7 @@
      '<div style="font-size:0.76rem;color:var(--text);font-weight:600;line-height:1.3;word-break:break-word;">' + escHtml(n.title) + '</div>' +
      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.2rem;gap:0.3rem;">' +
       '<span style="font-size:0.63rem;color:' + statusColor + ';font-weight:700;text-transform:uppercase;">' + escHtml(n.status) + '</span>' +
-      '<button onclick="event.stopPropagation();featureWebDeleteNode(\'' + n.id + '\')" style="background:none;border:none;color:var(--text-muted);font-size:0.72rem;cursor:pointer;">✕</button>' +
+      '<button aria-label="Delete node" onclick="event.stopPropagation();featureWebDeleteNode(\'' + n.id + '\')" style="background:none;border:none;color:var(--text-muted);font-size:0.72rem;cursor:pointer;">✕</button>' +
      '</div>' +
     '</div>';
    }).join('');
