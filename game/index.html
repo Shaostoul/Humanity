@@ -643,7 +643,7 @@
    <div id="fw-notice" style="display:none;margin-bottom:0.45rem;font-size:0.7rem;color:#e8b35a;"></div>
    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;">
     <input id="fw-filter-search" type="text" placeholder="Search nodes…" oninput="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.23rem 0.42rem;border-radius:6px;font-size:0.72rem;min-width:150px;">
-    <button id="fw-clear-search-btn" onclick="featureWebClearSearch()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Search</button>
+    <button id="fw-clear-search-btn" aria-label="Clear Feature Web search" onclick="featureWebClearSearch()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Search</button>
     <span id="fw-search-meta" role="button" tabindex="0" onclick="featureWebClearSearch()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();featureWebClearSearch();}" style="font-size:0.68rem;color:var(--text-muted);opacity:0.8;display:none;cursor:pointer;"></span>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-linked-only" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Linked only</label>
     <label style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.7rem;color:var(--text-muted);"><input id="fw-owned-only" type="checkbox" onchange="featureWebSaveFilters();featureWebRender()">Owned only</label>
@@ -666,7 +666,7 @@
     <select id="fw-filter-domain" onchange="featureWebSaveFilters();featureWebRender()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.4rem;border-radius:6px;font-size:0.74rem;">
      <option value="all">All</option><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option>
     </select>
-    <button id="fw-clear-filters-btn" onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
+    <button id="fw-clear-filters-btn" aria-label="Reset Feature Web filters to defaults" onclick="featureWebClearFilters()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Clear Filters</button>
    </div>
    <div id="fw-legend" style="display:flex;gap:0.45rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;color:var(--text-muted);"></div>
    <div id="fw-status-summary" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-bottom:0.35rem;font-size:0.66rem;"></div>
