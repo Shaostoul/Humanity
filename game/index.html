@@ -716,7 +716,7 @@
    </div>
    <div style="display:flex;gap:0.45rem;align-items:center;justify-content:space-between;margin-bottom:0.2rem;">
     <div id="fw-linked-task-info" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Linked board task info" style="display:none;font-size:0.67rem;color:var(--text-muted);"></div>
-    <button id="fw-open-task-btn" aria-label="Open task linked to selected Feature Web node" aria-keyshortcuts="O" onclick="featureWebOpenLinkedTask()" style="display:none;background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.22rem 0.5rem;border-radius:6px;font-size:0.7rem;cursor:pointer;">Open Task</button>
+    <button id="fw-open-task-btn" aria-label="Open task linked to selected Feature Web node" aria-keyshortcuts="O" aria-hidden="true" onclick="featureWebOpenLinkedTask()" style="display:none;background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.22rem 0.5rem;border-radius:6px;font-size:0.7rem;cursor:pointer;">Open Task</button>
    </div>
    <div id="fw-selected-metrics" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true" aria-label="Selected Feature Web node metrics" style="display:none;font-size:0.66rem;color:var(--text-muted);margin-bottom:0.45rem;"></div>
    <div style="display:flex;justify-content:flex-end;margin-bottom:0.35rem;"><button id="fw-toggle-details-btn" aria-label="Toggle Feature Web advanced details" aria-controls="fw-edit-owner fw-edit-priority fw-edit-summary fw-edit-teach fw-edit-details" aria-expanded="true" aria-keyshortcuts="B" aria-pressed="true" onclick="featureWebToggleAdvanced()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.5rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Hide Details</button></div>
@@ -8842,7 +8842,10 @@
     if (unlinkBtn) unlinkBtn.style.display = 'none';
     if (linkTaskEl) linkTaskEl.value = '';
     if (linkedInfoEl) { linkedInfoEl.style.display = 'none'; linkedInfoEl.setAttribute('aria-hidden', 'true'); linkedInfoEl.textContent = ''; }
-    if (openTaskBtn) openTaskBtn.style.display = 'none';
+    if (openTaskBtn) {
+     openTaskBtn.style.display = 'none';
+     openTaskBtn.setAttribute('aria-hidden', 'true');
+    }
     if (metricsEl) { metricsEl.style.display = 'none'; metricsEl.setAttribute('aria-hidden', 'true'); metricsEl.textContent = ''; }
     return;
    }
@@ -8866,12 +8869,18 @@
      linkedInfoEl.style.display = 'block';
      linkedInfoEl.setAttribute('aria-hidden', 'false');
      linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + statusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + node.taskId);
-     if (openTaskBtn) openTaskBtn.style.display = t ? 'inline-block' : 'none';
+     if (openTaskBtn) {
+      openTaskBtn.style.display = t ? 'inline-block' : 'none';
+      openTaskBtn.setAttribute('aria-hidden', t ? 'false' : 'true');
+     }
     } else {
       linkedInfoEl.style.display = 'none';
       linkedInfoEl.setAttribute('aria-hidden', 'true');
       linkedInfoEl.textContent = '';
-      if (openTaskBtn) openTaskBtn.style.display = 'none';
+      if (openTaskBtn) {
+       openTaskBtn.style.display = 'none';
+       openTaskBtn.setAttribute('aria-hidden', 'true');
+      }
     }
    }
    if (metricsEl) {
