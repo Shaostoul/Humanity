@@ -9648,6 +9648,7 @@
     quickListEl.innerHTML = ranked.map(n => '<button role="listitem" aria-label="Focus Feature Web node ' + escHtml(String(n.title || '').replace(/"/g, '&quot;')) + '" aria-pressed="' + (n.id===fwSelectedNodeId?'true':'false') + '" aria-current="' + (n.id===fwSelectedNodeId?'true':'false') + '" onclick="featureWebFocusNode(\'' + n.id + '\');featureWebCenterSelected();" style="background:' + (n.id===fwSelectedNodeId?'rgba(120,180,255,0.25)':'rgba(255,255,255,0.06)') + ';border:1px solid rgba(255,255,255,0.14);color:var(--text);padding:0.2rem 0.45rem;border-radius:999px;font-size:0.68rem;cursor:pointer;">' + escHtml(n.title) + '</button>').join('');
     quickListEl.style.display = simpleUi ? 'flex' : 'none';
     quickListEl.setAttribute('aria-hidden', simpleUi ? 'false' : 'true');
+    quickListEl.setAttribute('aria-live', simpleUi ? 'polite' : 'off');
    }
 
    if (legendEl) {
