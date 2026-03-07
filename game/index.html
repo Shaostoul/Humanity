@@ -9512,7 +9512,7 @@
        const to = featureWeb.nodes.find(n => n.id === e.to);
        if (!from || !to) return '';
        const typeLabel = e.type === 'blocks' ? 'blocks' : (e.type === 'relates_to' ? 'relates to' : (e.type === 'teaches' ? 'teaches' : (e.type === 'enables' ? 'enables' : 'depends on')));
-       return '<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:999px;padding:0.15rem 0.45rem;margin:0 0.3rem 0.3rem 0;">' + escHtml(from.title) + ' → ' + escHtml(to.title) + ' <button onclick="featureWebCycleEdgeType(\'' + e.id + '\')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.66rem;padding:0;">(' + typeLabel + ')</button><button onclick="featureWebDeleteEdge(\'' + e.id + '\')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.72rem;">✕</button></span>';
+       return '<span style="display:inline-flex;align-items:center;gap:0.25rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:999px;padding:0.15rem 0.45rem;margin:0 0.3rem 0.3rem 0;">' + escHtml(from.title) + ' → ' + escHtml(to.title) + ' <button aria-label="Cycle link type" onclick="featureWebCycleEdgeType(\'' + e.id + '\')" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.66rem;padding:0;">(' + typeLabel + ')</button><button aria-label="Delete link" onclick="featureWebDeleteEdge(\'' + e.id + '\')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.72rem;">✕</button></span>';
       }).join('')
      : '<span style="opacity:0.7;">No links in current filter</span>';
    }
