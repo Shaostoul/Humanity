@@ -150,6 +150,71 @@
       white-space: nowrap;
       opacity: 0.9;
     }
+    .hub-nav .menu { position: relative; }
+    .hub-nav .menu-btn {
+      background: transparent;
+      border: none;
+      color: #ddd;
+      padding: 0.3rem 0.65rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      box-shadow: inset 0 0 0 1px #2a6;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .hub-nav .menu-btn:hover,
+    .hub-nav .menu.open .menu-btn {
+      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
+      color: #fff;
+    }
+    .hub-nav .menu-drop {
+      position: absolute;
+      top: calc(100% + 6px);
+      min-width: 210px;
+      background: rgba(13,13,13,0.97);
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 0.35rem;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+      display: none;
+      z-index: 1200;
+    }
+    .hub-nav .menu.open .menu-drop { display: block; }
+    .hub-nav .menu-drop a {
+      display: block;
+      color: #ddd;
+      text-decoration: none;
+      font-size: 0.76rem;
+      padding: 0.35rem 0.45rem;
+      border-radius: 6px;
+      margin: 0.1rem 0;
+      border: 1px solid transparent;
+    }
+    .hub-nav .menu-drop a:hover {
+      background: rgba(255,255,255,0.05);
+      border-color: #3b4f6b;
+    }
+    .hub-nav .utility {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      margin-left: 0.35rem;
+    }
+    .hub-nav .utility a {
+      color: #bbb;
+      text-decoration: none;
+      font-size: 0.74rem;
+      padding: 0.2rem 0.42rem;
+      border-radius: 6px;
+      border: 1px solid #2b2b2b;
+    }
+    .hub-nav .utility a:hover {
+      color: #fff;
+      border-color: #3b4f6b;
+      background: rgba(255,255,255,0.04);
+    }
     @keyframes channeling {
       0%   { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
       16%  { box-shadow: inset 0 0 0 2px #f80, 0 0 10px rgba(255,136,0,0.4); }
@@ -256,28 +321,77 @@
   nav.innerHTML =
     '<nav class="hub-nav">' +
       '<div class="hub-side left">' +
-        '<a href="/reality" class="' + cls('reality') + '">🟢 Profile</a>' +
-        '<a href="/dashboard" class="' + cls('dashboard') + '">🎒 Inventory</a>' +
-        '<a href="/fantasy" class="' + cls('fantasy') + '">✨ Skills</a>' +
-        '<a href="/source" class="' + cls('source') + '">🛠️ Equipment</a>' +
-        '<span class="group-label">Private</span>' +
+        '<div class="menu" data-menu="private">' +
+          '<button class="menu-btn" type="button">Private ▾</button>' +
+          '<div class="menu-drop">' +
+            '<a href="/reality">Profile</a>' +
+            '<a href="/dashboard">Inventory</a>' +
+            '<a href="/fantasy">Skills</a>' +
+            '<a href="/source">Equipment</a>' +
+            '<a href="/board">Quests</a>' +
+            '<a href="/board">Calendar</a>' +
+            '<a href="/board">Logbook</a>' +
+            '<a href="/">Home</a>' +
+          '</div>' +
+        '</div>' +
       '</div>' +
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
       '<div class="hub-side right">' +
-        '<span class="group-label">Public</span>' +
-        '<a href="/chat" class="' + cls('chat') + '">💬 Network</a>' +
-        '<a href="/board" class="' + cls('board') + '">🧩 Systems</a>' +
-        '<a href="/map" class="' + cls('map') + '">🗺️ Maps</a>' +
-        '<a href="/market" class="' + cls('market') + '">🛒 Market</a>' +
-        '<a href="/browse" class="' + cls('browse') + '">🎓 Learn</a>' +
-        '<a href="/info" class="' + cls('info') + '">📚 Knowledge</a>' +
-        '<a href="/streams" class="' + cls('streams') + '">🎬 Streams</a>' +
-        '<a href="/debug" class="' + cls('debug') + '">🔧 Ops</a>' +
+        '<div class="menu" data-menu="public">' +
+          '<button class="menu-btn" type="button">Public ▾</button>' +
+          '<div class="menu-drop">' +
+            '<a href="/chat">Network</a>' +
+            '<a href="/board">Systems</a>' +
+            '<a href="/map">Maps</a>' +
+            '<a href="/market">Market</a>' +
+            '<a href="/browse">Learn</a>' +
+            '<a href="/info">Knowledge</a>' +
+            '<a href="/streams">Streams</a>' +
+          '</div>' +
+        '</div>' +
+        '<div class="menu" data-menu="ops">' +
+          '<button class="menu-btn" type="button">Ops ▾</button>' +
+          '<div class="menu-drop">' +
+            '<a href="/debug">Health</a>' +
+            '<a href="/debug">Deploy</a>' +
+            '<a href="/debug">Logs</a>' +
+            '<a href="/debug">Debug</a>' +
+            '<a href="/debug">Moderation</a>' +
+          '</div>' +
+        '</div>' +
+        '<div class="utility">' +
+          '<a href="/info" title="Search">🔎</a>' +
+          '<a href="/source" title="Settings">⚙</a>' +
+          '<a href="/dashboard" title="Data">🗄</a>' +
+          '<a href="/chat" title="Alerts">🔔</a>' +
+          '<a href="/reality" title="Account">👤</a>' +
+        '</div>' +
       '</div>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
+
+  // Dropdown menu interactions
+  document.querySelectorAll('.hub-nav .menu-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var menu = btn.closest('.menu');
+      if (!menu) return;
+      var isOpen = menu.classList.contains('open');
+      document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
+      if (!isOpen) menu.classList.add('open');
+    });
+  });
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
+  });
+  document.querySelector('.hub-nav').addEventListener('click', function(e) {
+    if (e.target.closest('.menu-drop a')) {
+      document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
+    }
+  });
 
   function applyNavLabelWrappingAndCompaction() {
     var navEl = document.querySelector('.hub-nav');
