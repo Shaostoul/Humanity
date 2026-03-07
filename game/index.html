@@ -9398,6 +9398,7 @@
      searchMetaEl.style.display = 'inline';
      searchMetaEl.setAttribute('aria-hidden', 'false');
      searchMetaEl.textContent = 'Matches: ' + visibleNodes.length + '/' + featureWeb.nodes.length + ' (' + matchPct + '%)';
+     searchMetaEl.setAttribute('aria-label', noMatches ? 'No search matches. Activate to clear search.' : ('Search matches: ' + visibleNodes.length + ' of ' + featureWeb.nodes.length + '. Activate to clear search.'));
      searchMetaEl.style.color = noMatches ? '#e88' : 'var(--text-muted)';
      searchMetaEl.style.fontWeight = noMatches ? '700' : '400';
      searchMetaEl.style.cursor = 'pointer';
@@ -9405,6 +9406,7 @@
     } else {
      searchMetaEl.style.display = 'none';
      searchMetaEl.setAttribute('aria-hidden', 'true');
+     searchMetaEl.setAttribute('aria-label', 'Search matches');
      searchMetaEl.textContent = '';
      searchMetaEl.style.color = 'var(--text-muted)';
      searchMetaEl.style.fontWeight = '400';
