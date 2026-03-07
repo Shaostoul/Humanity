@@ -9580,6 +9580,7 @@
    }
    document.querySelectorAll('.fw-pro').forEach(el => {
     el.style.display = simpleUi ? 'none' : '';
+    el.setAttribute('aria-hidden', simpleUi ? 'true' : 'false');
    });
    let visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || n.taskId != null) && (!ownedOnly || !!(n.owner && n.owner.trim())) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
    let visibleNodeIds = new Set(visibleNodes.map(n => n.id));
