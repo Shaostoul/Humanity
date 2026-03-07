@@ -715,7 +715,7 @@
     <button aria-label="Sync Feature Web nodes to board tasks" aria-keyshortcuts="M,Ctrl+Shift+S" onclick="featureWebSyncNodesToBoard()" style="background:none;border:1px solid rgba(122,214,97,0.45);color:#9fe69a;padding:0.32rem 0.55rem;border-radius:6px;font-size:0.73rem;cursor:pointer;">Sync Nodes→Tasks</button>
    </div>
    <div style="display:flex;gap:0.45rem;align-items:center;justify-content:space-between;margin-bottom:0.2rem;">
-    <div id="fw-linked-task-info" style="display:none;font-size:0.67rem;color:var(--text-muted);"></div>
+    <div id="fw-linked-task-info" role="status" aria-live="polite" aria-atomic="true" aria-label="Linked board task info" style="display:none;font-size:0.67rem;color:var(--text-muted);"></div>
     <button id="fw-open-task-btn" aria-label="Open task linked to selected Feature Web node" aria-keyshortcuts="O" onclick="featureWebOpenLinkedTask()" style="display:none;background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.22rem 0.5rem;border-radius:6px;font-size:0.7rem;cursor:pointer;">Open Task</button>
    </div>
    <div id="fw-selected-metrics" style="display:none;font-size:0.66rem;color:var(--text-muted);margin-bottom:0.45rem;"></div>
