@@ -8125,6 +8125,8 @@
    featureWebLoadFilters();
    featureWebLoadUiState();
    featureWebRender();
+   featureWebToggleAdvanced(fwAdvancedVisible, true);
+   featureWebToggleShortcutHint(fwShortcutsVisible, true);
   }
 
   function featureWebSave() {
@@ -8255,7 +8257,7 @@
    }, 2200);
   }
 
-  function featureWebToggleAdvanced(forceState) {
+  function featureWebToggleAdvanced(forceState, skipSave) {
    fwAdvancedVisible = typeof forceState === 'boolean' ? forceState : !fwAdvancedVisible;
    document.querySelectorAll('.fw-advanced').forEach(el => {
     if (!el.dataset.fwDisplay) el.dataset.fwDisplay = el.style.display || '';
@@ -8268,10 +8270,10 @@
     btn.setAttribute('aria-pressed', fwAdvancedVisible ? 'true' : 'false');
     btn.setAttribute('aria-expanded', fwAdvancedVisible ? 'true' : 'false');
    }
-   featureWebSaveUiState();
+   if (!skipSave) featureWebSaveUiState();
   }
 
-  function featureWebToggleShortcutHint(forceState) {
+  function featureWebToggleShortcutHint(forceState, skipSave) {
    const hint = document.getElementById('fw-shortcuts-hint');
    const btn = document.getElementById('fw-toggle-shortcuts-btn');
    if (!hint) return;
@@ -8283,7 +8285,7 @@
     btn.setAttribute('aria-pressed', fwShortcutsVisible ? 'true' : 'false');
     btn.setAttribute('aria-expanded', fwShortcutsVisible ? 'true' : 'false');
    }
-   featureWebSaveUiState();
+   if (!skipSave) featureWebSaveUiState();
   }
 
   function featureWebSeedPU() {
