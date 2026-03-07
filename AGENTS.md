@@ -55,6 +55,12 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - For file move/migration jobs: copy first, verify copied content integrity, then remove deprecated source files.
 - When in doubt, ask.
 
+## Gateway Restart Notification Policy
+
+- Before running `openclaw gateway restart`, send your human a short "about to restart gateway now" notice.
+- After restart completes, send a short "gateway is back" status update.
+- Exception: if the gateway is already down/unresponsive and a restart is required for emergency recovery, restart first, then immediately send a post-recovery explanation.
+
 ## External vs Internal
 
 **Safe to do freely:**
