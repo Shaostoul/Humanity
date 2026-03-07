@@ -389,6 +389,7 @@
   }
 
   document.querySelectorAll('.hub-nav .menu-btn').forEach(function(btn) {
+    var lastTouchToggleAt = 0;
     var toggleMenu = function(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -401,8 +402,22 @@
         positionMenuDrop(menu);
       }
     };
-    btn.addEventListener('click', toggleMenu);
-    btn.addEventListener('pointerdown', toggleMenu);
+    // Touch/pen devices: open on pointerdown for responsiveness.
+    btn.addEventListener('pointerdown', function(e) {
+      if (e.pointerType && e.pointerType !== 'mouse') {
+        lastTouchToggleAt = Date.now();
+        toggleMenu(e);
+      }
+    });
+    // Mouse/keyboard click path; ignore synthetic click right after touch pointerdown.
+    btn.addEventListener('click', function(e) {
+      if (Date.now() - lastTouchToggleAt < 500) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      toggleMenu(e);
+    });
   });
   document.addEventListener('click', function() {
     document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
