@@ -51,7 +51,10 @@
       height: 40px;
       gap: 0.25rem;
       flex-shrink: 0;
-      z-index: 200;
+      position: sticky;
+      top: 0;
+      z-index: 5500;
+      isolation: isolate;
     }
     .hub-nav .brand {
       font-size: 1.1rem;
@@ -179,7 +182,7 @@
       padding: 0.35rem;
       box-shadow: 0 8px 28px rgba(0,0,0,0.45);
       display: none;
-      z-index: 1200;
+      z-index: 7000;
     }
     .hub-nav .menu.open .menu-drop { display: block; }
     .hub-nav .menu-drop a {

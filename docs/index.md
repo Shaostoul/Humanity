@@ -14,6 +14,7 @@ This is the parent entry for major documentation areas.
 - [Security Design](../design/security/README.md)
 - [Gameplay Design](../design/gameplay/README.md)
 - [Feature Web](../design/feature_web.md)
+- [Page Specs](../design/pages/README.md)
 - [Vision](../design/product/vision.md)
 - [Product Roadmap](../design/product/product_roadmap.md)
 - [App Shell IA](../design/ui/app_shell_information_architecture.md)
