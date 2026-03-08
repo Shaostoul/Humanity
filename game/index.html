@@ -8285,6 +8285,12 @@
    return id > 0 ? id : null;
   }
 
+  function featureWebClampText(value, maxLen) {
+   if (typeof value !== 'string') return '';
+   const text = value.trim();
+   return text.length > maxLen ? text.slice(0, maxLen) : text;
+  }
+
   function featureWebNormalize(raw, includeReport) {
    const src = (raw && typeof raw === 'object') ? raw : {};
    const sourceNodes = Array.isArray(src.nodes) ? src.nodes : [];
@@ -8307,14 +8313,14 @@
     const normalizedPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
     const normalized = {
      id: (typeof node.id === 'string' && node.id.trim()) ? node.id.trim() : featureWebNewId('n'),
-     title: (typeof node.title === 'string' && node.title.trim()) ? node.title.trim() : ('Untitled ' + (idx + 1)),
+     title: featureWebClampText(node.title, 140) || ('Untitled ' + (idx + 1)),
      type: allowedTypes.has(normalizedType) ? normalizedType : 'feature',
      domain: allowedDomains.has(normalizedDomain) ? normalizedDomain : 'game',
      status: allowedStatuses.has(normalizedStatus) ? normalizedStatus : 'planned',
-     summary: typeof node.summary === 'string' ? node.summary : '',
-     teach: typeof node.teach === 'string' ? node.teach : '',
-     details: typeof node.details === 'string' ? node.details : '',
-     owner: typeof node.owner === 'string' ? node.owner : '',
+     summary: featureWebClampText(node.summary, 400),
+     teach: featureWebClampText(node.teach, 1200),
+     details: featureWebClampText(node.details, 6000),
+     owner: featureWebClampText(node.owner, 120),
      priority: allowedPriorities.has(normalizedPriority) ? normalizedPriority : 'medium',
      x: Number.isFinite(+node.x) ? +node.x : fallbackX,
      y: Number.isFinite(+node.y) ? +node.y : fallbackY,
