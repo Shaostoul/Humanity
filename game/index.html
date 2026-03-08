@@ -8359,10 +8359,32 @@
    featureWebNotice(msg);
   }
 
+  function featureWebConstrainNodesToCanvas() {
+   const canvas = document.getElementById('feature-web-canvas');
+   if (!canvas || !Array.isArray(featureWeb.nodes)) return false;
+   const width = Math.max(140, canvas.clientWidth || canvas.offsetWidth || 0);
+   const height = Math.max(60, canvas.clientHeight || canvas.offsetHeight || 0);
+   let changed = false;
+   featureWeb.nodes.forEach((node, idx) => {
+    if (!node || typeof node !== 'object') return;
+    const fallbackX = 25 + (idx % 4) * 150;
+    const fallbackY = 20 + Math.floor(idx / 4) * 90;
+    const baseX = Number.isFinite(+node.x) ? +node.x : fallbackX;
+    const baseY = Number.isFinite(+node.y) ? +node.y : fallbackY;
+    const clampedX = Math.max(4, Math.min(width - 120, baseX));
+    const clampedY = Math.max(4, Math.min(height - 48, baseY));
+    if (node.x !== clampedX) { node.x = clampedX; changed = true; }
+    if (node.y !== clampedY) { node.y = clampedY; changed = true; }
+   });
+   return changed;
+  }
+
   function featureWebLoad() {
    let parsed = { nodes: [], edges: [] };
    try { parsed = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch {}
    featureWeb = featureWebNormalize(parsed);
+   const constrained = featureWebConstrainNodesToCanvas();
+   if (constrained) featureWebSave();
    if (!featureWeb.nodes.length && !localStorage.getItem('humanity_feature_web_autoseeded_v2')) {
     localStorage.setItem('humanity_feature_web_autoseeded_v2', '1');
     setTimeout(() => featureWebSeedPU(), 0);
@@ -9566,6 +9588,7 @@
       if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
       const normalized = featureWebNormalize(data, true);
       featureWeb = normalized.graph;
+      featureWebConstrainNodesToCanvas();
       featureWebSave();
       featureWebRender();
       featureWebNoticeImportReport(normalized.report, 'Imported JSON');
@@ -9617,6 +9640,7 @@
     if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
     const normalized = featureWebNormalize(data, true);
     featureWeb = normalized.graph;
+    featureWebConstrainNodesToCanvas();
     featureWebSave();
     featureWebRender();
     featureWebNoticeImportReport(normalized.report, 'Pasted JSON');
