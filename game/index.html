@@ -8392,6 +8392,12 @@
    localStorage.setItem(FEATURE_WEB_UI_KEY, JSON.stringify({ advancedVisible: !!fwAdvancedVisible, shortcutsVisible: !!fwShortcutsVisible, selectedNodeId: fwSelectedNodeId || '' }));
   }
 
+  function featureWebSanitizeFilterValue(value, allowed, fallback) {
+   if (typeof value !== 'string') return fallback;
+   const v = value.trim();
+   return allowed.has(v) ? v : fallback;
+  }
+
   function featureWebLoadFilters() {
    let f = null;
    try { f = JSON.parse(localStorage.getItem(FEATURE_WEB_FILTERS_KEY) || '{}'); } catch {}
@@ -8405,10 +8411,16 @@
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
-   if (typeEl && f && f.type) typeEl.value = f.type;
-   if (statusEl && f && f.status) statusEl.value = f.status;
-   if (domainEl && f && f.domain) domainEl.value = f.domain;
-   if (viewEl) viewEl.value = (f && f.viewMode) ? f.viewMode : 'orbit';
+
+   const typeAllowed = new Set(['all', 'feature', 'subfeature', 'tech', 'ux', 'org', 'lore']);
+   const statusAllowed = new Set(['all', 'planned', 'active', 'blocked', 'done']);
+   const domainAllowed = new Set(['all', 'vision', 'business', 'school', 'game', 'economy', 'tech', 'lore', 'roadmap', 'community', 'operations']);
+   const viewAllowed = new Set(['orbit', 'cards', 'constellation']);
+
+   if (typeEl) typeEl.value = featureWebSanitizeFilterValue(f && f.type, typeAllowed, 'all');
+   if (statusEl) statusEl.value = featureWebSanitizeFilterValue(f && f.status, statusAllowed, 'all');
+   if (domainEl) domainEl.value = featureWebSanitizeFilterValue(f && f.domain, domainAllowed, 'all');
+   if (viewEl) viewEl.value = featureWebSanitizeFilterValue(f && f.viewMode, viewAllowed, 'orbit');
    if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
    if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
    if (ownedOnlyEl && f && typeof f.ownedOnly === 'boolean') ownedOnlyEl.checked = f.ownedOnly;
@@ -8428,11 +8440,17 @@
    const labelsEl = document.getElementById('fw-show-edge-labels');
    const viewEl = document.getElementById('fw-view-mode');
    const domainEl = document.getElementById('fw-filter-domain');
+
+   const typeAllowed = new Set(['all', 'feature', 'subfeature', 'tech', 'ux', 'org', 'lore']);
+   const statusAllowed = new Set(['all', 'planned', 'active', 'blocked', 'done']);
+   const domainAllowed = new Set(['all', 'vision', 'business', 'school', 'game', 'economy', 'tech', 'lore', 'roadmap', 'community', 'operations']);
+   const viewAllowed = new Set(['orbit', 'cards', 'constellation']);
+
    localStorage.setItem(FEATURE_WEB_FILTERS_KEY, JSON.stringify({
-    type: (typeEl && typeEl.value) || 'all',
-    status: (statusEl && statusEl.value) || 'all',
-    domain: (domainEl && domainEl.value) || 'all',
-    viewMode: (viewEl && viewEl.value) || 'orbit',
+    type: featureWebSanitizeFilterValue(typeEl && typeEl.value, typeAllowed, 'all'),
+    status: featureWebSanitizeFilterValue(statusEl && statusEl.value, statusAllowed, 'all'),
+    domain: featureWebSanitizeFilterValue(domainEl && domainEl.value, domainAllowed, 'all'),
+    viewMode: featureWebSanitizeFilterValue(viewEl && viewEl.value, viewAllowed, 'orbit'),
     search: (searchEl && searchEl.value) || '',
     linkedOnly: linkedOnlyEl ? !!linkedOnlyEl.checked : false,
     ownedOnly: ownedOnlyEl ? !!ownedOnlyEl.checked : false,
