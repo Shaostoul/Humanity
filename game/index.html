@@ -8283,6 +8283,7 @@
    const sourceNodes = Array.isArray(src.nodes) ? src.nodes : [];
    const sourceEdges = Array.isArray(src.edges) ? src.edges : [];
    const allowedTypes = new Set(['feature', 'subfeature', 'tech', 'ux', 'org', 'lore']);
+   const allowedDomains = new Set(['vision', 'business', 'school', 'game', 'economy', 'tech', 'lore', 'roadmap', 'community', 'operations']);
    const allowedStatuses = new Set(['planned', 'active', 'blocked', 'done']);
    const allowedPriorities = new Set(['low', 'medium', 'high', 'critical']);
    const allowedEdgeTypes = new Set(['depends_on', 'blocks', 'relates_to', 'teaches', 'enables']);
@@ -8297,7 +8298,7 @@
      id: (typeof node.id === 'string' && node.id.trim()) ? node.id.trim() : featureWebNewId('n'),
      title: (typeof node.title === 'string' && node.title.trim()) ? node.title.trim() : ('Untitled ' + (idx + 1)),
      type: allowedTypes.has(node.type) ? node.type : 'feature',
-     domain: (typeof node.domain === 'string' && node.domain.trim()) ? node.domain.trim() : 'game',
+     domain: allowedDomains.has(typeof node.domain === 'string' ? node.domain.trim() : '') ? String(node.domain).trim() : 'game',
      status: allowedStatuses.has(node.status) ? node.status : 'planned',
      summary: typeof node.summary === 'string' ? node.summary : '',
      teach: typeof node.teach === 'string' ? node.teach : '',
