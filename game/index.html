@@ -8278,6 +8278,13 @@
    return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
+  function featureWebNormalizeTaskId(value) {
+   const n = Number(value);
+   if (!Number.isFinite(n)) return null;
+   const id = Math.trunc(n);
+   return id > 0 ? id : null;
+  }
+
   function featureWebNormalize(raw, includeReport) {
    const src = (raw && typeof raw === 'object') ? raw : {};
    const sourceNodes = Array.isArray(src.nodes) ? src.nodes : [];
@@ -8312,7 +8319,8 @@
      x: Number.isFinite(+node.x) ? +node.x : fallbackX,
      y: Number.isFinite(+node.y) ? +node.y : fallbackY,
     };
-    if (node.taskId != null) normalized.taskId = node.taskId;
+    const normalizedTaskId = featureWebNormalizeTaskId(node.taskId);
+    if (normalizedTaskId != null) normalized.taskId = normalizedTaskId;
     while (nodeIds.has(normalized.id)) normalized.id = featureWebNewId('n');
     nodeIds.add(normalized.id);
     nodes.push(normalized);
