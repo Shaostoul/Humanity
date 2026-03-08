@@ -8294,17 +8294,21 @@
     if (!node || typeof node !== 'object') return;
     const fallbackX = 25 + (nodes.length % 4) * 150;
     const fallbackY = 20 + Math.floor(nodes.length / 4) * 90;
+    const normalizedType = typeof node.type === 'string' ? node.type.trim().toLowerCase() : '';
+    const normalizedDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
+    const normalizedStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
+    const normalizedPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
     const normalized = {
      id: (typeof node.id === 'string' && node.id.trim()) ? node.id.trim() : featureWebNewId('n'),
      title: (typeof node.title === 'string' && node.title.trim()) ? node.title.trim() : ('Untitled ' + (idx + 1)),
-     type: allowedTypes.has(node.type) ? node.type : 'feature',
-     domain: allowedDomains.has(typeof node.domain === 'string' ? node.domain.trim() : '') ? String(node.domain).trim() : 'game',
-     status: allowedStatuses.has(node.status) ? node.status : 'planned',
+     type: allowedTypes.has(normalizedType) ? normalizedType : 'feature',
+     domain: allowedDomains.has(normalizedDomain) ? normalizedDomain : 'game',
+     status: allowedStatuses.has(normalizedStatus) ? normalizedStatus : 'planned',
      summary: typeof node.summary === 'string' ? node.summary : '',
      teach: typeof node.teach === 'string' ? node.teach : '',
      details: typeof node.details === 'string' ? node.details : '',
      owner: typeof node.owner === 'string' ? node.owner : '',
-     priority: allowedPriorities.has(node.priority) ? node.priority : 'medium',
+     priority: allowedPriorities.has(normalizedPriority) ? normalizedPriority : 'medium',
      x: Number.isFinite(+node.x) ? +node.x : fallbackX,
      y: Number.isFinite(+node.y) ? +node.y : fallbackY,
     };
@@ -8325,11 +8329,12 @@
     if (!nodeIds.has(from) || !nodeIds.has(to)) return;
     const pairKey = from + '->' + to;
     if (edgePairs.has(pairKey)) return;
+    const normalizedEdgeType = typeof edge.type === 'string' ? edge.type.trim().toLowerCase() : '';
     const normalized = {
      id: (typeof edge.id === 'string' && edge.id.trim()) ? edge.id.trim() : featureWebNewId('e'),
      from,
      to,
-     type: allowedEdgeTypes.has(edge.type) ? edge.type : 'depends_on'
+     type: allowedEdgeTypes.has(normalizedEdgeType) ? normalizedEdgeType : 'depends_on'
     };
     while (edgeIds.has(normalized.id)) normalized.id = featureWebNewId('e');
     edgeIds.add(normalized.id);
