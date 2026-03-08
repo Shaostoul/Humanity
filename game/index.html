@@ -8278,7 +8278,7 @@
    return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
-  function featureWebNormalize(raw) {
+  function featureWebNormalize(raw, includeReport) {
    const src = (raw && typeof raw === 'object') ? raw : {};
    const sourceNodes = Array.isArray(src.nodes) ? src.nodes : [];
    const sourceEdges = Array.isArray(src.edges) ? src.edges : [];
@@ -8336,7 +8336,27 @@
     edges.push(normalized);
    });
 
-   return { nodes, edges };
+   const graph = { nodes, edges };
+   if (!includeReport) return graph;
+   return {
+    graph,
+    report: {
+     sourceNodes: sourceNodes.length,
+     sourceEdges: sourceEdges.length,
+     nodes: nodes.length,
+     edges: edges.length,
+     droppedNodes: Math.max(0, sourceNodes.length - nodes.length),
+     droppedEdges: Math.max(0, sourceEdges.length - edges.length)
+    }
+   };
+  }
+
+  function featureWebNoticeImportReport(report, label) {
+   if (!report) return;
+   const dropped = (report.droppedNodes || 0) + (report.droppedEdges || 0);
+   let msg = (label || 'Imported') + ': ' + report.nodes + ' nodes, ' + report.edges + ' links';
+   if (dropped > 0) msg += ' (' + dropped + ' invalid dropped)';
+   featureWebNotice(msg);
   }
 
   function featureWebLoad() {
@@ -9526,9 +9546,11 @@
      try {
       const data = JSON.parse(String(reader.result || '{}'));
       if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
-      featureWeb = featureWebNormalize(data);
+      const normalized = featureWebNormalize(data, true);
+      featureWeb = normalized.graph;
       featureWebSave();
       featureWebRender();
+      featureWebNoticeImportReport(normalized.report, 'Imported JSON');
      } catch {
       alert('Invalid Feature Web JSON');
      }
@@ -9575,10 +9597,11 @@
    try {
     const data = JSON.parse(raw);
     if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
-    featureWeb = featureWebNormalize(data);
+    const normalized = featureWebNormalize(data, true);
+    featureWeb = normalized.graph;
     featureWebSave();
     featureWebRender();
-    featureWebNotice('Feature Web JSON pasted');
+    featureWebNoticeImportReport(normalized.report, 'Pasted JSON');
    } catch {
     featureWebNotice('Invalid JSON payload');
    }
