@@ -8337,8 +8337,8 @@
    const edgePairs = new Set();
    sourceEdges.forEach(edge => {
     if (!edge || typeof edge !== 'object') return;
-    const from = (typeof edge.from === 'string') ? edge.from : '';
-    const to = (typeof edge.to === 'string') ? edge.to : '';
+    const from = (typeof edge.from === 'string') ? edge.from.trim() : '';
+    const to = (typeof edge.to === 'string') ? edge.to.trim() : '';
     if (!from || !to || from === to) return;
     if (!nodeIds.has(from) || !nodeIds.has(to)) return;
     const pairKey = from + '->' + to;
