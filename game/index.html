@@ -8274,20 +8274,75 @@
   let fwShortcutsVisible = true;
   let fwLastSavedAt = 0;
 
-  function featureWebLoad() {
-   try { featureWeb = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch { featureWeb = { nodes: [], edges: [] }; }
-   if (!Array.isArray(featureWeb.nodes)) featureWeb.nodes = [];
-   if (!Array.isArray(featureWeb.edges)) featureWeb.edges = [];
-   featureWeb.nodes.forEach(n => {
-    if (!n.type) n.type = 'feature';
-    if (!n.status) n.status = 'planned';
-    if (!n.domain) n.domain = 'game';
-    if (!n.summary) n.summary = '';
-    if (!n.teach) n.teach = '';
-    if (!n.details) n.details = '';
-    if (!n.owner) n.owner = '';
-    if (!n.priority) n.priority = 'medium';
+  function featureWebNewId(prefix) {
+   return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  function featureWebNormalize(raw) {
+   const src = (raw && typeof raw === 'object') ? raw : {};
+   const sourceNodes = Array.isArray(src.nodes) ? src.nodes : [];
+   const sourceEdges = Array.isArray(src.edges) ? src.edges : [];
+   const allowedTypes = new Set(['feature', 'subfeature', 'tech', 'ux', 'org', 'lore']);
+   const allowedStatuses = new Set(['planned', 'active', 'blocked', 'done']);
+   const allowedPriorities = new Set(['low', 'medium', 'high', 'critical']);
+   const allowedEdgeTypes = new Set(['depends_on', 'blocks', 'relates_to', 'teaches', 'enables']);
+
+   const nodes = [];
+   const nodeIds = new Set();
+   sourceNodes.forEach((node, idx) => {
+    if (!node || typeof node !== 'object') return;
+    const fallbackX = 25 + (nodes.length % 4) * 150;
+    const fallbackY = 20 + Math.floor(nodes.length / 4) * 90;
+    const normalized = {
+     id: (typeof node.id === 'string' && node.id.trim()) ? node.id.trim() : featureWebNewId('n'),
+     title: (typeof node.title === 'string' && node.title.trim()) ? node.title.trim() : ('Untitled ' + (idx + 1)),
+     type: allowedTypes.has(node.type) ? node.type : 'feature',
+     domain: (typeof node.domain === 'string' && node.domain.trim()) ? node.domain.trim() : 'game',
+     status: allowedStatuses.has(node.status) ? node.status : 'planned',
+     summary: typeof node.summary === 'string' ? node.summary : '',
+     teach: typeof node.teach === 'string' ? node.teach : '',
+     details: typeof node.details === 'string' ? node.details : '',
+     owner: typeof node.owner === 'string' ? node.owner : '',
+     priority: allowedPriorities.has(node.priority) ? node.priority : 'medium',
+     x: Number.isFinite(+node.x) ? +node.x : fallbackX,
+     y: Number.isFinite(+node.y) ? +node.y : fallbackY,
+    };
+    if (node.taskId != null) normalized.taskId = node.taskId;
+    while (nodeIds.has(normalized.id)) normalized.id = featureWebNewId('n');
+    nodeIds.add(normalized.id);
+    nodes.push(normalized);
    });
+
+   const edges = [];
+   const edgeIds = new Set();
+   const edgePairs = new Set();
+   sourceEdges.forEach(edge => {
+    if (!edge || typeof edge !== 'object') return;
+    const from = (typeof edge.from === 'string') ? edge.from : '';
+    const to = (typeof edge.to === 'string') ? edge.to : '';
+    if (!from || !to || from === to) return;
+    if (!nodeIds.has(from) || !nodeIds.has(to)) return;
+    const pairKey = from + '->' + to;
+    if (edgePairs.has(pairKey)) return;
+    const normalized = {
+     id: (typeof edge.id === 'string' && edge.id.trim()) ? edge.id.trim() : featureWebNewId('e'),
+     from,
+     to,
+     type: allowedEdgeTypes.has(edge.type) ? edge.type : 'depends_on'
+    };
+    while (edgeIds.has(normalized.id)) normalized.id = featureWebNewId('e');
+    edgeIds.add(normalized.id);
+    edgePairs.add(pairKey);
+    edges.push(normalized);
+   });
+
+   return { nodes, edges };
+  }
+
+  function featureWebLoad() {
+   let parsed = { nodes: [], edges: [] };
+   try { parsed = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch {}
+   featureWeb = featureWebNormalize(parsed);
    if (!featureWeb.nodes.length && !localStorage.getItem('humanity_feature_web_autoseeded_v2')) {
     localStorage.setItem('humanity_feature_web_autoseeded_v2', '1');
     setTimeout(() => featureWebSeedPU(), 0);
@@ -9471,7 +9526,7 @@
      try {
       const data = JSON.parse(String(reader.result || '{}'));
       if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
-      featureWeb = { nodes: data.nodes, edges: data.edges };
+      featureWeb = featureWebNormalize(data);
       featureWebSave();
       featureWebRender();
      } catch {
@@ -9520,7 +9575,7 @@
    try {
     const data = JSON.parse(raw);
     if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
-    featureWeb = { nodes: data.nodes, edges: data.edges };
+    featureWeb = featureWebNormalize(data);
     featureWebSave();
     featureWebRender();
     featureWebNotice('Feature Web JSON pasted');
