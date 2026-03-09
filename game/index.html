@@ -8398,6 +8398,10 @@
   let boardMyKey = null;
   let boardMyRole = '';
 
+  function boardCanEdit() {
+   return boardMyRole === 'admin' || boardMyRole === 'mod';
+  }
+
   const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
@@ -9652,7 +9656,7 @@
     featureWebNotice('Board connection not ready');
     return;
    }
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+   const canEdit = boardCanEdit();
    if (!canEdit) {
     featureWebNotice('Need admin/mod role to create tasks');
     return;
@@ -11211,7 +11215,7 @@
   }
 
   function updateBoardPermissions() {
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+   const canEdit = boardCanEdit();
    const btn = document.getElementById('board-create-btn');
    if (btn) btn.style.display = canEdit ? 'inline-flex' : 'none';
   }
@@ -11234,7 +11238,7 @@
    const labelHtml = labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.2rem;">' + escHtml(l) + '</span>').join('');
    const assigneeHtml = task.assignee ? '<span style="font-size:0.7rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '';
    const commentHtml = task.comment_count > 0 ? '<span style="font-size:0.7rem;color:var(--text-muted);">💬 ' + task.comment_count + '</span>' : '';
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+   const canEdit = boardCanEdit();
    let moveHtml = '';
    if (canEdit) {
     const moves = VALID_STATUSES.filter(s => s !== task.status);
@@ -11267,7 +11271,7 @@
    const modal = document.getElementById('task-modal');
    const content = document.getElementById('task-modal-content');
    content.dataset.taskId = taskId;
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+   const canEdit = boardCanEdit();
    const canComment = canEdit || boardMyRole === 'verified' || boardMyRole === 'donor';
    const pc = PRIORITY_COLORS[task.priority] || '#666';
    const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
