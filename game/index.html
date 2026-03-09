@@ -9326,9 +9326,7 @@
    if (taskId == null) return;
    const task = featureWebFindTaskById(taskId);
    const oldTitle = task ? (task.title || '') : '';
-   const statusMap = FW_NODE_TO_TASK_STATUS_MAP;
-   const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
-   const mapped = statusMap[nodeStatus] || 'backlog';
+   const mapped = featureWebMapNodeStatusToTask(node.status);
    const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
    if (task && oldTitle !== nextTitle) {
