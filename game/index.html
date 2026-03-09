@@ -8939,16 +8939,19 @@
    const statusEl = document.getElementById('fw-node-status');
    const domainEl = document.getElementById('fw-node-domain');
    const ownerEl = document.getElementById('fw-node-owner');
+   const type = (typeEl && typeof typeEl.value === 'string') ? typeEl.value.trim().toLowerCase() : '';
+   const domain = (domainEl && typeof domainEl.value === 'string') ? domainEl.value.trim().toLowerCase() : '';
+   const status = (statusEl && typeof statusEl.value === 'string') ? statusEl.value.trim().toLowerCase() : '';
    return {
     id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    title: title,
-    type: typeEl ? typeEl.value : 'feature',
-    domain: domainEl ? domainEl.value : 'game',
-    status: statusEl ? statusEl.value : 'planned',
+    title: featureWebClampText(title, 140),
+    type: FW_ALLOWED_TYPES.includes(type) ? type : 'feature',
+    domain: FW_ALLOWED_DOMAINS.includes(domain) ? domain : 'game',
+    status: FW_ALLOWED_STATUSES.includes(status) ? status : 'planned',
     summary: '',
     teach: '',
     details: '',
-    owner: ownerEl ? ownerEl.value.trim() : '',
+    owner: featureWebClampText(ownerEl ? ownerEl.value : '', 120),
     priority: 'medium',
     x: x,
     y: y,
@@ -9022,18 +9025,19 @@
     return;
    }
    const statusMap = { backlog: 'planned', in_progress: 'active', testing: 'active', done: 'done' };
+   const normalizedPriority = (typeof task.priority === 'string') ? task.priority.trim().toLowerCase() : '';
    featureWeb.nodes.push({
     id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     taskId,
-    title: task.title,
+    title: featureWebClampText(task.title, 140) || ('Task #' + taskId),
     type: 'feature',
     domain: 'operations',
     status: statusMap[task.status] || 'planned',
-    summary: task.description || '',
+    summary: featureWebClampText(task.description || '', 400),
     teach: '',
     details: '',
-    owner: task.assignee || '',
-    priority: task.priority || 'medium',
+    owner: featureWebClampText(task.assignee || '', 120),
+    priority: FW_ALLOWED_PRIORITIES.includes(normalizedPriority) ? normalizedPriority : 'medium',
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    });
