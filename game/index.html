@@ -11048,7 +11048,23 @@
      break;
     case 'task_deleted':
      if (msg.id != null) {
-      boardTasks = boardTasks.filter(t => t.id !== msg.id);
+      const deletedTaskId = featureWebNormalizeTaskId(msg.id);
+      if (deletedTaskId != null) boardTasks = boardTasks.filter(t => featureWebNormalizeTaskId(t && t.id) !== deletedTaskId);
+      else boardTasks = boardTasks.filter(t => t.id !== msg.id);
+      if (deletedTaskId != null) {
+       let unlinked = false;
+       featureWeb.nodes.forEach(node => {
+        if (node && node.taskId === deletedTaskId) {
+         node.taskId = null;
+         unlinked = true;
+        }
+       });
+       if (unlinked) {
+        featureWebSave();
+        featureWebRenderEditor();
+        featureWebRender();
+       }
+      }
       renderBoard();
      }
      break;
