@@ -8437,6 +8437,7 @@
    const n = Number(value);
    if (!Number.isFinite(n)) return null;
    const id = Math.trunc(n);
+   if (!Number.isSafeInteger(id)) return null;
    return id > 0 ? id : null;
   }
 
