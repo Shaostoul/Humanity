@@ -11033,16 +11033,58 @@
      break;
     case 'task_updated':
      if (msg.task) {
-      const idx = boardTasks.findIndex(t => t.id === msg.task.id);
+      const updatedTaskId = featureWebNormalizeTaskId(msg.task.id);
+      const idx = updatedTaskId != null
+        ? boardTasks.findIndex(t => featureWebNormalizeTaskId(t && t.id) === updatedTaskId)
+        : boardTasks.findIndex(t => t.id === msg.task.id);
       if (idx >= 0) boardTasks[idx] = msg.task;
       else boardTasks.push(msg.task);
+
+      let nodeChanged = false;
+      if (updatedTaskId != null) {
+       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[msg.task.status] || null;
+       if (mappedNodeStatus) {
+        featureWeb.nodes.forEach(node => {
+         if (node && node.taskId === updatedTaskId && node.status !== mappedNodeStatus) {
+          node.status = mappedNodeStatus;
+          nodeChanged = true;
+         }
+        });
+       }
+      }
+      if (nodeChanged) {
+       featureWebSave();
+       featureWebRenderEditor();
+       featureWebRender();
+      }
       renderBoard();
      }
      break;
     case 'task_moved':
      if (msg.id != null && msg.status) {
-      const t = boardTasks.find(t => t.id === msg.id);
+      const movedTaskId = featureWebNormalizeTaskId(msg.id);
+      const t = movedTaskId != null
+        ? boardTasks.find(t => featureWebNormalizeTaskId(t && t.id) === movedTaskId)
+        : boardTasks.find(t => t.id === msg.id);
       if (t) t.status = msg.status;
+
+      let nodeChanged = false;
+      if (movedTaskId != null) {
+       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[msg.status] || null;
+       if (mappedNodeStatus) {
+        featureWeb.nodes.forEach(node => {
+         if (node && node.taskId === movedTaskId && node.status !== mappedNodeStatus) {
+          node.status = mappedNodeStatus;
+          nodeChanged = true;
+         }
+        });
+       }
+      }
+      if (nodeChanged) {
+       featureWebSave();
+       featureWebRenderEditor();
+       featureWebRender();
+      }
       renderBoard();
      }
      break;
