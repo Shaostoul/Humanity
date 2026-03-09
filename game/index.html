@@ -8441,6 +8441,12 @@
    return id > 0 ? id : null;
   }
 
+  function featureWebFindTaskById(taskId) {
+   const normalizedId = featureWebNormalizeTaskId(taskId);
+   if (normalizedId == null) return null;
+   return boardTasks.find(t => featureWebNormalizeTaskId(t && t.id) === normalizedId) || null;
+  }
+
   function featureWebClampText(value, maxLen) {
    if (typeof value !== 'string') return '';
    const text = value.trim();
@@ -9096,7 +9102,7 @@
   }
 
   function featureWebAddNodeFromTask(taskId) {
-   const task = boardTasks.find(t => t.id === taskId);
+   const task = featureWebFindTaskById(taskId);
    if (!task) return;
    if (featureWebRemainingNodeCapacity() <= 0) {
     featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
@@ -9188,7 +9194,7 @@
    if (!node || node.taskId == null) return;
    const taskId = featureWebNormalizeTaskId(node.taskId);
    if (taskId == null) return;
-   const task = boardTasks.find(t => t.id === taskId);
+   const task = featureWebFindTaskById(taskId);
    const oldTitle = task ? (task.title || '') : '';
    const statusMap = FW_NODE_TO_TASK_STATUS_MAP;
    const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
@@ -9517,7 +9523,7 @@
     featureWebNotice('Invalid task selection');
     return;
    }
-   const task = boardTasks.find(t => t.id === taskId);
+   const task = featureWebFindTaskById(taskId);
    if (!task) {
     featureWebNotice('Selected task is unavailable');
     return;
@@ -11168,7 +11174,10 @@
      break;
     case 'task_comment_added':
      if (msg.task_id != null) {
-      const t = boardTasks.find(t => t.id === msg.task_id);
+      const commentTaskId = featureWebNormalizeTaskId(msg.task_id);
+      const t = commentTaskId != null
+        ? featureWebFindTaskById(commentTaskId)
+        : boardTasks.find(t => t.id === msg.task_id);
       if (t) t.comment_count = (t.comment_count || 0) + 1;
       renderBoard();
       // If modal is open for this task, append comment
@@ -11244,7 +11253,7 @@
   }
 
   function openTaskModal(taskId) {
-   const task = boardTasks.find(t => t.id === taskId);
+   const task = featureWebFindTaskById(taskId);
    if (!task) return;
    const modal = document.getElementById('task-modal');
    const content = document.getElementById('task-modal-content');
@@ -11371,7 +11380,7 @@
   }
 
   function showEditTaskForm(taskId) {
-   const task = boardTasks.find(t => t.id === taskId);
+   const task = featureWebFindTaskById(taskId);
    if (!task) return;
    const content = document.getElementById('task-modal-content');
    const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
