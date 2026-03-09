@@ -8411,6 +8411,8 @@
   const FW_ALLOWED_PRIORITIES = ['low', 'medium', 'high', 'critical'];
   const FW_ALLOWED_EDGE_TYPES = ['depends_on', 'blocks', 'relates_to', 'teaches', 'enables'];
   const FW_ALLOWED_VIEW_MODES = ['orbit', 'cards', 'constellation'];
+  const FW_STATUS_HOTKEY_MAP = { '1': 'planned', '2': 'active', '3': 'blocked', '4': 'done' };
+  const FW_TYPE_HOTKEY_MAP = { '5': 'feature', '6': 'subfeature', '7': 'tech', '8': 'ux', '9': 'org', '0': 'lore' };
   const FW_MAX_NODES = 800;
   const FW_MAX_EDGES = 3200;
   const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
@@ -10855,7 +10857,7 @@
    }
    if (fwSelectedNodeId && e.altKey && (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4')) {
     e.preventDefault();
-    const map = { '1': 'planned', '2': 'active', '3': 'blocked', '4': 'done' };
+    const map = FW_STATUS_HOTKEY_MAP;
     const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
     if (node && map[e.key]) {
       node.status = map[e.key];
@@ -10868,7 +10870,7 @@
    }
    if (fwSelectedNodeId && e.altKey && (e.key === '5' || e.key === '6' || e.key === '7' || e.key === '8' || e.key === '9' || e.key === '0')) {
     e.preventDefault();
-    const map = { '5': 'feature', '6': 'subfeature', '7': 'tech', '8': 'ux', '9': 'org', '0': 'lore' };
+    const map = FW_TYPE_HOTKEY_MAP;
     const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
     if (node && map[e.key]) {
       node.type = map[e.key];
