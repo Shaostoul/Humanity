@@ -9580,7 +9580,14 @@
    const dup = JSON.parse(JSON.stringify(node));
    dup.id = featureWebNewId('n');
    dup.taskId = null;
-   dup.title = featureWebClampText(((node.title || 'Node') + ' Copy'), 140) || 'Node Copy';
+   const baseDupTitle = featureWebClampText(((node.title || 'Node') + ' Copy'), 140) || 'Node Copy';
+   let dupTitle = baseDupTitle;
+   let dupCounter = 2;
+   while (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === dupTitle.toLowerCase())) {
+    dupTitle = featureWebClampText(baseDupTitle + ' (' + dupCounter + ')', 140) || ('Node Copy (' + dupCounter + ')');
+    dupCounter++;
+   }
+   dup.title = dupTitle;
    const dupType = typeof dup.type === 'string' ? dup.type.trim().toLowerCase() : '';
    const dupStatus = typeof dup.status === 'string' ? dup.status.trim().toLowerCase() : '';
    const dupDomain = typeof dup.domain === 'string' ? dup.domain.trim().toLowerCase() : '';
