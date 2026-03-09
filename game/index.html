@@ -8293,8 +8293,12 @@
 
   function featureWebNormalize(raw, includeReport) {
    const src = (raw && typeof raw === 'object') ? raw : {};
-   const sourceNodes = Array.isArray(src.nodes) ? src.nodes : [];
-   const sourceEdges = Array.isArray(src.edges) ? src.edges : [];
+   const sourceNodesAll = Array.isArray(src.nodes) ? src.nodes : [];
+   const sourceEdgesAll = Array.isArray(src.edges) ? src.edges : [];
+   const FW_MAX_NODES = 800;
+   const FW_MAX_EDGES = 3200;
+   const sourceNodes = sourceNodesAll.slice(0, FW_MAX_NODES);
+   const sourceEdges = sourceEdgesAll.slice(0, FW_MAX_EDGES);
    const allowedTypes = new Set(['feature', 'subfeature', 'tech', 'ux', 'org', 'lore']);
    const allowedDomains = new Set(['vision', 'business', 'school', 'game', 'economy', 'tech', 'lore', 'roadmap', 'community', 'operations']);
    const allowedStatuses = new Set(['planned', 'active', 'blocked', 'done']);
@@ -8361,12 +8365,12 @@
    return {
     graph,
     report: {
-     sourceNodes: sourceNodes.length,
-     sourceEdges: sourceEdges.length,
+     sourceNodes: sourceNodesAll.length,
+     sourceEdges: sourceEdgesAll.length,
      nodes: nodes.length,
      edges: edges.length,
-     droppedNodes: Math.max(0, sourceNodes.length - nodes.length),
-     droppedEdges: Math.max(0, sourceEdges.length - edges.length)
+     droppedNodes: Math.max(0, sourceNodesAll.length - nodes.length),
+     droppedEdges: Math.max(0, sourceEdgesAll.length - edges.length)
     }
    };
   }
@@ -8375,7 +8379,7 @@
    if (!report) return;
    const dropped = (report.droppedNodes || 0) + (report.droppedEdges || 0);
    let msg = (label || 'Imported') + ': ' + report.nodes + ' nodes, ' + report.edges + ' links';
-   if (dropped > 0) msg += ' (' + dropped + ' invalid dropped)';
+   if (dropped > 0) msg += ' (' + dropped + ' dropped)';
    featureWebNotice(msg);
   }
 
