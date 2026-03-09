@@ -8413,6 +8413,8 @@
   const FW_ALLOWED_VIEW_MODES = ['orbit', 'cards', 'constellation'];
   const FW_STATUS_HOTKEY_MAP = { '1': 'planned', '2': 'active', '3': 'blocked', '4': 'done' };
   const FW_TYPE_HOTKEY_MAP = { '5': 'feature', '6': 'subfeature', '7': 'tech', '8': 'ux', '9': 'org', '0': 'lore' };
+  const FW_TASK_TO_NODE_STATUS_MAP = { backlog: 'planned', in_progress: 'active', testing: 'active', done: 'done' };
+  const FW_NODE_TO_TASK_STATUS_MAP = { planned: 'backlog', active: 'in_progress', blocked: 'testing', done: 'done' };
   const FW_MAX_NODES = 800;
   const FW_MAX_EDGES = 3200;
   const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
@@ -9079,7 +9081,7 @@
     featureWebFocusNode(existing.id);
     return;
    }
-   const statusMap = { backlog: 'planned', in_progress: 'active', testing: 'active', done: 'done' };
+   const statusMap = FW_TASK_TO_NODE_STATUS_MAP;
    const normalizedPriority = (typeof task.priority === 'string') ? task.priority.trim().toLowerCase() : '';
    featureWeb.nodes.push({
     id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -9149,7 +9151,7 @@
    if (taskId == null) return;
    const task = boardTasks.find(t => t.id === taskId);
    const oldTitle = task ? (task.title || '') : '';
-   const statusMap = { planned: 'backlog', active: 'in_progress', blocked: 'testing', done: 'done' };
+   const statusMap = FW_NODE_TO_TASK_STATUS_MAP;
    const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
    const mapped = statusMap[nodeStatus] || 'backlog';
    const nextTitle = featureWebClampText(node.title || '', 140) || ('Task #' + taskId);
@@ -9501,7 +9503,7 @@
    featureWeb.nodes.forEach((node) => {
     if (node.taskId != null) return;
     const nodeStatus = (typeof node.status === 'string') ? node.status.trim().toLowerCase() : '';
-    const mappedStatus = nodeStatus === 'active' ? 'in_progress' : (nodeStatus === 'done' ? 'done' : (nodeStatus === 'blocked' ? 'testing' : 'backlog'));
+    const mappedStatus = FW_NODE_TO_TASK_STATUS_MAP[nodeStatus] || 'backlog';
     const rawDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
     const rawType = typeof node.type === 'string' ? node.type.trim().toLowerCase() : '';
     const rawPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
