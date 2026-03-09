@@ -10960,10 +10960,7 @@
    }
    if (e.key === '?') {
     e.preventDefault();
-    const hint = document.getElementById('fw-shortcuts-hint');
-    if (hint) {
-     hint.style.display = hint.style.display === 'none' ? 'block' : 'none';
-    }
+    featureWebToggleShortcutHint();
     return;
    }
    if (e.key === 'w' || e.key === 'W') {
