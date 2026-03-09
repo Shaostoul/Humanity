@@ -11055,6 +11055,7 @@
   });
 
   const API_BASE = 'https://united-humanity.us';
+  const BOARD_WS_RECONNECT_MS = 5000;
 
   function boardConnect() {
    // Always try REST API first (reliable, works everywhere)
@@ -11087,7 +11088,7 @@
       handleBoardMessage(msg);
      } catch {}
     };
-    boardWs.onclose = () => { setTimeout(boardConnect, 5000); };
+    boardWs.onclose = () => { setTimeout(boardConnect, BOARD_WS_RECONNECT_MS); };
     boardWs.onerror = () => {};
    } catch (e) { console.warn('Board WS failed:', e); }
   }
