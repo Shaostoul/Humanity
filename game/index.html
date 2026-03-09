@@ -8297,6 +8297,14 @@
    return text.length > maxLen ? text.slice(0, maxLen) : text;
   }
 
+  function featureWebSanitizeId(value, maxLen) {
+   if (typeof value !== 'string') return '';
+   const cleaned = value.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+   if (!cleaned) return '';
+   const len = Number.isFinite(+maxLen) ? Math.max(1, Math.trunc(+maxLen)) : 64;
+   return cleaned.length > len ? cleaned.slice(0, len) : cleaned;
+  }
+
   function featureWebNormalize(raw, includeReport) {
    const src = (raw && typeof raw === 'object') ? raw : {};
    const sourceNodesAll = Array.isArray(src.nodes) ? src.nodes : [];
@@ -8324,7 +8332,7 @@
     const normalizedStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
     const normalizedPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
     const normalized = {
-     id: (typeof node.id === 'string' && node.id.trim()) ? node.id.trim() : featureWebNewId('n'),
+     id: featureWebSanitizeId(node.id, 72) || featureWebNewId('n'),
      title: featureWebClampText(node.title, 140) || ('Untitled ' + (idx + 1)),
      type: allowedTypes.has(normalizedType) ? normalizedType : 'feature',
      domain: allowedDomains.has(normalizedDomain) ? normalizedDomain : 'game',
@@ -8349,15 +8357,15 @@
    const edgePairs = new Set();
    sourceEdges.forEach(edge => {
     if (!edge || typeof edge !== 'object') return;
-    const from = (typeof edge.from === 'string') ? edge.from.trim() : '';
-    const to = (typeof edge.to === 'string') ? edge.to.trim() : '';
+    const from = featureWebSanitizeId(edge.from, 72);
+    const to = featureWebSanitizeId(edge.to, 72);
     if (!from || !to || from === to) return;
     if (!nodeIds.has(from) || !nodeIds.has(to)) return;
     const pairKey = from + '->' + to;
     if (edgePairs.has(pairKey)) return;
     const normalizedEdgeType = typeof edge.type === 'string' ? edge.type.trim().toLowerCase() : '';
     const normalized = {
-     id: (typeof edge.id === 'string' && edge.id.trim()) ? edge.id.trim() : featureWebNewId('e'),
+     id: featureWebSanitizeId(edge.id, 72) || featureWebNewId('e'),
      from,
      to,
      type: allowedEdgeTypes.has(normalizedEdgeType) ? normalizedEdgeType : 'depends_on'
