@@ -12,6 +12,7 @@
     { "path": "design/engine/performance_targets.md", "summary": "Performance targets by hardware class." },
     { "path": "design/engine/visual_downgrade_matrix.md", "summary": "Feature downgrade matrix across quality tiers." },
     { "path": "design/core/README.md", "summary": "Core architecture and simulation law docs." },
+    { "path": "design/core/foundation_decisions_v1.md", "summary": "Locked v1 baseline decisions across engine, gameplay, UX, updates, and policy." },
     { "path": "design/core/architecture.md", "summary": "Authority separation and system flow." },
     { "path": "design/core/data_model.md", "summary": "Canonical data model constraints." },
     { "path": "design/core/simulation_laws.md", "summary": "Determinism and simulation constraints." },

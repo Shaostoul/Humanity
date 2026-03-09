@@ -12,6 +12,7 @@ This is the parent entry for major documentation areas.
 - [Design README](../design/README.md)
 - [Engine Design](../design/engine/renderer_architecture.md)
 - [Core Design](../design/core/README.md)
+- [Foundation Decisions v1](../design/core/foundation_decisions_v1.md)
 - [Security Design](../design/security/README.md)
 - [Gameplay Design](../design/gameplay/README.md)
 - [Feature Web](../design/feature_web.md)
