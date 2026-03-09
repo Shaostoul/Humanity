@@ -8477,6 +8477,11 @@
    return true;
   }
 
+  function featureWebBoardStatusLabel(status) {
+   const s = typeof status === 'string' ? status.trim().toLowerCase() : '';
+   return s === 'in_progress' ? 'IN PROGRESS' : (s === 'testing' ? 'TESTING' : (s === 'done' ? 'DONE' : 'BACKLOG'));
+  }
+
   function featureWebClampText(value, maxLen) {
    if (typeof value !== 'string') return '';
    const text = value.trim();
@@ -9295,8 +9300,7 @@
      if (ao !== bo) return ao - bo;
      return (a.id || 0) - (b.id || 0);
     });
-    const statusLabel = s => (s === 'in_progress' ? 'IN PROGRESS' : s === 'testing' ? 'TESTING' : s === 'done' ? 'DONE' : 'BACKLOG');
-    linkTaskEl.innerHTML = '<option value="">Link to task…</option>' + orderedTasks.map(t => '<option value="' + t.id + '">#' + t.id + ' [' + statusLabel(t.status) + '] · ' + escHtml(t.title) + '</option>').join('');
+    linkTaskEl.innerHTML = '<option value="">Link to task…</option>' + orderedTasks.map(t => '<option value="' + t.id + '">#' + t.id + ' [' + featureWebBoardStatusLabel(t.status) + '] · ' + escHtml(t.title) + '</option>').join('');
     linkTaskEl.value = selectedTask;
    }
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
@@ -9345,10 +9349,9 @@
    if (linkedInfoEl) {
     if (node.taskId != null) {
      const t = featureWebFindTaskById(node.taskId);
-     const statusLabel = s => (s === 'in_progress' ? 'IN PROGRESS' : s === 'testing' ? 'TESTING' : s === 'done' ? 'DONE' : 'BACKLOG');
      linkedInfoEl.style.display = 'block';
      linkedInfoEl.setAttribute('aria-hidden', 'false');
-     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + statusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + node.taskId);
+     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + featureWebBoardStatusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + node.taskId);
      if (openTaskBtn) {
       openTaskBtn.style.display = t ? 'inline-block' : 'none';
       openTaskBtn.setAttribute('aria-hidden', t ? 'false' : 'true');
