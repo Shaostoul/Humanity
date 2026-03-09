@@ -8,6 +8,15 @@ This is the parent entry for major documentation areas.
 - [AGENTS](../AGENTS.md)
 - [TOOLS](../TOOLS.md)
 
+## Onboarding (Zero Prior Knowledge)
+- [00-START-HERE](./00-START-HERE.md)
+- [01-VISION](./01-VISION.md)
+- [02-ARCHITECTURE](./02-ARCHITECTURE.md)
+- [03-MODULE-MAP](./03-MODULE-MAP.md)
+- [04-CONTRIBUTING](./04-CONTRIBUTING.md)
+- [05-AI-ONBOARDING](./05-AI-ONBOARDING.md)
+- [ADR-0001: Modular boundaries](./decisions/ADR-0001-modular-boundaries.md)
+
 ## Design
 - [Design README](../design/README.md)
 - [Engine Design](../design/engine/renderer_architecture.md)
