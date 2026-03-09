@@ -8415,6 +8415,7 @@
   const FW_TYPE_HOTKEY_MAP = { '5': 'feature', '6': 'subfeature', '7': 'tech', '8': 'ux', '9': 'org', '0': 'lore' };
   const FW_TASK_TO_NODE_STATUS_MAP = { backlog: 'planned', in_progress: 'active', testing: 'active', done: 'done' };
   const FW_NODE_TO_TASK_STATUS_MAP = { planned: 'backlog', active: 'in_progress', blocked: 'testing', done: 'done' };
+  const FW_TEXT_LIMITS = { title: 140, owner: 120, summary: 400, teach: 1200, details: 6000, search: 200, id: 72 };
   const FW_MAX_NODES = 800;
   const FW_MAX_EDGES = 3200;
   const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
@@ -8489,27 +8490,27 @@
     const normalizedStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
     const normalizedPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
     const normalized = {
-     id: featureWebSanitizeId(node.id, 72) || featureWebNewId('n'),
-     title: featureWebClampText(node.title, 140) || ('Untitled ' + (idx + 1)),
+     id: featureWebSanitizeId(node.id, FW_TEXT_LIMITS.id) || featureWebNewId('n'),
+     title: featureWebClampText(node.title, FW_TEXT_LIMITS.title) || ('Untitled ' + (idx + 1)),
      type: allowedTypes.has(normalizedType) ? normalizedType : 'feature',
      domain: allowedDomains.has(normalizedDomain) ? normalizedDomain : 'game',
      status: allowedStatuses.has(normalizedStatus) ? normalizedStatus : 'planned',
-     summary: featureWebClampText(node.summary, 400),
-     teach: featureWebClampText(node.teach, 1200),
-     details: featureWebClampText(node.details, 6000),
-     owner: featureWebClampText(node.owner, 120),
+     summary: featureWebClampText(node.summary, FW_TEXT_LIMITS.summary),
+     teach: featureWebClampText(node.teach, FW_TEXT_LIMITS.teach),
+     details: featureWebClampText(node.details, FW_TEXT_LIMITS.details),
+     owner: featureWebClampText(node.owner, FW_TEXT_LIMITS.owner),
      priority: allowedPriorities.has(normalizedPriority) ? normalizedPriority : 'medium',
      x: Number.isFinite(+node.x) ? +node.x : fallbackX,
      y: Number.isFinite(+node.y) ? +node.y : fallbackY,
     };
-    let titleKey = featureWebClampText(normalized.title, 140).toLowerCase();
+    let titleKey = featureWebClampText(normalized.title, FW_TEXT_LIMITS.title).toLowerCase();
     if (!titleKey) {
      normalized.title = 'Untitled ' + (idx + 1);
      titleKey = normalized.title.toLowerCase();
     }
     let titleCounter = 2;
     while (nodeTitleKeys.has(titleKey)) {
-     normalized.title = featureWebClampText((featureWebClampText(node.title, 140) || ('Untitled ' + (idx + 1))) + ' (' + titleCounter + ')', 140) || ('Untitled ' + (idx + 1) + ' (' + titleCounter + ')');
+     normalized.title = featureWebClampText((featureWebClampText(node.title, FW_TEXT_LIMITS.title) || ('Untitled ' + (idx + 1))) + ' (' + titleCounter + ')', FW_TEXT_LIMITS.title) || ('Untitled ' + (idx + 1) + ' (' + titleCounter + ')');
      titleKey = normalized.title.toLowerCase();
      titleCounter++;
     }
@@ -8534,15 +8535,15 @@
    const edgePairs = new Set();
    sourceEdges.forEach(edge => {
     if (!edge || typeof edge !== 'object') return;
-    const from = featureWebSanitizeId(edge.from, 72);
-    const to = featureWebSanitizeId(edge.to, 72);
+    const from = featureWebSanitizeId(edge.from, FW_TEXT_LIMITS.id);
+    const to = featureWebSanitizeId(edge.to, FW_TEXT_LIMITS.id);
     if (!from || !to || from === to) return;
     if (!nodeIds.has(from) || !nodeIds.has(to)) return;
     const pairKey = from + '->' + to;
     if (edgePairs.has(pairKey)) return;
     const normalizedEdgeType = typeof edge.type === 'string' ? edge.type.trim().toLowerCase() : '';
     const normalized = {
-     id: featureWebSanitizeId(edge.id, 72) || featureWebNewId('e'),
+     id: featureWebSanitizeId(edge.id, FW_TEXT_LIMITS.id) || featureWebNewId('e'),
      from,
      to,
      type: allowedEdgeTypes.has(normalizedEdgeType) ? normalizedEdgeType : 'depends_on'
@@ -8683,7 +8684,7 @@
    if (statusEl) statusEl.value = featureWebSanitizeFilterValue(f && f.status, statusAllowed, 'all');
    if (domainEl) domainEl.value = featureWebSanitizeFilterValue(f && f.domain, domainAllowed, 'all');
    if (viewEl) viewEl.value = featureWebSanitizeFilterValue(f && f.viewMode, viewAllowed, 'orbit');
-   if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search.slice(0, 200);
+   if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search.slice(0, FW_TEXT_LIMITS.search);
    if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
    if (ownedOnlyEl && f && typeof f.ownedOnly === 'boolean') ownedOnlyEl.checked = f.ownedOnly;
    if (focusEl && f && typeof f.focusSelected === 'boolean') focusEl.checked = f.focusSelected;
@@ -8713,7 +8714,7 @@
     status: featureWebSanitizeFilterValue(statusEl && statusEl.value, statusAllowed, 'all'),
     domain: featureWebSanitizeFilterValue(domainEl && domainEl.value, domainAllowed, 'all'),
     viewMode: featureWebSanitizeFilterValue(viewEl && viewEl.value, viewAllowed, 'orbit'),
-    search: ((searchEl && searchEl.value) || '').slice(0, 200),
+    search: ((searchEl && searchEl.value) || '').slice(0, FW_TEXT_LIMITS.search),
     linkedOnly: linkedOnlyEl ? !!linkedOnlyEl.checked : false,
     ownedOnly: ownedOnlyEl ? !!ownedOnlyEl.checked : false,
     focusSelected: focusEl ? !!focusEl.checked : true,
@@ -9150,8 +9151,8 @@
     featureWebNotice('Link limit reached (' + FW_MAX_EDGES + ')');
     return;
    }
-   const fromId = featureWebSanitizeId(fromEl.value, 72);
-   const toId = featureWebSanitizeId(toEl.value, 72);
+   const fromId = featureWebSanitizeId(fromEl.value, FW_TEXT_LIMITS.id);
+   const toId = featureWebSanitizeId(toEl.value, FW_TEXT_LIMITS.id);
    if (!fromId || !toId) {
     featureWebNotice('Invalid link source or target');
     return;
@@ -9561,7 +9562,7 @@
     const nodeDomain = FW_ALLOWED_DOMAINS.includes(rawDomain) ? rawDomain : 'game';
     const nodeType = FW_ALLOWED_TYPES.includes(rawType) ? rawType : 'feature';
     const nodePriority = FW_ALLOWED_PRIORITIES.includes(rawPriority) ? rawPriority : 'medium';
-    const marker = '[fw-node:' + featureWebSanitizeId(node.id, 72) + ']';
+    const marker = '[fw-node:' + featureWebSanitizeId(node.id, FW_TEXT_LIMITS.id) + ']';
     const descParts = [marker, featureWebClampText(node.summary || '', 400), featureWebClampText(node.details || '', 6000)].filter(Boolean);
     const payload = {
       type: 'task_create',
@@ -10056,7 +10057,7 @@
    const linkedOnly = !!(linkedOnlyEl && linkedOnlyEl.checked);
    const ownedOnly = !!(ownedOnlyEl && ownedOnlyEl.checked);
    const focusSelected = !!(focusSelectedEl && focusSelectedEl.checked && fwSelectedNodeId);
-   const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().slice(0, 200).toLowerCase();
+   const filterSearch = ((filterSearchEl && filterSearchEl.value) || '').trim().slice(0, FW_TEXT_LIMITS.search).toLowerCase();
    if (clearSearchBtnEl) {
     const hasSearch = !!filterSearch;
     clearSearchBtnEl.disabled = !hasSearch;
@@ -11071,7 +11072,7 @@
 
       const desc = String(msg.task.description || '');
       const m = desc.match(/\[fw-node:([^\]]+)\]/);
-      const markerNodeId = m && m[1] ? featureWebSanitizeId(m[1], 72) : '';
+      const markerNodeId = m && m[1] ? featureWebSanitizeId(m[1], FW_TEXT_LIMITS.id) : '';
       if (createdTaskId != null && markerNodeId) {
        const node = featureWeb.nodes.find(n => n.id === markerNodeId);
        const conflict = featureWeb.nodes.find(n => n.id !== markerNodeId && n.taskId === createdTaskId);
