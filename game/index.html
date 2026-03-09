@@ -10859,8 +10859,9 @@
     e.preventDefault();
     const map = FW_STATUS_HOTKEY_MAP;
     const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-    if (node && map[e.key]) {
-      node.status = map[e.key];
+    const nextStatus = map[e.key];
+    if (node && FW_ALLOWED_STATUSES.includes(nextStatus)) {
+      node.status = nextStatus;
       featureWebSyncLinkedTask(node);
       featureWebSave();
       featureWebRenderEditor();
@@ -10872,8 +10873,9 @@
     e.preventDefault();
     const map = FW_TYPE_HOTKEY_MAP;
     const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-    if (node && map[e.key]) {
-      node.type = map[e.key];
+    const nextType = map[e.key];
+    if (node && FW_ALLOWED_TYPES.includes(nextType)) {
+      node.type = nextType;
       featureWebSave();
       featureWebRenderEditor();
       featureWebRender();
