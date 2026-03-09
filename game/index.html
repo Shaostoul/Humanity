@@ -8961,12 +8961,14 @@
   function featureWebAddNode() {
    const titleEl = document.getElementById('fw-node-title');
    if (!titleEl || !titleEl.value.trim()) return;
-   if (featureWeb.nodes.some(n => (n.title || '').toLowerCase() === titleEl.value.trim().toLowerCase())) {
+   const normalizedTitle = featureWebClampText(titleEl.value, 140).toLowerCase();
+   if (!normalizedTitle) return;
+   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === normalizedTitle)) {
     featureWebNotice('Node with that title already exists');
     return;
    }
    const node = featureWebBuildNode(
-    titleEl.value.trim(),
+    titleEl.value,
     25 + (featureWeb.nodes.length % 4) * 150,
     20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    );
@@ -8986,8 +8988,9 @@
     featureWebNotice('Enter a node title, then double-click canvas to place it');
     return;
    }
-   const title = titleEl.value.trim();
-   if (featureWeb.nodes.some(n => (n.title || '').toLowerCase() === title.toLowerCase())) {
+   const title = featureWebClampText(titleEl.value, 140);
+   if (!title) return;
+   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === title.toLowerCase())) {
     featureWebNotice('Node with that title already exists');
     return;
    }
