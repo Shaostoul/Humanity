@@ -11067,10 +11067,10 @@
      const storedName = localStorage.getItem('humanity_name');
      if (storedKey) {
       boardMyKey = storedKey;
-      boardWs.send(JSON.stringify({ type: 'identify', public_key: storedKey, display_name: storedName || null }));
+      boardSend({ type: 'identify', public_key: storedKey, display_name: storedName || null });
      } else {
       boardMyKey = 'viewer_' + Math.random().toString(36).slice(2, 10);
-      boardWs.send(JSON.stringify({ type: 'identify', public_key: boardMyKey, display_name: null }));
+      boardSend({ type: 'identify', public_key: boardMyKey, display_name: null });
      }
     };
     boardWs.onmessage = (e) => {
