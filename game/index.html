@@ -9689,8 +9689,7 @@
       assignee: featureWebClampText(node.owner || '', FW_TEXT_LIMITS.owner) || null,
       labels: JSON.stringify([nodeDomain, nodeType]),
     };
-    boardWs.send(JSON.stringify(payload));
-    created++;
+    if (boardSend(payload)) created++;
    });
    featureWebNotice(created ? ('Queued ' + created + ' task(s) from nodes') : 'All nodes already linked');
   }
