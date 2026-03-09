@@ -8404,7 +8404,7 @@
    if (dropped > 0) {
     msg += ' (' + dropped + ' dropped';
     if (invalid > 0) msg += ', ' + invalid + ' invalid';
-    if (capped > 0) msg += ', ' + capped + ' over cap';
+    if (capped > 0) msg += ', ' + capped + ' over cap (max ' + FW_MAX_NODES + ' nodes/' + FW_MAX_EDGES + ' links)';
     msg += ')';
    }
    featureWebNotice(msg);
