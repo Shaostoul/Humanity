@@ -11257,6 +11257,7 @@
   }
 
   function boardMoveTask(id, status) {
+   if (!boardCanEdit()) return;
    if (boardWs && boardWs.readyState === 1) {
     boardWs.send(JSON.stringify({ type: 'task_move', id: id, status: status }));
    }
@@ -11338,6 +11339,7 @@
   }
 
   function boardDeleteTask(id) {
+   if (!boardCanEdit()) return;
    if (!confirm('Delete this task?')) return;
    if (boardWs && boardWs.readyState === 1) {
     boardWs.send(JSON.stringify({ type: 'task_delete', id: id }));
@@ -11370,6 +11372,7 @@
   }
 
   function boardSubmitCreateTask() {
+   if (!boardCanEdit()) return;
    const title = document.getElementById('new-task-title').value.trim();
    if (!title) return;
    const labelsStr = document.getElementById('new-task-labels').value.trim();
@@ -11412,6 +11415,7 @@
   }
 
   function boardSubmitEditTask(id) {
+   if (!boardCanEdit()) return;
    const title = document.getElementById('edit-task-title').value.trim();
    if (!title) return;
    const labelsStr = document.getElementById('edit-task-labels').value.trim();
