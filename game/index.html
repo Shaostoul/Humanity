@@ -8578,6 +8578,11 @@
    return Math.max(0, FW_MAX_NODES - used);
   }
 
+  function featureWebRemainingEdgeCapacity() {
+   const used = Array.isArray(featureWeb.edges) ? featureWeb.edges.length : 0;
+   return Math.max(0, FW_MAX_EDGES - used);
+  }
+
   function featureWebLoad() {
    let parsed = { nodes: [], edges: [] };
    try { parsed = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch {}
@@ -8929,7 +8934,7 @@
    const validNodeIds = new Set(featureWeb.nodes.map(n => n.id));
    nodesToAdd.forEach(n => validNodeIds.add(n.id));
    const existingPairs = new Set(featureWeb.edges.map(e => (e && e.from && e.to) ? (e.from + '->' + e.to) : ''));
-   const edgesToAdd = edges.filter(e => {
+   const dedupedEdges = edges.filter(e => {
     if (!e || !e.from || !e.to || e.from === e.to) return false;
     if (!validNodeIds.has(e.from) || !validNodeIds.has(e.to)) return false;
     const key = e.from + '->' + e.to;
@@ -8937,13 +8942,16 @@
     existingPairs.add(key);
     return true;
    });
+   const edgesToAdd = dedupedEdges.slice(0, featureWebRemainingEdgeCapacity());
 
    featureWeb.nodes = featureWeb.nodes.concat(nodesToAdd);
    featureWeb.edges = featureWeb.edges.concat(edgesToAdd);
    featureWebOrbitLayout();
    const skippedForCapacity = Math.max(0, dedupedNodes.length - nodesToAdd.length);
+   const skippedEdgesForCapacity = Math.max(0, dedupedEdges.length - edgesToAdd.length);
    let seedMsg = 'Seeded PU map pack (' + nodesToAdd.length + ' nodes, ' + edgesToAdd.length + ' links)';
    if (skippedForCapacity > 0) seedMsg += ' · node limit reached (' + FW_MAX_NODES + ')';
+   if (skippedEdgesForCapacity > 0) seedMsg += ' · link limit reached (' + FW_MAX_EDGES + ')';
    featureWebNotice(seedMsg);
   }
 
@@ -9095,6 +9103,10 @@
    const toEl = document.getElementById('fw-link-to');
    const typeEl = document.getElementById('fw-link-type');
    if (!fromEl || !toEl || !fromEl.value || !toEl.value) return;
+   if (featureWebRemainingEdgeCapacity() <= 0) {
+    featureWebNotice('Link limit reached (' + FW_MAX_EDGES + ')');
+    return;
+   }
    const fromId = featureWebSanitizeId(fromEl.value, 72);
    const toId = featureWebSanitizeId(toEl.value, 72);
    if (!fromId || !toId) {
