@@ -8406,8 +8406,16 @@
    return boardCanEdit() || boardMyRole === 'verified' || boardMyRole === 'donor';
   }
 
+  function boardIsConnected() {
+   return !!boardWs && boardWs.readyState === 1;
+  }
+
+  function boardNeedsConnect() {
+   return !boardWs || boardWs.readyState > 1;
+  }
+
   function boardSend(payload) {
-   if (!payload || !boardWs || boardWs.readyState !== 1) return false;
+   if (!payload || !boardIsConnected()) return false;
    boardWs.send(JSON.stringify(payload));
    return true;
   }
@@ -9658,7 +9666,7 @@
   }
 
   function featureWebSyncNodesToBoard() {
-   if (!boardWs || boardWs.readyState !== 1) {
+   if (!boardIsConnected()) {
     featureWebNotice('Board connection not ready');
     return;
    }
@@ -11437,7 +11445,7 @@
   const origSwitchTab2 = switchTab;
   switchTab = function(tabId, pushState) {
    origSwitchTab2(tabId, pushState);
-   if (tabId === 'board' && (!boardWs || boardWs.readyState > 1)) {
+   if (tabId === 'board' && boardNeedsConnect()) {
     boardConnect();
    } else if (tabId === 'board') {
     boardSend({ type: 'task_list' });
