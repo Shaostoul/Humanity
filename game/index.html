@@ -8573,6 +8573,11 @@
    return changed;
   }
 
+  function featureWebRemainingNodeCapacity() {
+   const used = Array.isArray(featureWeb.nodes) ? featureWeb.nodes.length : 0;
+   return Math.max(0, FW_MAX_NODES - used);
+  }
+
   function featureWebLoad() {
    let parsed = { nodes: [], edges: [] };
    try { parsed = JSON.parse(localStorage.getItem(FEATURE_WEB_KEY) || '{"nodes":[],"edges":[]}'); } catch {}
@@ -8912,12 +8917,14 @@
    link('Earth Twin Regional Overlay','Earth/Fleet Mode Switch','depends_on');
 
    const existingTitles = new Set(featureWeb.nodes.map(n => featureWebClampText(n.title || '', 140).toLowerCase()).filter(Boolean));
-   const nodesToAdd = nodes.filter(n => {
+   const dedupedNodes = nodes.filter(n => {
     const key = featureWebClampText(n.title || '', 140).toLowerCase();
     if (!key || existingTitles.has(key)) return false;
     existingTitles.add(key);
     return true;
    });
+   const remaining = featureWebRemainingNodeCapacity();
+   const nodesToAdd = dedupedNodes.slice(0, remaining);
 
    const validNodeIds = new Set(featureWeb.nodes.map(n => n.id));
    nodesToAdd.forEach(n => validNodeIds.add(n.id));
@@ -8934,7 +8941,10 @@
    featureWeb.nodes = featureWeb.nodes.concat(nodesToAdd);
    featureWeb.edges = featureWeb.edges.concat(edgesToAdd);
    featureWebOrbitLayout();
-   featureWebNotice('Seeded PU map pack (' + nodesToAdd.length + ' nodes, ' + edgesToAdd.length + ' links)');
+   const skippedForCapacity = Math.max(0, dedupedNodes.length - nodesToAdd.length);
+   let seedMsg = 'Seeded PU map pack (' + nodesToAdd.length + ' nodes, ' + edgesToAdd.length + ' links)';
+   if (skippedForCapacity > 0) seedMsg += ' · node limit reached (' + FW_MAX_NODES + ')';
+   featureWebNotice(seedMsg);
   }
 
   function featureWebTeachMode() {
@@ -8981,6 +8991,10 @@
   function featureWebAddNode() {
    const titleEl = document.getElementById('fw-node-title');
    if (!titleEl || !titleEl.value.trim()) return;
+   if (featureWebRemainingNodeCapacity() <= 0) {
+    featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
+    return;
+   }
    const normalizedTitle = featureWebClampText(titleEl.value, 140).toLowerCase();
    if (!normalizedTitle) return;
    if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === normalizedTitle)) {
@@ -9004,6 +9018,10 @@
   function featureWebCanvasAdd(e) {
    const titleEl = document.getElementById('fw-node-title');
    const canvas = document.getElementById('feature-web-canvas');
+   if (featureWebRemainingNodeCapacity() <= 0) {
+    featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
+    return;
+   }
    if (!titleEl || !canvas || !titleEl.value.trim()) {
     featureWebNotice('Enter a node title, then double-click canvas to place it');
     return;
@@ -9042,6 +9060,10 @@
   function featureWebAddNodeFromTask(taskId) {
    const task = boardTasks.find(t => t.id === taskId);
    if (!task) return;
+   if (featureWebRemainingNodeCapacity() <= 0) {
+    featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
+    return;
+   }
    const existing = featureWeb.nodes.find(n => n.taskId === taskId);
    if (existing) {
     featureWebFocusNode(existing.id);
@@ -9515,6 +9537,10 @@
   function featureWebDuplicateSelected() {
    if (!fwSelectedNodeId) {
     featureWebNotice('Select a node first');
+    return;
+   }
+   if (featureWebRemainingNodeCapacity() <= 0) {
+    featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
