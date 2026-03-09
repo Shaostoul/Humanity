@@ -8305,6 +8305,8 @@
    const FW_MAX_EDGES = 3200;
    const sourceNodes = sourceNodesAll.slice(0, FW_MAX_NODES);
    const sourceEdges = sourceEdgesAll.slice(0, FW_MAX_EDGES);
+   const cappedNodes = Math.max(0, sourceNodesAll.length - sourceNodes.length);
+   const cappedEdges = Math.max(0, sourceEdgesAll.length - sourceEdges.length);
    const allowedTypes = new Set(FW_ALLOWED_TYPES);
    const allowedDomains = new Set(FW_ALLOWED_DOMAINS);
    const allowedStatuses = new Set(FW_ALLOWED_STATUSES);
@@ -8376,7 +8378,9 @@
      nodes: nodes.length,
      edges: edges.length,
      droppedNodes: Math.max(0, sourceNodesAll.length - nodes.length),
-     droppedEdges: Math.max(0, sourceEdgesAll.length - edges.length)
+     droppedEdges: Math.max(0, sourceEdgesAll.length - edges.length),
+     cappedNodes,
+     cappedEdges
     }
    };
   }
@@ -8384,8 +8388,13 @@
   function featureWebNoticeImportReport(report, label) {
    if (!report) return;
    const dropped = (report.droppedNodes || 0) + (report.droppedEdges || 0);
+   const capped = (report.cappedNodes || 0) + (report.cappedEdges || 0);
    let msg = (label || 'Imported') + ': ' + report.nodes + ' nodes, ' + report.edges + ' links';
-   if (dropped > 0) msg += ' (' + dropped + ' dropped)';
+   if (dropped > 0) {
+    msg += ' (' + dropped + ' dropped';
+    if (capped > 0) msg += ', ' + capped + ' over cap';
+    msg += ')';
+   }
    featureWebNotice(msg);
   }
 
