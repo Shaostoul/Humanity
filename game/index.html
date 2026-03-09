@@ -8458,6 +8458,17 @@
    return boardTasks.findIndex(t => t && t.id === taskId);
   }
 
+  function featureWebFindTaskByRawId(taskId) {
+   return boardTasks.find(t => t && t.id === taskId) || null;
+  }
+
+  function featureWebRemoveTaskByRawId(taskId) {
+   const idx = featureWebFindTaskIndexByRawId(taskId);
+   if (idx < 0) return false;
+   boardTasks.splice(idx, 1);
+   return true;
+  }
+
   function featureWebUpsertBoardTask(task) {
    if (!task) return false;
    const normalizedId = featureWebNormalizeTaskId(task.id);
@@ -11151,7 +11162,7 @@
       const movedTaskId = featureWebNormalizeTaskId(msg.id);
       const t = movedTaskId != null
         ? featureWebFindTaskById(movedTaskId)
-        : boardTasks.find(t => t.id === msg.id);
+        : featureWebFindTaskByRawId(msg.id);
       if (t) t.status = msg.status;
 
       let nodeChanged = false;
@@ -11179,7 +11190,7 @@
      if (msg.id != null) {
       const deletedTaskId = featureWebNormalizeTaskId(msg.id);
       if (deletedTaskId != null) featureWebRemoveTaskById(deletedTaskId);
-      else boardTasks = boardTasks.filter(t => t.id !== msg.id);
+      else featureWebRemoveTaskByRawId(msg.id);
       if (deletedTaskId != null) {
        let unlinked = false;
        featureWeb.nodes.forEach(node => {
@@ -11202,7 +11213,7 @@
       const commentTaskId = featureWebNormalizeTaskId(msg.task_id);
       const t = commentTaskId != null
         ? featureWebFindTaskById(commentTaskId)
-        : boardTasks.find(t => t.id === msg.task_id);
+        : featureWebFindTaskByRawId(msg.task_id);
       if (t) t.comment_count = (t.comment_count || 0) + 1;
       renderBoard();
       // If modal is open for this task, append comment
