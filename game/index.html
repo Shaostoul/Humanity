@@ -8713,6 +8713,11 @@
    fwLastSavedAt = Date.now();
   }
 
+  function featureWebPersistAndRefresh() {
+   featureWebSave();
+   featureWebRender();
+  }
+
   function featureWebPersistAndRefreshEditor() {
    featureWebSave();
    featureWebRenderEditor();
@@ -9133,8 +9138,7 @@
    const ownerEl = document.getElementById('fw-node-owner');
    if (ownerEl) ownerEl.value = '';
    featureWebNotice('');
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebCanvasAdd(e) {
@@ -9162,8 +9166,7 @@
    const ownerEl = document.getElementById('fw-node-owner');
    if (ownerEl) ownerEl.value = '';
    featureWebNotice('');
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebCanvasKeydown(e) {
@@ -9210,8 +9213,7 @@
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    });
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebAddEdge() {
@@ -9251,16 +9253,14 @@
     if (toEl.options && toEl.options.length) toEl.selectedIndex = 0;
    }
    featureWebNotice('');
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
    if (toEl && typeof toEl.focus === 'function') toEl.focus();
   }
 
   function featureWebDeleteNode(id) {
    featureWeb.nodes = featureWeb.nodes.filter(n => n.id !== id);
    featureWeb.edges = featureWeb.edges.filter(e => e.from !== id && e.to !== id);
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebSyncLinkedTask(node) {
@@ -9291,8 +9291,7 @@
 
   function featureWebDeleteEdge(id) {
    featureWeb.edges = featureWeb.edges.filter(e => e.id !== id);
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebCycleEdgeType(id) {
@@ -9302,8 +9301,7 @@
    const currentType = (typeof edge.type === 'string') ? edge.type.trim().toLowerCase() : 'depends_on';
    const idx = order.indexOf(currentType);
    edge.type = order[(idx + 1 + order.length) % order.length];
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebRenderEditor() {
@@ -9442,8 +9440,7 @@
    node.owner = featureWebClampText(ownerEl ? ownerEl.value : '', FW_TEXT_LIMITS.owner);
    node.priority = FW_ALLOWED_PRIORITIES.includes(nextPriority) ? nextPriority : (node.priority || 'medium');
    featureWebSyncLinkedTask(node);
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebFocusNode(id) {
@@ -9663,8 +9660,7 @@
    const height = Math.max(180, canvas.clientHeight);
    node.x = Math.max(4, Math.min(width - 120, (width - 104) / 2));
    node.y = Math.max(4, Math.min(height - 48, (height - 42) / 2));
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebDuplicateSelected() {
@@ -9701,8 +9697,7 @@
    dup.y = Math.max(4, Math.min(height - 48, (node.y || 0) + 20));
    featureWeb.nodes.push(dup);
    fwSelectedNodeId = dup.id;
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebNudgeSelected(dx, dy) {
@@ -9717,8 +9712,7 @@
    const height = Math.max(180, canvas.clientHeight);
    node.x = Math.max(4, Math.min(width - 120, (node.x || 0) + dx));
    node.y = Math.max(4, Math.min(height - 48, (node.y || 0) + dy));
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebNudgeToGrid(grid) {
@@ -9734,8 +9728,7 @@
    const g = Math.max(4, Number(grid) || 12);
    node.x = Math.max(4, Math.min(width - 120, Math.round((node.x || 0) / g) * g));
    node.y = Math.max(4, Math.min(height - 48, Math.round((node.y || 0) / g) * g));
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebCycleSelectedStatus(step) {
@@ -9782,8 +9775,7 @@
     const idx = Math.max(0, order.indexOf(edge.type || 'depends_on'));
     edge.type = order[(idx + (step || 1) + order.length) % order.length];
    });
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
    featureWebNotice('Updated link types for selected node');
   }
 
@@ -9799,8 +9791,7 @@
     featureWebNotice('Selected node has no links');
     return;
    }
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
    featureWebNotice('Removed ' + removed + ' link' + (removed === 1 ? '' : 's'));
   }
 
@@ -9816,8 +9807,7 @@
     featureWebNotice('Selected node has no outgoing links');
     return;
    }
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
    featureWebNotice('Removed ' + removed + ' outgoing link' + (removed === 1 ? '' : 's'));
   }
 
@@ -9833,8 +9823,7 @@
     featureWebNotice('Selected node has no incoming links');
     return;
    }
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
    featureWebNotice('Removed ' + removed + ' incoming link' + (removed === 1 ? '' : 's'));
   }
 
@@ -9865,8 +9854,7 @@
     n.x = Math.max(4, Math.min(width - 120, n.x));
     n.y = Math.max(4, Math.min(height - 48, n.y));
    });
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebConstellationLayout() {
@@ -9902,8 +9890,7 @@
    });
    if (viewEl) viewEl.value = 'constellation';
    featureWebSaveFilters();
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebOrbitLayout() {
@@ -9956,8 +9943,7 @@
 
    if (viewEl) viewEl.value = 'orbit';
    featureWebSaveFilters();
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebFitToView() {
@@ -9983,8 +9969,7 @@
     n.x = Math.max(4, Math.min(width - 120, n.x));
     n.y = Math.max(4, Math.min(height - 48, n.y));
    });
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   function featureWebExport() {
@@ -10013,8 +9998,7 @@
       const normalized = featureWebNormalize(data, true);
       featureWeb = normalized.graph;
       featureWebConstrainNodesToCanvas();
-      featureWebSave();
-      featureWebRender();
+      featureWebPersistAndRefresh();
       featureWebNoticeImportReport(normalized.report, 'Imported JSON');
      } catch {
       alert('Invalid Feature Web JSON');
@@ -10028,8 +10012,7 @@
   function featureWebReset() {
    if (!confirm('Reset Feature Web? This clears all nodes and links.')) return;
    featureWeb = { nodes: [], edges: [] };
-   featureWebSave();
-   featureWebRender();
+   featureWebPersistAndRefresh();
   }
 
   async function featureWebCopyShare() {
@@ -10065,8 +10048,7 @@
     const normalized = featureWebNormalize(data, true);
     featureWeb = normalized.graph;
     featureWebConstrainNodesToCanvas();
-    featureWebSave();
-    featureWebRender();
+    featureWebPersistAndRefresh();
     featureWebNoticeImportReport(normalized.report, 'Pasted JSON');
    } catch {
     featureWebNotice('Invalid JSON payload');
