@@ -8470,6 +8470,7 @@
 
    const nodes = [];
    const nodeIds = new Set();
+   const nodeTitleKeys = new Set();
    sourceNodes.forEach((node, idx) => {
     if (!node || typeof node !== 'object') return;
     const fallbackX = 25 + (nodes.length % 4) * 150;
@@ -8492,6 +8493,19 @@
      x: Number.isFinite(+node.x) ? +node.x : fallbackX,
      y: Number.isFinite(+node.y) ? +node.y : fallbackY,
     };
+    let titleKey = featureWebClampText(normalized.title, 140).toLowerCase();
+    if (!titleKey) {
+     normalized.title = 'Untitled ' + (idx + 1);
+     titleKey = normalized.title.toLowerCase();
+    }
+    let titleCounter = 2;
+    while (nodeTitleKeys.has(titleKey)) {
+     normalized.title = featureWebClampText((featureWebClampText(node.title, 140) || ('Untitled ' + (idx + 1))) + ' (' + titleCounter + ')', 140) || ('Untitled ' + (idx + 1) + ' (' + titleCounter + ')');
+     titleKey = normalized.title.toLowerCase();
+     titleCounter++;
+    }
+    nodeTitleKeys.add(titleKey);
+
     const normalizedTaskId = featureWebNormalizeTaskId(node.taskId);
     if (normalizedTaskId != null) normalized.taskId = normalizedTaskId;
     while (nodeIds.has(normalized.id)) normalized.id = featureWebNewId('n');
