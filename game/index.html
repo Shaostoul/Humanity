@@ -9286,7 +9286,8 @@
   }
 
   function featureWebFocusByTitle(title) {
-   const node = featureWeb.nodes.find(n => (n.title || '').toLowerCase() === String(title || '').toLowerCase());
+   const target = featureWebClampText(String(title || ''), 140).toLowerCase();
+   const node = featureWeb.nodes.find(n => featureWebClampText(n.title || '', 140).toLowerCase() === target);
    if (!node) { featureWebNotice('Not found: ' + title); return; }
    featureWebFocusNode(node.id);
    featureWebCenterSelected();
