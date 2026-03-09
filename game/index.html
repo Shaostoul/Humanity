@@ -8406,6 +8406,12 @@
    return boardCanEdit() || boardMyRole === 'verified' || boardMyRole === 'donor';
   }
 
+  function boardSend(payload) {
+   if (!payload || !boardWs || boardWs.readyState !== 1) return false;
+   boardWs.send(JSON.stringify(payload));
+   return true;
+  }
+
   const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
@@ -9325,13 +9331,11 @@
    const mapped = statusMap[nodeStatus] || 'backlog';
    const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
-   if (boardWs && boardWs.readyState === 1) {
-    if (task && oldTitle !== nextTitle) {
-     boardWs.send(JSON.stringify({ type: 'task_update', id: taskId, title: nextTitle, description: task.description || '', priority: task.priority || 'medium', assignee: task.assignee || null, labels: task.labels || '[]' }));
-    }
-    if (!task || task.status !== mapped) {
-     boardWs.send(JSON.stringify({ type: 'task_move', id: taskId, status: mapped }));
-    }
+   if (task && oldTitle !== nextTitle) {
+    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: task.description || '', priority: task.priority || 'medium', assignee: task.assignee || null, labels: task.labels || '[]' });
+   }
+   if (!task || task.status !== mapped) {
+    boardSend({ type: 'task_move', id: taskId, status: mapped });
    }
    if (task) {
     task.title = nextTitle;
@@ -11093,9 +11097,7 @@
      }
      updateBoardPermissions();
      // Request task list
-     if (boardWs && boardWs.readyState === 1) {
-      boardWs.send(JSON.stringify({ type: 'task_list' }));
-     }
+     boardSend({ type: 'task_list' });
      break;
     case 'task_list_response':
      const rawTasks = Array.isArray(msg.tasks) ? msg.tasks : [];
@@ -11131,8 +11133,8 @@
         featureWebPersistAndRefreshEditor();
         const mapped = featureWebMapNodeStatusToTask(node.status);
         const currentTaskStatus = typeof msg.task.status === 'string' ? msg.task.status.trim().toLowerCase() : '';
-        if (boardWs && boardWs.readyState === 1 && currentTaskStatus !== mapped) {
-          boardWs.send(JSON.stringify({ type: 'task_move', id: createdTaskId, status: mapped }));
+        if (currentTaskStatus !== mapped) {
+          boardSend({ type: 'task_move', id: createdTaskId, status: mapped });
         }
        }
       }
@@ -11262,9 +11264,7 @@
 
   function boardMoveTask(id, status) {
    if (!boardCanEdit()) return;
-   if (boardWs && boardWs.readyState === 1) {
-    boardWs.send(JSON.stringify({ type: 'task_move', id: id, status: status }));
-   }
+   boardSend({ type: 'task_move', id: id, status: status });
   }
 
   function openTaskModal(taskId) {
@@ -11316,9 +11316,7 @@
    modal.style.display = 'flex';
 
    // Request comments
-   if (boardWs && boardWs.readyState === 1) {
-    boardWs.send(JSON.stringify({ type: 'task_comments_request', task_id: taskId }));
-   }
+   boardSend({ type: 'task_comments_request', task_id: taskId });
   }
 
   function renderCommentHtml(c) {
@@ -11337,8 +11335,7 @@
    if (!boardCanComment()) return;
    const input = document.getElementById('task-comment-input');
    if (!input || !input.value.trim()) return;
-   if (boardWs && boardWs.readyState === 1) {
-    boardWs.send(JSON.stringify({ type: 'task_comment', task_id: taskId, content: input.value.trim() }));
+   if (boardSend({ type: 'task_comment', task_id: taskId, content: input.value.trim() })) {
     input.value = '';
    }
   }
@@ -11346,9 +11343,7 @@
   function boardDeleteTask(id) {
    if (!boardCanEdit()) return;
    if (!confirm('Delete this task?')) return;
-   if (boardWs && boardWs.readyState === 1) {
-    boardWs.send(JSON.stringify({ type: 'task_delete', id: id }));
-   }
+   boardSend({ type: 'task_delete', id: id });
    closeTaskModal();
   }
 
@@ -11383,17 +11378,15 @@
    const labelsStr = document.getElementById('new-task-labels').value.trim();
    const labels = labelsStr ? JSON.stringify(labelsStr.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
    const assignee = document.getElementById('new-task-assignee').value.trim() || null;
-   if (boardWs && boardWs.readyState === 1) {
-    boardWs.send(JSON.stringify({
-     type: 'task_create',
-     title: title,
-     description: document.getElementById('new-task-desc').value,
-     priority: document.getElementById('new-task-priority').value,
-     status: document.getElementById('new-task-status').value,
-     assignee: assignee,
-     labels: labels,
-    }));
-   }
+   boardSend({
+    type: 'task_create',
+    title: title,
+    description: document.getElementById('new-task-desc').value,
+    priority: document.getElementById('new-task-priority').value,
+    status: document.getElementById('new-task-status').value,
+    assignee: assignee,
+    labels: labels,
+   });
    closeTaskModal();
   }
 
@@ -11426,17 +11419,15 @@
    const labelsStr = document.getElementById('edit-task-labels').value.trim();
    const labels = labelsStr ? JSON.stringify(labelsStr.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
    const assignee = document.getElementById('edit-task-assignee').value.trim() || null;
-   if (boardWs && boardWs.readyState === 1) {
-    boardWs.send(JSON.stringify({
-     type: 'task_update',
-     id: id,
-     title: title,
-     description: document.getElementById('edit-task-desc').value,
-     priority: document.getElementById('edit-task-priority').value,
-     assignee: assignee,
-     labels: labels,
-    }));
-   }
+   boardSend({
+    type: 'task_update',
+    id: id,
+    title: title,
+    description: document.getElementById('edit-task-desc').value,
+    priority: document.getElementById('edit-task-priority').value,
+    assignee: assignee,
+    labels: labels,
+   });
    closeTaskModal();
   }
 
@@ -11451,8 +11442,8 @@
    origSwitchTab2(tabId, pushState);
    if (tabId === 'board' && (!boardWs || boardWs.readyState > 1)) {
     boardConnect();
-   } else if (tabId === 'board' && boardWs && boardWs.readyState === 1) {
-    boardWs.send(JSON.stringify({ type: 'task_list' }));
+   } else if (tabId === 'board') {
+    boardSend({ type: 'task_list' });
    }
   };
 
