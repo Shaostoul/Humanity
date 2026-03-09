@@ -11016,7 +11016,8 @@
       const markerNodeId = m && m[1] ? featureWebSanitizeId(m[1], 72) : '';
       if (createdTaskId != null && markerNodeId) {
        const node = featureWeb.nodes.find(n => n.id === markerNodeId);
-       if (node) {
+       const conflict = featureWeb.nodes.find(n => n.id !== markerNodeId && n.taskId === createdTaskId);
+       if (node && !conflict) {
         node.taskId = createdTaskId;
         featureWebSave();
         featureWebRender();
