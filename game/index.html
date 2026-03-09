@@ -9864,7 +9864,7 @@
    if (!canvas || !featureWeb.nodes.length) return;
    const width = Math.max(320, canvas.clientWidth);
    const height = Math.max(220, canvas.clientHeight);
-   const domains = ['vision','business','school','game','economy','tech','lore','roadmap','community','operations'];
+   const domains = FW_ALLOWED_DOMAINS;
    const centerX = width / 2;
    const centerY = height / 2;
    const baseR = Math.max(70, Math.min(width, height) * 0.34);
@@ -9903,7 +9903,7 @@
    const height = Math.max(240, canvas.clientHeight);
    const centerX = width / 2;
    const centerY = height / 2;
-   const domains = ['vision','business','school','game','economy','tech','lore','roadmap','community','operations'];
+   const domains = FW_ALLOWED_DOMAINS;
    const radiusDomain = Math.max(120, Math.min(width, height) * 0.34);
    const domainCenters = {};
    domains.forEach((d, i) => {
@@ -10309,7 +10309,7 @@
     if (!canvas) return '';
     const w = Math.max(360, canvas.clientWidth), h = Math.max(240, canvas.clientHeight);
     const cx = w / 2, cy = h / 2;
-    const domains = ['vision','business','school','game','economy','tech','lore','roadmap','community','operations'];
+    const domains = FW_ALLOWED_DOMAINS;
     const rr = Math.max(120, Math.min(w, h) * 0.34);
     return domains.map((d,i) => {
       const a = (i / domains.length) * Math.PI * 2 - Math.PI / 2;
