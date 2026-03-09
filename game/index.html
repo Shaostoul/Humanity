@@ -8471,6 +8471,8 @@
    const nodes = [];
    const nodeIds = new Set();
    const nodeTitleKeys = new Set();
+   const linkedTaskIds = new Set();
+   let duplicateTaskLinksDropped = 0;
    sourceNodes.forEach((node, idx) => {
     if (!node || typeof node !== 'object') return;
     const fallbackX = 25 + (nodes.length % 4) * 150;
@@ -8507,7 +8509,14 @@
     nodeTitleKeys.add(titleKey);
 
     const normalizedTaskId = featureWebNormalizeTaskId(node.taskId);
-    if (normalizedTaskId != null) normalized.taskId = normalizedTaskId;
+    if (normalizedTaskId != null) {
+     if (linkedTaskIds.has(normalizedTaskId)) {
+      duplicateTaskLinksDropped++;
+     } else {
+      normalized.taskId = normalizedTaskId;
+      linkedTaskIds.add(normalizedTaskId);
+     }
+    }
     while (nodeIds.has(normalized.id)) normalized.id = featureWebNewId('n');
     nodeIds.add(normalized.id);
     nodes.push(normalized);
@@ -8551,7 +8560,8 @@
      cappedNodes,
      cappedEdges,
      invalidNodes: Math.max(0, (sourceNodesAll.length - nodes.length) - cappedNodes),
-     invalidEdges: Math.max(0, (sourceEdgesAll.length - edges.length) - cappedEdges)
+     invalidEdges: Math.max(0, (sourceEdgesAll.length - edges.length) - cappedEdges),
+     duplicateTaskLinksDropped
     }
    };
   }
@@ -8568,6 +8578,7 @@
     if (capped > 0) msg += ', ' + capped + ' over cap (max ' + FW_MAX_NODES + ' nodes/' + FW_MAX_EDGES + ' links)';
     msg += ')';
    }
+   if ((report.duplicateTaskLinksDropped || 0) > 0) msg += ' · deduped ' + report.duplicateTaskLinksDropped + ' duplicate task link' + (report.duplicateTaskLinksDropped === 1 ? '' : 's');
    featureWebNotice(msg);
   }
 
