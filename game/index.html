@@ -8521,6 +8521,35 @@
    return changed;
   }
 
+  function featureWebSyncLinkedNodesFromBoardTasks(tasks) {
+   if (!featureWeb.nodes.length) return false;
+   const statusByTaskId = new Map();
+   (Array.isArray(tasks) ? tasks : []).forEach(task => {
+    const taskId = featureWebNormalizeTaskId(task && task.id);
+    if (taskId == null || statusByTaskId.has(taskId)) return;
+    const boardStatus = typeof task.status === 'string' ? task.status.trim().toLowerCase() : '';
+    statusByTaskId.set(taskId, boardStatus);
+   });
+
+   let changed = false;
+   featureWeb.nodes.forEach(node => {
+    if (!node) return;
+    const taskId = featureWebNormalizeTaskId(node.taskId);
+    if (taskId == null) return;
+    if (!statusByTaskId.has(taskId)) {
+     node.taskId = null;
+     changed = true;
+     return;
+    }
+    const mappedNodeStatus = featureWebMapTaskStatusToNode(statusByTaskId.get(taskId));
+    if (mappedNodeStatus && node.status !== mappedNodeStatus) {
+     node.status = mappedNodeStatus;
+     changed = true;
+    }
+   });
+   return changed;
+  }
+
   function featureWebClampText(value, maxLen) {
    if (typeof value !== 'string') return '';
    const text = value.trim();
@@ -11075,31 +11104,7 @@
       dedupedTasks.push(task);
      });
      boardTasks = dedupedTasks;
-     let nodeChanged = false;
-     if (featureWeb.nodes.length) {
-      const statusByTaskId = new Map();
-      boardTasks.forEach(task => {
-       const taskId = featureWebNormalizeTaskId(task && task.id);
-       if (taskId == null || statusByTaskId.has(taskId)) return;
-       const boardStatus = typeof task.status === 'string' ? task.status.trim().toLowerCase() : '';
-       statusByTaskId.set(taskId, boardStatus);
-      });
-      featureWeb.nodes.forEach(node => {
-       if (!node) return;
-       const taskId = featureWebNormalizeTaskId(node.taskId);
-       if (taskId == null) return;
-       if (!statusByTaskId.has(taskId)) {
-        node.taskId = null;
-        nodeChanged = true;
-        return;
-       }
-       const mappedNodeStatus = featureWebMapTaskStatusToNode(statusByTaskId.get(taskId));
-       if (mappedNodeStatus && node.status !== mappedNodeStatus) {
-        node.status = mappedNodeStatus;
-        nodeChanged = true;
-       }
-      });
-     }
+     const nodeChanged = featureWebSyncLinkedNodesFromBoardTasks(boardTasks);
      if (nodeChanged) {
       featureWebPersistAndRefreshEditor();
      }
