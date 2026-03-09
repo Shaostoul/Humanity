@@ -9083,10 +9083,17 @@
    }
    const statusMap = FW_TASK_TO_NODE_STATUS_MAP;
    const normalizedPriority = (typeof task.priority === 'string') ? task.priority.trim().toLowerCase() : '';
+   const baseTitle = featureWebClampText(task.title, 140) || ('Task #' + taskId);
+   let uniqueTitle = baseTitle;
+   let titleCounter = 2;
+   while (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === uniqueTitle.toLowerCase())) {
+    uniqueTitle = featureWebClampText(baseTitle + ' (' + titleCounter + ')', 140) || ('Task #' + taskId + ' (' + titleCounter + ')');
+    titleCounter++;
+   }
    featureWeb.nodes.push({
     id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     taskId,
-    title: featureWebClampText(task.title, 140) || ('Task #' + taskId),
+    title: uniqueTitle,
     type: 'feature',
     domain: 'operations',
     status: statusMap[task.status] || 'planned',
