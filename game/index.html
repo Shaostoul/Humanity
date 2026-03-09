@@ -11029,7 +11029,8 @@
         featureWebRender();
         const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
         const mapped = FW_NODE_TO_TASK_STATUS_MAP[nodeStatus] || 'backlog';
-        if (boardWs && boardWs.readyState === 1 && msg.task.status !== mapped) {
+        const currentTaskStatus = typeof msg.task.status === 'string' ? msg.task.status.trim().toLowerCase() : '';
+        if (boardWs && boardWs.readyState === 1 && currentTaskStatus !== mapped) {
           boardWs.send(JSON.stringify({ type: 'task_move', id: createdTaskId, status: mapped }));
         }
        }
@@ -11048,7 +11049,8 @@
 
       let nodeChanged = false;
       if (updatedTaskId != null) {
-       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[msg.task.status] || null;
+       const boardStatus = typeof msg.task.status === 'string' ? msg.task.status.trim().toLowerCase() : '';
+       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[boardStatus] || null;
        if (mappedNodeStatus) {
         featureWeb.nodes.forEach(node => {
          if (node && node.taskId === updatedTaskId && node.status !== mappedNodeStatus) {
@@ -11076,7 +11078,8 @@
 
       let nodeChanged = false;
       if (movedTaskId != null) {
-       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[msg.status] || null;
+       const boardStatus = typeof msg.status === 'string' ? msg.status.trim().toLowerCase() : '';
+       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[boardStatus] || null;
        if (mappedNodeStatus) {
         featureWeb.nodes.forEach(node => {
          if (node && node.taskId === movedTaskId && node.status !== mappedNodeStatus) {
