@@ -8826,7 +8826,7 @@
   function featureWebSeedPU() {
    if (featureWeb.nodes.length && !confirm('Seed Project Universe map pack? This will append many nodes/links.')) return;
    const mk = (title, type, domain, status, x, y, summary, teach, details, owner, priority) => ({
-    id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    id: featureWebNewId('n'),
     title, type, domain, status, x, y,
     summary: summary || '', teach: teach || '', details: details || '', owner: owner || '', priority: priority || 'medium'
    });
@@ -9017,7 +9017,7 @@
    const domain = (domainEl && typeof domainEl.value === 'string') ? domainEl.value.trim().toLowerCase() : '';
    const status = (statusEl && typeof statusEl.value === 'string') ? statusEl.value.trim().toLowerCase() : '';
    return {
-    id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    id: featureWebNewId('n'),
     title: featureWebClampText(title, 140),
     type: FW_ALLOWED_TYPES.includes(type) ? type : 'feature',
     domain: FW_ALLOWED_DOMAINS.includes(domain) ? domain : 'game',
@@ -9123,7 +9123,7 @@
     titleCounter++;
    }
    featureWeb.nodes.push({
-    id: 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    id: featureWebNewId('n'),
     taskId,
     title: uniqueTitle,
     type: 'feature',
