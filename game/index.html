@@ -8983,9 +8983,9 @@
    link('Earth Twin Home Planner','Earth/Fleet Mode Switch','depends_on');
    link('Earth Twin Regional Overlay','Earth/Fleet Mode Switch','depends_on');
 
-   const existingTitles = new Set(featureWeb.nodes.map(n => featureWebClampText(n.title || '', 140).toLowerCase()).filter(Boolean));
+   const existingTitles = new Set(featureWeb.nodes.map(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase()).filter(Boolean));
    const dedupedNodes = nodes.filter(n => {
-    const key = featureWebClampText(n.title || '', 140).toLowerCase();
+    const key = featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase();
     if (!key || existingTitles.has(key)) return false;
     existingTitles.add(key);
     return true;
@@ -9044,14 +9044,14 @@
    const status = (statusEl && typeof statusEl.value === 'string') ? statusEl.value.trim().toLowerCase() : '';
    return {
     id: featureWebNewId('n'),
-    title: featureWebClampText(title, 140),
+    title: featureWebClampText(title, FW_TEXT_LIMITS.title),
     type: FW_ALLOWED_TYPES.includes(type) ? type : 'feature',
     domain: FW_ALLOWED_DOMAINS.includes(domain) ? domain : 'game',
     status: FW_ALLOWED_STATUSES.includes(status) ? status : 'planned',
     summary: '',
     teach: '',
     details: '',
-    owner: featureWebClampText(ownerEl ? ownerEl.value : '', 120),
+    owner: featureWebClampText(ownerEl ? ownerEl.value : '', FW_TEXT_LIMITS.owner),
     priority: 'medium',
     x: x,
     y: y,
@@ -9065,9 +9065,9 @@
     featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
     return;
    }
-   const normalizedTitle = featureWebClampText(titleEl.value, 140).toLowerCase();
+   const normalizedTitle = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title).toLowerCase();
    if (!normalizedTitle) return;
-   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === normalizedTitle)) {
+   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle)) {
     featureWebNotice('Node with that title already exists');
     return;
    }
@@ -9096,9 +9096,9 @@
     featureWebNotice('Enter a node title, then double-click canvas to place it');
     return;
    }
-   const title = featureWebClampText(titleEl.value, 140);
+   const title = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title);
    if (!title) return;
-   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === title.toLowerCase())) {
+   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === title.toLowerCase())) {
     featureWebNotice('Node with that title already exists');
     return;
    }
