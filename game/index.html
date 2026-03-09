@@ -8713,6 +8713,12 @@
    fwLastSavedAt = Date.now();
   }
 
+  function featureWebPersistAndRefreshEditor() {
+   featureWebSave();
+   featureWebRenderEditor();
+   featureWebRender();
+  }
+
   function featureWebLoadUiState() {
    let ui = null;
    try { ui = JSON.parse(localStorage.getItem(FEATURE_WEB_UI_KEY) || '{}'); } catch {}
@@ -9552,9 +9558,7 @@
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
    if (!node || node.taskId == null) return;
    node.taskId = null;
-   featureWebSave();
-   featureWebRenderEditor();
-   featureWebRender();
+   featureWebPersistAndRefreshEditor();
    featureWebNotice('Node unlinked from task');
   }
 
@@ -9599,9 +9603,7 @@
     return;
    }
    node.taskId = taskId;
-   featureWebSave();
-   featureWebRenderEditor();
-   featureWebRender();
+   featureWebPersistAndRefreshEditor();
    featureWebNotice('Node linked to task');
   }
 
@@ -9748,9 +9750,7 @@
    const next = (idx + (step || 1) + order.length) % order.length;
    node.status = order[next];
    featureWebSyncLinkedTask(node);
-   featureWebSave();
-   featureWebRenderEditor();
-   featureWebRender();
+   featureWebPersistAndRefreshEditor();
   }
 
   function featureWebCycleSelectedType(step) {
@@ -9764,9 +9764,7 @@
    const idx = Math.max(0, order.indexOf(node.type || 'feature'));
    const next = (idx + (step || 1) + order.length) % order.length;
    node.type = order[next];
-   featureWebSave();
-   featureWebRenderEditor();
-   featureWebRender();
+   featureWebPersistAndRefreshEditor();
   }
 
   function featureWebCycleEdgeTypeForSelection(step) {
@@ -10980,9 +10978,7 @@
     if (node && FW_ALLOWED_STATUSES.includes(nextStatus)) {
       node.status = nextStatus;
       featureWebSyncLinkedTask(node);
-      featureWebSave();
-      featureWebRenderEditor();
-      featureWebRender();
+      featureWebPersistAndRefreshEditor();
     }
     return;
    }
@@ -10993,9 +10989,7 @@
     const nextType = map[e.key];
     if (node && FW_ALLOWED_TYPES.includes(nextType)) {
       node.type = nextType;
-      featureWebSave();
-      featureWebRenderEditor();
-      featureWebRender();
+      featureWebPersistAndRefreshEditor();
     }
     return;
    }
@@ -11111,9 +11105,7 @@
       });
      }
      if (nodeChanged) {
-      featureWebSave();
-      featureWebRenderEditor();
-      featureWebRender();
+      featureWebPersistAndRefreshEditor();
      }
      renderBoard();
      break;
@@ -11130,9 +11122,7 @@
        const conflict = featureWeb.nodes.find(n => n.id !== markerNodeId && n.taskId === createdTaskId);
        if (node && !conflict) {
         node.taskId = createdTaskId;
-        featureWebSave();
-        featureWebRenderEditor();
-        featureWebRender();
+        featureWebPersistAndRefreshEditor();
         const mapped = featureWebMapNodeStatusToTask(node.status);
         const currentTaskStatus = typeof msg.task.status === 'string' ? msg.task.status.trim().toLowerCase() : '';
         if (boardWs && boardWs.readyState === 1 && currentTaskStatus !== mapped) {
@@ -11161,9 +11151,7 @@
        }
       }
       if (nodeChanged) {
-       featureWebSave();
-       featureWebRenderEditor();
-       featureWebRender();
+       featureWebPersistAndRefreshEditor();
       }
       renderBoard();
      }
@@ -11189,9 +11177,7 @@
        }
       }
       if (nodeChanged) {
-       featureWebSave();
-       featureWebRenderEditor();
-       featureWebRender();
+       featureWebPersistAndRefreshEditor();
       }
       renderBoard();
      }
@@ -11210,9 +11196,7 @@
         }
        });
        if (unlinked) {
-        featureWebSave();
-        featureWebRenderEditor();
-        featureWebRender();
+        featureWebPersistAndRefreshEditor();
        }
       }
       renderBoard();
