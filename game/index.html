@@ -8388,7 +8388,9 @@
      droppedNodes: Math.max(0, sourceNodesAll.length - nodes.length),
      droppedEdges: Math.max(0, sourceEdgesAll.length - edges.length),
      cappedNodes,
-     cappedEdges
+     cappedEdges,
+     invalidNodes: Math.max(0, (sourceNodesAll.length - nodes.length) - cappedNodes),
+     invalidEdges: Math.max(0, (sourceEdgesAll.length - edges.length) - cappedEdges)
     }
    };
   }
@@ -8397,9 +8399,11 @@
    if (!report) return;
    const dropped = (report.droppedNodes || 0) + (report.droppedEdges || 0);
    const capped = (report.cappedNodes || 0) + (report.cappedEdges || 0);
+   const invalid = (report.invalidNodes || 0) + (report.invalidEdges || 0);
    let msg = (label || 'Imported') + ': ' + report.nodes + ' nodes, ' + report.edges + ' links';
    if (dropped > 0) {
     msg += ' (' + dropped + ' dropped';
+    if (invalid > 0) msg += ', ' + invalid + ' invalid';
     if (capped > 0) msg += ', ' + capped + ' over cap';
     msg += ')';
    }
