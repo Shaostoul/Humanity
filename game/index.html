@@ -8402,6 +8402,10 @@
    return boardMyRole === 'admin' || boardMyRole === 'mod';
   }
 
+  function boardCanComment() {
+   return boardCanEdit() || boardMyRole === 'verified' || boardMyRole === 'donor';
+  }
+
   const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
@@ -11270,7 +11274,7 @@
    const content = document.getElementById('task-modal-content');
    content.dataset.taskId = taskId;
    const canEdit = boardCanEdit();
-   const canComment = canEdit || boardMyRole === 'verified' || boardMyRole === 'donor';
+   const canComment = boardCanComment();
    const pc = PRIORITY_COLORS[task.priority] || '#666';
    const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
    const created = new Date(task.created_at).toLocaleString();
@@ -11330,6 +11334,7 @@
   }
 
   function boardAddComment(taskId) {
+   if (!boardCanComment()) return;
    const input = document.getElementById('task-comment-input');
    if (!input || !input.value.trim()) return;
    if (boardWs && boardWs.readyState === 1) {
