@@ -15,6 +15,7 @@ This is the parent entry for major documentation areas.
 - [03-MODULE-MAP](./03-MODULE-MAP.md)
 - [04-CONTRIBUTING](./04-CONTRIBUTING.md)
 - [05-AI-ONBOARDING](./05-AI-ONBOARDING.md)
+- [06-SOURCE-OF-TRUTH-MAP](./06-SOURCE-OF-TRUTH-MAP.md)
 - [ADR-0001: Modular boundaries](./decisions/ADR-0001-modular-boundaries.md)
 
 ## Design
