@@ -9050,15 +9050,23 @@
    const toEl = document.getElementById('fw-link-to');
    const typeEl = document.getElementById('fw-link-type');
    if (!fromEl || !toEl || !fromEl.value || !toEl.value) return;
-   if (fromEl.value === toEl.value) {
+   const fromId = featureWebSanitizeId(fromEl.value, 72);
+   const toId = featureWebSanitizeId(toEl.value, 72);
+   if (!fromId || !toId) {
+    featureWebNotice('Invalid link source or target');
+    return;
+   }
+   if (fromId === toId) {
     featureWebNotice('Link source and target must be different');
     return;
    }
-   if (featureWeb.edges.some(e => e.from === fromEl.value && e.to === toEl.value)) {
+   if (featureWeb.edges.some(e => e.from === fromId && e.to === toId)) {
     featureWebNotice('That link already exists');
     return;
    }
-   featureWeb.edges.push({ id: 'e_' + Date.now().toString(36), from: fromEl.value, to: toEl.value, type: (typeEl && typeEl.value) || 'depends_on' });
+   const rawType = (typeEl && typeof typeEl.value === 'string') ? typeEl.value.trim().toLowerCase() : '';
+   const edgeType = FW_ALLOWED_EDGE_TYPES.includes(rawType) ? rawType : 'depends_on';
+   featureWeb.edges.push({ id: featureWebNewId('e'), from: fromId, to: toId, type: edgeType });
    if (toEl) {
     toEl.value = '';
     if (toEl.options && toEl.options.length) toEl.selectedIndex = 0;
