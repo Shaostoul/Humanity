@@ -9624,7 +9624,7 @@
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
    if (!node) return;
-   const order = ['planned', 'active', 'blocked', 'done'];
+   const order = FW_ALLOWED_STATUSES;
    const idx = Math.max(0, order.indexOf(node.status || 'planned'));
    const next = (idx + (step || 1) + order.length) % order.length;
    node.status = order[next];
@@ -9641,7 +9641,7 @@
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
    if (!node) return;
-   const order = ['feature', 'subfeature', 'tech', 'ux', 'org', 'lore'];
+   const order = FW_ALLOWED_TYPES;
    const idx = Math.max(0, order.indexOf(node.type || 'feature'));
    const next = (idx + (step || 1) + order.length) % order.length;
    node.type = order[next];
@@ -9655,7 +9655,7 @@
     featureWebNotice('Select a node first');
     return;
    }
-   const order = ['depends_on', 'blocks', 'relates_to', 'teaches', 'enables'];
+   const order = FW_ALLOWED_EDGE_TYPES;
    const edges = featureWeb.edges.filter(e => e.from === fwSelectedNodeId || e.to === fwSelectedNodeId);
    if (!edges.length) {
     featureWebNotice('Selected node has no links');
