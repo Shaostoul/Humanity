@@ -8493,6 +8493,20 @@
    return s === 'in_progress' ? 'IN PROGRESS' : (s === 'testing' ? 'TESTING' : (s === 'done' ? 'DONE' : 'BACKLOG'));
   }
 
+  function featureWebMapTaskStatusToNode(status, fallback) {
+   const s = typeof status === 'string' ? status.trim().toLowerCase() : '';
+   return Object.prototype.hasOwnProperty.call(FW_TASK_TO_NODE_STATUS_MAP, s)
+    ? FW_TASK_TO_NODE_STATUS_MAP[s]
+    : (fallback === undefined ? null : fallback);
+  }
+
+  function featureWebMapNodeStatusToTask(status, fallback) {
+   const s = typeof status === 'string' ? status.trim().toLowerCase() : '';
+   return Object.prototype.hasOwnProperty.call(FW_NODE_TO_TASK_STATUS_MAP, s)
+    ? FW_NODE_TO_TASK_STATUS_MAP[s]
+    : (fallback === undefined ? 'backlog' : fallback);
+  }
+
   function featureWebClampText(value, maxLen) {
    if (typeof value !== 'string') return '';
    const text = value.trim();
@@ -9604,8 +9618,7 @@
    let created = 0;
    featureWeb.nodes.forEach((node) => {
     if (node.taskId != null) return;
-    const nodeStatus = (typeof node.status === 'string') ? node.status.trim().toLowerCase() : '';
-    const mappedStatus = FW_NODE_TO_TASK_STATUS_MAP[nodeStatus] || 'backlog';
+    const mappedStatus = featureWebMapNodeStatusToTask(node.status);
     const rawDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
     const rawType = typeof node.type === 'string' ? node.type.trim().toLowerCase() : '';
     const rawPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
@@ -11090,7 +11103,7 @@
         nodeChanged = true;
         return;
        }
-       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[statusByTaskId.get(taskId) || ''] || null;
+       const mappedNodeStatus = featureWebMapTaskStatusToNode(statusByTaskId.get(taskId));
        if (mappedNodeStatus && node.status !== mappedNodeStatus) {
         node.status = mappedNodeStatus;
         nodeChanged = true;
@@ -11120,8 +11133,7 @@
         featureWebSave();
         featureWebRenderEditor();
         featureWebRender();
-        const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
-        const mapped = FW_NODE_TO_TASK_STATUS_MAP[nodeStatus] || 'backlog';
+        const mapped = featureWebMapNodeStatusToTask(node.status);
         const currentTaskStatus = typeof msg.task.status === 'string' ? msg.task.status.trim().toLowerCase() : '';
         if (boardWs && boardWs.readyState === 1 && currentTaskStatus !== mapped) {
           boardWs.send(JSON.stringify({ type: 'task_move', id: createdTaskId, status: mapped }));
@@ -11138,8 +11150,7 @@
 
       let nodeChanged = false;
       if (updatedTaskId != null) {
-       const boardStatus = typeof msg.task.status === 'string' ? msg.task.status.trim().toLowerCase() : '';
-       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[boardStatus] || null;
+       const mappedNodeStatus = featureWebMapTaskStatusToNode(msg.task.status);
        if (mappedNodeStatus) {
         featureWeb.nodes.forEach(node => {
          if (node && node.taskId === updatedTaskId && node.status !== mappedNodeStatus) {
@@ -11167,8 +11178,7 @@
 
       let nodeChanged = false;
       if (movedTaskId != null) {
-       const boardStatus = typeof msg.status === 'string' ? msg.status.trim().toLowerCase() : '';
-       const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[boardStatus] || null;
+       const mappedNodeStatus = featureWebMapTaskStatusToNode(msg.status);
        if (mappedNodeStatus) {
         featureWeb.nodes.forEach(node => {
          if (node && node.taskId === movedTaskId && node.status !== mappedNodeStatus) {
