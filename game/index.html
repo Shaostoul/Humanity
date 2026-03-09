@@ -8454,6 +8454,18 @@
    return text.length > maxLen ? text.slice(0, maxLen) : text;
   }
 
+  function featureWebMakeUniqueTitle(baseTitle, fallbackBase, excludeNodeId) {
+   const safeFallback = featureWebClampText(fallbackBase || 'Untitled', FW_TEXT_LIMITS.title) || 'Untitled';
+   const base = featureWebClampText(baseTitle || '', FW_TEXT_LIMITS.title) || safeFallback;
+   let candidate = base;
+   let counter = 2;
+   while (featureWeb.nodes.some(n => n && n.id !== excludeNodeId && featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === candidate.toLowerCase())) {
+    candidate = featureWebClampText(base + ' (' + counter + ')', FW_TEXT_LIMITS.title) || (safeFallback + ' (' + counter + ')');
+    counter++;
+   }
+   return candidate;
+  }
+
   function featureWebSanitizeId(value, maxLen) {
    if (typeof value !== 'string') return '';
    const cleaned = value.trim().replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -9116,13 +9128,7 @@
    }
    const statusMap = FW_TASK_TO_NODE_STATUS_MAP;
    const normalizedPriority = (typeof task.priority === 'string') ? task.priority.trim().toLowerCase() : '';
-   const baseTitle = featureWebClampText(task.title, 140) || ('Task #' + taskId);
-   let uniqueTitle = baseTitle;
-   let titleCounter = 2;
-   while (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === uniqueTitle.toLowerCase())) {
-    uniqueTitle = featureWebClampText(baseTitle + ' (' + titleCounter + ')', 140) || ('Task #' + taskId + ' (' + titleCounter + ')');
-    titleCounter++;
-   }
+   const uniqueTitle = featureWebMakeUniqueTitle(task.title, 'Task #' + taskId);
    featureWeb.nodes.push({
     id: featureWebNewId('n'),
     taskId,
@@ -9619,14 +9625,7 @@
    const dup = JSON.parse(JSON.stringify(node));
    dup.id = featureWebNewId('n');
    dup.taskId = null;
-   const baseDupTitle = featureWebClampText(((node.title || 'Node') + ' Copy'), 140) || 'Node Copy';
-   let dupTitle = baseDupTitle;
-   let dupCounter = 2;
-   while (featureWeb.nodes.some(n => featureWebClampText(n.title || '', 140).toLowerCase() === dupTitle.toLowerCase())) {
-    dupTitle = featureWebClampText(baseDupTitle + ' (' + dupCounter + ')', 140) || ('Node Copy (' + dupCounter + ')');
-    dupCounter++;
-   }
-   dup.title = dupTitle;
+   dup.title = featureWebMakeUniqueTitle((node.title || 'Node') + ' Copy', 'Node Copy');
    const dupType = typeof dup.type === 'string' ? dup.type.trim().toLowerCase() : '';
    const dupStatus = typeof dup.status === 'string' ? dup.status.trim().toLowerCase() : '';
    const dupDomain = typeof dup.domain === 'string' ? dup.domain.trim().toLowerCase() : '';
