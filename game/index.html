@@ -9306,6 +9306,12 @@
    if (!node) return;
    const nextTitle = featureWebClampText(titleEl.value, 140);
    if (!nextTitle) return;
+   const normalizedTitle = nextTitle.toLowerCase();
+   const duplicate = featureWeb.nodes.find(n => n.id !== node.id && featureWebClampText(n.title || '', 140).toLowerCase() === normalizedTitle);
+   if (duplicate) {
+    featureWebNotice('Node with that title already exists');
+    return;
+   }
    const nextType = typeEl && typeof typeEl.value === 'string' ? typeEl.value.trim().toLowerCase() : '';
    const nextStatus = statusEl && typeof statusEl.value === 'string' ? statusEl.value.trim().toLowerCase() : '';
    const nextDomain = domainEl && typeof domainEl.value === 'string' ? domainEl.value.trim().toLowerCase() : '';
