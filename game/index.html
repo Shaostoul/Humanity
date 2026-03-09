@@ -11010,7 +11010,17 @@
      }
      break;
     case 'task_list_response':
-     boardTasks = Array.isArray(msg.tasks) ? msg.tasks : [];
+     const rawTasks = Array.isArray(msg.tasks) ? msg.tasks : [];
+     const dedupedTasks = [];
+     const seenTaskIds = new Set();
+     rawTasks.forEach(task => {
+      const taskId = featureWebNormalizeTaskId(task && task.id);
+      if (taskId == null) { dedupedTasks.push(task); return; }
+      if (seenTaskIds.has(taskId)) return;
+      seenTaskIds.add(taskId);
+      dedupedTasks.push(task);
+     });
+     boardTasks = dedupedTasks;
      let nodeChanged = false;
      if (featureWeb.nodes.length) {
       const statusByTaskId = new Map();
