@@ -11045,10 +11045,15 @@
      break;
     case 'task_created':
      if (msg.task) {
-      boardTasks.push(msg.task);
+      const createdTaskId = featureWebNormalizeTaskId(msg.task.id);
+      const idx = createdTaskId != null
+        ? boardTasks.findIndex(t => featureWebNormalizeTaskId(t && t.id) === createdTaskId)
+        : boardTasks.findIndex(t => t.id === msg.task.id);
+      if (idx >= 0) boardTasks[idx] = msg.task;
+      else boardTasks.push(msg.task);
+
       const desc = String(msg.task.description || '');
       const m = desc.match(/\[fw-node:([^\]]+)\]/);
-      const createdTaskId = featureWebNormalizeTaskId(msg.task.id);
       const markerNodeId = m && m[1] ? featureWebSanitizeId(m[1], 72) : '';
       if (createdTaskId != null && markerNodeId) {
        const node = featureWeb.nodes.find(n => n.id === markerNodeId);
@@ -11056,6 +11061,7 @@
        if (node && !conflict) {
         node.taskId = createdTaskId;
         featureWebSave();
+        featureWebRenderEditor();
         featureWebRender();
         const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
         const mapped = FW_NODE_TO_TASK_STATUS_MAP[nodeStatus] || 'backlog';
