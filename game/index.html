@@ -9150,10 +9150,10 @@
     type: 'feature',
     domain: 'operations',
     status: statusMap[task.status] || 'planned',
-    summary: featureWebClampText(task.description || '', 400),
+    summary: featureWebClampText(task.description || '', FW_TEXT_LIMITS.summary),
     teach: '',
     details: '',
-    owner: featureWebClampText(task.assignee || '', 120),
+    owner: featureWebClampText(task.assignee || '', FW_TEXT_LIMITS.owner),
     priority: FW_ALLOWED_PRIORITIES.includes(normalizedPriority) ? normalizedPriority : 'medium',
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
@@ -9220,7 +9220,7 @@
    const statusMap = FW_NODE_TO_TASK_STATUS_MAP;
    const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
    const mapped = statusMap[nodeStatus] || 'backlog';
-   const nextTitle = featureWebClampText(node.title || '', 140) || ('Task #' + taskId);
+   const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
    if (boardWs && boardWs.readyState === 1) {
     if (task && oldTitle !== nextTitle) {
@@ -9370,10 +9370,10 @@
    if (!editSelect || !titleEl || !typeEl || !statusEl || !editSelect.value) return;
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) return;
-   const nextTitle = featureWebClampText(titleEl.value, 140);
+   const nextTitle = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title);
    if (!nextTitle) return;
    const normalizedTitle = nextTitle.toLowerCase();
-   const duplicate = featureWeb.nodes.find(n => n.id !== node.id && featureWebClampText(n.title || '', 140).toLowerCase() === normalizedTitle);
+   const duplicate = featureWeb.nodes.find(n => n.id !== node.id && featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle);
    if (duplicate) {
     featureWebNotice('Node with that title already exists');
     return;
@@ -9386,10 +9386,10 @@
    node.type = FW_ALLOWED_TYPES.includes(nextType) ? nextType : (node.type || 'feature');
    node.status = FW_ALLOWED_STATUSES.includes(nextStatus) ? nextStatus : (node.status || 'planned');
    node.domain = FW_ALLOWED_DOMAINS.includes(nextDomain) ? nextDomain : (node.domain || 'game');
-   node.summary = featureWebClampText(summaryEl ? summaryEl.value : '', 400);
-   node.teach = featureWebClampText(teachEl ? teachEl.value : '', 1200);
-   node.details = featureWebClampText(detailsEl ? detailsEl.value : '', 6000);
-   node.owner = featureWebClampText(ownerEl ? ownerEl.value : '', 120);
+   node.summary = featureWebClampText(summaryEl ? summaryEl.value : '', FW_TEXT_LIMITS.summary);
+   node.teach = featureWebClampText(teachEl ? teachEl.value : '', FW_TEXT_LIMITS.teach);
+   node.details = featureWebClampText(detailsEl ? detailsEl.value : '', FW_TEXT_LIMITS.details);
+   node.owner = featureWebClampText(ownerEl ? ownerEl.value : '', FW_TEXT_LIMITS.owner);
    node.priority = FW_ALLOWED_PRIORITIES.includes(nextPriority) ? nextPriority : (node.priority || 'medium');
    featureWebSyncLinkedTask(node);
    featureWebSave();
@@ -9417,7 +9417,7 @@
 
   function featureWebFocusByTitle(title) {
    const target = featureWebClampText(String(title || ''), 140).toLowerCase();
-   const node = featureWeb.nodes.find(n => featureWebClampText(n.title || '', 140).toLowerCase() === target);
+   const node = featureWeb.nodes.find(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === target);
    if (!node) { featureWebNotice('Not found: ' + title); return; }
    featureWebFocusNode(node.id);
    featureWebCenterSelected();
@@ -9583,13 +9583,13 @@
     const nodeType = FW_ALLOWED_TYPES.includes(rawType) ? rawType : 'feature';
     const nodePriority = FW_ALLOWED_PRIORITIES.includes(rawPriority) ? rawPriority : 'medium';
     const marker = '[fw-node:' + featureWebSanitizeId(node.id, FW_TEXT_LIMITS.id) + ']';
-    const descParts = [marker, featureWebClampText(node.summary || '', 400), featureWebClampText(node.details || '', 6000)].filter(Boolean);
+    const descParts = [marker, featureWebClampText(node.summary || '', FW_TEXT_LIMITS.summary), featureWebClampText(node.details || '', FW_TEXT_LIMITS.details)].filter(Boolean);
     const payload = {
       type: 'task_create',
-      title: featureWebClampText(node.title || '', 140) || 'Untitled Node',
+      title: featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || 'Untitled Node',
       description: descParts.join('\n\n'),
       priority: nodePriority,
-      assignee: featureWebClampText(node.owner || '', 120) || null,
+      assignee: featureWebClampText(node.owner || '', FW_TEXT_LIMITS.owner) || null,
       labels: JSON.stringify([nodeDomain, nodeType]),
     };
     boardWs.send(JSON.stringify(payload));
@@ -9648,10 +9648,10 @@
    dup.status = FW_ALLOWED_STATUSES.includes(dupStatus) ? dupStatus : 'planned';
    dup.domain = FW_ALLOWED_DOMAINS.includes(dupDomain) ? dupDomain : 'game';
    dup.priority = FW_ALLOWED_PRIORITIES.includes(dupPriority) ? dupPriority : 'medium';
-   dup.summary = featureWebClampText(dup.summary || '', 400);
-   dup.teach = featureWebClampText(dup.teach || '', 1200);
-   dup.details = featureWebClampText(dup.details || '', 6000);
-   dup.owner = featureWebClampText(dup.owner || '', 120);
+   dup.summary = featureWebClampText(dup.summary || '', FW_TEXT_LIMITS.summary);
+   dup.teach = featureWebClampText(dup.teach || '', FW_TEXT_LIMITS.teach);
+   dup.details = featureWebClampText(dup.details || '', FW_TEXT_LIMITS.details);
+   dup.owner = featureWebClampText(dup.owner || '', FW_TEXT_LIMITS.owner);
    dup.x = Math.max(4, Math.min(width - 120, (node.x || 0) + 26));
    dup.y = Math.max(4, Math.min(height - 48, (node.y || 0) + 20));
    featureWeb.nodes.push(dup);
