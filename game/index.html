@@ -9153,6 +9153,12 @@
     featureWebNotice('Link source and target must be different');
     return;
    }
+   const hasFromNode = featureWeb.nodes.some(n => n && n.id === fromId);
+   const hasToNode = featureWeb.nodes.some(n => n && n.id === toId);
+   if (!hasFromNode || !hasToNode) {
+    featureWebNotice('Link source or target no longer exists');
+    return;
+   }
    if (featureWeb.edges.some(e => e.from === fromId && e.to === toId)) {
     featureWebNotice('That link already exists');
     return;
