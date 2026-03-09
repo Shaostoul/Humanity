@@ -9134,7 +9134,8 @@
     featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
     return;
    }
-   const existing = featureWeb.nodes.find(n => n.taskId === taskId);
+   const normalizedTaskId = featureWebNormalizeTaskId(taskId);
+   const existing = featureWeb.nodes.find(n => featureWebNormalizeTaskId(n && n.taskId) === normalizedTaskId);
    if (existing) {
     featureWebFocusNode(existing.id);
     return;
