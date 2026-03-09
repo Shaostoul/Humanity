@@ -8482,7 +8482,7 @@
    if (statusEl) statusEl.value = featureWebSanitizeFilterValue(f && f.status, statusAllowed, 'all');
    if (domainEl) domainEl.value = featureWebSanitizeFilterValue(f && f.domain, domainAllowed, 'all');
    if (viewEl) viewEl.value = featureWebSanitizeFilterValue(f && f.viewMode, viewAllowed, 'orbit');
-   if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search;
+   if (searchEl && f && typeof f.search === 'string') searchEl.value = f.search.slice(0, 200);
    if (linkedOnlyEl && f && typeof f.linkedOnly === 'boolean') linkedOnlyEl.checked = f.linkedOnly;
    if (ownedOnlyEl && f && typeof f.ownedOnly === 'boolean') ownedOnlyEl.checked = f.ownedOnly;
    if (focusEl && f && typeof f.focusSelected === 'boolean') focusEl.checked = f.focusSelected;
@@ -8512,7 +8512,7 @@
     status: featureWebSanitizeFilterValue(statusEl && statusEl.value, statusAllowed, 'all'),
     domain: featureWebSanitizeFilterValue(domainEl && domainEl.value, domainAllowed, 'all'),
     viewMode: featureWebSanitizeFilterValue(viewEl && viewEl.value, viewAllowed, 'orbit'),
-    search: (searchEl && searchEl.value) || '',
+    search: ((searchEl && searchEl.value) || '').slice(0, 200),
     linkedOnly: linkedOnlyEl ? !!linkedOnlyEl.checked : false,
     ownedOnly: ownedOnlyEl ? !!ownedOnlyEl.checked : false,
     focusSelected: focusEl ? !!focusEl.checked : true,
