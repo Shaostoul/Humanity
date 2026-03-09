@@ -9328,7 +9328,7 @@
    if (linkTaskEl) linkTaskEl.value = node.taskId != null ? String(node.taskId) : '';
    if (linkedInfoEl) {
     if (node.taskId != null) {
-     const t = boardTasks.find(x => x.id === node.taskId);
+     const t = featureWebFindTaskById(node.taskId);
      const statusLabel = s => (s === 'in_progress' ? 'IN PROGRESS' : s === 'testing' ? 'TESTING' : s === 'done' ? 'DONE' : 'BACKLOG');
      linkedInfoEl.style.display = 'block';
      linkedInfoEl.setAttribute('aria-hidden', 'false');
