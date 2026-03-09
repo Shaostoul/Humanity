@@ -9399,7 +9399,16 @@
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
    if (!node) return;
-   const taskId = Number(linkTaskEl.value);
+   const taskId = featureWebNormalizeTaskId(linkTaskEl.value);
+   if (taskId == null) {
+    featureWebNotice('Invalid task selection');
+    return;
+   }
+   const task = boardTasks.find(t => t.id === taskId);
+   if (!task) {
+    featureWebNotice('Selected task is unavailable');
+    return;
+   }
    const conflict = featureWeb.nodes.find(n => n.id !== node.id && n.taskId === taskId);
    if (conflict) {
     featureWebNotice('Task already linked to another node');
