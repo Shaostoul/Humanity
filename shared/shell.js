@@ -328,7 +328,7 @@
         '<button class="menu-btn" type="button">Private ▾</button>' +
         '<div class="menu-drop">' +
           '<a href="/reality">Profile</a>' +
-          '<a href="/dashboard">Inventory</a>' +
+          '<a href="/inventory">Inventory</a>' +
           '<a href="/fantasy">Skills</a>' +
           '<a href="/source">Equipment</a>' +
           '<a href="/quests">Quests</a>' +
