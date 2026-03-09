@@ -8507,6 +8507,20 @@
     : (fallback === undefined ? 'backlog' : fallback);
   }
 
+  function featureWebApplyTaskStatusToLinkedNodes(taskId, taskStatus) {
+   if (taskId == null) return false;
+   const mappedNodeStatus = featureWebMapTaskStatusToNode(taskStatus);
+   if (!mappedNodeStatus) return false;
+   let changed = false;
+   featureWeb.nodes.forEach(node => {
+    if (node && node.taskId === taskId && node.status !== mappedNodeStatus) {
+     node.status = mappedNodeStatus;
+     changed = true;
+    }
+   });
+   return changed;
+  }
+
   function featureWebClampText(value, maxLen) {
    if (typeof value !== 'string') return '';
    const text = value.trim();
@@ -11120,18 +11134,7 @@
       const updatedTaskId = featureWebNormalizeTaskId(msg.task.id);
       featureWebUpsertBoardTask(msg.task);
 
-      let nodeChanged = false;
-      if (updatedTaskId != null) {
-       const mappedNodeStatus = featureWebMapTaskStatusToNode(msg.task.status);
-       if (mappedNodeStatus) {
-        featureWeb.nodes.forEach(node => {
-         if (node && node.taskId === updatedTaskId && node.status !== mappedNodeStatus) {
-          node.status = mappedNodeStatus;
-          nodeChanged = true;
-         }
-        });
-       }
-      }
+      const nodeChanged = featureWebApplyTaskStatusToLinkedNodes(updatedTaskId, msg.task.status);
       if (nodeChanged) {
        featureWebPersistAndRefreshEditor();
       }
@@ -11146,18 +11149,7 @@
         : featureWebFindTaskByRawId(msg.id);
       if (t) t.status = msg.status;
 
-      let nodeChanged = false;
-      if (movedTaskId != null) {
-       const mappedNodeStatus = featureWebMapTaskStatusToNode(msg.status);
-       if (mappedNodeStatus) {
-        featureWeb.nodes.forEach(node => {
-         if (node && node.taskId === movedTaskId && node.status !== mappedNodeStatus) {
-          node.status = mappedNodeStatus;
-          nodeChanged = true;
-         }
-        });
-       }
-      }
+      const nodeChanged = featureWebApplyTaskStatusToLinkedNodes(movedTaskId, msg.status);
       if (nodeChanged) {
        featureWebPersistAndRefreshEditor();
       }
