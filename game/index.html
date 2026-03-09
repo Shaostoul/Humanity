@@ -8454,6 +8454,22 @@
    return boardTasks.findIndex(t => featureWebNormalizeTaskId(t && t.id) === normalizedId);
   }
 
+  function featureWebFindTaskIndexByRawId(taskId) {
+   return boardTasks.findIndex(t => t && t.id === taskId);
+  }
+
+  function featureWebUpsertBoardTask(task) {
+   if (!task) return false;
+   const normalizedId = featureWebNormalizeTaskId(task.id);
+   const idx = normalizedId != null ? featureWebFindTaskIndexById(normalizedId) : featureWebFindTaskIndexByRawId(task.id);
+   if (idx >= 0) {
+    boardTasks[idx] = task;
+    return true;
+   }
+   boardTasks.push(task);
+   return false;
+  }
+
   function featureWebRemoveTaskById(taskId) {
    const idx = featureWebFindTaskIndexById(taskId);
    if (idx < 0) return false;
@@ -11077,11 +11093,7 @@
     case 'task_created':
      if (msg.task) {
       const createdTaskId = featureWebNormalizeTaskId(msg.task.id);
-      const idx = createdTaskId != null
-        ? featureWebFindTaskIndexById(createdTaskId)
-        : boardTasks.findIndex(t => t.id === msg.task.id);
-      if (idx >= 0) boardTasks[idx] = msg.task;
-      else boardTasks.push(msg.task);
+      featureWebUpsertBoardTask(msg.task);
 
       const desc = String(msg.task.description || '');
       const m = desc.match(/\[fw-node:([^\]]+)\]/);
@@ -11108,11 +11120,7 @@
     case 'task_updated':
      if (msg.task) {
       const updatedTaskId = featureWebNormalizeTaskId(msg.task.id);
-      const idx = updatedTaskId != null
-        ? featureWebFindTaskIndexById(updatedTaskId)
-        : boardTasks.findIndex(t => t.id === msg.task.id);
-      if (idx >= 0) boardTasks[idx] = msg.task;
-      else boardTasks.push(msg.task);
+      featureWebUpsertBoardTask(msg.task);
 
       let nodeChanged = false;
       if (updatedTaskId != null) {
