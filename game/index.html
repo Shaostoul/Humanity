@@ -9119,9 +9119,10 @@
   function featureWebCycleEdgeType(id) {
    const edge = featureWeb.edges.find(e => e.id === id);
    if (!edge) return;
-   const order = ['depends_on', 'blocks', 'relates_to', 'teaches', 'enables'];
-   const idx = order.indexOf(edge.type || 'depends_on');
-   edge.type = order[(idx + 1) % order.length];
+   const order = FW_ALLOWED_EDGE_TYPES;
+   const currentType = (typeof edge.type === 'string') ? edge.type.trim().toLowerCase() : 'depends_on';
+   const idx = order.indexOf(currentType);
+   edge.type = order[(idx + 1 + order.length) % order.length];
    featureWebSave();
    featureWebRender();
   }
