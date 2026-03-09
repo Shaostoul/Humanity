@@ -8268,6 +8268,8 @@
   const FW_ALLOWED_PRIORITIES = ['low', 'medium', 'high', 'critical'];
   const FW_ALLOWED_EDGE_TYPES = ['depends_on', 'blocks', 'relates_to', 'teaches', 'enables'];
   const FW_ALLOWED_VIEW_MODES = ['orbit', 'cards', 'constellation'];
+  const FW_MAX_NODES = 800;
+  const FW_MAX_EDGES = 3200;
   const FW_STATUS_COLORS = { planned: '#6f7f95', active: '#2f8f4e', blocked: '#ba3f4a', done: '#3d7dd8' };
   const FW_TYPE_COLORS = { feature: '#ff8811', subfeature: '#cf6a13', tech: '#7b5cff', ux: '#18a8a8', org: '#7e6a4d', lore: '#a55ad9' };
   const FW_DOMAIN_COLORS = { vision:'#ffb347', business:'#f08c4a', school:'#4eb8e6', game:'#7dd56f', economy:'#f5c451', tech:'#8d7bff', lore:'#cf7cff', roadmap:'#f58e8e', community:'#6fd4c3', operations:'#9aa8b8' };
@@ -8309,8 +8311,6 @@
    const src = (raw && typeof raw === 'object') ? raw : {};
    const sourceNodesAll = Array.isArray(src.nodes) ? src.nodes : [];
    const sourceEdgesAll = Array.isArray(src.edges) ? src.edges : [];
-   const FW_MAX_NODES = 800;
-   const FW_MAX_EDGES = 3200;
    const sourceNodes = sourceNodesAll.slice(0, FW_MAX_NODES);
    const sourceEdges = sourceEdgesAll.slice(0, FW_MAX_EDGES);
    const cappedNodes = Math.max(0, sourceNodesAll.length - sourceNodes.length);
