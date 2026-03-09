@@ -9434,16 +9434,23 @@
    let created = 0;
    featureWeb.nodes.forEach((node) => {
     if (node.taskId != null) return;
-    const mappedStatus = node.status === 'active' ? 'in_progress' : (node.status === 'done' ? 'done' : (node.status === 'blocked' ? 'testing' : 'backlog'));
-    const marker = '[fw-node:' + node.id + ']';
-    const descParts = [marker, node.summary || '', node.details || ''].filter(Boolean);
+    const nodeStatus = (typeof node.status === 'string') ? node.status.trim().toLowerCase() : '';
+    const mappedStatus = nodeStatus === 'active' ? 'in_progress' : (nodeStatus === 'done' ? 'done' : (nodeStatus === 'blocked' ? 'testing' : 'backlog'));
+    const rawDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
+    const rawType = typeof node.type === 'string' ? node.type.trim().toLowerCase() : '';
+    const rawPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
+    const nodeDomain = FW_ALLOWED_DOMAINS.includes(rawDomain) ? rawDomain : 'game';
+    const nodeType = FW_ALLOWED_TYPES.includes(rawType) ? rawType : 'feature';
+    const nodePriority = FW_ALLOWED_PRIORITIES.includes(rawPriority) ? rawPriority : 'medium';
+    const marker = '[fw-node:' + featureWebSanitizeId(node.id, 72) + ']';
+    const descParts = [marker, featureWebClampText(node.summary || '', 400), featureWebClampText(node.details || '', 6000)].filter(Boolean);
     const payload = {
       type: 'task_create',
-      title: node.title || 'Untitled Node',
+      title: featureWebClampText(node.title || '', 140) || 'Untitled Node',
       description: descParts.join('\n\n'),
-      priority: (node.priority || 'medium'),
-      assignee: (node.owner || null),
-      labels: JSON.stringify([node.domain || 'game', node.type || 'feature']),
+      priority: nodePriority,
+      assignee: featureWebClampText(node.owner || '', 120) || null,
+      labels: JSON.stringify([nodeDomain, nodeType]),
     };
     boardWs.send(JSON.stringify(payload));
     created++;
