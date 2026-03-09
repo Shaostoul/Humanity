@@ -11012,7 +11012,7 @@
     case 'task_list_response':
      boardTasks = Array.isArray(msg.tasks) ? msg.tasks : [];
      let nodeChanged = false;
-     if (featureWeb.nodes.length && boardTasks.length) {
+     if (featureWeb.nodes.length) {
       const statusByTaskId = new Map();
       boardTasks.forEach(task => {
        const taskId = featureWebNormalizeTaskId(task && task.id);
@@ -11024,6 +11024,11 @@
        if (!node) return;
        const taskId = featureWebNormalizeTaskId(node.taskId);
        if (taskId == null) return;
+       if (!statusByTaskId.has(taskId)) {
+        node.taskId = null;
+        nodeChanged = true;
+        return;
+       }
        const mappedNodeStatus = FW_TASK_TO_NODE_STATUS_MAP[statusByTaskId.get(taskId) || ''] || null;
        if (mappedNodeStatus && node.status !== mappedNodeStatus) {
         node.status = mappedNodeStatus;
