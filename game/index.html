@@ -11012,15 +11012,18 @@
       boardTasks.push(msg.task);
       const desc = String(msg.task.description || '');
       const m = desc.match(/\[fw-node:([^\]]+)\]/);
-      if (m && m[1]) {
-       const node = featureWeb.nodes.find(n => n.id === m[1]);
+      const createdTaskId = featureWebNormalizeTaskId(msg.task.id);
+      const markerNodeId = m && m[1] ? featureWebSanitizeId(m[1], 72) : '';
+      if (createdTaskId != null && markerNodeId) {
+       const node = featureWeb.nodes.find(n => n.id === markerNodeId);
        if (node) {
-        node.taskId = msg.task.id;
+        node.taskId = createdTaskId;
         featureWebSave();
         featureWebRender();
-        const mapped = node.status === 'active' ? 'in_progress' : (node.status === 'done' ? 'done' : (node.status === 'blocked' ? 'testing' : 'backlog'));
+        const nodeStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
+        const mapped = FW_NODE_TO_TASK_STATUS_MAP[nodeStatus] || 'backlog';
         if (boardWs && boardWs.readyState === 1 && msg.task.status !== mapped) {
-          boardWs.send(JSON.stringify({ type: 'task_move', id: msg.task.id, status: mapped }));
+          boardWs.send(JSON.stringify({ type: 'task_move', id: createdTaskId, status: mapped }));
         }
        }
       }
