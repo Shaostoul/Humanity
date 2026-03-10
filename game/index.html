@@ -11396,7 +11396,10 @@
    modal.style.display = 'flex';
 
    // Request comments
-   boardSend({ type: 'task_comments_request', task_id: taskId });
+   const normalizedTaskId = featureWebNormalizeTaskId(taskId);
+   if (normalizedTaskId != null) {
+    boardSend({ type: 'task_comments_request', task_id: normalizedTaskId });
+   }
   }
 
   function renderCommentHtml(c) {
@@ -11421,9 +11424,11 @@
 
   function boardAddComment(taskId) {
    if (!boardCanComment()) return;
+   const normalizedTaskId = featureWebNormalizeTaskId(taskId);
+   if (normalizedTaskId == null) return;
    const input = document.getElementById('task-comment-input');
    if (!input || !input.value.trim()) return;
-   if (boardSend({ type: 'task_comment', task_id: taskId, content: input.value.trim() })) {
+   if (boardSend({ type: 'task_comment', task_id: normalizedTaskId, content: input.value.trim() })) {
     input.value = '';
    } else {
     boardNoticeConnectionNotReady();
