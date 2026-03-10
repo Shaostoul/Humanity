@@ -9070,8 +9070,11 @@
     featureWebNotice('No visible nodes to focus');
     return;
    }
-   featureWebFocusNode(fwLastVisibleNodeIds[0]);
-   featureWebCenterSelected();
+   const firstId = fwLastVisibleNodeIds[0];
+   featureWebFocusNode(firstId);
+   featureWebCenterSelected({ quiet: true });
+   const node = featureWeb.nodes.find(n => n && n.id === firstId);
+   featureWebNotice('Focused first visible node: ' + (node && node.title ? node.title : 'Untitled'));
   }
 
   function featureWebFocusLastVisible() {
@@ -9079,8 +9082,11 @@
     featureWebNotice('No visible nodes to focus');
     return;
    }
-   featureWebFocusNode(fwLastVisibleNodeIds[fwLastVisibleNodeIds.length - 1]);
-   featureWebCenterSelected();
+   const lastId = fwLastVisibleNodeIds[fwLastVisibleNodeIds.length - 1];
+   featureWebFocusNode(lastId);
+   featureWebCenterSelected({ quiet: true });
+   const node = featureWeb.nodes.find(n => n && n.id === lastId);
+   featureWebNotice('Focused last visible node: ' + (node && node.title ? node.title : 'Untitled'));
   }
 
   function featureWebNotice(text) {
