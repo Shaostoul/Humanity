@@ -9824,10 +9824,18 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node || node.taskId == null) return;
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
+   const taskId = featureWebNormalizeTaskId(node.taskId);
+   if (taskId == null) {
+    featureWebNotice('Selected node is not linked to a task');
+    return;
+   }
    node.taskId = null;
    featureWebPersistAndRefreshEditor();
-   featureWebNotice('Node unlinked from task');
+   featureWebNotice('Unlinked node ' + (node.title || 'Untitled') + ' from task #' + taskId);
   }
 
   function featureWebOpenLinkedTask() {
