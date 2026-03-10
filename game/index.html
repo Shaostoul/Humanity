@@ -9903,6 +9903,7 @@
    const linkTaskEl = document.getElementById('fw-link-task');
    if (!linkTaskEl || !linkTaskEl.value) {
     featureWebNotice('Select a task to link');
+    if (linkTaskEl && typeof linkTaskEl.focus === 'function') linkTaskEl.focus();
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
@@ -9913,6 +9914,7 @@
    const taskId = featureWebNormalizeTaskId(linkTaskEl.value);
    if (taskId == null) {
     featureWebNotice('Invalid task selection');
+    if (linkTaskEl && typeof linkTaskEl.focus === 'function') linkTaskEl.focus();
     return;
    }
    const task = featureWebFindTaskById(taskId);
