@@ -9906,9 +9906,11 @@
     featureWebNotice('Need admin/mod role to create tasks');
     return;
    }
+   let candidates = 0;
    let created = 0;
    featureWeb.nodes.forEach((node) => {
     if (node.taskId != null) return;
+    candidates++;
     const mappedStatus = featureWebMapNodeStatusToTask(node.status);
     const rawDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
     const rawType = typeof node.type === 'string' ? node.type.trim().toLowerCase() : '';
@@ -9928,7 +9930,15 @@
     };
     if (boardSend(payload)) created++;
    });
-   featureWebNotice(created ? ('Queued ' + created + ' task(s) from nodes') : 'All nodes already linked');
+   if (!candidates) {
+    featureWebNotice('All nodes already linked');
+    return;
+   }
+   if (created === candidates) {
+    featureWebNotice('Queued ' + created + ' task(s) from ' + candidates + ' unlinked node' + (candidates === 1 ? '' : 's'));
+    return;
+   }
+   featureWebNotice('Queued ' + created + '/' + candidates + ' task(s) from unlinked nodes');
   }
 
   function featureWebClearSelection() {
