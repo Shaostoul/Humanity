@@ -9493,17 +9493,29 @@
    const mapped = featureWebMapNodeStatusToTask(node.status);
    const nextTitle = boardNormalizeTitle(node.title) || ('Task #' + taskId);
    node.title = nextTitle;
+
+   let titleSynced = !!task;
    if (task && oldTitle !== nextTitle) {
-    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: boardNormalizeDescription(task.description), priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: boardNormalizeLabelsJson(task.labels) });
+    titleSynced = boardSendOrNotice({ type: 'task_update', id: taskId, title: nextTitle, description: boardNormalizeDescription(task.description), priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: boardNormalizeLabelsJson(task.labels) });
    }
+
    const currentTaskStatus = boardNormalizeTaskStatus(task && task.status, null);
+   let statusSynced = !!task && currentTaskStatus === mapped;
    if (!task || currentTaskStatus !== mapped) {
-    boardSend({ type: 'task_move', id: taskId, status: mapped });
+    statusSynced = boardSendOrNotice({ type: 'task_move', id: taskId, status: mapped });
    }
+
    if (task) {
-    task.title = nextTitle;
-    task.status = mapped;
-    renderBoard();
+    let changed = false;
+    if (titleSynced && task.title !== nextTitle) {
+     task.title = nextTitle;
+     changed = true;
+    }
+    if (statusSynced && task.status !== mapped) {
+     task.status = mapped;
+     changed = true;
+    }
+    if (changed) renderBoard();
    }
   }
 
