@@ -11438,12 +11438,14 @@
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('new-task-labels').value);
    const assignee = document.getElementById('new-task-assignee').value.trim() || null;
+   const normalizedStatus = boardNormalizeStatus(document.getElementById('new-task-status').value);
+   const nextStatus = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
    const sent = boardSend({
     type: 'task_create',
     title: title,
     description: document.getElementById('new-task-desc').value,
     priority: document.getElementById('new-task-priority').value,
-    status: document.getElementById('new-task-status').value,
+    status: nextStatus,
     assignee: assignee,
     labels: labels,
    });
