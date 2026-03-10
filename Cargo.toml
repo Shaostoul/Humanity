@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/humanity-core",
     "crates/humanity-relay",
+    "crates/core-lifeform-model",
 ]
 exclude = [
     "desktop/src-tauri",

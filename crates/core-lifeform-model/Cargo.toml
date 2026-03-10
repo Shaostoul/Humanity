@@ -1,0 +1,13 @@
+[package]
+name = "core-lifeform-model"
+version = "0.1.0"
+edition = "2024"
+description = "Species-agnostic lifeform state interfaces and deterministic tick harness for Humanity"
+license = "CC0-1.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[dev-dependencies]
+serde_json = "1"

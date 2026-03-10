@@ -11,12 +11,12 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 ## A1) core-lifeform-model
 - Spec: `design/modules/core-lifeform-model.md`
 - Crate path: `crates/core-lifeform-model/`
-- Current status: planned
-- Next actions:
-  1. create crate skeleton + lib.rs trait interfaces
-  2. implement `LifeformState` and `SpeciesProfile`
-  3. add deterministic tick tests
-  4. add example scenario fixture
+- Current status: in_progress
+- Progress:
+  - [x] crate skeleton + `lib.rs` trait interfaces
+  - [x] implemented `LifeformState` and `SpeciesProfile`
+  - [x] deterministic tick tests passing (`cargo test -p core-lifeform-model`)
+  - [ ] add example scenario fixture
 - Depends on: none (foundation)
 
 ## A2) core-skill-progression
