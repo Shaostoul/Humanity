@@ -9344,7 +9344,11 @@
 
   function featureWebAddNode() {
    const titleEl = document.getElementById('fw-node-title');
-   if (!titleEl || !titleEl.value.trim()) return;
+   if (!titleEl || !titleEl.value.trim()) {
+    featureWebNotice('Enter a node title before adding');
+    if (titleEl && typeof titleEl.focus === 'function') titleEl.focus();
+    return;
+   }
    if (featureWebRemainingNodeCapacity() <= 0) {
     featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
     return;
