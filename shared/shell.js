@@ -403,8 +403,11 @@
   }
 
   var suppressNavClicksUntil = 0;
+  var suppressDocCloseUntil = 0;
 
   document.querySelectorAll('.hub-nav .menu-btn').forEach(function(btn) {
+    var touchToggleAt = 0;
+
     var toggleMenu = function(e) {
       if (e) {
         e.preventDefault();
@@ -412,6 +415,8 @@
         if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       }
       suppressNavClicksUntil = Date.now() + 900;
+      suppressDocCloseUntil = Date.now() + 900;
+
       var menu = btn.closest('.menu');
       if (!menu) return;
       var isOpen = menu.classList.contains('open');
@@ -422,19 +427,26 @@
       }
     };
 
-    // Intercept as early as possible on touch devices.
-    btn.addEventListener('touchstart', toggleMenu, { passive: false });
-    btn.addEventListener('touchend', toggleMenu, { passive: false });
-    btn.addEventListener('pointerdown', function(e) {
-      if (e.pointerType && e.pointerType !== 'mouse') toggleMenu(e);
+    // Mobile primary path.
+    btn.addEventListener('touchend', function(e) {
+      touchToggleAt = Date.now();
+      toggleMenu(e);
+    }, { passive: false });
+
+    // Desktop / keyboard path; ignore synthetic click after touch.
+    btn.addEventListener('click', function(e) {
+      if (Date.now() - touchToggleAt < 700) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      toggleMenu(e);
     });
-    btn.addEventListener('pointerup', function(e) {
-      if (e.pointerType && e.pointerType !== 'mouse') toggleMenu(e);
-    });
-    // Desktop / keyboard / general click.
-    btn.addEventListener('click', toggleMenu);
   });
-  document.addEventListener('click', function() {
+
+  document.addEventListener('click', function(e) {
+    if (Date.now() < suppressDocCloseUntil) return;
+    if (e && e.target && e.target.closest && e.target.closest('.hub-nav .menu')) return;
     document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
   });
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
