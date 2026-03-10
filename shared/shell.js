@@ -162,6 +162,19 @@
       opacity: 0.9;
     }
     .hub-nav .menu { position: relative; z-index: 25; touch-action: manipulation; }
+    .hub-nav .mobile-menu-btn {
+      display: none;
+      background: transparent;
+      border: 1px solid #2a6;
+      color: #ddd;
+      padding: 0.24rem 0.55rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      line-height: 1;
+      touch-action: manipulation;
+    }
+    .hub-nav .mobile-menu-btn:hover { box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3); color:#fff; }
     .hub-nav .menu-btn {
       position: relative;
       z-index: 26;
@@ -301,6 +314,36 @@
     .footer-toggle:hover { color: #FF8811; }
 
     /* Mobile */
+    #mobile-hub-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 7600;
+      display: none;
+    }
+    #mobile-hub-drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(84vw, 360px);
+      height: 100vh;
+      background: rgba(13,13,13,0.98);
+      border-left: 1px solid #333;
+      z-index: 7700;
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+      overflow-y: auto;
+      padding: 0.65rem 0.6rem 1rem;
+      box-sizing: border-box;
+    }
+    #mobile-hub-drawer.open { transform: translateX(0); }
+    #mobile-hub-backdrop.open { display: block; }
+    .mobile-hub-group { margin-bottom: 0.65rem; border:1px solid #2a2a2a; border-radius:8px; }
+    .mobile-hub-group h4 { margin:0; padding:0.45rem 0.55rem; font-size:0.72rem; color:#9aa; border-bottom:1px solid #2a2a2a; text-transform:uppercase; letter-spacing:.08em; }
+    .mobile-hub-group a { display:block; color:#ddd; text-decoration:none; padding:0.5rem 0.55rem; font-size:0.86rem; border-bottom:1px solid #1d1d1d; }
+    .mobile-hub-group a:last-child { border-bottom:none; }
+    .mobile-hub-group a:hover { background: rgba(255,255,255,0.05); }
+
     @media (max-width: 768px) {
       .hub-nav {
         overflow-x: auto;
@@ -326,6 +369,8 @@
         width: 12px;
         height: 12px;
       }
+      .hub-nav .menu { display: none !important; }
+      .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
     }
   `;
   document.head.appendChild(style);
@@ -336,6 +381,7 @@
     '<nav class="hub-nav">' +
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
       '<a href="/chat" class="tab' + (active === 'chat' ? ' active' : '') + '" data-tip="Network">Network</a>' +
+      '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
       '<div class="menu" data-menu="private">' +
         '<button class="menu-btn" type="button">Private ▾</button>' +
         '<div class="menu-drop">' +
@@ -381,6 +427,66 @@
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
+
+  // Mobile drawer fallback menu (for reliable touch nav)
+  var mobileBackdrop = document.createElement('div');
+  mobileBackdrop.id = 'mobile-hub-backdrop';
+  var mobileDrawer = document.createElement('aside');
+  mobileDrawer.id = 'mobile-hub-drawer';
+  mobileDrawer.innerHTML =
+    '<div class="mobile-hub-group"><h4>Private</h4>' +
+      '<a href="/reality">Profile</a>' +
+      '<a href="/inventory">Inventory</a>' +
+      '<a href="/avatars">Identity</a>' +
+      '<a href="/downloads">Downloads</a>' +
+      '<a href="/chat">Comms</a>' +
+    '</div>' +
+    '<div class="mobile-hub-group"><h4>Public</h4>' +
+      '<a href="/board">Systems</a>' +
+      '<a href="/map">Maps</a>' +
+      '<a href="/market">Market</a>' +
+      '<a href="/learn">Learn</a>' +
+      '<a href="/info">Knowledge</a>' +
+      '<a href="/streams">Streams</a>' +
+    '</div>' +
+    '<div class="mobile-hub-group"><h4>Ops</h4>' +
+      '<a href="/debug">Health</a>' +
+      '<a href="/debug">Deploy</a>' +
+      '<a href="/debug">Logs</a>' +
+      '<a href="/debug">Debug</a>' +
+      '<a href="/debug">Moderation</a>' +
+    '</div>';
+  document.body.appendChild(mobileBackdrop);
+  document.body.appendChild(mobileDrawer);
+
+  var mobileMenuBtn = document.getElementById('mobile-hub-menu-btn');
+  function closeMobileDrawer() {
+    mobileBackdrop.classList.remove('open');
+    mobileDrawer.classList.remove('open');
+  }
+  function openMobileDrawer() {
+    mobileBackdrop.classList.add('open');
+    mobileDrawer.classList.add('open');
+  }
+  if (mobileMenuBtn) {
+    mobileMenuBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (mobileDrawer.classList.contains('open')) closeMobileDrawer();
+      else openMobileDrawer();
+    });
+    mobileMenuBtn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (mobileDrawer.classList.contains('open')) closeMobileDrawer();
+      else openMobileDrawer();
+    }, { passive: false });
+  }
+  mobileBackdrop.addEventListener('click', closeMobileDrawer);
+  mobileDrawer.addEventListener('click', function(e) {
+    const link = e.target.closest('a[href]');
+    if (link) closeMobileDrawer();
+  });
 
   // Dropdown menu interactions
   function positionMenuDrop(menu) {
@@ -526,7 +632,7 @@
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
     // Never let menu interactions fall through to tab navigation.
-    if (Date.now() < suppressNavClicksUntil || e.target.closest('.menu') || e.target.closest('.menu-btn')) {
+    if (Date.now() < suppressNavClicksUntil || e.target.closest('.menu') || e.target.closest('.menu-btn') || e.target.closest('.mobile-menu-btn')) {
       e.preventDefault();
       e.stopPropagation();
       return;
