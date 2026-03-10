@@ -567,9 +567,10 @@ async function handleMessage(msg) {
       document.getElementById('msg-input').focus();
       updateStats();
       updatePeerList(msg.peers);
-      // Refresh DM sidebar conversations on connect/reconnect.
+      // Refresh sidebar datasets on connect/reconnect.
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/dms', timestamp: Date.now(), channel: 'general' }));
+        ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/groups', timestamp: Date.now(), channel: 'general' }));
       }
       break;
     case 'full_user_list':
@@ -3475,9 +3476,10 @@ var federatedServersFetched = false;
       return wrap;
     };
 
-    if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers));
-    if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups));
+    // Requested order: DMs (top), Groups (middle), Servers (bottom)
     if (!unified.querySelector('[data-sid="dms"]')) unified.appendChild(mkSection('dms', 'DMs', tabDms));
+    if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups));
+    if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers));
 
     function refreshUnifiedLeftHeaderCounts() {
       const serverCount = (channelList || []).length;
@@ -5288,21 +5290,26 @@ function renderUnifiedRightSidebar() {
   const sections = [];
   sections.push(renderUnifiedSection('friends', 'Friends', friendStreamRows, friendVoip, friendOnlineRows, friendOfflineRows, friendPreview.join('')));
 
-  (myGroups || []).forEach(g => {
-    const members = (groupMembersByGroup[g.id] || []).map(m => byKey.get(m.key) || { public_key: m.key, name: shortKey(m.key), online: false });
-    const online = members.filter(m => !!m.online);
-    const offline = members.filter(m => !m.online);
-    const streamRows = [];
-    active.forEach((s, id) => {
-      if ((s.name || '').toLowerCase().includes((g.name || '').toLowerCase())) {
-        streamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
-      }
+  const groups = (myGroups || []);
+  if (groups.length === 0) {
+    sections.push(renderUnifiedSection('group-none', 'Groups (none)', [], [], [], [], ''));
+  } else {
+    groups.forEach(g => {
+      const members = (groupMembersByGroup[g.id] || []).map(m => byKey.get(m.key) || { public_key: m.key, name: shortKey(m.key), online: false });
+      const online = members.filter(m => !!m.online);
+      const offline = members.filter(m => !m.online);
+      const streamRows = [];
+      active.forEach((s, id) => {
+        if ((s.name || '').toLowerCase().includes((g.name || '').toLowerCase())) {
+          streamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
+        }
+      });
+      const voipRows = online.map(u => `<div class="unified-row"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+      const onlineRows = online.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+      const offlineRows = offline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+      sections.push(renderUnifiedSection('group-' + g.id, `Groups (${g.name})`, streamRows, voipRows, onlineRows, offlineRows, ''));
     });
-    const voipRows = online.map(u => `<div class="unified-row"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-    const onlineRows = online.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-    const offlineRows = offline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-    sections.push(renderUnifiedSection('group-' + g.id, `Groups (${g.name})`, streamRows, voipRows, onlineRows, offlineRows, ''));
-  });
+  }
 
   const serverOnline = users.filter(u => !!u.online && u.public_key !== myKey);
   const serverOffline = users.filter(u => !u.online && u.public_key !== myKey);
