@@ -39,3 +39,15 @@ Every technical update includes:
 - deploy status,
 - runtime sync status,
 - exact verify target.
+
+## 7) Mandatory VPS sync after web/relay/runtime changes
+This is required every time runtime-facing files change (web client, relay, desktop runtime assets, shared shell/CSS/JS, or deployment config):
+
+1. Push latest local `main` to GitHub.
+2. On VPS, force sync to `origin/main` (`git fetch` + `git reset --hard origin/main`).
+3. Rebuild relay in release mode.
+4. Restart relay service.
+5. Verify VPS HEAD commit equals local HEAD commit.
+6. Verify service health is active/running.
+
+Do not report "done" or ask the user to test until all six steps are complete and explicitly reported.
