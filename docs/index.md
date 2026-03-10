@@ -21,6 +21,17 @@ This is the parent entry for major documentation areas.
 - [09-LIFEFORM-PARITY-FRAMEWORK](./09-LIFEFORM-PARITY-FRAMEWORK.md)
 - [ADR-0001: Modular boundaries](./decisions/ADR-0001-modular-boundaries.md)
 
+## Module Specs (V1 instantiated)
+- [Module Specs README](./modules/README.md)
+- [core-lifeform-model](./modules/core-lifeform-model.md)
+- [module-water-systems](./modules/module-water-systems.md)
+- [module-soil-ecology](./modules/module-soil-ecology.md)
+- [module-crop-systems](./modules/module-crop-systems.md)
+- [module-carpentry](./modules/module-carpentry.md)
+- [module-electrical-basics](./modules/module-electrical-basics.md)
+- [module-plumbing-basics](./modules/module-plumbing-basics.md)
+- [module-health-first-aid](./modules/module-health-first-aid.md)
+
 ## Design
 - [Design README](../design/README.md)
 - [Engine Design](../design/engine/renderer_architecture.md)
