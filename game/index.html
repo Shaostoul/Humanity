@@ -11411,7 +11411,10 @@
    if (canEdit) {
     const moves = VALID_STATUSES.filter(s => s !== taskStatus);
     moveHtml = '<div style="display:flex;gap:0.2rem;margin-top:0.3rem;flex-wrap:wrap;" onclick="event.stopPropagation()">' +
-     moves.map(s => '<button onclick="boardMoveTask(' + taskId + ',\'' + s + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.3rem;border-radius:3px;cursor:pointer;" title="Move to ' + boardTaskStatusLabel(s) + '">→ ' + boardTaskStatusLabel(s).split(' ').pop() + '</button>').join('') +
+     moves.map(s => {
+      const statusLabel = boardTaskStatusLabel(s);
+      return '<button onclick="boardMoveTask(' + taskId + ',\'' + s + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.3rem;border-radius:3px;cursor:pointer;" title="Move to ' + statusLabel + '">→ ' + statusLabel.split(' ').pop() + '</button>';
+     }).join('') +
      '</div>';
    }
    const addToWebHtml = '<div style="margin-top:0.35rem;" onclick="event.stopPropagation()"><button onclick="featureWebAddNodeFromTask(' + taskId + ')" style="background:none;border:1px solid rgba(255,136,17,0.4);color:var(--accent);font-size:0.62rem;padding:0.1rem 0.35rem;border-radius:4px;cursor:pointer;">+ Web</button></div>';
