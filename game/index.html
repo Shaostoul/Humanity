@@ -9361,7 +9361,7 @@
    titleEl.value = '';
    const ownerEl = document.getElementById('fw-node-owner');
    if (ownerEl) ownerEl.value = '';
-   featureWebNotice('');
+   featureWebNotice('Added node: ' + (node.title || 'Untitled'));
    featureWebPersistAndRefresh();
   }
 
@@ -9388,11 +9388,12 @@
    const rect = canvas.getBoundingClientRect();
    const x = Math.max(4, Math.min(rect.width - 120, e.clientX - rect.left - 52));
    const y = Math.max(4, Math.min(rect.height - 48, e.clientY - rect.top - 20));
-   featureWeb.nodes.push(featureWebBuildNode(title, x, y));
+   const node = featureWebBuildNode(title, x, y);
+   featureWeb.nodes.push(node);
    titleEl.value = '';
    const ownerEl = document.getElementById('fw-node-owner');
    if (ownerEl) ownerEl.value = '';
-   featureWebNotice('');
+   featureWebNotice('Added node: ' + (node.title || 'Untitled'));
    featureWebPersistAndRefresh();
   }
 
