@@ -11310,9 +11310,11 @@
 
   function boardMoveTask(id, status) {
    if (!boardCanEdit()) return;
+   const normalizedId = featureWebNormalizeTaskId(id);
+   if (normalizedId == null) return;
    const normalizedStatus = boardNormalizeStatus(status);
    if (!VALID_STATUSES.includes(normalizedStatus)) return;
-   if (!boardSend({ type: 'task_move', id: id, status: normalizedStatus })) {
+   if (!boardSend({ type: 'task_move', id: normalizedId, status: normalizedStatus })) {
     boardNoticeConnectionNotReady();
    }
   }
@@ -11402,8 +11404,10 @@
 
   function boardDeleteTask(id) {
    if (!boardCanEdit()) return;
+   const normalizedId = featureWebNormalizeTaskId(id);
+   if (normalizedId == null) return;
    if (!confirm('Delete this task?')) return;
-   if (boardSend({ type: 'task_delete', id: id })) closeTaskModal();
+   if (boardSend({ type: 'task_delete', id: normalizedId })) closeTaskModal();
    else boardNoticeConnectionNotReady();
   }
 
@@ -11479,13 +11483,15 @@
 
   function boardSubmitEditTask(id) {
    if (!boardCanEdit()) return;
+   const normalizedId = featureWebNormalizeTaskId(id);
+   if (normalizedId == null) return;
    const title = document.getElementById('edit-task-title').value.trim();
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('edit-task-labels').value);
    const assignee = document.getElementById('edit-task-assignee').value.trim() || null;
    const sent = boardSend({
     type: 'task_update',
-    id: id,
+    id: normalizedId,
     title: title,
     description: document.getElementById('edit-task-desc').value,
     priority: document.getElementById('edit-task-priority').value,
