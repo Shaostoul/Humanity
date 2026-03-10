@@ -11304,7 +11304,9 @@
 
   function boardMoveTask(id, status) {
    if (!boardCanEdit()) return;
-   boardSend({ type: 'task_move', id: id, status: status });
+   if (!boardSend({ type: 'task_move', id: id, status: status })) {
+    featureWebNotice('Board connection not ready');
+   }
   }
 
   function openTaskModal(taskId) {
