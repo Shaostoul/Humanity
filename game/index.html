@@ -8692,7 +8692,7 @@
    (Array.isArray(tasks) ? tasks : []).forEach(task => {
     const taskId = featureWebNormalizeTaskId(task && task.id);
     if (taskId == null || statusByTaskId.has(taskId)) return;
-    const boardStatus = boardNormalizeStatus(task.status);
+    const boardStatus = boardNormalizeTaskStatus(task.status);
     statusByTaskId.set(taskId, boardStatus);
    });
 
