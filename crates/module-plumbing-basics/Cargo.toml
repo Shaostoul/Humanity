@@ -1,0 +1,10 @@
+[package]
+name = "module-plumbing-basics"
+version = "0.1.0"
+edition = "2024"
+description = "Plumbing flow/leak/sanitation primitives"
+license = "CC0-1.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

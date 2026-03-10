@@ -11,12 +11,12 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 ## A1) core-lifeform-model
 - Spec: `design/modules/core-lifeform-model.md`
 - Crate path: `crates/core-lifeform-model/`
-- Current status: in_progress
+- Current status: done
 - Progress:
   - [x] crate skeleton + `lib.rs` trait interfaces
   - [x] implemented `LifeformState` and `SpeciesProfile`
   - [x] deterministic tick tests passing (`cargo test -p core-lifeform-model`)
-  - [ ] add example scenario fixture
+  - [x] example scenario fixture (`examples/human_livestock_crop_stress.rs`)
 - Depends on: none (foundation)
 
 ## A2) core-skill-progression
@@ -48,34 +48,34 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 ## B1) module-water-systems
 - Spec: `design/modules/module-water-systems.md`
 - Crate path: `crates/module-water-systems/`
-- Current status: planned
-- Next actions:
-  1. scaffold crate
-  2. implement water quality state + treatment functions
-  3. add contamination risk tests
-  4. create drought/contamination scenario
+- Current status: done
+- Progress:
+  - [x] scaffolded crate
+  - [x] implemented water quality state + treatment/routing functions
+  - [x] contamination/shortage tests passing (`cargo test -p module-water-systems`)
+  - [x] drought/contamination scenario (`examples/drought_contamination.rs`)
 - Depends on: core units/time/materials
 
 ## B2) module-soil-ecology
 - Spec: `design/modules/module-soil-ecology.md`
 - Crate path: `crates/module-soil-ecology/`
-- Current status: planned
-- Next actions:
-  1. scaffold crate
-  2. implement soil cell/profile and seasonal updates
-  3. add erosion/regeneration tests
-  4. create degraded-field recovery scenario
+- Current status: done
+- Progress:
+  - [x] scaffolded crate
+  - [x] implemented soil cell/profile + seasonal updates
+  - [x] erosion/regeneration tests passing (`cargo test -p module-soil-ecology`)
+  - [x] degraded-field recovery scenario (`examples/degraded_field_recovery.rs`)
 - Depends on: core units/time/weather
 
 ## B3) module-crop-systems
 - Spec: `design/modules/module-crop-systems.md`
 - Crate path: `crates/module-crop-systems/`
-- Current status: planned
-- Next actions:
-  1. scaffold crate
-  2. implement growth stage transitions
-  3. add stress/yield regression tests
-  4. create 3-plot rotation scenario
+- Current status: done
+- Progress:
+  - [x] scaffolded crate
+  - [x] implemented growth stage transitions and interventions
+  - [x] stress/yield regression tests passing (`cargo test -p module-crop-systems`)
+  - [x] three-plot rotation scenario (`examples/three_plot_rotation.rs`)
 - Depends on: B1, B2, core time/weather
 
 ---
@@ -85,34 +85,34 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 ## C1) module-carpentry
 - Spec: `design/modules/module-carpentry.md`
 - Crate path: `crates/module-carpentry/`
-- Current status: planned
-- Next actions:
-  1. scaffold crate
-  2. implement task + tolerance model
-  3. add defect distribution tests
-  4. create frame-wall scenario
+- Current status: done
+- Progress:
+  - [x] scaffolded crate
+  - [x] implemented task + tolerance/quality model
+  - [x] quality/defect tests passing (`cargo test -p module-carpentry`)
+  - [x] frame-wall scenario (`examples/frame_wall.rs`)
 - Depends on: core materials, skill progression
 
 ## C2) module-electrical-basics
 - Spec: `design/modules/module-electrical-basics.md`
 - Crate path: `crates/module-electrical-basics/`
-- Current status: planned
-- Next actions:
-  1. scaffold crate
-  2. implement circuit graph + fault logic
-  3. add overload/protection tests
-  4. create microgrid scenario
+- Current status: done
+- Progress:
+  - [x] scaffolded crate
+  - [x] implemented circuit graph + fault logic
+  - [x] overload/protection tests passing (`cargo test -p module-electrical-basics`)
+  - [x] microgrid scenario (`examples/microgrid.rs`)
 - Depends on: core units/time
 
 ## C3) module-plumbing-basics
 - Spec: `design/modules/module-plumbing-basics.md`
 - Crate path: `crates/module-plumbing-basics/`
-- Current status: planned
-- Next actions:
-  1. scaffold crate
-  2. implement network flow + leak logic
-  3. add flow/contamination tests
-  4. create off-grid loop scenario
+- Current status: done
+- Progress:
+  - [x] scaffolded crate
+  - [x] implemented network flow + leak logic
+  - [x] flow/contamination tests passing (`cargo test -p module-plumbing-basics`)
+  - [x] off-grid loop scenario (`examples/off_grid_loop.rs`)
 - Depends on: B1, core materials
 
 ---
@@ -122,12 +122,12 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 ## D1) module-health-first-aid
 - Spec: `design/modules/module-health-first-aid.md`
 - Crate path: `crates/module-health-first-aid/`
-- Current status: planned
-- Next actions:
-  1. scaffold crate
-  2. implement triage state transitions
-  3. add intervention timing tests
-  4. create workshop incident scenario
+- Current status: done
+- Progress:
+  - [x] scaffolded crate
+  - [x] implemented triage + intervention state transitions
+  - [x] intervention timing/quality tests passing (`cargo test -p module-health-first-aid`)
+  - [x] workshop incident scenario (`examples/workshop_incident.rs`)
 - Depends on: A1 lifeform core
 
 ---

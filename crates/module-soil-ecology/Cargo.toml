@@ -1,0 +1,10 @@
+[package]
+name = "module-soil-ecology"
+version = "0.1.0"
+edition = "2024"
+description = "Soil ecology primitives for fertility, moisture, erosion, and regeneration"
+license = "CC0-1.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

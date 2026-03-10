@@ -1,0 +1,10 @@
+[package]
+name = "module-carpentry"
+version = "0.1.0"
+edition = "2024"
+description = "Carpentry task quality and tolerance primitives"
+license = "CC0-1.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"

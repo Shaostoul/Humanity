@@ -22,6 +22,12 @@ Species-agnostic lifeform modeling primitives for Humanity.
 cargo test -p core-lifeform-model
 ```
 
+## Run example scenario fixture
+
+```bash
+cargo run -p core-lifeform-model --example human_livestock_crop_stress
+```
+
 ## Source design spec
 
 - `design/modules/core-lifeform-model.md`
