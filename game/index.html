@@ -9489,7 +9489,7 @@
    const taskId = featureWebNormalizeTaskId(node.taskId);
    if (taskId == null) return;
    const task = featureWebFindTaskById(taskId);
-   const oldTitle = task ? (task.title || '') : '';
+   const oldTitle = task ? (boardNormalizeTitle(task.title) || '') : '';
    const mapped = featureWebMapNodeStatusToTask(node.status);
    const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
