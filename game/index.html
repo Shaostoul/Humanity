@@ -9608,7 +9608,8 @@
    if (linkTaskEl) linkTaskEl.value = node.taskId != null ? String(node.taskId) : '';
    if (linkedInfoEl) {
     if (node.taskId != null) {
-     const t = featureWebFindTaskById(node.taskId);
+     const linkedTaskId = featureWebNormalizeTaskId(node.taskId);
+     const t = linkedTaskId != null ? featureWebFindTaskById(linkedTaskId) : null;
      linkedInfoEl.style.display = 'block';
      linkedInfoEl.setAttribute('aria-hidden', 'false');
      linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + featureWebBoardStatusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + node.taskId);
@@ -9825,7 +9826,7 @@
     featureWebNotice('Selected task is unavailable');
     return;
    }
-   const conflict = featureWeb.nodes.find(n => n.id !== node.id && n.taskId === taskId);
+   const conflict = featureWeb.nodes.find(n => n.id !== node.id && featureWebNormalizeTaskId(n && n.taskId) === taskId);
    if (conflict) {
     featureWebNotice('Task already linked to another node');
     return;
