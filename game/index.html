@@ -8426,6 +8426,12 @@
    featureWebNotice('Board connection not ready');
   }
 
+  function boardSendOrNotice(payload) {
+   if (boardSend(payload)) return true;
+   boardNoticeConnectionNotReady();
+   return false;
+  }
+
   function boardNormalizeLabelsArray(labels) {
    const sourceLabels = Array.isArray(labels) ? labels : [];
    const normalized = [];
@@ -11436,9 +11442,7 @@
    if (normalizedId == null) return;
    const normalizedStatus = boardNormalizeTaskStatus(status, null);
    if (!normalizedStatus) return;
-   if (!boardSend({ type: 'task_move', id: normalizedId, status: normalizedStatus })) {
-    boardNoticeConnectionNotReady();
-   }
+   boardSendOrNotice({ type: 'task_move', id: normalizedId, status: normalizedStatus });
   }
 
   function openTaskModal(taskId) {
@@ -11525,10 +11529,8 @@
    if (!input) return;
    const content = boardNormalizeCommentContent(input.value);
    if (!content) return;
-   if (boardSend({ type: 'task_comment', task_id: normalizedTaskId, content })) {
+   if (boardSendOrNotice({ type: 'task_comment', task_id: normalizedTaskId, content })) {
     input.value = '';
-   } else {
-    boardNoticeConnectionNotReady();
    }
   }
 
@@ -11537,8 +11539,7 @@
    const normalizedId = featureWebNormalizeTaskId(id);
    if (normalizedId == null) return;
    if (!confirm('Delete this task?')) return;
-   if (boardSend({ type: 'task_delete', id: normalizedId })) closeTaskModal();
-   else boardNoticeConnectionNotReady();
+   if (boardSendOrNotice({ type: 'task_delete', id: normalizedId })) closeTaskModal();
   }
 
   function showCreateTaskModal() {
@@ -11574,7 +11575,7 @@
    const assignee = boardNormalizeAssignee(document.getElementById('new-task-assignee').value);
    const nextPriority = boardNormalizePriority(document.getElementById('new-task-priority').value);
    const nextStatus = boardNormalizeTaskStatus(document.getElementById('new-task-status').value);
-   const sent = boardSend({
+   const sent = boardSendOrNotice({
     type: 'task_create',
     title: title,
     description: boardNormalizeDescription(document.getElementById('new-task-desc').value),
@@ -11584,7 +11585,6 @@
     labels: labels,
    });
    if (sent) closeTaskModal();
-   else boardNoticeConnectionNotReady();
   }
 
   function showEditTaskForm(taskId) {
@@ -11623,7 +11623,7 @@
    const labels = boardLabelsToJson(document.getElementById('edit-task-labels').value);
    const assignee = boardNormalizeAssignee(document.getElementById('edit-task-assignee').value);
    const nextPriority = boardNormalizePriority(document.getElementById('edit-task-priority').value);
-   const sent = boardSend({
+   const sent = boardSendOrNotice({
     type: 'task_update',
     id: normalizedId,
     title: title,
@@ -11633,7 +11633,6 @@
     labels: labels,
    });
    if (sent) closeTaskModal();
-   else boardNoticeConnectionNotReady();
   }
 
   // Close modal on backdrop click
