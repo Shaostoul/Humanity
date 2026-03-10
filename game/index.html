@@ -9867,7 +9867,11 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node || node.taskId == null) {
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
+   if (node.taskId == null) {
     featureWebNotice('Selected node is not linked to a task');
     return;
    }
@@ -9902,7 +9906,10 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node) return;
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    const taskId = featureWebNormalizeTaskId(linkTaskEl.value);
    if (taskId == null) {
     featureWebNotice('Invalid task selection');
