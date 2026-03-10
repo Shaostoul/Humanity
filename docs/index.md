@@ -16,6 +16,9 @@ This is the parent entry for major documentation areas.
 - [04-CONTRIBUTING](./04-CONTRIBUTING.md)
 - [05-AI-ONBOARDING](./05-AI-ONBOARDING.md)
 - [06-SOURCE-OF-TRUTH-MAP](./06-SOURCE-OF-TRUTH-MAP.md)
+- [07-MODULE-SPEC-TEMPLATE](./07-MODULE-SPEC-TEMPLATE.md)
+- [08-V1-MODULE-BACKBONE](./08-V1-MODULE-BACKBONE.md)
+- [09-LIFEFORM-PARITY-FRAMEWORK](./09-LIFEFORM-PARITY-FRAMEWORK.md)
 - [ADR-0001: Modular boundaries](./decisions/ADR-0001-modular-boundaries.md)
 
 ## Design
