@@ -9899,6 +9899,11 @@
     featureWebNotice('Selected task is unavailable');
     return;
    }
+   const currentTaskId = featureWebNormalizeTaskId(node.taskId);
+   if (currentTaskId != null && currentTaskId === taskId) {
+    featureWebNotice('Node already linked to task #' + taskId);
+    return;
+   }
    const conflict = featureWeb.nodes.find(n => n.id !== node.id && featureWebNormalizeTaskId(n && n.taskId) === taskId);
    if (conflict) {
     featureWebFocusNode(conflict.id);
