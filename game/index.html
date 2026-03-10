@@ -9522,7 +9522,10 @@
 
   function featureWebDeleteNode(id) {
    const node = featureWeb.nodes.find(n => n && n.id === id);
-   if (!node) return;
+   if (!node) {
+    featureWebNotice('Node already removed');
+    return;
+   }
    const removedLinks = featureWeb.edges.filter(e => e.from === id || e.to === id).length;
    const linkedTaskId = featureWebNormalizeTaskId(node.taskId);
    featureWeb.nodes = featureWeb.nodes.filter(n => n.id !== id);
