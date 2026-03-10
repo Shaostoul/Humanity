@@ -8444,6 +8444,11 @@
    return typeof status === 'string' ? status.trim().toLowerCase() : '';
   }
 
+  function boardNormalizeTaskStatus(status, fallback) {
+   const normalizedStatus = boardNormalizeStatus(status);
+   return VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : (fallback === undefined ? 'backlog' : fallback);
+  }
+
   function boardNormalizePriority(priority) {
    const normalizedPriority = featureWebNormalizePriority(priority);
    return FW_ALLOWED_PRIORITIES.includes(normalizedPriority) ? normalizedPriority : 'medium';
@@ -8479,8 +8484,7 @@
      if (taskObj && typeof taskObj === 'object') taskObj.id = taskId;
     }
     if (taskObj && typeof taskObj === 'object') {
-     const normalizedStatus = boardNormalizeStatus(taskObj.status);
-     taskObj.status = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
+     taskObj.status = boardNormalizeTaskStatus(taskObj.status);
      taskObj.priority = boardNormalizePriority(taskObj.priority);
      taskObj.assignee = boardNormalizeAssignee(taskObj.assignee);
      taskObj.title = boardNormalizeTitle(taskObj.title) || 'Untitled Task';
@@ -11235,8 +11239,7 @@
     case 'task_moved':
      if (msg.id != null && msg.status) {
       const movedTaskId = featureWebNormalizeTaskId(msg.id);
-      const normalizedStatus = boardNormalizeStatus(msg.status);
-      const nextStatus = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
+      const nextStatus = boardNormalizeTaskStatus(msg.status);
       const t = movedTaskId != null
         ? featureWebFindTaskById(movedTaskId)
         : featureWebFindTaskByRawId(msg.id);
@@ -11347,8 +11350,8 @@
    if (!boardCanEdit()) return;
    const normalizedId = featureWebNormalizeTaskId(id);
    if (normalizedId == null) return;
-   const normalizedStatus = boardNormalizeStatus(status);
-   if (!VALID_STATUSES.includes(normalizedStatus)) return;
+   const normalizedStatus = boardNormalizeTaskStatus(status, null);
+   if (!normalizedStatus) return;
    if (!boardSend({ type: 'task_move', id: normalizedId, status: normalizedStatus })) {
     boardNoticeConnectionNotReady();
    }
@@ -11485,8 +11488,7 @@
    const labels = boardLabelsToJson(document.getElementById('new-task-labels').value);
    const assignee = boardNormalizeAssignee(document.getElementById('new-task-assignee').value);
    const nextPriority = boardNormalizePriority(document.getElementById('new-task-priority').value);
-   const normalizedStatus = boardNormalizeStatus(document.getElementById('new-task-status').value);
-   const nextStatus = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
+   const nextStatus = boardNormalizeTaskStatus(document.getElementById('new-task-status').value);
    const sent = boardSend({
     type: 'task_create',
     title: title,
