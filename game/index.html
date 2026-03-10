@@ -8545,14 +8545,14 @@
   }
 
   function featureWebMapTaskStatusToNode(status, fallback) {
-   const s = typeof status === 'string' ? status.trim().toLowerCase() : '';
+   const s = boardNormalizeStatus(status);
    return Object.prototype.hasOwnProperty.call(FW_TASK_TO_NODE_STATUS_MAP, s)
     ? FW_TASK_TO_NODE_STATUS_MAP[s]
     : (fallback === undefined ? null : fallback);
   }
 
   function featureWebMapNodeStatusToTask(status, fallback) {
-   const s = typeof status === 'string' ? status.trim().toLowerCase() : '';
+   const s = boardNormalizeStatus(status);
    return Object.prototype.hasOwnProperty.call(FW_NODE_TO_TASK_STATUS_MAP, s)
     ? FW_NODE_TO_TASK_STATUS_MAP[s]
     : (fallback === undefined ? 'backlog' : fallback);
