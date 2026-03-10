@@ -9865,9 +9865,12 @@
    }
    const taskId = featureWebNormalizeTaskId(node.taskId);
    if (taskId == null) {
-    featureWebNotice('Linked task id is invalid');
+    node.taskId = null;
+    featureWebPersistAndRefreshEditor();
+    featureWebNotice('Linked task id was invalid and has been cleared');
     return;
    }
+   if (node.taskId !== taskId) node.taskId = taskId;
    const task = featureWebFindTaskById(taskId);
    if (!task) {
     featureWebNotice('Linked task is unavailable on the board');
