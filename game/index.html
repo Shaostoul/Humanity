@@ -9924,6 +9924,7 @@
       type: 'task_create',
       title: featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || 'Untitled Node',
       description: descParts.join('\n\n'),
+      status: mappedStatus,
       priority: nodePriority,
       assignee: featureWebClampText(node.owner || '', FW_TEXT_LIMITS.owner) || null,
       labels: JSON.stringify([nodeDomain, nodeType]),
