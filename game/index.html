@@ -8480,6 +8480,15 @@
    return Number.isFinite(+position) ? Math.trunc(+position) : 0;
   }
 
+  function boardTaskSortCompare(a, b) {
+   const positionDelta = boardNormalizePosition(a && a.position) - boardNormalizePosition(b && b.position);
+   if (positionDelta !== 0) return positionDelta;
+   const aId = featureWebNormalizeTaskId(a && a.id);
+   const bId = featureWebNormalizeTaskId(b && b.id);
+   if (aId != null && bId != null && aId !== bId) return aId - bId;
+   return String((a && a.title) || '').localeCompare(String((b && b.title) || ''));
+  }
+
   function boardNormalizeCreatedAt(createdAt) {
    const t = Date.parse(createdAt);
    return Number.isFinite(t) ? new Date(t).toISOString() : '';
@@ -11360,7 +11369,7 @@
     const container = document.querySelector('.board-col-cards[data-status="' + status + '"]');
     const countEl = document.querySelector('.board-col-count[data-status="' + status + '"]');
     if (!container) return;
-    const tasks = boardTasks.filter(t => t.status === status).sort((a, b) => a.position - b.position);
+    const tasks = boardTasks.filter(t => t.status === status).sort(boardTaskSortCompare);
     if (countEl) countEl.textContent = '(' + tasks.length + ')';
     container.innerHTML = tasks.map(t => renderTaskCard(t)).join('');
    });
