@@ -8397,13 +8397,15 @@
   let boardWs = null;
   let boardMyKey = null;
   let boardMyRole = '';
+  const BOARD_EDIT_ROLES = ['admin', 'mod'];
+  const BOARD_COMMENT_ROLES = ['verified', 'donor'];
 
   function boardCanEdit() {
-   return boardMyRole === 'admin' || boardMyRole === 'mod';
+   return BOARD_EDIT_ROLES.includes(boardMyRole);
   }
 
   function boardCanComment() {
-   return boardCanEdit() || boardMyRole === 'verified' || boardMyRole === 'donor';
+   return boardCanEdit() || BOARD_COMMENT_ROLES.includes(boardMyRole);
   }
 
   function boardIsConnected() {
