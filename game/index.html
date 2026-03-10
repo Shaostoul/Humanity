@@ -8476,6 +8476,10 @@
    return normalizedCommentCount;
   }
 
+  function boardNormalizePosition(position) {
+   return Number.isFinite(+position) ? Math.trunc(+position) : 0;
+  }
+
   function boardNormalizeCreatedAt(createdAt) {
    const t = Date.parse(createdAt);
    return Number.isFinite(t) ? new Date(t).toISOString() : '';
@@ -8519,6 +8523,7 @@
      taskObj.description = boardNormalizeDescription(taskObj.description);
      taskObj.labels = boardNormalizeLabelsJson(taskObj.labels);
      taskObj.comment_count = boardNormalizeCommentCount(taskObj.comment_count);
+     taskObj.position = boardNormalizePosition(taskObj.position);
      taskObj.created_at = boardNormalizeCreatedAt(taskObj.created_at);
     }
     dedupedTasks.push(taskObj);
