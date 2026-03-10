@@ -8440,11 +8440,18 @@
    const dedupedTasks = [];
    const seenTaskIds = new Set();
    rawTasks.forEach(task => {
-    const taskId = featureWebNormalizeTaskId(task && task.id);
-    if (taskId == null) { dedupedTasks.push(task); return; }
-    if (seenTaskIds.has(taskId)) return;
-    seenTaskIds.add(taskId);
-    dedupedTasks.push(task);
+    const taskObj = (task && typeof task === 'object') ? { ...task } : task;
+    const taskId = featureWebNormalizeTaskId(taskObj && taskObj.id);
+    if (taskId != null) {
+     if (seenTaskIds.has(taskId)) return;
+     seenTaskIds.add(taskId);
+     if (taskObj && typeof taskObj === 'object') taskObj.id = taskId;
+    }
+    if (taskObj && typeof taskObj === 'object') {
+     const normalizedStatus = boardNormalizeStatus(taskObj.status);
+     taskObj.status = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
+    }
+    dedupedTasks.push(taskObj);
    });
    return dedupedTasks;
   }
