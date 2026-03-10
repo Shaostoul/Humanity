@@ -11426,7 +11426,7 @@
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('new-task-labels').value);
    const assignee = document.getElementById('new-task-assignee').value.trim() || null;
-   boardSend({
+   const sent = boardSend({
     type: 'task_create',
     title: title,
     description: document.getElementById('new-task-desc').value,
@@ -11435,7 +11435,8 @@
     assignee: assignee,
     labels: labels,
    });
-   closeTaskModal();
+   if (sent) closeTaskModal();
+   else featureWebNotice('Board connection not ready');
   }
 
   function showEditTaskForm(taskId) {
@@ -11468,7 +11469,7 @@
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('edit-task-labels').value);
    const assignee = document.getElementById('edit-task-assignee').value.trim() || null;
-   boardSend({
+   const sent = boardSend({
     type: 'task_update',
     id: id,
     title: title,
@@ -11477,7 +11478,8 @@
     assignee: assignee,
     labels: labels,
    });
-   closeTaskModal();
+   if (sent) closeTaskModal();
+   else featureWebNotice('Board connection not ready');
   }
 
   // Close modal on backdrop click
