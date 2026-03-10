@@ -3435,6 +3435,62 @@ var federatedServersFetched = false;
   }
   window.switchSidebarTab = switchSidebarTab;
 
+  function initUnifiedLeftSidebar() {
+    const tabs = document.getElementById('sidebar-tabs');
+    const tabServers = document.getElementById('tab-servers');
+    const tabGroups = document.getElementById('tab-groups');
+    const tabDms = document.getElementById('tab-dms');
+    const sidebar = document.getElementById('sidebar');
+    if (!tabs || !tabServers || !tabGroups || !tabDms || !sidebar) return;
+
+    tabs.style.display = 'none';
+
+    let unified = document.getElementById('sidebar-unified-left');
+    if (!unified) {
+      unified = document.createElement('div');
+      unified.id = 'sidebar-unified-left';
+      unified.className = 'sidebar-unified-left';
+      tabs.insertAdjacentElement('afterend', unified);
+    }
+
+    const mkSection = (id, label, panel) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'unified-section';
+      wrap.dataset.sid = id;
+      const head = document.createElement('button');
+      head.className = 'unified-header';
+      head.textContent = label + ' ▾';
+      const body = document.createElement('div');
+      body.className = 'unified-body';
+      body.appendChild(panel);
+      panel.classList.add('force-show');
+      head.onclick = () => {
+        wrap.classList.toggle('collapsed');
+        head.textContent = label + (wrap.classList.contains('collapsed') ? ' ▸' : ' ▾');
+      };
+      wrap.appendChild(head);
+      wrap.appendChild(body);
+      return wrap;
+    };
+
+    if (!unified.querySelector('[data-sid="servers"]')) unified.appendChild(mkSection('servers', 'Servers', tabServers));
+    if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups));
+    if (!unified.querySelector('[data-sid="dms"]')) unified.appendChild(mkSection('dms', 'DMs', tabDms));
+
+    // In unified mode, always render all sections; external tab switch calls expand relevant section only.
+    window.switchSidebarTab = function(tabName, save) {
+      if (tabName === 'servers') renderServerList();
+      if (tabName === 'dms') renderDmList();
+      if (typeof renderGroupsTab === 'function') renderGroupsTab();
+      const sec = unified.querySelector(`[data-sid="${tabName}"]`);
+      if (sec) sec.classList.remove('collapsed');
+      if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
+      if (save) localStorage.setItem(SIDEBAR_TAB_KEY, tabName);
+    };
+  }
+
+  setTimeout(initUnifiedLeftSidebar, 0);
+
   // ── Server List Rendering ──
   function getServerOrder() {
     try {
@@ -5111,16 +5167,126 @@ openSocket = function() {
 };
 
 let allUsersSnapshot = [];
+window.__UNIFIED_RIGHT_SIDEBAR__ = true;
 
 function getActiveSidebarTabName() {
   const el = document.querySelector('#sidebar-tabs .sidebar-tab.active');
   return el ? el.getAttribute('data-tab') : 'servers';
 }
 
+function toggleUnifiedSection(id) {
+  const key = 'humanity-unified-right-collapsed';
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (_) {}
+  state[id] = !state[id];
+  localStorage.setItem(key, JSON.stringify(state));
+  renderUnifiedRightSidebar();
+}
+window.toggleUnifiedSection = toggleUnifiedSection;
+
+function toggleStreamVisibilityById(id) {
+  if (!activeStreams || !activeStreams.has(id)) return;
+  const s = activeStreams.get(id);
+  s.hidden = !s.hidden;
+  s.wrapper.style.display = s.hidden ? 'none' : '';
+  renderUnifiedRightSidebar();
+}
+window.toggleStreamVisibilityById = toggleStreamVisibilityById;
+
+function renderUnifiedSection(id, title, streamRows, voipRows, onlineRows, offlineRows, previewHtml) {
+  const key = 'humanity-unified-right-collapsed';
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (_) {}
+  const collapsed = !!state[id];
+
+  const rows = (arr, emptyText) => arr.length ? arr.join('') : `<div class="stream-empty">${emptyText}</div>`;
+
+  return `<div class="unified-section${collapsed ? ' collapsed' : ''}" data-usid="${esc(id)}">
+    <button class="unified-header" onclick="toggleUnifiedSection('${esc(id)}')">${esc(title)} ${collapsed ? '▸' : '▾'}</button>
+    <div class="unified-body">
+      <div class="unified-subhead">Streaming</div>
+      ${previewHtml || ''}
+      ${rows(streamRows, 'No active streams')}
+      <div class="unified-subhead">VOIP</div>
+      ${rows(voipRows, 'No active voice')}
+      <div class="unified-subhead">Online</div>
+      ${rows(onlineRows, 'No online users')}
+      <div class="unified-subhead">Offline</div>
+      ${rows(offlineRows, 'No offline users')}
+    </div>
+  </div>`;
+}
+
+function renderUnifiedRightSidebar() {
+  const peerList = document.getElementById('peer-list');
+  if (!peerList) return;
+
+  const users = Array.isArray(allUsersSnapshot) ? allUsersSnapshot : [];
+  const byKey = new Map(users.map(u => [u.public_key, u]));
+  const active = activeStreams || new Map();
+
+  const friendUsers = users.filter(u => u.public_key !== myKey && isFriend(u.public_key));
+  const friendOnline = friendUsers.filter(u => !!u.online);
+  const friendOffline = friendUsers.filter(u => !u.online);
+  const friendStreamRows = [];
+  const friendPreview = [];
+  active.forEach((s, id) => {
+    const row = `<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`;
+    if ((s.name || '').toLowerCase().includes('dm') || (s.name || '').toLowerCase().includes('friend')) friendStreamRows.push(row);
+  });
+
+  const friendVoip = friendOnline.map(u => `<div class="unified-row"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const friendOnlineRows = friendOnline.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const friendOfflineRows = friendOffline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+
+  const sections = [];
+  sections.push(renderUnifiedSection('friends', 'Friends', friendStreamRows, friendVoip, friendOnlineRows, friendOfflineRows, friendPreview.join('')));
+
+  (myGroups || []).forEach(g => {
+    const members = (groupMembersByGroup[g.id] || []).map(m => byKey.get(m.key) || { public_key: m.key, name: shortKey(m.key), online: false });
+    const online = members.filter(m => !!m.online);
+    const offline = members.filter(m => !m.online);
+    const streamRows = [];
+    active.forEach((s, id) => {
+      if ((s.name || '').toLowerCase().includes((g.name || '').toLowerCase())) {
+        streamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
+      }
+    });
+    const voipRows = online.map(u => `<div class="unified-row"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+    const onlineRows = online.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+    const offlineRows = offline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+    sections.push(renderUnifiedSection('group-' + g.id, `Groups (${g.name})`, streamRows, voipRows, onlineRows, offlineRows, ''));
+  });
+
+  const serverOnline = users.filter(u => !!u.online && u.public_key !== myKey);
+  const serverOffline = users.filter(u => !u.online && u.public_key !== myKey);
+  const serverVoipRows = [];
+  (window._voiceChannels || []).forEach(vc => {
+    vc.participants.forEach(p => {
+      serverVoipRows.push(`<div class="unified-row"><span>🎤 ${esc(p.display_name)} · ${esc(vc.name)}</span></div>`);
+    });
+  });
+  const serverStreamRows = [];
+  active.forEach((s, id) => {
+    serverStreamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
+  });
+  const serverOnlineRows = serverOnline.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const serverOfflineRows = serverOffline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  sections.push(renderUnifiedSection('server-main', 'Servers (United-Humanity)', serverStreamRows, serverVoipRows, serverOnlineRows, serverOfflineRows, ''));
+
+  peerList.innerHTML = sections.join('');
+}
+
 function renderPresenceSidebarForActiveContext() {
   const peerList = document.getElementById('peer-list');
   const usersHeader = document.querySelector('#right-sidebar h3');
   if (!peerList) return;
+
+  if (window.__UNIFIED_RIGHT_SIDEBAR__) {
+    if (usersHeader) usersHeader.textContent = 'People & Streams';
+    renderUnifiedRightSidebar();
+    return;
+  }
 
   const tab = getActiveSidebarTabName();
 
