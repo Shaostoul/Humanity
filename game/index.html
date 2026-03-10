@@ -9398,7 +9398,7 @@
    const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
    if (task && oldTitle !== nextTitle) {
-    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: task.description || '', priority: task.priority || 'medium', assignee: boardNormalizeAssignee(task.assignee), labels: task.labels || '[]' });
+    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: task.description || '', priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: task.labels || '[]' });
    }
    if (!task || task.status !== mapped) {
     boardSend({ type: 'task_move', id: taskId, status: mapped });
