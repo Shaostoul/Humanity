@@ -11316,6 +11316,7 @@
       if (modalEl && modalTaskId != null && modalTaskId === commentTaskId && msg.comment) {
        const commentsDiv = document.getElementById('task-comments-list');
        if (commentsDiv) {
+        if ((commentsDiv.textContent || '').trim() === 'No comments yet') commentsDiv.innerHTML = '';
         commentsDiv.innerHTML += renderCommentHtml(boardNormalizeComment(msg.comment));
        }
       }
