@@ -11300,7 +11300,7 @@
         const mapped = featureWebMapNodeStatusToTask(node.status);
         const currentTaskStatus = boardNormalizeTaskStatus(msg.task.status);
         if (currentTaskStatus !== mapped) {
-          boardSend({ type: 'task_move', id: createdTaskId, status: mapped });
+          boardSendOrNotice({ type: 'task_move', id: createdTaskId, status: mapped });
         }
        }
       }
