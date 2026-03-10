@@ -10441,10 +10441,17 @@
    }
 
    if (legendEl) {
-    const typeBits = Object.entries(FW_TYPE_COLORS).slice(0,4).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
-    const statusBits = Object.entries(FW_STATUS_COLORS).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:2px;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
-    const domainBits = Object.entries(FW_DOMAIN_COLORS).slice(0,5).map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
-    legendEl.innerHTML = '<span style="opacity:0.75;">Type:</span> ' + typeBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Status:</span> ' + statusBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Domain:</span> ' + domainBits.join('<span style="opacity:0.35;">·</span>');
+    const typeEntries = Object.entries(FW_TYPE_COLORS);
+    const statusEntries = Object.entries(FW_STATUS_COLORS);
+    const domainEntries = Object.entries(FW_DOMAIN_COLORS);
+    const typeLegendEntries = simpleUi ? typeEntries.slice(0, 4) : typeEntries;
+    const domainLegendEntries = simpleUi ? domainEntries.slice(0, 5) : domainEntries;
+    const typeBits = typeLegendEntries.map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
+    const statusBits = statusEntries.map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:2px;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
+    const domainBits = domainLegendEntries.map(([k,v]) => '<span style="display:inline-flex;align-items:center;gap:0.2rem;"><span style="width:8px;height:8px;border-radius:50%;background:'+v+';display:inline-block;"></span>'+escHtml(k)+'</span>');
+    const typeMore = simpleUi && typeEntries.length > typeLegendEntries.length ? '<span style="opacity:0.55;">+' + (typeEntries.length - typeLegendEntries.length) + ' more</span>' : '';
+    const domainMore = simpleUi && domainEntries.length > domainLegendEntries.length ? '<span style="opacity:0.55;">+' + (domainEntries.length - domainLegendEntries.length) + ' more</span>' : '';
+    legendEl.innerHTML = '<span style="opacity:0.75;">Type:</span> ' + typeBits.join('<span style="opacity:0.35;">·</span>') + (typeMore ? ' <span style="opacity:0.35;">·</span> ' + typeMore : '') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Status:</span> ' + statusBits.join('<span style="opacity:0.35;">·</span>') + ' <span style="opacity:0.45;margin:0 0.2rem;">|</span> <span style="opacity:0.75;">Domain:</span> ' + domainBits.join('<span style="opacity:0.35;">·</span>') + (domainMore ? ' <span style="opacity:0.35;">·</span> ' + domainMore : '');
    }
 
    if (statusSummaryEl) {
