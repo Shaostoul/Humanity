@@ -10413,7 +10413,12 @@
 
    if (metaEl) {
     const savedSuffix = fwLastSavedAt ? (' · saved ' + new Date(fwLastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })) : '';
-    metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links' + savedSuffix;
+    const nodeRemaining = featureWebRemainingNodeCapacity();
+    const edgeRemaining = featureWebRemainingEdgeCapacity();
+    const nearCapacity = nodeRemaining <= 25 || edgeRemaining <= 100;
+    const capSuffix = nearCapacity ? (' · cap left: ' + nodeRemaining + ' nodes, ' + edgeRemaining + ' links') : '';
+    metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links' + savedSuffix + capSuffix;
+    metaEl.style.color = nearCapacity ? '#e8b56a' : 'var(--text-muted)';
    }
    const powerEl = document.getElementById('sys-stock-power');
    const waterEl = document.getElementById('sys-stock-water');
