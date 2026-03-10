@@ -9345,8 +9345,11 @@
    }
    const normalizedTitle = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title).toLowerCase();
    if (!normalizedTitle) return;
-   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle)) {
-    featureWebNotice('Node with that title already exists');
+   const existingByTitle = featureWeb.nodes.find(n => featureWebClampText(n && n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle);
+   if (existingByTitle) {
+    featureWebFocusNode(existingByTitle.id);
+    featureWebCenterSelected();
+    featureWebNotice('Node already exists: ' + (existingByTitle.title || 'Untitled'));
     return;
    }
    const node = featureWebBuildNode(
@@ -9375,8 +9378,11 @@
    }
    const title = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title);
    if (!title) return;
-   if (featureWeb.nodes.some(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === title.toLowerCase())) {
-    featureWebNotice('Node with that title already exists');
+   const existingByTitle = featureWeb.nodes.find(n => featureWebClampText(n && n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === title.toLowerCase());
+   if (existingByTitle) {
+    featureWebFocusNode(existingByTitle.id);
+    featureWebCenterSelected();
+    featureWebNotice('Node already exists: ' + (existingByTitle.title || 'Untitled'));
     return;
    }
    const rect = canvas.getBoundingClientRect();
