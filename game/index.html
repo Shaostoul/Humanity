@@ -8435,6 +8435,20 @@
    return typeof status === 'string' ? status.trim().toLowerCase() : '';
   }
 
+  function boardNormalizeTasks(tasks) {
+   const rawTasks = Array.isArray(tasks) ? tasks : [];
+   const dedupedTasks = [];
+   const seenTaskIds = new Set();
+   rawTasks.forEach(task => {
+    const taskId = featureWebNormalizeTaskId(task && task.id);
+    if (taskId == null) { dedupedTasks.push(task); return; }
+    if (seenTaskIds.has(taskId)) return;
+    seenTaskIds.add(taskId);
+    dedupedTasks.push(task);
+   });
+   return dedupedTasks;
+  }
+
   const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
@@ -11075,7 +11089,7 @@
   function boardConnect() {
    // Always try REST API first (reliable, works everywhere)
    fetch(API_BASE + '/api/tasks').then(r => r.json()).then(data => {
-    boardTasks = Array.isArray(data && data.tasks) ? data.tasks : [];
+    boardTasks = boardNormalizeTasks(data && data.tasks);
     const nodeChanged = featureWebSyncLinkedNodesFromBoardTasks(boardTasks);
     if (nodeChanged) featureWebPersistAndRefreshEditor();
     renderBoard();
@@ -11121,17 +11135,7 @@
      boardSend({ type: 'task_list' });
      break;
     case 'task_list_response':
-     const rawTasks = Array.isArray(msg.tasks) ? msg.tasks : [];
-     const dedupedTasks = [];
-     const seenTaskIds = new Set();
-     rawTasks.forEach(task => {
-      const taskId = featureWebNormalizeTaskId(task && task.id);
-      if (taskId == null) { dedupedTasks.push(task); return; }
-      if (seenTaskIds.has(taskId)) return;
-      seenTaskIds.add(taskId);
-      dedupedTasks.push(task);
-     });
-     boardTasks = dedupedTasks;
+     boardTasks = boardNormalizeTasks(msg.tasks);
      const nodeChanged = featureWebSyncLinkedNodesFromBoardTasks(boardTasks);
      if (nodeChanged) {
       featureWebPersistAndRefreshEditor();
