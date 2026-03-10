@@ -9684,7 +9684,11 @@
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
    if (!node) return;
    const nextTitle = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title);
-   if (!nextTitle) return;
+   if (!nextTitle) {
+    featureWebNotice('Node title is required');
+    if (titleEl && typeof titleEl.focus === 'function') titleEl.focus();
+    return;
+   }
    const normalizedTitle = nextTitle.toLowerCase();
    const duplicate = featureWeb.nodes.find(n => n.id !== node.id && featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle);
    if (duplicate) {
