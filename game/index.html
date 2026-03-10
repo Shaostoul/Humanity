@@ -9491,12 +9491,13 @@
    const task = featureWebFindTaskById(taskId);
    const oldTitle = task ? (boardNormalizeTitle(task.title) || '') : '';
    const mapped = featureWebMapNodeStatusToTask(node.status);
-   const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
+   const nextTitle = boardNormalizeTitle(node.title) || ('Task #' + taskId);
    node.title = nextTitle;
    if (task && oldTitle !== nextTitle) {
     boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: boardNormalizeDescription(task.description), priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: boardNormalizeLabelsJson(task.labels) });
    }
-   if (!task || task.status !== mapped) {
+   const currentTaskStatus = boardNormalizeTaskStatus(task && task.status, null);
+   if (!task || currentTaskStatus !== mapped) {
     boardSend({ type: 'task_move', id: taskId, status: mapped });
    }
    if (task) {
