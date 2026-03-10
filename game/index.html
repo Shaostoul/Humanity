@@ -9740,6 +9740,7 @@
    featureWebFocusNode(node.id);
    featureWebCenterSelected();
    featureWebRender();
+   featureWebNotice('Focused node: ' + (node.title || 'Untitled'));
   }
 
   async function featureWebCopySelectedTitle() {
