@@ -9947,7 +9947,8 @@
     featureWebNotice('Queued ' + created + ' ' + createdLabel + ' from ' + candidates + ' unlinked node' + (candidates === 1 ? '' : 's'));
     return;
    }
-   featureWebNotice('Queued ' + created + '/' + candidates + ' ' + createdLabel + ' from unlinked nodes');
+   const failed = Math.max(0, candidates - created);
+   featureWebNotice('Queued ' + created + '/' + candidates + ' ' + createdLabel + ' from unlinked nodes (' + failed + ' failed to queue)');
   }
 
   function featureWebClearSelection() {
