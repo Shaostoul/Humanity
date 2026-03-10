@@ -9612,7 +9612,7 @@
      const t = linkedTaskId != null ? featureWebFindTaskById(linkedTaskId) : null;
      linkedInfoEl.style.display = 'block';
      linkedInfoEl.setAttribute('aria-hidden', 'false');
-     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + featureWebBoardStatusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + node.taskId);
+     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + featureWebBoardStatusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + (linkedTaskId == null ? node.taskId : linkedTaskId));
      if (openTaskBtn) {
       openTaskBtn.style.display = t ? 'inline-block' : 'none';
       openTaskBtn.setAttribute('aria-hidden', t ? 'false' : 'true');
