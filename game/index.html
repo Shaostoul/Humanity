@@ -11369,7 +11369,7 @@
     const container = document.querySelector('.board-col-cards[data-status="' + status + '"]');
     const countEl = document.querySelector('.board-col-count[data-status="' + status + '"]');
     if (!container) return;
-    const tasks = boardTasks.filter(t => t.status === status).sort(boardTaskSortCompare);
+    const tasks = boardTasks.filter(t => boardNormalizeTaskStatus(t && t.status) === status).sort(boardTaskSortCompare);
     const taskCards = tasks.map(t => renderTaskCard(t)).filter(Boolean);
     if (countEl) countEl.textContent = '(' + taskCards.length + ')';
     container.innerHTML = taskCards.join('');
