@@ -11349,7 +11349,8 @@
   }
 
   function closeTaskModal() {
-   document.getElementById('task-modal').style.display = 'none';
+   const modal = document.getElementById('task-modal');
+   if (modal) modal.style.display = 'none';
   }
 
   function boardAddComment(taskId) {
@@ -11453,9 +11454,12 @@
   }
 
   // Close modal on backdrop click
-  document.getElementById('task-modal').addEventListener('click', function(e) {
-   if (e.target === this) closeTaskModal();
-  });
+  const taskModalEl = document.getElementById('task-modal');
+  if (taskModalEl) {
+   taskModalEl.addEventListener('click', function(e) {
+    if (e.target === this) closeTaskModal();
+   });
+  }
 
   // Connect board WebSocket when tab switches to board
   const origSwitchTab2 = switchTab;
