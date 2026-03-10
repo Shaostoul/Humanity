@@ -9354,7 +9354,11 @@
     return;
    }
    const normalizedTitle = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title).toLowerCase();
-   if (!normalizedTitle) return;
+   if (!normalizedTitle) {
+    featureWebNotice('Node title is required');
+    if (titleEl && typeof titleEl.focus === 'function') titleEl.focus();
+    return;
+   }
    const existingByTitle = featureWeb.nodes.find(n => featureWebClampText(n && n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle);
    if (existingByTitle) {
     featureWebFocusNode(existingByTitle.id);
@@ -9388,7 +9392,11 @@
     return;
    }
    const title = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title);
-   if (!title) return;
+   if (!title) {
+    featureWebNotice('Node title is required');
+    if (titleEl && typeof titleEl.focus === 'function') titleEl.focus();
+    return;
+   }
    const existingByTitle = featureWeb.nodes.find(n => featureWebClampText(n && n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === title.toLowerCase());
    if (existingByTitle) {
     featureWebFocusNode(existingByTitle.id);
