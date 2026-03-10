@@ -224,7 +224,8 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
-                cull_mode: Some(wgpu::Face::Back),
+                // Keep visible while we iterate winding/projection conventions.
+                cull_mode: None,
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -392,7 +393,7 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
             let sprint = self.key_down(KeyCode::ShiftLeft);
             let speed = if sprint { 14.0 } else { 8.0 };
             let forward = Vec3::new(self.yaw.sin(), 0.0, self.yaw.cos()).normalize_or_zero();
-            let right = Vec3::new(forward.z, 0.0, -forward.x).normalize_or_zero();
+            let right = Vec3::new(-forward.z, 0.0, forward.x).normalize_or_zero();
 
             let mut delta = Vec3::ZERO;
             if self.key_down(KeyCode::KeyW) || self.key_down(KeyCode::ArrowUp) {
@@ -723,7 +724,8 @@ fn main() {
             if !state.menu_open {
                 let sensitivity = 0.0025;
                 state.yaw -= delta.0 as f32 * sensitivity;
-                state.pitch = (state.pitch - delta.1 as f32 * sensitivity).clamp(-1.25, 1.25);
+                // User preference: non-inverted vertical look.
+                state.pitch = (state.pitch + delta.1 as f32 * sensitivity).clamp(-1.25, 1.25);
             }
         }
         Event::AboutToWait => window.request_redraw(),
