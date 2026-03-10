@@ -9384,6 +9384,7 @@
    }
    if (!titleEl || !canvas || !titleEl.value.trim()) {
     featureWebNotice('Enter a node title, then double-click canvas to place it');
+    if (titleEl && typeof titleEl.focus === 'function') titleEl.focus();
     return;
    }
    const title = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title);
