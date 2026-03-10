@@ -9464,7 +9464,12 @@
    const fromEl = document.getElementById('fw-link-from');
    const toEl = document.getElementById('fw-link-to');
    const typeEl = document.getElementById('fw-link-type');
-   if (!fromEl || !toEl || !fromEl.value || !toEl.value) return;
+   if (!fromEl || !toEl || !fromEl.value || !toEl.value) {
+    featureWebNotice('Select both link source and target');
+    if (fromEl && !fromEl.value && typeof fromEl.focus === 'function') fromEl.focus();
+    else if (toEl && !toEl.value && typeof toEl.focus === 'function') toEl.focus();
+    return;
+   }
    if (featureWebRemainingEdgeCapacity() <= 0) {
     featureWebNotice('Link limit reached (' + FW_MAX_EDGES + ')');
     return;
