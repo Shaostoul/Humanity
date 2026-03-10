@@ -10220,7 +10220,10 @@
   }
 
   function featureWebDeleteSelectedNode() {
-   if (!fwSelectedNodeId) return;
+   if (!fwSelectedNodeId) {
+    featureWebNotice('Select a node first');
+    return;
+   }
    featureWebDeleteNode(fwSelectedNodeId);
   }
 
