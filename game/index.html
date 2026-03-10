@@ -9863,12 +9863,14 @@
    }
    const conflict = featureWeb.nodes.find(n => n.id !== node.id && featureWebNormalizeTaskId(n && n.taskId) === taskId);
    if (conflict) {
-    featureWebNotice('Task already linked to another node');
+    featureWebFocusNode(conflict.id);
+    featureWebCenterSelected();
+    featureWebNotice('Task #' + taskId + ' already linked to node: ' + (conflict.title || 'Untitled'));
     return;
    }
    node.taskId = taskId;
    featureWebPersistAndRefreshEditor();
-   featureWebNotice('Node linked to task');
+   featureWebNotice('Linked node to task #' + taskId + ': ' + (boardNormalizeTitle(task.title) || ('Task #' + taskId)));
   }
 
   function featureWebSyncNodesToBoard() {
