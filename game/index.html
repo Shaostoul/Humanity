@@ -8435,6 +8435,11 @@
    return raw ? JSON.stringify(raw.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
   }
 
+  function boardNormalizeLabelsJson(labels) {
+   const normalized = boardParseTaskLabels({ labels });
+   return JSON.stringify(normalized);
+  }
+
   function boardNormalizeStatus(status) {
    return typeof status === 'string' ? status.trim().toLowerCase() : '';
   }
@@ -8476,6 +8481,7 @@
      taskObj.assignee = boardNormalizeAssignee(taskObj.assignee);
      taskObj.title = boardNormalizeTitle(taskObj.title) || 'Untitled Task';
      taskObj.description = boardNormalizeDescription(taskObj.description);
+     taskObj.labels = boardNormalizeLabelsJson(taskObj.labels);
     }
     dedupedTasks.push(taskObj);
    });
@@ -9408,7 +9414,7 @@
    const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
    if (task && oldTitle !== nextTitle) {
-    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: boardNormalizeDescription(task.description), priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: task.labels || '[]' });
+    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: boardNormalizeDescription(task.description), priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: boardNormalizeLabelsJson(task.labels) });
    }
    if (!task || task.status !== mapped) {
     boardSend({ type: 'task_move', id: taskId, status: mapped });
