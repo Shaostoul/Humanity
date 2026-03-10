@@ -8511,7 +8511,9 @@
    const aId = featureWebNormalizeTaskId(a && a.id);
    const bId = featureWebNormalizeTaskId(b && b.id);
    if (aId != null && bId != null && aId !== bId) return aId - bId;
-   return String((a && a.title) || '').localeCompare(String((b && b.title) || ''));
+   const aTitle = boardNormalizeTitle(a && a.title);
+   const bTitle = boardNormalizeTitle(b && b.title);
+   return aTitle.localeCompare(bTitle);
   }
 
   function boardNormalizeCreatedAt(createdAt) {
