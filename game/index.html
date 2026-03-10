@@ -9951,12 +9951,15 @@
    featureWebNotice('Queued ' + created + '/' + candidates + ' ' + createdLabel + ' from unlinked nodes (' + failed + ' failed to queue)');
   }
 
-  function featureWebClearSelection() {
+  function featureWebClearSelection(opts) {
+   const options = opts || {};
+   const hadSelection = !!fwSelectedNodeId;
    fwSelectedNodeId = '';
    const editEl = document.getElementById('fw-edit-node');
    if (editEl) editEl.value = '';
    featureWebRenderEditor();
    featureWebRender();
+   if (hadSelection && !options.quiet) featureWebNotice('Selection cleared');
   }
 
   function featureWebCenterSelected(opts) {
