@@ -11574,6 +11574,7 @@
    const { content } = boardGetTaskModalElements();
    if (!content) return;
    const labels = boardParseTaskLabels(task);
+   const taskPriority = boardNormalizePriority(task.priority);
    content.innerHTML =
     '<h3 style="color:var(--text);margin:0 0 1rem;font-size:1.1rem;">Edit Task</h3>' +
     '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Title</label>' +
@@ -11582,13 +11583,13 @@
     '<textarea id="edit-task-desc" rows="4" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;margin-bottom:0.6rem;">' + escHtml(task.description) + '</textarea>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem;">' +
      '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Priority</label>' +
-      '<select id="edit-task-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.82rem;font-family:inherit;"><option value="low"' + (task.priority==='low'?' selected':'') + '>Low</option><option value="medium"' + (task.priority==='medium'?' selected':'') + '>Medium</option><option value="high"' + (task.priority==='high'?' selected':'') + '>High</option><option value="critical"' + (task.priority==='critical'?' selected':'') + '>Critical</option></select></div>' +
+      '<select id="edit-task-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.82rem;font-family:inherit;"><option value="low"' + (taskPriority==='low'?' selected':'') + '>Low</option><option value="medium"' + (taskPriority==='medium'?' selected':'') + '>Medium</option><option value="high"' + (taskPriority==='high'?' selected':'') + '>High</option><option value="critical"' + (taskPriority==='critical'?' selected':'') + '>Critical</option></select></div>' +
      '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Assignee</label>' +
       '<input type="text" id="edit-task-assignee" maxlength="50" value="' + escHtml(task.assignee||'').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.82rem;outline:none;font-family:inherit;"></div>' +
     '</div>' +
     '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Labels (comma-separated)</label>' +
     '<input type="text" id="edit-task-labels" value="' + labels.join(', ').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:1rem;">' +
-    '<button onclick="boardSubmitEditTask(' + task.id + ')" style="background:var(--accent);color:#fff;border:none;padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Save Changes</button>';
+    '<button onclick="boardSubmitEditTask(' + normalizedTaskId + ')" style="background:var(--accent);color:#fff;border:none;padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Save Changes</button>';
   }
 
   function boardSubmitEditTask(id) {
