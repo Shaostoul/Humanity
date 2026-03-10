@@ -9836,7 +9836,18 @@
     featureWebNotice('Selected node is not linked to a task');
     return;
    }
-   openTaskModal(node.taskId);
+   const taskId = featureWebNormalizeTaskId(node.taskId);
+   if (taskId == null) {
+    featureWebNotice('Linked task id is invalid');
+    return;
+   }
+   const task = featureWebFindTaskById(taskId);
+   if (!task) {
+    featureWebNotice('Linked task is unavailable on the board');
+    return;
+   }
+   openTaskModal(taskId);
+   featureWebNotice('Opened task #' + taskId + ': ' + (boardNormalizeTitle(task.title) || ('Task #' + taskId)));
   }
 
   function featureWebLinkSelectedToTask() {
