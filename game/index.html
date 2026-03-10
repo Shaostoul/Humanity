@@ -8426,6 +8426,11 @@
    try { return JSON.parse((task && task.labels) || '[]'); } catch { return []; }
   }
 
+  function boardLabelsToJson(labelsText) {
+   const raw = typeof labelsText === 'string' ? labelsText.trim() : '';
+   return raw ? JSON.stringify(raw.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
+  }
+
   const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
@@ -11387,8 +11392,7 @@
    if (!boardCanEdit()) return;
    const title = document.getElementById('new-task-title').value.trim();
    if (!title) return;
-   const labelsStr = document.getElementById('new-task-labels').value.trim();
-   const labels = labelsStr ? JSON.stringify(labelsStr.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
+   const labels = boardLabelsToJson(document.getElementById('new-task-labels').value);
    const assignee = document.getElementById('new-task-assignee').value.trim() || null;
    boardSend({
     type: 'task_create',
@@ -11428,8 +11432,7 @@
    if (!boardCanEdit()) return;
    const title = document.getElementById('edit-task-title').value.trim();
    if (!title) return;
-   const labelsStr = document.getElementById('edit-task-labels').value.trim();
-   const labels = labelsStr ? JSON.stringify(labelsStr.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
+   const labels = boardLabelsToJson(document.getElementById('edit-task-labels').value);
    const assignee = document.getElementById('edit-task-assignee').value.trim() || null;
    boardSend({
     type: 'task_update',
