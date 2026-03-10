@@ -10162,7 +10162,11 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
-   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
+   const nodeTitle = featureWebClampText(node.title, 40) || 'Selected node';
    const order = FW_ALLOWED_EDGE_TYPES;
    const edges = featureWeb.edges.filter(e => e.from === fwSelectedNodeId || e.to === fwSelectedNodeId);
    if (!edges.length) {
@@ -10184,7 +10188,11 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
-   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
+   const nodeTitle = featureWebClampText(node.title, 40) || 'Selected node';
    const before = featureWeb.edges.length;
    featureWeb.edges = featureWeb.edges.filter(e => e.from !== fwSelectedNodeId && e.to !== fwSelectedNodeId);
    const removed = before - featureWeb.edges.length;
@@ -10202,7 +10210,11 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
-   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
+   const nodeTitle = featureWebClampText(node.title, 40) || 'Selected node';
    const before = featureWeb.edges.length;
    featureWeb.edges = featureWeb.edges.filter(e => e.from !== fwSelectedNodeId);
    const removed = before - featureWeb.edges.length;
@@ -10220,7 +10232,11 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
-   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
+   const nodeTitle = featureWebClampText(node.title, 40) || 'Selected node';
    const before = featureWeb.edges.length;
    featureWeb.edges = featureWeb.edges.filter(e => e.to !== fwSelectedNodeId);
    const removed = before - featureWeb.edges.length;
