@@ -758,12 +758,45 @@ header h1 {
 
 /* ── Right Sidebar ── */
 #right-sidebar {
-  width: 200px;
+  width: 260px;
   background: var(--bg-secondary);
   border-left: 1px solid var(--border);
   padding: 0.75rem;
   overflow-y: auto;
   flex-shrink: 0;
+}
+#stream-sidebar {
+  border-top: 1px solid var(--border);
+  margin-top: 0.45rem;
+  padding-top: 0.45rem;
+}
+#stream-sidebar h4 {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+.stream-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  padding: 0.2rem 0;
+  font-size: 0.78rem;
+}
+.stream-row button {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+.stream-empty {
+  color: var(--text-muted);
+  font-size: 0.72rem;
 }
 
 #right-sidebar h3 {
@@ -2171,6 +2204,21 @@ header h1 {
   transition: opacity 0.2s;
 }
 #video-panel .video-wrapper:hover .video-pip-btn { opacity: 1; }
+#video-panel .video-wrapper.pinned-inapp {
+  position: fixed !important;
+  right: 14px;
+  bottom: 78px;
+  width: min(36vw, 420px) !important;
+  height: auto;
+  z-index: 4000;
+  border: 1px solid var(--accent);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+}
+#video-panel .video-wrapper.pinned-inapp video {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 40vh;
+}
 #video-panel .self-view {
   position: relative;
   width: 120px;
@@ -2179,7 +2227,8 @@ header h1 {
 #video-panel .self-view video {
   width: 120px;
   height: 90px;
-  transform: scaleX(-1);
+  /* Unmirrored local preview per user preference */
+  transform: none;
 }
 /* Camera selector dropdown */
 .camera-selector {

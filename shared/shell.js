@@ -324,6 +324,7 @@
   nav.innerHTML =
     '<nav class="hub-nav">' +
       '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
+      '<a href="/chat" class="tab' + (active === 'chat' ? ' active' : '') + '" data-tip="Network">Network</a>' +
       '<div class="menu" data-menu="private">' +
         '<button class="menu-btn" type="button">Private ▾</button>' +
         '<div class="menu-drop">' +
@@ -340,7 +341,6 @@
       '<div class="menu" data-menu="public">' +
         '<button class="menu-btn" type="button">Public ▾</button>' +
         '<div class="menu-drop">' +
-          '<a href="/chat">Network</a>' +
           '<a href="/board">Systems</a>' +
           '<a href="/map">Maps</a>' +
           '<a href="/market">Market</a>' +

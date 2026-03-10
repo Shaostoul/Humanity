@@ -5101,9 +5101,60 @@ updateUserList = function(users) {
   _origUpdateUserList(users);
   addCallButtonsToPeerList();
   renderPresenceSidebarForActiveContext();
+  renderStreamSidebar();
 };
 
   // ── Phase 2: Video Calls + Screen Share ──
+
+  // Stream/watch state (default off for auto-watch)
+  let autoWatchStreams = localStorage.getItem('humanity-auto-watch-streams') === 'true';
+  const activeStreams = new Map(); // id -> { name, wrapper, video, hidden }
+
+  function toggleAutoWatchStreams(enabled) {
+    autoWatchStreams = !!enabled;
+    localStorage.setItem('humanity-auto-watch-streams', enabled ? 'true' : 'false');
+    activeStreams.forEach(s => {
+      if (enabled && s.hidden) {
+        s.hidden = false;
+        s.wrapper.style.display = '';
+      }
+    });
+    renderStreamSidebar();
+  }
+  window.toggleAutoWatchStreams = toggleAutoWatchStreams;
+
+  function renderStreamSidebar() {
+    const list = document.getElementById('stream-list');
+    const checkbox = document.getElementById('stream-auto-watch');
+    if (!list) return;
+    if (checkbox) checkbox.checked = autoWatchStreams;
+
+    if (activeStreams.size === 0) {
+      list.className = 'stream-empty';
+      list.textContent = 'No active streams';
+      return;
+    }
+
+    list.className = '';
+    list.innerHTML = '';
+    activeStreams.forEach((s, id) => {
+      const row = document.createElement('div');
+      row.className = 'stream-row';
+      const title = document.createElement('span');
+      title.textContent = s.name || id;
+      const btn = document.createElement('button');
+      btn.textContent = s.hidden ? 'Watch' : 'Hide';
+      btn.onclick = () => {
+        s.hidden = !s.hidden;
+        s.wrapper.style.display = s.hidden ? 'none' : '';
+        btn.textContent = s.hidden ? 'Watch' : 'Hide';
+      };
+      row.appendChild(title);
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+  setTimeout(renderStreamSidebar, 0);
 
   // --- DM Call Video ---
   let dmVideoStream = null;
@@ -5362,9 +5413,10 @@ const origOnTrack = pc.ontrack;
 pc.ontrack = function(event) {
   if (event.track.kind === 'video') {
     const label = peerName || shortKey(peerKey);
-    showRemoteVideo(event.streams[0], 'vr-remote-' + peerKey, label);
+    const remoteId = 'vr-remote-' + peerKey + '-' + event.track.id;
+    showRemoteVideo(event.streams[0], remoteId, label);
     event.track.addEventListener('ended', () => {
-      removeVideoElement('vr-remote-' + peerKey);
+      removeVideoElement(remoteId);
       updateVideoPanel();
     });
   } else {
@@ -5410,19 +5462,29 @@ label.textContent = name;
 const pipBtn = document.createElement('button');
 pipBtn.className = 'video-pip-btn';
 pipBtn.textContent = '📌';
-pipBtn.title = 'Picture-in-Picture';
-pipBtn.onclick = () => { video.requestPictureInPicture().catch(() => {}); };
+pipBtn.title = 'Pin/Unpin stream';
+pipBtn.onclick = () => {
+  wrapper.classList.toggle('pinned-inapp');
+  pipBtn.textContent = wrapper.classList.contains('pinned-inapp') ? '🗗' : '📌';
+};
 wrapper.appendChild(video);
 wrapper.appendChild(label);
-if (document.pictureInPictureEnabled) wrapper.appendChild(pipBtn);
+wrapper.appendChild(pipBtn);
 panel.appendChild(wrapper);
 video.play().catch(() => {});
+
+const hidden = !autoWatchStreams;
+if (hidden) wrapper.style.display = 'none';
+activeStreams.set(id, { name: name || id, wrapper, video, hidden });
+renderStreamSidebar();
 updateVideoPanel();
   }
 
   function removeVideoElement(id) {
 const el = document.querySelector(`#video-panel .video-wrapper[data-id="${id}"]`);
 if (el) el.remove();
+activeStreams.delete(id);
+renderStreamSidebar();
   }
 
   function updateVideoPanel() {
@@ -5439,19 +5501,14 @@ panel.classList.toggle('gallery', wrappers.length >= 3);
 
   // --- Picture-in-Picture ---
   function togglePiP() {
-if (document.pictureInPictureElement) {
-  document.exitPictureInPicture().catch(() => {});
+// In-app pin mode avoids browser PiP settings-page issues in desktop wrappers.
+const wrapper = document.querySelector('#video-panel .video-wrapper:not(.self-view)');
+if (!wrapper) {
+  addSystemMessage('ℹ️ No remote video to display.');
   return;
 }
-// Find first remote video
-const remoteVideo = document.querySelector('#video-panel .video-wrapper:not(.self-view) video');
-if (remoteVideo) {
-  remoteVideo.requestPictureInPicture().catch(() => {
-    addSystemMessage('⚠️ Picture-in-Picture not supported.');
-  });
-} else {
-  addSystemMessage('ℹ️ No remote video to display in PiP.');
-}
+wrapper.classList.toggle('pinned-inapp');
+addSystemMessage(wrapper.classList.contains('pinned-inapp') ? '📌 Stream pinned in-app.' : '📌 Stream unpinned.');
   }
 
   // --- Camera Selection ---

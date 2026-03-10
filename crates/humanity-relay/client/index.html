@@ -184,6 +184,14 @@
       <div id="right-sidebar">
         <h3>Users</h3>
         <div id="peer-list"></div>
+        <div id="stream-sidebar">
+          <h4>Live Streams</h4>
+          <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.72rem;color:var(--text-muted);margin-bottom:0.3rem;">
+            <input type="checkbox" id="stream-auto-watch" onchange="toggleAutoWatchStreams(this.checked)">
+            Auto-watch streams
+          </label>
+          <div id="stream-list" class="stream-empty">No active streams</div>
+        </div>
       </div>
     </div>
   </div>
