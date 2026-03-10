@@ -584,6 +584,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "core-snapshot-sync"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "core-offline-loop",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "core-teaching-graph"
 version = "0.1.0"
 dependencies = [

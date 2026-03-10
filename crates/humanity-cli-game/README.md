@@ -11,7 +11,7 @@ cargo run -p humanity-cli-game
 ## Run scripted playtest
 
 ```bash
-cargo run -p humanity-cli-game -- --script "status;practice water;lesson;move n;drink;farm_tick;status;quit"
+cargo run -p humanity-cli-game -- --script "status;gather wood;gather fiber;gather scrap;craft_filter;treat_water;gather food;eat;farm_tick;objective;status;quit"
 ```
 
 DB commands (in CLI):

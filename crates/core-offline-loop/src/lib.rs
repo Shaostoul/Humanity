@@ -30,6 +30,22 @@ pub struct GridPos {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Inventory {
+    pub food_rations: u32,
+    pub wood: u32,
+    pub fiber: u32,
+    pub scrap: u32,
+    pub filter_kits: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Milestones {
+    pub crafted_filter: bool,
+    pub purified_water: bool,
+    pub planted_cycle: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorldSnapshot {
     pub tick: u64,
     pub player: LifeformState,
@@ -38,6 +54,8 @@ pub struct WorldSnapshot {
     pub water: WaterNode,
     pub soil: SoilCell,
     pub crop: CropInstance,
+    pub inventory: Inventory,
+    pub milestones: Milestones,
     pub skills: SkillBook,
     pub progression: ProgressionProfile,
     pub teaching: CompetencyGraph,
@@ -71,6 +89,18 @@ impl WorldSnapshot {
                 vitality: 60.0,
                 stress: 15.0,
                 growth_progress: 0.0,
+            },
+            inventory: Inventory {
+                food_rations: 2,
+                wood: 0,
+                fiber: 0,
+                scrap: 0,
+                filter_kits: 0,
+            },
+            milestones: Milestones {
+                crafted_filter: false,
+                purified_water: false,
+                planted_cycle: false,
             },
             skills: SkillBook::default(),
             progression: ProgressionProfile::default(),
@@ -134,6 +164,11 @@ pub enum Command {
     Drink,
     TreatWater,
     FarmTick,
+    Gather(String),
+    CraftFilter,
+    Eat,
+    Inventory,
+    Objective,
     Practice(String),
     Lesson,
     SetDifficulty(FidelityPreset),
@@ -191,6 +226,14 @@ pub fn parse_command(input: &str) -> Result<Command, LoopError> {
         "drink" => Ok(Command::Drink),
         "treat_water" => Ok(Command::TreatWater),
         "farm_tick" => Ok(Command::FarmTick),
+        "gather" => {
+            let item = parts.next().ok_or(LoopError::InvalidArgs)?;
+            Ok(Command::Gather(item.to_string()))
+        }
+        "craft_filter" => Ok(Command::CraftFilter),
+        "eat" => Ok(Command::Eat),
+        "inventory" => Ok(Command::Inventory),
+        "objective" => Ok(Command::Objective),
         "practice" => {
             let skill = parts.next().ok_or(LoopError::InvalidArgs)?;
             Ok(Command::Practice(skill.to_string()))
@@ -228,9 +271,9 @@ pub fn parse_command(input: &str) -> Result<Command, LoopError> {
 
 pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, LoopError> {
     match cmd {
-        Command::Help => Ok("commands: help status look move <n|s|e|w> look_dir <yaw_delta> <pitch_delta> rest drink treat_water farm_tick practice <skill> lesson set_difficulty <baby|easy|medium|hard|realistic> transition <offline|host|join|dedicated> save <path> load <path> quit".to_string()),
+        Command::Help => Ok("commands: help status look move <n|s|e|w> look_dir <yaw_delta> <pitch_delta> rest drink eat gather <wood|fiber|scrap|food> craft_filter treat_water farm_tick inventory objective practice <skill> lesson set_difficulty <baby|easy|medium|hard|realistic> transition <offline|host|join|dedicated> save <path> load <path> quit".to_string()),
         Command::Status => Ok(format!(
-            "tick={} pos=({}, {}) fp=({:.1},{:.1},{:.1}) yaw={:.1} pitch={:.1} energy={:.1} hydration={:.1} stress={:.1} water_liters={:.1} water_contam={:.1} crop_stage={:?} capability={:.1} mode={:?}/{:?}/{:?}",
+            "tick={} pos=({}, {}) fp=({:.1},{:.1},{:.1}) yaw={:.1} pitch={:.1} energy={:.1} hydration={:.1} stress={:.1} water_liters={:.1} water_contam={:.1} crop_stage={:?} inv(food={},wood={},fiber={},scrap={},filters={}) milestones({}/{}/{}) capability={:.1} mode={:?}/{:?}/{:?}",
             world.tick,
             world.player_pos.x,
             world.player_pos.y,
@@ -245,6 +288,14 @@ pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, 
             world.water.liters,
             world.water.quality.contamination_index,
             world.crop.stage,
+            world.inventory.food_rations,
+            world.inventory.wood,
+            world.inventory.fiber,
+            world.inventory.scrap,
+            world.inventory.filter_kits,
+            world.milestones.crafted_filter,
+            world.milestones.purified_water,
+            world.milestones.planted_cycle,
             capability_index(&world.skills),
             world.session.mode,
             world.session.network,
@@ -307,11 +358,22 @@ pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, 
             Ok("drank water".to_string())
         }
         Command::TreatWater => {
-            treat_water(&mut world.water, TreatmentStep { efficacy: 0.45 })
+            let efficacy = if world.inventory.filter_kits > 0 {
+                world.inventory.filter_kits -= 1;
+                0.75
+            } else {
+                0.45
+            };
+
+            treat_water(&mut world.water, TreatmentStep { efficacy })
                 .map_err(|e| LoopError::Simulation(e.to_string()))?;
+            if world.water.quality.potability == Potability::Potable {
+                world.milestones.purified_water = true;
+            }
             world.tick += 1;
             Ok(format!(
-                "treated water; contamination now {:.1}",
+                "treated water (eff={:.2}); contamination now {:.1}",
+                efficacy,
                 world.water.quality.contamination_index
             ))
         }
@@ -347,11 +409,97 @@ pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, 
             )
             .map_err(|e| LoopError::Simulation(e.to_string()))?;
 
+            world.milestones.planted_cycle = true;
             world.tick += 24;
             let harvest = harvest_report(&world.crop)
                 .map(|h| format!(" harvest(yield={:.1}, quality={:.1})", h.yield_score, h.quality_score))
                 .unwrap_or_default();
             Ok(format!("farm tick complete; stage={:?}{}", world.crop.stage, harvest))
+        }
+        Command::Gather(item) => {
+            let (skill, msg) = match item.as_str() {
+                "wood" => {
+                    world.inventory.wood += 2;
+                    ("carpentry", "gathered wood +2")
+                }
+                "fiber" => {
+                    world.inventory.fiber += 2;
+                    ("farming", "gathered fiber +2")
+                }
+                "scrap" => {
+                    world.inventory.scrap += 1;
+                    ("plumbing", "gathered scrap +1")
+                }
+                "food" => {
+                    world.inventory.food_rations += 1;
+                    ("farming", "foraged food ration +1")
+                }
+                _ => return Err(LoopError::InvalidArgs),
+            };
+            let _ = award_xp(
+                &mut world.skills,
+                &world.progression,
+                skill,
+                20,
+                world.session.fidelity,
+            )
+            .map_err(|e| LoopError::Simulation(e.to_string()))?;
+            world.tick += 1;
+            Ok(msg.to_string())
+        }
+        Command::CraftFilter => {
+            if world.inventory.wood < 1 || world.inventory.fiber < 1 || world.inventory.scrap < 1 {
+                return Ok("need at least wood=1 fiber=1 scrap=1 to craft filter".to_string());
+            }
+            world.inventory.wood -= 1;
+            world.inventory.fiber -= 1;
+            world.inventory.scrap -= 1;
+            world.inventory.filter_kits += 1;
+            world.milestones.crafted_filter = true;
+            let _ = award_xp(
+                &mut world.skills,
+                &world.progression,
+                "water",
+                35,
+                world.session.fidelity,
+            )
+            .map_err(|e| LoopError::Simulation(e.to_string()))?;
+            world.tick += 2;
+            Ok("crafted filter kit +1".to_string())
+        }
+        Command::Eat => {
+            if world.inventory.food_rations == 0 {
+                return Ok("no food rations available".to_string());
+            }
+            world.inventory.food_rations -= 1;
+            tick_player(world, 1, 0.9, 1.2, 0.0)?;
+            world.tick += 1;
+            Ok("ate one food ration".to_string())
+        }
+        Command::Inventory => Ok(format!(
+            "inventory => food={} wood={} fiber={} scrap={} filters={}",
+            world.inventory.food_rations,
+            world.inventory.wood,
+            world.inventory.fiber,
+            world.inventory.scrap,
+            world.inventory.filter_kits
+        )),
+        Command::Objective => {
+            let score = [
+                world.milestones.crafted_filter,
+                world.milestones.purified_water,
+                world.milestones.planted_cycle,
+            ]
+            .iter()
+            .filter(|x| **x)
+            .count();
+            Ok(format!(
+                "offline milestone progress: {}/3 (craft_filter={}, purified_water={}, farm_cycle={})",
+                score,
+                world.milestones.crafted_filter,
+                world.milestones.purified_water,
+                world.milestones.planted_cycle,
+            ))
         }
         Command::Practice(skill) => {
             let rec = award_xp(
@@ -478,5 +626,21 @@ mod tests {
         let _ = apply_command(&mut world, Command::LookDir(15.0, -10.0)).unwrap();
         assert_eq!(world.controller.yaw_deg, 15.0);
         assert_eq!(world.controller.pitch_deg, -10.0);
+    }
+
+    #[test]
+    fn non_combat_offline_loop_reaches_milestone() {
+        let mut world = WorldSnapshot::new_default();
+
+        let _ = apply_command(&mut world, Command::Gather("wood".into())).unwrap();
+        let _ = apply_command(&mut world, Command::Gather("fiber".into())).unwrap();
+        let _ = apply_command(&mut world, Command::Gather("scrap".into())).unwrap();
+        let _ = apply_command(&mut world, Command::CraftFilter).unwrap();
+        let _ = apply_command(&mut world, Command::TreatWater).unwrap();
+        let _ = apply_command(&mut world, Command::FarmTick).unwrap();
+
+        assert!(world.milestones.crafted_filter);
+        assert!(world.milestones.purified_water);
+        assert!(world.milestones.planted_cycle);
     }
 }

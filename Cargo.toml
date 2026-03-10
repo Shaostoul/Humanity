@@ -19,6 +19,7 @@ members = [
     "crates/core-firstperson-controller",
     "crates/persistence-sqlite",
     "crates/engine-wgpu-shell",
+    "crates/core-snapshot-sync",
 ]
 exclude = [
     "desktop/src-tauri",

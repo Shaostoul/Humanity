@@ -25,8 +25,13 @@ CLI mode is an official testing surface, not a throwaway debug script.
 - `look_dir <yaw_delta> <pitch_delta>`
 - `rest`
 - `drink`
+- `eat`
+- `gather <wood|fiber|scrap|food>`
+- `craft_filter`
 - `treat_water`
 - `farm_tick`
+- `inventory`
+- `objective`
 - `practice <skill>`
 - `lesson`
 - `set_difficulty <baby|easy|medium|hard|realistic>`
@@ -40,7 +45,7 @@ CLI mode is an official testing surface, not a throwaway debug script.
 
 ## Future expansion
 
-- inventory/crafting commands
 - construction and energy systems commands
+- richer quest/economy command flows
 - multiplayer simulation test commands
 - deterministic replay execution from event logs

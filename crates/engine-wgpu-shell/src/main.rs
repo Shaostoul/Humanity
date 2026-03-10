@@ -1,5 +1,5 @@
 use core_firstperson_controller::{apply_look, apply_move, ControllerInput, MoveDir};
-use core_offline_loop::WorldSnapshot;
+use core_offline_loop::{apply_command, Command, WorldSnapshot};
 use std::collections::HashSet;
 use std::time::Instant;
 use wgpu::SurfaceError;
@@ -97,6 +97,27 @@ impl<'a> State<'a> {
                 match event.state {
                     ElementState::Pressed => {
                         self.pressed.insert(code);
+                        match code {
+                            KeyCode::KeyE => {
+                                let _ = apply_command(&mut self.world, Command::Gather("wood".to_string()));
+                            }
+                            KeyCode::KeyQ => {
+                                let _ = apply_command(&mut self.world, Command::Gather("fiber".to_string()));
+                            }
+                            KeyCode::KeyR => {
+                                let _ = apply_command(&mut self.world, Command::CraftFilter);
+                            }
+                            KeyCode::KeyT => {
+                                let _ = apply_command(&mut self.world, Command::TreatWater);
+                            }
+                            KeyCode::KeyF => {
+                                let _ = apply_command(&mut self.world, Command::FarmTick);
+                            }
+                            KeyCode::KeyC => {
+                                let _ = apply_command(&mut self.world, Command::Eat);
+                            }
+                            _ => {}
+                        }
                     }
                     ElementState::Released => {
                         self.pressed.remove(&code);
@@ -156,6 +177,25 @@ impl<'a> State<'a> {
 
         self.world.player_pos.x = self.world.controller.position.x.round() as i32;
         self.world.player_pos.y = self.world.controller.position.z.round() as i32;
+    }
+
+    fn title_text(&self) -> String {
+        format!(
+            "Humanity Shell | pos=({},{}) stamina={:.0} water={:.0} contam={:.1} inv[w:{} f:{} s:{} k:{} food:{}] milestones[{}/{}/{}]",
+            self.world.player_pos.x,
+            self.world.player_pos.y,
+            self.world.controller.stamina,
+            self.world.water.liters,
+            self.world.water.quality.contamination_index,
+            self.world.inventory.wood,
+            self.world.inventory.fiber,
+            self.world.inventory.scrap,
+            self.world.inventory.filter_kits,
+            self.world.inventory.food_rations,
+            self.world.milestones.crafted_filter,
+            self.world.milestones.purified_water,
+            self.world.milestones.planted_cycle,
+        )
     }
 
     fn render(&mut self) -> Result<(), SurfaceError> {
@@ -219,6 +259,7 @@ fn main() {
                     WindowEvent::Resized(size) => state.resize(size),
                     WindowEvent::RedrawRequested => {
                         state.update();
+                        window.set_title(&state.title_text());
                         match state.render() {
                             Ok(_) => {}
                             Err(SurfaceError::Lost) => state.resize(state.size),

@@ -165,10 +165,22 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 - Progress:
   - [x] actual wgpu window/surface/device shell
   - [x] input handling (WASD + mouse look)
+  - [x] interactive gameplay keys (gather/craft/treat/farm/eat)
   - [x] render loop clear pass with world-driven color
+  - [x] window title HUD for live world/inventory/milestone state
   - [x] wired to first-person controller + world snapshot
   - [x] compile check passing (`cargo check -p engine-wgpu-shell`)
 - Depends on: core-firstperson-controller, core-offline-loop
+
+## E4) core-snapshot-sync
+- Spec: `design/network/snapshot_delta_recovery.md`
+- Crate path: `crates/core-snapshot-sync/`
+- Current status: done
+- Progress:
+  - [x] snapshot hash and headers
+  - [x] recovery action selection (`in_sync`, `deltas`, `nearest_snapshot`, `full_resync`)
+  - [x] tests passing (`cargo test -p core-snapshot-sync`)
+- Depends on: core-offline-loop snapshot serialization
 
 
 ## E1) core-firstperson-controller
