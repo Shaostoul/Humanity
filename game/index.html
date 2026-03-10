@@ -11404,6 +11404,7 @@
   function renderTaskCard(task) {
    const taskId = featureWebNormalizeTaskId(task && task.id);
    if (taskId == null) return '';
+   const taskTitle = boardNormalizeTitle(task && task.title) || 'Untitled Task';
    const taskPriority = boardNormalizePriority(task && task.priority);
    const taskStatus = boardNormalizeTaskStatus(task && task.status);
    const taskAssignee = boardNormalizeAssignee(task && task.assignee);
@@ -11426,7 +11427,7 @@
    }
    const addToWebHtml = '<div style="margin-top:0.35rem;" onclick="event.stopPropagation()"><button onclick="featureWebAddNodeFromTask(' + taskId + ')" style="background:none;border:1px solid rgba(255,136,17,0.4);color:var(--accent);font-size:0.62rem;padding:0.1rem 0.35rem;border-radius:4px;cursor:pointer;">+ Web</button></div>';
    return '<div onclick="openTaskModal(' + taskId + ')" style="background:var(--bg-panel,#141414);border:1px solid var(--border);border-left:3px solid ' + pc + ';border-radius:6px;padding:0.5rem 0.6rem;margin-bottom:0.4rem;cursor:pointer;transition:border-color 0.15s;" onmouseover="this.style.borderColor=\'rgba(255,136,17,0.3)\'" onmouseout="this.style.borderColor=\'var(--border)\';this.style.borderLeftColor=\'' + pc + '\'">' +
-    '<div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:0.3rem;">' + escHtml(task.title) + '</div>' +
+    '<div style="font-size:0.82rem;font-weight:600;color:var(--text);margin-bottom:0.3rem;">' + escHtml(taskTitle) + '</div>' +
     '<div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">' +
      '<span style="display:inline-block;background:' + pc + ';color:#fff;font-size:0.6rem;padding:0.05rem 0.35rem;border-radius:3px;font-weight:700;text-transform:uppercase;">' + taskPriority + '</span>' +
      labelHtml + assigneeHtml + commentHtml +
@@ -11456,6 +11457,7 @@
    content.dataset.taskId = String(normalizedTaskId);
    const canEdit = boardCanEdit();
    const canComment = boardCanComment();
+   const taskTitle = boardNormalizeTitle(task.title) || 'Untitled Task';
    const taskPriority = boardNormalizePriority(task.priority);
    const taskStatus = boardNormalizeTaskStatus(task.status);
    const taskAssignee = boardNormalizeAssignee(task.assignee);
@@ -11463,7 +11465,7 @@
    const labels = boardParseTaskLabels(task);
    const created = boardFormatDateTime(task.created_at);
 
-   let html = '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.1rem;">' + escHtml(task.title) + '</h3>' +
+   let html = '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.1rem;">' + escHtml(taskTitle) + '</h3>' +
     '<div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;">' +
      '<span style="background:' + pc + ';color:#fff;font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;font-weight:700;text-transform:uppercase;">' + taskPriority + '</span>' +
      '<span style="font-size:0.75rem;color:var(--text-muted);">' + boardTaskStatusLabel(taskStatus) + '</span>' +
@@ -11598,11 +11600,12 @@
    const { content } = boardGetTaskModalElements();
    if (!content) return;
    const labels = boardParseTaskLabels(task);
+   const taskTitle = boardNormalizeTitle(task.title) || 'Untitled Task';
    const taskPriority = boardNormalizePriority(task.priority);
    content.innerHTML =
     '<h3 style="color:var(--text);margin:0 0 1rem;font-size:1.1rem;">Edit Task</h3>' +
     '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Title</label>' +
-    '<input type="text" id="edit-task-title" maxlength="200" value="' + escHtml(task.title).replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.6rem;">' +
+    '<input type="text" id="edit-task-title" maxlength="200" value="' + escHtml(taskTitle).replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:0.6rem;">' +
     '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Description</label>' +
     '<textarea id="edit-task-desc" rows="4" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;resize:vertical;margin-bottom:0.6rem;">' + escHtml(task.description) + '</textarea>' +
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.6rem;">' +
