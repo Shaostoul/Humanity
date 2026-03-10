@@ -57,6 +57,9 @@ This is the parent entry for major documentation areas.
 - [Character Customization Roadmap](../design/game/character_customization_roadmap.md)
 - [Tailnet Onboarding](../design/network/tailnet_onboarding.md)
 - [Snapshot+Delta Recovery](../design/network/snapshot_delta_recovery.md)
+
+## Comms UX
+- [Unified Comms Sidebar Plan](../design/comms/unified_comms_sidebar_plan.md)
 - [App Shell IA](../design/ui/app_shell_information_architecture.md)
 - [Knowledge Tab IA](../design/ui/knowledge_tab_architecture.md)
 - [Header Dropdown Navigation](../design/ui/header_dropdown_navigation.md)

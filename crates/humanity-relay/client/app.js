@@ -3930,15 +3930,26 @@ function deleteVoiceChannel(vcId) {
   }
 }
 
+function getMicConstraints() {
+  return {
+    echoCancellation: { ideal: true },
+    noiseSuppression: { ideal: true },
+    autoGainControl: { ideal: true },
+    channelCount: { ideal: 1 },
+    sampleRate: { ideal: 48000 }
+  };
+}
+
 async function setupRoomAudio() {
   try {
-    window._roomLocalStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+    window._roomLocalStream = await navigator.mediaDevices.getUserMedia({ audio: getMicConstraints(), video: false });
   } catch (e) {
     addSystemMessage('⚠️ Microphone access denied.');
     leaveVoiceRoom();
     return;
   }
-  // Wait for voice_room_update to know who's in the room, then connect
+  addSystemMessage('🎧 Echo tip: headphones recommended for the clearest VOIP.');
+  // Wait for voice_room_update to know who is in the room, then connect
 }
 
 function cleanupRoomAudio() {
@@ -4798,7 +4809,7 @@ async function setupPeerConnection(isCaller) {
 
   // Get microphone
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: getMicConstraints(), video: false });
   } catch (e) {
     addSystemMessage('⚠️ Microphone access denied. Cannot make voice call.');
     hangupCall();
@@ -5446,9 +5457,12 @@ video.srcObject = stream;
 video.autoplay = true;
 video.playsInline = true;
 video.muted = true;
+video.style.transform = 'none';
+video.style.objectFit = id.includes('screen') ? 'contain' : 'cover';
+if (id.includes('screen')) wrapper.classList.add('local-screen-view');
 const label = document.createElement('div');
 label.className = 'video-label';
-label.textContent = 'You';
+label.textContent = id.includes('screen') ? 'You (Screen)' : 'You';
 wrapper.appendChild(video);
 wrapper.appendChild(label);
 panel.appendChild(wrapper);

@@ -2228,7 +2228,16 @@ header h1 {
   width: 120px;
   height: 90px;
   /* Unmirrored local preview per user preference */
-  transform: none;
+  transform: none !important;
+}
+#video-panel .self-view.local-screen-view {
+  width: min(30vw, 320px);
+  height: auto;
+}
+#video-panel .self-view.local-screen-view video {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 /* Camera selector dropdown */
 .camera-selector {
