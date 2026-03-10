@@ -8474,6 +8474,8 @@
      taskObj.status = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
      taskObj.priority = boardNormalizePriority(taskObj.priority);
      taskObj.assignee = boardNormalizeAssignee(taskObj.assignee);
+     taskObj.title = boardNormalizeTitle(taskObj.title) || 'Untitled Task';
+     taskObj.description = boardNormalizeDescription(taskObj.description);
     }
     dedupedTasks.push(taskObj);
    });
