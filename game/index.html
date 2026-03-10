@@ -8422,6 +8422,10 @@
    return true;
   }
 
+  function boardParseTaskLabels(task) {
+   try { return JSON.parse((task && task.labels) || '[]'); } catch { return []; }
+  }
+
   const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
@@ -11245,7 +11249,7 @@
 
   function renderTaskCard(task) {
    const pc = PRIORITY_COLORS[task.priority] || '#666';
-   const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
+   const labels = boardParseTaskLabels(task);
    const labelHtml = labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.2rem;">' + escHtml(l) + '</span>').join('');
    const assigneeHtml = task.assignee ? '<span style="font-size:0.7rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '';
    const commentHtml = task.comment_count > 0 ? '<span style="font-size:0.7rem;color:var(--text-muted);">💬 ' + task.comment_count + '</span>' : '';
@@ -11284,7 +11288,7 @@
    const canEdit = boardCanEdit();
    const canComment = boardCanComment();
    const pc = PRIORITY_COLORS[task.priority] || '#666';
-   const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
+   const labels = boardParseTaskLabels(task);
    const created = new Date(task.created_at).toLocaleString();
 
    let html = '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.1rem;">' + escHtml(task.title) + '</h3>' +
@@ -11402,7 +11406,7 @@
    const task = featureWebFindTaskById(taskId);
    if (!task) return;
    const content = document.getElementById('task-modal-content');
-   const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
+   const labels = boardParseTaskLabels(task);
    content.innerHTML =
     '<h3 style="color:var(--text);margin:0 0 1rem;font-size:1.1rem;">Edit Task</h3>' +
     '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Title</label>' +
