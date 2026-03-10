@@ -9372,6 +9372,8 @@
     20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    );
    featureWeb.nodes.push(node);
+   fwSelectedNodeId = node.id;
+   featureWebSaveUiState();
    titleEl.value = '';
    const ownerEl = document.getElementById('fw-node-owner');
    if (ownerEl) ownerEl.value = '';
@@ -9409,6 +9411,8 @@
    const y = Math.max(4, Math.min(rect.height - 48, e.clientY - rect.top - 20));
    const node = featureWebBuildNode(title, x, y);
    featureWeb.nodes.push(node);
+   fwSelectedNodeId = node.id;
+   featureWebSaveUiState();
    titleEl.value = '';
    const ownerEl = document.getElementById('fw-node-owner');
    if (ownerEl) ownerEl.value = '';
