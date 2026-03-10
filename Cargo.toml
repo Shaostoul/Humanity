@@ -11,6 +11,7 @@ members = [
     "crates/module-electrical-basics",
     "crates/module-plumbing-basics",
     "crates/module-health-first-aid",
+    "crates/core-session-orchestrator",
 ]
 exclude = [
     "desktop/src-tauri",
