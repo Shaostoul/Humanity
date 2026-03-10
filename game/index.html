@@ -11406,10 +11406,11 @@
    if (taskId == null) return '';
    const taskPriority = boardNormalizePriority(task && task.priority);
    const taskStatus = boardNormalizeTaskStatus(task && task.status);
+   const taskAssignee = boardNormalizeAssignee(task && task.assignee);
    const pc = PRIORITY_COLORS[taskPriority] || '#666';
    const labels = boardParseTaskLabels(task);
    const labelHtml = labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.2rem;">' + escHtml(l) + '</span>').join('');
-   const assigneeHtml = task.assignee ? '<span style="font-size:0.7rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '';
+   const assigneeHtml = taskAssignee ? '<span style="font-size:0.7rem;color:var(--text-muted);">👤 ' + escHtml(taskAssignee) + '</span>' : '';
    const commentCount = boardNormalizeCommentCount(task.comment_count);
    const commentHtml = commentCount > 0 ? '<span style="font-size:0.7rem;color:var(--text-muted);">💬 ' + commentCount + '</span>' : '';
    const canEdit = boardCanEdit();
@@ -11457,6 +11458,7 @@
    const canComment = boardCanComment();
    const taskPriority = boardNormalizePriority(task.priority);
    const taskStatus = boardNormalizeTaskStatus(task.status);
+   const taskAssignee = boardNormalizeAssignee(task.assignee);
    const pc = PRIORITY_COLORS[taskPriority] || '#666';
    const labels = boardParseTaskLabels(task);
    const created = boardFormatDateTime(task.created_at);
@@ -11465,7 +11467,7 @@
     '<div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;">' +
      '<span style="background:' + pc + ';color:#fff;font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;font-weight:700;text-transform:uppercase;">' + taskPriority + '</span>' +
      '<span style="font-size:0.75rem;color:var(--text-muted);">' + boardTaskStatusLabel(taskStatus) + '</span>' +
-     (task.assignee ? '<span style="font-size:0.75rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '') +
+     (taskAssignee ? '<span style="font-size:0.75rem;color:var(--text-muted);">👤 ' + escHtml(taskAssignee) + '</span>' : '') +
      '<span style="font-size:0.7rem;color:var(--text-muted);">Created: ' + created + '</span>' +
     '</div>';
 
@@ -11607,7 +11609,7 @@
      '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Priority</label>' +
       '<select id="edit-task-priority" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem;border-radius:6px;font-size:0.82rem;font-family:inherit;"><option value="low"' + (taskPriority==='low'?' selected':'') + '>Low</option><option value="medium"' + (taskPriority==='medium'?' selected':'') + '>Medium</option><option value="high"' + (taskPriority==='high'?' selected':'') + '>High</option><option value="critical"' + (taskPriority==='critical'?' selected':'') + '>Critical</option></select></div>' +
      '<div><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Assignee</label>' +
-      '<input type="text" id="edit-task-assignee" maxlength="50" value="' + escHtml(task.assignee||'').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.82rem;outline:none;font-family:inherit;"></div>' +
+      '<input type="text" id="edit-task-assignee" maxlength="50" value="' + escHtml(boardNormalizeAssignee(task.assignee) || '').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.82rem;outline:none;font-family:inherit;"></div>' +
     '</div>' +
     '<label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">Labels (comma-separated)</label>' +
     '<input type="text" id="edit-task-labels" value="' + labels.join(', ').replace(/"/g,'&quot;') + '" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;margin-bottom:1rem;">' +
