@@ -11077,6 +11077,8 @@
    fetch(API_BASE + '/api/tasks').then(r => r.json()).then(data => {
     if (data.tasks && data.tasks.length > 0) {
      boardTasks = data.tasks;
+     const nodeChanged = featureWebSyncLinkedNodesFromBoardTasks(boardTasks);
+     if (nodeChanged) featureWebPersistAndRefreshEditor();
      renderBoard();
     }
    }).catch(e => console.warn('Board REST fetch failed:', e));
