@@ -8558,6 +8558,10 @@
     : (fallback === undefined ? 'backlog' : fallback);
   }
 
+  function featureWebNormalizePriority(priority) {
+   return typeof priority === 'string' ? priority.trim().toLowerCase() : '';
+  }
+
   function featureWebApplyTaskStatusToLinkedNodes(taskId, taskStatus) {
    if (taskId == null) return false;
    const mappedNodeStatus = featureWebMapTaskStatusToNode(taskStatus);
@@ -9289,7 +9293,7 @@
     featureWebFocusNode(existing.id);
     return;
    }
-   const normalizedPriority = (typeof task.priority === 'string') ? task.priority.trim().toLowerCase() : '';
+   const normalizedPriority = featureWebNormalizePriority(task.priority);
    const uniqueTitle = featureWebMakeUniqueTitle(task.title, 'Task #' + taskId);
    featureWeb.nodes.push({
     id: featureWebNewId('n'),
@@ -9518,7 +9522,7 @@
    const nextType = typeEl && typeof typeEl.value === 'string' ? typeEl.value.trim().toLowerCase() : '';
    const nextStatus = statusEl && typeof statusEl.value === 'string' ? statusEl.value.trim().toLowerCase() : '';
    const nextDomain = domainEl && typeof domainEl.value === 'string' ? domainEl.value.trim().toLowerCase() : '';
-   const nextPriority = priorityEl && typeof priorityEl.value === 'string' ? priorityEl.value.trim().toLowerCase() : '';
+   const nextPriority = featureWebNormalizePriority(priorityEl && priorityEl.value);
    node.title = nextTitle;
    node.type = FW_ALLOWED_TYPES.includes(nextType) ? nextType : (node.type || 'feature');
    node.status = FW_ALLOWED_STATUSES.includes(nextStatus) ? nextStatus : (node.status || 'planned');
@@ -9709,7 +9713,7 @@
     const mappedStatus = featureWebMapNodeStatusToTask(node.status);
     const rawDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
     const rawType = typeof node.type === 'string' ? node.type.trim().toLowerCase() : '';
-    const rawPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
+    const rawPriority = featureWebNormalizePriority(node.priority);
     const nodeDomain = FW_ALLOWED_DOMAINS.includes(rawDomain) ? rawDomain : 'game';
     const nodeType = FW_ALLOWED_TYPES.includes(rawType) ? rawType : 'feature';
     const nodePriority = FW_ALLOWED_PRIORITIES.includes(rawPriority) ? rawPriority : 'medium';
@@ -9772,7 +9776,7 @@
    const dupType = typeof dup.type === 'string' ? dup.type.trim().toLowerCase() : '';
    const dupStatus = typeof dup.status === 'string' ? dup.status.trim().toLowerCase() : '';
    const dupDomain = typeof dup.domain === 'string' ? dup.domain.trim().toLowerCase() : '';
-   const dupPriority = typeof dup.priority === 'string' ? dup.priority.trim().toLowerCase() : '';
+   const dupPriority = featureWebNormalizePriority(dup.priority);
    dup.type = FW_ALLOWED_TYPES.includes(dupType) ? dupType : 'feature';
    dup.status = FW_ALLOWED_STATUSES.includes(dupStatus) ? dupStatus : 'planned';
    dup.domain = FW_ALLOWED_DOMAINS.includes(dupDomain) ? dupDomain : 'game';
