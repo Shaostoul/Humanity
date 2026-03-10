@@ -11200,12 +11200,14 @@
     case 'task_moved':
      if (msg.id != null && msg.status) {
       const movedTaskId = featureWebNormalizeTaskId(msg.id);
+      const normalizedStatus = boardNormalizeStatus(msg.status);
+      const nextStatus = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
       const t = movedTaskId != null
         ? featureWebFindTaskById(movedTaskId)
         : featureWebFindTaskByRawId(msg.id);
-      if (t) t.status = msg.status;
+      if (t) t.status = nextStatus;
 
-      const nodeChanged = featureWebApplyTaskStatusToLinkedNodes(movedTaskId, msg.status);
+      const nodeChanged = featureWebApplyTaskStatusToLinkedNodes(movedTaskId, nextStatus);
       if (nodeChanged) {
        featureWebPersistAndRefreshEditor();
       }
@@ -11308,7 +11310,9 @@
 
   function boardMoveTask(id, status) {
    if (!boardCanEdit()) return;
-   if (!boardSend({ type: 'task_move', id: id, status: status })) {
+   const normalizedStatus = boardNormalizeStatus(status);
+   if (!VALID_STATUSES.includes(normalizedStatus)) return;
+   if (!boardSend({ type: 'task_move', id: id, status: normalizedStatus })) {
     boardNoticeConnectionNotReady();
    }
   }
