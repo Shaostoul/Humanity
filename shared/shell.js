@@ -161,10 +161,11 @@
       white-space: nowrap;
       opacity: 0.9;
     }
-    .hub-nav .menu { position: relative; z-index: 25; }
+    .hub-nav .menu { position: relative; z-index: 25; touch-action: manipulation; }
     .hub-nav .menu-btn {
       position: relative;
       z-index: 26;
+      touch-action: manipulation;
       background: transparent;
       border: none;
       color: #ddd;
@@ -401,12 +402,16 @@
     drop.style.zIndex = '3000';
   }
 
+  var suppressNavClicksUntil = 0;
+
   document.querySelectorAll('.hub-nav .menu-btn').forEach(function(btn) {
     var toggleMenu = function(e) {
       if (e) {
         e.preventDefault();
         e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
       }
+      suppressNavClicksUntil = Date.now() + 900;
       var menu = btn.closest('.menu');
       if (!menu) return;
       var isOpen = menu.classList.contains('open');
@@ -417,13 +422,17 @@
       }
     };
 
-    // Desktop / keyboard / general click.
-    btn.addEventListener('click', toggleMenu);
-    // Mobile fallback paths.
+    // Intercept as early as possible on touch devices.
+    btn.addEventListener('touchstart', toggleMenu, { passive: false });
     btn.addEventListener('touchend', toggleMenu, { passive: false });
+    btn.addEventListener('pointerdown', function(e) {
+      if (e.pointerType && e.pointerType !== 'mouse') toggleMenu(e);
+    });
     btn.addEventListener('pointerup', function(e) {
       if (e.pointerType && e.pointerType !== 'mouse') toggleMenu(e);
     });
+    // Desktop / keyboard / general click.
+    btn.addEventListener('click', toggleMenu);
   });
   document.addEventListener('click', function() {
     document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
@@ -504,8 +513,8 @@
 
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
-    // Never let menu button taps fall through to tab navigation.
-    if (e.target.closest('.menu-btn')) {
+    // Never let menu interactions fall through to tab navigation.
+    if (Date.now() < suppressNavClicksUntil || e.target.closest('.menu') || e.target.closest('.menu-btn')) {
       e.preventDefault();
       e.stopPropagation();
       return;
