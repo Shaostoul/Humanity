@@ -8453,6 +8453,10 @@
    return featureWebClampText(title || '', 200).trim();
   }
 
+  function boardNormalizeDescription(description) {
+   return featureWebClampText(description || '', FW_TEXT_LIMITS.details);
+  }
+
   function boardNormalizeTasks(tasks) {
    const rawTasks = Array.isArray(tasks) ? tasks : [];
    const dedupedTasks = [];
@@ -9402,7 +9406,7 @@
    const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
    if (task && oldTitle !== nextTitle) {
-    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: task.description || '', priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: task.labels || '[]' });
+    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: boardNormalizeDescription(task.description), priority: boardNormalizePriority(task.priority), assignee: boardNormalizeAssignee(task.assignee), labels: task.labels || '[]' });
    }
    if (!task || task.status !== mapped) {
     boardSend({ type: 'task_move', id: taskId, status: mapped });
@@ -11464,7 +11468,7 @@
    const sent = boardSend({
     type: 'task_create',
     title: title,
-    description: document.getElementById('new-task-desc').value,
+    description: boardNormalizeDescription(document.getElementById('new-task-desc').value),
     priority: nextPriority,
     status: nextStatus,
     assignee: assignee,
@@ -11511,7 +11515,7 @@
     type: 'task_update',
     id: normalizedId,
     title: title,
-    description: document.getElementById('edit-task-desc').value,
+    description: boardNormalizeDescription(document.getElementById('edit-task-desc').value),
     priority: nextPriority,
     assignee: assignee,
     labels: labels,
