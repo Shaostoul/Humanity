@@ -11326,9 +11326,17 @@
      if (msg.task_id != null) {
       const commentsDiv = document.getElementById('task-comments-list');
       const commentsTaskId = featureWebNormalizeTaskId(msg.task_id);
+      const normalizedComments = boardNormalizeComments(msg.comments);
+      if (commentsTaskId != null) {
+       const task = featureWebFindTaskById(commentsTaskId);
+       if (task && task.comment_count !== normalizedComments.length) {
+        task.comment_count = normalizedComments.length;
+        renderBoard();
+       }
+      }
       const modalTaskId = featureWebNormalizeTaskId(commentsDiv && commentsDiv.dataset ? commentsDiv.dataset.taskId : null);
       if (commentsDiv && commentsTaskId != null && commentsTaskId === modalTaskId) {
-       commentsDiv.innerHTML = boardNormalizeComments(msg.comments).map(renderCommentHtml).join('') || '<div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">No comments yet</div>';
+       commentsDiv.innerHTML = normalizedComments.map(renderCommentHtml).join('') || '<div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">No comments yet</div>';
       }
      }
      break;
