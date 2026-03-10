@@ -9473,12 +9473,16 @@
     featureWebNotice('That link type already exists between these nodes');
     return;
    }
+   const fromNode = featureWeb.nodes.find(n => n && n.id === fromId);
+   const toNode = featureWeb.nodes.find(n => n && n.id === toId);
    featureWeb.edges.push({ id: featureWebNewId('e'), from: fromId, to: toId, type: edgeType });
    if (toEl) {
     toEl.value = '';
     if (toEl.options && toEl.options.length) toEl.selectedIndex = 0;
    }
-   featureWebNotice('');
+   const fromTitle = featureWebClampText(fromNode && fromNode.title, 40) || 'Source';
+   const toTitle = featureWebClampText(toNode && toNode.title, 40) || 'Target';
+   featureWebNotice('Linked ' + fromTitle + ' → ' + toTitle + ' (' + edgeType.replace(/_/g, ' ') + ')');
    featureWebPersistAndRefresh();
    if (toEl && typeof toEl.focus === 'function') toEl.focus();
   }
