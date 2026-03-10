@@ -11453,8 +11453,8 @@
 
    if (canEdit) {
     html += '<div style="display:flex;gap:0.4rem;margin-bottom:1rem;flex-wrap:wrap;">' +
-     '<button class="btn btn-clickable" style="min-width:auto;min-height:32px;padding:0.2rem 0.6rem;font-size:0.75rem;" onclick="showEditTaskForm(' + task.id + ')">✏️ Edit</button>' +
-     '<button class="btn" style="min-width:auto;min-height:32px;padding:0.2rem 0.6rem;font-size:0.75rem;box-shadow:inset 0 0 0 1px #e55;" onclick="boardDeleteTask(' + task.id + ')">🗑️ Delete</button>' +
+     '<button class="btn btn-clickable" style="min-width:auto;min-height:32px;padding:0.2rem 0.6rem;font-size:0.75rem;" onclick="showEditTaskForm(' + normalizedTaskId + ')">✏️ Edit</button>' +
+     '<button class="btn" style="min-width:auto;min-height:32px;padding:0.2rem 0.6rem;font-size:0.75rem;box-shadow:inset 0 0 0 1px #e55;" onclick="boardDeleteTask(' + normalizedTaskId + ')">🗑️ Delete</button>' +
     '</div>';
    }
 
