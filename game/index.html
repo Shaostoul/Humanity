@@ -9518,9 +9518,13 @@
   }
 
   function featureWebSyncLinkedTask(node) {
-   if (!node || node.taskId == null) return;
+   if (!node) return;
    const taskId = featureWebNormalizeTaskId(node.taskId);
-   if (taskId == null) return;
+   if (taskId == null) {
+    node.taskId = null;
+    return;
+   }
+   if (node.taskId !== taskId) node.taskId = taskId;
    const task = featureWebFindTaskById(taskId);
    const oldTitle = task ? (boardNormalizeTitle(task.title) || '') : '';
    const mapped = featureWebMapNodeStatusToTask(node.status);
