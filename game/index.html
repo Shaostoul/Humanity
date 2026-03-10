@@ -10577,10 +10577,15 @@
 
    if (ownerSummaryEl) {
     const owned = visibleNodes.filter(n => n.owner && n.owner.trim());
+    const linked = visibleNodes.filter(n => featureWebNormalizeTaskId(n && n.taskId) != null).length;
+    const unlinked = Math.max(0, visibleNodes.length - linked);
     const totalChip = '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);">Total nodes: <strong style="color:var(--text);font-size:0.67rem;">' + visibleNodes.length + '</strong></span>';
-    ownerSummaryEl.innerHTML = owned.length
-     ? (totalChip + '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);">👥 Owned nodes: <strong style="color:var(--text);font-size:0.67rem;">' + owned.length + '</strong></span>')
-     : (totalChip + '<span style="opacity:0.7;">No owned nodes in current filter</span>');
+    const ownershipChip = owned.length
+     ? '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);">👥 Owned nodes: <strong style="color:var(--text);font-size:0.67rem;">' + owned.length + '</strong></span>'
+     : '<span style="opacity:0.7;">No owned nodes in current filter</span>';
+    const linkedChip = '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);">🔗 Linked tasks: <strong style="color:var(--text);font-size:0.67rem;">' + linked + '</strong></span>';
+    const unlinkedChip = '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);">🧩 Unlinked nodes: <strong style="color:var(--text);font-size:0.67rem;">' + unlinked + '</strong></span>';
+    ownerSummaryEl.innerHTML = totalChip + ownershipChip + linkedChip + unlinkedChip;
    }
 
    const options = ['<option value="">Link from…</option>'].concat(featureWeb.nodes.map(n => '<option value="' + n.id + '">' + escHtml(n.title) + '</option>'));
