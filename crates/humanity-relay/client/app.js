@@ -5184,6 +5184,16 @@ function toggleUnifiedSection(id) {
 }
 window.toggleUnifiedSection = toggleUnifiedSection;
 
+function toggleUnifiedSubSection(id) {
+  const key = 'humanity-unified-right-sub-collapsed';
+  let state = {};
+  try { state = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (_) {}
+  state[id] = !state[id];
+  localStorage.setItem(key, JSON.stringify(state));
+  renderUnifiedRightSidebar();
+}
+window.toggleUnifiedSubSection = toggleUnifiedSubSection;
+
 function toggleStreamVisibilityById(id) {
   if (!activeStreams || !activeStreams.has(id)) return;
   const s = activeStreams.get(id);
@@ -5195,24 +5205,34 @@ window.toggleStreamVisibilityById = toggleStreamVisibilityById;
 
 function renderUnifiedSection(id, title, streamRows, voipRows, onlineRows, offlineRows, previewHtml) {
   const key = 'humanity-unified-right-collapsed';
+  const subKey = 'humanity-unified-right-sub-collapsed';
   let state = {};
+  let sub = {};
   try { state = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (_) {}
+  try { sub = JSON.parse(localStorage.getItem(subKey) || '{}') || {}; } catch (_) {}
   const collapsed = !!state[id];
 
-  const rows = (arr, emptyText) => arr.length ? arr.join('') : `<div class="stream-empty">${emptyText}</div>`;
+  const sectionSub = (name, label, rowsArr, noneLabel, preview = '') => {
+    const sid = `${id}:${name}`;
+    const c = !!sub[sid];
+    const summary = rowsArr.length ? `(${rowsArr.length})` : '(none)';
+    const body = rowsArr.length ? rowsArr.join('') : `<div class="stream-empty"></div>`;
+    return `<div class="unified-subblock${c ? ' collapsed' : ''}" data-subid="${esc(sid)}">
+      <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('${esc(sid)}')">
+        <span>${label} ${c ? '▸' : '▾'}</span>
+        <span class="unified-subsummary">${summary}</span>
+      </button>
+      <div class="unified-subcontent">${preview}${body}</div>
+    </div>`;
+  };
 
   return `<div class="unified-section${collapsed ? ' collapsed' : ''}" data-usid="${esc(id)}">
     <button class="unified-header" onclick="toggleUnifiedSection('${esc(id)}')">${esc(title)} ${collapsed ? '▸' : '▾'}</button>
     <div class="unified-body">
-      <div class="unified-subhead">Streaming</div>
-      ${previewHtml || ''}
-      ${rows(streamRows, 'No active streams')}
-      <div class="unified-subhead">VOIP</div>
-      ${rows(voipRows, 'No active voice')}
-      <div class="unified-subhead">Online</div>
-      ${rows(onlineRows, 'No online users')}
-      <div class="unified-subhead">Offline</div>
-      ${rows(offlineRows, 'No offline users')}
+      ${sectionSub('streaming', 'Streaming', streamRows, 'No active streams', previewHtml || '')}
+      ${sectionSub('voip', 'VOIP', voipRows, 'No active voice')}
+      ${sectionSub('online', 'Online', onlineRows, 'No online users')}
+      ${sectionSub('offline', 'Offline', offlineRows, 'No offline users')}
     </div>
   </div>`;
 }
