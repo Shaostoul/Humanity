@@ -8431,6 +8431,10 @@
    return raw ? JSON.stringify(raw.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
   }
 
+  function boardNormalizeStatus(status) {
+   return typeof status === 'string' ? status.trim().toLowerCase() : '';
+  }
+
   const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
   const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
   const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
@@ -8560,7 +8564,7 @@
    (Array.isArray(tasks) ? tasks : []).forEach(task => {
     const taskId = featureWebNormalizeTaskId(task && task.id);
     if (taskId == null || statusByTaskId.has(taskId)) return;
-    const boardStatus = typeof task.status === 'string' ? task.status.trim().toLowerCase() : '';
+    const boardStatus = boardNormalizeStatus(task.status);
     statusByTaskId.set(taskId, boardStatus);
    });
 
@@ -11149,7 +11153,7 @@
         node.taskId = createdTaskId;
         featureWebPersistAndRefreshEditor();
         const mapped = featureWebMapNodeStatusToTask(node.status);
-        const currentTaskStatus = typeof msg.task.status === 'string' ? msg.task.status.trim().toLowerCase() : '';
+        const currentTaskStatus = boardNormalizeStatus(msg.task.status);
         if (currentTaskStatus !== mapped) {
           boardSend({ type: 'task_move', id: createdTaskId, status: mapped });
         }
