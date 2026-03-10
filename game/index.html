@@ -9581,7 +9581,10 @@
 
   function featureWebDeleteEdge(id) {
    const edge = featureWeb.edges.find(e => e && e.id === id);
-   if (!edge) return;
+   if (!edge) {
+    featureWebNotice('Link already removed');
+    return;
+   }
    featureWeb.edges = featureWeb.edges.filter(e => e.id !== id);
    const fromNode = featureWeb.nodes.find(n => n && n.id === edge.from);
    const toNode = featureWeb.nodes.find(n => n && n.id === edge.to);
