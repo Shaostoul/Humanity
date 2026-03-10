@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 use core_firstperson_controller::{apply_look, apply_move, ControllerInput, MoveDir};
 use core_offline_loop::{apply_command, Command, WorldSnapshot};
 use std::collections::HashSet;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use wgpu::util::DeviceExt;
 use wgpu::SurfaceError;
 use winit::{
@@ -54,6 +54,9 @@ struct State<'a> {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     num_vertices: u32,
+    menu_open: bool,
+    status_msg: String,
+    status_until: Instant,
 }
 
 impl<'a> State<'a> {
@@ -84,7 +87,12 @@ impl<'a> State<'a> {
             .expect("request device");
 
         let caps = surface.get_capabilities(&adapter);
-        let format = caps.formats.iter().copied().find(|f| f.is_srgb()).unwrap_or(caps.formats[0]);
+        let format = caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .unwrap_or(caps.formats[0]);
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -174,7 +182,15 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
             pipeline,
             vertex_buffer,
             num_vertices: 0,
+            menu_open: false,
+            status_msg: "ESC menu: H help, I inventory, O objective".to_string(),
+            status_until: Instant::now() + Duration::from_secs(5),
         }
+    }
+
+    fn set_status(&mut self, text: impl Into<String>) {
+        self.status_msg = text.into();
+        self.status_until = Instant::now() + Duration::from_secs(4);
     }
 
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -186,34 +202,54 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
         }
     }
 
+    fn run_game_command(&mut self, cmd: Command) {
+        match apply_command(&mut self.world, cmd) {
+            Ok(msg) => self.set_status(msg),
+            Err(err) => self.set_status(format!("error: {err}")),
+        }
+    }
+
+    fn key_down(&self, code: KeyCode) -> bool {
+        self.pressed.contains(&code)
+    }
+
     fn handle_input(&mut self, event: &WindowEvent) -> bool {
         if let WindowEvent::KeyboardInput { event, .. } = event {
             if let PhysicalKey::Code(code) = event.physical_key {
                 match event.state {
                     ElementState::Pressed => {
                         self.pressed.insert(code);
+
+                        if code == KeyCode::Escape {
+                            self.menu_open = !self.menu_open;
+                            self.set_status(if self.menu_open {
+                                "MENU OPEN: H help, I inventory, O objective, ESC close"
+                            } else {
+                                "MENU CLOSED"
+                            });
+                            return true;
+                        }
+
+                        if self.menu_open {
+                            match code {
+                                KeyCode::KeyI => self.run_game_command(Command::Inventory),
+                                KeyCode::KeyO => self.run_game_command(Command::Objective),
+                                KeyCode::KeyH => self.set_status("Menu: I inventory, O objective, ESC close"),
+                                _ => {}
+                            }
+                            return true;
+                        }
+
                         match code {
-                            KeyCode::KeyE => {
-                                let _ = apply_command(&mut self.world, Command::Gather("wood".to_string()));
-                            }
-                            KeyCode::KeyQ => {
-                                let _ = apply_command(&mut self.world, Command::Gather("fiber".to_string()));
-                            }
-                            KeyCode::KeyZ => {
-                                let _ = apply_command(&mut self.world, Command::Gather("scrap".to_string()));
-                            }
-                            KeyCode::KeyR => {
-                                let _ = apply_command(&mut self.world, Command::CraftFilter);
-                            }
-                            KeyCode::KeyT => {
-                                let _ = apply_command(&mut self.world, Command::TreatWater);
-                            }
-                            KeyCode::KeyF => {
-                                let _ = apply_command(&mut self.world, Command::FarmTick);
-                            }
-                            KeyCode::KeyC => {
-                                let _ = apply_command(&mut self.world, Command::Eat);
-                            }
+                            KeyCode::KeyE => self.run_game_command(Command::Gather("wood".to_string())),
+                            KeyCode::KeyQ => self.run_game_command(Command::Gather("fiber".to_string())),
+                            KeyCode::KeyZ => self.run_game_command(Command::Gather("scrap".to_string())),
+                            KeyCode::KeyR => self.run_game_command(Command::CraftFilter),
+                            KeyCode::KeyT => self.run_game_command(Command::TreatWater),
+                            KeyCode::KeyF => self.run_game_command(Command::FarmTick),
+                            KeyCode::KeyC => self.run_game_command(Command::Eat),
+                            KeyCode::KeyI => self.run_game_command(Command::Inventory),
+                            KeyCode::KeyO => self.run_game_command(Command::Objective),
                             _ => {}
                         }
                     }
@@ -232,51 +268,59 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
         let dt = (now - self.last_update).as_secs_f32().clamp(0.0, 0.1);
         self.last_update = now;
 
-        if self.pressed.contains(&KeyCode::KeyW) {
-            apply_move(
-                &mut self.world.controller,
-                ControllerInput {
-                    dir: MoveDir::Forward,
-                    dt_seconds: dt,
-                    sprint: self.pressed.contains(&KeyCode::ShiftLeft),
-                },
-            );
-        }
-        if self.pressed.contains(&KeyCode::KeyS) {
-            apply_move(
-                &mut self.world.controller,
-                ControllerInput {
-                    dir: MoveDir::Backward,
-                    dt_seconds: dt,
-                    sprint: self.pressed.contains(&KeyCode::ShiftLeft),
-                },
-            );
-        }
-        if self.pressed.contains(&KeyCode::KeyA) {
-            apply_move(
-                &mut self.world.controller,
-                ControllerInput {
-                    dir: MoveDir::Left,
-                    dt_seconds: dt,
-                    sprint: self.pressed.contains(&KeyCode::ShiftLeft),
-                },
-            );
-        }
-        if self.pressed.contains(&KeyCode::KeyD) {
-            apply_move(
-                &mut self.world.controller,
-                ControllerInput {
-                    dir: MoveDir::Right,
-                    dt_seconds: dt,
-                    sprint: self.pressed.contains(&KeyCode::ShiftLeft),
-                },
-            );
+        if !self.menu_open {
+            let sprint = self.key_down(KeyCode::ShiftLeft);
+            if self.key_down(KeyCode::KeyW) || self.key_down(KeyCode::ArrowUp) {
+                apply_move(
+                    &mut self.world.controller,
+                    ControllerInput {
+                        dir: MoveDir::Forward,
+                        dt_seconds: dt,
+                        sprint,
+                    },
+                );
+            }
+            if self.key_down(KeyCode::KeyS) || self.key_down(KeyCode::ArrowDown) {
+                apply_move(
+                    &mut self.world.controller,
+                    ControllerInput {
+                        dir: MoveDir::Backward,
+                        dt_seconds: dt,
+                        sprint,
+                    },
+                );
+            }
+            if self.key_down(KeyCode::KeyA) || self.key_down(KeyCode::ArrowLeft) {
+                apply_move(
+                    &mut self.world.controller,
+                    ControllerInput {
+                        dir: MoveDir::Left,
+                        dt_seconds: dt,
+                        sprint,
+                    },
+                );
+            }
+            if self.key_down(KeyCode::KeyD) || self.key_down(KeyCode::ArrowRight) {
+                apply_move(
+                    &mut self.world.controller,
+                    ControllerInput {
+                        dir: MoveDir::Right,
+                        dt_seconds: dt,
+                        sprint,
+                    },
+                );
+            }
         }
 
         self.world.player_pos.x = self.world.controller.position.x.round() as i32;
         self.world.player_pos.y = self.world.controller.position.z.round() as i32;
 
-        let vertices = build_scene_vertices(&self.world, self.start_time.elapsed().as_secs_f32(), self.size);
+        let vertices = build_scene_vertices(
+            &self.world,
+            self.start_time.elapsed().as_secs_f32(),
+            self.size,
+            self.menu_open,
+        );
         self.num_vertices = vertices.len() as u32;
         let bytes = bytemuck::cast_slice(&vertices);
 
@@ -292,10 +336,19 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
     }
 
     fn title_text(&self) -> String {
+        let msg = if Instant::now() <= self.status_until {
+            self.status_msg.as_str()
+        } else if self.menu_open {
+            "MENU OPEN (I inventory, O objective, ESC close)"
+        } else {
+            "Running"
+        };
+
         format!(
-            "Humanity Shell | EASY | pos=({},{}) stamina={:.0} water={:.0} contam={:.1} inv[w:{} f:{} s:{} k:{} food:{}] milestones[{}/{}/{}]",
+            "Humanity Shell | EASY | pos=({},{}) yaw={:.0} stamina={:.0} water={:.0} contam={:.1} inv[w:{} f:{} s:{} k:{} food:{}] obj[{}/{}/{}] | {}",
             self.world.player_pos.x,
             self.world.player_pos.y,
+            self.world.controller.yaw_deg,
             self.world.controller.stamina,
             self.world.water.liters,
             self.world.water.quality.contamination_index,
@@ -307,15 +360,16 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
             self.world.milestones.crafted_filter,
             self.world.milestones.purified_water,
             self.world.milestones.planted_cycle,
+            msg,
         )
     }
 
     fn render(&mut self) -> Result<(), SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("render-encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("render-encoder") });
 
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -370,84 +424,161 @@ fn add_diamond(v: &mut Vec<Vertex>, cx: f32, cy: f32, sx: f32, sy: f32, col: [f3
     add_triangle(v, [cx, cy + sy], [cx, cy - sy], [cx - sx, cy], col);
 }
 
-fn build_scene_vertices(world: &WorldSnapshot, t: f32, size: PhysicalSize<u32>) -> Vec<Vertex> {
+fn build_scene_vertices(
+    world: &WorldSnapshot,
+    t: f32,
+    size: PhysicalSize<u32>,
+    menu_open: bool,
+) -> Vec<Vertex> {
     let mut v = Vec::new();
 
-    let day_phase = (t / 90.0) % 1.0; // 90s day/night loop
+    let cam_x = world.controller.position.x;
+    let cam_z = world.controller.position.z;
+    let yaw_rad = world.controller.yaw_deg.to_radians();
+
+    let day_phase = (t / 120.0) % 1.0; // slower day/night
     let sun_angle = day_phase * std::f32::consts::TAU;
     let day_light = ((sun_angle.sin() + 1.0) * 0.5).clamp(0.0, 1.0);
     let night = 1.0 - day_light;
 
-    let sky_top = [
-        (0.03 + 0.35 * day_light) as f32,
-        (0.05 + 0.45 * day_light) as f32,
-        (0.10 + 0.60 * day_light) as f32,
-    ];
-    let sky_horizon = [
-        (0.10 + 0.50 * day_light) as f32,
-        (0.08 + 0.35 * day_light) as f32,
-        (0.12 + 0.25 * day_light) as f32,
-    ];
+    let sky_top = [0.02 + 0.18 * day_light, 0.04 + 0.32 * day_light, 0.08 + 0.70 * day_light];
+    let sky_horizon = [0.06 + 0.45 * day_light, 0.05 + 0.30 * day_light, 0.10 + 0.20 * day_light];
+    let horizon_y = -0.18;
 
-    add_rect(&mut v, -1.0, -1.0, 1.0, 1.0, sky_horizon, sky_top);
-
-    // Ground (mountain meadow)
-    let ground_col = [0.06 + day_light * 0.20, 0.14 + day_light * 0.35, 0.07 + day_light * 0.18];
-    add_rect(&mut v, -1.0, -1.0, 1.0, -0.25, ground_col, [ground_col[0] * 0.7, ground_col[1] * 0.7, ground_col[2] * 0.7]);
-
-    // Mountain silhouette
-    let mcol = [0.10 + 0.08 * day_light, 0.12 + 0.10 * day_light, 0.16 + 0.10 * day_light];
-    add_triangle(&mut v, [-0.95, -0.25], [-0.50, 0.35], [-0.05, -0.25], mcol);
-    add_triangle(&mut v, [-0.35, -0.25], [0.05, 0.15], [0.45, -0.25], [mcol[0]*0.9,mcol[1]*0.9,mcol[2]*0.9]);
-    add_triangle(&mut v, [0.20, -0.25], [0.70, 0.28], [1.00, -0.25], [mcol[0]*0.8,mcol[1]*0.8,mcol[2]*0.8]);
+    add_rect(&mut v, -1.0, horizon_y, 1.0, 1.0, sky_horizon, sky_top);
 
     // Sun / moon
-    let sx = sun_angle.cos() * 0.55;
-    let sy = sun_angle.sin() * 0.35 + 0.2;
+    let sx = (sun_angle.cos() * 0.55) - (yaw_rad.sin() * 0.08);
+    let sy = sun_angle.sin() * 0.30 + 0.35;
     if day_light > 0.2 {
-        add_diamond(&mut v, sx, sy, 0.04, 0.04, [1.0, 0.82, 0.35]);
+        add_diamond(&mut v, sx, sy, 0.03, 0.03, [1.0, 0.84, 0.35]);
     } else {
-        add_diamond(&mut v, -sx, -sy + 0.2, 0.03, 0.03, [0.85, 0.90, 1.0]);
+        add_diamond(&mut v, -sx * 0.9, sy * 0.9, 0.025, 0.025, [0.84, 0.90, 1.0]);
     }
 
-    // Sparse clouds
-    for i in 0..4 {
-        let px = -0.8 + i as f32 * 0.55 + (t * 0.01 + i as f32).sin() * 0.04;
-        let py = 0.55 + (i as f32 * 0.13).sin() * 0.06;
-        let c = [0.75 + day_light * 0.2, 0.76 + day_light * 0.2, 0.80 + day_light * 0.2];
-        add_diamond(&mut v, px, py, 0.07, 0.03, c);
-    }
-
-    // Constellation-like stars at night
+    // stars / constellations
     if night > 0.35 {
-        let star_col = [0.7 + 0.3 * night, 0.75 + 0.25 * night, 0.95];
         let stars = [
-            (-0.72, 0.62), (-0.66, 0.68), (-0.61, 0.64),
-            (0.50, 0.71), (0.58, 0.76), (0.66, 0.70),
-            (-0.08, 0.82), (0.02, 0.86), (0.11, 0.81),
+            (-0.76, 0.76), (-0.70, 0.81), (-0.64, 0.77),
+            (-0.12, 0.85), (-0.02, 0.88), (0.08, 0.84),
+            (0.48, 0.72), (0.58, 0.77), (0.68, 0.73),
         ];
         for (x, y) in stars {
-            let tw = 0.005 + 0.003 * (t * 2.0 + x * 7.0).sin().abs();
-            add_diamond(&mut v, x, y, tw, tw, star_col);
+            let tw = 0.004 + 0.003 * (t * 2.2 + x * 13.0).sin().abs();
+            add_diamond(&mut v, x - yaw_rad.sin() * 0.03, y, tw, tw, [0.8 + 0.2 * night, 0.9, 1.0]);
         }
     }
 
-    // Blossoming orchard dots with breeze sway
-    for i in 0..24 {
-        let bx = -0.95 + i as f32 * 0.08;
-        let sway = (t * 1.8 + i as f32 * 0.5).sin() * 0.01;
-        let by = -0.35 + (i as f32 * 0.31).cos() * 0.02 + sway;
-        add_diamond(&mut v, bx, by, 0.01, 0.01, [0.85, 0.55, 0.78]);
+    // distant mountain silhouette with yaw parallax
+    let mshift = -yaw_rad.sin() * 0.20;
+    let mcol = [0.08 + day_light * 0.10, 0.10 + day_light * 0.12, 0.16 + day_light * 0.16];
+    add_triangle(&mut v, [-1.1 + mshift, horizon_y], [-0.6 + mshift, 0.20], [-0.1 + mshift, horizon_y], mcol);
+    add_triangle(&mut v, [-0.35 + mshift, horizon_y], [0.05 + mshift, 0.08], [0.45 + mshift, horizon_y], [mcol[0]*0.9,mcol[1]*0.9,mcol[2]*0.9]);
+    add_triangle(&mut v, [0.15 + mshift, horizon_y], [0.70 + mshift, 0.24], [1.15 + mshift, horizon_y], [mcol[0]*0.8,mcol[1]*0.8,mcol[2]*0.8]);
+
+    // Perspective ground strips (first-person vibe)
+    for i in 0..70 {
+        let near = i as f32 / 70.0;
+        let far = (i + 1) as f32 / 70.0;
+
+        let y_near = -1.0 + near * (horizon_y + 1.0);
+        let y_far = -1.0 + far * (horizon_y + 1.0);
+
+        let half_near = 1.25 * (1.0 - near) + 0.03;
+        let half_far = 1.25 * (1.0 - far) + 0.03;
+
+        let center_near = ((cam_x * 0.03) + yaw_rad.sin() * 0.18) * near;
+        let center_far = ((cam_x * 0.03) + yaw_rad.sin() * 0.18) * far;
+
+        let g = if i % 2 == 0 { 0.24 } else { 0.20 };
+        let base = [0.10 + g * day_light, 0.18 + g, 0.10 + 0.12 * day_light];
+        add_rect(
+            &mut v,
+            center_near - half_near,
+            y_near,
+            center_near + half_near,
+            y_far,
+            base,
+            [base[0] * 0.85, base[1] * 0.85, base[2] * 0.85],
+        );
+
+        // central path hint
+        let p_half_near = half_near * 0.17;
+        let p_half_far = half_far * 0.17;
+        add_rect(
+            &mut v,
+            center_near - p_half_near,
+            y_near,
+            center_far + p_half_far,
+            y_far,
+            [0.28, 0.25, 0.22],
+            [0.22, 0.20, 0.18],
+        );
     }
 
-    // Player position marker on horizon for reference
-    let px = ((world.player_pos.x as f32) * 0.03).clamp(-0.95, 0.95);
-    add_diamond(&mut v, px, -0.20, 0.015, 0.02, [0.95, 0.95, 0.2]);
+    // Blossoming orchard billboards
+    for i in 0..36 {
+        let wx = -28.0 + i as f32 * 1.8;
+        let wz = 10.0 + (i as f32 * 3.4) % 90.0;
+        let rel_x = wx - cam_x;
+        let rel_z = wz - cam_z;
+        if rel_z <= 2.0 || rel_z > 95.0 {
+            continue;
+        }
 
-    // 8px green diamond crosshair in center
+        let depth = (1.0 - rel_z / 95.0).clamp(0.0, 1.0);
+        let sx = (rel_x / rel_z * 0.7) - yaw_rad.sin() * 0.2;
+        let y = -1.0 + depth * (horizon_y + 1.0);
+        let scale = 0.004 + depth * 0.03;
+        let sway = (t * 2.2 + i as f32 * 0.3).sin() * scale * 0.6;
+
+        // stem
+        add_rect(
+            &mut v,
+            sx - scale * 0.12,
+            y,
+            sx + scale * 0.12,
+            y + scale * 2.0,
+            [0.20, 0.35, 0.16],
+            [0.25, 0.45, 0.20],
+        );
+        // blossom
+        add_diamond(
+            &mut v,
+            sx + sway,
+            y + scale * 2.2,
+            scale * 0.55,
+            scale * 0.55,
+            [0.85, 0.62, 0.78],
+        );
+    }
+
+    // Menu overlay
+    if menu_open {
+        add_rect(
+            &mut v,
+            -0.75,
+            -0.55,
+            0.75,
+            0.55,
+            [0.05, 0.08, 0.10],
+            [0.09, 0.12, 0.14],
+        );
+        add_rect(
+            &mut v,
+            -0.73,
+            -0.53,
+            0.73,
+            -0.48,
+            [0.14, 0.20, 0.24],
+            [0.14, 0.20, 0.24],
+        );
+    }
+
+    // 8px green diamond crosshair
     let sx = (8.0 / size.width.max(1) as f32).clamp(0.002, 0.03);
     let sy = (8.0 / size.height.max(1) as f32).clamp(0.002, 0.03);
-    add_diamond(&mut v, 0.0, 0.0, sx, sy, [0.1, 1.0, 0.2]);
+    add_diamond(&mut v, 0.0, 0.0, sx, sy, [0.10, 1.0, 0.2]);
 
     v
 }
@@ -457,7 +588,7 @@ fn main() {
 
     let event_loop = EventLoop::new().expect("event loop");
     let window = WindowBuilder::new()
-        .with_title("Humanity Engine Shell")
+        .with_title("Humanity Shell")
         .build(&event_loop)
         .expect("window");
 
@@ -487,12 +618,14 @@ fn main() {
             event: DeviceEvent::MouseMotion { delta },
             ..
         } => {
-            let sensitivity = 0.08;
-            apply_look(
-                &mut state.world.controller,
-                delta.0 as f32 * sensitivity,
-                -delta.1 as f32 * sensitivity,
-            );
+            if !state.menu_open {
+                let sensitivity = 0.08;
+                apply_look(
+                    &mut state.world.controller,
+                    delta.0 as f32 * sensitivity,
+                    -delta.1 as f32 * sensitivity,
+                );
+            }
         }
         Event::AboutToWait => window.request_redraw(),
         _ => {}

@@ -1,6 +1,6 @@
 # engine-wgpu-shell
 
-Custom Rust + wgpu runtime shell scaffold.
+Custom Rust + wgpu runtime shell scaffold (first-person-style prototype, non-combat).
 
 ## Run
 
@@ -8,11 +8,14 @@ Custom Rust + wgpu runtime shell scaffold.
 cargo run -p engine-wgpu-shell
 ```
 
-## Controls
+## Movement / look
 
-- `W/A/S/D`: move
+- `W/A/S/D` or arrow keys: move
 - `Mouse`: look
 - `Shift`: sprint
+
+## Gameplay actions
+
 - `E`: gather wood
 - `Q`: gather fiber
 - `Z`: gather scrap
@@ -21,4 +24,11 @@ cargo run -p engine-wgpu-shell
 - `F`: farm tick
 - `C`: eat food ration
 
-Window title shows live world/inventory/milestone state.
+## Menu / info
+
+- `Esc`: toggle in-game menu overlay
+- `I`: inventory summary
+- `O`: objective summary
+- `H` (while menu open): menu help
+
+Window title is used as current HUD/status text in this scaffold build.
