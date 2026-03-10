@@ -9348,7 +9348,7 @@
    const existingByTitle = featureWeb.nodes.find(n => featureWebClampText(n && n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle);
    if (existingByTitle) {
     featureWebFocusNode(existingByTitle.id);
-    featureWebCenterSelected();
+    featureWebCenterSelected({ quiet: true });
     featureWebNotice('Node already exists: ' + (existingByTitle.title || 'Untitled'));
     return;
    }
@@ -9381,7 +9381,7 @@
    const existingByTitle = featureWeb.nodes.find(n => featureWebClampText(n && n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === title.toLowerCase());
    if (existingByTitle) {
     featureWebFocusNode(existingByTitle.id);
-    featureWebCenterSelected();
+    featureWebCenterSelected({ quiet: true });
     featureWebNotice('Node already exists: ' + (existingByTitle.title || 'Untitled'));
     return;
    }
@@ -9425,7 +9425,7 @@
    const existing = featureWeb.nodes.find(n => featureWebNormalizeTaskId(n && n.taskId) === normalizedTaskId);
    if (existing) {
     featureWebFocusNode(existing.id);
-    featureWebCenterSelected();
+    featureWebCenterSelected({ quiet: true });
     featureWebNotice('Task already linked to node: ' + (existing.title || ('Task #' + normalizedTaskId)));
     return;
    }
@@ -9693,7 +9693,7 @@
    const duplicate = featureWeb.nodes.find(n => n.id !== node.id && featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle);
    if (duplicate) {
     featureWebFocusNode(duplicate.id);
-    featureWebCenterSelected();
+    featureWebCenterSelected({ quiet: true });
     featureWebNotice('Node already exists: ' + (duplicate.title || 'Untitled'));
     return;
    }
@@ -9738,7 +9738,7 @@
    const node = featureWeb.nodes.find(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === target);
    if (!node) { featureWebNotice('Not found: ' + title); return; }
    featureWebFocusNode(node.id);
-   featureWebCenterSelected();
+   featureWebCenterSelected({ quiet: true });
    featureWebRender();
    featureWebNotice('Focused node: ' + (node.title || 'Untitled'));
   }
@@ -9888,7 +9888,7 @@
    const conflict = featureWeb.nodes.find(n => n.id !== node.id && featureWebNormalizeTaskId(n && n.taskId) === taskId);
    if (conflict) {
     featureWebFocusNode(conflict.id);
-    featureWebCenterSelected();
+    featureWebCenterSelected({ quiet: true });
     featureWebNotice('Task #' + taskId + ' already linked to node: ' + (conflict.title || 'Untitled'));
     return;
    }
@@ -9952,15 +9952,16 @@
    featureWebRender();
   }
 
-  function featureWebCenterSelected() {
+  function featureWebCenterSelected(opts) {
+   const options = opts || {};
    if (!fwSelectedNodeId) {
-    featureWebNotice('Select a node first');
+    if (!options.quiet) featureWebNotice('Select a node first');
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
    const canvas = document.getElementById('feature-web-canvas');
    if (!node || !canvas) {
-    featureWebNotice('Selected node is unavailable');
+    if (!options.quiet) featureWebNotice('Selected node is unavailable');
     return;
    }
    const width = Math.max(220, canvas.clientWidth);
@@ -9968,7 +9969,7 @@
    node.x = Math.max(4, Math.min(width - 120, (width - 104) / 2));
    node.y = Math.max(4, Math.min(height - 48, (height - 42) / 2));
    featureWebPersistAndRefresh();
-   featureWebNotice('Centered node: ' + (node.title || 'Untitled'));
+   if (!options.quiet) featureWebNotice('Centered node: ' + (node.title || 'Untitled'));
   }
 
   function featureWebDuplicateSelected() {
