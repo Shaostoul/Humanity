@@ -11364,7 +11364,8 @@
   }
 
   function renderBoard() {
-   document.getElementById('board-loading').style.display = 'none';
+   const loadingEl = document.getElementById('board-loading');
+   if (loadingEl) loadingEl.style.display = 'none';
    VALID_STATUSES.forEach(status => {
     const container = document.querySelector('.board-col-cards[data-status="' + status + '"]');
     const countEl = document.querySelector('.board-col-count[data-status="' + status + '"]');
