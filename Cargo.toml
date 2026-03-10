@@ -14,6 +14,8 @@ members = [
     "crates/core-session-orchestrator",
     "crates/core-offline-loop",
     "crates/humanity-cli-game",
+    "crates/core-skill-progression",
+    "crates/core-teaching-graph",
 ]
 exclude = [
     "desktop/src-tauri",

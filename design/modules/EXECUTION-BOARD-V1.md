@@ -20,25 +20,26 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 - Depends on: none (foundation)
 
 ## A2) core-skill-progression
-- Spec: (to be created)
+- Spec: `design/modules/core-skill-progression.md`
 - Crate path: `crates/core-skill-progression/`
-- Current status: planned
-- Next actions:
-  1. author spec
-  2. scaffold crate
-  3. implement XP/mastery interface
-  4. add progression regression tests
+- Current status: done
+- Progress:
+  - [x] authored spec
+  - [x] scaffolded crate
+  - [x] implemented XP/mastery interface
+  - [x] progression regression tests passing (`cargo test -p core-skill-progression`)
+  - [x] scenario fixture (`examples/progression_walkthrough.rs`)
 - Depends on: A1 interfaces for capability ties
 
 ## A3) core-teaching-graph
-- Spec: (to be created)
+- Spec: `design/modules/core-teaching-graph.md`
 - Crate path: `crates/core-teaching-graph/`
-- Current status: planned
-- Next actions:
-  1. author spec
-  2. define competency DAG types
-  3. add prerequisite validation tests
-  4. add lesson recommendation stub
+- Current status: done
+- Progress:
+  - [x] authored spec
+  - [x] defined competency DAG types
+  - [x] prerequisite/cycle validation tests passing (`cargo test -p core-teaching-graph`)
+  - [x] recommendation implementation + fixture (`examples/competency_recommendations.rs`)
 - Depends on: A1, A2
 
 ---

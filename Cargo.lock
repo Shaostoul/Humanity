@@ -214,6 +214,8 @@ version = "0.1.0"
 dependencies = [
  "core-lifeform-model",
  "core-session-orchestrator",
+ "core-skill-progression",
+ "core-teaching-graph",
  "module-crop-systems",
  "module-soil-ecology",
  "module-water-systems",
@@ -226,6 +228,25 @@ dependencies = [
 name = "core-session-orchestrator"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "core-skill-progression"
+version = "0.1.0"
+dependencies = [
+ "core-session-orchestrator",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "core-teaching-graph"
+version = "0.1.0"
+dependencies = [
+ "core-session-orchestrator",
+ "core-skill-progression",
  "serde",
  "thiserror",
 ]

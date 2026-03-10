@@ -25,6 +25,8 @@ This is the parent entry for major documentation areas.
 - [Module Specs README](../design/modules/README.md)
 - [Execution Board V1](../design/modules/EXECUTION-BOARD-V1.md)
 - [core-lifeform-model](../design/modules/core-lifeform-model.md)
+- [core-skill-progression](../design/modules/core-skill-progression.md)
+- [core-teaching-graph](../design/modules/core-teaching-graph.md)
 - [module-water-systems](../design/modules/module-water-systems.md)
 - [module-soil-ecology](../design/modules/module-soil-ecology.md)
 - [module-crop-systems](../design/modules/module-crop-systems.md)

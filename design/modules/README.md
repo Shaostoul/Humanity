@@ -13,6 +13,8 @@ Purpose:
 ## Initial V1 spec set
 
 - `core-lifeform-model.md`
+- `core-skill-progression.md`
+- `core-teaching-graph.md`
 - `module-water-systems.md`
 - `module-soil-ecology.md`
 - `module-crop-systems.md`

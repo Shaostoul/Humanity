@@ -26,6 +26,8 @@ CLI mode is an official testing surface, not a throwaway debug script.
 - `drink`
 - `treat_water`
 - `farm_tick`
+- `practice <skill>`
+- `lesson`
 - `set_difficulty <baby|easy|medium|hard|realistic>`
 - `transition <offline|host|join|dedicated>`
 - `save <path>`

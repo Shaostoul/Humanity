@@ -3,6 +3,12 @@ use core_session_orchestrator::{
     can_transition, validate_config, FidelityPreset, NetworkScope, ProgressionPolicy, SessionConfig,
     SessionMode, TransitionReason,
 };
+use core_skill_progression::{
+    award_xp, capability_index, ProgressionProfile, SkillBook,
+};
+use core_teaching_graph::{
+    add_node, add_prereq, recommend_next, CompetencyGraph, CompetencyNode,
+};
 use module_crop_systems::{
     harvest_report, tick_growth, CropInstance, EnvironmentInput, GrowthStage,
 };
@@ -28,6 +34,9 @@ pub struct WorldSnapshot {
     pub water: WaterNode,
     pub soil: SoilCell,
     pub crop: CropInstance,
+    pub skills: SkillBook,
+    pub progression: ProgressionProfile,
+    pub teaching: CompetencyGraph,
     pub session: SessionConfig,
 }
 
@@ -58,6 +67,9 @@ impl WorldSnapshot {
                 stress: 15.0,
                 growth_progress: 0.0,
             },
+            skills: SkillBook::default(),
+            progression: ProgressionProfile::default(),
+            teaching: default_teaching_graph(),
             session: SessionConfig {
                 mode: SessionMode::Offline,
                 policy: ProgressionPolicy::OpenProfile,
@@ -66,6 +78,44 @@ impl WorldSnapshot {
             },
         }
     }
+}
+
+fn default_teaching_graph() -> CompetencyGraph {
+    let mut graph = CompetencyGraph::default();
+    let _ = add_node(
+        &mut graph,
+        CompetencyNode {
+            id: "water".to_string(),
+            label: "Water Safety".to_string(),
+            target_level: 2,
+        },
+    );
+    let _ = add_node(
+        &mut graph,
+        CompetencyNode {
+            id: "farming".to_string(),
+            label: "Crop Systems".to_string(),
+            target_level: 2,
+        },
+    );
+    let _ = add_node(
+        &mut graph,
+        CompetencyNode {
+            id: "health".to_string(),
+            label: "First Aid".to_string(),
+            target_level: 2,
+        },
+    );
+    let _ = add_node(
+        &mut graph,
+        CompetencyNode {
+            id: "plumbing".to_string(),
+            label: "Plumbing Basics".to_string(),
+            target_level: 2,
+        },
+    );
+    let _ = add_prereq(&mut graph, "plumbing", "water");
+    graph
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +128,8 @@ pub enum Command {
     Drink,
     TreatWater,
     FarmTick,
+    Practice(String),
+    Lesson,
     SetDifficulty(FidelityPreset),
     Transition(SessionMode),
     Save(String),
@@ -120,6 +172,11 @@ pub fn parse_command(input: &str) -> Result<Command, LoopError> {
         "drink" => Ok(Command::Drink),
         "treat_water" => Ok(Command::TreatWater),
         "farm_tick" => Ok(Command::FarmTick),
+        "practice" => {
+            let skill = parts.next().ok_or(LoopError::InvalidArgs)?;
+            Ok(Command::Practice(skill.to_string()))
+        }
+        "lesson" => Ok(Command::Lesson),
         "set_difficulty" => {
             let d = parts.next().ok_or(LoopError::InvalidArgs)?;
             let preset = match d {
@@ -152,9 +209,9 @@ pub fn parse_command(input: &str) -> Result<Command, LoopError> {
 
 pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, LoopError> {
     match cmd {
-        Command::Help => Ok("commands: help status look move <n|s|e|w> rest drink treat_water farm_tick set_difficulty <baby|easy|medium|hard|realistic> transition <offline|host|join|dedicated> save <path> load <path> quit".to_string()),
+        Command::Help => Ok("commands: help status look move <n|s|e|w> rest drink treat_water farm_tick practice <skill> lesson set_difficulty <baby|easy|medium|hard|realistic> transition <offline|host|join|dedicated> save <path> load <path> quit".to_string()),
         Command::Status => Ok(format!(
-            "tick={} pos=({}, {}) energy={:.1} hydration={:.1} stress={:.1} water_liters={:.1} water_contam={:.1} crop_stage={:?} mode={:?}/{:?}/{:?}",
+            "tick={} pos=({}, {}) energy={:.1} hydration={:.1} stress={:.1} water_liters={:.1} water_contam={:.1} crop_stage={:?} capability={:.1} mode={:?}/{:?}/{:?}",
             world.tick,
             world.player_pos.x,
             world.player_pos.y,
@@ -164,6 +221,7 @@ pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, 
             world.water.liters,
             world.water.quality.contamination_index,
             world.crop.stage,
+            capability_index(&world.skills),
             world.session.mode,
             world.session.network,
             world.session.fidelity,
@@ -235,11 +293,41 @@ pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, 
             )
             .map_err(|e| LoopError::Simulation(e.to_string()))?;
 
+            let _ = award_xp(
+                &mut world.skills,
+                &world.progression,
+                "farming",
+                55,
+                world.session.fidelity,
+            )
+            .map_err(|e| LoopError::Simulation(e.to_string()))?;
+
             world.tick += 24;
             let harvest = harvest_report(&world.crop)
                 .map(|h| format!(" harvest(yield={:.1}, quality={:.1})", h.yield_score, h.quality_score))
                 .unwrap_or_default();
             Ok(format!("farm tick complete; stage={:?}{}", world.crop.stage, harvest))
+        }
+        Command::Practice(skill) => {
+            let rec = award_xp(
+                &mut world.skills,
+                &world.progression,
+                &skill,
+                40,
+                world.session.fidelity,
+            )
+            .map_err(|e| LoopError::Simulation(e.to_string()))?;
+            world.tick += 2;
+            Ok(format!("practiced {skill}: xp={} level={}", rec.xp, rec.level))
+        }
+        Command::Lesson => {
+            let recs = recommend_next(&world.teaching, &world.skills, 3)
+                .map_err(|e| LoopError::Simulation(e.to_string()))?;
+            if recs.is_empty() {
+                Ok("no recommendations; current competencies meet tracked targets".to_string())
+            } else {
+                Ok(format!("next lessons: {}", recs.join(", ")))
+            }
         }
         Command::SetDifficulty(preset) => {
             world.session.fidelity = preset;
@@ -321,5 +409,20 @@ mod tests {
     fn parse_set_difficulty_realistic() {
         let cmd = parse_command("set_difficulty realistic").expect("parse should work");
         assert_eq!(cmd, Command::SetDifficulty(FidelityPreset::Realistic));
+    }
+
+    #[test]
+    fn practice_increases_skill_xp() {
+        let mut world = WorldSnapshot::new_default();
+        let _ = apply_command(&mut world, Command::Practice("water".to_string())).unwrap();
+        let rec = world.skills.skills.get("water").unwrap();
+        assert!(rec.xp > 0);
+    }
+
+    #[test]
+    fn lesson_returns_recommendations() {
+        let mut world = WorldSnapshot::new_default();
+        let out = apply_command(&mut world, Command::Lesson).unwrap();
+        assert!(out.contains("next lessons") || out.contains("no recommendations"));
     }
 }

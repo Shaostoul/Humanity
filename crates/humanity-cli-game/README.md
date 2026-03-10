@@ -11,7 +11,7 @@ cargo run -p humanity-cli-game
 ## Run scripted playtest
 
 ```bash
-cargo run -p humanity-cli-game -- --script "status;move n;drink;farm_tick;status;quit"
+cargo run -p humanity-cli-game -- --script "status;practice water;lesson;move n;drink;farm_tick;status;quit"
 ```
 
 This mode exists so AI and headless environments can play/test core gameplay loops without GUI requirements.

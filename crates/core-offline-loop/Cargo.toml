@@ -14,3 +14,5 @@ core-session-orchestrator = { path = "../core-session-orchestrator" }
 module-water-systems = { path = "../module-water-systems" }
 module-soil-ecology = { path = "../module-soil-ecology" }
 module-crop-systems = { path = "../module-crop-systems" }
+core-skill-progression = { path = "../core-skill-progression" }
+core-teaching-graph = { path = "../core-teaching-graph" }
