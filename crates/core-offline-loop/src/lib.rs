@@ -1,3 +1,6 @@
+use core_firstperson_controller::{
+    apply_look, apply_move, ControllerInput, ControllerState, MoveDir,
+};
 use core_lifeform_model::{LifeformState, LifeformTick, TickInput};
 use core_session_orchestrator::{
     can_transition, validate_config, FidelityPreset, NetworkScope, ProgressionPolicy, SessionConfig,
@@ -31,6 +34,7 @@ pub struct WorldSnapshot {
     pub tick: u64,
     pub player: LifeformState,
     pub player_pos: GridPos,
+    pub controller: ControllerState,
     pub water: WaterNode,
     pub soil: SoilCell,
     pub crop: CropInstance,
@@ -46,6 +50,7 @@ impl WorldSnapshot {
             tick: 0,
             player: LifeformState::baseline_human(),
             player_pos: GridPos { x: 0, y: 0 },
+            controller: ControllerState::baseline(),
             water: WaterNode {
                 source_kind: WaterSourceKind::Stored,
                 liters: 40.0,
@@ -118,12 +123,13 @@ fn default_teaching_graph() -> CompetencyGraph {
     graph
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     Help,
     Status,
     Look,
     Move(char),
+    LookDir(f32, f32),
     Rest,
     Drink,
     TreatWater,
@@ -168,6 +174,19 @@ pub fn parse_command(input: &str) -> Result<Command, LoopError> {
             }
             Ok(Command::Move(c))
         }
+        "look_dir" => {
+            let yaw = parts
+                .next()
+                .ok_or(LoopError::InvalidArgs)?
+                .parse::<f32>()
+                .map_err(|_| LoopError::InvalidArgs)?;
+            let pitch = parts
+                .next()
+                .ok_or(LoopError::InvalidArgs)?
+                .parse::<f32>()
+                .map_err(|_| LoopError::InvalidArgs)?;
+            Ok(Command::LookDir(yaw, pitch))
+        }
         "rest" => Ok(Command::Rest),
         "drink" => Ok(Command::Drink),
         "treat_water" => Ok(Command::TreatWater),
@@ -209,12 +228,17 @@ pub fn parse_command(input: &str) -> Result<Command, LoopError> {
 
 pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, LoopError> {
     match cmd {
-        Command::Help => Ok("commands: help status look move <n|s|e|w> rest drink treat_water farm_tick practice <skill> lesson set_difficulty <baby|easy|medium|hard|realistic> transition <offline|host|join|dedicated> save <path> load <path> quit".to_string()),
+        Command::Help => Ok("commands: help status look move <n|s|e|w> look_dir <yaw_delta> <pitch_delta> rest drink treat_water farm_tick practice <skill> lesson set_difficulty <baby|easy|medium|hard|realistic> transition <offline|host|join|dedicated> save <path> load <path> quit".to_string()),
         Command::Status => Ok(format!(
-            "tick={} pos=({}, {}) energy={:.1} hydration={:.1} stress={:.1} water_liters={:.1} water_contam={:.1} crop_stage={:?} capability={:.1} mode={:?}/{:?}/{:?}",
+            "tick={} pos=({}, {}) fp=({:.1},{:.1},{:.1}) yaw={:.1} pitch={:.1} energy={:.1} hydration={:.1} stress={:.1} water_liters={:.1} water_contam={:.1} crop_stage={:?} capability={:.1} mode={:?}/{:?}/{:?}",
             world.tick,
             world.player_pos.x,
             world.player_pos.y,
+            world.controller.position.x,
+            world.controller.position.y,
+            world.controller.position.z,
+            world.controller.yaw_deg,
+            world.controller.pitch_deg,
             world.player.physiology.energy,
             world.player.physiology.hydration,
             world.player.affect.stress,
@@ -231,16 +255,37 @@ pub fn apply_command(world: &mut WorldSnapshot, cmd: Command) -> Result<String, 
             world.player_pos.x, world.player_pos.y, world.soil.nutrient_index, world.soil.moisture
         )),
         Command::Move(dir) => {
-            match dir {
-                'n' => world.player_pos.y += 1,
-                's' => world.player_pos.y -= 1,
-                'e' => world.player_pos.x += 1,
-                'w' => world.player_pos.x -= 1,
+            let move_dir = match dir {
+                'n' => MoveDir::Forward,
+                's' => MoveDir::Backward,
+                'e' => MoveDir::Right,
+                'w' => MoveDir::Left,
                 _ => return Err(LoopError::InvalidArgs),
-            }
+            };
+
+            apply_move(
+                &mut world.controller,
+                ControllerInput {
+                    dir: move_dir,
+                    dt_seconds: 1.0,
+                    sprint: false,
+                },
+            );
+
+            world.player_pos.x = world.controller.position.x.round() as i32;
+            world.player_pos.y = world.controller.position.z.round() as i32;
+
             tick_player(world, 1, 1.05, 0.0, 0.0)?;
             world.tick += 1;
             Ok("moved".to_string())
+        }
+        Command::LookDir(yaw, pitch) => {
+            apply_look(&mut world.controller, yaw, pitch);
+            world.tick += 1;
+            Ok(format!(
+                "look updated yaw={:.1} pitch={:.1}",
+                world.controller.yaw_deg, world.controller.pitch_deg
+            ))
         }
         Command::Rest => {
             tick_player(world, 8, 0.6, 0.5, 0.5)?;
@@ -394,7 +439,8 @@ mod tests {
         let mut world = WorldSnapshot::new_default();
         let _ = apply_command(&mut world, Command::Move('n')).expect("move should work");
         assert_eq!(world.tick, 1);
-        assert_eq!(world.player_pos, GridPos { x: 0, y: 1 });
+        assert!(world.player_pos.y > 0);
+        assert!(world.controller.position.z > 0.0);
     }
 
     #[test]
@@ -424,5 +470,13 @@ mod tests {
         let mut world = WorldSnapshot::new_default();
         let out = apply_command(&mut world, Command::Lesson).unwrap();
         assert!(out.contains("next lessons") || out.contains("no recommendations"));
+    }
+
+    #[test]
+    fn look_dir_changes_orientation() {
+        let mut world = WorldSnapshot::new_default();
+        let _ = apply_command(&mut world, Command::LookDir(15.0, -10.0)).unwrap();
+        assert_eq!(world.controller.yaw_deg, 15.0);
+        assert_eq!(world.controller.pitch_deg, -10.0);
     }
 }

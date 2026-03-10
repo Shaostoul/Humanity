@@ -22,6 +22,7 @@ CLI mode is an official testing surface, not a throwaway debug script.
 - `status`
 - `look`
 - `move <n|s|e|w>`
+- `look_dir <yaw_delta> <pitch_delta>`
 - `rest`
 - `drink`
 - `treat_water`

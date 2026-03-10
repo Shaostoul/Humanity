@@ -1,0 +1,9 @@
+[package]
+name = "core-firstperson-controller"
+version = "0.1.0"
+edition = "2024"
+description = "Deterministic first-person controller core"
+license = "CC0-1.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

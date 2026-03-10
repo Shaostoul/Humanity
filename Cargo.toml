@@ -16,6 +16,7 @@ members = [
     "crates/humanity-cli-game",
     "crates/core-skill-progression",
     "crates/core-teaching-graph",
+    "crates/core-firstperson-controller",
 ]
 exclude = [
     "desktop/src-tauri",

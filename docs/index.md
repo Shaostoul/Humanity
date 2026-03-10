@@ -38,6 +38,7 @@ This is the parent entry for major documentation areas.
 ## Design
 - [Design README](../design/README.md)
 - [Engine Design](../design/engine/renderer_architecture.md)
+- [Custom Rust + wgpu Runtime Plan](../design/engine/custom_rust_wgpu_runtime_plan.md)
 - [Core Design](../design/core/README.md)
 - [Foundation Decisions v1](../design/core/foundation_decisions_v1.md)
 - [Security Design](../design/security/README.md)
@@ -48,6 +49,7 @@ This is the parent entry for major documentation areas.
 - [Product Roadmap](../design/product/product_roadmap.md)
 - [Session Modes & Authority](../design/game/session_modes.md)
 - [Difficulty Fidelity Matrix](../design/game/difficulty_fidelity_matrix.md)
+- [First-Person Controller Contract](../design/game/first_person_controller_contract.md)
 - [Offline World Loop Scaffold](../design/game/offline_world_loop_scaffold.md)
 - [CLI Playtest Mode](../design/game/cli_playtest_mode.md)
 - [Tailnet Onboarding](../design/network/tailnet_onboarding.md)

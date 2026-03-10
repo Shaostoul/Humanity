@@ -200,6 +200,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
+name = "core-firstperson-controller"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "core-lifeform-model"
 version = "0.1.0"
 dependencies = [
@@ -212,6 +219,7 @@ dependencies = [
 name = "core-offline-loop"
 version = "0.1.0"
 dependencies = [
+ "core-firstperson-controller",
  "core-lifeform-model",
  "core-session-orchestrator",
  "core-skill-progression",

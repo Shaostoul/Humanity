@@ -144,6 +144,21 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 7. D1 health-first-aid
 8. A2 skill progression + A3 teaching graph
 
+## Workstream E: Runtime scaffolds
+
+## E1) core-firstperson-controller
+- Spec: `design/game/first_person_controller_contract.md`
+- Crate path: `crates/core-firstperson-controller/`
+- Current status: done
+- Progress:
+  - [x] deterministic movement/look controller core
+  - [x] stamina + sprint behavior
+  - [x] unit tests passing (`cargo test -p core-firstperson-controller`)
+  - [x] integrated into CLI world loop movement and orientation commands
+- Depends on: offline world loop integration
+
+---
+
 ## Acceptance gates per module
 
 A module can move to `done` only if all are true:
