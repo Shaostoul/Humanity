@@ -9418,6 +9418,8 @@
    const existing = featureWeb.nodes.find(n => featureWebNormalizeTaskId(n && n.taskId) === normalizedTaskId);
    if (existing) {
     featureWebFocusNode(existing.id);
+    featureWebCenterSelected();
+    featureWebNotice('Task already linked to node: ' + (existing.title || ('Task #' + normalizedTaskId)));
     return;
    }
    const normalizedPriority = boardNormalizePriority(task.priority);
@@ -9437,6 +9439,7 @@
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    });
+   featureWebNotice('Task linked as node: ' + uniqueTitle);
    featureWebPersistAndRefresh();
   }
 
