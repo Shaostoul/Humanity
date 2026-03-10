@@ -11380,6 +11380,7 @@
    const taskId = featureWebNormalizeTaskId(task && task.id);
    if (taskId == null) return '';
    const taskPriority = boardNormalizePriority(task && task.priority);
+   const taskStatus = boardNormalizeTaskStatus(task && task.status);
    const pc = PRIORITY_COLORS[taskPriority] || '#666';
    const labels = boardParseTaskLabels(task);
    const labelHtml = labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.2rem;">' + escHtml(l) + '</span>').join('');
@@ -11389,7 +11390,7 @@
    const canEdit = boardCanEdit();
    let moveHtml = '';
    if (canEdit) {
-    const moves = VALID_STATUSES.filter(s => s !== task.status);
+    const moves = VALID_STATUSES.filter(s => s !== taskStatus);
     moveHtml = '<div style="display:flex;gap:0.2rem;margin-top:0.3rem;flex-wrap:wrap;" onclick="event.stopPropagation()">' +
      moves.map(s => '<button onclick="boardMoveTask(' + taskId + ',\'' + s + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.3rem;border-radius:3px;cursor:pointer;" title="Move to ' + (STATUS_LABELS[s]||s) + '">→ ' + (STATUS_LABELS[s]||s).split(' ').pop() + '</button>').join('') +
      '</div>';
@@ -11429,6 +11430,7 @@
    const canEdit = boardCanEdit();
    const canComment = boardCanComment();
    const taskPriority = boardNormalizePriority(task.priority);
+   const taskStatus = boardNormalizeTaskStatus(task.status);
    const pc = PRIORITY_COLORS[taskPriority] || '#666';
    const labels = boardParseTaskLabels(task);
    const created = boardFormatDateTime(task.created_at);
@@ -11436,7 +11438,7 @@
    let html = '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.1rem;">' + escHtml(task.title) + '</h3>' +
     '<div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;">' +
      '<span style="background:' + pc + ';color:#fff;font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;font-weight:700;text-transform:uppercase;">' + taskPriority + '</span>' +
-     '<span style="font-size:0.75rem;color:var(--text-muted);">' + (STATUS_LABELS[task.status] || task.status) + '</span>' +
+     '<span style="font-size:0.75rem;color:var(--text-muted);">' + (STATUS_LABELS[taskStatus] || taskStatus) + '</span>' +
      (task.assignee ? '<span style="font-size:0.75rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '') +
      '<span style="font-size:0.7rem;color:var(--text-muted);">Created: ' + created + '</span>' +
     '</div>';
