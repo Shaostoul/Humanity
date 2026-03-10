@@ -9486,6 +9486,7 @@
    }
    if (fromId === toId) {
     featureWebNotice('Link source and target must be different');
+    if (toEl && typeof toEl.focus === 'function') toEl.focus();
     return;
    }
    const hasFromNode = featureWeb.nodes.some(n => n && n.id === fromId);
@@ -9497,6 +9498,7 @@
    const edgeType = featureWebNormalizeEdgeType(typeEl && typeEl.value);
    if (featureWeb.edges.some(e => e.from === fromId && e.to === toId && featureWebNormalizeEdgeType(e.type) === edgeType)) {
     featureWebNotice('That link type already exists between these nodes');
+    if (typeEl && typeof typeEl.focus === 'function') typeEl.focus();
     return;
    }
    const fromNode = featureWeb.nodes.find(n => n && n.id === fromId);
