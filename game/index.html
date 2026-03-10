@@ -8606,6 +8606,11 @@
    return typeof priority === 'string' ? priority.trim().toLowerCase() : '';
   }
 
+  function featureWebNormalizeEdgeType(edgeType) {
+   const normalizedEdgeType = typeof edgeType === 'string' ? edgeType.trim().toLowerCase() : '';
+   return FW_ALLOWED_EDGE_TYPES.includes(normalizedEdgeType) ? normalizedEdgeType : 'depends_on';
+  }
+
   function featureWebApplyTaskStatusToLinkedNodes(taskId, taskStatus) {
    if (taskId == null) return false;
    const mappedNodeStatus = featureWebMapTaskStatusToNode(taskStatus);
@@ -8687,7 +8692,6 @@
    const allowedDomains = new Set(FW_ALLOWED_DOMAINS);
    const allowedStatuses = new Set(FW_ALLOWED_STATUSES);
    const allowedPriorities = new Set(FW_ALLOWED_PRIORITIES);
-   const allowedEdgeTypes = new Set(FW_ALLOWED_EDGE_TYPES);
 
    const nodes = [];
    const nodeIds = new Set();
@@ -8754,12 +8758,11 @@
     if (!nodeIds.has(from) || !nodeIds.has(to)) return;
     const pairKey = from + '->' + to;
     if (edgePairs.has(pairKey)) return;
-    const normalizedEdgeType = typeof edge.type === 'string' ? edge.type.trim().toLowerCase() : '';
     const normalized = {
      id: featureWebSanitizeId(edge.id, FW_TEXT_LIMITS.id) || featureWebNewId('e'),
      from,
      to,
-     type: allowedEdgeTypes.has(normalizedEdgeType) ? normalizedEdgeType : 'depends_on'
+     type: featureWebNormalizeEdgeType(edge.type)
     };
     while (edgeIds.has(normalized.id)) normalized.id = featureWebNewId('e');
     edgeIds.add(normalized.id);
@@ -9390,8 +9393,7 @@
     featureWebNotice('That link already exists');
     return;
    }
-   const rawType = (typeEl && typeof typeEl.value === 'string') ? typeEl.value.trim().toLowerCase() : '';
-   const edgeType = FW_ALLOWED_EDGE_TYPES.includes(rawType) ? rawType : 'depends_on';
+   const edgeType = featureWebNormalizeEdgeType(typeEl && typeEl.value);
    featureWeb.edges.push({ id: featureWebNewId('e'), from: fromId, to: toId, type: edgeType });
    if (toEl) {
     toEl.value = '';
@@ -9439,7 +9441,7 @@
    const edge = featureWeb.edges.find(e => e.id === id);
    if (!edge) return;
    const order = FW_ALLOWED_EDGE_TYPES;
-   const currentType = (typeof edge.type === 'string') ? edge.type.trim().toLowerCase() : 'depends_on';
+   const currentType = featureWebNormalizeEdgeType(edge.type);
    const idx = order.indexOf(currentType);
    edge.type = order[(idx + 1 + order.length) % order.length];
    featureWebPersistAndRefresh();
@@ -9912,7 +9914,8 @@
     return;
    }
    edges.forEach(edge => {
-    const idx = Math.max(0, order.indexOf(edge.type || 'depends_on'));
+    const currentType = featureWebNormalizeEdgeType(edge.type);
+    const idx = Math.max(0, order.indexOf(currentType));
     edge.type = order[(idx + (step || 1) + order.length) % order.length];
    });
    featureWebPersistAndRefresh();
