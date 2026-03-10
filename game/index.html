@@ -11370,8 +11370,9 @@
     const countEl = document.querySelector('.board-col-count[data-status="' + status + '"]');
     if (!container) return;
     const tasks = boardTasks.filter(t => t.status === status).sort(boardTaskSortCompare);
-    if (countEl) countEl.textContent = '(' + tasks.length + ')';
-    container.innerHTML = tasks.map(t => renderTaskCard(t)).join('');
+    const taskCards = tasks.map(t => renderTaskCard(t)).filter(Boolean);
+    if (countEl) countEl.textContent = '(' + taskCards.length + ')';
+    container.innerHTML = taskCards.join('');
    });
   }
 
