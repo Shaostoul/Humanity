@@ -9418,8 +9418,8 @@
     featureWebFocusNode(existing.id);
     return;
    }
-   const normalizedPriority = featureWebNormalizePriority(task.priority);
-   const uniqueTitle = featureWebMakeUniqueTitle(task.title, 'Task #' + taskId);
+   const normalizedPriority = boardNormalizePriority(task.priority);
+   const uniqueTitle = featureWebMakeUniqueTitle(boardNormalizeTitle(task.title), 'Task #' + normalizedTaskId);
    featureWeb.nodes.push({
     id: featureWebNewId('n'),
     taskId: normalizedTaskId,
@@ -9427,11 +9427,11 @@
     type: 'feature',
     domain: 'operations',
     status: featureWebMapTaskStatusToNode(task.status, 'planned'),
-    summary: featureWebClampText(task.description || '', FW_TEXT_LIMITS.summary),
+    summary: featureWebClampText(boardNormalizeDescription(task.description), FW_TEXT_LIMITS.summary),
     teach: '',
     details: '',
-    owner: featureWebClampText(task.assignee || '', FW_TEXT_LIMITS.owner),
-    priority: FW_ALLOWED_PRIORITIES.includes(normalizedPriority) ? normalizedPriority : 'medium',
+    owner: boardNormalizeAssignee(task.assignee) || '',
+    priority: normalizedPriority,
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
    });
