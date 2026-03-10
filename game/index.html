@@ -11369,6 +11369,7 @@
   }
 
   function showCreateTaskModal() {
+   if (!boardCanEdit()) return;
    const modal = document.getElementById('task-modal');
    const content = document.getElementById('task-modal-content');
    content.dataset.taskId = '';
@@ -11411,6 +11412,7 @@
   }
 
   function showEditTaskForm(taskId) {
+   if (!boardCanEdit()) return;
    const task = featureWebFindTaskById(taskId);
    if (!task) return;
    const content = document.getElementById('task-modal-content');
