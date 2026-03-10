@@ -8449,6 +8449,10 @@
    return normalizedAssignee || null;
   }
 
+  function boardNormalizeTitle(title) {
+   return featureWebClampText(title || '', 200).trim();
+  }
+
   function boardNormalizeTasks(tasks) {
    const rawTasks = Array.isArray(tasks) ? tasks : [];
    const dedupedTasks = [];
@@ -11450,7 +11454,7 @@
 
   function boardSubmitCreateTask() {
    if (!boardCanEdit()) return;
-   const title = document.getElementById('new-task-title').value.trim();
+   const title = boardNormalizeTitle(document.getElementById('new-task-title').value);
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('new-task-labels').value);
    const assignee = boardNormalizeAssignee(document.getElementById('new-task-assignee').value);
@@ -11498,7 +11502,7 @@
    if (!boardCanEdit()) return;
    const normalizedId = featureWebNormalizeTaskId(id);
    if (normalizedId == null) return;
-   const title = document.getElementById('edit-task-title').value.trim();
+   const title = boardNormalizeTitle(document.getElementById('edit-task-title').value);
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('edit-task-labels').value);
    const assignee = boardNormalizeAssignee(document.getElementById('edit-task-assignee').value);
