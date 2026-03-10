@@ -9296,6 +9296,10 @@
     return;
    }
    const normalizedTaskId = featureWebNormalizeTaskId(taskId);
+   if (normalizedTaskId == null) {
+    featureWebNotice('Invalid task id');
+    return;
+   }
    const existing = featureWeb.nodes.find(n => featureWebNormalizeTaskId(n && n.taskId) === normalizedTaskId);
    if (existing) {
     featureWebFocusNode(existing.id);
