@@ -9688,7 +9688,9 @@
    const normalizedTitle = nextTitle.toLowerCase();
    const duplicate = featureWeb.nodes.find(n => n.id !== node.id && featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === normalizedTitle);
    if (duplicate) {
-    featureWebNotice('Node with that title already exists');
+    featureWebFocusNode(duplicate.id);
+    featureWebCenterSelected();
+    featureWebNotice('Node already exists: ' + (duplicate.title || 'Untitled'));
     return;
    }
    const nextType = typeEl && typeof typeEl.value === 'string' ? typeEl.value.trim().toLowerCase() : '';
