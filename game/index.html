@@ -8444,6 +8444,11 @@
    return FW_ALLOWED_PRIORITIES.includes(normalizedPriority) ? normalizedPriority : 'medium';
   }
 
+  function boardNormalizeAssignee(assignee) {
+   const normalizedAssignee = featureWebClampText(assignee || '', 50).trim();
+   return normalizedAssignee || null;
+  }
+
   function boardNormalizeTasks(tasks) {
    const rawTasks = Array.isArray(tasks) ? tasks : [];
    const dedupedTasks = [];
@@ -8460,6 +8465,7 @@
      const normalizedStatus = boardNormalizeStatus(taskObj.status);
      taskObj.status = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
      taskObj.priority = boardNormalizePriority(taskObj.priority);
+     taskObj.assignee = boardNormalizeAssignee(taskObj.assignee);
     }
     dedupedTasks.push(taskObj);
    });
@@ -9392,7 +9398,7 @@
    const nextTitle = featureWebClampText(node.title || '', FW_TEXT_LIMITS.title) || ('Task #' + taskId);
    node.title = nextTitle;
    if (task && oldTitle !== nextTitle) {
-    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: task.description || '', priority: task.priority || 'medium', assignee: task.assignee || null, labels: task.labels || '[]' });
+    boardSend({ type: 'task_update', id: taskId, title: nextTitle, description: task.description || '', priority: task.priority || 'medium', assignee: boardNormalizeAssignee(task.assignee), labels: task.labels || '[]' });
    }
    if (!task || task.status !== mapped) {
     boardSend({ type: 'task_move', id: taskId, status: mapped });
@@ -11447,7 +11453,7 @@
    const title = document.getElementById('new-task-title').value.trim();
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('new-task-labels').value);
-   const assignee = document.getElementById('new-task-assignee').value.trim() || null;
+   const assignee = boardNormalizeAssignee(document.getElementById('new-task-assignee').value);
    const nextPriority = boardNormalizePriority(document.getElementById('new-task-priority').value);
    const normalizedStatus = boardNormalizeStatus(document.getElementById('new-task-status').value);
    const nextStatus = VALID_STATUSES.includes(normalizedStatus) ? normalizedStatus : 'backlog';
@@ -11495,7 +11501,7 @@
    const title = document.getElementById('edit-task-title').value.trim();
    if (!title) return;
    const labels = boardLabelsToJson(document.getElementById('edit-task-labels').value);
-   const assignee = document.getElementById('edit-task-assignee').value.trim() || null;
+   const assignee = boardNormalizeAssignee(document.getElementById('edit-task-assignee').value);
    const nextPriority = boardNormalizePriority(document.getElementById('edit-task-priority').value);
    const sent = boardSend({
     type: 'task_update',
