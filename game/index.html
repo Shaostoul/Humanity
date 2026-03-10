@@ -9935,11 +9935,12 @@
     featureWebNotice('All nodes already linked');
     return;
    }
+   const createdLabel = created === 1 ? 'task' : 'tasks';
    if (created === candidates) {
-    featureWebNotice('Queued ' + created + ' task(s) from ' + candidates + ' unlinked node' + (candidates === 1 ? '' : 's'));
+    featureWebNotice('Queued ' + created + ' ' + createdLabel + ' from ' + candidates + ' unlinked node' + (candidates === 1 ? '' : 's'));
     return;
    }
-   featureWebNotice('Queued ' + created + '/' + candidates + ' task(s) from unlinked nodes');
+   featureWebNotice('Queued ' + created + '/' + candidates + ' ' + createdLabel + ' from unlinked nodes');
   }
 
   function featureWebClearSelection() {
