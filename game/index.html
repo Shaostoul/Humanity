@@ -9445,7 +9445,7 @@
    }
    const normalizedPriority = boardNormalizePriority(task.priority);
    const uniqueTitle = featureWebMakeUniqueTitle(boardNormalizeTitle(task.title), 'Task #' + normalizedTaskId);
-   featureWeb.nodes.push({
+   const newNode = {
     id: featureWebNewId('n'),
     taskId: normalizedTaskId,
     title: uniqueTitle,
@@ -9459,7 +9459,10 @@
     priority: normalizedPriority,
     x: 25 + (featureWeb.nodes.length % 4) * 150,
     y: 20 + Math.floor(featureWeb.nodes.length / 4) * 90,
-   });
+   };
+   featureWeb.nodes.push(newNode);
+   fwSelectedNodeId = newNode.id;
+   featureWebSaveUiState();
    featureWebNotice('Task linked as node: ' + uniqueTitle);
    featureWebPersistAndRefresh();
   }
