@@ -10071,7 +10071,10 @@
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
    const canvas = document.getElementById('feature-web-canvas');
-   if (!node || !canvas) return;
+   if (!node || !canvas) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    const width = Math.max(220, canvas.clientWidth);
    const height = Math.max(180, canvas.clientHeight);
    node.x = Math.max(4, Math.min(width - 120, (node.x || 0) + dx));
