@@ -429,24 +429,41 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
         let ground = terrain_height(p.x, p.z);
         self.world.controller.position.y = ground + 1.25;
 
-        let cam_target = vec3_from_world(&self.world) + Vec3::new(0.0, 0.7, 0.0);
+        // Third-person chase camera pivoting around upper body/head region.
+        let player = vec3_from_world(&self.world);
         let forward = Vec3::new(
             self.yaw.sin() * self.pitch.cos(),
             self.pitch.sin(),
             self.yaw.cos() * self.pitch.cos(),
         )
         .normalize_or_zero();
-        let cam_pos = cam_target - forward * 5.0 + Vec3::new(0.0, 2.0, 0.0);
+        let right = Vec3::new(forward.z, 0.0, -forward.x).normalize_or_zero();
 
-        let view = Mat4::look_at_rh(cam_pos, cam_target, Vec3::Y);
-        let mut proj = Mat4::perspective_rh_gl(
+        // User request: pivot near top of head with slight right offset.
+        let pivot = player + Vec3::new(0.0, 1.9, 0.0) + right * 0.2;
+
+        let mut cam_pos = pivot - forward * 6.0 + Vec3::new(0.0, 0.9, 0.0);
+        let cam_ground = terrain_height(cam_pos.x, cam_pos.z) + 0.8;
+        if cam_pos.y < cam_ground {
+            cam_pos.y = cam_ground;
+        }
+
+        let view = Mat4::look_at_rh(cam_pos, pivot, Vec3::Y);
+        let proj = Mat4::perspective_rh_gl(
             60.0f32.to_radians(),
             (self.config.width as f32 / self.config.height.max(1) as f32).max(0.01),
             0.1,
             1000.0,
         );
-        proj.y_axis.y *= -1.0;
-        let view_proj = proj * view;
+
+        // Convert OpenGL clip-space convention to wgpu's NDC.
+        let opengl_to_wgpu = Mat4::from_cols_array(&[
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.5, 0.0,
+            0.0, 0.0, 0.5, 1.0,
+        ]);
+        let view_proj = opengl_to_wgpu * proj * view;
 
         let uniform = CameraUniform {
             view_proj: view_proj.to_cols_array_2d(),
