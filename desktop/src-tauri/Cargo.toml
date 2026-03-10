@@ -1,7 +1,7 @@
 [package]
 name = "humanity-desktop"
 version = "0.1.0"
-description = "Humanity desktop app — native wrapper for united-humanity.us"
+description = "HumanityOS desktop app (HOS) — native wrapper for united-humanity.us"
 edition = "2021"
 license = "CC0-1.0"
 

@@ -1,4 +1,4 @@
-# Humanity Desktop App
+# HumanityOS Desktop App (HOS)
 
 A native desktop wrapper for [united-humanity.us](https://united-humanity.us) built with [Tauri v2](https://tauri.app/).
 

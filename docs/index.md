@@ -63,6 +63,7 @@ This is the parent entry for major documentation areas.
 - [Menu/Submenu Matrix](../design/ui/menu_submenu_matrix.md)
 - [Quest Engine Architecture](../design/gameplay/quest_engine_architecture.md)
 - [Update Distribution](../design/runtime/update_distribution_architecture.md)
+- [Staged Download + Trusted Seeding](../design/runtime/staged_download_and_trusted_seeding.md)
 - [AI Plugin Runtime](../design/runtime/ai_plugin_runtime_architecture.md)
 - [Web vs Native Capability Boundary](../design/runtime/web_vs_native_capabilities.md)
 - [Hot Reload Tiers](../design/runtime/hot_reload_tiers.md)

@@ -130,3 +130,5 @@ Mirrors (optional):
 3. Add content bundle hot-reload manager.
 4. Add signed package verification.
 5. Switch app updater endpoints to self-hosted domain.
+6. Implement staged core-vs-optional pack downloads (see `staged_download_and_trusted_seeding.md`).
+7. Add in-app seeding toggle (default off) with bandwidth limits.

@@ -1,6 +1,6 @@
 # Website
 
-This folder contains the public-facing website for Humanity
+This folder contains the public-facing website for HumanityOS (HOS)
 (https://shaostoul.github.io/Humanity).
 
 The website is a presentation layer only.

@@ -3,7 +3,7 @@ layout: default
 title: Home
 ---
 
-# Humanity
+# HumanityOS (HOS)
 
 **We are building a game + toolset to help people become more capable, together.**
 
@@ -49,7 +49,7 @@ We are shaping the platform around five core experiences:
 
 ---
 
-## Live Now: Humanity Chat & Hub
+## Live Now: HumanityOS Chat & Hub
 
 **[united-humanity.us/chat](https://united-humanity.us/chat)**
 
