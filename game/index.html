@@ -8422,6 +8422,10 @@
    return true;
   }
 
+  function boardNoticeConnectionNotReady() {
+   featureWebNotice('Board connection not ready');
+  }
+
   function boardParseTaskLabels(task) {
    try { return JSON.parse((task && task.labels) || '[]'); } catch { return []; }
   }
@@ -9711,7 +9715,7 @@
 
   function featureWebSyncNodesToBoard() {
    if (!boardIsConnected()) {
-    featureWebNotice('Board connection not ready');
+    boardNoticeConnectionNotReady();
     return;
    }
    const canEdit = boardCanEdit();
@@ -11305,7 +11309,7 @@
   function boardMoveTask(id, status) {
    if (!boardCanEdit()) return;
    if (!boardSend({ type: 'task_move', id: id, status: status })) {
-    featureWebNotice('Board connection not ready');
+    boardNoticeConnectionNotReady();
    }
   }
 
@@ -11388,7 +11392,7 @@
    if (boardSend({ type: 'task_comment', task_id: taskId, content: input.value.trim() })) {
     input.value = '';
    } else {
-    featureWebNotice('Board connection not ready');
+    boardNoticeConnectionNotReady();
    }
   }
 
@@ -11396,7 +11400,7 @@
    if (!boardCanEdit()) return;
    if (!confirm('Delete this task?')) return;
    if (boardSend({ type: 'task_delete', id: id })) closeTaskModal();
-   else featureWebNotice('Board connection not ready');
+   else boardNoticeConnectionNotReady();
   }
 
   function showCreateTaskModal() {
@@ -11440,7 +11444,7 @@
     labels: labels,
    });
    if (sent) closeTaskModal();
-   else featureWebNotice('Board connection not ready');
+   else boardNoticeConnectionNotReady();
   }
 
   function showEditTaskForm(taskId) {
@@ -11483,7 +11487,7 @@
     labels: labels,
    });
    if (sent) closeTaskModal();
-   else featureWebNotice('Board connection not ready');
+   else boardNoticeConnectionNotReady();
   }
 
   // Close modal on backdrop click
