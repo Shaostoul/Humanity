@@ -11282,7 +11282,8 @@
       renderBoard();
       // If modal is open for this task, append comment
       const modalEl = document.getElementById('task-modal-content');
-      if (modalEl && modalEl.dataset.taskId == msg.task_id && msg.comment) {
+      const modalTaskId = featureWebNormalizeTaskId(modalEl && modalEl.dataset ? modalEl.dataset.taskId : null);
+      if (modalEl && modalTaskId != null && modalTaskId === commentTaskId && msg.comment) {
        const commentsDiv = document.getElementById('task-comments-list');
        if (commentsDiv) {
         commentsDiv.innerHTML += renderCommentHtml(msg.comment);
@@ -11293,7 +11294,9 @@
     case 'task_comments_response':
      if (msg.task_id != null) {
       const commentsDiv = document.getElementById('task-comments-list');
-      if (commentsDiv && commentsDiv.dataset.taskId == msg.task_id) {
+      const commentsTaskId = featureWebNormalizeTaskId(msg.task_id);
+      const modalTaskId = featureWebNormalizeTaskId(commentsDiv && commentsDiv.dataset ? commentsDiv.dataset.taskId : null);
+      if (commentsDiv && commentsTaskId != null && commentsTaskId === modalTaskId) {
        commentsDiv.innerHTML = (msg.comments || []).map(renderCommentHtml).join('') || '<div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">No comments yet</div>';
       }
      }
