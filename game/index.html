@@ -10077,15 +10077,17 @@
     featureWebNotice('Select a node first');
     return;
    }
+   const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
+   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
    const before = featureWeb.edges.length;
    featureWeb.edges = featureWeb.edges.filter(e => e.from !== fwSelectedNodeId && e.to !== fwSelectedNodeId);
    const removed = before - featureWeb.edges.length;
    if (!removed) {
-    featureWebNotice('Selected node has no links');
+    featureWebNotice(nodeTitle + ' has no links');
     return;
    }
    featureWebPersistAndRefresh();
-   featureWebNotice('Removed ' + removed + ' link' + (removed === 1 ? '' : 's'));
+   featureWebNotice('Removed ' + removed + ' link' + (removed === 1 ? '' : 's') + ' from ' + nodeTitle);
   }
 
   function featureWebDeleteOutgoingLinks() {
@@ -10093,15 +10095,17 @@
     featureWebNotice('Select a node first');
     return;
    }
+   const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
+   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
    const before = featureWeb.edges.length;
    featureWeb.edges = featureWeb.edges.filter(e => e.from !== fwSelectedNodeId);
    const removed = before - featureWeb.edges.length;
    if (!removed) {
-    featureWebNotice('Selected node has no outgoing links');
+    featureWebNotice(nodeTitle + ' has no outgoing links');
     return;
    }
    featureWebPersistAndRefresh();
-   featureWebNotice('Removed ' + removed + ' outgoing link' + (removed === 1 ? '' : 's'));
+   featureWebNotice('Removed ' + removed + ' outgoing link' + (removed === 1 ? '' : 's') + ' from ' + nodeTitle);
   }
 
   function featureWebDeleteIncomingLinks() {
@@ -10109,15 +10113,17 @@
     featureWebNotice('Select a node first');
     return;
    }
+   const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
+   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
    const before = featureWeb.edges.length;
    featureWeb.edges = featureWeb.edges.filter(e => e.to !== fwSelectedNodeId);
    const removed = before - featureWeb.edges.length;
    if (!removed) {
-    featureWebNotice('Selected node has no incoming links');
+    featureWebNotice(nodeTitle + ' has no incoming links');
     return;
    }
    featureWebPersistAndRefresh();
-   featureWebNotice('Removed ' + removed + ' incoming link' + (removed === 1 ? '' : 's'));
+   featureWebNotice('Removed ' + removed + ' incoming link' + (removed === 1 ? '' : 's') + ' from ' + nodeTitle);
   }
 
   function featureWebDeleteSelectedNode() {
