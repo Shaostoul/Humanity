@@ -9497,13 +9497,16 @@
    const node = featureWeb.nodes.find(n => n && n.id === id);
    if (!node) return;
    const removedLinks = featureWeb.edges.filter(e => e.from === id || e.to === id).length;
+   const linkedTaskId = featureWebNormalizeTaskId(node.taskId);
    featureWeb.nodes = featureWeb.nodes.filter(n => n.id !== id);
    featureWeb.edges = featureWeb.edges.filter(e => e.from !== id && e.to !== id);
    if (fwSelectedNodeId === id) {
     fwSelectedNodeId = '';
     featureWebSaveUiState();
    }
-   featureWebNotice('Deleted node: ' + (node.title || 'Untitled') + (removedLinks ? (' (' + removedLinks + ' link' + (removedLinks === 1 ? '' : 's') + ' removed)') : ''));
+   const linkSuffix = removedLinks ? (' (' + removedLinks + ' link' + (removedLinks === 1 ? '' : 's') + ' removed)') : '';
+   const taskSuffix = linkedTaskId != null ? (' · task #' + linkedTaskId + ' remains on board') : '';
+   featureWebNotice('Deleted node: ' + (node.title || 'Untitled') + linkSuffix + taskSuffix);
    featureWebPersistAndRefresh();
   }
 
