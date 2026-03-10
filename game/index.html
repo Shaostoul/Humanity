@@ -9289,16 +9289,15 @@
     featureWebFocusNode(existing.id);
     return;
    }
-   const statusMap = FW_TASK_TO_NODE_STATUS_MAP;
    const normalizedPriority = (typeof task.priority === 'string') ? task.priority.trim().toLowerCase() : '';
    const uniqueTitle = featureWebMakeUniqueTitle(task.title, 'Task #' + taskId);
    featureWeb.nodes.push({
     id: featureWebNewId('n'),
-    taskId,
+    taskId: normalizedTaskId,
     title: uniqueTitle,
     type: 'feature',
     domain: 'operations',
-    status: statusMap[task.status] || 'planned',
+    status: featureWebMapTaskStatusToNode(task.status, 'planned'),
     summary: featureWebClampText(task.description || '', FW_TEXT_LIMITS.summary),
     teach: '',
     details: '',
