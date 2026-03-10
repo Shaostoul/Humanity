@@ -39,6 +39,7 @@ This is the parent entry for major documentation areas.
 - [Design README](../design/README.md)
 - [Engine Design](../design/engine/renderer_architecture.md)
 - [Custom Rust + wgpu Runtime Plan](../design/engine/custom_rust_wgpu_runtime_plan.md)
+- [Planet Icosahedral + Voxel Plan](../design/engine/planet_icosphere_voxel_plan.md)
 - [Core Design](../design/core/README.md)
 - [Foundation Decisions v1](../design/core/foundation_decisions_v1.md)
 - [Security Design](../design/security/README.md)

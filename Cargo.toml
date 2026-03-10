@@ -20,6 +20,7 @@ members = [
     "crates/persistence-sqlite",
     "crates/engine-wgpu-shell",
     "crates/core-snapshot-sync",
+    "crates/core-planet-icosphere",
 ]
 exclude = [
     "desktop/src-tauri",

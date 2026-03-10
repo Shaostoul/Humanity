@@ -741,8 +741,8 @@ fn main() {
             if !state.menu_open {
                 let sensitivity = 0.0025;
                 state.yaw -= delta.0 as f32 * sensitivity;
-                // User preference: non-inverted vertical look.
-                state.pitch = (state.pitch + delta.1 as f32 * sensitivity).clamp(-1.25, 1.25);
+                // User preference: non-inverted vertical look (mouse up looks up).
+                state.pitch = (state.pitch - delta.1 as f32 * sensitivity).clamp(-1.25, 1.25);
             }
         }
         Event::AboutToWait => window.request_redraw(),
