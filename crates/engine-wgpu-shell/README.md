@@ -11,18 +11,18 @@ cargo run -p engine-wgpu-shell
 ## Movement / look
 
 - `W/A/S/D` or arrow keys: move
-- `Mouse`: look
+- `Mouse`: look/turn camera
 - `Shift`: sprint
 
 ## Gameplay actions
 
-- `E`: gather wood
-- `Q`: gather fiber
-- `Z`: gather scrap
-- `R`: craft filter kit
-- `T`: treat water
-- `F`: farm tick
-- `C`: eat food ration
+- `1`: gather wood
+- `2`: gather fiber
+- `3`: gather scrap
+- `4`: craft filter kit
+- `5`: treat water
+- `6`: farm tick
+- `7`: eat food ration
 
 ## Menu / info
 

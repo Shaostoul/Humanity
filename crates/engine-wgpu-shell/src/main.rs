@@ -1,7 +1,8 @@
 use bytemuck::{Pod, Zeroable};
-use core_firstperson_controller::{apply_look, apply_move, ControllerInput, MoveDir};
 use core_offline_loop::{apply_command, Command, WorldSnapshot};
+use glam::{Mat4, Vec3};
 use std::collections::HashSet;
+use std::f32::consts::PI;
 use std::time::{Duration, Instant};
 use wgpu::util::DeviceExt;
 use wgpu::SurfaceError;
@@ -16,7 +17,7 @@ use winit::{
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct Vertex {
-    pos: [f32; 2],
+    pos: [f32; 3],
     color: [f32; 3],
 }
 
@@ -29,10 +30,10 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     offset: 0,
                     shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32x3,
                 },
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
                 },
@@ -41,19 +42,45 @@ impl Vertex {
     }
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct CameraUniform {
+    view_proj: [[f32; 4]; 4],
+}
+
+struct Mesh {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
+}
+
 struct State<'a> {
     surface: wgpu::Surface<'a>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
     size: PhysicalSize<u32>,
+
+    pipeline: wgpu::RenderPipeline,
+    depth_view: wgpu::TextureView,
+
+    camera_buffer: wgpu::Buffer,
+    camera_bind_group: wgpu::BindGroup,
+
+    terrain: Mesh,
+    capsule_base_positions: Vec<Vec3>,
+    capsule_colors: Vec<[f32; 3]>,
+    capsule_indices: Vec<u32>,
+    capsule_vertex_buffer: wgpu::Buffer,
+    capsule_index_buffer: wgpu::Buffer,
+
     world: WorldSnapshot,
     pressed: HashSet<KeyCode>,
     last_update: Instant,
     start_time: Instant,
-    pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
+
+    yaw: f32,
+    pitch: f32,
     menu_open: bool,
     status_msg: String,
     status_until: Instant,
@@ -106,19 +133,57 @@ impl<'a> State<'a> {
         };
         surface.configure(&device, &config);
 
+        let depth_view = create_depth_view(&device, config.width, config.height);
+
+        let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("camera-layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("camera-buffer"),
+            size: std::mem::size_of::<CameraUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("camera-bind-group"),
+            layout: &camera_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("basic-shader"),
+            label: Some("basic-3d-shader"),
             source: wgpu::ShaderSource::Wgsl(
                 r#"
+struct Camera {
+    view_proj: mat4x4<f32>,
+};
+@group(0) @binding(0)
+var<uniform> camera: Camera;
+
 struct VSOut {
     @builtin(position) pos: vec4<f32>,
     @location(0) color: vec3<f32>,
 };
 
 @vertex
-fn vs_main(@location(0) position: vec2<f32>, @location(1) color: vec3<f32>) -> VSOut {
+fn vs_main(@location(0) position: vec3<f32>, @location(1) color: vec3<f32>) -> VSOut {
     var out: VSOut;
-    out.pos = vec4<f32>(position, 0.0, 1.0);
+    out.pos = camera.view_proj * vec4<f32>(position, 1.0);
     out.color = color;
     return out;
 }
@@ -134,7 +199,7 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("pipeline-layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&camera_layout],
             push_constant_ranges: &[],
         });
 
@@ -157,17 +222,62 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
                 })],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                cull_mode: Some(wgpu::Face::Back),
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex-buffer"),
-            contents: &[0u8; 4],
+        let (terrain_vertices, terrain_indices) = build_terrain_mesh(160, 180.0);
+        let terrain = Mesh {
+            vertex_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("terrain-vb"),
+                contents: bytemuck::cast_slice(&terrain_vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+            index_buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("terrain-ib"),
+                contents: bytemuck::cast_slice(&terrain_indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }),
+            index_count: terrain_indices.len() as u32,
+        };
+
+        let (capsule_pos, capsule_colors, capsule_indices) = build_capsule_mesh(0.35, 0.95, 20, 12);
+        let placeholder_vertices = vec![
+            Vertex {
+                pos: [0.0, 0.0, 0.0],
+                color: [0.8, 0.8, 0.9],
+            };
+            capsule_pos.len()
+        ];
+
+        let capsule_vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("capsule-vb"),
+            contents: bytemuck::cast_slice(&placeholder_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
+
+        let capsule_index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("capsule-ib"),
+            contents: bytemuck::cast_slice(&capsule_indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        let mut world = WorldSnapshot::new_default();
+        world.controller.position.x = -60.0;
+        world.controller.position.y = 0.0;
+        world.controller.position.z = -50.0;
 
         Self {
             surface,
@@ -175,13 +285,22 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
             queue,
             config,
             size,
-            world: WorldSnapshot::new_default(),
+            pipeline,
+            depth_view,
+            camera_buffer,
+            camera_bind_group,
+            terrain,
+            capsule_base_positions: capsule_pos,
+            capsule_colors,
+            capsule_indices,
+            capsule_vertex_buffer,
+            capsule_index_buffer,
+            world,
             pressed: HashSet::new(),
             last_update: Instant::now(),
             start_time: Instant::now(),
-            pipeline,
-            vertex_buffer,
-            num_vertices: 0,
+            yaw: -0.6,
+            pitch: -0.25,
             menu_open: false,
             status_msg: "ESC menu: H help, I inventory, O objective".to_string(),
             status_until: Instant::now() + Duration::from_secs(5),
@@ -199,6 +318,7 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.depth_view = create_depth_view(&self.device, self.config.width, self.config.height);
         }
     }
 
@@ -241,13 +361,13 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
                         }
 
                         match code {
-                            KeyCode::KeyE => self.run_game_command(Command::Gather("wood".to_string())),
-                            KeyCode::KeyQ => self.run_game_command(Command::Gather("fiber".to_string())),
-                            KeyCode::KeyZ => self.run_game_command(Command::Gather("scrap".to_string())),
-                            KeyCode::KeyR => self.run_game_command(Command::CraftFilter),
-                            KeyCode::KeyT => self.run_game_command(Command::TreatWater),
-                            KeyCode::KeyF => self.run_game_command(Command::FarmTick),
-                            KeyCode::KeyC => self.run_game_command(Command::Eat),
+                            KeyCode::Digit1 => self.run_game_command(Command::Gather("wood".to_string())),
+                            KeyCode::Digit2 => self.run_game_command(Command::Gather("fiber".to_string())),
+                            KeyCode::Digit3 => self.run_game_command(Command::Gather("scrap".to_string())),
+                            KeyCode::Digit4 => self.run_game_command(Command::CraftFilter),
+                            KeyCode::Digit5 => self.run_game_command(Command::TreatWater),
+                            KeyCode::Digit6 => self.run_game_command(Command::FarmTick),
+                            KeyCode::Digit7 => self.run_game_command(Command::Eat),
                             KeyCode::KeyI => self.run_game_command(Command::Inventory),
                             KeyCode::KeyO => self.run_game_command(Command::Objective),
                             _ => {}
@@ -265,74 +385,89 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
 
     fn update(&mut self) {
         let now = Instant::now();
-        let dt = (now - self.last_update).as_secs_f32().clamp(0.0, 0.1);
+        let dt = (now - self.last_update).as_secs_f32().clamp(0.0, 0.05);
         self.last_update = now;
 
         if !self.menu_open {
             let sprint = self.key_down(KeyCode::ShiftLeft);
+            let speed = if sprint { 14.0 } else { 8.0 };
+            let forward = Vec3::new(self.yaw.sin(), 0.0, self.yaw.cos()).normalize_or_zero();
+            let right = Vec3::new(forward.z, 0.0, -forward.x).normalize_or_zero();
+
+            let mut delta = Vec3::ZERO;
             if self.key_down(KeyCode::KeyW) || self.key_down(KeyCode::ArrowUp) {
-                apply_move(
-                    &mut self.world.controller,
-                    ControllerInput {
-                        dir: MoveDir::Forward,
-                        dt_seconds: dt,
-                        sprint,
-                    },
-                );
+                delta += forward;
             }
             if self.key_down(KeyCode::KeyS) || self.key_down(KeyCode::ArrowDown) {
-                apply_move(
-                    &mut self.world.controller,
-                    ControllerInput {
-                        dir: MoveDir::Backward,
-                        dt_seconds: dt,
-                        sprint,
-                    },
-                );
+                delta -= forward;
             }
             if self.key_down(KeyCode::KeyA) || self.key_down(KeyCode::ArrowLeft) {
-                apply_move(
-                    &mut self.world.controller,
-                    ControllerInput {
-                        dir: MoveDir::Left,
-                        dt_seconds: dt,
-                        sprint,
-                    },
-                );
+                delta -= right;
             }
             if self.key_down(KeyCode::KeyD) || self.key_down(KeyCode::ArrowRight) {
-                apply_move(
-                    &mut self.world.controller,
-                    ControllerInput {
-                        dir: MoveDir::Right,
-                        dt_seconds: dt,
-                        sprint,
-                    },
-                );
+                delta += right;
+            }
+            if delta.length_squared() > 0.0 {
+                delta = delta.normalize() * speed * dt;
+                let mut p = vec3_from_world(&self.world);
+                p += delta;
+                self.world.controller.position.x = p.x;
+                self.world.controller.position.z = p.z;
+                self.world.player_pos.x = p.x.round() as i32;
+                self.world.player_pos.y = p.z.round() as i32;
+                if sprint {
+                    self.world.controller.stamina = (self.world.controller.stamina - 12.0 * dt).clamp(0.0, 100.0);
+                } else {
+                    self.world.controller.stamina = (self.world.controller.stamina + 5.0 * dt).clamp(0.0, 100.0);
+                }
             }
         }
 
-        self.world.player_pos.x = self.world.controller.position.x.round() as i32;
-        self.world.player_pos.y = self.world.controller.position.z.round() as i32;
+        // stick player to terrain
+        let p = vec3_from_world(&self.world);
+        let ground = terrain_height(p.x, p.z);
+        self.world.controller.position.y = ground + 1.25;
 
-        let vertices = build_scene_vertices(
-            &self.world,
-            self.start_time.elapsed().as_secs_f32(),
-            self.size,
-            self.menu_open,
+        let cam_target = vec3_from_world(&self.world) + Vec3::new(0.0, 0.7, 0.0);
+        let forward = Vec3::new(
+            self.yaw.sin() * self.pitch.cos(),
+            self.pitch.sin(),
+            self.yaw.cos() * self.pitch.cos(),
+        )
+        .normalize_or_zero();
+        let cam_pos = cam_target - forward * 5.0 + Vec3::new(0.0, 2.0, 0.0);
+
+        let view = Mat4::look_at_rh(cam_pos, cam_target, Vec3::Y);
+        let mut proj = Mat4::perspective_rh_gl(
+            60.0f32.to_radians(),
+            (self.config.width as f32 / self.config.height.max(1) as f32).max(0.01),
+            0.1,
+            1000.0,
         );
-        self.num_vertices = vertices.len() as u32;
-        let bytes = bytemuck::cast_slice(&vertices);
+        proj.y_axis.y *= -1.0;
+        let view_proj = proj * view;
 
-        if self.vertex_buffer.size() < bytes.len() as u64 {
-            self.vertex_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("vertex-buffer-grow"),
-                size: (bytes.len() as u64).next_power_of_two(),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-        }
-        self.queue.write_buffer(&self.vertex_buffer, 0, bytes);
+        let uniform = CameraUniform {
+            view_proj: view_proj.to_cols_array_2d(),
+        };
+        self.queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniform));
+
+        let player = vec3_from_world(&self.world);
+        let transformed_capsule = self
+            .capsule_base_positions
+            .iter()
+            .zip(self.capsule_colors.iter())
+            .map(|(bp, c)| Vertex {
+                pos: [bp.x + player.x, bp.y + player.y, bp.z + player.z],
+                color: *c,
+            })
+            .collect::<Vec<_>>();
+        self.queue.write_buffer(
+            &self.capsule_vertex_buffer,
+            0,
+            bytemuck::cast_slice(&transformed_capsule),
+        );
     }
 
     fn title_text(&self) -> String {
@@ -341,17 +476,17 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
         } else if self.menu_open {
             "MENU OPEN (I inventory, O objective, ESC close)"
         } else {
-            "Running"
+            "1 wood,2 fiber,3 scrap,4 craft,5 purify,6 farm,7 eat"
         };
 
         format!(
-            "Humanity Shell | EASY | pos=({},{}) yaw={:.0} stamina={:.0} water={:.0} contam={:.1} inv[w:{} f:{} s:{} k:{} food:{}] obj[{}/{}/{}] | {}",
-            self.world.player_pos.x,
-            self.world.player_pos.y,
-            self.world.controller.yaw_deg,
+            "Humanity Shell 3D | EASY | pos=({:.1},{:.1},{:.1}) yaw={:.1} pitch={:.1} stamina={:.0} inv[w:{} f:{} s:{} k:{} food:{}] obj[{}/{}/{}] | {}",
+            self.world.controller.position.x,
+            self.world.controller.position.y,
+            self.world.controller.position.z,
+            self.yaw,
+            self.pitch,
             self.world.controller.stamina,
-            self.world.water.liters,
-            self.world.water.quality.contamination_index,
             self.world.inventory.wood,
             self.world.inventory.fiber,
             self.world.inventory.scrap,
@@ -360,13 +495,23 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
             self.world.milestones.crafted_filter,
             self.world.milestones.purified_water,
             self.world.milestones.planted_cycle,
-            msg,
+            msg
         )
     }
 
     fn render(&mut self) -> Result<(), SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let day_phase = (self.start_time.elapsed().as_secs_f32() / 120.0) % 1.0;
+        let d = ((day_phase * PI * 2.0).sin() + 1.0) * 0.5;
+        let clear = wgpu::Color {
+            r: (0.02 + 0.18 * d as f64).clamp(0.0, 1.0),
+            g: (0.03 + 0.22 * d as f64).clamp(0.0, 1.0),
+            b: (0.07 + 0.45 * d as f64).clamp(0.0, 1.0),
+            a: 1.0,
+        };
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("render-encoder") });
@@ -378,23 +523,32 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
 
             rpass.set_pipeline(&self.pipeline);
-            rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            rpass.draw(0..self.num_vertices, 0..1);
+            rpass.set_bind_group(0, &self.camera_bind_group, &[]);
+
+            rpass.set_vertex_buffer(0, self.terrain.vertex_buffer.slice(..));
+            rpass.set_index_buffer(self.terrain.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..self.terrain.index_count, 0, 0..1);
+
+            rpass.set_vertex_buffer(0, self.capsule_vertex_buffer.slice(..));
+            rpass.set_index_buffer(self.capsule_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..self.capsule_indices.len() as u32, 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
@@ -403,184 +557,132 @@ fn fs_main(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
     }
 }
 
-fn add_rect(v: &mut Vec<Vertex>, x0: f32, y0: f32, x1: f32, y1: f32, c0: [f32; 3], c1: [f32; 3]) {
-    v.push(Vertex { pos: [x0, y0], color: c0 });
-    v.push(Vertex { pos: [x1, y0], color: c0 });
-    v.push(Vertex { pos: [x1, y1], color: c1 });
-
-    v.push(Vertex { pos: [x0, y0], color: c0 });
-    v.push(Vertex { pos: [x1, y1], color: c1 });
-    v.push(Vertex { pos: [x0, y1], color: c1 });
+fn vec3_from_world(world: &WorldSnapshot) -> Vec3 {
+    Vec3::new(
+        world.controller.position.x,
+        world.controller.position.y,
+        world.controller.position.z,
+    )
 }
 
-fn add_triangle(v: &mut Vec<Vertex>, a: [f32; 2], b: [f32; 2], c: [f32; 2], col: [f32; 3]) {
-    v.push(Vertex { pos: a, color: col });
-    v.push(Vertex { pos: b, color: col });
-    v.push(Vertex { pos: c, color: col });
+fn terrain_height(x: f32, z: f32) -> f32 {
+    // procedural "Rainier-like" volcano + ridges
+    let cx = 35.0;
+    let cz = 45.0;
+    let dx = x - cx;
+    let dz = z - cz;
+    let r = (dx * dx + dz * dz).sqrt();
+
+    let peak = 58.0 * (-(r * r) / (2.0 * 28.0 * 28.0)).exp();
+    let shoulder = 12.0 * (-(r * r) / (2.0 * 65.0 * 65.0)).exp();
+    let ridges = ((x * 0.08).sin() * 2.0 + (z * 0.06).cos() * 1.6) * 0.8;
+    let valley = -0.015 * (z + 80.0).max(0.0);
+
+    peak + shoulder + ridges + valley
 }
 
-fn add_diamond(v: &mut Vec<Vertex>, cx: f32, cy: f32, sx: f32, sy: f32, col: [f32; 3]) {
-    add_triangle(v, [cx, cy + sy], [cx + sx, cy], [cx, cy - sy], col);
-    add_triangle(v, [cx, cy + sy], [cx, cy - sy], [cx - sx, cy], col);
-}
-
-fn build_scene_vertices(
-    world: &WorldSnapshot,
-    t: f32,
-    size: PhysicalSize<u32>,
-    menu_open: bool,
-) -> Vec<Vertex> {
-    let mut v = Vec::new();
-
-    let cam_x = world.controller.position.x;
-    let cam_z = world.controller.position.z;
-    let yaw_rad = world.controller.yaw_deg.to_radians();
-
-    let day_phase = (t / 120.0) % 1.0; // slower day/night
-    let sun_angle = day_phase * std::f32::consts::TAU;
-    let day_light = ((sun_angle.sin() + 1.0) * 0.5).clamp(0.0, 1.0);
-    let night = 1.0 - day_light;
-
-    let sky_top = [0.02 + 0.18 * day_light, 0.04 + 0.32 * day_light, 0.08 + 0.70 * day_light];
-    let sky_horizon = [0.06 + 0.45 * day_light, 0.05 + 0.30 * day_light, 0.10 + 0.20 * day_light];
-    let horizon_y = -0.18;
-
-    add_rect(&mut v, -1.0, horizon_y, 1.0, 1.0, sky_horizon, sky_top);
-
-    // Sun / moon
-    let sx = (sun_angle.cos() * 0.55) - (yaw_rad.sin() * 0.08);
-    let sy = sun_angle.sin() * 0.30 + 0.35;
-    if day_light > 0.2 {
-        add_diamond(&mut v, sx, sy, 0.03, 0.03, [1.0, 0.84, 0.35]);
+fn terrain_color(h: f32) -> [f32; 3] {
+    if h > 42.0 {
+        [0.92, 0.94, 0.96] // snow
+    } else if h > 26.0 {
+        [0.42, 0.43, 0.45] // rock
+    } else if h > 12.0 {
+        [0.29, 0.40, 0.25] // alpine
     } else {
-        add_diamond(&mut v, -sx * 0.9, sy * 0.9, 0.025, 0.025, [0.84, 0.90, 1.0]);
+        [0.22, 0.48, 0.24] // meadow
     }
+}
 
-    // stars / constellations
-    if night > 0.35 {
-        let stars = [
-            (-0.76, 0.76), (-0.70, 0.81), (-0.64, 0.77),
-            (-0.12, 0.85), (-0.02, 0.88), (0.08, 0.84),
-            (0.48, 0.72), (0.58, 0.77), (0.68, 0.73),
-        ];
-        for (x, y) in stars {
-            let tw = 0.004 + 0.003 * (t * 2.2 + x * 13.0).sin().abs();
-            add_diamond(&mut v, x - yaw_rad.sin() * 0.03, y, tw, tw, [0.8 + 0.2 * night, 0.9, 1.0]);
+fn build_terrain_mesh(resolution: u32, span: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let n = resolution.max(8);
+    let step = span / (n - 1) as f32;
+    let half = span * 0.5;
+
+    let mut vertices = Vec::with_capacity((n * n) as usize);
+    for z in 0..n {
+        for x in 0..n {
+            let wx = -half + x as f32 * step;
+            let wz = -half + z as f32 * step;
+            let h = terrain_height(wx, wz);
+            vertices.push(Vertex {
+                pos: [wx, h, wz],
+                color: terrain_color(h),
+            });
         }
     }
 
-    // distant mountain silhouette with yaw parallax
-    let mshift = -yaw_rad.sin() * 0.20;
-    let mcol = [0.08 + day_light * 0.10, 0.10 + day_light * 0.12, 0.16 + day_light * 0.16];
-    add_triangle(&mut v, [-1.1 + mshift, horizon_y], [-0.6 + mshift, 0.20], [-0.1 + mshift, horizon_y], mcol);
-    add_triangle(&mut v, [-0.35 + mshift, horizon_y], [0.05 + mshift, 0.08], [0.45 + mshift, horizon_y], [mcol[0]*0.9,mcol[1]*0.9,mcol[2]*0.9]);
-    add_triangle(&mut v, [0.15 + mshift, horizon_y], [0.70 + mshift, 0.24], [1.15 + mshift, horizon_y], [mcol[0]*0.8,mcol[1]*0.8,mcol[2]*0.8]);
+    let mut indices = Vec::with_capacity(((n - 1) * (n - 1) * 6) as usize);
+    for z in 0..(n - 1) {
+        for x in 0..(n - 1) {
+            let i0 = z * n + x;
+            let i1 = i0 + 1;
+            let i2 = i0 + n;
+            let i3 = i2 + 1;
 
-    // Perspective ground strips (first-person vibe)
-    for i in 0..70 {
-        let near = i as f32 / 70.0;
-        let far = (i + 1) as f32 / 70.0;
-
-        let y_near = -1.0 + near * (horizon_y + 1.0);
-        let y_far = -1.0 + far * (horizon_y + 1.0);
-
-        let half_near = 1.25 * (1.0 - near) + 0.03;
-        let half_far = 1.25 * (1.0 - far) + 0.03;
-
-        let center_near = ((cam_x * 0.03) + yaw_rad.sin() * 0.18) * near;
-        let center_far = ((cam_x * 0.03) + yaw_rad.sin() * 0.18) * far;
-
-        let g = if i % 2 == 0 { 0.24 } else { 0.20 };
-        let base = [0.10 + g * day_light, 0.18 + g, 0.10 + 0.12 * day_light];
-        add_rect(
-            &mut v,
-            center_near - half_near,
-            y_near,
-            center_near + half_near,
-            y_far,
-            base,
-            [base[0] * 0.85, base[1] * 0.85, base[2] * 0.85],
-        );
-
-        // central path hint
-        let p_half_near = half_near * 0.17;
-        let p_half_far = half_far * 0.17;
-        add_rect(
-            &mut v,
-            center_near - p_half_near,
-            y_near,
-            center_far + p_half_far,
-            y_far,
-            [0.28, 0.25, 0.22],
-            [0.22, 0.20, 0.18],
-        );
-    }
-
-    // Blossoming orchard billboards
-    for i in 0..36 {
-        let wx = -28.0 + i as f32 * 1.8;
-        let wz = 10.0 + (i as f32 * 3.4) % 90.0;
-        let rel_x = wx - cam_x;
-        let rel_z = wz - cam_z;
-        if rel_z <= 2.0 || rel_z > 95.0 {
-            continue;
+            indices.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
         }
-
-        let depth = (1.0 - rel_z / 95.0).clamp(0.0, 1.0);
-        let sx = (rel_x / rel_z * 0.7) - yaw_rad.sin() * 0.2;
-        let y = -1.0 + depth * (horizon_y + 1.0);
-        let scale = 0.004 + depth * 0.03;
-        let sway = (t * 2.2 + i as f32 * 0.3).sin() * scale * 0.6;
-
-        // stem
-        add_rect(
-            &mut v,
-            sx - scale * 0.12,
-            y,
-            sx + scale * 0.12,
-            y + scale * 2.0,
-            [0.20, 0.35, 0.16],
-            [0.25, 0.45, 0.20],
-        );
-        // blossom
-        add_diamond(
-            &mut v,
-            sx + sway,
-            y + scale * 2.2,
-            scale * 0.55,
-            scale * 0.55,
-            [0.85, 0.62, 0.78],
-        );
     }
 
-    // Menu overlay
-    if menu_open {
-        add_rect(
-            &mut v,
-            -0.75,
-            -0.55,
-            0.75,
-            0.55,
-            [0.05, 0.08, 0.10],
-            [0.09, 0.12, 0.14],
-        );
-        add_rect(
-            &mut v,
-            -0.73,
-            -0.53,
-            0.73,
-            -0.48,
-            [0.14, 0.20, 0.24],
-            [0.14, 0.20, 0.24],
-        );
+    (vertices, indices)
+}
+
+fn build_capsule_mesh(radius: f32, half_height: f32, segments: u32, rings: u32) -> (Vec<Vec3>, Vec<[f32; 3]>, Vec<u32>) {
+    let seg = segments.max(8);
+    let ring = rings.max(6);
+
+    // start from sphere-ish rings, then stretch Y to pill/capsule look
+    let mut pos = Vec::new();
+    let mut col = Vec::new();
+    let mut indices = Vec::new();
+
+    for y in 0..=ring {
+        let v = y as f32 / ring as f32;
+        let phi = v * PI;
+        let py = phi.cos() * radius;
+        let pr = phi.sin() * radius;
+
+        for x in 0..=seg {
+            let u = x as f32 / seg as f32;
+            let th = u * PI * 2.0;
+            let px = th.cos() * pr;
+            let pz = th.sin() * pr;
+
+            let stretched_y = py * 1.8 + if py >= 0.0 { half_height } else { -half_height };
+            pos.push(Vec3::new(px, stretched_y, pz));
+            col.push([0.90, 0.86, 0.78]);
+        }
     }
 
-    // 8px green diamond crosshair
-    let sx = (8.0 / size.width.max(1) as f32).clamp(0.002, 0.03);
-    let sy = (8.0 / size.height.max(1) as f32).clamp(0.002, 0.03);
-    add_diamond(&mut v, 0.0, 0.0, sx, sy, [0.10, 1.0, 0.2]);
+    let row = seg + 1;
+    for y in 0..ring {
+        for x in 0..seg {
+            let i0 = y * row + x;
+            let i1 = i0 + 1;
+            let i2 = i0 + row;
+            let i3 = i2 + 1;
+            indices.extend_from_slice(&[i0, i2, i1, i1, i2, i3]);
+        }
+    }
 
-    v
+    (pos, col, indices)
+}
+
+fn create_depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
+    let depth_tex = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("depth-tex"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth24Plus,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    });
+    depth_tex.create_view(&wgpu::TextureViewDescriptor::default())
 }
 
 fn main() {
@@ -588,7 +690,7 @@ fn main() {
 
     let event_loop = EventLoop::new().expect("event loop");
     let window = WindowBuilder::new()
-        .with_title("Humanity Shell")
+        .with_title("Humanity Shell 3D")
         .build(&event_loop)
         .expect("window");
 
@@ -619,12 +721,9 @@ fn main() {
             ..
         } => {
             if !state.menu_open {
-                let sensitivity = 0.08;
-                apply_look(
-                    &mut state.world.controller,
-                    delta.0 as f32 * sensitivity,
-                    -delta.1 as f32 * sensitivity,
-                );
+                let sensitivity = 0.0025;
+                state.yaw -= delta.0 as f32 * sensitivity;
+                state.pitch = (state.pitch - delta.1 as f32 * sensitivity).clamp(-1.25, 1.25);
             }
         }
         Event::AboutToWait => window.request_redraw(),
