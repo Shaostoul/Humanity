@@ -8665,7 +8665,7 @@
     const normalizedType = typeof node.type === 'string' ? node.type.trim().toLowerCase() : '';
     const normalizedDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
     const normalizedStatus = typeof node.status === 'string' ? node.status.trim().toLowerCase() : '';
-    const normalizedPriority = typeof node.priority === 'string' ? node.priority.trim().toLowerCase() : '';
+    const normalizedPriority = featureWebNormalizePriority(node.priority);
     const normalized = {
      id: featureWebSanitizeId(node.id, FW_TEXT_LIMITS.id) || featureWebNewId('n'),
      title: featureWebClampText(node.title, FW_TEXT_LIMITS.title) || ('Untitled ' + (idx + 1)),
