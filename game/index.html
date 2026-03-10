@@ -9494,8 +9494,16 @@
   }
 
   function featureWebDeleteNode(id) {
+   const node = featureWeb.nodes.find(n => n && n.id === id);
+   if (!node) return;
+   const removedLinks = featureWeb.edges.filter(e => e.from === id || e.to === id).length;
    featureWeb.nodes = featureWeb.nodes.filter(n => n.id !== id);
    featureWeb.edges = featureWeb.edges.filter(e => e.from !== id && e.to !== id);
+   if (fwSelectedNodeId === id) {
+    fwSelectedNodeId = '';
+    featureWebSaveUiState();
+   }
+   featureWebNotice('Deleted node: ' + (node.title || 'Untitled') + (removedLinks ? (' (' + removedLinks + ' link' + (removedLinks === 1 ? '' : 's') + ' removed)') : ''));
    featureWebPersistAndRefresh();
   }
 
@@ -9535,7 +9543,14 @@
   }
 
   function featureWebDeleteEdge(id) {
+   const edge = featureWeb.edges.find(e => e && e.id === id);
+   if (!edge) return;
    featureWeb.edges = featureWeb.edges.filter(e => e.id !== id);
+   const fromNode = featureWeb.nodes.find(n => n && n.id === edge.from);
+   const toNode = featureWeb.nodes.find(n => n && n.id === edge.to);
+   const fromTitle = featureWebClampText(fromNode && fromNode.title, 32) || 'Source';
+   const toTitle = featureWebClampText(toNode && toNode.title, 32) || 'Target';
+   featureWebNotice('Deleted link: ' + fromTitle + ' → ' + toTitle + ' (' + featureWebNormalizeEdgeType(edge.type).replace(/_/g, ' ') + ')');
    featureWebPersistAndRefresh();
   }
 
