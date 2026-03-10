@@ -161,8 +161,10 @@
       white-space: nowrap;
       opacity: 0.9;
     }
-    .hub-nav .menu { position: relative; }
+    .hub-nav .menu { position: relative; z-index: 25; }
     .hub-nav .menu-btn {
+      position: relative;
+      z-index: 26;
       background: transparent;
       border: none;
       color: #ddd;
@@ -502,6 +504,13 @@
 
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
+    // Never let menu button taps fall through to tab navigation.
+    if (e.target.closest('.menu-btn')) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
     const link = e.target.closest('a[href]');
     if (!link) return;
     const href = link.getAttribute('href');
