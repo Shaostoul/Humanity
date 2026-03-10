@@ -10521,6 +10521,9 @@
     const capSuffix = nearCapacity ? (' · cap left: ' + nodeRemaining + ' nodes, ' + edgeRemaining + ' links') : '';
     metaEl.textContent = visibleNodes.length + '/' + featureWeb.nodes.length + ' nodes · ' + visibleEdges.length + '/' + featureWeb.edges.length + ' links' + savedSuffix + capSuffix;
     metaEl.style.color = nearCapacity ? '#e8b56a' : 'var(--text-muted)';
+    metaEl.title = nearCapacity
+     ? ('Near graph capacity. Remaining: ' + nodeRemaining + ' nodes, ' + edgeRemaining + ' links (max ' + FW_MAX_NODES + '/' + FW_MAX_EDGES + ').')
+     : ('Visible nodes/links under current filters. Capacity remaining: ' + nodeRemaining + ' nodes, ' + edgeRemaining + ' links.');
    }
    const powerEl = document.getElementById('sys-stock-power');
    const waterEl = document.getElementById('sys-stock-water');
