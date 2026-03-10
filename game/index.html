@@ -8526,7 +8526,7 @@
   }
 
   function featureWebBoardStatusLabel(status) {
-   const s = typeof status === 'string' ? status.trim().toLowerCase() : '';
+   const s = boardNormalizeStatus(status);
    return s === 'in_progress' ? 'IN PROGRESS' : (s === 'testing' ? 'TESTING' : (s === 'done' ? 'DONE' : 'BACKLOG'));
   }
 
