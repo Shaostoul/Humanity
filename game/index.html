@@ -11391,8 +11391,8 @@
   function boardDeleteTask(id) {
    if (!boardCanEdit()) return;
    if (!confirm('Delete this task?')) return;
-   boardSend({ type: 'task_delete', id: id });
-   closeTaskModal();
+   if (boardSend({ type: 'task_delete', id: id })) closeTaskModal();
+   else featureWebNotice('Board connection not ready');
   }
 
   function showCreateTaskModal() {
