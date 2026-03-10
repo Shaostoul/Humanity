@@ -10167,6 +10167,7 @@
     n.y = Math.max(4, Math.min(height - 48, n.y));
    });
    featureWebPersistAndRefresh();
+   featureWebNotice('Applied auto layout to ' + featureWeb.nodes.length + ' nodes');
   }
 
   function featureWebConstellationLayout() {
@@ -10203,6 +10204,7 @@
    if (viewEl) viewEl.value = 'constellation';
    featureWebSaveFilters();
    featureWebPersistAndRefresh();
+   featureWebNotice('Applied constellation layout to ' + featureWeb.nodes.length + ' nodes');
   }
 
   function featureWebOrbitLayout() {
@@ -10256,11 +10258,15 @@
    if (viewEl) viewEl.value = 'orbit';
    featureWebSaveFilters();
    featureWebPersistAndRefresh();
+   featureWebNotice('Applied orbit layout to ' + featureWeb.nodes.length + ' nodes');
   }
 
   function featureWebFitToView() {
    const canvas = document.getElementById('feature-web-canvas');
-   if (!canvas || featureWeb.nodes.length < 2) return;
+   if (!canvas || featureWeb.nodes.length < 2) {
+    if (featureWeb.nodes.length === 1) featureWebNotice('Need at least 2 nodes to fit view');
+    return;
+   }
    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
    featureWeb.nodes.forEach(n => {
     minX = Math.min(minX, n.x);
@@ -10282,6 +10288,7 @@
     n.y = Math.max(4, Math.min(height - 48, n.y));
    });
    featureWebPersistAndRefresh();
+   featureWebNotice('Fit ' + featureWeb.nodes.length + ' nodes to view');
   }
 
   function featureWebExport() {
