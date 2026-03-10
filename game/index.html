@@ -10280,7 +10280,8 @@
   function featureWebFitToView() {
    const canvas = document.getElementById('feature-web-canvas');
    if (!canvas || featureWeb.nodes.length < 2) {
-    if (featureWeb.nodes.length === 1) featureWebNotice('Need at least 2 nodes to fit view');
+    if (!featureWeb.nodes.length) featureWebNotice('Add nodes before using Fit to View');
+    else featureWebNotice('Need at least 2 nodes to fit view');
     return;
    }
    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
