@@ -9492,7 +9492,12 @@
    const hasFromNode = featureWeb.nodes.some(n => n && n.id === fromId);
    const hasToNode = featureWeb.nodes.some(n => n && n.id === toId);
    if (!hasFromNode || !hasToNode) {
-    featureWebNotice('Link source or target no longer exists');
+    if (!hasFromNode && fromEl) fromEl.value = '';
+    if (!hasToNode && toEl) toEl.value = '';
+    featureWebRender();
+    featureWebNotice('Link source or target no longer exists; refreshed selectors');
+    if (!hasFromNode && fromEl && typeof fromEl.focus === 'function') fromEl.focus();
+    else if (!hasToNode && toEl && typeof toEl.focus === 'function') toEl.focus();
     return;
    }
    const edgeType = featureWebNormalizeEdgeType(typeEl && typeEl.value);
