@@ -9422,7 +9422,10 @@
 
   function featureWebAddNodeFromTask(taskId) {
    const task = featureWebFindTaskById(taskId);
-   if (!task) return;
+   if (!task) {
+    featureWebNotice('Task not found for node creation');
+    return;
+   }
    if (featureWebRemainingNodeCapacity() <= 0) {
     featureWebNotice('Node limit reached (' + FW_MAX_NODES + ')');
     return;
