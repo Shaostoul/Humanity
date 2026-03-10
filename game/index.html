@@ -9412,7 +9412,7 @@
    }
    if (e.key === 'Escape') {
     e.preventDefault();
-    featureWebClearSelection();
+    featureWebClearSelection({ quiet: true });
    }
   }
 
@@ -11103,7 +11103,7 @@
    }
    if (e.key === 'Escape') {
     e.preventDefault();
-    featureWebClearSelection();
+    featureWebClearSelection({ quiet: true });
     return;
    }
    if ((e.key === 'Delete' || e.key === 'Backspace') && fwSelectedNodeId) {
