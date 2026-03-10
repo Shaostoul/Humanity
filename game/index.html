@@ -8471,6 +8471,11 @@
    return featureWebClampText(content || '', FW_TEXT_LIMITS.summary).trim();
   }
 
+  function boardNormalizeCommentCount(commentCount) {
+   const normalizedCommentCount = Number.isFinite(+commentCount) ? Math.max(0, Math.trunc(+commentCount)) : 0;
+   return normalizedCommentCount;
+  }
+
   function boardNormalizeTasks(tasks) {
    const rawTasks = Array.isArray(tasks) ? tasks : [];
    const dedupedTasks = [];
@@ -8490,6 +8495,7 @@
      taskObj.title = boardNormalizeTitle(taskObj.title) || 'Untitled Task';
      taskObj.description = boardNormalizeDescription(taskObj.description);
      taskObj.labels = boardNormalizeLabelsJson(taskObj.labels);
+     taskObj.comment_count = boardNormalizeCommentCount(taskObj.comment_count);
     }
     dedupedTasks.push(taskObj);
    });
@@ -11278,7 +11284,7 @@
       const t = commentTaskId != null
         ? featureWebFindTaskById(commentTaskId)
         : featureWebFindTaskByRawId(msg.task_id);
-      if (t) t.comment_count = (t.comment_count || 0) + 1;
+      if (t) t.comment_count = boardNormalizeCommentCount(t.comment_count) + 1;
       renderBoard();
       // If modal is open for this task, append comment
       const modalEl = document.getElementById('task-modal-content');
