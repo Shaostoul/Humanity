@@ -3392,6 +3392,7 @@ function renderDmList() {
     </div>`;
   }).join('');
   if (window.twemoji) twemoji.parse(list);
+  if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }
 
 // ── Sidebar Tab Navigation ──
@@ -3459,6 +3460,7 @@ var federatedServersFetched = false;
       wrap.dataset.sid = id;
       const head = document.createElement('button');
       head.className = 'unified-header';
+      head.dataset.baseLabel = label;
       head.textContent = label + ' ▾';
       const body = document.createElement('div');
       body.className = 'unified-body';
@@ -3466,7 +3468,7 @@ var federatedServersFetched = false;
       panel.classList.add('force-show');
       head.onclick = () => {
         wrap.classList.toggle('collapsed');
-        head.textContent = label + (wrap.classList.contains('collapsed') ? ' ▸' : ' ▾');
+        refreshUnifiedLeftHeaderCounts();
       };
       wrap.appendChild(head);
       wrap.appendChild(body);
@@ -3477,6 +3479,25 @@ var federatedServersFetched = false;
     if (!unified.querySelector('[data-sid="groups"]')) unified.appendChild(mkSection('groups', 'Groups', tabGroups));
     if (!unified.querySelector('[data-sid="dms"]')) unified.appendChild(mkSection('dms', 'DMs', tabDms));
 
+    function refreshUnifiedLeftHeaderCounts() {
+      const serverCount = (channelList || []).length;
+      const groupCount = (myGroups || []).length;
+      const dmCount = (dmConversations || []).length;
+      const mapping = {
+        servers: { label: 'Servers', count: serverCount },
+        groups: { label: 'Groups', count: groupCount },
+        dms: { label: 'DMs', count: dmCount },
+      };
+      unified.querySelectorAll('.unified-section[data-sid]').forEach(sec => {
+        const sid = sec.getAttribute('data-sid');
+        const head = sec.querySelector('.unified-header');
+        if (!head || !mapping[sid]) return;
+        const collapsed = sec.classList.contains('collapsed');
+        head.textContent = `${mapping[sid].label} (${mapping[sid].count}) ${collapsed ? '▸' : '▾'}`;
+      });
+    }
+    window.refreshUnifiedLeftHeaderCounts = refreshUnifiedLeftHeaderCounts;
+
     // In unified mode, always render all sections; external tab switch calls expand relevant section only.
     window.switchSidebarTab = function(tabName, save) {
       if (tabName === 'servers') renderServerList();
@@ -3485,8 +3506,11 @@ var federatedServersFetched = false;
       const sec = unified.querySelector(`[data-sid="${tabName}"]`);
       if (sec) sec.classList.remove('collapsed');
       if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
+      if (typeof refreshUnifiedLeftHeaderCounts === 'function') refreshUnifiedLeftHeaderCounts();
       if (save) localStorage.setItem(SIDEBAR_TAB_KEY, tabName);
     };
+
+    refreshUnifiedLeftHeaderCounts();
   }
 
   setTimeout(initUnifiedLeftSidebar, 0);
@@ -3620,6 +3644,7 @@ var federatedServersFetched = false;
     container.innerHTML = html;
     if (window.twemoji) twemoji.parse(container);
     if (typeof renderUnreadDots === 'function') renderUnreadDots();
+    if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
   }
   window.renderServerList = renderServerList;
 
@@ -4756,6 +4781,7 @@ function renderGroupList() {
       setTimeout(() => document.addEventListener('click', closeMenu), 0);
     };
   });
+  if (typeof window.refreshUnifiedLeftHeaderCounts === 'function') window.refreshUnifiedLeftHeaderCounts();
 }
 
 function promptCreateGroup() {

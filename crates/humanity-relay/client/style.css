@@ -795,6 +795,27 @@ header h1 {
   font-size: 0.76rem;
   font-weight: 600;
 }
+/* Left nav compaction */
+.sidebar-unified-left .unified-section {
+  margin-bottom: 0.3rem;
+  border-radius: 6px;
+}
+.sidebar-unified-left .unified-header {
+  padding: 0.28rem 0.42rem;
+  font-size: 0.72rem;
+}
+.sidebar-unified-left .unified-body {
+  padding: 0.22rem 0.28rem;
+}
+.sidebar-unified-left .channel-item,
+.sidebar-unified-left .dm-item {
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+  font-size: 0.73rem;
+}
+.sidebar-unified-left .dm-item .dm-preview {
+  max-width: 90px;
+}
 .unified-section.collapsed > .unified-body { display: none; }
 .unified-body {
   padding: 0.35rem 0.45rem;
