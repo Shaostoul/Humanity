@@ -8639,7 +8639,8 @@
 
   function featureWebUpsertBoardTask(task) {
    if (!task) return false;
-   const normalizedTask = boardNormalizeTasks([task])[0] || task;
+   const normalizedTask = boardNormalizeTasks([task])[0];
+   if (!normalizedTask) return false;
    const normalizedId = featureWebNormalizeTaskId(normalizedTask.id);
    const idx = normalizedId != null ? featureWebFindTaskIndexById(normalizedId) : featureWebFindTaskIndexByRawId(normalizedTask.id);
    if (idx >= 0) {
