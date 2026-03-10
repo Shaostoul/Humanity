@@ -11380,7 +11380,8 @@
    const labels = boardParseTaskLabels(task);
    const labelHtml = labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.2rem;">' + escHtml(l) + '</span>').join('');
    const assigneeHtml = task.assignee ? '<span style="font-size:0.7rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '';
-   const commentHtml = task.comment_count > 0 ? '<span style="font-size:0.7rem;color:var(--text-muted);">💬 ' + task.comment_count + '</span>' : '';
+   const commentCount = boardNormalizeCommentCount(task.comment_count);
+   const commentHtml = commentCount > 0 ? '<span style="font-size:0.7rem;color:var(--text-muted);">💬 ' + commentCount + '</span>' : '';
    const canEdit = boardCanEdit();
    let moveHtml = '';
    if (canEdit) {
