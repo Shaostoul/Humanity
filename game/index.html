@@ -8650,7 +8650,7 @@
   }
 
   function featureWebBoardStatusLabel(status) {
-   const s = boardNormalizeStatus(status);
+   const s = boardNormalizeTaskStatus(status);
    return s === 'in_progress' ? 'IN PROGRESS' : (s === 'testing' ? 'TESTING' : (s === 'done' ? 'DONE' : 'BACKLOG'));
   }
 
