@@ -9909,7 +9909,7 @@
    let candidates = 0;
    let created = 0;
    featureWeb.nodes.forEach((node) => {
-    if (node.taskId != null) return;
+    if (featureWebNormalizeTaskId(node && node.taskId) != null) return;
     candidates++;
     const mappedStatus = featureWebMapNodeStatusToTask(node.status);
     const rawDomain = typeof node.domain === 'string' ? node.domain.trim().toLowerCase() : '';
