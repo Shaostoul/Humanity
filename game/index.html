@@ -10035,6 +10035,7 @@
    const next = (idx + (step || 1) + order.length) % order.length;
    node.status = order[next];
    featureWebSyncLinkedTask(node);
+   featureWebNotice('Set status for ' + (node.title || 'selected node') + ': ' + node.status);
    featureWebPersistAndRefreshEditor();
   }
 
@@ -10049,6 +10050,7 @@
    const idx = Math.max(0, order.indexOf(node.type || 'feature'));
    const next = (idx + (step || 1) + order.length) % order.length;
    node.type = order[next];
+   featureWebNotice('Set type for ' + (node.title || 'selected node') + ': ' + node.type);
    featureWebPersistAndRefreshEditor();
   }
 
