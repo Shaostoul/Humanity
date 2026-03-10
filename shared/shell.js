@@ -324,17 +324,17 @@
     #mobile-hub-drawer {
       position: fixed;
       top: 0;
-      right: 0;
-      width: min(84vw, 360px);
+      left: 0;
+      width: 100vw;
       height: 100vh;
-      background: rgba(13,13,13,0.98);
-      border-left: 1px solid #333;
+      background: rgba(13,13,13,0.92);
       z-index: 7700;
       transform: translateX(100%);
       transition: transform 0.2s ease;
       overflow-y: auto;
       padding: 0.65rem 0.6rem 1rem;
       box-sizing: border-box;
+      backdrop-filter: blur(2px);
     }
     #mobile-hub-drawer.open { transform: translateX(0); }
     #mobile-hub-backdrop.open { display: block; }
@@ -343,6 +343,13 @@
     .mobile-hub-group a { display:block; color:#ddd; text-decoration:none; padding:0.5rem 0.55rem; font-size:0.86rem; border-bottom:1px solid #1d1d1d; }
     .mobile-hub-group a:last-child { border-bottom:none; }
     .mobile-hub-group a:hover { background: rgba(255,255,255,0.05); }
+    .mobile-hub-group a.active {
+      color: #fff;
+      background: rgba(255,255,255,0.06);
+      animation: nav-rgb-border 4s linear infinite;
+      border-radius: 6px;
+      margin: 0.15rem;
+    }
 
     @media (max-width: 768px) {
       .hub-nav {
@@ -433,28 +440,34 @@
   mobileBackdrop.id = 'mobile-hub-backdrop';
   var mobileDrawer = document.createElement('aside');
   mobileDrawer.id = 'mobile-hub-drawer';
+  function mobileLink(path, label) {
+    var current = pathname || '/';
+    var isActive = current === path || (path !== '/' && current.startsWith(path + '/'));
+    return '<a href="' + path + '"' + (isActive ? ' class="active"' : '') + '>' + label + '</a>';
+  }
+
   mobileDrawer.innerHTML =
     '<div class="mobile-hub-group"><h4>Private</h4>' +
-      '<a href="/reality">Profile</a>' +
-      '<a href="/inventory">Inventory</a>' +
-      '<a href="/avatars">Identity</a>' +
-      '<a href="/downloads">Downloads</a>' +
-      '<a href="/chat">Comms</a>' +
+      mobileLink('/reality', 'Profile') +
+      mobileLink('/inventory', 'Inventory') +
+      mobileLink('/avatars', 'Identity') +
+      mobileLink('/downloads', 'Downloads') +
+      mobileLink('/chat', 'Comms') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Public</h4>' +
-      '<a href="/board">Systems</a>' +
-      '<a href="/map">Maps</a>' +
-      '<a href="/market">Market</a>' +
-      '<a href="/learn">Learn</a>' +
-      '<a href="/info">Knowledge</a>' +
-      '<a href="/streams">Streams</a>' +
+      mobileLink('/board', 'Systems') +
+      mobileLink('/map', 'Maps') +
+      mobileLink('/market', 'Market') +
+      mobileLink('/learn', 'Learn') +
+      mobileLink('/info', 'Knowledge') +
+      mobileLink('/streams', 'Streams') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Ops</h4>' +
-      '<a href="/debug">Health</a>' +
-      '<a href="/debug">Deploy</a>' +
-      '<a href="/debug">Logs</a>' +
-      '<a href="/debug">Debug</a>' +
-      '<a href="/debug">Moderation</a>' +
+      mobileLink('/debug', 'Health') +
+      mobileLink('/debug', 'Deploy') +
+      mobileLink('/debug', 'Logs') +
+      mobileLink('/debug', 'Debug') +
+      mobileLink('/debug', 'Moderation') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
