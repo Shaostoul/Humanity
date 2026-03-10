@@ -17,6 +17,8 @@ members = [
     "crates/core-skill-progression",
     "crates/core-teaching-graph",
     "crates/core-firstperson-controller",
+    "crates/persistence-sqlite",
+    "crates/engine-wgpu-shell",
 ]
 exclude = [
     "desktop/src-tauri",

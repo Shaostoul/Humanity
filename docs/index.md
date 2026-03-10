@@ -62,6 +62,7 @@ This is the parent entry for major documentation areas.
 - [AI Plugin Runtime](../design/runtime/ai_plugin_runtime_architecture.md)
 - [Hot Reload Tiers](../design/runtime/hot_reload_tiers.md)
 - [Markdown IA Plan](../design/docs/md_information_architecture_plan.md)
+- [SQLite Save Backend](../design/storage/sqlite_save_backend.md)
 
 ## Knowledge
 - [Knowledge Index](../knowledge/index.md)

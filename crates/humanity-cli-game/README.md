@@ -14,4 +14,13 @@ cargo run -p humanity-cli-game
 cargo run -p humanity-cli-game -- --script "status;practice water;lesson;move n;drink;farm_tick;status;quit"
 ```
 
+DB commands (in CLI):
+
+```bash
+help_db
+save_db savegame.db default
+load_db savegame.db default
+events savegame.db default 20
+```
+
 This mode exists so AI and headless environments can play/test core gameplay loops without GUI requirements.

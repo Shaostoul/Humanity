@@ -33,6 +33,9 @@ CLI mode is an official testing surface, not a throwaway debug script.
 - `transition <offline|host|join|dedicated>`
 - `save <path>`
 - `load <path>`
+- `save_db <db_path> <slot>`
+- `load_db <db_path> <slot>`
+- `events <db_path> <slot> [limit]`
 - `quit`
 
 ## Future expansion

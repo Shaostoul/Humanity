@@ -7,3 +7,4 @@ license = "CC0-1.0"
 
 [dependencies]
 core-offline-loop = { path = "../core-offline-loop" }
+persistence-sqlite = { path = "../persistence-sqlite" }

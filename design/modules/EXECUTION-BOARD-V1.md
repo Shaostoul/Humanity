@@ -146,6 +146,31 @@ Status key: `planned` | `in_progress` | `blocked` | `done`
 
 ## Workstream E: Runtime scaffolds
 
+## E2) persistence-sqlite
+- Spec: `design/storage/sqlite_save_backend.md`
+- Crate path: `crates/persistence-sqlite/`
+- Current status: done
+- Progress:
+  - [x] sqlite schema for snapshots + events
+  - [x] save/load latest snapshot API
+  - [x] append/list events API
+  - [x] tests passing (`cargo test -p persistence-sqlite`)
+  - [x] CLI integrated db commands (`save_db/load_db/events`)
+- Depends on: core-offline-loop world snapshot serialization
+
+## E3) engine-wgpu-shell
+- Spec: `design/engine/custom_rust_wgpu_runtime_plan.md`
+- Crate path: `crates/engine-wgpu-shell/`
+- Current status: done (scaffold)
+- Progress:
+  - [x] actual wgpu window/surface/device shell
+  - [x] input handling (WASD + mouse look)
+  - [x] render loop clear pass with world-driven color
+  - [x] wired to first-person controller + world snapshot
+  - [x] compile check passing (`cargo check -p engine-wgpu-shell`)
+- Depends on: core-firstperson-controller, core-offline-loop
+
+
 ## E1) core-firstperson-controller
 - Spec: `design/game/first_person_controller_contract.md`
 - Crate path: `crates/core-firstperson-controller/`
