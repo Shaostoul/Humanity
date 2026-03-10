@@ -11387,6 +11387,8 @@
    if (!input || !input.value.trim()) return;
    if (boardSend({ type: 'task_comment', task_id: taskId, content: input.value.trim() })) {
     input.value = '';
+   } else {
+    featureWebNotice('Board connection not ready');
    }
   }
 
