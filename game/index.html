@@ -8529,13 +8529,14 @@
 
   function featureWebUpsertBoardTask(task) {
    if (!task) return false;
-   const normalizedId = featureWebNormalizeTaskId(task.id);
-   const idx = normalizedId != null ? featureWebFindTaskIndexById(normalizedId) : featureWebFindTaskIndexByRawId(task.id);
+   const normalizedTask = boardNormalizeTasks([task])[0] || task;
+   const normalizedId = featureWebNormalizeTaskId(normalizedTask.id);
+   const idx = normalizedId != null ? featureWebFindTaskIndexById(normalizedId) : featureWebFindTaskIndexByRawId(normalizedTask.id);
    if (idx >= 0) {
-    boardTasks[idx] = task;
+    boardTasks[idx] = normalizedTask;
     return true;
    }
-   boardTasks.push(task);
+   boardTasks.push(normalizedTask);
    return false;
   }
 
