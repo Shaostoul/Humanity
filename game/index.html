@@ -11392,11 +11392,13 @@
   }
 
   function openTaskModal(taskId) {
-   const task = featureWebFindTaskById(taskId);
+   const normalizedTaskId = featureWebNormalizeTaskId(taskId);
+   if (normalizedTaskId == null) return;
+   const task = featureWebFindTaskById(normalizedTaskId);
    if (!task) return;
    const { modal, content } = boardGetTaskModalElements();
    if (!modal || !content) return;
-   content.dataset.taskId = taskId;
+   content.dataset.taskId = String(normalizedTaskId);
    const canEdit = boardCanEdit();
    const canComment = boardCanComment();
    const pc = PRIORITY_COLORS[task.priority] || '#666';
@@ -11427,12 +11429,12 @@
    }
 
    html += '<h4 style="color:var(--text-muted);font-size:0.85rem;margin:1rem 0 0.5rem;border-top:1px solid var(--border);padding-top:0.8rem;">💬 Comments</h4>' +
-    '<div id="task-comments-list" data-task-id="' + taskId + '" style="margin-bottom:0.8rem;"><div style="color:var(--text-muted);font-size:0.8rem;">Loading…</div></div>';
+    '<div id="task-comments-list" data-task-id="' + normalizedTaskId + '" style="margin-bottom:0.8rem;"><div style="color:var(--text-muted);font-size:0.8rem;">Loading…</div></div>';
 
    if (canComment) {
     html += '<div style="display:flex;gap:0.4rem;">' +
-     '<input type="text" id="task-comment-input" placeholder="Add a comment…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.82rem;outline:none;font-family:inherit;" onkeydown="if(event.key===\'Enter\')boardAddComment(' + taskId + ')">' +
-     '<button onclick="boardAddComment(' + taskId + ')" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Post</button>' +
+     '<input type="text" id="task-comment-input" placeholder="Add a comment…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.82rem;outline:none;font-family:inherit;" onkeydown="if(event.key===\'Enter\')boardAddComment(' + normalizedTaskId + ')">' +
+     '<button onclick="boardAddComment(' + normalizedTaskId + ')" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">Post</button>' +
     '</div>';
    }
 
@@ -11440,10 +11442,7 @@
    modal.style.display = 'flex';
 
    // Request comments
-   const normalizedTaskId = featureWebNormalizeTaskId(taskId);
-   if (normalizedTaskId != null) {
-    boardSend({ type: 'task_comments_request', task_id: normalizedTaskId });
-   }
+   boardSend({ type: 'task_comments_request', task_id: normalizedTaskId });
   }
 
   function renderCommentHtml(c) {
