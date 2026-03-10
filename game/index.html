@@ -10059,10 +10059,12 @@
     featureWebNotice('Select a node first');
     return;
    }
+   const node = featureWeb.nodes.find(n => n && n.id === fwSelectedNodeId);
+   const nodeTitle = featureWebClampText(node && node.title, 40) || 'Selected node';
    const order = FW_ALLOWED_EDGE_TYPES;
    const edges = featureWeb.edges.filter(e => e.from === fwSelectedNodeId || e.to === fwSelectedNodeId);
    if (!edges.length) {
-    featureWebNotice('Selected node has no links');
+    featureWebNotice(nodeTitle + ' has no links');
     return;
    }
    edges.forEach(edge => {
@@ -10071,7 +10073,7 @@
     edge.type = order[(idx + (step || 1) + order.length) % order.length];
    });
    featureWebPersistAndRefresh();
-   featureWebNotice('Updated link types for selected node');
+   featureWebNotice('Updated ' + edges.length + ' link type' + (edges.length === 1 ? '' : 's') + ' for ' + nodeTitle);
   }
 
   function featureWebDeleteSelectedLinks() {
