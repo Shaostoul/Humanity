@@ -10095,9 +10095,6 @@
   function featureWebDeleteSelectedNode() {
    if (!fwSelectedNodeId) return;
    featureWebDeleteNode(fwSelectedNodeId);
-   fwSelectedNodeId = '';
-   featureWebSaveUiState();
-   featureWebNotice('Selected node deleted');
   }
 
   function featureWebSetHover(id) {
