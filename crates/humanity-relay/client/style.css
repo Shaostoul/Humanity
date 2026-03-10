@@ -779,16 +779,16 @@ header h1 {
 }
 .unified-section {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 0.45rem;
+  border-radius: 0;
+  margin-bottom: 0.28rem;
   overflow: hidden;
   background: var(--bg-primary);
 }
 .unified-section > .unified-header {
   width: 100%;
   text-align: left;
-  padding: 0.4rem 0.5rem;
-  background: var(--bg-secondary);
+  padding: 0.36rem 0.48rem;
+  background: rgba(255,255,255,0.03);
   border: none;
   color: var(--text);
   cursor: pointer;
@@ -797,8 +797,8 @@ header h1 {
 }
 /* Left nav compaction */
 .sidebar-unified-left .unified-section {
-  margin-bottom: 0.3rem;
-  border-radius: 6px;
+  margin-bottom: 0.22rem;
+  border-radius: 0;
 }
 .sidebar-unified-left .unified-header {
   padding: 0.28rem 0.42rem;
@@ -819,6 +819,36 @@ header h1 {
 .unified-section.collapsed > .unified-body { display: none; }
 .unified-body {
   padding: 0.35rem 0.45rem;
+}
+
+/* Context color coding (shared left/right): DMs red, Groups green, Servers blue */
+.unified-section[data-sid="dms"],
+.unified-section[data-usid="friends"] {
+  background: rgba(120, 20, 20, 0.22);
+  border-color: rgba(170, 60, 60, 0.45);
+}
+.unified-section[data-sid="groups"],
+.unified-section[data-usid^="group-"] {
+  background: rgba(24, 92, 32, 0.22);
+  border-color: rgba(74, 168, 88, 0.42);
+}
+.unified-section[data-sid="servers"],
+.unified-section[data-usid^="server-"] {
+  background: rgba(24, 46, 110, 0.22);
+  border-color: rgba(86, 130, 220, 0.42);
+}
+
+.unified-section[data-sid="dms"] > .unified-header,
+.unified-section[data-usid="friends"] > .unified-header {
+  background: rgba(120, 20, 20, 0.34);
+}
+.unified-section[data-sid="groups"] > .unified-header,
+.unified-section[data-usid^="group-"] > .unified-header {
+  background: rgba(24, 92, 32, 0.34);
+}
+.unified-section[data-sid="servers"] > .unified-header,
+.unified-section[data-usid^="server-"] > .unified-header {
+  background: rgba(24, 46, 110, 0.34);
 }
 .unified-subhead {
   font-size: 0.65rem;
