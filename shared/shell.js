@@ -400,10 +400,11 @@
   }
 
   document.querySelectorAll('.hub-nav .menu-btn').forEach(function(btn) {
-    var lastTouchToggleAt = 0;
     var toggleMenu = function(e) {
-      e.preventDefault();
-      e.stopPropagation();
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       var menu = btn.closest('.menu');
       if (!menu) return;
       var isOpen = menu.classList.contains('open');
@@ -413,21 +414,13 @@
         positionMenuDrop(menu);
       }
     };
-    // Touch/pen devices: open on pointerdown for responsiveness.
-    btn.addEventListener('pointerdown', function(e) {
-      if (e.pointerType && e.pointerType !== 'mouse') {
-        lastTouchToggleAt = Date.now();
-        toggleMenu(e);
-      }
-    });
-    // Mouse/keyboard click path; ignore synthetic click right after touch pointerdown.
-    btn.addEventListener('click', function(e) {
-      if (Date.now() - lastTouchToggleAt < 500) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      toggleMenu(e);
+
+    // Desktop / keyboard / general click.
+    btn.addEventListener('click', toggleMenu);
+    // Mobile fallback paths.
+    btn.addEventListener('touchend', toggleMenu, { passive: false });
+    btn.addEventListener('pointerup', function(e) {
+      if (e.pointerType && e.pointerType !== 'mouse') toggleMenu(e);
     });
   });
   document.addEventListener('click', function() {
