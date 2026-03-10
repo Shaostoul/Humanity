@@ -9639,19 +9639,19 @@
    if (detailsEl) detailsEl.value = node.details || '';
    if (ownerEl) ownerEl.value = node.owner || '';
    if (priorityEl) priorityEl.value = node.priority || 'medium';
+   const linkedTaskId = featureWebNormalizeTaskId(node.taskId);
    if (unlinkBtn) {
-    const showUnlink = node.taskId != null;
+    const showUnlink = linkedTaskId != null;
     unlinkBtn.style.display = showUnlink ? 'inline-block' : 'none';
     unlinkBtn.setAttribute('aria-hidden', showUnlink ? 'false' : 'true');
    }
-   if (linkTaskEl) linkTaskEl.value = node.taskId != null ? String(node.taskId) : '';
+   if (linkTaskEl) linkTaskEl.value = linkedTaskId != null ? String(linkedTaskId) : '';
    if (linkedInfoEl) {
-    if (node.taskId != null) {
-     const linkedTaskId = featureWebNormalizeTaskId(node.taskId);
-     const t = linkedTaskId != null ? featureWebFindTaskById(linkedTaskId) : null;
+    if (linkedTaskId != null) {
+     const t = featureWebFindTaskById(linkedTaskId);
      linkedInfoEl.style.display = 'block';
      linkedInfoEl.setAttribute('aria-hidden', 'false');
-     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + featureWebBoardStatusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + (linkedTaskId == null ? node.taskId : linkedTaskId));
+     linkedInfoEl.textContent = t ? ('Linked task: #' + t.id + ' [' + featureWebBoardStatusLabel(t.status) + '] ' + t.title) : ('Linked task: #' + linkedTaskId);
      if (openTaskBtn) {
       openTaskBtn.style.display = t ? 'inline-block' : 'none';
       openTaskBtn.setAttribute('aria-hidden', t ? 'false' : 'true');
@@ -10478,7 +10478,7 @@
     el.style.display = simpleUi ? 'none' : '';
     el.setAttribute('aria-hidden', simpleUi ? 'true' : 'false');
    });
-   let visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || n.taskId != null) && (!ownedOnly || !!(n.owner && n.owner.trim())) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
+   let visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || featureWebNormalizeTaskId(n && n.taskId) != null) && (!ownedOnly || !!(n.owner && n.owner.trim())) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
    let visibleNodeIds = new Set(visibleNodes.map(n => n.id));
    let visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
    if (focusSelected) {
@@ -10690,7 +10690,7 @@
     const isSelected = fwSelectedNodeId === n.id;
     const borderColor = isSelected ? 'rgba(255,136,17,0.75)' : 'rgba(255,255,255,0.15)';
     const glow = isSelected ? '0 0 0 1px rgba(255,136,17,0.25),0 3px 14px rgba(0,0,0,0.45)' : '0 1px 8px rgba(0,0,0,0.35)';
-    const linkedBadge = n.taskId != null ? '<span style="font-size:0.56rem;color:#8fe0a7;background:rgba(47,143,78,0.2);padding:0.03rem 0.22rem;border-radius:999px;font-weight:700;">LINK</span>' : '';
+    const linkedBadge = featureWebNormalizeTaskId(n && n.taskId) != null ? '<span style="font-size:0.56rem;color:#8fe0a7;background:rgba(47,143,78,0.2);padding:0.03rem 0.22rem;border-radius:999px;font-weight:700;">LINK</span>' : '';
     if (viewMode === 'constellation' || viewMode === 'orbit') {
      const isMoon = n.type === 'subfeature';
      const isStar = !isMoon && (n.priority === 'critical' || /mission|core|atlas|roadmap/i.test(String(n.title || '')));
