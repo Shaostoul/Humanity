@@ -11258,7 +11258,7 @@
         node.taskId = createdTaskId;
         featureWebPersistAndRefreshEditor();
         const mapped = featureWebMapNodeStatusToTask(node.status);
-        const currentTaskStatus = boardNormalizeStatus(msg.task.status);
+        const currentTaskStatus = boardNormalizeTaskStatus(msg.task.status);
         if (currentTaskStatus !== mapped) {
           boardSend({ type: 'task_move', id: createdTaskId, status: mapped });
         }
