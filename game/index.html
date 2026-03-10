@@ -11567,7 +11567,9 @@
 
   function showEditTaskForm(taskId) {
    if (!boardCanEdit()) return;
-   const task = featureWebFindTaskById(taskId);
+   const normalizedTaskId = featureWebNormalizeTaskId(taskId);
+   if (normalizedTaskId == null) return;
+   const task = featureWebFindTaskById(normalizedTaskId);
    if (!task) return;
    const { content } = boardGetTaskModalElements();
    if (!content) return;
