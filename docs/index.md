@@ -46,6 +46,8 @@ This is the parent entry for major documentation areas.
 - [Product Roadmap](../design/product/product_roadmap.md)
 - [Session Modes & Authority](../design/game/session_modes.md)
 - [Difficulty Fidelity Matrix](../design/game/difficulty_fidelity_matrix.md)
+- [Offline World Loop Scaffold](../design/game/offline_world_loop_scaffold.md)
+- [CLI Playtest Mode](../design/game/cli_playtest_mode.md)
 - [Tailnet Onboarding](../design/network/tailnet_onboarding.md)
 - [App Shell IA](../design/ui/app_shell_information_architecture.md)
 - [Knowledge Tab IA](../design/ui/knowledge_tab_architecture.md)
