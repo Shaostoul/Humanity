@@ -10557,12 +10557,14 @@
     const counts = { planned: 0, active: 0, blocked: 0, done: 0 };
     visibleNodes.forEach(n => { if (counts[n.status] != null) counts[n.status]++; });
     const donePct = visibleNodes.length ? Math.round((counts.done / visibleNodes.length) * 100) : 0;
+    const blockedPct = visibleNodes.length ? Math.round((counts.blocked / visibleNodes.length) * 100) : 0;
     const statusChips = Object.entries(counts).map(([k, c]) => {
      const color = FW_STATUS_COLORS[k] || '#666';
      return '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid var(--border);background:rgba(255,255,255,0.04);padding:0.12rem 0.4rem;border-radius:999px;color:var(--text-muted);"><span style="width:7px;height:7px;border-radius:2px;background:' + color + ';display:inline-block;"></span>' + k + ': <strong style="color:var(--text);font-size:0.67rem;">' + c + '</strong></span>';
     }).join('');
     const completionChip = '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid rgba(61,125,216,0.45);background:rgba(61,125,216,0.12);padding:0.12rem 0.4rem;border-radius:999px;color:#b7d0ff;">Completion: <strong style="color:#d7e6ff;font-size:0.67rem;">' + donePct + '%</strong></span>';
-    statusSummaryEl.innerHTML = statusChips + completionChip;
+    const blockedChip = '<span style="display:inline-flex;align-items:center;gap:0.25rem;border:1px solid rgba(229,85,85,0.45);background:rgba(229,85,85,0.12);padding:0.12rem 0.4rem;border-radius:999px;color:#f1bbbb;">Blocked: <strong style="color:#ffd6d6;font-size:0.67rem;">' + blockedPct + '%</strong></span>';
+    statusSummaryEl.innerHTML = statusChips + completionChip + blockedChip;
    }
 
    if (linkSummaryEl) {
