@@ -8476,6 +8476,16 @@
    return normalizedCommentCount;
   }
 
+  function boardNormalizeCreatedAt(createdAt) {
+   const t = Date.parse(createdAt);
+   return Number.isFinite(t) ? new Date(t).toISOString() : '';
+  }
+
+  function boardFormatDateTime(value, fallback) {
+   const t = Date.parse(value);
+   return Number.isFinite(t) ? new Date(t).toLocaleString() : (fallback === undefined ? 'Unknown' : fallback);
+  }
+
   function boardNormalizeTasks(tasks) {
    const rawTasks = Array.isArray(tasks) ? tasks : [];
    const dedupedTasks = [];
@@ -8496,6 +8506,7 @@
      taskObj.description = boardNormalizeDescription(taskObj.description);
      taskObj.labels = boardNormalizeLabelsJson(taskObj.labels);
      taskObj.comment_count = boardNormalizeCommentCount(taskObj.comment_count);
+     taskObj.created_at = boardNormalizeCreatedAt(taskObj.created_at);
     }
     dedupedTasks.push(taskObj);
    });
@@ -11376,7 +11387,7 @@
    const canComment = boardCanComment();
    const pc = PRIORITY_COLORS[task.priority] || '#666';
    const labels = boardParseTaskLabels(task);
-   const created = new Date(task.created_at).toLocaleString();
+   const created = boardFormatDateTime(task.created_at);
 
    let html = '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.1rem;">' + escHtml(task.title) + '</h3>' +
     '<div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.8rem;">' +
@@ -11422,7 +11433,7 @@
   }
 
   function renderCommentHtml(c) {
-   const time = new Date(c.created_at).toLocaleString();
+   const time = boardFormatDateTime(c && c.created_at);
    return '<div style="background:var(--bg-input,#111);border-radius:6px;padding:0.4rem 0.6rem;margin-bottom:0.3rem;">' +
     '<div style="display:flex;justify-content:space-between;margin-bottom:0.2rem;"><span style="font-size:0.75rem;font-weight:600;color:var(--accent);">' + escHtml(c.author_name) + '</span><span style="font-size:0.65rem;color:var(--text-muted);">' + time + '</span></div>' +
     '<div style="font-size:0.8rem;color:var(--text);white-space:pre-wrap;">' + escHtml(c.content) + '</div>' +
