@@ -113,9 +113,12 @@
           <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
           <div class="vc-bar-controls">
             <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()" title="Mute/Unmute">🎤</button>
+            <button id="vc-mode-btn" onclick="toggleVoiceInputMode()" title="Input mode: Open / Push-to-Talk / Voice Activated">🗣️ Open</button>
+            <button id="vc-squelch-btn" onclick="toggleVoiceSquelch()" title="Noise gate / squelch">🚫 Gate Off</button>
+            <button id="vc-mic-preset-btn" onclick="cycleMicPreset()" title="Mic processing preset">🎚️ Clarity</button>
             <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')" title="Toggle Camera (right-click to select device)">📹</button>
             <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()" title="Screen Share">🖥️</button>
-            <button id="vc-pip-btn" onclick="togglePiP()" title="Picture-in-Picture">📌</button>
+            <button id="vc-pip-btn" onclick="togglePiP()" title="Pin stream">📌</button>
             <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100" title="Master volume" oninput="setVoiceRoomVolume(this.value)">
             <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect">🔌</button>
           </div>

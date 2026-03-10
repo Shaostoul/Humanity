@@ -3931,10 +3931,30 @@ function deleteVoiceChannel(vcId) {
 }
 
 function getMicConstraints() {
+  const preset = localStorage.getItem('humanity-mic-preset') || 'clarity';
+  if (preset === 'noise_block') {
+    return {
+      echoCancellation: { ideal: true },
+      noiseSuppression: { ideal: true },
+      autoGainControl: { ideal: true },
+      channelCount: { ideal: 1 },
+      sampleRate: { ideal: 48000 }
+    };
+  }
+  if (preset === 'natural') {
+    return {
+      echoCancellation: { ideal: true },
+      noiseSuppression: { ideal: false },
+      autoGainControl: { ideal: false },
+      channelCount: { ideal: 1 },
+      sampleRate: { ideal: 48000 }
+    };
+  }
+  // clarity default
   return {
     echoCancellation: { ideal: true },
     noiseSuppression: { ideal: true },
-    autoGainControl: { ideal: true },
+    autoGainControl: { ideal: false },
     channelCount: { ideal: 1 },
     sampleRate: { ideal: 48000 }
   };
@@ -4157,15 +4177,33 @@ async function handleVoiceRoomSignal(msg) {
   // Voice control bar state
   let vcMuted = false;
   let vcVolume = 100;
+  let vcInputMode = localStorage.getItem('humanity-vc-input-mode') || 'open'; // open|ptt|vad
+  let vcSquelch = localStorage.getItem('humanity-vc-squelch') === 'true';
+  let vcThreshold = parseFloat(localStorage.getItem('humanity-vc-threshold') || '24');
+  let vcPttDown = false;
+  let vcSpeaking = false;
   let audioCtx = null;
   let localAnalyser = null;
   let speakingPollInterval = null;
   let remoteAnalysers = {}; // peerKey → { analyser, source, interval }
 
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyV') {
+      vcPttDown = true;
+      applyTxGate();
+    }
+  });
+  document.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyV') {
+      vcPttDown = false;
+      applyTxGate();
+    }
+  });
+
   window.toggleVoiceRoomMute = function() {
     if (!window._roomLocalStream) return;
     vcMuted = !vcMuted;
-    window._roomLocalStream.getAudioTracks().forEach(t => { t.enabled = !vcMuted; });
+    applyTxGate();
     const btn = document.getElementById('vc-mute-btn');
     btn.textContent = vcMuted ? '🔇' : '🎤';
     btn.classList.toggle('vc-muted', vcMuted);
@@ -4174,10 +4212,63 @@ async function handleVoiceRoomSignal(msg) {
 
   window.setVoiceRoomVolume = function(val) {
     vcVolume = parseInt(val);
+    // Soft limit at 85% to reduce eardrum spikes.
+    const applied = Math.min(85, Math.max(0, vcVolume));
     document.querySelectorAll('.room-remote-audio').forEach(el => {
-      el.volume = vcVolume / 100;
+      el.volume = applied / 100;
     });
   };
+
+  function applyTxGate() {
+    if (!window._roomLocalStream) return;
+    let allow = !vcMuted;
+    if (allow) {
+      if (vcInputMode === 'ptt') {
+        allow = vcPttDown;
+      } else if (vcInputMode === 'vad' || vcSquelch) {
+        allow = vcSpeaking && vcThreshold <= 100;
+      }
+    }
+    window._roomLocalStream.getAudioTracks().forEach(t => { t.enabled = !!allow; });
+  }
+
+  function refreshVoiceButtons() {
+    const modeBtn = document.getElementById('vc-mode-btn');
+    const sqBtn = document.getElementById('vc-squelch-btn');
+    const presetBtn = document.getElementById('vc-mic-preset-btn');
+    if (modeBtn) {
+      modeBtn.textContent = vcInputMode === 'ptt' ? '🎙️ PTT' : (vcInputMode === 'vad' ? '🗣️ VAD' : '🗣️ Open');
+    }
+    if (sqBtn) sqBtn.textContent = vcSquelch ? '🚫 Gate On' : '🚫 Gate Off';
+    if (presetBtn) {
+      const p = localStorage.getItem('humanity-mic-preset') || 'clarity';
+      presetBtn.textContent = p === 'noise_block' ? '🎚️ NoiseBlock' : (p === 'natural' ? '🎚️ Natural' : '🎚️ Clarity');
+    }
+  }
+
+  window.toggleVoiceInputMode = function() {
+    vcInputMode = vcInputMode === 'open' ? 'ptt' : (vcInputMode === 'ptt' ? 'vad' : 'open');
+    localStorage.setItem('humanity-vc-input-mode', vcInputMode);
+    refreshVoiceButtons();
+    applyTxGate();
+  };
+
+  window.toggleVoiceSquelch = function() {
+    vcSquelch = !vcSquelch;
+    localStorage.setItem('humanity-vc-squelch', vcSquelch ? 'true' : 'false');
+    refreshVoiceButtons();
+    applyTxGate();
+  };
+
+  window.cycleMicPreset = function() {
+    const cur = localStorage.getItem('humanity-mic-preset') || 'clarity';
+    const next = cur === 'clarity' ? 'noise_block' : (cur === 'noise_block' ? 'natural' : 'clarity');
+    localStorage.setItem('humanity-mic-preset', next);
+    refreshVoiceButtons();
+    addSystemMessage('🎚️ Mic preset set to ' + next + '. Rejoin channel to fully apply capture constraints.');
+  };
+
+  setTimeout(refreshVoiceButtons, 0);
 
   function updateVoiceControlBar() {
     const bar = document.getElementById('voice-control-bar');
@@ -4207,7 +4298,9 @@ async function handleVoiceRoomSignal(msg) {
         if (!localAnalyser) return;
         localAnalyser.getByteFrequencyData(dataArray);
         const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-        const speaking = avg > 20;
+        const speaking = avg > vcThreshold;
+        vcSpeaking = speaking;
+        applyTxGate();
         const el = document.querySelector(`.vr-participant[data-participant-key="${myKey}"]`);
         if (el) el.classList.toggle('speaking', speaking);
       }, 100);
@@ -4244,6 +4337,7 @@ async function handleVoiceRoomSignal(msg) {
     remoteAnalysers = {};
     if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; }
     // Remove speaking classes
+    vcSpeaking = false;
     document.querySelectorAll('.vr-participant.speaking').forEach(el => el.classList.remove('speaking'));
   }
 
@@ -4256,8 +4350,12 @@ async function handleVoiceRoomSignal(msg) {
       updateVoiceControlBar();
       // Reset mute state
       vcMuted = false;
+      vcPttDown = false;
+      vcSpeaking = false;
       const btn = document.getElementById('vc-mute-btn');
       if (btn) { btn.textContent = '🎤'; btn.classList.remove('vc-muted'); }
+      refreshVoiceButtons();
+      applyTxGate();
     }
   };
 

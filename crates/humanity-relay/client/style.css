@@ -2204,6 +2204,8 @@ header h1 {
   transition: opacity 0.2s;
 }
 #video-panel .video-wrapper:hover .video-pip-btn { opacity: 1; }
+/* Never mirror inline video previews in app UI */
+#video-panel video { transform: none !important; }
 #video-panel .video-wrapper.pinned-inapp {
   position: fixed !important;
   right: 14px;

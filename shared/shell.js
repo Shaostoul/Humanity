@@ -8,6 +8,14 @@
  *   <script src="/shared/shell.js" data-active="chat"></script>
  */
 (function () {
+  if (window.__HOS_SHELL_INIT__) return;
+  window.__HOS_SHELL_INIT__ = true;
+
+  // If prior shell artifacts somehow exist, remove them before injecting once.
+  document.querySelectorAll('.hub-nav, .nav-separator, .site-footer, #webview-tabs-bar').forEach(function(el){
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  });
+
   // ── Detect active tab ──
   const scriptTag = document.currentScript;
   let active = scriptTag && scriptTag.getAttribute('data-active');
