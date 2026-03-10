@@ -8462,6 +8462,10 @@
    return featureWebClampText(description || '', FW_TEXT_LIMITS.details);
   }
 
+  function boardNormalizeCommentContent(content) {
+   return featureWebClampText(content || '', FW_TEXT_LIMITS.summary).trim();
+  }
+
   function boardNormalizeTasks(tasks) {
    const rawTasks = Array.isArray(tasks) ? tasks : [];
    const dedupedTasks = [];
@@ -11427,8 +11431,10 @@
    const normalizedTaskId = featureWebNormalizeTaskId(taskId);
    if (normalizedTaskId == null) return;
    const input = document.getElementById('task-comment-input');
-   if (!input || !input.value.trim()) return;
-   if (boardSend({ type: 'task_comment', task_id: normalizedTaskId, content: input.value.trim() })) {
+   if (!input) return;
+   const content = boardNormalizeCommentContent(input.value);
+   if (!content) return;
+   if (boardSend({ type: 'task_comment', task_id: normalizedTaskId, content })) {
     input.value = '';
    } else {
     boardNoticeConnectionNotReady();
