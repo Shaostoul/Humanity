@@ -109,7 +109,7 @@ impl WorldSnapshot {
                 mode: SessionMode::Offline,
                 policy: ProgressionPolicy::OpenProfile,
                 network: NetworkScope::Offline,
-                fidelity: FidelityPreset::Medium,
+                fidelity: FidelityPreset::Easy,
             },
         }
     }

@@ -11,5 +11,6 @@ winit = "0.29"
 pollster = "0.3"
 env_logger = "0.11"
 log = "0.4"
+bytemuck = { version = "1.16", features = ["derive"] }
 core-offline-loop = { path = "../core-offline-loop" }
 core-firstperson-controller = { path = "../core-firstperson-controller" }

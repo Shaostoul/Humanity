@@ -15,6 +15,7 @@ cargo run -p engine-wgpu-shell
 - `Shift`: sprint
 - `E`: gather wood
 - `Q`: gather fiber
+- `Z`: gather scrap
 - `R`: craft filter kit
 - `T`: treat water
 - `F`: farm tick
