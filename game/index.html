@@ -8426,18 +8426,32 @@
    featureWebNotice('Board connection not ready');
   }
 
+  function boardNormalizeLabelsArray(labels) {
+   const sourceLabels = Array.isArray(labels) ? labels : [];
+   const normalized = [];
+   const seen = new Set();
+   sourceLabels.forEach(label => {
+    const clean = featureWebClampText(String(label == null ? '' : label), 40).trim();
+    if (!clean) return;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    normalized.push(clean);
+   });
+   return normalized;
+  }
+
   function boardParseTaskLabels(task) {
-   try { return JSON.parse((task && task.labels) || '[]'); } catch { return []; }
+   try { return boardNormalizeLabelsArray(JSON.parse((task && task.labels) || '[]')); } catch { return []; }
   }
 
   function boardLabelsToJson(labelsText) {
    const raw = typeof labelsText === 'string' ? labelsText.trim() : '';
-   return raw ? JSON.stringify(raw.split(',').map(l => l.trim()).filter(Boolean)) : '[]';
+   return JSON.stringify(boardNormalizeLabelsArray(raw ? raw.split(',') : []));
   }
 
   function boardNormalizeLabelsJson(labels) {
-   const normalized = boardParseTaskLabels({ labels });
-   return JSON.stringify(normalized);
+   return JSON.stringify(boardParseTaskLabels({ labels }));
   }
 
   function boardNormalizeStatus(status) {
