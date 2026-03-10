@@ -3509,8 +3509,11 @@ var federatedServersFetched = false;
         <div class="vr-name">${vcCogHtml}🔊 ${esc(vc.name)}${hasParticipants ? ' <span class="vr-count">(' + vc.participants.length + ')</span>' : ''}</div>`;
       if (hasParticipants) {
         voiceHtml += '<div class="vr-participants">';
+        const qMap = window._peerQualityCache || new Map();
         for (const p of vc.participants) {
-          voiceHtml += `<div class="vr-participant" data-participant-key="${p.public_key}">🎤 ${esc(p.display_name)}</div>`;
+          const q = qMap.get(p.public_key) || '';
+          const qBadge = q ? ` <span class="quality-indicator">${q}</span>` : '';
+          voiceHtml += `<div class="vr-participant" data-participant-key="${p.public_key}">🎤 ${esc(p.display_name)}${qBadge}</div>`;
         }
         voiceHtml += '</div>';
       }
@@ -5020,6 +5023,7 @@ function renderPresenceSidebarForActiveContext() {
       addCallButtonsToPeerList();
       if (typeof updateFriendIndicators === 'function') updateFriendIndicators();
     }
+    if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
     return;
   }
 
@@ -5029,6 +5033,7 @@ function renderPresenceSidebarForActiveContext() {
     const friendRows = (allUsersSnapshot || []).filter(u => u.public_key !== myKey && isFriend(u.public_key));
     if (friendRows.length === 0) {
       peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">No friends yet. Mutual follow is required for DMs.</div>';
+      if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
       return;
     }
     const rows = friendRows.map(u => {
@@ -5040,6 +5045,7 @@ function renderPresenceSidebarForActiveContext() {
       return `<div class="peer" data-pubkey="${esc(u.public_key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${unread}</div>`;
     }).join('');
     peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">Friends</div>${rows}`;
+    if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
     return;
   }
 
@@ -5047,6 +5053,7 @@ function renderPresenceSidebarForActiveContext() {
     if (usersHeader) usersHeader.textContent = 'Group Members';
     if (!activeGroupId) {
       peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Open a group to view members.</div>';
+      if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
       return;
     }
     const g = (myGroups || []).find(x => x.id === activeGroupId);
@@ -5055,6 +5062,7 @@ function renderPresenceSidebarForActiveContext() {
     const byKey = new Map((allUsersSnapshot || []).map(u => [u.public_key, u]));
     if (members.length === 0) {
       peerList.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Loading members for <b>${gName}</b>...</div>`;
+      if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
       return;
     }
     const rows = members.map(m => {
@@ -5066,6 +5074,7 @@ function renderPresenceSidebarForActiveContext() {
       return `<div class="peer" data-pubkey="${esc(m.key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${role}</div>`;
     }).join('');
     peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">${gName} (${members.length})</div>${rows}`;
+    if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
     return;
   }
 }
@@ -5588,24 +5597,35 @@ setTimeout(() => document.addEventListener('click', closeHandler), 10);
 
   // ── Phase 3: Connection Quality Stats ──
   let qualityStatsInterval = null;
+  window._peerQualityCache = window._peerQualityCache || new Map();
+
+  function applyCachedQualityBadges() {
+const qMap = window._peerQualityCache || new Map();
+document.querySelectorAll('.vr-participant[data-participant-key]').forEach(el => {
+  const key = el.getAttribute('data-participant-key');
+  if (!key) return;
+  const q = qMap.get(key);
+  if (!q) return;
+  let badge = el.querySelector('.quality-indicator');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.className = 'quality-indicator';
+    el.appendChild(badge);
+  }
+  badge.textContent = q;
+});
+  }
 
   function startQualityStats() {
 if (qualityStatsInterval) return;
 qualityStatsInterval = setInterval(async () => {
   // Voice room peers
   for (const [peerKey, pc] of Object.entries(window._roomPeerConnections || {})) {
-    const indicator = getQualityIndicator(pc);
-    const el = document.querySelector(`.vr-participant[data-participant-key="${peerKey}"]`);
-    if (el) {
-      let badge = el.querySelector('.quality-indicator');
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'quality-indicator';
-        el.appendChild(badge);
-      }
-      badge.textContent = await indicator;
-    }
+    const indicator = await getQualityIndicator(pc);
+    window._peerQualityCache.set(peerKey, indicator);
   }
+  applyCachedQualityBadges();
+
   // DM call peer
   if (peerConnection && callState === 'in-call') {
     const ind = await getQualityIndicator(peerConnection);
