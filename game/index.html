@@ -11291,8 +11291,8 @@
   function openTaskModal(taskId) {
    const task = featureWebFindTaskById(taskId);
    if (!task) return;
-   const modal = document.getElementById('task-modal');
-   const content = document.getElementById('task-modal-content');
+   const { modal, content } = boardGetTaskModalElements();
+   if (!modal || !content) return;
    content.dataset.taskId = taskId;
    const canEdit = boardCanEdit();
    const canComment = boardCanComment();
@@ -11348,8 +11348,15 @@
    '</div>';
   }
 
+  function boardGetTaskModalElements() {
+   return {
+    modal: document.getElementById('task-modal'),
+    content: document.getElementById('task-modal-content'),
+   };
+  }
+
   function closeTaskModal() {
-   const modal = document.getElementById('task-modal');
+   const { modal } = boardGetTaskModalElements();
    if (modal) modal.style.display = 'none';
   }
 
@@ -11371,8 +11378,8 @@
 
   function showCreateTaskModal() {
    if (!boardCanEdit()) return;
-   const modal = document.getElementById('task-modal');
-   const content = document.getElementById('task-modal-content');
+   const { modal, content } = boardGetTaskModalElements();
+   if (!modal || !content) return;
    content.dataset.taskId = '';
    content.innerHTML =
     '<h3 style="color:var(--text);margin:0 0 1rem;font-size:1.1rem;">Create New Task</h3>' +
@@ -11416,7 +11423,8 @@
    if (!boardCanEdit()) return;
    const task = featureWebFindTaskById(taskId);
    if (!task) return;
-   const content = document.getElementById('task-modal-content');
+   const { content } = boardGetTaskModalElements();
+   if (!content) return;
    const labels = boardParseTaskLabels(task);
    content.innerHTML =
     '<h3 style="color:var(--text);margin:0 0 1rem;font-size:1.1rem;">Edit Task</h3>' +
@@ -11454,7 +11462,7 @@
   }
 
   // Close modal on backdrop click
-  const taskModalEl = document.getElementById('task-modal');
+  const { modal: taskModalEl } = boardGetTaskModalElements();
   if (taskModalEl) {
    taskModalEl.addEventListener('click', function(e) {
     if (e.target === this) closeTaskModal();
