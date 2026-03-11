@@ -10491,7 +10491,7 @@
       const importLabel = file && file.name ? ('Imported ' + file.name) : 'Imported JSON';
       featureWebNoticeImportReport(normalized.report, importLabel);
      } catch {
-      featureWebNotice('Invalid Feature Web JSON');
+      featureWebNotice('Invalid Feature Web JSON (expected {nodes:[], edges:[]})');
      }
     };
     reader.readAsText(file);
@@ -10547,7 +10547,7 @@
     featureWebPersistAndRefresh();
     featureWebNoticeImportReport(normalized.report, 'Pasted JSON');
    } catch {
-    featureWebNotice('Invalid JSON payload');
+    featureWebNotice('Invalid Feature Web JSON (expected {nodes:[], edges:[]})');
    }
   }
 
