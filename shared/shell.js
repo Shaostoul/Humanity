@@ -395,7 +395,7 @@
       '<div class="menu" data-menu="private">' +
         '<button class="menu-btn" type="button">Private ▾</button>' +
         '<div class="menu-drop">' +
-          '<a href="/chat">Profile</a>' +
+          '<a href="/chat#profile">Profile</a>' +
           '<a href="/inventory">Inventory</a>' +
           '<a href="/fantasy">Skills</a>' +
           '<a href="/source">Equipment</a>' +
@@ -431,7 +431,7 @@
         '<a href="/source" title="Settings">⚙</a>' +
         '<a href="/dashboard" title="Data">🗄</a>' +
         '<a href="/chat" title="Alerts">🔔</a>' +
-        '<a href="/chat" title="Account">👤</a>' +
+        '<a href="/chat#profile" title="Account">👤</a>' +
       '</div>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
@@ -451,7 +451,7 @@
 
   mobileDrawer.innerHTML =
     '<div class="mobile-hub-group"><h4>Private</h4>' +
-      mobileLink('/chat', 'Profile') +
+      mobileLink('/chat#profile', 'Profile') +
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/avatars', 'Identity') +
       mobileLink('/downloads', 'Downloads') +

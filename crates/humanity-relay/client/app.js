@@ -321,6 +321,13 @@ function onIdentityConfirmed() {
   // Sync profile to server on connect.
   try { syncProfileOnConnect(); } catch (e) { console.warn('Profile sync error:', e); }
 
+  // If the user arrived via the Account nav button (/chat#profile), open the
+  // Edit Profile modal automatically once connected so they land on their profile.
+  if (location.hash === '#profile') {
+    history.replaceState(null, '', location.pathname); // clean the hash
+    setTimeout(() => { if (typeof openEditProfileModal === 'function') openEditProfileModal(); }, 200);
+  }
+
   // Request user data sync from server.
   requestSyncLoad();
 
@@ -632,22 +639,41 @@ async function handleMessage(msg) {
       break;
     }
     case 'profile_data': {
-      // Cache profile data and show if we were waiting for it.
+      // Cache all profile fields and show the card if we were waiting for this user's profile.
       if (msg.name) {
-        profileCache[msg.name.toLowerCase()] = { bio: msg.bio || '', socials: msg.socials || '{}' };
-        // If we have a pending view for this user, show it.
+        profileCache[msg.name.toLowerCase()] = {
+          bio:        msg.bio        || '',
+          socials:    msg.socials    || '{}',
+          avatar_url: msg.avatar_url || '',
+          banner_url: msg.banner_url || '',
+          pronouns:   msg.pronouns   || '',
+          location:   msg.location   || '',
+          website:    msg.website    || '',
+        };
+        // If we have a pending view for this user, show it now.
         if (pendingProfileView && pendingProfileView.name.toLowerCase() === msg.name.toLowerCase()) {
-          showViewProfileCard(pendingProfileView.name, pendingProfileView.publicKey, msg.bio || '', msg.socials || '{}');
+          const c = profileCache[msg.name.toLowerCase()];
+          showViewProfileCard(pendingProfileView.name, pendingProfileView.publicKey, c);
           pendingProfileView = null;
         }
-        // If this is our own profile data on connect, update local storage.
+        // If this is our own full profile echoed back on connect, sync to local storage
+        // only when local storage has no data yet (avoids overwriting unsaved edits).
         if (msg.name.toLowerCase() === myName.toLowerCase()) {
           try {
-            const socials = JSON.parse(msg.socials || '{}');
-            // Only overwrite local if server has data and local is empty.
             const local = loadProfileLocal();
-            if ((!local.bio && !local.socials) || (Object.keys(local.socials || {}).length === 0 && !local.bio)) {
-              saveProfileLocal(msg.bio || '', socials);
+            const localIsEmpty = !local.bio && !local.avatar_url && !local.pronouns &&
+                                 Object.keys(local.socials || {}).length === 0;
+            if (localIsEmpty) {
+              saveProfileLocal({
+                bio:        msg.bio        || '',
+                socials:    JSON.parse(msg.socials || '{}'),
+                avatar_url: msg.avatar_url || '',
+                banner_url: msg.banner_url || '',
+                pronouns:   msg.pronouns   || '',
+                location:   msg.location   || '',
+                website:    msg.website    || '',
+                privacy:    JSON.parse(msg.privacy || '{}'),
+              });
             }
           } catch {}
         }
@@ -2728,347 +2754,7 @@ document.getElementById('peer-list').addEventListener('click', function(e) {
 // Store peer data (with roles) for context menu lookups.
 peerData = peerData || {};
 
-// ── Profile System ──
-let profileCache = {}; // name (lowercase) → { bio, socials }
-let lastProfileUpdateSent = 0;
-let pendingProfileView = null; // name we're waiting for profile_data on
-
-// Local storage for offline profile editing.
-function saveProfileLocal(bio, socials) {
-  localStorage.setItem('humanity_profile', JSON.stringify({ bio, socials }));
-}
-function loadProfileLocal() {
-  try {
-    return JSON.parse(localStorage.getItem('humanity_profile') || '{}');
-  } catch { return {}; }
-}
-
-// ── Edit Profile Modal ──
-function openEditProfileModal() {
-  const overlay = document.getElementById('edit-profile-overlay');
-  const local = loadProfileLocal();
-  const socials = local.socials || {};
-  document.getElementById('profile-bio').value = local.bio || '';
-  document.getElementById('profile-website').value = socials.website || '';
-  document.getElementById('profile-discord').value = socials.discord || '';
-  document.getElementById('profile-twitter').value = socials.twitter || '';
-  document.getElementById('profile-youtube').value = socials.youtube || '';
-  document.getElementById('profile-github').value = socials.github || '';
-  updateBioCounter();
-  overlay.classList.add('open');
-}
-
-function closeEditProfileModal(e) {
-  if (e.target === document.getElementById('edit-profile-overlay')) {
-    closeEditProfileOverlay();
-  }
-}
-function closeEditProfileOverlay() {
-  document.getElementById('edit-profile-overlay').classList.remove('open');
-}
-
-function updateBioCounter() {
-  const bio = document.getElementById('profile-bio').value;
-  const counter = document.getElementById('bio-counter');
-  counter.textContent = bio.length + ' / 280';
-  counter.className = 'bio-counter' + (bio.length > 280 ? ' over' : bio.length > 240 ? ' warn' : '');
-}
-
-document.getElementById('profile-bio').addEventListener('input', updateBioCounter);
-
-function saveProfile() {
-  const bio = document.getElementById('profile-bio').value.trim().substring(0, 280);
-  const socials = {
-    website: document.getElementById('profile-website').value.trim().substring(0, 200),
-    discord: document.getElementById('profile-discord').value.trim().substring(0, 100),
-    twitter: document.getElementById('profile-twitter').value.trim().substring(0, 100),
-    youtube: document.getElementById('profile-youtube').value.trim().substring(0, 200),
-    github: document.getElementById('profile-github').value.trim().substring(0, 200),
-  };
-
-  // Remove empty fields.
-  const cleanSocials = {};
-  for (const [k, v] of Object.entries(socials)) {
-    if (v) cleanSocials[k] = v;
-  }
-
-  saveProfileLocal(bio, cleanSocials);
-
-  // Send to server if connected.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    const now = Date.now();
-    if (now - lastProfileUpdateSent < 30000) {
-      addSystemMessage('⏳ Please wait 30 seconds between profile updates.');
-    } else {
-      lastProfileUpdateSent = now;
-      ws.send(JSON.stringify({
-        type: 'profile_update',
-        bio: bio,
-        socials: JSON.stringify(cleanSocials),
-      }));
-      addSystemMessage('Profile saved.');
-    }
-  } else {
-    addSystemMessage('Profile saved locally. It will sync when you connect.');
-  }
-
-  closeEditProfileOverlay();
-}
-
-// Send stored profile on connect.
-function syncProfileOnConnect() {
-  const local = loadProfileLocal();
-  if (local.bio || (local.socials && Object.keys(local.socials).length > 0)) {
-    const socialsStr = JSON.stringify(local.socials || {});
-    ws.send(JSON.stringify({
-      type: 'profile_update',
-      bio: local.bio || '',
-      socials: socialsStr,
-    }));
-    lastProfileUpdateSent = Date.now();
-  }
-}
-
-// ── View Profile Modal ──
-function requestViewProfile(name, publicKey) {
-  pendingProfileView = { name, publicKey };
-  // Check cache first.
-  const cached = profileCache[name.toLowerCase()];
-  if (cached) {
-    showViewProfileCard(name, publicKey, cached.bio, cached.socials);
-    return;
-  }
-  // Request from server.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'profile_request', name: name }));
-    // Show loading state.
-    document.getElementById('view-profile-content').innerHTML =
-      '<div style="color:var(--text-muted);font-style:italic;">Loading profile…</div>';
-    document.getElementById('view-profile-overlay').classList.add('open');
-  }
-}
-
-function showViewProfileCard(name, publicKey, bio, socialsStr) {
-  let socials = {};
-  try { socials = JSON.parse(socialsStr || '{}'); } catch {}
-
-  const isBot = publicKey && publicKey.startsWith('bot_');
-  const identiconSrc = !isBot && publicKey
-    ? generateIdenticon(publicKey, 64) : '';
-  const identiconHtml = isBot
-    ? '<span class="identicon-large" style="font-size:48px;line-height:64px;display:inline-block;width:64px;text-align:center;">🤖</span>'
-    : (identiconSrc ? '<img src="' + identiconSrc + '" class="identicon-large" alt="">' : '');
-
-  // Look up role.
-  const peerRole = (peerData[publicKey] && peerData[publicKey].role) ? peerData[publicKey].role : '';
-  const badge = roleBadge(peerRole);
-
-  let html = '<div class="profile-card-header">';
-  html += identiconHtml;
-  html += '<div><div class="profile-name">' + esc(name) + badge + '</div></div>';
-  html += '</div>';
-
-  const hasBio = bio && bio.trim().length > 0;
-  const hasSocials = Object.values(socials).some(v => v && v.trim());
-
-  if (!hasBio && !hasSocials) {
-    html += '<div class="profile-card-empty">This user hasn\'t set up their profile yet.</div>';
-  } else {
-    if (hasBio) {
-      html += '<div class="profile-card-bio">' + esc(bio) + '</div>';
-    }
-    if (hasSocials) {
-      html += '<div class="profile-card-socials">';
-      if (socials.website) {
-        const url = socials.website;
-        if (url.startsWith('https://')) {
-          html += '<div class="social-item"><span class="social-label">🌐 Website</span> <a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(url) + '</a></div>';
-        } else {
-          html += '<div class="social-item"><span class="social-label">🌐 Website</span> ' + esc(url) + '</div>';
-        }
-      }
-      if (socials.discord) {
-        html += '<div class="social-item"><span class="social-label">💬 Discord</span> ' + esc(socials.discord) + '</div>';
-      }
-      if (socials.twitter) {
-        const handle = socials.twitter.replace(/^@/, '');
-        html += '<div class="social-item"><span class="social-label">𝕏 Twitter</span> <a href="https://x.com/' + esc(handle) + '" target="_blank" rel="noopener">@' + esc(handle) + '</a></div>';
-      }
-      if (socials.youtube) {
-        const yt = socials.youtube;
-        if (yt.startsWith('https://')) {
-          html += '<div class="social-item"><span class="social-label">▶️ YouTube</span> <a href="' + esc(yt) + '" target="_blank" rel="noopener">' + esc(yt) + '</a></div>';
-        } else {
-          const ytUrl = 'https://youtube.com/@' + yt;
-          html += '<div class="social-item"><span class="social-label">▶️ YouTube</span> <a href="' + esc(ytUrl) + '" target="_blank" rel="noopener">@' + esc(yt) + '</a></div>';
-        }
-      }
-      if (socials.github) {
-        const gh = socials.github.replace(/^@/, '');
-        html += '<div class="social-item"><span class="social-label">🐙 GitHub</span> <a href="https://github.com/' + esc(gh) + '" target="_blank" rel="noopener">' + esc(gh) + '</a></div>';
-      }
-      html += '</div>';
-    }
-  }
-
-  // Public key (click to copy) — M-3: use DOM API instead of inline onclick.
-  if (publicKey) {
-    const shortPk = publicKey.length > 24 ? publicKey.substring(0, 24) + '…' : publicKey;
-    html += '<div class="profile-card-key" id="profile-pk-copy" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
-  }
-
-  // Follow/friend status + button
-  if (publicKey && publicKey !== myKey) {
-    const friend = isFriend(publicKey);
-    const following = isFollowing(publicKey);
-    const followsYou = myFollowers.has(publicKey);
-    let statusText = '';
-    if (friend) statusText = '🤝 Friends (mutual follow)';
-    else if (following && followsYou) statusText = '🤝 Friends';
-    else if (following) statusText = '👁️ You follow this user';
-    else if (followsYou) statusText = '👁️‍🗨️ Follows you';
-    const btnLabel = following ? '❌ Unfollow' : '👁️ Follow';
-    html += '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);">';
-    if (statusText) html += '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">' + statusText + '</div>';
-    html += '<button id="profile-follow-btn" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;">' + btnLabel + '</button>';
-    html += '</div>';
-  }
-
-  document.getElementById('view-profile-content').innerHTML = html;
-  // Attach click handler via DOM API (not inline onclick).
-  if (publicKey) {
-    const pkEl = document.getElementById('profile-pk-copy');
-    if (pkEl) {
-      pkEl.addEventListener('click', () => {
-        navigator.clipboard.writeText(publicKey).then(() => addSystemMessage('Public key copied.'));
-      });
-    }
-  }
-  // Follow button handler
-  if (publicKey && publicKey !== myKey) {
-    const followBtn = document.getElementById('profile-follow-btn');
-    if (followBtn) {
-      followBtn.addEventListener('click', () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          const type = myFollowing.has(publicKey) ? 'unfollow' : 'follow';
-          ws.send(JSON.stringify({ type, target_key: publicKey }));
-          closeViewProfileOverlay();
-        }
-      });
-    }
-  }
-  if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
-  document.getElementById('view-profile-overlay').classList.add('open');
-}
-
-function closeViewProfileModal(e) {
-  if (e.target === document.getElementById('view-profile-overlay')) {
-    closeViewProfileOverlay();
-  }
-}
-function closeViewProfileOverlay() {
-  document.getElementById('view-profile-overlay').classList.remove('open');
-  pendingProfileView = null;
-}
-
-// ── Block List (client-side) ──
-function getBlockList() {
-  try { return JSON.parse(localStorage.getItem('humanity_blocks') || '[]'); }
-  catch { return []; }
-}
-function setBlockList(list) {
-  localStorage.setItem('humanity_blocks', JSON.stringify(list));
-}
-function isBlocked(name) {
-  return getBlockList().some(b => b.toLowerCase() === name.toLowerCase());
-}
-
-function blockUser(name) {
-  if (name.toLowerCase() === myName.toLowerCase()) {
-    addSystemMessage("You can't block yourself.");
-    return;
-  }
-  const list = getBlockList();
-  if (list.some(b => b.toLowerCase() === name.toLowerCase())) {
-    addSystemMessage(`${name} is already blocked.`);
-    return;
-  }
-  list.push(name);
-  setBlockList(list);
-  addSystemMessage(`🚫 Blocked ${name}. Their messages are now hidden.`);
-  reRenderMessagesForBlockChange();
-  rerenderUserList();
-}
-
-function unblockUser(name) {
-  const list = getBlockList();
-  const idx = list.findIndex(b => b.toLowerCase() === name.toLowerCase());
-  if (idx === -1) {
-    addSystemMessage(`${name} is not blocked.`);
-    return;
-  }
-  list.splice(idx, 1);
-  setBlockList(list);
-  addSystemMessage(`✅ Unblocked ${name}.`);
-  reRenderMessagesForBlockChange();
-  rerenderUserList();
-}
-
-function showBlockList() {
-  const list = getBlockList();
-  if (list.length === 0) {
-    addSystemMessage('No blocked users.');
-  } else {
-    addSystemMessage('🚫 Blocked users: ' + list.join(', '));
-  }
-}
-
-// Re-filter visible messages after block/unblock change.
-function reRenderMessagesForBlockChange() {
-  const container = document.getElementById('messages');
-  const msgs = container.querySelectorAll('.message[data-from]');
-  msgs.forEach(el => {
-    const authorEl = el.querySelector('.author');
-    if (!authorEl) return;
-    const authorName = authorEl.dataset.username;
-    if (authorName && isBlocked(authorName)) {
-      el.style.display = 'none';
-    } else {
-      el.style.display = '';
-    }
-  });
-}
-
-// Force re-render user list with updated block indicators.
-function rerenderUserList() {
-  // Trigger a full_user_list refresh if we have cached data.
-  // The user list is already rendered from updateUserList; just re-render peer-list.
-  const list = document.getElementById('peer-list');
-  const peers = list.querySelectorAll('.peer[data-username]');
-  peers.forEach(el => {
-    const name = el.dataset.username;
-    if (!name) return;
-    const blocked = isBlocked(name);
-    // Add/remove blocked indicator.
-    let indicator = el.querySelector('.block-indicator');
-    if (blocked && !indicator) {
-      const span = document.createElement('span');
-      span.className = 'block-indicator';
-      span.textContent = ' 🚫';
-      span.title = 'Blocked';
-      span.style.fontSize = '0.65rem';
-      el.appendChild(span);
-      el.style.textDecoration = 'line-through';
-      el.style.opacity = '0.5';
-    } else if (!blocked && indicator) {
-      indicator.remove();
-      el.style.textDecoration = '';
-      el.style.opacity = el.classList.contains('is-you') ? '' : '';
-      // Restore original opacity from online/offline status.
-      if (el.style.opacity === '') el.removeAttribute('style');
-    }
-  });
-}
+// Profile system, block list -> see chat-profile.js
 
 // ── Import file handler (login screen) ──
 async function handleImportFile(event) {
@@ -5225,17 +4911,17 @@ function handleVoiceCallMessage(msg) {
 }
 
 function handleWebrtcSignalMessage(msg) {
-  if (msg.from !== callPeerKey) return; // Ignore signals from unexpected peers
+  // DataChannel P2P signals are handled by chat-p2p.js; route them there first.
+  if (msg.signal_type === 'dc_offer')  { handleDCOffer(msg);  return; }
+  if (msg.signal_type === 'dc_answer') { handleDCAnswer(msg); return; }
+  if (msg.signal_type === 'dc_ice')    { handleDCIce(msg);    return; }
+
+  // Voice/video signals are only valid from the current call peer.
+  if (msg.from !== callPeerKey) return;
   switch (msg.signal_type) {
-    case 'offer':
-      handleOffer(msg.data);
-      break;
-    case 'answer':
-      handleAnswer(msg.data);
-      break;
-    case 'ice':
-      handleIceCandidate(msg.data);
-      break;
+    case 'offer':  handleOffer(msg.data);        break;
+    case 'answer': handleAnswer(msg.data);       break;
+    case 'ice':    handleIceCandidate(msg.data); break;
   }
 }
 
