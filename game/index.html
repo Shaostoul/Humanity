@@ -10090,6 +10090,7 @@
    dup.y = Math.max(4, Math.min(height - 48, (node.y || 0) + 20));
    featureWeb.nodes.push(dup);
    fwSelectedNodeId = dup.id;
+   featureWebSaveUiState();
    featureWebNotice('Duplicated node: ' + (node.title || 'Untitled') + ' → ' + (dup.title || 'Untitled'));
    featureWebPersistAndRefresh();
   }
