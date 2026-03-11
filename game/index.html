@@ -9815,7 +9815,14 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node || !node.title) return;
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
+   if (!node.title) {
+    featureWebNotice('Selected node has no title to copy');
+    return;
+   }
    try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
      await navigator.clipboard.writeText(node.title);
@@ -9840,7 +9847,10 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node) return;
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
      await navigator.clipboard.writeText(node.id);
@@ -9865,7 +9875,10 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node) return;
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    const payload = JSON.stringify(node, null, 2);
    try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
