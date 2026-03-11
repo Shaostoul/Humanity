@@ -10582,9 +10582,10 @@
     featureWebNotice('Paste JSON payload is empty');
     return;
    }
-   const maxChars = 5 * 1024 * 1024;
-   if (raw.length > maxChars) {
-    featureWebNotice('Pasted JSON is too large (' + (raw.length / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
+   const maxBytes = 5 * 1024 * 1024;
+   const rawBytes = (typeof TextEncoder !== 'undefined') ? new TextEncoder().encode(raw).length : raw.length;
+   if (rawBytes > maxBytes) {
+    featureWebNotice('Pasted JSON is too large (' + (rawBytes / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
     return;
    }
    try {
