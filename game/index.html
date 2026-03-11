@@ -9843,10 +9843,11 @@
     featureWebNotice('Selected node has no title to copy');
     return;
    }
+   const copiedMsg = 'Node title copied: ' + featureWebClampText(node.title, 60);
    try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
      await navigator.clipboard.writeText(node.title);
-     featureWebNotice('Node title copied');
+     featureWebNotice(copiedMsg);
      return;
     }
    } catch {}
@@ -9856,7 +9857,7 @@
    ta.style.left = '-9999px';
    document.body.appendChild(ta);
    ta.select();
-   try { document.execCommand('copy'); featureWebNotice('Node title copied'); }
+   try { document.execCommand('copy'); featureWebNotice(copiedMsg); }
    catch { featureWebNotice('Could not copy title'); }
    document.body.removeChild(ta);
   }
@@ -9871,10 +9872,11 @@
     featureWebNotice('Selected node is unavailable');
     return;
    }
+   const copiedMsg = 'Node ID copied: ' + node.id;
    try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
      await navigator.clipboard.writeText(node.id);
-     featureWebNotice('Node ID copied');
+     featureWebNotice(copiedMsg);
      return;
     }
    } catch {}
@@ -9884,7 +9886,7 @@
    ta.style.left = '-9999px';
    document.body.appendChild(ta);
    ta.select();
-   try { document.execCommand('copy'); featureWebNotice('Node ID copied'); }
+   try { document.execCommand('copy'); featureWebNotice(copiedMsg); }
    catch { featureWebNotice('Could not copy node ID'); }
    document.body.removeChild(ta);
   }
