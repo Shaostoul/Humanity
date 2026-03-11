@@ -10489,7 +10489,7 @@
       featureWebPersistAndRefresh();
       featureWebNoticeImportReport(normalized.report, 'Imported JSON');
      } catch {
-      alert('Invalid Feature Web JSON');
+      featureWebNotice('Invalid Feature Web JSON');
      }
     };
     reader.readAsText(file);
