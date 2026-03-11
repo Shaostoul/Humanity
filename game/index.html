@@ -10491,6 +10491,11 @@
    input.onchange = () => {
     const file = input.files && input.files[0];
     if (!file) return;
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+     featureWebNotice('Import file is too large (' + Math.round(file.size / (1024 * 1024)) + 'MB). Max 5MB.');
+     return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
      try {
