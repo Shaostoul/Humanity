@@ -194,6 +194,25 @@
       </div>
       <div id="right-sidebar">
         <h3>People & Streams</h3>
+        <div id="stream-studio-panel" class="unified-section" data-usid="server-studio">
+          <button class="unified-header" onclick="toggleUnifiedSection('server-studio')">My Stream Studio ▾</button>
+          <div class="unified-body">
+            <div id="stream-studio-preview" class="stream-studio-preview">No active local feed</div>
+            <div class="unified-subblock" data-subid="studio:controls">
+              <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('studio:controls')">
+                <span>Controls ▾</span><span class="unified-subsummary">live</span>
+              </button>
+              <div class="unified-subcontent">
+                <div class="unified-row"><span>Camera</span><button onclick="toggleVoiceRoomVideo()">Toggle</button></div>
+                <div class="unified-row"><span>Screen</span><button onclick="toggleVoiceRoomScreenShare()">Toggle</button></div>
+                <div class="unified-row"><span>Chat Overlay</span><button onclick="toggleStreamChatOverlay()">Toggle</button></div>
+                <div class="unified-row"><span>Chat Channel</span><button onclick="selectStreamChatChannel()">Select</button></div>
+                <div class="unified-row"><span>PIP Size</span><input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)"></div>
+                <div class="unified-row"><span>Preview Volume</span><input type="range" min="0" max="100" value="100" oninput="setVoiceRoomVolume(this.value)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="peer-list"></div>
         <div id="stream-sidebar" style="display:none;">
           <h4>Live Streams</h4>

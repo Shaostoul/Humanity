@@ -953,6 +953,58 @@ header h1 {
   display: block;
   transform: none !important;
 }
+
+.stream-studio-preview {
+  position: relative;
+  width: 100%;
+  min-height: 140px;
+  max-height: 220px;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 0.35rem;
+}
+.stream-studio-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  transform: none !important;
+}
+.stream-studio-preview .studio-cam-pip {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: var(--studio-pip-width, 34%);
+  max-width: 60%;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--accent);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+  background: #000;
+}
+.stream-studio-preview .studio-label {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 0.63rem;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.stream-studio-preview .studio-chat-overlay {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  right: 8px;
+  font-size: 0.62rem;
+  color: #cfd7e3;
+  background: rgba(8,8,10,0.62);
+  border: 1px solid rgba(120,130,150,0.35);
+  padding: 2px 5px;
+  border-radius: 4px;
+}
 .stream-row {
   display: flex;
   align-items: center;

@@ -5756,6 +5756,7 @@ const btn = document.getElementById('vc-video-btn');
 if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '📹'; }
 removeVideoElement('vr-self');
 updateStudioLayout();
+updateStudioPreviewPanel();
 updateVideoPanel();
   }
 
@@ -5800,6 +5801,7 @@ const btn = document.getElementById('vc-screen-btn');
 if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '🖥️'; }
 removeVideoElement('vr-screen');
 updateStudioLayout();
+updateStudioPreviewPanel();
 updateVideoPanel();
   }
 
@@ -5811,6 +5813,7 @@ stopVrScreenShare();
 document.querySelectorAll('#video-panel .video-wrapper:not([data-id^="dm-"])').forEach(el => el.remove());
 const ov = document.querySelector('#video-panel .stream-chat-overlay');
 if (ov) ov.remove();
+updateStudioPreviewPanel();
 updateVideoPanel();
 _origCleanupRoomAudio2();
   };
@@ -5927,10 +5930,68 @@ if (!ov) {
 ov.innerHTML = `<div class="video-label">Chat Overlay · #${streamChatOverlayChannel}</div><div class="stream-chat-overlay-body">Chat overlay enabled for #${streamChatOverlayChannel}. (Live channel feed integration in progress)</div>`;
   }
 
+  function updateStudioPreviewPanel() {
+const panel = document.getElementById('stream-studio-preview');
+if (!panel) return;
+panel.innerHTML = '';
+
+if (!vrVideoStream && !vrScreenStream) {
+  panel.textContent = 'No active local feed';
+  return;
+}
+
+if (vrScreenStream) {
+  const s = document.createElement('video');
+  s.autoplay = true; s.playsInline = true; s.muted = true;
+  s.srcObject = vrScreenStream;
+  panel.appendChild(s);
+  const label = document.createElement('div');
+  label.className = 'studio-label';
+  label.textContent = 'Screen';
+  panel.appendChild(label);
+}
+
+if (vrVideoStream) {
+  const cWrap = document.createElement('div');
+  cWrap.className = vrScreenStream ? 'studio-cam-pip' : '';
+  const c = document.createElement('video');
+  c.autoplay = true; c.playsInline = true; c.muted = true;
+  c.srcObject = vrVideoStream;
+  c.style.objectFit = 'cover';
+  cWrap.appendChild(c);
+  panel.appendChild(cWrap);
+  if (!vrScreenStream) {
+    const label = document.createElement('div');
+    label.className = 'studio-label';
+    label.textContent = 'Camera';
+    panel.appendChild(label);
+  }
+}
+
+if (streamChatOverlayEnabled) {
+  const ov = document.createElement('div');
+  ov.className = 'studio-chat-overlay';
+  ov.textContent = `Chat Overlay: #${streamChatOverlayChannel}`;
+  panel.appendChild(ov);
+}
+  }
+
+  window.setStudioPipSize = function(v) {
+const p = Math.max(20, Math.min(60, parseInt(v || '34', 10)));
+document.documentElement.style.setProperty('--studio-pip-width', p + '%');
+localStorage.setItem('humanity-studio-pip-width', String(p));
+  };
+
+  try {
+    const savedPip = parseInt(localStorage.getItem('humanity-studio-pip-width') || '34', 10);
+    if (!Number.isNaN(savedPip)) window.setStudioPipSize(savedPip);
+  } catch (_) {}
+
   window.toggleStreamChatOverlay = function() {
 streamChatOverlayEnabled = !streamChatOverlayEnabled;
 localStorage.setItem('humanity-stream-chat-overlay', streamChatOverlayEnabled ? 'true' : 'false');
 ensureStreamChatOverlay();
+updateStudioPreviewPanel();
   };
 
   window.selectStreamChatChannel = function() {
@@ -5939,9 +6000,17 @@ if (!ch) return;
 streamChatOverlayChannel = ch.trim();
 localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);
 ensureStreamChatOverlay();
+updateStudioPreviewPanel();
   };
 
   function showLocalVideo(stream, id) {
+if (id === 'vr-self' || id === 'vr-screen') {
+  // Local VR feeds are rendered in the right-panel Stream Studio preview.
+  removeVideoElement('vr-self');
+  removeVideoElement('vr-screen');
+  updateStudioPreviewPanel();
+  return;
+}
 removeVideoElement(id);
 const panel = document.getElementById('video-panel');
 const wrapper = document.createElement('div');
