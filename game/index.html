@@ -10077,7 +10077,7 @@
    if (editEl) editEl.value = '';
    featureWebRenderEditor();
    featureWebRender();
-   if (hadSelection && !options.quiet) featureWebNotice('Selection cleared');
+   if (!options.quiet) featureWebNotice(hadSelection ? 'Selection cleared' : 'No node selected');
   }
 
   function featureWebCenterSelected(opts) {
