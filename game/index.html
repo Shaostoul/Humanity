@@ -9615,7 +9615,10 @@
 
   function featureWebCycleEdgeType(id) {
    const edge = featureWeb.edges.find(e => e.id === id);
-   if (!edge) return;
+   if (!edge) {
+    featureWebNotice('Link not found');
+    return;
+   }
    const order = FW_ALLOWED_EDGE_TYPES;
    const currentType = featureWebNormalizeEdgeType(edge.type);
    const idx = order.indexOf(currentType);
