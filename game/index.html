@@ -10488,7 +10488,8 @@
       featureWebSaveUiState();
       featureWebConstrainNodesToCanvas();
       featureWebPersistAndRefresh();
-      featureWebNoticeImportReport(normalized.report, 'Imported JSON');
+      const importLabel = file && file.name ? ('Imported ' + file.name) : 'Imported JSON';
+      featureWebNoticeImportReport(normalized.report, importLabel);
      } catch {
       featureWebNotice('Invalid Feature Web JSON');
      }
