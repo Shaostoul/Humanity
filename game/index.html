@@ -10505,7 +10505,8 @@
       const importLabel = file && file.name ? ('Imported ' + file.name) : 'Imported JSON';
       featureWebNoticeImportReport(normalized.report, importLabel);
      } catch {
-      featureWebNotice('Invalid Feature Web JSON (expected {nodes:[], edges:[]})');
+      const badLabel = file && file.name ? ('Invalid Feature Web JSON in ' + file.name) : 'Invalid Feature Web JSON';
+      featureWebNotice(badLabel + ' (expected {nodes:[], edges:[]})');
      }
     };
     reader.readAsText(file);
