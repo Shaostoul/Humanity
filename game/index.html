@@ -10492,6 +10492,10 @@
     const file = input.files && input.files[0];
     if (!file) return;
     const maxBytes = 5 * 1024 * 1024;
+    if (file.size <= 0) {
+     featureWebNotice('Import file is empty');
+     return;
+    }
     if (file.size > maxBytes) {
      featureWebNotice('Import file is too large (' + (file.size / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
      return;
