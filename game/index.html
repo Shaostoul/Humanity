@@ -9782,10 +9782,14 @@
    const teachBtn = document.getElementById('fw-teach-btn');
    if (teachBtn) teachBtn.setAttribute('aria-expanded', 'false');
    const node = featureWeb.nodes.find(n => n.id === id);
+   if (!node) {
+    featureWebNotice('Node not found');
+    return;
+   }
    const t = document.getElementById('sys-selected-title');
    const s = document.getElementById('sys-selected-summary');
-   if (t) t.textContent = node ? (node.title || 'Untitled') : 'None';
-   if (s) s.textContent = node ? (node.summary || node.teach || node.details || 'No summary yet.') : 'Select a node to inspect.';
+   if (t) t.textContent = node.title || 'Untitled';
+   if (s) s.textContent = node.summary || node.teach || node.details || 'No summary yet.';
   }
 
   function featureWebFocusByTitle(title) {
