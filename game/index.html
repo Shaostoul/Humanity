@@ -10134,7 +10134,10 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node) return;
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    const order = FW_ALLOWED_STATUSES;
    const idx = Math.max(0, order.indexOf(node.status || 'planned'));
    const next = (idx + (step || 1) + order.length) % order.length;
@@ -10150,7 +10153,10 @@
     return;
    }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node) return;
+   if (!node) {
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    const order = FW_ALLOWED_TYPES;
    const idx = Math.max(0, order.indexOf(node.type || 'feature'));
    const next = (idx + (step || 1) + order.length) % order.length;
