@@ -10460,13 +10460,14 @@
   function featureWebExport() {
    const blob = new Blob([JSON.stringify(featureWeb, null, 2)], { type: 'application/json' });
    const a = document.createElement('a');
+   const stamp = new Date().toISOString().replace(/[:]/g, '-').replace(/\.\d{3}Z$/, 'Z');
    a.href = URL.createObjectURL(blob);
-   a.download = 'feature-web-v1.json';
+   a.download = 'feature-web-' + stamp + '.json';
    document.body.appendChild(a);
    a.click();
    document.body.removeChild(a);
    setTimeout(() => URL.revokeObjectURL(a.href), 500);
-   featureWebNotice('Exported Feature Web JSON');
+   featureWebNotice('Exported Feature Web JSON (' + featureWeb.nodes.length + ' nodes, ' + featureWeb.edges.length + ' links)');
   }
 
   function featureWebImport() {
