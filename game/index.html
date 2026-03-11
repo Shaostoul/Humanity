@@ -10466,6 +10466,7 @@
    a.click();
    document.body.removeChild(a);
    setTimeout(() => URL.revokeObjectURL(a.href), 500);
+   featureWebNotice('Exported Feature Web JSON');
   }
 
   function featureWebImport() {
@@ -10497,7 +10498,10 @@
   function featureWebReset() {
    if (!confirm('Reset Feature Web? This clears all nodes and links.')) return;
    featureWeb = { nodes: [], edges: [] };
+   fwSelectedNodeId = '';
+   featureWebSaveUiState();
    featureWebPersistAndRefresh();
+   featureWebNotice('Feature Web reset');
   }
 
   async function featureWebCopyShare() {
