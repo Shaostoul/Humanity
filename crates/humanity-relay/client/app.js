@@ -5569,6 +5569,8 @@ updateUserList = function(users) {
   let dmScreenStream = null;
   let dmVideoActive = false;
   let dmScreenActive = false;
+  let streamChatOverlayEnabled = localStorage.getItem('humanity-stream-chat-overlay') === 'true';
+  let streamChatOverlayChannel = localStorage.getItem('humanity-stream-chat-channel') || 'general';
 
   function toggleVideo() {
 if (!peerConnection) return;
@@ -5722,7 +5724,6 @@ if (vrVideoActive) {
 
   async function startVrVideo() {
 try {
-  if (vrScreenActive) stopVrScreenShare();
   vrVideoStream = await navigator.mediaDevices.getUserMedia({ video: getCameraConstraints(), audio: false });
   const usedVrTrack = vrVideoStream.getVideoTracks()[0];
   if (usedVrTrack && usedVrTrack.getSettings().deviceId) setPreferredCamera(usedVrTrack.getSettings().deviceId);
@@ -5754,6 +5755,7 @@ vrVideoActive = false;
 const btn = document.getElementById('vc-video-btn');
 if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '📹'; }
 removeVideoElement('vr-self');
+updateStudioLayout();
 updateVideoPanel();
   }
 
@@ -5768,7 +5770,6 @@ if (vrScreenActive) {
 
   async function startVrScreenShare() {
 try {
-  if (vrVideoActive) stopVrVideo();
   vrScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
   const videoTrack = vrScreenStream.getVideoTracks()[0];
   videoTrack.addEventListener('ended', () => { stopVrScreenShare(); });
@@ -5798,6 +5799,7 @@ vrScreenActive = false;
 const btn = document.getElementById('vc-screen-btn');
 if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '🖥️'; }
 removeVideoElement('vr-screen');
+updateStudioLayout();
 updateVideoPanel();
   }
 
@@ -5807,6 +5809,8 @@ updateVideoPanel();
 stopVrVideo();
 stopVrScreenShare();
 document.querySelectorAll('#video-panel .video-wrapper:not([data-id^="dm-"])').forEach(el => el.remove());
+const ov = document.querySelector('#video-panel .stream-chat-overlay');
+if (ov) ov.remove();
 updateVideoPanel();
 _origCleanupRoomAudio2();
   };
@@ -5834,6 +5838,109 @@ pc.ontrack = function(event) {
   };
 
   // --- Video Panel Helpers ---
+  function makeStudioDragResize(wrapper, storageKey) {
+wrapper.style.resize = 'both';
+wrapper.style.overflow = 'hidden';
+let dragging = false;
+let ox = 0, oy = 0;
+const label = wrapper.querySelector('.video-label');
+if (!label) return;
+label.style.cursor = 'move';
+label.addEventListener('pointerdown', (e) => {
+  dragging = true;
+  const rect = wrapper.getBoundingClientRect();
+  ox = e.clientX - rect.left;
+  oy = e.clientY - rect.top;
+  wrapper.setPointerCapture(e.pointerId);
+});
+label.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  wrapper.style.left = Math.max(8, e.clientX - ox) + 'px';
+  wrapper.style.top = Math.max(8, e.clientY - oy) + 'px';
+  wrapper.style.right = 'auto';
+  wrapper.style.bottom = 'auto';
+});
+label.addEventListener('pointerup', (e) => {
+  dragging = false;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify({
+      left: wrapper.style.left || '',
+      top: wrapper.style.top || '',
+      width: wrapper.style.width || '',
+      height: wrapper.style.height || ''
+    }));
+  } catch (_) {}
+});
+try {
+  const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
+  if (saved.left) wrapper.style.left = saved.left;
+  if (saved.top) wrapper.style.top = saved.top;
+  if (saved.width) wrapper.style.width = saved.width;
+  if (saved.height) wrapper.style.height = saved.height;
+  if (saved.left || saved.top) {
+    wrapper.style.right = 'auto';
+    wrapper.style.bottom = 'auto';
+  }
+} catch (_) {}
+  }
+
+  function updateStudioLayout() {
+const panel = document.getElementById('video-panel');
+if (!panel) return;
+const cam = panel.querySelector('.video-wrapper[data-id="vr-self"]');
+const scr = panel.querySelector('.video-wrapper[data-id="vr-screen"]');
+[cam, scr].forEach(w => { if (w) { w.classList.remove('studio-main', 'studio-pip'); w.style.position=''; } });
+
+if (scr) {
+  scr.classList.add('studio-main');
+  scr.style.position = 'relative';
+}
+if (cam) {
+  if (scr) {
+    cam.classList.add('studio-pip');
+    cam.style.position = 'absolute';
+    cam.style.right = cam.style.right || '10px';
+    cam.style.bottom = cam.style.bottom || '10px';
+    makeStudioDragResize(cam, 'humanity-studio-cam-pip');
+  } else {
+    cam.classList.add('studio-main');
+    cam.style.position = 'relative';
+  }
+}
+ensureStreamChatOverlay();
+  }
+
+  function ensureStreamChatOverlay() {
+const panel = document.getElementById('video-panel');
+if (!panel) return;
+let ov = panel.querySelector('.stream-chat-overlay');
+if (!streamChatOverlayEnabled) {
+  if (ov) ov.remove();
+  return;
+}
+if (!ov) {
+  ov = document.createElement('div');
+  ov.className = 'stream-chat-overlay';
+  panel.appendChild(ov);
+  makeStudioDragResize(ov, 'humanity-studio-chat-overlay');
+}
+ov.innerHTML = `<div class="video-label">Chat Overlay · #${streamChatOverlayChannel}</div><div class="stream-chat-overlay-body">Chat overlay enabled for #${streamChatOverlayChannel}. (Live channel feed integration in progress)</div>`;
+  }
+
+  window.toggleStreamChatOverlay = function() {
+streamChatOverlayEnabled = !streamChatOverlayEnabled;
+localStorage.setItem('humanity-stream-chat-overlay', streamChatOverlayEnabled ? 'true' : 'false');
+ensureStreamChatOverlay();
+  };
+
+  window.selectStreamChatChannel = function() {
+const ch = prompt('Enter channel id/name for stream chat overlay:', streamChatOverlayChannel || 'general');
+if (!ch) return;
+streamChatOverlayChannel = ch.trim();
+localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);
+ensureStreamChatOverlay();
+  };
+
   function showLocalVideo(stream, id) {
 removeVideoElement(id);
 const panel = document.getElementById('video-panel');
@@ -5850,10 +5957,11 @@ video.style.objectFit = id.includes('screen') ? 'contain' : 'cover';
 if (id.includes('screen')) wrapper.classList.add('local-screen-view');
 const label = document.createElement('div');
 label.className = 'video-label';
-label.textContent = id.includes('screen') ? 'You (Screen)' : 'You';
+label.textContent = id.includes('screen') ? 'You (Screen)' : 'You (Camera)';
 wrapper.appendChild(video);
 wrapper.appendChild(label);
 panel.appendChild(wrapper);
+updateStudioLayout();
 updateVideoPanel();
   }
 

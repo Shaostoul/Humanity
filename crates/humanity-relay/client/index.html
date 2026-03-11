@@ -118,6 +118,8 @@
             <button id="vc-mic-preset-btn" onclick="cycleMicPreset()" title="Mic processing preset">🎚️ Clarity</button>
             <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')" title="Toggle Camera (right-click to select device)">📹</button>
             <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()" title="Screen Share">🖥️</button>
+            <button id="vc-chat-overlay-btn" onclick="toggleStreamChatOverlay()" title="Toggle stream chat overlay">💬 Overlay</button>
+            <button id="vc-chat-channel-btn" onclick="selectStreamChatChannel()" title="Select stream chat channel"># Channel</button>
             <button id="vc-pip-btn" onclick="togglePiP()" title="Pin stream">📌</button>
             <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100" title="Master volume" oninput="setVoiceRoomVolume(this.value)">
             <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect">🔌</button>

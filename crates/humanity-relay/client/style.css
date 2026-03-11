@@ -2421,6 +2421,53 @@ header h1 {
   height: auto;
   object-fit: contain;
 }
+
+#video-panel .video-wrapper.studio-main {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+#video-panel .video-wrapper.studio-main video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+#video-panel .video-wrapper.studio-pip {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 180px;
+  height: 120px;
+  z-index: 4002;
+  border: 1px solid var(--accent);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+#video-panel .video-wrapper.studio-pip video {
+  width: 100%;
+  height: calc(100% - 20px);
+  object-fit: cover;
+}
+#video-panel .stream-chat-overlay {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  width: 280px;
+  min-height: 110px;
+  max-width: 65%;
+  z-index: 4003;
+  border: 1px solid var(--accent);
+  background: rgba(8,8,10,0.84);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+  resize: both;
+  overflow: hidden;
+}
+#video-panel .stream-chat-overlay .stream-chat-overlay-body {
+  padding: 0.35rem 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
 /* Camera selector dropdown */
 .camera-selector {
   position: absolute;
