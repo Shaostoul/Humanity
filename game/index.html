@@ -10524,7 +10524,13 @@
   }
 
   function featureWebReset() {
-   if (!confirm('Reset Feature Web? This clears all nodes and links.')) return;
+   const nodeCount = featureWeb.nodes.length;
+   const edgeCount = featureWeb.edges.length;
+   if (!nodeCount && !edgeCount) {
+    featureWebNotice('Feature Web is already empty');
+    return;
+   }
+   if (!confirm('Reset Feature Web? This clears ' + nodeCount + ' node' + (nodeCount === 1 ? '' : 's') + ' and ' + edgeCount + ' link' + (edgeCount === 1 ? '' : 's') + '.')) return;
    featureWeb = { nodes: [], edges: [] };
    fwSelectedNodeId = '';
    featureWebSaveUiState();
