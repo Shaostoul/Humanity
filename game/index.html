@@ -9304,7 +9304,11 @@
   function featureWebTeachMode() {
    if (!fwSelectedNodeId) { featureWebNotice('Select a node first'); return; }
    const node = featureWeb.nodes.find(n => n.id === fwSelectedNodeId);
-   if (!node) return;
+   if (!node) {
+    featureWebClearSelection({ quiet: true });
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    const incoming = featureWeb.edges.filter(e => e.to === node.id).map(e => featureWeb.nodes.find(n => n.id === e.from)).filter(Boolean);
    const outgoing = featureWeb.edges.filter(e => e.from === node.id).map(e => featureWeb.nodes.find(n => n.id === e.to)).filter(Boolean);
    const panel = document.getElementById('fw-teach-panel');
