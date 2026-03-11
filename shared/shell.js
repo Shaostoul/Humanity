@@ -275,8 +275,9 @@
       right: 0;
       background: rgba(13, 13, 13, 0.95);
       backdrop-filter: blur(12px);
-      border-top: 1px solid #333;
-      z-index: 100;
+      border-top: 1px solid #444;
+      /* Sit above the thread panel (z-index 2000) and below the hub nav (z-index 5500). */
+      z-index: 2100;
       text-align: center;
       font-size: 0.8rem;
       color: #888;
@@ -297,21 +298,23 @@
     .site-footer .footer-links a:hover { color: #FF8811; }
     .footer-toggle {
       position: absolute;
-      top: -20px;
+      top: -24px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(13, 13, 13, 0.95);
-      border: 1px solid #333;
+      border: 1px solid #555;
       border-bottom: none;
       border-radius: 8px 8px 0 0;
-      color: #888;
+      color: #bbb;
       cursor: pointer;
-      padding: 1px 16px;
+      padding: 3px 20px;
       font-size: 0.7rem;
       line-height: 1;
-      z-index: 101;
+      z-index: 2101;
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
     }
-    .footer-toggle:hover { color: #FF8811; }
+    .footer-toggle:hover { color: #FF8811; border-color: #FF8811; }
 
     /* Mobile */
     #mobile-hub-backdrop {
@@ -392,7 +395,7 @@
       '<div class="menu" data-menu="private">' +
         '<button class="menu-btn" type="button">Private ▾</button>' +
         '<div class="menu-drop">' +
-          '<a href="/reality">Profile</a>' +
+          '<a href="/chat">Profile</a>' +
           '<a href="/inventory">Inventory</a>' +
           '<a href="/fantasy">Skills</a>' +
           '<a href="/source">Equipment</a>' +
@@ -428,7 +431,7 @@
         '<a href="/source" title="Settings">⚙</a>' +
         '<a href="/dashboard" title="Data">🗄</a>' +
         '<a href="/chat" title="Alerts">🔔</a>' +
-        '<a href="/reality" title="Account">👤</a>' +
+        '<a href="/chat" title="Account">👤</a>' +
       '</div>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
@@ -448,11 +451,11 @@
 
   mobileDrawer.innerHTML =
     '<div class="mobile-hub-group"><h4>Private</h4>' +
-      mobileLink('/reality', 'Profile') +
+      mobileLink('/chat', 'Profile') +
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/avatars', 'Identity') +
       mobileLink('/downloads', 'Downloads') +
-      mobileLink('/chat', 'Comms') +
+      mobileLink('/reality', 'Reality') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Public</h4>' +
       mobileLink('/board', 'Systems') +
@@ -662,7 +665,7 @@
       '/chat': { icon: '/shared/ui-icons/chat.png', label: 'Network' },
       '/map': { icon: '/shared/ui-icons/map.png', label: 'Maps' },
       '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Systems' },
-      '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Profile' },
+      '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Reality' },
       '/fantasy': { icon: '/shared/ui-icons/galaxy.png', label: 'Skills' },
       '/market': { icon: '/shared/ui-icons/market.png', label: 'Market' },
       '/browse': { icon: '/shared/ui-icons/website.png', label: 'Learn' },
