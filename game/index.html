@@ -10636,7 +10636,12 @@
    let visibleNodes = featureWeb.nodes.filter(n => (filterType === 'all' || n.type === filterType) && (filterStatus === 'all' || n.status === filterStatus) && (filterDomain === 'all' || (n.domain || 'game') === filterDomain) && (!linkedOnly || featureWebNormalizeTaskId(n && n.taskId) != null) && (!ownedOnly || !!(n.owner && n.owner.trim())) && (!filterSearch || ((n.title || '').toLowerCase().includes(filterSearch) || (n.summary || '').toLowerCase().includes(filterSearch) || (n.teach || '').toLowerCase().includes(filterSearch))));
    let visibleNodeIds = new Set(visibleNodes.map(n => n.id));
    let visibleEdges = featureWeb.edges.filter(e => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
-   if (focusSelected) {
+   const hasSelectedNode = !!fwSelectedNodeId && featureWeb.nodes.some(n => n && n.id === fwSelectedNodeId);
+   if (fwSelectedNodeId && !hasSelectedNode) {
+    fwSelectedNodeId = '';
+    featureWebSaveUiState();
+   }
+   if (focusSelected && hasSelectedNode) {
     const neigh = new Set([fwSelectedNodeId]);
     visibleEdges.forEach(e => { if (e.from === fwSelectedNodeId) neigh.add(e.to); if (e.to === fwSelectedNodeId) neigh.add(e.from); });
     visibleNodes = visibleNodes.filter(n => neigh.has(n.id));
