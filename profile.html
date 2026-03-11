@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Profile — Humanity</title>
+  <title>Profile — HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* ── Layout ── */
@@ -612,12 +612,14 @@
         <div class="prof-card">
           <h3>OBS / Multistream Setup</h3>
           <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">
-            Enter your RTMP stream keys for each platform. These are stored locally and used to generate your
-            OBS multistream configuration. Stream keys are sensitive — they are NOT synced to the relay.
+            Enter your RTMP stream keys for each platform. Stored locally only — never synced to the relay.
+            Enable the toggle to include a platform in your multistream output.
           </p>
 
           <div class="stream-platform">
-            <h4>▶️ YouTube Live</h4>
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-yt-enabled" style="width:auto;"> ▶️ YouTube Live
+            </label></h4>
             <div class="field-grid two-col">
               <div class="field-group private-field">
                 <label>Stream Key</label>
@@ -631,7 +633,9 @@
           </div>
 
           <div class="stream-platform">
-            <h4>🎮 Twitch</h4>
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-twitch-enabled" style="width:auto;"> 🎮 Twitch
+            </label></h4>
             <div class="field-grid two-col">
               <div class="field-group private-field">
                 <label>Stream Key</label>
@@ -645,21 +649,108 @@
           </div>
 
           <div class="stream-platform">
-            <h4>🎵 TikTok Live</h4>
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-rumble-enabled" checked style="width:auto;"> 🟠 Rumble
+            </label></h4>
             <div class="field-grid two-col">
               <div class="field-group private-field">
                 <label>Stream Key</label>
-                <input type="password" id="f-tiktok-key" placeholder="xxxx-xxxx-xxxx" autocomplete="off">
+                <input type="password" id="f-rumble-key" placeholder="Your Rumble stream key" autocomplete="off">
               </div>
               <div class="field-group private-field">
                 <label>RTMP Server</label>
-                <input type="text" id="f-tiktok-rtmp" placeholder="rtmp://..." autocomplete="off">
+                <input type="text" id="f-rumble-rtmp" value="rtmp://live.rumble.com/live" readonly style="opacity:0.6;">
               </div>
             </div>
           </div>
 
           <div class="stream-platform">
-            <h4>🌐 Custom RTMP Destination</h4>
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-facebook-enabled" style="width:auto;"> 📘 Facebook / Instagram Live
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-facebook-key" placeholder="Persistent stream key from Meta" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-facebook-rtmp" value="rtmps://live-api-s.facebook.com:443/rtmp/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Get your key from Meta Business Suite → Live → Create Live Video.</p>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-x-enabled" style="width:auto;"> 🐦 X (Twitter)
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-x-key" placeholder="Stream key from X Media Studio" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-x-rtmp" value="rtmps://ingest.pscp.tv:443/x/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Get your key from X Media Studio → Producer → Broadcast.</p>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-kick-enabled" style="width:auto;"> 🟩 Kick
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-kick-key" placeholder="Your Kick stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-kick-rtmp" value="rtmps://fa723fc1b171.global-contribute.live-video.net:443/app/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-tiktok-enabled" style="width:auto;"> 🎵 TikTok Live
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-tiktok-key" placeholder="TikTok stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-tiktok-rtmp" placeholder="rtmp:// (varies by region)" autocomplete="off">
+              </div>
+            </div>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">TikTok RTMP server varies — get it from TikTok LIVE Studio.</p>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-linkedin-enabled" style="width:auto;"> 💼 LinkedIn Live
+            </label></h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-linkedin-key" placeholder="LinkedIn stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-linkedin-rtmp" value="rtmps://seamless.linkedin.com:443/live/" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+              <input type="checkbox" id="f-custom-enabled" style="width:auto;"> 🌐 Custom RTMP
+            </label></h4>
             <div class="field-grid two-col">
               <div class="field-group private-field">
                 <label>Stream Key</label>
@@ -675,8 +766,9 @@
           <div style="margin-top:0.75rem;">
             <button class="save-btn" onclick="copyObsConfig()">📋 Copy OBS Multistream Config</button>
             <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem;">
-              Generates a multistream output config you can paste into OBS → Settings → Stream.
-              Requires the <a href="https://obsproject.com/forum/resources/obs-multi-rtmp.964/" target="_blank">obs-multi-rtmp</a> plugin.
+              Copies config for all enabled platforms. Paste into the
+              <a href="https://obsproject.com/forum/resources/obs-multi-rtmp.964/" target="_blank">obs-multi-rtmp</a> plugin
+              or use with a multistream service like Restream.
             </p>
           </div>
         </div>
@@ -724,9 +816,21 @@
       'interests','skills','looking-for',
       'twitter','youtube','twitch','github','discord','instagram','tiktok','mastodon','linkedin','portfolio',
       'kofi','patreon',
-      'yt-key','yt-rtmp','twitch-key','twitch-rtmp','tiktok-key','tiktok-rtmp','custom-key','custom-rtmp',
+      'yt-enabled','yt-key','yt-rtmp',
+      'twitch-enabled','twitch-key','twitch-rtmp',
+      'rumble-enabled','rumble-key','rumble-rtmp',
+      'facebook-enabled','facebook-key','facebook-rtmp',
+      'x-enabled','x-key','x-rtmp',
+      'kick-enabled','kick-key','kick-rtmp',
+      'tiktok-enabled','tiktok-key','tiktok-rtmp',
+      'linkedin-enabled','linkedin-key','linkedin-rtmp',
+      'custom-enabled','custom-key','custom-rtmp',
       'stream-title','stream-category'
     ];
+
+    // Checkbox fields that use .checked instead of .value
+    var CHECKBOX_FIELDS = ['yt-enabled','twitch-enabled','rumble-enabled','facebook-enabled',
+      'x-enabled','kick-enabled','tiktok-enabled','linkedin-enabled','custom-enabled'];
 
     // ── Load from localStorage ──
     function loadProfile() {
@@ -734,13 +838,14 @@
       try { data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (_) {}
       FIELDS.forEach(function(f) {
         var el = document.getElementById('f-' + f);
-        if (el && data[f] !== undefined) el.value = data[f];
+        if (!el) return;
+        if (CHECKBOX_FIELDS.indexOf(f) >= 0) {
+          // Rumble defaults to enabled; others default to false if not yet saved
+          if (data[f] !== undefined) el.checked = !!data[f];
+        } else {
+          if (data[f] !== undefined) el.value = data[f];
+        }
       });
-      // Set readonly RTMP defaults if empty
-      var ytRtmp = document.getElementById('f-yt-rtmp');
-      if (ytRtmp && !data['yt-rtmp']) ytRtmp.value = 'rtmp://a.rtmp.youtube.com/live2';
-      var twRtmp = document.getElementById('f-twitch-rtmp');
-      if (twRtmp && !data['twitch-rtmp']) twRtmp.value = 'rtmp://live.twitch.tv/live';
     }
 
     // ── Save all to localStorage ──
@@ -748,7 +853,8 @@
       var data = {};
       FIELDS.forEach(function(f) {
         var el = document.getElementById('f-' + f);
-        if (el) data[f] = el.value;
+        if (!el) return;
+        data[f] = CHECKBOX_FIELDS.indexOf(f) >= 0 ? el.checked : el.value;
       });
       localStorage.setItem(STORE_KEY, JSON.stringify(data));
       var st = document.getElementById('save-status');
@@ -787,12 +893,23 @@
 
     // ── Copy OBS multistream config ──
     function copyObsConfig() {
-      var platforms = [
-        { name: 'YouTube', key: document.getElementById('f-yt-key').value, rtmp: document.getElementById('f-yt-rtmp').value },
-        { name: 'Twitch',  key: document.getElementById('f-twitch-key').value, rtmp: document.getElementById('f-twitch-rtmp').value },
-        { name: 'TikTok',  key: document.getElementById('f-tiktok-key').value, rtmp: document.getElementById('f-tiktok-rtmp').value },
-        { name: 'Custom',  key: document.getElementById('f-custom-key').value, rtmp: document.getElementById('f-custom-rtmp').value },
-      ].filter(function(p) { return p.key && p.rtmp; });
+      var allPlatforms = [
+        { id: 'yt',       name: 'YouTube' },
+        { id: 'twitch',   name: 'Twitch' },
+        { id: 'rumble',   name: 'Rumble' },
+        { id: 'facebook', name: 'Facebook/Instagram' },
+        { id: 'x',        name: 'X (Twitter)' },
+        { id: 'kick',     name: 'Kick' },
+        { id: 'tiktok',   name: 'TikTok' },
+        { id: 'linkedin', name: 'LinkedIn' },
+        { id: 'custom',   name: 'Custom' },
+      ];
+      var platforms = allPlatforms.map(function(p) {
+        var enabled = document.getElementById('f-' + p.id + '-enabled');
+        var key  = document.getElementById('f-' + p.id + '-key');
+        var rtmp = document.getElementById('f-' + p.id + '-rtmp');
+        return { name: p.name, enabled: enabled && enabled.checked, key: key && key.value, rtmp: rtmp && rtmp.value };
+      }).filter(function(p) { return p.enabled && p.key && p.rtmp; });
       if (platforms.length === 0) {
         alert('Enter at least one stream key + RTMP server first.');
         return;

@@ -1,6 +1,6 @@
 {
-  "name": "Humanity",
-  "short_name": "Humanity",
+  "name": "HumanityOS",
+  "short_name": "HumanityOS",
   "description": "Cooperative communication platform with cryptographic identity",
   "start_url": "/chat",
   "display": "standalone",
