@@ -9538,6 +9538,10 @@
   function featureWebDeleteNode(id) {
    const node = featureWeb.nodes.find(n => n && n.id === id);
    if (!node) {
+    if (fwSelectedNodeId === id) {
+     fwSelectedNodeId = '';
+     featureWebSaveUiState();
+    }
     featureWebNotice('Node already removed');
     return;
    }
