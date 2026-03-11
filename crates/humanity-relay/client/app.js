@@ -3515,7 +3515,68 @@ var federatedServersFetched = false;
     refreshUnifiedLeftHeaderCounts();
   }
 
+  function initPanelResizers() {
+    const sidebar = document.getElementById('sidebar');
+    const right = document.getElementById('right-sidebar');
+    const leftResizer = document.getElementById('left-resizer');
+    const rightResizer = document.getElementById('right-resizer');
+    const leftLockBtn = document.getElementById('left-lock-btn');
+    const rightLockBtn = document.getElementById('right-lock-btn');
+    if (!sidebar || !right || !leftResizer || !rightResizer) return;
+
+    const lk = JSON.parse(localStorage.getItem('humanity-panel-locks') || '{"left":false,"right":false}');
+    const widths = JSON.parse(localStorage.getItem('humanity-panel-widths') || '{}');
+    if (widths.left) sidebar.style.width = `${Math.max(150, Math.min(420, widths.left))}px`;
+    if (widths.right) right.style.width = `${Math.max(180, Math.min(460, widths.right))}px`;
+
+    function applyLockUI() {
+      if (leftLockBtn) {
+        leftLockBtn.textContent = lk.left ? '🔒' : '🔓';
+        leftLockBtn.classList.toggle('locked', !!lk.left);
+      }
+      if (rightLockBtn) {
+        rightLockBtn.textContent = lk.right ? '🔒' : '🔓';
+        rightLockBtn.classList.toggle('locked', !!lk.right);
+      }
+    }
+    applyLockUI();
+
+    window.togglePanelLock = function(side) {
+      if (side !== 'left' && side !== 'right') return;
+      lk[side] = !lk[side];
+      localStorage.setItem('humanity-panel-locks', JSON.stringify(lk));
+      applyLockUI();
+    };
+
+    function attachDrag(handle, side) {
+      let dragging = false;
+      handle.addEventListener('mousedown', (e) => {
+        if (lk[side]) return;
+        e.preventDefault();
+        dragging = true;
+      });
+      window.addEventListener('mouseup', () => { dragging = false; });
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        if (side === 'left') {
+          const w = Math.max(150, Math.min(420, e.clientX));
+          sidebar.style.width = `${w}px`;
+          widths.left = w;
+        } else {
+          const w = Math.max(180, Math.min(460, window.innerWidth - e.clientX));
+          right.style.width = `${w}px`;
+          widths.right = w;
+        }
+        localStorage.setItem('humanity-panel-widths', JSON.stringify(widths));
+      });
+    }
+
+    attachDrag(leftResizer, 'left');
+    attachDrag(rightResizer, 'right');
+  }
+
   setTimeout(initUnifiedLeftSidebar, 0);
+  setTimeout(initPanelResizers, 0);
 
   // ── Server List Rendering ──
   function getServerOrder() {
@@ -4748,7 +4809,10 @@ function renderGroupList() {
       <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>
     </div>`;
   }
-  html += '<div style="padding:0.3rem 0;"><button class="vr-btn" onclick="promptCreateGroup()" style="width:100%;font-size:0.7rem;">+ Create Group</button></div>';
+  html += '<div style="display:flex;gap:0.25rem;padding:0.3rem 0;">'
+       + '<button class="vr-btn" onclick="promptCreateGroup()" style="flex:1;font-size:0.7rem;">+ Create Group</button>'
+       + '<button class="vr-btn" onclick="promptJoinGroup()" style="flex:1;font-size:0.7rem;">+ Join Group</button>'
+       + '</div>';
   container.innerHTML = html;
   // Click handler for groups
   container.querySelectorAll('[data-group-id]').forEach(el => {
@@ -5319,6 +5383,13 @@ function renderUnifiedRightSidebar() {
       serverVoipRows.push(`<div class="unified-row"><span>🎤 ${esc(p.display_name)} · ${esc(vc.name)}</span></div>`);
     });
   });
+  if (window._currentRoomId) {
+    const ch = (window._voiceChannels || []).find(c => String(c.id) === String(window._currentRoomId));
+    const label = ch ? ch.name : ('Room ' + window._currentRoomId);
+    if (!serverVoipRows.some(r => r.includes('(you)'))) {
+      serverVoipRows.unshift(`<div class="unified-row"><span>🎤 ${esc(myName || shortKey(myKey))} (you) · ${esc(label)}</span></div>`);
+    }
+  }
   const serverStreamRows = [];
   active.forEach((s, id) => {
     serverStreamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);

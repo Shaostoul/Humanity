@@ -124,6 +124,9 @@
           </div>
         </div>
       </div>
+      <div id="left-resizer" class="panel-resizer" title="Resize left panel">
+        <button class="resizer-lock" id="left-lock-btn" onclick="togglePanelLock('left')">🔓</button>
+      </div>
       <div id="chat-area">
         <div id="search-bar" style="position:relative;">
           <div style="display:flex;gap:6px;align-items:center;padding:8px 12px;">
@@ -183,6 +186,9 @@
           <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
           <button id="help-btn" onclick="toggleHelpModal()" title="Help & Commands">?</button>
         </div>
+      </div>
+      <div id="right-resizer" class="panel-resizer" title="Resize right panel">
+        <button class="resizer-lock" id="right-lock-btn" onclick="togglePanelLock('right')">🔓</button>
       </div>
       <div id="right-sidebar">
         <h3>People & Streams</h3>
