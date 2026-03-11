@@ -501,6 +501,83 @@
     if (link) closeMobileDrawer();
   });
 
+  // Rich tooltips (label + short explanation)
+  function defaultTooltipDescription(label) {
+    var l = (label || '').toLowerCase();
+    if (l.includes('mute')) return 'Silences your microphone so others cannot hear you.';
+    if (l.includes('disconnect') || l.includes('leave')) return 'Immediately exits the current voice/chat session.';
+    if (l.includes('volume')) return 'Adjusts how loud incoming audio is for you.';
+    if (l.includes('camera')) return 'Turns your camera stream on or off for others.';
+    if (l.includes('screen')) return 'Shares your screen so others can watch your display.';
+    if (l.includes('search')) return 'Finds messages or content in the current context.';
+    if (l.includes('users') || l.includes('people')) return 'Opens the people panel with presence and stream controls.';
+    if (l.includes('send')) return 'Sends your current message to the active channel.';
+    if (l.includes('attach') || l.includes('file')) return 'Adds a file to your message or upload flow.';
+    if (l.includes('commands')) return 'Opens command tools and quick actions.';
+    if (l.includes('help')) return 'Shows guidance, docs, and available actions.';
+    if (l.includes('network')) return 'Takes you to communication and connection controls.';
+    return 'Tap or click to use this control.';
+  }
+
+  function initRichTooltips() {
+    if (window.__HOS_RICH_TOOLTIPS__) return;
+    window.__HOS_RICH_TOOLTIPS__ = true;
+
+    var tip = document.createElement('div');
+    tip.id = 'hos-rich-tooltip';
+    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:260px;background:rgba(8,8,10,0.96);border:1px solid rgba(130,130,140,0.35);border-radius:8px;padding:6px 8px;color:#ddd;font-size:12px;line-height:1.35;box-shadow:0 8px 20px rgba(0,0,0,0.45);display:none;';
+    document.body.appendChild(tip);
+
+    function showFor(el, x, y) {
+      if (!el) return;
+      var title = el.getAttribute('data-tip-title') || el.getAttribute('data-native-title') || el.getAttribute('aria-label') || el.getAttribute('data-tip') || (el.textContent || '').trim();
+      if (!title) return;
+      var desc = el.getAttribute('data-tip-desc') || defaultTooltipDescription(title);
+      tip.innerHTML = '<div style="font-weight:600;color:#fff;margin-bottom:2px;">' + title.replace(/</g,'&lt;') + '</div><div style="color:#b9c2d0;">' + desc.replace(/</g,'&lt;') + '</div>';
+      tip.style.display = 'block';
+      var tx = Math.min(window.innerWidth - 280, Math.max(8, x + 12));
+      var ty = Math.min(window.innerHeight - 90, Math.max(8, y + 12));
+      tip.style.left = tx + 'px';
+      tip.style.top = ty + 'px';
+    }
+
+    function hideTip() { tip.style.display = 'none'; }
+
+    document.querySelectorAll('[title]').forEach(function(el) {
+      var t = el.getAttribute('title');
+      if (t && !el.getAttribute('data-native-title')) {
+        el.setAttribute('data-native-title', t);
+        el.removeAttribute('title');
+      }
+    });
+
+    document.addEventListener('mouseover', function(e) {
+      var el = e.target.closest('[data-native-title],[data-tip],[aria-label],button,a,[role="button"]');
+      if (!el) return;
+      showFor(el, e.clientX || 8, e.clientY || 8);
+    });
+    document.addEventListener('mousemove', function(e) {
+      if (tip.style.display !== 'block') return;
+      var tx = Math.min(window.innerWidth - 280, Math.max(8, (e.clientX || 8) + 12));
+      var ty = Math.min(window.innerHeight - 90, Math.max(8, (e.clientY || 8) + 12));
+      tip.style.left = tx + 'px';
+      tip.style.top = ty + 'px';
+    });
+    document.addEventListener('mouseout', function(e) {
+      if (e.target && e.target.closest && e.target.closest('[data-native-title],[data-tip],[aria-label],button,a,[role="button"]')) hideTip();
+    });
+    document.addEventListener('focusin', function(e) {
+      var el = e.target.closest('[data-native-title],[data-tip],[aria-label],button,a,[role="button"]');
+      if (!el) return;
+      var r = el.getBoundingClientRect();
+      showFor(el, r.left + 8, r.bottom + 8);
+    });
+    document.addEventListener('focusout', hideTip);
+    document.addEventListener('scroll', hideTip, true);
+  }
+
+  setTimeout(initRichTooltips, 0);
+
   // Dropdown menu interactions
   function positionMenuDrop(menu) {
     if (!menu) return;
