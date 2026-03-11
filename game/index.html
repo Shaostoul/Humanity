@@ -9383,6 +9383,7 @@
    if (ownerEl) ownerEl.value = '';
    featureWebNotice('Added node: ' + (node.title || 'Untitled'));
    featureWebPersistAndRefresh();
+   if (titleEl && typeof titleEl.focus === 'function') titleEl.focus();
   }
 
   function featureWebCanvasAdd(e) {
@@ -9422,6 +9423,7 @@
    if (ownerEl) ownerEl.value = '';
    featureWebNotice('Added node: ' + (node.title || 'Untitled'));
    featureWebPersistAndRefresh();
+   if (titleEl && typeof titleEl.focus === 'function') titleEl.focus();
   }
 
   function featureWebCanvasKeydown(e) {
