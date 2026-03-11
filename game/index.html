@@ -10493,7 +10493,7 @@
     if (!file) return;
     const maxBytes = 5 * 1024 * 1024;
     if (file.size > maxBytes) {
-     featureWebNotice('Import file is too large (' + Math.round(file.size / (1024 * 1024)) + 'MB). Max 5MB.');
+     featureWebNotice('Import file is too large (' + (file.size / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
      return;
     }
     const reader = new FileReader();
@@ -10562,7 +10562,7 @@
    if (!raw) return;
    const maxChars = 5 * 1024 * 1024;
    if (raw.length > maxChars) {
-    featureWebNotice('Pasted JSON is too large (' + Math.round(raw.length / (1024 * 1024)) + 'MB). Max 5MB.');
+    featureWebNotice('Pasted JSON is too large (' + (raw.length / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
     return;
    }
    try {
