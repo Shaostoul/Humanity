@@ -9902,10 +9902,11 @@
     return;
    }
    const payload = JSON.stringify(node, null, 2);
+   const copiedMsg = 'Node JSON copied: ' + featureWebClampText(node.title || 'Untitled', 48) + ' (' + payload.length + ' chars)';
    try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
      await navigator.clipboard.writeText(payload);
-     featureWebNotice('Node JSON copied');
+     featureWebNotice(copiedMsg);
      return;
     }
    } catch {}
@@ -9915,7 +9916,7 @@
    ta.style.left = '-9999px';
    document.body.appendChild(ta);
    ta.select();
-   try { document.execCommand('copy'); featureWebNotice('Node JSON copied'); }
+   try { document.execCommand('copy'); featureWebNotice(copiedMsg); }
    catch { featureWebNotice('Could not copy node JSON'); }
    document.body.removeChild(ta);
   }
