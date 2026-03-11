@@ -395,7 +395,7 @@
       '<div class="menu" data-menu="private">' +
         '<button class="menu-btn" type="button">Private ▾</button>' +
         '<div class="menu-drop">' +
-          '<a href="/chat#profile">Profile</a>' +
+          '<a href="/profile">Profile</a>' +
           '<a href="/inventory">Inventory</a>' +
           '<a href="/fantasy">Skills</a>' +
           '<a href="/source">Equipment</a>' +
@@ -431,7 +431,7 @@
         '<a href="/source" title="Settings">⚙</a>' +
         '<a href="/dashboard" title="Data">🗄</a>' +
         '<a href="/chat" title="Alerts">🔔</a>' +
-        '<a href="/chat#profile" title="Account">👤</a>' +
+        '<a href="/profile" title="Account">👤</a>' +
       '</div>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
@@ -451,7 +451,7 @@
 
   mobileDrawer.innerHTML =
     '<div class="mobile-hub-group"><h4>Private</h4>' +
-      mobileLink('/chat#profile', 'Profile') +
+      mobileLink('/profile', 'Profile') +
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/avatars', 'Identity') +
       mobileLink('/downloads', 'Downloads') +
@@ -663,6 +663,7 @@
 
     var tabMeta = {
       '/chat': { icon: '/shared/ui-icons/chat.png', label: 'Network' },
+      '/profile': { icon: '/shared/ui-icons/worlds.png', label: 'Profile' },
       '/map': { icon: '/shared/ui-icons/map.png', label: 'Maps' },
       '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Systems' },
       '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Reality' },
@@ -724,8 +725,10 @@
 
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
-    // Never let menu interactions fall through to tab navigation.
-    if (Date.now() < suppressNavClicksUntil || e.target.closest('.menu') || e.target.closest('.menu-btn') || e.target.closest('.mobile-menu-btn')) {
+    // Block SPA nav for menu toggle buttons and during suppress window.
+    // But DO allow clicks on actual links inside .menu-drop — those should navigate.
+    var isMenuLink = e.target.closest('.menu-drop a');
+    if (!isMenuLink && (Date.now() < suppressNavClicksUntil || e.target.closest('.menu-btn') || e.target.closest('.mobile-menu-btn'))) {
       e.preventDefault();
       e.stopPropagation();
       return;

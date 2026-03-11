@@ -5,6 +5,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// Open Edit Profile modal when the Account nav button is clicked while already
+// on /chat (hash navigation doesn't trigger a page reload, so we need this).
+window.addEventListener('hashchange', () => {
+  if (location.hash === '#profile') {
+    history.replaceState(null, '', location.pathname);
+    if (typeof openEditProfileModal === 'function') openEditProfileModal();
+  }
+});
+
 // ── State ──
 let ws = null;
 let myKey = '';
@@ -2754,6 +2763,16 @@ document.getElementById('peer-list').addEventListener('click', function(e) {
 // Store peer data (with roles) for context menu lookups.
 peerData = peerData || {};
 
+// Prevent the native browser/Tauri right-click menu inside the peer list so
+// the custom action menu works on right-click too (left-click already works).
+document.getElementById('peer-list').addEventListener('contextmenu', function(e) {
+  const peerEl = e.target.closest('.peer[data-username]');
+  if (peerEl) {
+    e.preventDefault();
+    showUserContextMenu(e, peerEl.dataset.username, peerEl.dataset.pubkey);
+  }
+});
+
 // Profile system, block list -> see chat-profile.js
 
 // ── Import file handler (login screen) ──
@@ -4958,6 +4977,17 @@ function toggleUnifiedSection(id) {
   try { state = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (_) {}
   state[id] = !state[id];
   localStorage.setItem(key, JSON.stringify(state));
+  // Also toggle static HTML sections (e.g. #stream-studio-panel) that aren't
+  // re-rendered by renderUnifiedRightSidebar.
+  const staticEl = document.querySelector(`.unified-section[data-usid="${CSS.escape(id)}"]`);
+  if (staticEl) {
+    staticEl.classList.toggle('collapsed', !!state[id]);
+    const btn = staticEl.querySelector('.unified-header');
+    if (btn) {
+      const title = btn.textContent.replace(/\s*[▾▸]\s*$/, '').trim();
+      btn.textContent = title + ' ' + (state[id] ? '▸' : '▾');
+    }
+  }
   renderUnifiedRightSidebar();
 }
 window.toggleUnifiedSection = toggleUnifiedSection;

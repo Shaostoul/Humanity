@@ -29,7 +29,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-  <script src="/shared/shell.js"></script>
+  <script src="/shared/shell.js" data-active="chat"></script>
   <script src="/shared/settings.js"></script>
 
   <!-- Login Screen -->
@@ -85,6 +85,10 @@
           <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
           <button id="export-identity-btn" onclick="downloadIdentityBackup(myName)" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">📥 Export Identity</button>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
+          <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
+            <button onclick="exportContactCard()" title="Share your contact card (QR / JSON) so others can add you P2P" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📤 Share Card</button>
+            <button onclick="showContactCardImportModal()" title="Paste a contact card from another user to add them P2P" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Add Contact</button>
+          </div>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
           <button class="sidebar-tab active" data-tab="servers">🏠 Servers</button>
@@ -307,10 +311,39 @@
     <div class="profile-modal" onclick="event.stopPropagation()">
       <button class="close-btn" onclick="closeEditProfileOverlay()">✕</button>
       <h2>✏️ Edit Profile</h2>
-      <label for="profile-bio">Bio</label>
+
+      <!-- Avatar & Banner URLs -->
+      <label for="profile-avatar-url">🖼️ Avatar URL</label>
+      <input type="text" id="profile-avatar-url" maxlength="512" placeholder="https://example.com/avatar.png">
+      <label for="profile-banner-url">🏔️ Banner URL</label>
+      <input type="text" id="profile-banner-url" maxlength="512" placeholder="https://example.com/banner.png">
+
+      <!-- Bio -->
+      <label for="profile-bio">📝 Bio</label>
       <textarea id="profile-bio" rows="3" maxlength="280" placeholder="Tell people about yourself…"></textarea>
       <div class="bio-counter" id="bio-counter">0 / 280</div>
-      <label for="profile-website">🌐 Website</label>
+
+      <!-- Privacy-toggleable fields — lock icon toggles public ↔ private -->
+      <div class="profile-field-row">
+        <label for="profile-pronouns">🏷️ Pronouns</label>
+        <button type="button" class="privacy-toggle" id="privacy-pronouns" data-field="pronouns" title="Toggle visibility" onclick="togglePrivacyField('pronouns')">🌐</button>
+      </div>
+      <input type="text" id="profile-pronouns" maxlength="64" placeholder="she/her, he/him, they/them…">
+
+      <div class="profile-field-row">
+        <label for="profile-location">📍 Location</label>
+        <button type="button" class="privacy-toggle" id="privacy-location" data-field="location" title="Toggle visibility" onclick="togglePrivacyField('location')">🌐</button>
+      </div>
+      <input type="text" id="profile-location" maxlength="128" placeholder="City, Country">
+
+      <div class="profile-field-row">
+        <label for="profile-website-url">🌐 Website</label>
+        <button type="button" class="privacy-toggle" id="privacy-website" data-field="website" title="Toggle visibility" onclick="togglePrivacyField('website')">🌐</button>
+      </div>
+      <input type="text" id="profile-website-url" maxlength="256" placeholder="https://yoursite.com">
+
+      <!-- Social handles (always public — shown in bio card) -->
+      <label for="profile-website">🌐 Socials — Website</label>
       <input type="text" id="profile-website" maxlength="200" placeholder="https://yoursite.com">
       <label for="profile-discord">💬 Discord</label>
       <input type="text" id="profile-discord" maxlength="100" placeholder="username">
@@ -320,6 +353,11 @@
       <input type="text" id="profile-youtube" maxlength="200" placeholder="https://youtube.com/@channel or channel name">
       <label for="profile-github">🐙 GitHub</label>
       <input type="text" id="profile-github" maxlength="200" placeholder="username">
+
+      <p style="font-size:0.7rem;color:var(--text-muted);margin:0.3rem 0 0.6rem;">
+        🌐 = visible to everyone &nbsp;·&nbsp; 🔒 = visible to friends only
+      </p>
+
       <div class="btn-row">
         <button class="btn-cancel" onclick="closeEditProfileOverlay()">Cancel</button>
         <button class="btn-save" onclick="saveProfile()">Save</button>
@@ -403,8 +441,13 @@
 
   <!-- External scripts: crypto module must load before app -->
   <!-- nginx serves these from /chat/ which aliases to this directory -->
+  <!-- Load order: crypto → app (core) → feature modules -->
   <script src="/chat/crypto.js"></script>
   <script src="/chat/app.js"></script>
+  <script src="/chat/chat-profile.js"></script>
+  <!-- qrcode-generator (public domain, ~18 KB) — used by chat-p2p.js for contact card QR codes -->
+  <script src="/shared/qrcode.js" onerror="console.warn('qrcode.js not found — QR codes will be unavailable')"></script>
+  <script src="/chat/chat-p2p.js"></script>
 
 </body>
 </html>

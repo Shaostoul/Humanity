@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile — Humanity</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* ── Layout ── */
+    body { padding-top: 48px; padding-bottom: 32px; }
+    #profile-app {
+      display: flex;
+      height: calc(100vh - 80px);
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1rem;
+      gap: 1rem;
+    }
+
+    /* ── Left Sidebar ── */
+    #profile-sidebar {
+      width: 220px;
+      min-width: 180px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .prof-section-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: background 0.15s;
+    }
+    .prof-section-btn:hover { background: var(--bg-hover); }
+    .prof-section-btn.active { background: var(--bg-hover); border-color: var(--accent); }
+    .prof-section-btn .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-private  { background: #c44; }
+    .dot-personal { background: #4a9; }
+    .dot-public   { background: #48f; }
+
+    .sidebar-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0.4rem 0;
+    }
+    .sidebar-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0.2rem 0.5rem;
+    }
+    #save-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 0.35rem;
+    }
+    #save-status.saved { color: #4a9; }
+
+    /* ── Main Content ── */
+    #profile-main {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    /* ── Section Header ── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.25rem;
+    }
+    .section-header.private  { background: rgba(204,68,68,0.12); border: 1px solid rgba(204,68,68,0.3); }
+    .section-header.personal { background: rgba(68,170,136,0.12); border: 1px solid rgba(68,170,136,0.3); }
+    .section-header.public   { background: rgba(68,136,255,0.12); border: 1px solid rgba(68,136,255,0.3); }
+    .section-header h2 { font-size: 1rem; margin: 0; }
+    .section-header p  { font-size: 0.78rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Cards ── */
+    .prof-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+    }
+    .prof-card h3 {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── Form Grid ── */
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.6rem;
+    }
+    .field-grid.two-col { grid-template-columns: 1fr 1fr; }
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .field-group label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .field-group input,
+    .field-group select,
+    .field-group textarea {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 0.35rem 0.5rem;
+      outline: none;
+      width: 100%;
+      transition: border-color 0.15s;
+    }
+    .field-group input:focus,
+    .field-group select:focus,
+    .field-group textarea:focus { border-color: var(--accent); }
+
+    /* ── Color-coded borders for section types ── */
+    .private-field  input, .private-field  select, .private-field  textarea { border-color: rgba(204,68,68,0.4); }
+    .personal-field input, .personal-field select, .personal-field textarea { border-color: rgba(68,170,136,0.4); }
+    .public-field   input, .public-field   select, .public-field   textarea { border-color: rgba(68,136,255,0.4); }
+
+    /* ── Social row ── */
+    .social-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+    .social-icon { width: 20px; text-align: center; font-size: 1rem; flex-shrink: 0; }
+    .social-row input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid rgba(68,136,255,0.4);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.85rem;
+      padding: 0.35rem 0.5rem;
+      outline: none;
+    }
+    .social-row input:focus { border-color: #48f; }
+
+    /* ── Stream config ── */
+    .stream-platform {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+    .stream-platform h4 {
+      font-size: 0.8rem;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    /* ── Save button ── */
+    .save-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1.25rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .save-btn:hover { background: var(--accent-hover); }
+
+    /* ── Privacy badge ── */
+    .privacy-note {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-top: 0.25rem;
+    }
+
+    /* ── Hidden sections ── */
+    .prof-tab { display: none; }
+    .prof-tab.active { display: block; }
+
+    @media (max-width: 700px) {
+      #profile-app { flex-direction: column; height: auto; }
+      #profile-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; }
+      .prof-section-btn { flex: 1; min-width: 120px; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/shell.js" data-active="profile"></script>
+
+  <div id="profile-app">
+    <!-- ── Left sidebar ── -->
+    <div id="profile-sidebar">
+      <div class="sidebar-label">My Profile</div>
+
+      <div class="sidebar-label" style="color:#c44;">🔴 Private</div>
+      <button class="prof-section-btn active" onclick="showTab('body')" data-tab="body">
+        <span class="dot dot-private"></span>Body & Measurements
+      </button>
+      <button class="prof-section-btn" onclick="showTab('identity')" data-tab="identity">
+        <span class="dot dot-private"></span>Identity
+      </button>
+      <button class="prof-section-btn" onclick="showTab('notes')" data-tab="notes">
+        <span class="dot dot-private"></span>Private Notes
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label" style="color:#4a9;">🟢 Personal</div>
+      <button class="prof-section-btn" onclick="showTab('profile')" data-tab="profile">
+        <span class="dot dot-personal"></span>Network Profile
+      </button>
+      <button class="prof-section-btn" onclick="showTab('interests')" data-tab="interests">
+        <span class="dot dot-personal"></span>Interests & Skills
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label" style="color:#48f;">🔵 Public</div>
+      <button class="prof-section-btn" onclick="showTab('social')" data-tab="social">
+        <span class="dot dot-public"></span>Social Links
+      </button>
+      <button class="prof-section-btn" onclick="showTab('streaming')" data-tab="streaming">
+        <span class="dot dot-public"></span>Streaming
+      </button>
+
+      <div class="sidebar-divider"></div>
+      <button class="save-btn" onclick="saveAll()" style="width:100%;margin-top:0.25rem;">💾 Save All</button>
+      <div id="save-status"></div>
+    </div>
+
+    <!-- ── Main content ── -->
+    <div id="profile-main">
+
+      <!-- ── Body & Measurements (Private) ── -->
+      <div class="prof-tab active" id="tab-body">
+        <div class="section-header private">
+          <div>
+            <h2>🔴 Body &amp; Measurements</h2>
+            <p>Stored locally only — never transmitted without your explicit consent.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Physical</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Height</label>
+              <input type="text" id="f-height" placeholder='e.g. 5\'10" or 178 cm'>
+            </div>
+            <div class="field-group private-field">
+              <label>Weight</label>
+              <input type="text" id="f-weight" placeholder="e.g. 170 lbs or 77 kg">
+            </div>
+            <div class="field-group private-field">
+              <label>Eye Color</label>
+              <input type="text" id="f-eye-color" placeholder="e.g. Brown">
+            </div>
+            <div class="field-group private-field">
+              <label>Blood Type</label>
+              <select id="f-blood-type">
+                <option value="">Unknown</option>
+                <option>A+</option><option>A−</option>
+                <option>B+</option><option>B−</option>
+                <option>AB+</option><option>AB−</option>
+                <option>O+</option><option>O−</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Hair</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Color</label>
+              <input type="text" id="f-hair-color" placeholder="e.g. Dark brown">
+            </div>
+            <div class="field-group private-field">
+              <label>Length</label>
+              <select id="f-hair-length">
+                <option value="">— select —</option>
+                <option>Buzz / Shaved</option>
+                <option>Very Short (&lt;2 in)</option>
+                <option>Short (2–4 in)</option>
+                <option>Medium (4–8 in)</option>
+                <option>Long (8–16 in)</option>
+                <option>Very Long (&gt;16 in)</option>
+              </select>
+            </div>
+            <div class="field-group private-field">
+              <label>Style</label>
+              <input type="text" id="f-hair-style" placeholder="e.g. Wavy, side-part">
+            </div>
+            <div class="field-group private-field">
+              <label>Texture</label>
+              <select id="f-hair-texture">
+                <option value="">— select —</option>
+                <option>Straight</option>
+                <option>Wavy</option>
+                <option>Curly</option>
+                <option>Coily / Kinky</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Clothing Measurements</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Neck</label>
+              <input type="text" id="f-neck" placeholder='e.g. 15.5"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Shoulders</label>
+              <input type="text" id="f-shoulders" placeholder='e.g. 18"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Chest / Bust</label>
+              <input type="text" id="f-chest" placeholder='e.g. 40"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Waist</label>
+              <input type="text" id="f-waist" placeholder='e.g. 32"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Hips</label>
+              <input type="text" id="f-hips" placeholder='e.g. 38"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Thighs</label>
+              <input type="text" id="f-thighs" placeholder='e.g. 22"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Inseam</label>
+              <input type="text" id="f-inseam" placeholder='e.g. 32"'>
+            </div>
+            <div class="field-group private-field">
+              <label>Shoe Size</label>
+              <input type="text" id="f-shoe-size" placeholder="e.g. US 10 / EU 44">
+            </div>
+            <div class="field-group private-field">
+              <label>Shirt Size</label>
+              <select id="f-shirt-size">
+                <option value="">— select —</option>
+                <option>XS</option><option>S</option><option>M</option>
+                <option>L</option><option>XL</option><option>2XL</option><option>3XL+</option>
+              </select>
+            </div>
+            <div class="field-group private-field">
+              <label>Pants Size</label>
+              <input type="text" id="f-pants-size" placeholder="e.g. 32×30">
+            </div>
+          </div>
+          <p class="privacy-note">🔒 These measurements are stored only on your device and never shared without your consent.</p>
+        </div>
+      </div>
+
+      <!-- ── Identity (Private) ── -->
+      <div class="prof-tab" id="tab-identity">
+        <div class="section-header private">
+          <div>
+            <h2>🔴 Identity</h2>
+            <p>Real-world identity details stored only on your device.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Personal Details</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Legal First Name</label>
+              <input type="text" id="f-first-name" placeholder="Optional">
+            </div>
+            <div class="field-group private-field">
+              <label>Legal Last Name</label>
+              <input type="text" id="f-last-name" placeholder="Optional">
+            </div>
+            <div class="field-group private-field">
+              <label>Date of Birth</label>
+              <input type="date" id="f-dob">
+            </div>
+            <div class="field-group private-field">
+              <label>Timezone</label>
+              <input type="text" id="f-timezone" placeholder="e.g. America/New_York">
+            </div>
+            <div class="field-group private-field">
+              <label>City / Region</label>
+              <input type="text" id="f-city" placeholder="Private location">
+            </div>
+            <div class="field-group private-field">
+              <label>Country</label>
+              <input type="text" id="f-country" placeholder="e.g. United States">
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Emergency Contact</h3>
+          <div class="field-grid">
+            <div class="field-group private-field">
+              <label>Contact Name</label>
+              <input type="text" id="f-emergency-name" placeholder="Name">
+            </div>
+            <div class="field-group private-field">
+              <label>Relationship</label>
+              <input type="text" id="f-emergency-rel" placeholder="e.g. Spouse, Parent">
+            </div>
+            <div class="field-group private-field">
+              <label>Phone</label>
+              <input type="tel" id="f-emergency-phone" placeholder="+1 555-000-0000">
+            </div>
+          </div>
+          <p class="privacy-note">🔒 Emergency contact is never transmitted or shared.</p>
+        </div>
+
+        <div class="prof-card">
+          <h3>Medical Notes (Private)</h3>
+          <div class="field-group private-field">
+            <label>Allergies</label>
+            <textarea id="f-allergies" rows="2" placeholder="Food, medication, environmental..."></textarea>
+          </div>
+          <div class="field-group private-field" style="margin-top:0.5rem;">
+            <label>Medications / Conditions</label>
+            <textarea id="f-medical" rows="3" placeholder="Personal notes only — never transmitted"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Private Notes ── -->
+      <div class="prof-tab" id="tab-notes">
+        <div class="section-header private">
+          <div>
+            <h2>🔴 Private Notes</h2>
+            <p>Freeform notes stored locally. Never transmitted.</p>
+          </div>
+        </div>
+        <div class="prof-card">
+          <div class="field-group private-field">
+            <label>Notes</label>
+            <textarea id="f-private-notes" rows="18" placeholder="Anything you want to remember..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Network Profile (Personal) ── -->
+      <div class="prof-tab" id="tab-profile">
+        <div class="section-header personal">
+          <div>
+            <h2>🟢 Network Profile</h2>
+            <p>Visible to people you follow and who follow you back (friends).</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Identity on the Network</h3>
+          <div class="field-grid">
+            <div class="field-group personal-field">
+              <label>Display Name</label>
+              <input type="text" id="f-display-name" placeholder="How others see you">
+            </div>
+            <div class="field-group personal-field">
+              <label>Pronouns</label>
+              <input type="text" id="f-pronouns" placeholder="e.g. he/him, she/her, they/them">
+            </div>
+            <div class="field-group personal-field" style="grid-column: 1/-1;">
+              <label>Bio</label>
+              <textarea id="f-bio" rows="4" placeholder="Tell people about yourself..."></textarea>
+            </div>
+            <div class="field-group personal-field">
+              <label>Public Location</label>
+              <input type="text" id="f-location" placeholder="e.g. Pacific Northwest, USA">
+            </div>
+            <div class="field-group personal-field">
+              <label>Website</label>
+              <input type="url" id="f-website" placeholder="https://yoursite.com">
+            </div>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Avatar &amp; Banner</h3>
+          <div class="field-grid two-col">
+            <div class="field-group personal-field">
+              <label>Avatar URL</label>
+              <input type="url" id="f-avatar-url" placeholder="https://...">
+            </div>
+            <div class="field-group personal-field">
+              <label>Banner URL</label>
+              <input type="url" id="f-banner-url" placeholder="https://...">
+            </div>
+          </div>
+          <p class="privacy-note" style="margin-top:0.5rem;">🟢 Avatar and banner are shared with friends and visible on your public profile card.</p>
+        </div>
+
+        <div class="prof-card" id="sync-card">
+          <h3>Sync to Network</h3>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">
+            Sync your network profile to the relay so friends can view it. Requires an active Network connection.
+          </p>
+          <button class="save-btn" onclick="syncNetworkProfile()">🔄 Sync to Network</button>
+          <span id="sync-status" style="font-size:0.78rem;color:var(--text-muted);margin-left:0.75rem;"></span>
+        </div>
+      </div>
+
+      <!-- ── Interests & Skills (Personal) ── -->
+      <div class="prof-tab" id="tab-interests">
+        <div class="section-header personal">
+          <div>
+            <h2>🟢 Interests &amp; Skills</h2>
+            <p>Shared with friends to help match you with others who have similar interests.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Interests</h3>
+          <div class="field-group personal-field">
+            <label>Topics you're passionate about (comma-separated)</label>
+            <textarea id="f-interests" rows="3" placeholder="e.g. sustainable farming, open source, space exploration, music production..."></textarea>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Skills</h3>
+          <div class="field-group personal-field">
+            <label>Things you can teach or help with (comma-separated)</label>
+            <textarea id="f-skills" rows="3" placeholder="e.g. Python, carpentry, cooking, graphic design..."></textarea>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Looking For</h3>
+          <div class="field-group personal-field">
+            <label>Things you want to learn or collaborate on</label>
+            <textarea id="f-looking-for" rows="3" placeholder="e.g. learning Rust, finding a hiking buddy, collaborators for a music project..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Social Links (Public) ── -->
+      <div class="prof-tab" id="tab-social">
+        <div class="section-header public">
+          <div>
+            <h2>🔵 Social Links</h2>
+            <p>Visible to everyone — links to your public social media profiles.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Social Media</h3>
+          <div class="social-row"><span class="social-icon">🐦</span><input type="url" id="f-twitter" placeholder="https://x.com/yourhandle"></div>
+          <div class="social-row"><span class="social-icon">▶️</span><input type="url" id="f-youtube" placeholder="https://youtube.com/@yourchannel"></div>
+          <div class="social-row"><span class="social-icon">🎮</span><input type="url" id="f-twitch" placeholder="https://twitch.tv/yourname"></div>
+          <div class="social-row"><span class="social-icon">🐙</span><input type="url" id="f-github" placeholder="https://github.com/yourname"></div>
+          <div class="social-row"><span class="social-icon">💬</span><input type="text" id="f-discord" placeholder="YourName#0001 or discord.gg/invite"></div>
+          <div class="social-row"><span class="social-icon">📸</span><input type="url" id="f-instagram" placeholder="https://instagram.com/yourname"></div>
+          <div class="social-row"><span class="social-icon">🎵</span><input type="url" id="f-tiktok" placeholder="https://tiktok.com/@yourname"></div>
+          <div class="social-row"><span class="social-icon">🦣</span><input type="url" id="f-mastodon" placeholder="https://mastodon.social/@yourname"></div>
+          <div class="social-row"><span class="social-icon">🔗</span><input type="url" id="f-linkedin" placeholder="https://linkedin.com/in/yourname"></div>
+          <div class="social-row"><span class="social-icon">🌐</span><input type="url" id="f-portfolio" placeholder="https://yourportfolio.com"></div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Support / Funding</h3>
+          <div class="social-row"><span class="social-icon">☕</span><input type="url" id="f-kofi" placeholder="https://ko-fi.com/yourname"></div>
+          <div class="social-row"><span class="social-icon">🎭</span><input type="url" id="f-patreon" placeholder="https://patreon.com/yourname"></div>
+        </div>
+      </div>
+
+      <!-- ── Streaming (Public) ── -->
+      <div class="prof-tab" id="tab-streaming">
+        <div class="section-header public">
+          <div>
+            <h2>🔵 Streaming Configuration</h2>
+            <p>Configure multistream destinations for broadcasting via OBS or similar software.</p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>OBS / Multistream Setup</h3>
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">
+            Enter your RTMP stream keys for each platform. These are stored locally and used to generate your
+            OBS multistream configuration. Stream keys are sensitive — they are NOT synced to the relay.
+          </p>
+
+          <div class="stream-platform">
+            <h4>▶️ YouTube Live</h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-yt-key" placeholder="xxxx-xxxx-xxxx-xxxx" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-yt-rtmp" value="rtmp://a.rtmp.youtube.com/live2" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4>🎮 Twitch</h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-twitch-key" placeholder="live_xxxxxxxxxxxx" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-twitch-rtmp" value="rtmp://live.twitch.tv/live" readonly style="opacity:0.6;">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4>🎵 TikTok Live</h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-tiktok-key" placeholder="xxxx-xxxx-xxxx" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-tiktok-rtmp" placeholder="rtmp://..." autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <div class="stream-platform">
+            <h4>🌐 Custom RTMP Destination</h4>
+            <div class="field-grid two-col">
+              <div class="field-group private-field">
+                <label>Stream Key</label>
+                <input type="password" id="f-custom-key" placeholder="Stream key" autocomplete="off">
+              </div>
+              <div class="field-group private-field">
+                <label>RTMP Server</label>
+                <input type="text" id="f-custom-rtmp" placeholder="rtmp://your-server/live" autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:0.75rem;">
+            <button class="save-btn" onclick="copyObsConfig()">📋 Copy OBS Multistream Config</button>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem;">
+              Generates a multistream output config you can paste into OBS → Settings → Stream.
+              Requires the <a href="https://obsproject.com/forum/resources/obs-multi-rtmp.964/" target="_blank">obs-multi-rtmp</a> plugin.
+            </p>
+          </div>
+        </div>
+
+        <div class="prof-card">
+          <h3>Stream Identity</h3>
+          <div class="field-grid">
+            <div class="field-group public-field">
+              <label>Stream Title Template</label>
+              <input type="text" id="f-stream-title" placeholder="Humanity Dev Stream | {date}">
+            </div>
+            <div class="field-group public-field">
+              <label>Default Category / Game</label>
+              <input type="text" id="f-stream-category" placeholder="e.g. Software &amp; Game Development">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /#profile-main -->
+  </div><!-- /#profile-app -->
+
+  <script>
+    var STORE_KEY = 'humanity_profile_full_v1';
+
+    // ── Tab navigation ──
+    function showTab(id) {
+      document.querySelectorAll('.prof-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.prof-section-btn').forEach(function(b) { b.classList.remove('active'); });
+      var tab = document.getElementById('tab-' + id);
+      if (tab) tab.classList.add('active');
+      var btn = document.querySelector('[data-tab="' + id + '"]');
+      if (btn) btn.classList.add('active');
+    }
+
+    // ── Field map: id → key ──
+    var FIELDS = [
+      'height','weight','eye-color','blood-type',
+      'hair-color','hair-length','hair-style','hair-texture',
+      'neck','shoulders','chest','waist','hips','thighs','inseam','shoe-size','shirt-size','pants-size',
+      'first-name','last-name','dob','timezone','city','country',
+      'emergency-name','emergency-rel','emergency-phone',
+      'allergies','medical','private-notes',
+      'display-name','pronouns','bio','location','website','avatar-url','banner-url',
+      'interests','skills','looking-for',
+      'twitter','youtube','twitch','github','discord','instagram','tiktok','mastodon','linkedin','portfolio',
+      'kofi','patreon',
+      'yt-key','yt-rtmp','twitch-key','twitch-rtmp','tiktok-key','tiktok-rtmp','custom-key','custom-rtmp',
+      'stream-title','stream-category'
+    ];
+
+    // ── Load from localStorage ──
+    function loadProfile() {
+      var data = {};
+      try { data = JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {}; } catch (_) {}
+      FIELDS.forEach(function(f) {
+        var el = document.getElementById('f-' + f);
+        if (el && data[f] !== undefined) el.value = data[f];
+      });
+      // Set readonly RTMP defaults if empty
+      var ytRtmp = document.getElementById('f-yt-rtmp');
+      if (ytRtmp && !data['yt-rtmp']) ytRtmp.value = 'rtmp://a.rtmp.youtube.com/live2';
+      var twRtmp = document.getElementById('f-twitch-rtmp');
+      if (twRtmp && !data['twitch-rtmp']) twRtmp.value = 'rtmp://live.twitch.tv/live';
+    }
+
+    // ── Save all to localStorage ──
+    function saveAll() {
+      var data = {};
+      FIELDS.forEach(function(f) {
+        var el = document.getElementById('f-' + f);
+        if (el) data[f] = el.value;
+      });
+      localStorage.setItem(STORE_KEY, JSON.stringify(data));
+      var st = document.getElementById('save-status');
+      st.textContent = '✓ Saved';
+      st.className = 'saved';
+      setTimeout(function() { st.textContent = ''; st.className = ''; }, 2500);
+    }
+
+    // Auto-save on field change
+    var saveTimer = null;
+    document.getElementById('profile-main').addEventListener('input', function() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(saveAll, 800);
+    });
+
+    // ── Sync network profile to relay via postMessage (if network page is open) ──
+    function syncNetworkProfile() {
+      var data = {};
+      FIELDS.forEach(function(f) { var el = document.getElementById('f-' + f); if (el) data[f] = el.value; });
+      // Try to communicate with an open /chat tab
+      var status = document.getElementById('sync-status');
+      status.textContent = 'Opening Network…';
+      // Store pending sync in localStorage; /chat will pick it up on load
+      localStorage.setItem('humanity_profile_pending_sync', JSON.stringify({
+        display_name: data['display-name'],
+        bio: data['bio'],
+        pronouns: data['pronouns'],
+        location: data['location'],
+        website: data['website'],
+        avatar_url: data['avatar-url'],
+        banner_url: data['banner-url'],
+      }));
+      status.textContent = '✓ Queued — open Network to sync';
+      setTimeout(function() { status.textContent = ''; }, 4000);
+    }
+
+    // ── Copy OBS multistream config ──
+    function copyObsConfig() {
+      var platforms = [
+        { name: 'YouTube', key: document.getElementById('f-yt-key').value, rtmp: document.getElementById('f-yt-rtmp').value },
+        { name: 'Twitch',  key: document.getElementById('f-twitch-key').value, rtmp: document.getElementById('f-twitch-rtmp').value },
+        { name: 'TikTok',  key: document.getElementById('f-tiktok-key').value, rtmp: document.getElementById('f-tiktok-rtmp').value },
+        { name: 'Custom',  key: document.getElementById('f-custom-key').value, rtmp: document.getElementById('f-custom-rtmp').value },
+      ].filter(function(p) { return p.key && p.rtmp; });
+      if (platforms.length === 0) {
+        alert('Enter at least one stream key + RTMP server first.');
+        return;
+      }
+      var config = platforms.map(function(p) {
+        return '# ' + p.name + '\n[rtmp]\nServer=' + p.rtmp + '\nKey=' + p.key + '\n';
+      }).join('\n');
+      navigator.clipboard.writeText(config).then(function() {
+        alert('OBS multistream config copied to clipboard!\n\nPaste into OBS → Tools → obs-multi-rtmp or your multistream plugin config.');
+      }).catch(function() {
+        var textarea = document.createElement('textarea');
+        textarea.value = config;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Copied!');
+      });
+    }
+
+    // ── Init ──
+    loadProfile();
+  </script>
+</body>
+</html>

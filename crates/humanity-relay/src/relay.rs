@@ -442,19 +442,53 @@ pub enum RelayMessage {
         users: Vec<UserInfo>,
     },
 
-    /// Client sends a profile update (bio + socials).
+    /// Client sends a profile update (all fields; new fields are optional for backward compat).
     #[serde(rename = "profile_update")]
     ProfileUpdate {
         bio: String,
         socials: String,
+        /// URL of the user's avatar image (max 512 chars, must start with https://).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        avatar_url: Option<String>,
+        /// URL of the user's banner image (max 512 chars, must start with https://).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        banner_url: Option<String>,
+        /// Pronouns string (max 64 chars, e.g. "she/her").
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pronouns: Option<String>,
+        /// Location string (max 128 chars).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        location: Option<String>,
+        /// Personal website URL (max 256 chars, must start with https://).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        website: Option<String>,
+        /// JSON map of field → "private" / "public" visibility overrides.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        privacy: Option<String>,
     },
 
     /// Server sends profile data for a specific user.
+    /// When `target` is Some(key) the message is unicast to that key only;
+    /// when None it is broadcast to all connected peers (public fields only).
     #[serde(rename = "profile_data")]
     ProfileData {
         name: String,
         bio: String,
         socials: String,
+        /// Only present when the requester has permission to see it.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        avatar_url: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        banner_url: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        pronouns: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        location: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        website: Option<String>,
+        /// When Some(key): deliver only to that client. When None: broadcast to all.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
     },
 
     /// Client requests another user's profile.
@@ -1702,13 +1736,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     let _ = ws_tx.send(Message::Text(ful_msg.into())).await;
                 }
 
-                // Send the user's own profile data if it exists.
+                // Send the user's own full profile on connect so the client can pre-fill the edit modal.
                 if let Some(ref name) = final_name {
-                    if let Ok(Some((bio, socials))) = state.db.get_profile(name) {
+                    if let Ok(Some((bio, socials, avatar_url, banner_url, pronouns, location, website, _privacy))) =
+                        state.db.get_profile_extended(name)
+                    {
+                        let opt = |s: String| if s.is_empty() { None } else { Some(s) };
                         let profile_msg = serde_json::to_string(&RelayMessage::ProfileData {
                             name: name.clone(),
                             bio,
                             socials,
+                            avatar_url: opt(avatar_url),
+                            banner_url: opt(banner_url),
+                            pronouns:   opt(pronouns),
+                            location:   opt(location),
+                            website:    opt(website),
+                            target: None, // Direct send to this socket — no routing needed
                         }).unwrap();
                         let _ = ws_tx.send(Message::Text(profile_msg.into())).await;
                     }
@@ -1896,6 +1939,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
             if let RelayMessage::WebrtcSignal { ref to, .. } = msg {
                 if to != &my_key_for_broadcast {
                     continue;
+                }
+            }
+
+            // ProfileData: when target is set deliver only to that client; when None broadcast to all.
+            if let RelayMessage::ProfileData { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => {} // No target = broadcast to everyone, fall through
+                    _ => {}   // Target matches, fall through
                 }
             }
 
@@ -3728,8 +3780,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     }
                                 }
                             }
-                            // Profile update — save and broadcast.
-                            RelayMessage::ProfileUpdate { bio, socials } => {
+                            // Profile update — validate, save, and broadcast.
+                            RelayMessage::ProfileUpdate { bio, socials, avatar_url, banner_url, pronouns, location, website, privacy } => {
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
                                 if let Some(ref name) = display {
@@ -3781,82 +3833,129 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         continue;
                                     }
 
+                                    // Helper: reject dangerous URI schemes.
+                                    let is_dangerous = |s: &str| {
+                                        let l = s.trim().to_lowercase();
+                                        l.starts_with("javascript:") || l.starts_with("data:")
+                                    };
+
                                     // Validate URLs in socials: reject dangerous URIs,
                                     // require https:// for URL fields.
+                                    let mut socials_invalid = false;
                                     if let Ok(socials_obj) = serde_json::from_str::<serde_json::Value>(&socials) {
                                         if let Some(obj) = socials_obj.as_object() {
                                             let url_fields = ["website", "youtube"];
                                             let handle_fields = ["twitter", "github"];
-                                            let mut invalid = false;
 
-                                            for field in &url_fields {
+                                            'socials_check: for field in &url_fields {
                                                 if let Some(serde_json::Value::String(val)) = obj.get(*field) {
                                                     let val = val.trim();
                                                     if val.is_empty() { continue; }
-                                                    let lower = val.to_lowercase();
-                                                    if lower.starts_with("javascript:") || lower.starts_with("data:") {
-                                                        invalid = true;
-                                                        break;
-                                                    }
+                                                    if is_dangerous(val) { socials_invalid = true; break 'socials_check; }
                                                     if !val.starts_with("https://") {
                                                         let private = RelayMessage::Private {
                                                             to: my_key_for_recv.clone(),
                                                             message: format!("Profile URL for '{}' must start with https://", field),
                                                         };
                                                         let _ = state_clone.broadcast_tx.send(private);
-                                                        invalid = true;
-                                                        break;
+                                                        socials_invalid = true;
+                                                        break 'socials_check;
                                                     }
                                                 }
                                             }
 
-                                            if !invalid {
-                                                for field in &handle_fields {
+                                            if !socials_invalid {
+                                                'handle_check: for field in &handle_fields {
                                                     if let Some(serde_json::Value::String(val)) = obj.get(*field) {
                                                         let val = val.trim();
                                                         if val.is_empty() { continue; }
-                                                        // Handles: only alphanumeric + underscores.
                                                         if !val.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
                                                             let private = RelayMessage::Private {
                                                                 to: my_key_for_recv.clone(),
                                                                 message: format!("Profile handle for '{}' can only contain letters, numbers, and underscores.", field),
                                                             };
                                                             let _ = state_clone.broadcast_tx.send(private);
-                                                            invalid = true;
-                                                            break;
+                                                            socials_invalid = true;
+                                                            break 'handle_check;
                                                         }
                                                     }
                                                 }
                                             }
 
-                                            // Also check any other string fields for dangerous URIs.
-                                            if !invalid {
-                                                for (_key, val) in obj {
+                                            if !socials_invalid {
+                                                for (_k, val) in obj {
                                                     if let Some(s) = val.as_str() {
-                                                        let lower = s.trim().to_lowercase();
-                                                        if lower.starts_with("javascript:") || lower.starts_with("data:") {
-                                                            invalid = true;
-                                                            break;
-                                                        }
+                                                        if is_dangerous(s) { socials_invalid = true; break; }
                                                     }
                                                 }
-                                            }
-
-                                            if invalid {
-                                                continue;
                                             }
                                         }
                                     }
+                                    if socials_invalid { continue; }
 
-                                    // Save to DB.
-                                    match state_clone.db.save_profile(name, &clean_bio, &socials) {
+                                    // Validate new URL fields (avatar_url, banner_url, website).
+                                    let avatar  = avatar_url.as_deref().unwrap_or("").trim().to_string();
+                                    let banner  = banner_url.as_deref().unwrap_or("").trim().to_string();
+                                    let w_site  = website.as_deref().unwrap_or("").trim().to_string();
+                                    let pronoun = pronouns.as_deref().unwrap_or("").trim().to_string();
+                                    let loc     = location.as_deref().unwrap_or("").trim().to_string();
+                                    let priv_map = privacy.as_deref().unwrap_or("{}").trim().to_string();
+
+                                    for url_val in &[&avatar, &banner, &w_site] {
+                                        if url_val.is_empty() { continue; }
+                                        if is_dangerous(url_val) || (!url_val.starts_with("https://")) {
+                                            let private = RelayMessage::Private {
+                                                to: my_key_for_recv.clone(),
+                                                message: "Profile image/website URLs must start with https://".to_string(),
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(private);
+                                            continue;
+                                        }
+                                    }
+
+                                    // Validate privacy map is valid JSON.
+                                    if serde_json::from_str::<serde_json::Value>(&priv_map).is_err() {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: "Invalid privacy map.".to_string(),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                        continue;
+                                    }
+
+                                    // Save all fields to DB via the extended save function.
+                                    match state_clone.db.save_profile_extended(
+                                        name, &clean_bio, &socials, &avatar, &banner, &pronoun, &loc, &w_site, &priv_map,
+                                    ) {
                                         Ok(()) => {
                                             last_profile_update = Some(now);
-                                            // Broadcast profile data to all peers.
+
+                                            // Broadcast only public fields to all connected peers.
+                                            // Private fields are excluded so non-friends see nothing sensitive.
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
+                                                name: name.clone(),
+                                                bio: clean_bio.clone(),
+                                                socials: socials.clone(),
+                                                avatar_url: if avatar.is_empty() { None } else { Some(avatar.clone()) },
+                                                banner_url: if banner.is_empty() { None } else { Some(banner.clone()) },
+                                                // Pronouns / location are omitted from the broadcast unless public.
+                                                pronouns: None,
+                                                location: None,
+                                                website: None,
+                                                target: None, // None = broadcast to all
+                                            });
+
+                                            // Send the full profile back to the owner so their own view is complete.
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
                                                 name: name.clone(),
                                                 bio: clean_bio,
                                                 socials,
+                                                avatar_url: if avatar.is_empty() { None } else { Some(avatar) },
+                                                banner_url: if banner.is_empty() { None } else { Some(banner) },
+                                                pronouns: if pronoun.is_empty() { None } else { Some(pronoun) },
+                                                location: if loc.is_empty() { None } else { Some(loc) },
+                                                website: if w_site.is_empty() { None } else { Some(w_site) },
+                                                target: Some(my_key_for_recv.clone()),
                                             });
                                         }
                                         Err(e) => {
@@ -3876,25 +3975,45 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     let _ = state_clone.broadcast_tx.send(private);
                                 }
                             }
-                            // Profile request — look up and send back privately.
+                            // Profile request — look up the profile, apply privacy filter, and unicast to requester.
                             RelayMessage::ProfileRequest { name } => {
-                                match state_clone.db.get_profile(&name) {
-                                    Ok(Some((bio, socials))) => {
-                                        let pd = RelayMessage::ProfileData {
+                                // Determine if the requester is friends with the profile owner.
+                                let is_friend = state_clone.db.are_friends(&my_key_for_recv, &{
+                                    // Look up the target's public key hex from their display name.
+                                    let peers = state_clone.peers.read().await;
+                                    peers.values()
+                                        .find(|p| p.display_name.as_deref().map(|n| n.eq_ignore_ascii_case(&name)).unwrap_or(false))
+                                        .map(|p| p.public_key_hex.clone())
+                                        .unwrap_or_default()
+                                }).unwrap_or(false);
+
+                                match state_clone.db.get_public_profile(&name, is_friend) {
+                                    Ok(Some(fields)) => {
+                                        let get = |k: &str| fields.get(k).cloned().filter(|v| !v.is_empty());
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
                                             name: name.clone(),
-                                            bio,
-                                            socials,
-                                        };
-                                        // Profile data is public — broadcast to all. The requesting
-                                        // client will pick it up and display it.
-                                        let _ = state_clone.broadcast_tx.send(pd);
+                                            bio: fields.get("bio").cloned().unwrap_or_default(),
+                                            socials: fields.get("socials").cloned().unwrap_or_else(|| "{}".to_string()),
+                                            avatar_url: get("avatar_url"),
+                                            banner_url: get("banner_url"),
+                                            pronouns:   get("pronouns"),
+                                            location:   get("location"),
+                                            website:    get("website"),
+                                            target: Some(my_key_for_recv.clone()), // unicast to requester only
+                                        });
                                     }
                                     Ok(None) => {
-                                        // Send empty profile.
+                                        // User exists but has no profile row yet — send empty data.
                                         let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
                                             name: name.clone(),
                                             bio: String::new(),
                                             socials: "{}".to_string(),
+                                            avatar_url: None,
+                                            banner_url: None,
+                                            pronouns:   None,
+                                            location:   None,
+                                            website:    None,
+                                            target: Some(my_key_for_recv.clone()),
                                         });
                                     }
                                     Err(e) => {
