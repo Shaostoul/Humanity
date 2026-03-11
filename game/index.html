@@ -9627,6 +9627,11 @@
    const currentType = featureWebNormalizeEdgeType(edge.type);
    const idx = order.indexOf(currentType);
    edge.type = order[(idx + 1 + order.length) % order.length];
+   const fromNode = featureWeb.nodes.find(n => n && n.id === edge.from);
+   const toNode = featureWeb.nodes.find(n => n && n.id === edge.to);
+   const fromTitle = featureWebClampText(fromNode && fromNode.title, 32) || 'Source';
+   const toTitle = featureWebClampText(toNode && toNode.title, 32) || 'Target';
+   featureWebNotice('Link type updated: ' + fromTitle + ' → ' + toTitle + ' (' + edge.type.replace(/_/g, ' ') + ')');
    featureWebPersistAndRefresh();
   }
 
