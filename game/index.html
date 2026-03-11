@@ -9790,6 +9790,10 @@
 
   function featureWebFocusByTitle(title) {
    const target = featureWebClampText(String(title || ''), 140).toLowerCase();
+   if (!target) {
+    featureWebNotice('Enter a node title to focus');
+    return;
+   }
    const node = featureWeb.nodes.find(n => featureWebClampText(n.title || '', FW_TEXT_LIMITS.title).toLowerCase() === target);
    if (!node) { featureWebNotice('Not found: ' + title); return; }
    featureWebFocusNode(node.id);
