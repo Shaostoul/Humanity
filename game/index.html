@@ -10595,7 +10595,7 @@
     featureWebSaveUiState();
     featureWebConstrainNodesToCanvas();
     featureWebPersistAndRefresh();
-    featureWebNoticeImportReport(normalized.report, 'Pasted JSON');
+    featureWebNoticeImportReport(normalized.report, 'Pasted JSON (' + raw.length + ' chars)');
    } catch {
     featureWebNotice('Invalid Feature Web JSON (expected {nodes:[], edges:[]})');
    }
