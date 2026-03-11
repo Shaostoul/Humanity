@@ -9740,7 +9740,11 @@
    const priorityEl = document.getElementById('fw-edit-priority');
    if (!editSelect || !titleEl || !typeEl || !statusEl || !editSelect.value) return;
    const node = featureWeb.nodes.find(n => n.id === editSelect.value);
-   if (!node) return;
+   if (!node) {
+    featureWebClearSelection({ quiet: true });
+    featureWebNotice('Selected node is unavailable');
+    return;
+   }
    const nextTitle = featureWebClampText(titleEl.value, FW_TEXT_LIMITS.title);
    if (!nextTitle) {
     featureWebNotice('Node title is required');
