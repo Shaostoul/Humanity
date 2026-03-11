@@ -10500,6 +10500,10 @@
      featureWebNotice('Import file is too large (' + (file.size / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
      return;
     }
+    if (file.name && !/\.json$/i.test(file.name)) {
+     featureWebNotice('Import expects a .json file');
+     return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
      try {
