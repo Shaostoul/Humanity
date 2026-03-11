@@ -10319,7 +10319,10 @@
 
   function featureWebAutoLayout() {
    const canvas = document.getElementById('feature-web-canvas');
-   if (!canvas || !featureWeb.nodes.length) return;
+   if (!canvas || !featureWeb.nodes.length) {
+    if (!featureWeb.nodes.length) featureWebNotice('Add nodes before applying auto layout');
+    return;
+   }
    const width = Math.max(220, canvas.clientWidth);
    const height = Math.max(180, canvas.clientHeight);
    const cols = Math.max(1, Math.floor((width - 24) / 150));
@@ -10338,7 +10341,10 @@
   function featureWebConstellationLayout() {
    const canvas = document.getElementById('feature-web-canvas');
    const viewEl = document.getElementById('fw-view-mode');
-   if (!canvas || !featureWeb.nodes.length) return;
+   if (!canvas || !featureWeb.nodes.length) {
+    if (!featureWeb.nodes.length) featureWebNotice('Add nodes before applying constellation layout');
+    return;
+   }
    const width = Math.max(320, canvas.clientWidth);
    const height = Math.max(220, canvas.clientHeight);
    const domains = FW_ALLOWED_DOMAINS;
@@ -10375,7 +10381,10 @@
   function featureWebOrbitLayout() {
    const canvas = document.getElementById('feature-web-canvas');
    const viewEl = document.getElementById('fw-view-mode');
-   if (!canvas || !featureWeb.nodes.length) return;
+   if (!canvas || !featureWeb.nodes.length) {
+    if (!featureWeb.nodes.length) featureWebNotice('Add nodes before applying orbit layout');
+    return;
+   }
    const width = Math.max(360, canvas.clientWidth);
    const height = Math.max(240, canvas.clientHeight);
    const centerX = width / 2;
