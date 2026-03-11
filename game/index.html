@@ -10492,18 +10492,19 @@
     const file = input.files && input.files[0];
     if (!file) return;
     const maxBytes = 5 * 1024 * 1024;
+    const fileLabel = file.name ? ('"' + file.name + '"') : 'Selected file';
     if (file.size <= 0) {
-     featureWebNotice('Import file is empty');
+     featureWebNotice(fileLabel + ' is empty');
      return;
     }
     if (file.size > maxBytes) {
-     featureWebNotice('Import file is too large (' + (file.size / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
+     featureWebNotice(fileLabel + ' is too large (' + (file.size / (1024 * 1024)).toFixed(1) + 'MB). Max 5MB.');
      return;
     }
     const hasJsonExt = !!(file.name && /\.json$/i.test(file.name));
     const hasJsonMime = typeof file.type === 'string' && /json/i.test(file.type);
     if (!hasJsonExt && !hasJsonMime) {
-     featureWebNotice('Import expects JSON content (.json file)');
+     featureWebNotice(fileLabel + ' is not recognized as JSON (.json file)');
      return;
     }
     const reader = new FileReader();
