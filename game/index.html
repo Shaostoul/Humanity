@@ -10509,6 +10509,10 @@
       featureWebNotice(badLabel + ' (expected {nodes:[], edges:[]})');
      }
     };
+    reader.onerror = () => {
+     const readLabel = file && file.name ? ('Could not read ' + file.name) : 'Could not read Feature Web JSON file';
+     featureWebNotice(readLabel);
+    };
     reader.readAsText(file);
    };
    input.click();
