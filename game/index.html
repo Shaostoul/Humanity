@@ -10483,6 +10483,8 @@
       if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
       const normalized = featureWebNormalize(data, true);
       featureWeb = normalized.graph;
+      fwSelectedNodeId = '';
+      featureWebSaveUiState();
       featureWebConstrainNodesToCanvas();
       featureWebPersistAndRefresh();
       featureWebNoticeImportReport(normalized.report, 'Imported JSON');
@@ -10536,6 +10538,8 @@
     if (!Array.isArray(data.nodes) || !Array.isArray(data.edges)) throw new Error('Invalid schema');
     const normalized = featureWebNormalize(data, true);
     featureWeb = normalized.graph;
+    fwSelectedNodeId = '';
+    featureWebSaveUiState();
     featureWebConstrainNodesToCanvas();
     featureWebPersistAndRefresh();
     featureWebNoticeImportReport(normalized.report, 'Pasted JSON');
