@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventory — HumanityOS</title>
+  <script src="/shared/shell.js" data-active="inventory"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #inv-app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      height: calc(100vh - 42px);
+    }
+
+    /* ── Left Sidebar ── */
+    #inv-sidebar {
+      width: 220px;
+      min-width: 180px;
+      background: #111;
+      border-right: 1px solid #1a1a1a;
+      overflow-y: auto;
+      flex-shrink: 0;
+      padding-bottom: 2rem;
+    }
+
+    .inv-section {
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .inv-section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 0.85rem 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .inv-section-header .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .inv-section-header .label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      flex: 1;
+    }
+
+    .inv-section-header .chevron {
+      font-size: 0.65rem;
+      color: #444;
+      transition: transform 0.2s;
+    }
+    .inv-section.collapsed .chevron { transform: rotate(-90deg); }
+    .inv-section.collapsed .inv-section-items { display: none; }
+
+    .inv-section-items {}
+
+    .inv-cat {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem 0.35rem 1.4rem;
+      font-size: 0.82rem;
+      color: #aaa;
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .inv-cat:hover { background: #181818; color: #ddd; }
+    .inv-cat.active { border-left-color: var(--section-color); color: #fff; background: #161616; }
+
+    .inv-cat .cat-icon { font-size: 0.9rem; width: 18px; text-align: center; }
+    .inv-cat .cat-count { margin-left: auto; font-size: 0.65rem; color: #555; }
+
+    /* ── Top bar ── */
+    #inv-topbar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.7rem 1rem;
+      background: #0f0f0f;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    #inv-topbar h1 {
+      font-size: 1rem;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    #inv-search {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 5px;
+      color: #e0e0e0;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.7rem;
+      width: 200px;
+      outline: none;
+    }
+    #inv-search:focus { border-color: #444; }
+
+    #inv-view-toggle { display: flex; gap: 0.25rem; }
+    .view-btn {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #666;
+      border-radius: 4px;
+      padding: 0.28rem 0.55rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .view-btn.active, .view-btn:hover { background: #252525; color: #eee; border-color: #444; }
+
+    #add-item-btn {
+      background: #1a3a1a;
+      border: 1px solid #2a5a2a;
+      color: #4caf50;
+      border-radius: 5px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    #add-item-btn:hover { background: #1e481e; }
+
+    /* ── Main panel ── */
+    #inv-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #inv-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+    }
+
+    /* Grid view */
+    .item-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .item-card {
+      background: #141414;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .item-card:hover { border-color: #333; background: #181818; }
+
+    .item-card .item-img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 5px;
+      background: #1e1e1e;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      color: #444;
+    }
+
+    .item-card .item-name {
+      font-size: 0.78rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .item-card .item-meta {
+      font-size: 0.65rem;
+      color: #666;
+      margin-top: 0.15rem;
+    }
+
+    .item-card .item-qty-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid #333;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-size: 0.65rem;
+      color: #aaa;
+    }
+
+    /* List view */
+    .item-list { display: flex; flex-direction: column; gap: 0.3rem; }
+    .item-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .item-row:hover { background: #181818; border-color: #2a2a2a; }
+    .item-row .row-icon { font-size: 1.3rem; width: 28px; text-align: center; }
+    .item-row .row-name { font-size: 0.85rem; font-weight: 500; flex: 1; }
+    .item-row .row-category { font-size: 0.7rem; color: #666; min-width: 80px; }
+    .item-row .row-location { font-size: 0.7rem; color: #888; min-width: 100px; }
+    .item-row .row-qty { font-size: 0.75rem; color: #aaa; min-width: 40px; text-align: right; }
+    .item-row .row-actions { display: flex; gap: 0.3rem; }
+    .row-act-btn {
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      color: #888;
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .row-act-btn:hover { background: #252525; color: #ccc; }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 60%;
+      color: #444;
+      gap: 0.5rem;
+    }
+    .empty-state .big { font-size: 3rem; }
+    .empty-state p { font-size: 0.85rem; }
+    .empty-state button {
+      margin-top: 0.5rem;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 5px;
+      color: #aaa;
+      padding: 0.4rem 1rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .empty-state button:hover { background: #222; color: #fff; }
+
+    /* ── Modal ── */
+    #item-modal-backdrop {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 8000;
+      align-items: center;
+      justify-content: center;
+    }
+    #item-modal-backdrop.open { display: flex; }
+
+    #item-modal {
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      width: 460px;
+      max-width: 95vw;
+      padding: 1.5rem;
+    }
+
+    #item-modal h2 { font-size: 1rem; margin-bottom: 1rem; }
+
+    .modal-field { margin-bottom: 0.75rem; }
+    .modal-field label { display: block; font-size: 0.72rem; color: #888; margin-bottom: 0.25rem; }
+    .modal-field input, .modal-field select, .modal-field textarea {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 5px;
+      color: #e0e0e0;
+      font-size: 0.82rem;
+      padding: 0.4rem 0.6rem;
+      outline: none;
+      font-family: inherit;
+    }
+    .modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus { border-color: #444; }
+    .modal-field textarea { resize: vertical; min-height: 60px; }
+
+    .modal-row { display: flex; gap: 0.75rem; }
+    .modal-row .modal-field { flex: 1; }
+
+    .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+    .modal-btn {
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 5px;
+      color: #aaa;
+      padding: 0.4rem 1rem;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .modal-btn:hover { background: #252525; color: #fff; }
+    .modal-btn.primary {
+      background: #1a3a1a;
+      border-color: #2a5a2a;
+      color: #4caf50;
+    }
+    .modal-btn.primary:hover { background: #1e481e; }
+    .modal-btn.danger { background: #2a1010; border-color: #5a2a2a; color: #e74c3c; }
+    .modal-btn.danger:hover { background: #381010; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+    @media (max-width: 600px) {
+      #inv-sidebar { width: 160px; min-width: 130px; }
+      .item-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+<div id="inv-app">
+  <!-- Sidebar -->
+  <nav id="inv-sidebar">
+    <!-- PLAYER -->
+    <div class="inv-section" id="sec-player" style="--section-color:#e74c3c">
+      <div class="inv-section-header" onclick="toggleSection('player')">
+        <div class="dot" style="background:#e74c3c"></div>
+        <span class="label" style="color:#e74c3c">🔴 Player</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="inv-section-items">
+        <div class="inv-cat active" data-filter="player:worn" onclick="setFilter('player:worn', this)">
+          <span class="cat-icon">🧥</span> Worn / Equipped
+          <span class="cat-count" id="cnt-player:worn">0</span>
+        </div>
+        <div class="inv-cat" data-filter="player:backpack" onclick="setFilter('player:backpack', this)">
+          <span class="cat-icon">🎒</span> Backpack
+          <span class="cat-count" id="cnt-player:backpack">0</span>
+        </div>
+        <div class="inv-cat" data-filter="player:hotbar" onclick="setFilter('player:hotbar', this)">
+          <span class="cat-icon">⚡</span> Hotbar
+          <span class="cat-count" id="cnt-player:hotbar">0</span>
+        </div>
+        <div class="inv-cat" data-filter="player:vehicle" onclick="setFilter('player:vehicle', this)">
+          <span class="cat-icon">🚗</span> Vehicles
+          <span class="cat-count" id="cnt-player:vehicle">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOME -->
+    <div class="inv-section" id="sec-home" style="--section-color:#2ecc71">
+      <div class="inv-section-header" onclick="toggleSection('home')">
+        <div class="dot" style="background:#2ecc71"></div>
+        <span class="label" style="color:#2ecc71">🟢 Home</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="inv-section-items">
+        <div class="inv-cat" data-filter="home:rooms" onclick="setFilter('home:rooms', this)">
+          <span class="cat-icon">🏠</span> Rooms / Areas
+          <span class="cat-count" id="cnt-home:rooms">0</span>
+        </div>
+        <div class="inv-cat" data-filter="home:storage" onclick="setFilter('home:storage', this)">
+          <span class="cat-icon">📦</span> Storage
+          <span class="cat-count" id="cnt-home:storage">0</span>
+        </div>
+        <div class="inv-cat" data-filter="home:workshop" onclick="setFilter('home:workshop', this)">
+          <span class="cat-icon">🔧</span> Workshop
+          <span class="cat-count" id="cnt-home:workshop">0</span>
+        </div>
+        <div class="inv-cat" data-filter="home:vehicle" onclick="setFilter('home:vehicle', this)">
+          <span class="cat-icon">🚙</span> Vehicles
+          <span class="cat-count" id="cnt-home:vehicle">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLEET -->
+    <div class="inv-section" id="sec-fleet" style="--section-color:#3498db">
+      <div class="inv-section-header" onclick="toggleSection('fleet')">
+        <div class="dot" style="background:#3498db"></div>
+        <span class="label" style="color:#3498db">🔵 Fleet</span>
+        <span class="chevron">▾</span>
+      </div>
+      <div class="inv-section-items">
+        <div class="inv-cat" data-filter="fleet:all" onclick="setFilter('fleet:all', this)">
+          <span class="cat-icon">📋</span> All Items
+          <span class="cat-count" id="cnt-fleet:all">0</span>
+        </div>
+        <div class="inv-cat" data-filter="fleet:blueprints" onclick="setFilter('fleet:blueprints', this)">
+          <span class="cat-icon">📐</span> Blueprints
+          <span class="cat-count" id="cnt-fleet:blueprints">0</span>
+        </div>
+        <div class="inv-cat" data-filter="fleet:resources" onclick="setFilter('fleet:resources', this)">
+          <span class="cat-icon">⛏️</span> Resources
+          <span class="cat-count" id="cnt-fleet:resources">0</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div id="inv-main">
+    <div id="inv-topbar">
+      <h1 id="topbar-title">Worn / Equipped</h1>
+      <input id="inv-search" type="search" placeholder="Search items…" oninput="renderItems()">
+      <div id="inv-view-toggle">
+        <button class="view-btn active" id="vbtn-grid" onclick="setView('grid')">⊞</button>
+        <button class="view-btn" id="vbtn-list" onclick="setView('list')">☰</button>
+      </div>
+      <button id="add-item-btn" onclick="openAddModal()">+ Add Item</button>
+    </div>
+    <div id="inv-content"></div>
+  </div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div id="item-modal-backdrop" onclick="closeModalOnBackdrop(event)">
+  <div id="item-modal">
+    <h2 id="modal-title">Add Item</h2>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label>Name *</label>
+        <input type="text" id="f-name" placeholder="Item name">
+      </div>
+      <div class="modal-field" style="max-width:80px">
+        <label>Qty</label>
+        <input type="number" id="f-qty" value="1" min="1">
+      </div>
+    </div>
+    <div class="modal-row">
+      <div class="modal-field">
+        <label>Category</label>
+        <select id="f-category">
+          <option value="player:worn">🔴 Worn / Equipped</option>
+          <option value="player:backpack">🔴 Backpack</option>
+          <option value="player:hotbar">🔴 Hotbar</option>
+          <option value="player:vehicle">🔴 Player Vehicle</option>
+          <option value="home:rooms">🟢 Home Room/Area</option>
+          <option value="home:storage">🟢 Home Storage</option>
+          <option value="home:workshop">🟢 Workshop</option>
+          <option value="home:vehicle">🟢 Home Vehicle</option>
+          <option value="fleet:all">🔵 Fleet General</option>
+          <option value="fleet:blueprints">🔵 Blueprint</option>
+          <option value="fleet:resources">🔵 Resource</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Emoji Icon</label>
+        <input type="text" id="f-icon" placeholder="📦" maxlength="4">
+      </div>
+    </div>
+    <div class="modal-field">
+      <label>Location / Storage</label>
+      <input type="text" id="f-location" placeholder="e.g. Kitchen shelf, Garage, Backpack">
+    </div>
+    <div class="modal-field">
+      <label>Notes</label>
+      <textarea id="f-notes" placeholder="Condition, serial number, link, etc."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn danger" id="modal-delete-btn" style="display:none;margin-right:auto" onclick="deleteItem()">Delete</button>
+      <button class="modal-btn" onclick="closeModal()">Cancel</button>
+      <button class="modal-btn primary" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// Storage
+// ─────────────────────────────────────────────
+const STORAGE_KEY = 'hos_inventory_v1';
+let items = []; // [{id, name, qty, category, icon, location, notes}]
+let editingId = null;
+
+function load() {
+  try { items = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch (e) { items = []; }
+}
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+function nextId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ─────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────
+let currentFilter = 'player:worn';
+let currentView = 'grid';
+
+function getFilteredItems() {
+  const q = document.getElementById('inv-search').value.toLowerCase().trim();
+  let result;
+  if (currentFilter === 'fleet:all') {
+    result = items.filter(i => i.category.startsWith('fleet:'));
+  } else {
+    result = items.filter(i => i.category === currentFilter);
+  }
+  if (q) result = result.filter(i => i.name.toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q) || (i.notes||'').toLowerCase().includes(q));
+  return result;
+}
+
+// ─────────────────────────────────────────────
+// Sidebar
+// ─────────────────────────────────────────────
+function toggleSection(id) {
+  document.getElementById('sec-' + id).classList.toggle('collapsed');
+}
+
+function setFilter(filter, el) {
+  currentFilter = filter;
+  document.querySelectorAll('.inv-cat').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+
+  const labels = {
+    'player:worn':     '🧥 Worn / Equipped',
+    'player:backpack': '🎒 Backpack',
+    'player:hotbar':   '⚡ Hotbar',
+    'player:vehicle':  '🚗 Player Vehicles',
+    'home:rooms':      '🏠 Rooms / Areas',
+    'home:storage':    '📦 Home Storage',
+    'home:workshop':   '🔧 Workshop',
+    'home:vehicle':    '🚙 Home Vehicles',
+    'fleet:all':       '📋 All Fleet Items',
+    'fleet:blueprints':'📐 Blueprints',
+    'fleet:resources': '⛏️ Resources',
+  };
+  document.getElementById('topbar-title').textContent = labels[filter] || filter;
+  renderItems();
+}
+
+function updateCounts() {
+  const cats = ['player:worn','player:backpack','player:hotbar','player:vehicle',
+                 'home:rooms','home:storage','home:workshop','home:vehicle',
+                 'fleet:all','fleet:blueprints','fleet:resources'];
+  cats.forEach(cat => {
+    const el = document.getElementById('cnt-' + cat);
+    if (!el) return;
+    if (cat === 'fleet:all') {
+      el.textContent = items.filter(i => i.category.startsWith('fleet:')).length || '';
+    } else {
+      const n = items.filter(i => i.category === cat).length;
+      el.textContent = n || '';
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// Render
+// ─────────────────────────────────────────────
+function setView(v) {
+  currentView = v;
+  document.getElementById('vbtn-grid').classList.toggle('active', v === 'grid');
+  document.getElementById('vbtn-list').classList.toggle('active', v === 'list');
+  renderItems();
+}
+
+function renderItems() {
+  const content = document.getElementById('inv-content');
+  const filtered = getFilteredItems();
+
+  if (filtered.length === 0) {
+    content.innerHTML = `<div class="empty-state">
+      <div class="big">📭</div>
+      <p>No items here yet.</p>
+      <button onclick="openAddModal()">+ Add your first item</button>
+    </div>`;
+    return;
+  }
+
+  if (currentView === 'grid') {
+    content.innerHTML = `<div class="item-grid">${filtered.map(buildItemCard).join('')}</div>`;
+  } else {
+    content.innerHTML = `<div class="item-list">${filtered.map(buildItemRow).join('')}</div>`;
+  }
+}
+
+function buildItemCard(item) {
+  const icon = item.icon || '📦';
+  return `<div class="item-card" onclick="openEditModal('${item.id}')">
+    <div class="item-img">${icon}</div>
+    <div class="item-name">${esc(item.name)}</div>
+    <div class="item-meta">${esc(item.location || '')}</div>
+    ${item.qty > 1 ? `<div class="item-qty-badge">×${item.qty}</div>` : ''}
+  </div>`;
+}
+
+function buildItemRow(item) {
+  const icon = item.icon || '📦';
+  return `<div class="item-row" onclick="openEditModal('${item.id}')">
+    <span class="row-icon">${icon}</span>
+    <span class="row-name">${esc(item.name)}</span>
+    <span class="row-location">${esc(item.location || '—')}</span>
+    <span class="row-qty">×${item.qty}</span>
+    <div class="row-actions">
+      <button class="row-act-btn" onclick="event.stopPropagation();openEditModal('${item.id}')">Edit</button>
+    </div>
+  </div>`;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─────────────────────────────────────────────
+// Modal
+// ─────────────────────────────────────────────
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Add Item';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-qty').value = '1';
+  document.getElementById('f-category').value = currentFilter.startsWith('fleet:all') ? 'fleet:all' : currentFilter;
+  document.getElementById('f-icon').value = '';
+  document.getElementById('f-location').value = '';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('item-modal-backdrop').classList.add('open');
+  document.getElementById('f-name').focus();
+}
+
+function openEditModal(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Edit Item';
+  document.getElementById('f-name').value = item.name;
+  document.getElementById('f-qty').value = item.qty;
+  document.getElementById('f-category').value = item.category;
+  document.getElementById('f-icon').value = item.icon || '';
+  document.getElementById('f-location').value = item.location || '';
+  document.getElementById('f-notes').value = item.notes || '';
+  document.getElementById('modal-delete-btn').style.display = '';
+  document.getElementById('item-modal-backdrop').classList.add('open');
+  document.getElementById('f-name').focus();
+}
+
+function closeModal() {
+  document.getElementById('item-modal-backdrop').classList.remove('open');
+  editingId = null;
+}
+
+function closeModalOnBackdrop(e) {
+  if (e.target === document.getElementById('item-modal-backdrop')) closeModal();
+}
+
+function saveItem() {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { document.getElementById('f-name').focus(); return; }
+  const data = {
+    name,
+    qty: Math.max(1, parseInt(document.getElementById('f-qty').value) || 1),
+    category: document.getElementById('f-category').value,
+    icon: document.getElementById('f-icon').value.trim() || '📦',
+    location: document.getElementById('f-location').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+  if (editingId) {
+    const idx = items.findIndex(i => i.id === editingId);
+    if (idx >= 0) items[idx] = { ...items[idx], ...data };
+  } else {
+    items.push({ id: nextId(), ...data });
+  }
+  save();
+  closeModal();
+  updateCounts();
+  renderItems();
+}
+
+function deleteItem() {
+  if (!editingId) return;
+  if (!confirm('Delete this item?')) return;
+  items = items.filter(i => i.id !== editingId);
+  save();
+  closeModal();
+  updateCounts();
+  renderItems();
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveItem();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !document.getElementById('item-modal-backdrop').classList.contains('open')) {
+    e.preventDefault();
+    openAddModal();
+  }
+});
+
+// ─────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────
+load();
+updateCounts();
+renderItems();
+
+// Restore last filter
+const lastFilter = localStorage.getItem('hos_inv_filter');
+if (lastFilter) {
+  const el = document.querySelector(`[data-filter="${lastFilter}"]`);
+  if (el) setFilter(lastFilter, el);
+}
+</script>
+</body>
+</html>

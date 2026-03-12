@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Home — HumanityOS</title>
+  <script src="/shared/shell.js" data-active="home"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #home-app {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ── Widget grid ── */
+    .widget-row {
+      display: grid;
+      gap: 1rem;
+    }
+    .row-2 { grid-template-columns: 1fr 1fr; }
+    .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .row-1 { grid-template-columns: 1fr; }
+
+    /* ── Widget base ── */
+    .widget {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .widget-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.7rem 0.9rem 0.5rem;
+      border-bottom: 1px solid #1a1a1a;
+    }
+
+    .widget-header h2 {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #666;
+      flex: 1;
+    }
+
+    .widget-header .wh-icon { font-size: 0.9rem; }
+
+    .widget-link {
+      font-size: 0.65rem;
+      color: #555;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .widget-link:hover { color: #FF8811; }
+
+    .widget-body {
+      flex: 1;
+      padding: 0.75rem 0.9rem;
+    }
+
+    /* ── Identity / Level widget ── */
+    #widget-identity .ident-inner {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .ident-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #1e1e1e;
+      border: 2px solid #2a2a2a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .ident-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+    .ident-info { flex: 1; min-width: 0; }
+
+    .ident-name {
+      font-size: 1rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ident-title {
+      font-size: 0.72rem;
+      color: #888;
+      margin-top: 0.1rem;
+    }
+
+    .level-wrap { margin-top: 0.6rem; }
+
+    .level-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: #666;
+      margin-bottom: 0.25rem;
+    }
+    .level-label span:last-child { color: #FF8811; font-weight: 700; }
+
+    .level-bar {
+      height: 6px;
+      background: #1e1e1e;
+      border-radius: 3px;
+    }
+    .level-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(to right, #FF8811, #ffa844);
+      transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    /* ── Skills summary ── */
+    .skill-mini-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .skill-mini-row:last-child { margin-bottom: 0; }
+    .skill-mini-icon { font-size: 0.9rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .skill-mini-label { font-size: 0.75rem; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .skill-mini-bar { flex: 2; height: 4px; background: #1e1e1e; border-radius: 2px; }
+    .skill-mini-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+    .skill-mini-lvl { font-size: 0.65rem; color: #666; min-width: 20px; text-align: right; }
+
+    /* ── Today widget ── */
+    .today-date {
+      font-size: 0.72rem;
+      color: #666;
+      margin-bottom: 0.6rem;
+    }
+
+    .cal-event-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid #181818;
+      cursor: pointer;
+      transition: background 0.1s;
+      border-radius: 4px;
+    }
+    .cal-event-row:last-child { border-bottom: none; }
+    .cal-event-row:hover { background: #171717; }
+    .cal-event-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .cal-event-title { font-size: 0.8rem; flex: 1; }
+    .cal-event-time { font-size: 0.65rem; color: #666; }
+    .cal-empty { font-size: 0.78rem; color: #555; padding: 0.5rem 0; }
+
+    /* ── Todo widget ── */
+    .todo-input-row {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.6rem;
+    }
+    .todo-input {
+      flex: 1;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 5px;
+      color: #e0e0e0;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.6rem;
+      outline: none;
+      font-family: inherit;
+    }
+    .todo-input:focus { border-color: #444; }
+    .todo-add-btn {
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 5px;
+      color: #aaa;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .todo-add-btn:hover { background: #252525; color: #fff; }
+
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0;
+      border-bottom: 1px solid #181818;
+    }
+    .todo-item:last-child { border-bottom: none; }
+    .todo-check {
+      width: 16px; height: 16px;
+      border: 1px solid #3a3a3a;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .todo-check.done { background: #2ecc71; border-color: #2ecc71; }
+    .todo-check.done::after { content: '✓'; font-size: 0.65rem; color: #fff; }
+    .todo-text {
+      flex: 1;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .todo-text.done { text-decoration: line-through; color: #555; }
+    .todo-del {
+      background: none;
+      border: none;
+      color: #3a3a3a;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 0 0.2rem;
+      line-height: 1;
+      transition: color 0.12s;
+    }
+    .todo-del:hover { color: #e74c3c; }
+
+    /* ── Inventory summary ── */
+    .inv-stat-row {
+      display: flex;
+      justify-content: space-around;
+      text-align: center;
+      padding: 0.3rem 0;
+    }
+    .inv-stat-val { font-size: 1.4rem; font-weight: 700; }
+    .inv-stat-lbl { font-size: 0.62rem; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+    .inv-stat-col { color: var(--c); }
+
+    /* ── Quick links ── */
+    .quick-links {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+    .quick-link {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3rem;
+      background: #1a1a1a;
+      border: 1px solid #222;
+      border-radius: 7px;
+      padding: 0.6rem 0.3rem;
+      text-decoration: none;
+      color: #bbb;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .quick-link:hover { background: #202020; border-color: #333; color: #fff; }
+    .quick-link .ql-icon { font-size: 1.3rem; }
+
+    /* ── DM Recents ── */
+    .dm-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid #181818;
+      cursor: default;
+    }
+    .dm-row:last-child { border-bottom: none; }
+    .dm-avatar {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      background: #2a2a2a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      color: #888;
+      flex-shrink: 0;
+    }
+    .dm-name { font-size: 0.8rem; font-weight: 600; }
+    .dm-preview { font-size: 0.68rem; color: #666; margin-top: 0.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+    .dm-time { margin-left: auto; font-size: 0.62rem; color: #555; white-space: nowrap; }
+    .dm-empty { font-size: 0.78rem; color: #555; padding: 0.5rem 0; }
+    .dm-unread {
+      background: #FF8811;
+      color: #000;
+      font-size: 0.6rem;
+      font-weight: 700;
+      border-radius: 8px;
+      padding: 1px 5px;
+      margin-left: auto;
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+    @media (max-width: 700px) {
+      .row-3 { grid-template-columns: 1fr 1fr; }
+      .row-2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .row-3 { grid-template-columns: 1fr; }
+      .quick-links { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div id="home-app">
+
+  <!-- Row 1: Identity + Skills Summary + Today -->
+  <div class="widget-row row-3">
+
+    <!-- Identity / Level -->
+    <div class="widget" id="widget-identity">
+      <div class="widget-header">
+        <span class="wh-icon">👤</span>
+        <h2>Identity</h2>
+        <a class="widget-link" href="/profile">Edit ›</a>
+      </div>
+      <div class="widget-body">
+        <div class="ident-inner">
+          <div class="ident-avatar" id="ident-avatar">🌍</div>
+          <div class="ident-info">
+            <div class="ident-name" id="ident-name">Loading…</div>
+            <div class="ident-title" id="ident-title">HumanityOS Member</div>
+            <div class="level-wrap">
+              <div class="level-label">
+                <span id="ident-xp-label">XP</span>
+                <span id="ident-level">Lv 0</span>
+              </div>
+              <div class="level-bar"><div class="level-bar-fill" id="ident-bar" style="width:0%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skills Summary -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="wh-icon">🧠</span>
+        <h2>Skills</h2>
+        <a class="widget-link" href="/skills">View all ›</a>
+      </div>
+      <div class="widget-body" id="skills-summary"></div>
+    </div>
+
+    <!-- Today's Events -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="wh-icon">📅</span>
+        <h2>Today</h2>
+        <a class="widget-link" href="/calendar">Calendar ›</a>
+      </div>
+      <div class="widget-body" id="today-events"></div>
+    </div>
+
+  </div>
+
+  <!-- Row 2: Todo + Inventory stats + Quick links -->
+  <div class="widget-row row-3">
+
+    <!-- Todo List -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="wh-icon">✅</span>
+        <h2>To-Do</h2>
+      </div>
+      <div class="widget-body">
+        <div class="todo-input-row">
+          <input class="todo-input" id="todo-input" placeholder="Add a task…" onkeydown="todoKey(event)">
+          <button class="todo-add-btn" onclick="addTodo()">+</button>
+        </div>
+        <div id="todo-list"></div>
+      </div>
+    </div>
+
+    <!-- Inventory Stats -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="wh-icon">📦</span>
+        <h2>Inventory</h2>
+        <a class="widget-link" href="/inventory">Open ›</a>
+      </div>
+      <div class="widget-body">
+        <div class="inv-stat-row">
+          <div>
+            <div class="inv-stat-val" id="inv-player-count" style="color:#e74c3c">0</div>
+            <div class="inv-stat-lbl">🔴 Player</div>
+          </div>
+          <div>
+            <div class="inv-stat-val" id="inv-home-count" style="color:#2ecc71">0</div>
+            <div class="inv-stat-lbl">🟢 Home</div>
+          </div>
+          <div>
+            <div class="inv-stat-val" id="inv-fleet-count" style="color:#3498db">0</div>
+            <div class="inv-stat-lbl">🔵 Fleet</div>
+          </div>
+        </div>
+        <div style="margin-top:.75rem" id="inv-recent-items"></div>
+      </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="wh-icon">🔗</span>
+        <h2>Quick Links</h2>
+      </div>
+      <div class="widget-body">
+        <div class="quick-links">
+          <a class="quick-link" href="/chat"><span class="ql-icon">💬</span>Network</a>
+          <a class="quick-link" href="/profile"><span class="ql-icon">👤</span>Profile</a>
+          <a class="quick-link" href="/skills"><span class="ql-icon">🧠</span>Skills</a>
+          <a class="quick-link" href="/inventory"><span class="ql-icon">📦</span>Inventory</a>
+          <a class="quick-link" href="/calendar"><span class="ql-icon">📅</span>Calendar</a>
+          <a class="quick-link" href="/logbook"><span class="ql-icon">📓</span>Logbook</a>
+          <a class="quick-link" href="/quests"><span class="ql-icon">⚔️</span>Quests</a>
+          <a class="quick-link" href="/systems"><span class="ql-icon">🛰️</span>Systems</a>
+          <a class="quick-link" href="/market"><span class="ql-icon">🛒</span>Market</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Row 3: Recent DMs + Notes -->
+  <div class="widget-row row-2">
+
+    <!-- Recent DMs -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="wh-icon">💬</span>
+        <h2>Recent Messages</h2>
+        <a class="widget-link" href="/chat">Open chat ›</a>
+      </div>
+      <div class="widget-body" id="recent-dms">
+        <div class="dm-empty">Connect to the Network to see recent messages.</div>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="widget">
+      <div class="widget-header">
+        <span class="wh-icon">📝</span>
+        <h2>Notes</h2>
+      </div>
+      <div class="widget-body">
+        <textarea id="home-notes"
+          placeholder="Quick notes — saved automatically…"
+          style="width:100%;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:5px;color:#e0e0e0;font-size:0.8rem;padding:0.5rem 0.6rem;resize:none;height:120px;outline:none;font-family:inherit;line-height:1.5"
+          oninput="saveNotes()"
+        ></textarea>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// Identity
+// ────────────────────────────────────────────────
+function loadIdentity() {
+  // Read from localStorage keys set by the chat/profile system
+  const name  = localStorage.getItem('hos_identity_name') || localStorage.getItem('myUsername') || 'Unknown';
+  const title = localStorage.getItem('hos_identity_title') || '';
+  const avatar = localStorage.getItem('hos_profile_avatar') || '';
+  const totalXp = parseInt(localStorage.getItem('hos_identity_xp') || '0');
+  const xpPerLevel = [100,150,225,338,507,760,1140,1710,2565,3848];
+
+  // Compute level from total XP
+  let lvl = 0, remaining = totalXp;
+  while (lvl < 10 && remaining >= xpPerLevel[lvl]) { remaining -= xpPerLevel[lvl]; lvl++; }
+  const needed = xpPerLevel[lvl] || 3848;
+  const pct = lvl >= 10 ? 100 : Math.min(100, remaining / needed * 100);
+
+  document.getElementById('ident-name').textContent = name;
+  document.getElementById('ident-title').textContent = title || 'HumanityOS Member';
+  document.getElementById('ident-level').textContent = `Lv ${lvl}`;
+  document.getElementById('ident-xp-label').textContent = `${remaining} / ${needed} XP`;
+  document.getElementById('ident-bar').style.width = pct + '%';
+
+  const avatarEl = document.getElementById('ident-avatar');
+  if (avatar) {
+    avatarEl.innerHTML = `<img src="${esc(avatar)}" alt="avatar">`;
+  }
+}
+
+// ────────────────────────────────────────────────
+// Skills summary (top domains by average)
+// ────────────────────────────────────────────────
+const DOMAIN_META = [
+  {id:'life',      icon:'🧬', label:'Life Sciences',       color:'#2ecc71'},
+  {id:'science',   icon:'🔭', label:'Physical Science',    color:'#3498db'},
+  {id:'math',      icon:'📐', label:'Mathematics',         color:'#9b59b6'},
+  {id:'technology',icon:'💻', label:'Technology',          color:'#1abc9c'},
+  {id:'engineering',icon:'⚙️',label:'Engineering',         color:'#e67e22'},
+  {id:'trades',    icon:'🔨', label:'Trades & Making',     color:'#e74c3c'},
+  {id:'arts',      icon:'🎨', label:'Arts & Expression',   color:'#e91e8c'},
+  {id:'mind',      icon:'🧠', label:'Mind & Communication',color:'#ff9800'},
+  {id:'body',      icon:'💪', label:'Body & Fitness',      color:'#4caf50'},
+];
+
+const DOMAIN_SKILLS = {
+  life:['health','medicine','biology','agriculture','ecology'],
+  science:['physics','chemistry','earth','astronomy','research'],
+  math:['arithmetic','algebra','geometry','calculus','statistics'],
+  technology:['computing','programming','electronics','networks','ai'],
+  engineering:['mechanical','electrical','civil','chemical','systems'],
+  trades:['construction','plumbing','electrical_t','metalwork','woodwork','textiles'],
+  arts:['visual_art','music','writing','design','photo_video','performance'],
+  mind:['critical','languages','teaching','leadership','economics','philosophy'],
+  body:['strength','endurance','agility','nutrition','survival'],
+};
+
+function loadSkillsSummary() {
+  let skillData = {};
+  try { skillData = JSON.parse(localStorage.getItem('hos_skills_v1')) || {}; } catch(e) {}
+
+  const avgs = DOMAIN_META.map(d => {
+    const ids = DOMAIN_SKILLS[d.id] || [];
+    const total = ids.reduce((s, id) => s + (skillData[id]?.level || 0), 0);
+    return { ...d, avg: ids.length ? total / ids.length : 0 };
+  });
+
+  // Show top 6 by average (hide zeros at bottom)
+  const sorted = [...avgs].sort((a,b) => b.avg - a.avg).slice(0, 6);
+
+  const el = document.getElementById('skills-summary');
+  if (sorted.every(d => d.avg === 0)) {
+    el.innerHTML = `<div style="font-size:.78rem;color:#555;padding:.3rem 0">No skills logged yet. <a href="/skills" style="color:#FF8811;text-decoration:none">Start here ›</a></div>`;
+    return;
+  }
+
+  el.innerHTML = sorted.map(d => `
+    <div class="skill-mini-row">
+      <span class="skill-mini-icon">${d.icon}</span>
+      <span class="skill-mini-label">${d.label}</span>
+      <div class="skill-mini-bar">
+        <div class="skill-mini-fill" style="width:${d.avg/10*100}%;background:${d.color}"></div>
+      </div>
+      <span class="skill-mini-lvl">${d.avg.toFixed(1)}</span>
+    </div>
+  `).join('');
+}
+
+// ────────────────────────────────────────────────
+// Today's calendar events
+// ────────────────────────────────────────────────
+function loadTodayEvents() {
+  let events = [];
+  try { events = JSON.parse(localStorage.getItem('hos_calendar_v1')) || []; } catch(e) {}
+
+  const today = new Date();
+  const todayStr = fmtDate(today);
+  const todayEvs = events.filter(e => e.date === todayStr).sort((a,b) => {
+    if (a.allday && !b.allday) return -1;
+    if (!a.allday && b.allday) return 1;
+    return (a.startTime||'').localeCompare(b.startTime||'');
+  });
+
+  const el = document.getElementById('today-events');
+  const ds = today.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+  el.innerHTML = `<div class="today-date">${ds}</div>`;
+
+  if (todayEvs.length === 0) {
+    el.innerHTML += `<div class="cal-empty">No events today.</div>`;
+    return;
+  }
+
+  el.innerHTML += todayEvs.map(ev => `
+    <div class="cal-event-row" onclick="window.location.href='/calendar'">
+      <div class="cal-event-dot" style="background:${ev.color||'#3498db'}"></div>
+      <div>
+        <div class="cal-event-title">${esc(ev.title)}</div>
+      </div>
+      <div class="cal-event-time">${ev.allday ? 'All day' : (ev.startTime||'')}</div>
+    </div>
+  `).join('');
+}
+
+function fmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ────────────────────────────────────────────────
+// Todo list
+// ────────────────────────────────────────────────
+const TODO_KEY = 'hos_home_todos';
+let todos = [];
+
+function loadTodos() {
+  try { todos = JSON.parse(localStorage.getItem(TODO_KEY)) || []; } catch(e) { todos = []; }
+}
+function saveTodos() { localStorage.setItem(TODO_KEY, JSON.stringify(todos)); }
+function nextId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+
+function renderTodos() {
+  const el = document.getElementById('todo-list');
+  const active = todos.filter(t => !t.done);
+  const done   = todos.filter(t => t.done).slice(0, 3); // show max 3 done items
+  const show = [...active, ...done];
+
+  if (show.length === 0) {
+    el.innerHTML = `<div style="font-size:.75rem;color:#555;padding:.3rem 0">Nothing to do. Enjoy the day!</div>`;
+    return;
+  }
+
+  el.innerHTML = show.map(t => `
+    <div class="todo-item">
+      <div class="todo-check${t.done?' done':''}" onclick="toggleTodo('${t.id}')"></div>
+      <span class="todo-text${t.done?' done':''}" onclick="toggleTodo('${t.id}')">${esc(t.text)}</span>
+      <button class="todo-del" onclick="deleteTodo('${t.id}')" title="Remove">×</button>
+    </div>
+  `).join('');
+}
+
+function addTodo() {
+  const inp = document.getElementById('todo-input');
+  const text = inp.value.trim();
+  if (!text) return;
+  todos.unshift({ id: nextId(), text, done: false });
+  saveTodos();
+  inp.value = '';
+  renderTodos();
+}
+
+function todoKey(e) { if (e.key === 'Enter') addTodo(); }
+
+function toggleTodo(id) {
+  const t = todos.find(t => t.id === id);
+  if (t) { t.done = !t.done; saveTodos(); renderTodos(); }
+}
+
+function deleteTodo(id) {
+  todos = todos.filter(t => t.id !== id);
+  saveTodos();
+  renderTodos();
+}
+
+// ────────────────────────────────────────────────
+// Inventory stats
+// ────────────────────────────────────────────────
+function loadInventoryStats() {
+  let items = [];
+  try { items = JSON.parse(localStorage.getItem('hos_inventory_v1')) || []; } catch(e) {}
+
+  document.getElementById('inv-player-count').textContent = items.filter(i => i.category.startsWith('player:')).length;
+  document.getElementById('inv-home-count').textContent   = items.filter(i => i.category.startsWith('home:')).length;
+  document.getElementById('inv-fleet-count').textContent  = items.filter(i => i.category.startsWith('fleet:')).length;
+
+  // Show last 3 added items
+  const recent = items.slice(-3).reverse();
+  const el = document.getElementById('inv-recent-items');
+  if (recent.length === 0) {
+    el.innerHTML = `<div style="font-size:.75rem;color:#555">No items yet. <a href="/inventory" style="color:#FF8811;text-decoration:none">Add items ›</a></div>`;
+    return;
+  }
+  el.innerHTML = recent.map(item => `
+    <div style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;font-size:.75rem;">
+      <span>${item.icon||'📦'}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(item.name)}</span>
+      <span style="font-size:.65rem;color:#666">${esc(item.location||'')}</span>
+    </div>
+  `).join('');
+}
+
+// ────────────────────────────────────────────────
+// Notes
+// ────────────────────────────────────────────────
+const NOTES_KEY = 'hos_home_notes';
+let noteTimer;
+function saveNotes() {
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => {
+    localStorage.setItem(NOTES_KEY, document.getElementById('home-notes').value);
+  }, 400);
+}
+
+function loadNotes() {
+  document.getElementById('home-notes').value = localStorage.getItem(NOTES_KEY) || '';
+}
+
+// ────────────────────────────────────────────────
+// Recent DMs (cross-tab via localStorage snapshot)
+// ────────────────────────────────────────────────
+function loadRecentDMs() {
+  // app.js writes 'hos_dm_recent' as JSON: [{name, preview, time, unread}]
+  let dms = [];
+  try { dms = JSON.parse(localStorage.getItem('hos_dm_recent')) || []; } catch(e) {}
+
+  const el = document.getElementById('recent-dms');
+  if (dms.length === 0) {
+    el.innerHTML = `<div class="dm-empty">No recent messages. <a href="/chat" style="color:#FF8811;text-decoration:none">Open Network ›</a></div>`;
+    return;
+  }
+  el.innerHTML = dms.slice(0, 5).map(dm => `
+    <div class="dm-row">
+      <div class="dm-avatar">${(dm.name||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div class="dm-name">${esc(dm.name)}</div>
+        <div class="dm-preview">${esc(dm.preview||'')}</div>
+      </div>
+      ${dm.unread ? `<div class="dm-unread">${dm.unread}</div>` : `<div class="dm-time">${esc(dm.time||'')}</div>`}
+    </div>
+  `).join('');
+}
+
+// ────────────────────────────────────────────────
+// Utils
+// ────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ────────────────────────────────────────────────
+// Init
+// ────────────────────────────────────────────────
+loadIdentity();
+loadSkillsSummary();
+loadTodayEvents();
+loadTodos();
+renderTodos();
+loadInventoryStats();
+loadNotes();
+loadRecentDMs();
+
+// Refresh today's events at midnight
+const now = new Date();
+const msToMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()+1) - now;
+setTimeout(() => { loadTodayEvents(); }, msToMidnight);
+</script>
+</body>
+</html>

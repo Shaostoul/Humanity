@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skills — HumanityOS</title>
+  <script src="/shared/shell.js" data-active="skills"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Layout ── */
+    #skills-app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      height: calc(100vh - 42px); /* below nav */
+    }
+
+    /* ── Sidebar ── */
+    #domain-sidebar {
+      width: 220px;
+      min-width: 180px;
+      background: #111;
+      border-right: 1px solid #222;
+      overflow-y: auto;
+      padding: 1rem 0;
+      flex-shrink: 0;
+    }
+
+    #domain-sidebar h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #555;
+      padding: 0 1rem 0.5rem;
+    }
+
+    .domain-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 1rem;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .domain-item:hover { background: #1a1a1a; }
+    .domain-item.active {
+      background: #181818;
+      border-left-color: var(--domain-color);
+    }
+
+    .domain-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--domain-color);
+      flex-shrink: 0;
+    }
+
+    .domain-name {
+      flex: 1;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .domain-avg {
+      font-size: 0.7rem;
+      color: #666;
+      min-width: 24px;
+      text-align: right;
+    }
+
+    /* Mini progress bar under label */
+    .domain-bar-wrap {
+      height: 2px;
+      background: #222;
+      border-radius: 1px;
+      margin-top: 2px;
+    }
+    .domain-bar-fill {
+      height: 100%;
+      border-radius: 1px;
+      background: var(--domain-color);
+      transition: width 0.4s;
+    }
+
+    /* ── Main Panel ── */
+    #skill-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+    }
+
+    #skill-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #222;
+    }
+
+    #panel-domain-icon {
+      font-size: 2rem;
+      line-height: 1;
+    }
+
+    #panel-domain-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    #panel-domain-desc {
+      font-size: 0.8rem;
+      color: #888;
+      margin-top: 0.2rem;
+    }
+
+    #panel-domain-overall {
+      margin-left: auto;
+      text-align: right;
+    }
+
+    #panel-domain-overall .big-level {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--active-color, #FF8811);
+      line-height: 1;
+    }
+
+    #panel-domain-overall .big-label {
+      font-size: 0.65rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Skill Cards ── */
+    .skill-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+
+    .skill-card {
+      background: #141414;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 1rem;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .skill-card:hover {
+      border-color: #333;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    }
+
+    .skill-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+
+    .skill-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .skill-tags {
+      font-size: 0.65rem;
+      color: #666;
+      margin-top: 0.15rem;
+    }
+
+    .skill-level-badge {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--active-color, #FF8811);
+      line-height: 1;
+      min-width: 32px;
+      text-align: right;
+    }
+
+    .skill-level-label {
+      font-size: 0.6rem;
+      color: #555;
+      text-align: right;
+      text-transform: uppercase;
+    }
+
+    .skill-desc {
+      font-size: 0.75rem;
+      color: #777;
+      margin-bottom: 0.8rem;
+      line-height: 1.4;
+    }
+
+    /* XP bar */
+    .xp-bar-wrap {
+      height: 6px;
+      background: #1e1e1e;
+      border-radius: 3px;
+      margin-bottom: 0.8rem;
+      position: relative;
+    }
+    .xp-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--active-color, #FF8811);
+      transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+    }
+    .xp-bar-text {
+      position: absolute;
+      right: 0;
+      top: 8px;
+      font-size: 0.6rem;
+      color: #555;
+    }
+
+    /* Level steps */
+    .level-steps {
+      display: flex;
+      gap: 3px;
+      margin-bottom: 0.9rem;
+    }
+    .level-pip {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: #1e1e1e;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .level-pip.filled { background: var(--active-color, #FF8811); }
+    .level-pip:hover { opacity: 0.8; }
+
+    /* XP action buttons */
+    .xp-actions {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+
+    .xp-btn {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #aaa;
+      border-radius: 4px;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.72rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .xp-btn:hover { background: #222; border-color: #444; color: #fff; }
+    .xp-btn.primary {
+      background: color-mix(in srgb, var(--active-color, #FF8811) 15%, transparent);
+      border-color: color-mix(in srgb, var(--active-color, #FF8811) 40%, transparent);
+      color: var(--active-color, #FF8811);
+    }
+    .xp-btn.primary:hover {
+      background: color-mix(in srgb, var(--active-color, #FF8811) 25%, transparent);
+    }
+
+    .xp-current {
+      margin-left: auto;
+      font-size: 0.7rem;
+      color: #555;
+    }
+
+    /* Level up flash */
+    @keyframes levelup-flash {
+      0%   { box-shadow: 0 0 0 0 var(--active-color); }
+      50%  { box-shadow: 0 0 0 8px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    .skill-card.levelup { animation: levelup-flash 0.6s ease-out; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 0.5rem 1rem;
+      font-size: 0.82rem;
+      color: #eee;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s;
+      z-index: 9999;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Empty state ── */
+    #empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 60%;
+      color: #444;
+      gap: 0.5rem;
+    }
+    #empty-state .big { font-size: 3rem; }
+    #empty-state p { font-size: 0.85rem; }
+
+    /* ── Scrollbars ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+    /* ── Mobile ── */
+    @media (max-width: 600px) {
+      #domain-sidebar { width: 160px; min-width: 140px; }
+      #skill-panel { padding: 1rem; }
+      .skill-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="skills-app">
+  <nav id="domain-sidebar">
+    <h2>Domains</h2>
+    <div id="domain-list"></div>
+  </nav>
+  <main id="skill-panel">
+    <div id="empty-state">
+      <div class="big">🧠</div>
+      <p>Select a domain to view skills</p>
+    </div>
+    <div id="domain-content" style="display:none">
+      <div id="skill-panel-header">
+        <div id="panel-domain-icon"></div>
+        <div>
+          <div id="panel-domain-title"></div>
+          <div id="panel-domain-desc"></div>
+        </div>
+        <div id="panel-domain-overall">
+          <div class="big-level" id="panel-avg-level">0</div>
+          <div class="big-label">Domain Avg</div>
+        </div>
+      </div>
+      <div class="skill-grid" id="skill-grid"></div>
+    </div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────
+// Skills data — 9 domains, ~49 skills
+// Level 0–10 per skill; XP gates between levels
+// ─────────────────────────────────────────────
+const DOMAINS = [
+  {
+    id: 'life', icon: '🧬', label: 'Life Sciences', color: '#2ecc71',
+    desc: 'Biology, health, medicine, ecology, and agriculture',
+    skills: [
+      { id: 'health',      name: 'Health & Wellness',  tags: 'anatomy, physiology, first aid',     desc: 'Understanding and maintaining the human body — nutrition basics, first aid, physical wellness habits.' },
+      { id: 'medicine',    name: 'Medicine',            tags: 'diagnosis, pharmacology, surgery',   desc: 'Clinical knowledge: identifying illness, medications, procedures, and patient care.' },
+      { id: 'biology',     name: 'Biology',             tags: 'cells, genetics, evolution',         desc: 'Living systems from cellular biology and genetics to evolution and ecological relationships.' },
+      { id: 'agriculture', name: 'Agriculture',         tags: 'farming, horticulture, soil',        desc: 'Growing food and managing land — soil science, crop cycles, livestock, and permaculture.' },
+      { id: 'ecology',     name: 'Ecology',             tags: 'ecosystems, conservation, climate',  desc: 'Interactions between organisms and environments, biodiversity, and conservation practice.' },
+    ]
+  },
+  {
+    id: 'science', icon: '🔭', label: 'Physical Science', color: '#3498db',
+    desc: 'Physics, chemistry, earth science, and astronomy',
+    skills: [
+      { id: 'physics',    name: 'Physics',        tags: 'mechanics, energy, electromagnetism',  desc: 'Laws governing motion, forces, energy, waves, and electromagnetism — from Newtonian to quantum.' },
+      { id: 'chemistry',  name: 'Chemistry',      tags: 'reactions, materials, thermodynamics', desc: 'Atomic structure, chemical reactions, bonding, and materials science.' },
+      { id: 'earth',      name: 'Earth Science',  tags: 'geology, meteorology, hydrology',      desc: 'Geologic processes, weather systems, oceans, and the dynamic Earth.' },
+      { id: 'astronomy',  name: 'Astronomy',      tags: 'cosmology, astrophysics, navigation',  desc: 'Stars, galaxies, celestial mechanics, cosmology, and observational astronomy.' },
+      { id: 'research',   name: 'Research',       tags: 'scientific method, data, peer review', desc: 'Designing experiments, gathering evidence, statistical analysis, and writing scientific findings.' },
+    ]
+  },
+  {
+    id: 'math', icon: '📐', label: 'Mathematics', color: '#9b59b6',
+    desc: 'From arithmetic to calculus and statistics',
+    skills: [
+      { id: 'arithmetic',  name: 'Arithmetic',    tags: 'numbers, fractions, percentages',     desc: 'Foundational number sense: operations, fractions, ratios, percentages, and mental math.' },
+      { id: 'algebra',     name: 'Algebra',       tags: 'equations, functions, variables',     desc: 'Symbolic reasoning — solving equations, graphing functions, and working with variables.' },
+      { id: 'geometry',    name: 'Geometry',      tags: 'shapes, proofs, trigonometry',        desc: 'Spatial reasoning, coordinate geometry, trigonometry, and geometric proofs.' },
+      { id: 'calculus',    name: 'Calculus',      tags: 'derivatives, integrals, limits',      desc: 'Rates of change and accumulation — differentiation, integration, and their applications.' },
+      { id: 'statistics',  name: 'Statistics',    tags: 'probability, data analysis, models',  desc: 'Probability theory, statistical inference, distributions, and data-driven decision making.' },
+    ]
+  },
+  {
+    id: 'technology', icon: '💻', label: 'Technology', color: '#1abc9c',
+    desc: 'Computing, programming, networks, and AI',
+    skills: [
+      { id: 'computing',     name: 'Computing',      tags: 'OS, hardware, security',           desc: 'How computers work — hardware, operating systems, file systems, and cybersecurity basics.' },
+      { id: 'programming',   name: 'Programming',    tags: 'code, algorithms, data structures', desc: 'Writing software: logic, algorithms, data structures, debugging, and multiple languages.' },
+      { id: 'electronics',   name: 'Electronics',    tags: 'circuits, sensors, microcontrollers', desc: 'Electronic circuits, component reading, microcontrollers (Arduino/Pi), and PCB basics.' },
+      { id: 'networks',      name: 'Networks',       tags: 'TCP/IP, protocols, infrastructure',  desc: 'How data moves: protocols, routing, wireless, and building/maintaining networks.' },
+      { id: 'ai',            name: 'AI & Data',      tags: 'machine learning, models, analytics', desc: 'Foundations of machine learning, neural networks, data pipelines, and AI ethics.' },
+    ]
+  },
+  {
+    id: 'engineering', icon: '⚙️', label: 'Engineering', color: '#e67e22',
+    desc: 'Designing and building systems that work',
+    skills: [
+      { id: 'mechanical',   name: 'Mechanical Eng.',  tags: 'machines, thermodynamics, CAD',    desc: 'Designing mechanical systems: statics, dynamics, thermodynamics, and CAD modeling.' },
+      { id: 'electrical',   name: 'Electrical Eng.',  tags: 'power, control, signals',          desc: 'Power systems, control engineering, signal processing, and electrical design.' },
+      { id: 'civil',        name: 'Civil Eng.',        tags: 'structures, infrastructure, GIS',  desc: 'Bridges, buildings, roads, water systems — load analysis and structural design.' },
+      { id: 'chemical',     name: 'Chemical Eng.',     tags: 'processes, materials, reactions',  desc: 'Industrial chemical processes, reactor design, separation techniques, and safety.' },
+      { id: 'systems',      name: 'Systems Eng.',      tags: 'design, integration, lifecycle',   desc: 'Holistic design thinking — requirements, architecture, integration, and lifecycle management.' },
+    ]
+  },
+  {
+    id: 'trades', icon: '🔨', label: 'Trades & Making', color: '#e74c3c',
+    desc: 'Hands-on crafts, construction, and fabrication',
+    skills: [
+      { id: 'construction', name: 'Construction',    tags: 'framing, masonry, roofing',           desc: 'Building structures from framing and foundations to masonry, roofing, and finishing.' },
+      { id: 'plumbing',     name: 'Plumbing',        tags: 'pipes, fixtures, water systems',      desc: 'Installing and repairing water supply, drainage, and fixture systems.' },
+      { id: 'electrical_t', name: 'Electrical Trade', tags: 'wiring, panels, codes',             desc: 'Residential and commercial wiring, panel work, conduit, and NEC code compliance.' },
+      { id: 'metalwork',    name: 'Metalworking',    tags: 'welding, machining, fabrication',     desc: 'Shaping metal via welding, cutting, turning, milling, and casting.' },
+      { id: 'woodwork',     name: 'Woodworking',     tags: 'joinery, furniture, finishing',       desc: 'Hand tools and power tools for furniture making, joinery, and wood finishing.' },
+      { id: 'textiles',     name: 'Textiles',        tags: 'sewing, knitting, weaving, repair',   desc: 'Fabric arts: sewing garments, knitting, weaving, embroidery, and clothing repair.' },
+    ]
+  },
+  {
+    id: 'arts', icon: '🎨', label: 'Arts & Expression', color: '#e91e8c',
+    desc: 'Visual arts, music, writing, design, and performance',
+    skills: [
+      { id: 'visual_art',  name: 'Visual Art',    tags: 'drawing, painting, sculpture',         desc: 'Drawing, painting, printmaking, and sculpture — form, color, composition, and technique.' },
+      { id: 'music',       name: 'Music',         tags: 'theory, instruments, production',      desc: 'Music theory, playing instruments, ear training, composition, and audio production.' },
+      { id: 'writing',     name: 'Writing',       tags: 'prose, poetry, journalism, storytelling', desc: 'Crafting clear, compelling text — fiction, non-fiction, poetry, and technical writing.' },
+      { id: 'design',      name: 'Design',        tags: 'UX, graphic, typography, branding',    desc: 'Visual communication: graphic design, UI/UX, typography, and branding principles.' },
+      { id: 'photo_video', name: 'Photo & Video', tags: 'composition, lighting, editing',       desc: 'Photography composition, camera settings, lighting, and video production/editing.' },
+      { id: 'performance', name: 'Performance',   tags: 'acting, dance, public speaking',       desc: 'Expressing through the body and voice: acting, dance, comedy, and public speaking.' },
+    ]
+  },
+  {
+    id: 'mind', icon: '🧠', label: 'Mind & Communication', color: '#ff9800',
+    desc: 'Thinking, communicating, leading, and understanding',
+    skills: [
+      { id: 'critical',    name: 'Critical Thinking', tags: 'logic, reasoning, argumentation',   desc: 'Evaluating evidence, identifying fallacies, building sound arguments, and problem solving.' },
+      { id: 'languages',   name: 'Languages',          tags: 'linguistics, foreign language',     desc: 'Learning additional languages, linguistics, translation, and intercultural communication.' },
+      { id: 'teaching',    name: 'Teaching',            tags: 'pedagogy, curriculum, coaching',   desc: 'Designing learning experiences, explaining concepts clearly, and mentoring others.' },
+      { id: 'leadership',  name: 'Leadership',          tags: 'management, strategy, teams',      desc: 'Guiding groups toward goals: decision-making, delegation, conflict resolution, and strategy.' },
+      { id: 'economics',   name: 'Economics',           tags: 'markets, finance, policy',         desc: 'How resources are allocated: micro/macroeconomics, personal finance, and economic policy.' },
+      { id: 'philosophy',  name: 'Philosophy',          tags: 'ethics, epistemology, logic',      desc: 'Big questions about existence, knowledge, values, and ethics — both Western and non-Western.' },
+    ]
+  },
+  {
+    id: 'body', icon: '💪', label: 'Body & Fitness', color: '#4caf50',
+    desc: 'Physical capability, nutrition, and survival',
+    skills: [
+      { id: 'strength',    name: 'Strength',      tags: 'weightlifting, calisthenics, power',    desc: 'Building muscular strength and power through resistance training and progressive overload.' },
+      { id: 'endurance',   name: 'Endurance',     tags: 'cardio, running, cycling, stamina',     desc: 'Cardiovascular fitness — running, cycling, swimming, and sustained effort over time.' },
+      { id: 'agility',     name: 'Agility',       tags: 'flexibility, balance, coordination',    desc: 'Mobility, flexibility, balance, reaction speed, and body coordination.' },
+      { id: 'nutrition',   name: 'Nutrition',     tags: 'macros, diet, cooking',                 desc: 'Food science, macronutrients, meal planning, cooking skills, and dietary strategy.' },
+      { id: 'survival',    name: 'Survival',      tags: 'wilderness, navigation, preparedness',  desc: 'Wilderness skills, navigation, shelter, fire-making, first aid, and emergency preparedness.' },
+    ]
+  },
+];
+
+// ─────────────────────────────────────────────
+// XP thresholds per level (0→1, 1→2, … 9→10)
+// ─────────────────────────────────────────────
+const XP_PER_LEVEL = [100, 150, 225, 338, 507, 760, 1140, 1710, 2565, 3848];
+const MAX_LEVEL = 10;
+
+// Storage key
+const STORAGE_KEY = 'hos_skills_v1';
+
+// State: { [skillId]: { level: 0-10, xp: 0 } }
+let skillData = {};
+
+function loadSkillData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) skillData = JSON.parse(raw);
+  } catch (e) { skillData = {}; }
+}
+
+function saveSkillData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(skillData));
+}
+
+function getSkill(id) {
+  if (!skillData[id]) skillData[id] = { level: 0, xp: 0 };
+  return skillData[id];
+}
+
+function xpForLevel(level) {
+  if (level >= MAX_LEVEL) return Infinity;
+  return XP_PER_LEVEL[level] || 100;
+}
+
+function addXp(skillId, amount, cardEl) {
+  const s = getSkill(skillId);
+  if (s.level >= MAX_LEVEL) { showToast('Max level reached!'); return; }
+  s.xp += amount;
+  let leveled = false;
+  while (s.level < MAX_LEVEL && s.xp >= xpForLevel(s.level)) {
+    s.xp -= xpForLevel(s.level);
+    s.level++;
+    leveled = true;
+  }
+  saveSkillData();
+  refreshCard(skillId, cardEl);
+  if (leveled) {
+    cardEl.classList.remove('levelup');
+    void cardEl.offsetWidth; // reflow
+    cardEl.classList.add('levelup');
+    showToast('🎉 Level up! ' + getSkillById(skillId).name + ' → Lv ' + s.level);
+  }
+  updateSidebar();
+}
+
+function setLevel(skillId, level, cardEl) {
+  const s = getSkill(skillId);
+  s.level = Math.max(0, Math.min(MAX_LEVEL, level));
+  s.xp = 0;
+  saveSkillData();
+  refreshCard(skillId, cardEl);
+  updateSidebar();
+}
+
+function getSkillById(id) {
+  for (const d of DOMAINS) {
+    for (const s of d.skills) { if (s.id === id) return s; }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────
+// Rendering
+// ─────────────────────────────────────────────
+let activeDomain = null;
+
+function domainAvg(domain) {
+  const levels = domain.skills.map(s => getSkill(s.id).level);
+  return levels.reduce((a, b) => a + b, 0) / levels.length;
+}
+
+function renderSidebar() {
+  const list = document.getElementById('domain-list');
+  list.innerHTML = DOMAINS.map(d => {
+    const avg = domainAvg(d);
+    const pct = (avg / MAX_LEVEL * 100).toFixed(1);
+    const isActive = activeDomain && activeDomain.id === d.id;
+    return `<div class="domain-item${isActive ? ' active' : ''}" style="--domain-color:${d.color}" data-id="${d.id}" onclick="selectDomain('${d.id}')">
+      <div class="domain-dot"></div>
+      <div style="flex:1;min-width:0">
+        <div class="domain-name">${d.label}</div>
+        <div class="domain-bar-wrap"><div class="domain-bar-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="domain-avg">${avg.toFixed(1)}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateSidebar() {
+  // Only re-render sidebar items, not the whole sidebar
+  renderSidebar();
+  if (activeDomain) {
+    // Update avg in header
+    const avg = domainAvg(activeDomain);
+    document.getElementById('panel-avg-level').textContent = avg.toFixed(1);
+  }
+}
+
+function selectDomain(id) {
+  activeDomain = DOMAINS.find(d => d.id === id);
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('domain-content').style.display = 'block';
+  document.documentElement.style.setProperty('--active-color', activeDomain.color);
+
+  document.getElementById('panel-domain-icon').textContent = activeDomain.icon;
+  document.getElementById('panel-domain-title').textContent = activeDomain.label;
+  document.getElementById('panel-domain-desc').textContent = activeDomain.desc;
+
+  const avg = domainAvg(activeDomain);
+  document.getElementById('panel-avg-level').textContent = avg.toFixed(1);
+
+  renderSkillGrid(activeDomain);
+  updateSidebar();
+}
+
+function renderSkillGrid(domain) {
+  const grid = document.getElementById('skill-grid');
+  grid.innerHTML = domain.skills.map(skill => buildSkillCard(skill, domain.color)).join('');
+}
+
+function buildSkillCard(skill, color) {
+  const s = getSkill(skill.id);
+  const needed = xpForLevel(s.level);
+  const xpPct = s.level >= MAX_LEVEL ? 100 : Math.min(100, (s.xp / needed * 100));
+  const pips = Array.from({length: MAX_LEVEL}, (_, i) =>
+    `<div class="level-pip${i < s.level ? ' filled' : ''}" onclick="pipClick('${skill.id}', ${i+1}, this)"></div>`
+  ).join('');
+
+  return `<div class="skill-card" id="card-${skill.id}">
+    <div class="skill-card-header">
+      <div>
+        <div class="skill-name">${skill.name}</div>
+        <div class="skill-tags">${skill.tags}</div>
+      </div>
+      <div>
+        <div class="skill-level-badge">${s.level}</div>
+        <div class="skill-level-label">Level</div>
+      </div>
+    </div>
+    <div class="skill-desc">${skill.desc}</div>
+    <div class="level-steps">${pips}</div>
+    <div class="xp-bar-wrap">
+      <div class="xp-bar-fill" style="width:${xpPct}%"></div>
+      <div class="xp-bar-text">${s.level >= MAX_LEVEL ? 'MAX' : s.xp + '/' + needed + ' XP'}</div>
+    </div>
+    <div class="xp-actions">
+      <button class="xp-btn" onclick="addXp('${skill.id}', 10, document.getElementById('card-${skill.id}'))">+10 XP</button>
+      <button class="xp-btn primary" onclick="addXp('${skill.id}', 50, document.getElementById('card-${skill.id}'))">+50 XP</button>
+      <button class="xp-btn" onclick="addXp('${skill.id}', 100, document.getElementById('card-${skill.id}'))">+100 XP</button>
+      <span class="xp-current">${s.level >= MAX_LEVEL ? '✓ Mastered' : 'Total XP: ' + totalXp(skill.id)}</span>
+    </div>
+  </div>`;
+}
+
+function pipClick(skillId, level, pipEl) {
+  // Clicking a pip sets level directly (tap to set level)
+  const cardEl = document.getElementById('card-' + skillId);
+  const s = getSkill(skillId);
+  // If clicking the current level pip, decrement; else set that level
+  const newLevel = s.level === level ? level - 1 : level;
+  setLevel(skillId, newLevel, cardEl);
+}
+
+function refreshCard(skillId, cardEl) {
+  const skill = getSkillById(skillId);
+  if (!skill) return;
+  const color = activeDomain ? activeDomain.color : '#FF8811';
+  cardEl.outerHTML = buildSkillCard(skill, color);
+  // outerHTML replaces the element, need to re-query
+}
+
+function totalXp(skillId) {
+  const s = getSkill(skillId);
+  let total = s.xp;
+  for (let i = 0; i < s.level; i++) total += XP_PER_LEVEL[i] || 0;
+  return total;
+}
+
+// ─────────────────────────────────────────────
+// Toast
+// ─────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ─────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────
+loadSkillData();
+renderSidebar();
+
+// Auto-select first domain or last used
+const lastDomain = localStorage.getItem('hos_skills_last_domain');
+if (lastDomain && DOMAINS.find(d => d.id === lastDomain)) {
+  selectDomain(lastDomain);
+}
+
+// Save last selected domain on change
+const origSelect = selectDomain;
+window.selectDomain = function(id) {
+  origSelect(id);
+  localStorage.setItem('hos_skills_last_domain', id);
+};
+</script>
+</body>
+</html>
