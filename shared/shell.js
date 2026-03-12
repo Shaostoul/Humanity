@@ -22,19 +22,28 @@
   if (!active) {
     const p = location.pathname;
     if (p === '/') active = 'home';
-    else if (p.startsWith('/chat')) active = 'chat';
-    else if (p.startsWith('/map')) active = 'map';
-    else if (p.startsWith('/board')) active = 'board';
-    else if (p.startsWith('/reality')) active = 'reality';
-    else if (p.startsWith('/fantasy')) active = 'fantasy';
-    else if (p.startsWith('/streams')) active = 'streams';
-    else if (p.startsWith('/market')) active = 'market';
-    else if (p.startsWith('/browse')) active = 'browse';
-    else if (p.startsWith('/dashboard')) active = 'dashboard';
-    else if (p.startsWith('/info')) active = 'info';
-    else if (p.startsWith('/source')) active = 'source';
-    else if (p.startsWith('/debug')) active = 'debug';
-    else if (p.startsWith('/download')) active = 'download';
+    else if (p.startsWith('/chat'))      active = 'chat';
+    else if (p.startsWith('/profile'))   active = 'profile';
+    else if (p.startsWith('/home'))      active = 'home';
+    else if (p.startsWith('/skills'))    active = 'skills';
+    else if (p.startsWith('/inventory')) active = 'inventory';
+    else if (p.startsWith('/equipment')) active = 'equipment';
+    else if (p.startsWith('/quests'))    active = 'quests';
+    else if (p.startsWith('/calendar'))  active = 'calendar';
+    else if (p.startsWith('/logbook'))   active = 'logbook';
+    else if (p.startsWith('/board'))     active = 'board';
+    else if (p.startsWith('/map'))       active = 'map';
+    else if (p.startsWith('/market'))    active = 'market';
+    else if (p.startsWith('/browse'))    active = 'browse';
+    else if (p.startsWith('/info'))      active = 'info';
+    else if (p.startsWith('/streams'))   active = 'streams';
+    else if (p.startsWith('/settings'))  active = 'settings';
+    else if (p.startsWith('/debug'))     active = 'debug';
+    else if (p.startsWith('/download'))  active = 'download';
+    else if (p.startsWith('/reality'))   active = 'reality';
+    else if (p.startsWith('/fantasy'))   active = 'fantasy';
+    else if (p.startsWith('/source'))    active = 'equipment';
+    else if (p.startsWith('/dashboard')) active = 'home';
     else active = '';
   }
 
@@ -174,13 +183,13 @@
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
-    /* ── Divider between nav groups — zero margin so flex gap handles spacing ── */
+    /* ── Divider between nav groups — negative margin cancels the double flex-gap ── */
     .hub-nav .nav-divider {
       width: 1px;
       height: 18px;
-      background: rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.15);
       flex-shrink: 0;
-      margin: 0;
+      margin: 0 -0.1rem; /* gap is 0.2rem; -0.1rem each side keeps visual spacing even */
     }
 
     /* ── Spacer pushes right-side items to the right ── */
@@ -267,21 +276,22 @@
       bottom: 0;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(13, 13, 13, 0.95);
-      border: 1px solid #555;
+      background: rgba(18, 18, 18, 0.97);
+      border: 1px solid #666;
       border-bottom: none;
       border-radius: 8px 8px 0 0;
-      color: #bbb;
+      color: #FF8811;
       cursor: pointer;
-      padding: 4px 24px;
-      font-size: 0.72rem;
-      font-weight: 600;
+      padding: 5px 28px;
+      font-size: 0.78rem;
+      font-weight: 700;
       line-height: 1;
       z-index: 5200; /* above everything except the nav (5500) */
-      transition: color 0.15s, border-color 0.15s;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
       white-space: nowrap;
+      letter-spacing: 0.05em;
     }
-    .footer-toggle:hover { color: #FF8811; border-color: #FF8811; }
+    .footer-toggle:hover { color: #fff; border-color: #FF8811; background: rgba(30,20,10,0.98); }
 
     /* ── Mobile drawer ── */
     #mobile-hub-backdrop {
@@ -356,10 +366,10 @@
 
       /* Private — personal pages */
       navTab('/profile',   'profile.png',   'Profile',   'profile') +
-      navTab('/dashboard', 'home.png',       'Home',      'dashboard') +
-      navTab('/fantasy',   'skills.png',    'Skills',    'fantasy') +
+      navTab('/home',      'home.png',      'Home',      'home') +
+      navTab('/skills',    'skills.png',    'Skills',    'skills') +
       navTab('/inventory', 'inventory.png', 'Inventory', 'inventory') +
-      navTab('/source',    'components.png','Equipment', 'source') +
+      navTab('/equipment', 'components.png','Equipment', 'equipment') +
       navTab('/quests',    'tasklist.png',  'Quests',    'quests') +
       navTab('/calendar',  'calendar.png',  'Calendar',  'calendar') +
       navTab('/logbook',   'logs.png',      'Logbook',   'logbook') +
@@ -379,7 +389,7 @@
       /* Right side — ops, download, settings */
       navTab('/debug',    'system.png',   'Ops',      'debug') +
       navTab('/download', 'save.png',     'Download', 'download') +
-      navTab('/profile',  'settings.png', 'Settings', 'settings') +
+      navTab('/settings', 'settings.png', 'Settings', 'settings') +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
@@ -559,7 +569,7 @@
     const href = link.getAttribute('href');
     const hubPaths = ['/map', '/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard',
                       '/streams', '/info', '/source', '/debug', '/inventory', '/quests', '/calendar',
-                      '/logbook', '/profile'];
+                      '/logbook', '/profile', '/home', '/skills', '/equipment', '/settings'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub  = hubPaths.some(function(p) { return href === p || href.startsWith(p + '#') || href.startsWith(p + '?'); });
 
@@ -585,27 +595,33 @@
   });
 
   // ── Inject Footer ──
-  const footer = document.createElement('div');
-  footer.innerHTML =
-    /* Toggle is a separate fixed element — lives outside the footer so it is
-       never clipped by overflow:hidden or buried by stacking contexts.         */
-    '<button class="footer-toggle" id="footer-toggle" aria-label="Toggle footer">▲</button>' +
-    '<footer class="site-footer" id="site-footer">' +
-      '<div class="footer-content" id="footer-content">' +
-        '<span>HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
-        '<div class="footer-links">' +
-          '<a href="/">Home</a>' +
-          '<a href="/chat">Chat</a>' +
-          '<a href="/download" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">Download</a>' +
-          '<a href="https://shaostoul.github.io/Humanity" onclick="openWebviewTab(\'https://shaostoul.github.io/Humanity\',\'Docs\');return false;">Docs</a>' +
-          '<a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>' +
-          '<a href="https://discord.gg/9XxmmeQnWC" target="_blank">Discord</a>' +
-          '<a href="https://youtube.com/@Shaostoul" target="_blank">YouTube</a>' +
-          '<a href="https://x.com/Shaostoul" target="_blank">X</a>' +
-        '</div>' +
+  // Toggle and footer are SEPARATE direct body children so neither can be
+  // clipped, buried, or displaced by page-level overflow/transform/stacking.
+  var footerToggle = document.createElement('button');
+  footerToggle.className = 'footer-toggle';
+  footerToggle.id = 'footer-toggle';
+  footerToggle.setAttribute('aria-label', 'Toggle footer');
+  footerToggle.textContent = '▲';
+  document.body.appendChild(footerToggle);
+
+  var footerEl = document.createElement('footer');
+  footerEl.className = 'site-footer';
+  footerEl.id = 'site-footer';
+  footerEl.innerHTML =
+    '<div class="footer-content" id="footer-content">' +
+      '<span>HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
+      '<div class="footer-links">' +
+        '<a href="/">Home</a>' +
+        '<a href="/chat">Chat</a>' +
+        '<a href="/download" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">Download</a>' +
+        '<a href="https://shaostoul.github.io/Humanity" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'https://shaostoul.github.io/Humanity\',\'Docs\');return false;}">Docs</a>' +
+        '<a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>' +
+        '<a href="https://discord.gg/9XxmmeQnWC" target="_blank">Discord</a>' +
+        '<a href="https://youtube.com/@Shaostoul" target="_blank">YouTube</a>' +
+        '<a href="https://x.com/Shaostoul" target="_blank">X</a>' +
       '</div>' +
-    '</footer>';
-  document.body.appendChild(footer);
+    '</div>';
+  document.body.appendChild(footerEl);
 
   // ── Webview Tab System ──
   var webviewTabs = {};
@@ -695,10 +711,10 @@
   }
 
   // ── Footer toggle logic ──
-  // Toggle and footer are separate fixed elements; toggle is always visible.
+  // Both elements are already in the DOM (appended above) — no getElementById needed.
   setTimeout(function () {
-    var ft  = document.getElementById('site-footer');
-    var btn = document.getElementById('footer-toggle');
+    var ft  = footerEl;
+    var btn = footerToggle;
     if (!ft || !btn) return;
 
     function setCollapsed(collapsed) {

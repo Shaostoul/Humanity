@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — HumanityOS</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #settings-app {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 42px);
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #settings-sidebar {
+      width: 200px;
+      min-width: 170px;
+      background: #111;
+      border-right: 1px solid #222;
+      overflow-y: auto;
+      padding: 0.5rem 0.4rem;
+      flex-shrink: 0;
+    }
+    #settings-sidebar h2 {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.4rem 0.5rem 0.35rem;
+    }
+    .s-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      color: #aaa;
+      transition: background 0.1s, color 0.1s;
+      border: 1px solid transparent;
+      margin-bottom: 0.1rem;
+    }
+    .s-nav:hover { background: #1a1a1a; color: #eee; }
+    .s-nav.active { background: #141414; color: #fff; border-color: #2a6; }
+
+    /* ── Main panel ── */
+    #settings-main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem 1.5rem;
+      max-width: 680px;
+    }
+
+    .settings-section { display: none; }
+    .settings-section.active { display: block; }
+
+    .settings-section h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.35rem;
+    }
+    .settings-section .section-desc {
+      font-size: 0.83rem;
+      color: #666;
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+
+    .settings-group {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .settings-group-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.65rem 0.9rem 0.4rem;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0.9rem;
+      border-bottom: 1px solid #181818;
+    }
+    .setting-row:last-child { border-bottom: none; }
+
+    .setting-label { flex: 1; }
+    .setting-label strong { display: block; font-size: 0.88rem; color: #ddd; font-weight: 600; }
+    .setting-label span { display: block; font-size: 0.78rem; color: #666; margin-top: 2px; }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      width: 38px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: #333;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle input:checked + .toggle-track { background: #2a6; }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-track::after { transform: translateX(18px); }
+
+    /* Select */
+    .setting-select {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #ddd;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.84rem;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      min-width: 130px;
+    }
+    .setting-select:focus { border-color: #2a6; }
+
+    /* Color input */
+    .setting-color {
+      width: 36px;
+      height: 28px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      cursor: pointer;
+      background: none;
+      padding: 2px;
+    }
+
+    /* Range */
+    .setting-range { width: 120px; accent-color: #2a6; cursor: pointer; }
+
+    /* Text input */
+    .setting-input {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #ddd;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.84rem;
+      font-family: inherit;
+      outline: none;
+      min-width: 160px;
+    }
+    .setting-input:focus { border-color: #2a6; }
+
+    /* Save button */
+    #settings-save {
+      position: fixed;
+      bottom: 28px;
+      right: 24px;
+      background: #1a4a2a;
+      border: 1px solid #2a6;
+      color: #4d9;
+      padding: 0.55rem 1.4rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 700;
+      z-index: 100;
+      transition: background 0.12s;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+    #settings-save:hover { background: #1f5a32; }
+
+    /* Danger zone */
+    .danger-row .setting-label strong { color: #e44; }
+    .btn-danger {
+      background: transparent;
+      border: 1px solid #e44;
+      color: #e44;
+      padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      transition: background 0.12s;
+    }
+    .btn-danger:hover { background: rgba(230,68,68,0.1); }
+
+    .version-tag {
+      font-size: 0.75rem;
+      color: #444;
+      margin-top: 0.5rem;
+      padding: 0 0.1rem;
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/shell.js" data-active="settings"></script>
+<div id="settings-app">
+
+  <!-- Sidebar nav -->
+  <nav id="settings-sidebar">
+    <h2>Settings</h2>
+    <div class="s-nav active" data-sec="appearance" onclick="showSection('appearance')">🎨 Appearance</div>
+    <div class="s-nav" data-sec="notifications" onclick="showSection('notifications')">🔔 Notifications</div>
+    <div class="s-nav" data-sec="privacy" onclick="showSection('privacy')">🔒 Privacy</div>
+    <div class="s-nav" data-sec="chat" onclick="showSection('chat')">💬 Chat</div>
+    <div class="s-nav" data-sec="app" onclick="showSection('app')">⚙️ App</div>
+    <div class="s-nav" data-sec="account" onclick="showSection('account')">👤 Account</div>
+    <div class="s-nav" data-sec="advanced" onclick="showSection('advanced')">🛠 Advanced</div>
+  </nav>
+
+  <!-- Settings panels -->
+  <div id="settings-main">
+
+    <!-- Appearance -->
+    <section class="settings-section active" id="sec-appearance">
+      <h1>Appearance</h1>
+      <p class="section-desc">Customize how HumanityOS looks and feels.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Theme</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Color Scheme</strong>
+            <span>Choose light, dark, or match your OS</span>
+          </div>
+          <select class="setting-select" id="pref-theme" onchange="savePref()">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+            <option value="system">Follow System</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Accent Color</strong>
+            <span>Primary highlight color used throughout the UI</span>
+          </div>
+          <input type="color" class="setting-color" id="pref-accent" value="#22aa66" onchange="savePref()">
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Background Intensity</strong>
+            <span>How dark the background panels appear</span>
+          </div>
+          <input type="range" class="setting-range" id="pref-bg-intensity" min="0" max="100" value="85" oninput="savePref()">
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Typography</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Font Size</strong>
+            <span>Base text size across the app</span>
+          </div>
+          <select class="setting-select" id="pref-font-size" onchange="savePref()">
+            <option value="small">Small (13px)</option>
+            <option value="medium" selected>Medium (15px)</option>
+            <option value="large">Large (17px)</option>
+            <option value="xl">Extra Large (19px)</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Compact Mode</strong>
+            <span>Reduce padding and spacing for more content</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-compact" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Nav Bar</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>RGB Border Animation</strong>
+            <span>Cycling color border on the active nav tab</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-rgb-nav" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Nav Tooltips</strong>
+            <span>Display label tooltips when hovering nav icons</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-nav-tips" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Notifications -->
+    <section class="settings-section" id="sec-notifications">
+      <h1>Notifications</h1>
+      <p class="section-desc">Control when and how HumanityOS alerts you.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Messages</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Direct Messages</strong>
+            <span>Notify when you receive a direct message</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-notif-dm" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Group Messages</strong>
+            <span>Notify when someone posts in a group you're in</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-notif-group" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Mentions</strong>
+            <span>Notify when someone @mentions you</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-notif-mention" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">System</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Quest Reminders</strong>
+            <span>Remind you about overdue quests</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-notif-quests" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Calendar Events</strong>
+            <span>Alert before scheduled calendar events</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-notif-cal" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Notification Sound</strong>
+            <span>Play a sound when notifications arrive</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-notif-sound" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Privacy -->
+    <section class="settings-section" id="sec-privacy">
+      <h1>Privacy</h1>
+      <p class="section-desc">Control who can see your information and contact you.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Visibility</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Who Can Message Me</strong>
+            <span>Restrict incoming direct messages</span>
+          </div>
+          <select class="setting-select" id="pref-who-dm" onchange="savePref()">
+            <option value="everyone">Everyone</option>
+            <option value="friends">Friends Only</option>
+            <option value="nobody">Nobody</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Online Status</strong>
+            <span>Let others see when you're online</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-show-online" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Read Receipts</strong>
+            <span>Let senders see when you've read their messages</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-read-receipts" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show in Discovery</strong>
+            <span>Allow others to find your profile in search</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-discoverable" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Data</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Local-Only Storage</strong>
+            <span>Keep skills, inventory, and logbook data on this device only</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-local-only" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Analytics</strong>
+            <span>Share anonymous usage data to improve HumanityOS</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-analytics" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chat -->
+    <section class="settings-section" id="sec-chat">
+      <h1>Chat</h1>
+      <p class="section-desc">Configure your messaging and network chat experience.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Messages</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Message Preview</strong>
+            <span>Show a preview of messages in notifications</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-msg-preview" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Send on Enter</strong>
+            <span>Press Enter to send; Shift+Enter for new line</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-enter-send" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Timestamps</strong>
+            <span>Display time next to each message</span>
+          </div>
+          <select class="setting-select" id="pref-timestamps" onchange="savePref()">
+            <option value="hover">On hover</option>
+            <option value="always">Always</option>
+            <option value="never">Never</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Message Grouping</strong>
+            <span>Group consecutive messages from the same person</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-msg-group" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Relay</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Custom Relay Server</strong>
+            <span>Connect to an alternative relay instead of the default</span>
+          </div>
+          <input type="url" class="setting-input" id="pref-relay-url" placeholder="wss://your-relay.example.com" oninput="savePref()">
+        </div>
+      </div>
+    </section>
+
+    <!-- App -->
+    <section class="settings-section" id="sec-app">
+      <h1>App</h1>
+      <p class="section-desc">General application behavior and preferences.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Regional</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Language</strong>
+            <span>Display language for the interface</span>
+          </div>
+          <select class="setting-select" id="pref-language" onchange="savePref()">
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="ja">日本語</option>
+            <option value="zh">中文</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Date Format</strong>
+            <span>How dates are displayed throughout the app</span>
+          </div>
+          <select class="setting-select" id="pref-date-fmt" onchange="savePref()">
+            <option value="mdy">MM/DD/YYYY</option>
+            <option value="dmy">DD/MM/YYYY</option>
+            <option value="ymd">YYYY-MM-DD</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Time Format</strong>
+          </div>
+          <select class="setting-select" id="pref-time-fmt" onchange="savePref()">
+            <option value="12h">12-hour (AM/PM)</option>
+            <option value="24h">24-hour</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Behavior</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Launch to Chat</strong>
+            <span>Open the Network chat on app start</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-launch-chat" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Auto-Save Interval</strong>
+            <span>How often to auto-save local data</span>
+          </div>
+          <select class="setting-select" id="pref-autosave" onchange="savePref()">
+            <option value="30">Every 30 seconds</option>
+            <option value="60" selected>Every minute</option>
+            <option value="300">Every 5 minutes</option>
+            <option value="0">Manual only</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Account -->
+    <section class="settings-section" id="sec-account">
+      <h1>Account</h1>
+      <p class="section-desc">Manage your HumanityOS identity and credentials.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Identity</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Display Name</strong>
+            <span>Your name shown to others in the network</span>
+          </div>
+          <input type="text" class="setting-input" id="pref-display-name" placeholder="Your name" oninput="savePref()">
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Public Key</strong>
+            <span>Your Ed25519 identity key (read-only)</span>
+          </div>
+          <span id="pubkey-display" style="font-family:monospace;font-size:0.72rem;color:#555;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not connected</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Profile</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Edit Full Profile</strong>
+            <span>Avatar, bio, pronouns, social links, streaming</span>
+          </div>
+          <a href="/profile" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Open Profile →</a>
+        </div>
+      </div>
+
+      <div class="settings-group danger-row">
+        <div class="settings-group-title" style="color:#e44;">Danger Zone</div>
+        <div class="setting-row danger-row">
+          <div class="setting-label">
+            <strong>Clear All Local Data</strong>
+            <span>Wipe skills, inventory, logbook, quests, and calendar from this device</span>
+          </div>
+          <button class="btn-danger" onclick="clearAllData()">Clear Data</button>
+        </div>
+        <div class="setting-row danger-row">
+          <div class="setting-label">
+            <strong>Reset Settings</strong>
+            <span>Restore all settings to their defaults</span>
+          </div>
+          <button class="btn-danger" onclick="resetSettings()">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Advanced -->
+    <section class="settings-section" id="sec-advanced">
+      <h1>Advanced</h1>
+      <p class="section-desc">Developer and power-user options.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Debugging</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Debug Panel</strong>
+            <span>Display real-time connection and performance info</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-debug-panel" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Console Logging</strong>
+            <span>Enable verbose logging to browser console</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-verbose-log" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Operations Panel</strong>
+            <span>System health, deploy logs, and moderation tools</span>
+          </div>
+          <a href="/debug" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Open Ops →</a>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Export / Import</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Export All Data</strong>
+            <span>Download a JSON backup of all local HumanityOS data</span>
+          </div>
+          <button onclick="exportData()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.84rem;">Export JSON</button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Import Data</strong>
+            <span>Restore from a previously exported JSON backup</span>
+          </div>
+          <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)">
+          <button onclick="document.getElementById('import-file').click()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
+        </div>
+      </div>
+
+      <p class="version-tag" id="version-tag">HumanityOS — loading version…</p>
+    </section>
+
+  </div><!-- /settings-main -->
+</div><!-- /settings-app -->
+
+<button id="settings-save" onclick="showSaved()">💾 Settings Saved</button>
+
+<script>
+const STORAGE_KEY = 'hos_settings_v1';
+const DEFAULTS = {
+  theme: 'dark', accent: '#22aa66', 'bg-intensity': 85, 'font-size': 'medium', compact: false,
+  'rgb-nav': true, 'nav-tips': true,
+  'notif-dm': true, 'notif-group': true, 'notif-mention': true,
+  'notif-quests': true, 'notif-cal': true, 'notif-sound': false,
+  'who-dm': 'everyone', 'show-online': true, 'read-receipts': true, 'discoverable': true,
+  'local-only': true, analytics: false,
+  'msg-preview': true, 'enter-send': true, timestamps: 'hover', 'msg-group': true, 'relay-url': '',
+  language: 'en', 'date-fmt': 'mdy', 'time-fmt': '12h', 'launch-chat': false, autosave: '60',
+  'display-name': '', 'debug-panel': false, 'verbose-log': false
+};
+
+let prefs = Object.assign({}, DEFAULTS);
+
+function loadPrefs() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (stored) Object.assign(prefs, stored);
+  } catch(e) {}
+}
+
+function savePref() {
+  // Read all inputs
+  Object.keys(DEFAULTS).forEach(k => {
+    const el = document.getElementById('pref-' + k);
+    if (!el) return;
+    if (el.type === 'checkbox') prefs[k] = el.checked;
+    else prefs[k] = el.value;
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+}
+
+function applyPrefs() {
+  Object.keys(DEFAULTS).forEach(k => {
+    const el = document.getElementById('pref-' + k);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!prefs[k];
+    else el.value = prefs[k] !== undefined ? prefs[k] : DEFAULTS[k];
+  });
+  // Show public key if available
+  try {
+    const id = JSON.parse(localStorage.getItem('hos_identity'));
+    if (id && id.publicKeyHex) {
+      document.getElementById('pubkey-display').textContent = id.publicKeyHex.slice(0, 16) + '…' + id.publicKeyHex.slice(-8);
+    }
+  } catch(e) {}
+}
+
+function showSection(id) {
+  document.querySelectorAll('.settings-section').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.s-nav').forEach(el => el.classList.toggle('active', el.dataset.sec === id));
+  const sec = document.getElementById('sec-' + id);
+  if (sec) sec.classList.add('active');
+}
+
+function showSaved() {
+  const btn = document.getElementById('settings-save');
+  btn.textContent = '✓ Saved!';
+  btn.style.background = '#1a5a3a';
+  setTimeout(() => { btn.textContent = '💾 Save Settings'; btn.style.background = ''; }, 1800);
+  savePref();
+}
+
+function clearAllData() {
+  if (!confirm('This will permanently delete all local HumanityOS data (skills, inventory, logbook, quests, calendar). Your chat identity is preserved.\n\nThis cannot be undone. Continue?')) return;
+  const keys = ['hos_skills_v1','hos_inventory_v1','hos_logbook_v1','hos_quests_v1','hos_calendar_v1'];
+  keys.forEach(k => localStorage.removeItem(k));
+  alert('Local data cleared.');
+}
+
+function resetSettings() {
+  if (!confirm('Reset all settings to defaults?')) return;
+  prefs = Object.assign({}, DEFAULTS);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  applyPrefs();
+}
+
+function exportData() {
+  const keys = ['hos_skills_v1','hos_inventory_v1','hos_logbook_v1','hos_quests_v1','hos_calendar_v1','hos_settings_v1','hos_identity','hos_profile_v1'];
+  const out = {};
+  keys.forEach(k => {
+    try { out[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
+  });
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'humanityos-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!confirm('Import this backup? It will overwrite matching local data.')) return;
+      Object.keys(data).forEach(k => {
+        if (data[k] !== null) localStorage.setItem(k, JSON.stringify(data[k]));
+      });
+      alert('Data imported successfully.');
+      loadPrefs(); applyPrefs();
+    } catch(err) { alert('Failed to parse backup file.'); }
+  };
+  reader.readAsText(file);
+}
+
+// Version tag
+try {
+  const vEl = document.getElementById('version-tag');
+  if (vEl) vEl.textContent = 'HumanityOS — v0.2.0 · ' + new Date().getFullYear();
+} catch(e) {}
+
+// Update the button label to just say Save Settings
+document.getElementById('settings-save').textContent = '💾 Save Settings';
+
+loadPrefs();
+applyPrefs();
+</script>
+</body>
+</html>
