@@ -246,7 +246,7 @@
     <div class="equip-cat active" data-cat="loadout" onclick="setCategory('loadout')">🧍 Loadout <span class="eq-count" id="cnt-loadout">0</span></div>
 
     <div class="equip-group-label">Carried</div>
-    <div class="equip-cat" data-cat="edc"     onclick="setCategory('edc')">🎒 EDC / Daily <span class="eq-count" id="cnt-edc">0</span></div>
+    <div class="equip-cat" data-cat="daily"     onclick="setCategory('daily')">🎒 Daily Carry <span class="eq-count" id="cnt-daily">0</span></div>
     <div class="equip-cat" data-cat="tools"   onclick="setCategory('tools')">🔧 Tools <span class="eq-count" id="cnt-tools">0</span></div>
     <div class="equip-cat" data-cat="tech"    onclick="setCategory('tech')">💻 Tech / Devices <span class="eq-count" id="cnt-tech">0</span></div>
 
@@ -283,7 +283,7 @@
         <label>Category</label>
         <select id="eq-cat">
           <option value="loadout">Loadout</option>
-          <option value="edc">EDC / Daily</option>
+          <option value="daily">Daily Carry</option>
           <option value="tools">Tools</option>
           <option value="tech">Tech / Devices</option>
           <option value="power">Power Tools</option>
@@ -359,7 +359,7 @@ const LOADOUT_SLOTS = [
 ];
 
 const CAT_LABELS = {
-  loadout:'Loadout', edc:'EDC / Daily', tools:'Tools', tech:'Tech / Devices',
+  loadout:'Loadout', daily:'Daily Carry', tools:'Tools', tech:'Tech / Devices',
   power:'Power Tools', hand:'Hand Tools', safety:'Safety Gear', vehicles:'Vehicles'
 };
 
@@ -442,7 +442,7 @@ function renderItem(i) {
 }
 
 function getCatIcon(cat) {
-  return {loadout:'🧍',edc:'🎒',tools:'🔧',tech:'💻',power:'⚡',hand:'🪛',safety:'🦺',vehicles:'🚗'}[cat] || '📦';
+  return {loadout:'🧍',daily:'🎒',tools:'🔧',tech:'💻',power:'⚡',hand:'🪛',safety:'🦺',vehicles:'🚗'}[cat] || '📦';
 }
 
 function openModal(id) {

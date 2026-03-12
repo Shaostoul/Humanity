@@ -567,9 +567,10 @@
     const link = e.target.closest('a[href]');
     if (!link) return;
     const href = link.getAttribute('href');
+    // Only app.html SPA routes here — standalone HTML pages need real full-page
+    // navigation so their data-active attribute fires on load and sets active state.
     const hubPaths = ['/map', '/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard',
-                      '/streams', '/info', '/source', '/debug', '/inventory', '/quests', '/calendar',
-                      '/logbook', '/profile', '/home', '/skills', '/equipment', '/settings'];
+                      '/streams', '/info', '/source', '/debug'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub  = hubPaths.some(function(p) { return href === p || href.startsWith(p + '#') || href.startsWith(p + '?'); });
 
