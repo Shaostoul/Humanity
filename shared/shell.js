@@ -55,27 +55,31 @@
       align-items: center;
       background: rgba(13, 13, 13, 0.95);
       backdrop-filter: blur(12px);
-      padding: 0 1rem;
+      padding: 0 0.5rem;
       height: 40px;
-      gap: 0.25rem;
+      gap: 0.2rem;
       flex-shrink: 0;
       position: sticky;
       top: 0;
       z-index: 5500;
       isolation: isolate;
     }
+
+    /* ── Brand ── */
     .hub-nav .brand {
       font-size: 1.1rem;
       font-weight: 900;
       color: #FF8811;
-      padding: 0.3rem 0.6rem;
+      width: 32px;
+      height: 28px;
       border-radius: 6px;
       box-shadow: inset 0 0 0 1px #2a6;
       text-decoration: none;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-right: 0.75rem;
+      flex-shrink: 0;
+      margin-right: 0.3rem;
       cursor: pointer;
       transition: box-shadow 0.15s ease;
     }
@@ -86,82 +90,103 @@
       color: #fff;
       animation: channeling 3s linear infinite;
     }
+
+    /* ── Tab (icon-only by default) ── */
     .hub-nav .tab {
-      display: flex;
+      position: relative;
+      display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.3rem 0.75rem;
+      justify-content: center;
+      width: 30px;
       height: 28px;
+      padding: 0;
       color: #888;
       cursor: pointer;
-      font-size: 0.8rem;
       border-radius: 6px;
-      transition: color 0.15s ease;
       user-select: none;
       text-decoration: none;
-      background: transparent;
+      flex-shrink: 0;
       box-shadow: inset 0 0 0 1px #2a6;
+      transition: color 0.1s, box-shadow 0.1s;
+      overflow: visible;
     }
-    .hub-nav .tab:hover {
-      color: #e0e0e0;
+    .hub-nav .tab .tab-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .hub-nav .tab .tab-icon img {
+      width: 15px;
+      height: 15px;
+      object-fit: contain;
+      display: block;
+      opacity: 0.65;
+      transition: opacity 0.1s;
+    }
+
+    /* Label hidden on inactive tabs — only visible when active */
+    .hub-nav .tab .tab-label {
+      display: none;
+      font-size: 0.76rem;
+      font-weight: 600;
+      white-space: nowrap;
+      margin-left: 0.3rem;
+      color: #fff;
+    }
+
+    /* ── Hover: tooltip below, icon stays fully visible ── */
+    .hub-nav .tab:not(.active):hover {
       box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
+      color: #e0e0e0;
     }
+    .hub-nav .tab:not(.active):hover .tab-icon img { opacity: 1; }
+    .hub-nav .tab:not(.active):hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      /* sits below the button with a gap so the icon is never obscured */
+      top: calc(100% + 10px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(8,8,10,0.97);
+      color: #ddd;
+      border: 1px solid #3a3a3a;
+      border-radius: 6px;
+      padding: 0.22rem 0.55rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      white-space: nowrap;
+      z-index: 9000;
+      pointer-events: none;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Active: expand to show icon + label, RGB border ── */
     .hub-nav .tab.active {
+      width: auto;
+      padding: 0 0.55rem 0 0.4rem;
+      gap: 0;
       color: #fff;
       animation: channeling 3s linear infinite;
     }
-    .hub-nav .tab svg {
-      width: 14px;
-      height: 14px;
-      fill: currentColor;
-      vertical-align: middle;
+    .hub-nav .tab.active .tab-label { display: inline; }
+    .hub-nav .tab.active .tab-icon img { opacity: 1; }
+    /* No ::after tooltip on active tab */
+    .hub-nav .tab.active::after { display: none !important; }
+
+    /* ── Divider between nav groups ── */
+    .hub-nav .nav-divider {
+      width: 1px;
+      height: 18px;
+      background: rgba(255,255,255,0.1);
       flex-shrink: 0;
+      margin: 0 0.15rem;
     }
-    .hub-nav .tab .tab-icon { display:inline-flex; align-items:center; justify-content:center; min-width: 14px; }
-    .hub-nav .tab .tab-icon img { width:14px; height:14px; object-fit:contain; display:block; }
-    .hub-nav .tab .tab-label { display: inline; }
-    .hub-nav.compact .tab .tab-label { display: none; }
-    .hub-nav.compact .tab.no-icon .tab-label { display: inline; }
-    .hub-nav.compact .tab {
-      min-width: 30px;
-      justify-content: center;
-      padding: 0.2rem 0.45rem;
-      position: relative;
-    }
-    .hub-nav.compact .tab:hover::after {
-      content: attr(data-tip);
-      position: absolute;
-      top: calc(100% + 6px);
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(10,10,10,0.95);
-      color: #ddd;
-      border: 1px solid #333;
-      border-radius: 6px;
-      padding: 0.18rem 0.45rem;
-      font-size: 0.68rem;
-      white-space: nowrap;
-      z-index: 1200;
-      pointer-events: none;
-    }
+
+    /* ── Spacer pushes right-side items to the right ── */
     .hub-nav .spacer { flex: 1; }
-    .hub-nav .hub-side {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      min-width: 0;
-      flex: 0 0 auto;
-    }
-    .hub-nav .hub-side.left { justify-content: flex-start; }
-    .hub-nav .hub-side.right { justify-content: flex-start; }
-    .hub-nav .group-label {
-      font-size: 0.66rem;
-      color: #7a7a7a;
-      margin: 0 0.35rem;
-      white-space: nowrap;
-      opacity: 0.9;
-    }
-    .hub-nav .menu { position: relative; z-index: 25; touch-action: manipulation; }
+
+    /* ── Mobile hamburger — hidden on desktop ── */
     .hub-nav .mobile-menu-btn {
       display: none;
       background: transparent;
@@ -173,75 +198,14 @@
       font-size: 0.82rem;
       line-height: 1;
       touch-action: manipulation;
+      flex-shrink: 0;
     }
-    .hub-nav .mobile-menu-btn:hover { box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3); color:#fff; }
-    .hub-nav .menu-btn {
-      position: relative;
-      z-index: 26;
-      touch-action: manipulation;
-      background: transparent;
-      border: none;
-      color: #ddd;
-      padding: 0.3rem 0.65rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.8rem;
-      box-shadow: inset 0 0 0 1px #2a6;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-    }
-    .hub-nav .menu-btn:hover,
-    .hub-nav .menu.open .menu-btn {
+    .hub-nav .mobile-menu-btn:hover {
       box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
       color: #fff;
     }
-    .hub-nav .menu-drop {
-      position: absolute;
-      top: calc(100% + 6px);
-      min-width: 210px;
-      background: rgba(13,13,13,0.97);
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 0.35rem;
-      box-shadow: 0 8px 28px rgba(0,0,0,0.45);
-      display: none;
-      z-index: 7000;
-    }
-    .hub-nav .menu.open .menu-drop { display: block; }
-    .hub-nav .menu-drop a {
-      display: block;
-      color: #ddd;
-      text-decoration: none;
-      font-size: 0.76rem;
-      padding: 0.35rem 0.45rem;
-      border-radius: 6px;
-      margin: 0.1rem 0;
-      border: 1px solid transparent;
-    }
-    .hub-nav .menu-drop a:hover {
-      background: rgba(255,255,255,0.05);
-      border-color: #3b4f6b;
-    }
-    .hub-nav .utility {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.2rem;
-      margin-left: 0.35rem;
-    }
-    .hub-nav .utility a {
-      color: #bbb;
-      text-decoration: none;
-      font-size: 0.74rem;
-      padding: 0.2rem 0.42rem;
-      border-radius: 6px;
-      border: 1px solid #2b2b2b;
-    }
-    .hub-nav .utility a:hover {
-      color: #fff;
-      border-color: #3b4f6b;
-      background: rgba(255,255,255,0.04);
-    }
+
+    /* ── RGB animations ── */
     @keyframes channeling {
       0%   { box-shadow: inset 0 0 0 2px #f44, 0 0 10px rgba(255,68,68,0.4); }
       16%  { box-shadow: inset 0 0 0 2px #f80, 0 0 10px rgba(255,136,0,0.4); }
@@ -276,7 +240,6 @@
       background: rgba(13, 13, 13, 0.95);
       backdrop-filter: blur(12px);
       border-top: 1px solid #444;
-      /* Sit above the thread panel (z-index 2000) and below the hub nav (z-index 5500). */
       z-index: 2100;
       text-align: center;
       font-size: 0.8rem;
@@ -316,7 +279,7 @@
     }
     .footer-toggle:hover { color: #FF8811; border-color: #FF8811; }
 
-    /* Mobile */
+    /* ── Mobile drawer ── */
     #mobile-hub-backdrop {
       position: fixed;
       inset: 0;
@@ -349,90 +312,73 @@
     .mobile-hub-group a.active {
       color: #fff;
       background: rgba(255,255,255,0.06);
-      animation: nav-rgb-border 4s linear infinite;
+      animation: channeling 3s linear infinite;
       border-radius: 6px;
       margin: 0.15rem;
     }
 
+    /* ── Responsive: hide flat tabs on mobile, show hamburger ── */
     @media (max-width: 768px) {
-      .hub-nav {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-        padding: 0 0.4rem;
-        gap: 0.2rem;
-        height: 36px;
-      }
-      .hub-nav .brand {
-        margin-right: 0.35rem;
-        padding: 0.2rem 0.45rem;
-        font-size: 0.95rem;
-      }
-      .hub-nav .tab {
-        white-space: nowrap;
-        flex-shrink: 0;
-        height: 24px;
-        padding: 0.2rem 0.5rem;
-        font-size: 0.72rem;
-        gap: 0.25rem;
-      }
-      .hub-nav .tab svg {
-        width: 12px;
-        height: 12px;
-      }
-      .hub-nav .menu { display: none !important; }
+      .hub-nav { padding: 0 0.4rem; gap: 0.15rem; height: 36px; }
+      .hub-nav .tab { display: none !important; }
+      .hub-nav .nav-divider { display: none !important; }
+      .hub-nav .spacer { display: none !important; }
+      .hub-nav .brand { margin-right: 0.25rem; }
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
     }
   `;
   document.head.appendChild(style);
 
+  // Helper: build a nav tab anchor
+  function navTab(href, icon, label, activeKey) {
+    var isActive = active === activeKey;
+    var cls = 'tab' + (isActive ? ' active' : '');
+    return '<a href="' + href + '" class="' + cls + '" data-tip="' + label + '">' +
+      '<span class="tab-icon"><img src="/shared/ui-icons/' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/shared/ui-icons/warning.png\';"></span>' +
+      '<span class="tab-label">' + label + '</span>' +
+    '</a>';
+  }
+
   // ── Inject Nav ──
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '">H</a>' +
-      '<a href="/chat" class="tab' + (active === 'chat' ? ' active' : '') + '" data-tip="Network">Network</a>' +
+      /* Brand */
+      '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '" data-tip="Home">H</a>' +
+
+      /* Network (always first, most important) */
+      navTab('/chat',      'chat.png',      'Network',   'chat') +
+      '<div class="nav-divider"></div>' +
+
+      /* Private — personal pages */
+      navTab('/profile',   'profile.png',   'Profile',   'profile') +
+      navTab('/dashboard', 'home.png',       'Home',      'dashboard') +
+      navTab('/fantasy',   'skills.png',    'Skills',    'fantasy') +
+      navTab('/inventory', 'inventory.png', 'Inventory', 'inventory') +
+      navTab('/source',    'components.png','Equipment', 'source') +
+      navTab('/quests',    'tasklist.png',  'Quests',    'quests') +
+      navTab('/calendar',  'calendar.png',  'Calendar',  'calendar') +
+      navTab('/logbook',   'logs.png',      'Logbook',   'logbook') +
+      '<div class="nav-divider"></div>' +
+
+      /* Public — community pages */
+      navTab('/board',     'systems.png',   'Systems',   'board') +
+      navTab('/map',       'map.png',       'Maps',      'map') +
+      navTab('/market',    'market.png',    'Market',    'market') +
+      navTab('/browse',    'website.png',   'Learn',     'browse') +
+      navTab('/info',      'codex.png',     'Knowledge', 'info') +
+      navTab('/streams',   'audio.png',     'Streams',   'streams') +
+
+      /* Spacer pushes ops/account to the right */
+      '<div class="spacer"></div>' +
+
+      /* Right side — ops & account */
+      navTab('/debug',     'system.png',    'Ops',       'debug') +
+      navTab('/download',  'save.png',      'Download',  'download') +
+      navTab('/profile#profile', 'me.png', 'Account',   'account') +
+
+      /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
-      '<div class="menu" data-menu="private">' +
-        '<button class="menu-btn" type="button">Private ▾</button>' +
-        '<div class="menu-drop">' +
-          '<a href="/profile">Profile</a>' +
-          '<a href="/inventory">Inventory</a>' +
-          '<a href="/fantasy">Skills</a>' +
-          '<a href="/source">Equipment</a>' +
-          '<a href="/quests">Quests</a>' +
-          '<a href="/calendar">Calendar</a>' +
-          '<a href="/logbook">Logbook</a>' +
-          '<a href="/dashboard">Home</a>' +
-        '</div>' +
-      '</div>' +
-      '<div class="menu" data-menu="public">' +
-        '<button class="menu-btn" type="button">Public ▾</button>' +
-        '<div class="menu-drop">' +
-          '<a href="/board">Systems</a>' +
-          '<a href="/map">Maps</a>' +
-          '<a href="/market">Market</a>' +
-          '<a href="/learn">Learn</a>' +
-          '<a href="/info">Knowledge</a>' +
-          '<a href="/streams">Streams</a>' +
-        '</div>' +
-      '</div>' +
-      '<div class="menu" data-menu="ops">' +
-        '<button class="menu-btn" type="button">Ops ▾</button>' +
-        '<div class="menu-drop">' +
-          '<a href="/debug">Health</a>' +
-          '<a href="/debug">Deploy</a>' +
-          '<a href="/debug">Logs</a>' +
-          '<a href="/debug">Debug</a>' +
-          '<a href="/debug">Moderation</a>' +
-        '</div>' +
-      '</div>' +
-      '<div class="utility">' +
-        '<a href="/info" title="Search">🔎</a>' +
-        '<a href="/source" title="Settings">⚙</a>' +
-        '<a href="/dashboard" title="Data">🗄</a>' +
-        '<a href="/chat" title="Alerts">🔔</a>' +
-        '<a href="/profile" title="Account">👤</a>' +
-      '</div>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
@@ -581,129 +527,6 @@
 
   setTimeout(initRichTooltips, 0);
 
-  // Dropdown menu interactions
-  function positionMenuDrop(menu) {
-    if (!menu) return;
-    var drop = menu.querySelector('.menu-drop');
-    var btn = menu.querySelector('.menu-btn');
-    if (!drop || !btn) return;
-    var rect = btn.getBoundingClientRect();
-    var vw = window.innerWidth || document.documentElement.clientWidth || 360;
-    var desired = Math.max(210, Math.min(280, vw - 16));
-    var left = Math.max(8, Math.min(vw - desired - 8, rect.left));
-    drop.style.position = 'fixed';
-    drop.style.top = (rect.bottom + 6) + 'px';
-    drop.style.left = left + 'px';
-    drop.style.right = 'auto';
-    drop.style.width = desired + 'px';
-    drop.style.minWidth = '0';
-    drop.style.maxWidth = (vw - 16) + 'px';
-    drop.style.zIndex = '3000';
-  }
-
-  var suppressNavClicksUntil = 0;
-  var suppressDocCloseUntil = 0;
-
-  document.querySelectorAll('.hub-nav .menu-btn').forEach(function(btn) {
-    var touchToggleAt = 0;
-
-    var toggleMenu = function(e) {
-      if (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      }
-      suppressNavClicksUntil = Date.now() + 900;
-      suppressDocCloseUntil = Date.now() + 900;
-
-      var menu = btn.closest('.menu');
-      if (!menu) return;
-      var isOpen = menu.classList.contains('open');
-      document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
-      if (!isOpen) {
-        menu.classList.add('open');
-        positionMenuDrop(menu);
-      }
-    };
-
-    // Mobile primary path.
-    btn.addEventListener('touchend', function(e) {
-      touchToggleAt = Date.now();
-      toggleMenu(e);
-    }, { passive: false });
-
-    // Desktop / keyboard path; ignore synthetic click after touch.
-    btn.addEventListener('click', function(e) {
-      if (Date.now() - touchToggleAt < 700) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-      toggleMenu(e);
-    });
-  });
-
-  document.addEventListener('click', function(e) {
-    if (Date.now() < suppressDocCloseUntil) return;
-    if (e && e.target && e.target.closest && e.target.closest('.hub-nav .menu')) return;
-    document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
-  });
-  document.querySelector('.hub-nav').addEventListener('click', function(e) {
-    if (e.target.closest('.menu-drop a')) {
-      document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { m.classList.remove('open'); });
-    }
-  });
-  window.addEventListener('resize', function() {
-    document.querySelectorAll('.hub-nav .menu.open').forEach(function(m) { positionMenuDrop(m); });
-  });
-
-  function applyNavLabelWrappingAndCompaction() {
-    var navEl = document.querySelector('.hub-nav');
-    if (!navEl) return;
-
-    var tabMeta = {
-      '/chat': { icon: '/shared/ui-icons/chat.png', label: 'Network' },
-      '/profile': { icon: '/shared/ui-icons/worlds.png', label: 'Profile' },
-      '/map': { icon: '/shared/ui-icons/map.png', label: 'Maps' },
-      '/board': { icon: '/shared/ui-icons/tasklist.png', label: 'Systems' },
-      '/reality': { icon: '/shared/ui-icons/worlds.png', label: 'Reality' },
-      '/fantasy': { icon: '/shared/ui-icons/galaxy.png', label: 'Skills' },
-      '/market': { icon: '/shared/ui-icons/market.png', label: 'Market' },
-      '/browse': { icon: '/shared/ui-icons/website.png', label: 'Learn' },
-      '/dashboard': { icon: '/shared/ui-icons/controls.png', label: 'Inventory' },
-      '/streams': { icon: '/shared/ui-icons/audio.png', label: 'Streams' },
-      '/info': { icon: '/shared/ui-icons/codex.png', label: 'Knowledge' },
-      '/source': { icon: '/shared/ui-icons/components.png', label: 'Equipment' },
-      '/debug': { icon: '/shared/ui-icons/logs.png', label: 'Ops' },
-      '/download': { icon: '/shared/ui-icons/save.png', label: 'Download' }
-    };
-
-    navEl.querySelectorAll('a.tab').forEach(function(a) {
-      var href = (a.getAttribute('href') || '').trim();
-      var meta = tabMeta[href] || null;
-      var label = meta ? meta.label : ((a.textContent || '').replace(/\s+/g, ' ').trim() || href || 'Tab');
-      var icon = meta ? meta.icon : '';
-
-      if (/github\.com/i.test(href)) { label = 'GitHub'; icon = '/shared/ui-icons/warning.png'; }
-
-      a.setAttribute('data-tip', label);
-      a.setAttribute('title', label);
-      a.classList.toggle('no-icon', !icon);
-      var iconHtml = '';
-      if (icon) {
-        iconHtml = '<span class="tab-icon"><img src="' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/shared/ui-icons/warning.png\';"></span> ';
-      }
-      a.innerHTML = iconHtml + '<span class="tab-label">' + label + '</span>';
-      if (a.dataset) a.dataset.prepared = '1';
-    });
-
-    var shouldCompact = navEl.scrollWidth > navEl.clientWidth + 4 || window.innerWidth < 1180;
-    navEl.classList.toggle('compact', shouldCompact);
-  }
-
-  applyNavLabelWrappingAndCompaction();
-  window.addEventListener('resize', applyNavLabelWrappingAndCompaction);
-
   // ── Fix external links for Tauri desktop app ──
   // target="_blank" doesn't work in Tauri's single webview; window.open() opens system browser
   document.body.addEventListener('click', function(e) {
@@ -725,44 +548,34 @@
 
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
-    // Block SPA nav for menu toggle buttons and during suppress window.
-    // But DO allow clicks on actual links inside .menu-drop — those should navigate.
-    var isMenuLink = e.target.closest('.menu-drop a');
-    if (!isMenuLink && (Date.now() < suppressNavClicksUntil || e.target.closest('.menu-btn') || e.target.closest('.mobile-menu-btn'))) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
-    }
+    if (e.target.closest('.mobile-menu-btn')) return;
 
     const link = e.target.closest('a[href]');
     if (!link) return;
     const href = link.getAttribute('href');
-    /* NOTE: nginx hub regex needs /market added */
-    const hubPaths = ['/map', '/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard', '/streams', '/info', '/source', '/debug'];
+    const hubPaths = ['/map', '/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard',
+                      '/streams', '/info', '/source', '/debug', '/inventory', '/quests', '/calendar',
+                      '/logbook', '/profile'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
-    const targetIsHub = hubPaths.some(function(p) { return href === p; });
+    const targetIsHub  = hubPaths.some(function(p) { return href === p || href.startsWith(p + '#') || href.startsWith(p + '?'); });
 
-    // Streaming continuity guard: when live on /streams, keep the stream page loaded
-    // and open other hub pages in a webview tab instead of switching away.
+    // Streaming continuity guard
     if (location.pathname === '/streams' && targetIsHub && href !== '/streams' && isLikelyLiveStreamingSession()) {
       e.preventDefault();
-      var title = (link.textContent || href).trim();
+      var title = (link.getAttribute('data-tip') || href).trim();
       if (typeof openWebviewTab === 'function') {
         openWebviewTab(href, title);
       } else {
-        // Browser fallback: explicit warning (switching route can break media capture state).
-        if (confirm('A live stream appears active. Switching tabs may interrupt your stream. Continue?')) {
-          location.href = href;
-        }
+        if (confirm('A live stream appears active. Switching may interrupt it. Continue?')) location.href = href;
       }
       return;
     }
 
-    if (currentIsHub && targetIsHub && href !== location.pathname) {
+    if (currentIsHub && targetIsHub && href.split('#')[0] !== location.pathname) {
       e.preventDefault();
       history.pushState({}, '', href);
       window.dispatchEvent(new PopStateEvent('popstate'));
-      document.querySelectorAll('.hub-nav a').forEach(function(a) { a.classList.remove('active'); });
+      document.querySelectorAll('.hub-nav a.tab').forEach(function(a) { a.classList.remove('active'); });
       link.classList.add('active');
     }
   });
