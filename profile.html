@@ -7,10 +7,11 @@
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     /* ── Layout ── */
-    body { padding-top: 48px; padding-bottom: 32px; }
+    /* shell.js nav is position:sticky so no padding-top needed on body */
+    body { padding-top: 0; padding-bottom: 32px; }
     #profile-app {
       display: flex;
-      height: calc(100vh - 80px);
+      height: calc(100vh - 42px); /* nav 40px + separator 1px + 1px gap */
       max-width: 1400px;
       margin: 0 auto;
       padding: 1rem;

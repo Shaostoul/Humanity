@@ -586,7 +586,7 @@
     '<footer class="site-footer" id="site-footer">' +
       '<button class="footer-toggle" id="footer-toggle">▼</button>' +
       '<div class="footer-content" id="footer-content">' +
-        '<span>Humanity — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
+        '<span>HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
         '<div class="footer-links">' +
           '<a href="/">Home</a>' +
           '<a href="/chat">Chat</a>' +
@@ -689,18 +689,22 @@
   }
 
   // ── Footer toggle logic ──
-  document.getElementById('footer-toggle').addEventListener('click', function () {
-    const ft = document.getElementById('site-footer');
-    ft.classList.toggle('collapsed');
-    this.textContent = ft.classList.contains('collapsed') ? '▲' : '▼';
-    localStorage.setItem('footer_collapsed', ft.classList.contains('collapsed'));
-  });
-
-  // Restore collapsed state
-  if (localStorage.getItem('footer_collapsed') === 'true') {
-    var ft = document.getElementById('site-footer');
+  // Use setTimeout to ensure the footer element is in the DOM before we bind.
+  setTimeout(function () {
+    var ft  = document.getElementById('site-footer');
     var btn = document.getElementById('footer-toggle');
-    if (ft) ft.classList.add('collapsed');
-    if (btn) btn.textContent = '▲';
-  }
+    if (!ft || !btn) return;
+
+    // Restore saved collapsed state
+    if (localStorage.getItem('footer_collapsed') === 'true') {
+      ft.classList.add('collapsed');
+      btn.textContent = '▲';
+    }
+
+    btn.addEventListener('click', function () {
+      ft.classList.toggle('collapsed');
+      btn.textContent = ft.classList.contains('collapsed') ? '▲' : '▼';
+      localStorage.setItem('footer_collapsed', ft.classList.contains('collapsed'));
+    });
+  }, 0);
 })();
