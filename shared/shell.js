@@ -174,13 +174,13 @@
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
-    /* ── Divider between nav groups ── */
+    /* ── Divider between nav groups — zero margin so flex gap handles spacing ── */
     .hub-nav .nav-divider {
       width: 1px;
       height: 18px;
-      background: rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.12);
       flex-shrink: 0;
-      margin: 0 0.15rem;
+      margin: 0;
     }
 
     /* ── Spacer pushes right-side items to the right ── */
@@ -246,7 +246,9 @@
       color: #888;
       transition: transform 0.3s ease;
     }
-    .site-footer.collapsed .footer-content { display: none; }
+    /* Footer slides off-screen when collapsed instead of hiding content */
+    .site-footer { transition: transform 0.25s ease; }
+    .site-footer.collapsed { transform: translateY(100%); }
     .site-footer .footer-content { padding: 10px 16px; }
     .site-footer .footer-content a { color: #FF8811; text-decoration: none; }
     .site-footer .footer-content a:hover { color: #ff9f40; }
@@ -259,9 +261,10 @@
     }
     .site-footer .footer-links a { color: #888; text-decoration: none; font-size: 0.8rem; }
     .site-footer .footer-links a:hover { color: #FF8811; }
+    /* Toggle is its own fixed element — always visible above all content */
     .footer-toggle {
-      position: absolute;
-      top: -24px;
+      position: fixed;
+      bottom: 0;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(13, 13, 13, 0.95);
@@ -270,10 +273,11 @@
       border-radius: 8px 8px 0 0;
       color: #bbb;
       cursor: pointer;
-      padding: 3px 20px;
-      font-size: 0.7rem;
+      padding: 4px 24px;
+      font-size: 0.72rem;
+      font-weight: 600;
       line-height: 1;
-      z-index: 2101;
+      z-index: 5200; /* above everything except the nav (5500) */
       transition: color 0.15s, border-color 0.15s;
       white-space: nowrap;
     }
@@ -372,10 +376,10 @@
       /* Spacer pushes ops/account to the right */
       '<div class="spacer"></div>' +
 
-      /* Right side — ops & account */
-      navTab('/debug',     'system.png',    'Ops',       'debug') +
-      navTab('/download',  'save.png',      'Download',  'download') +
-      navTab('/profile#profile', 'me.png', 'Account',   'account') +
+      /* Right side — ops, download, settings */
+      navTab('/debug',    'system.png',   'Ops',      'debug') +
+      navTab('/download', 'save.png',     'Download', 'download') +
+      navTab('/profile',  'settings.png', 'Settings', 'settings') +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
@@ -583,8 +587,10 @@
   // ── Inject Footer ──
   const footer = document.createElement('div');
   footer.innerHTML =
+    /* Toggle is a separate fixed element — lives outside the footer so it is
+       never clipped by overflow:hidden or buried by stacking contexts.         */
+    '<button class="footer-toggle" id="footer-toggle" aria-label="Toggle footer">▲</button>' +
     '<footer class="site-footer" id="site-footer">' +
-      '<button class="footer-toggle" id="footer-toggle">▼</button>' +
       '<div class="footer-content" id="footer-content">' +
         '<span>HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
         '<div class="footer-links">' +
@@ -689,22 +695,29 @@
   }
 
   // ── Footer toggle logic ──
-  // Use setTimeout to ensure the footer element is in the DOM before we bind.
+  // Toggle and footer are separate fixed elements; toggle is always visible.
   setTimeout(function () {
     var ft  = document.getElementById('site-footer');
     var btn = document.getElementById('footer-toggle');
     if (!ft || !btn) return;
 
-    // Restore saved collapsed state
-    if (localStorage.getItem('footer_collapsed') === 'true') {
-      ft.classList.add('collapsed');
-      btn.textContent = '▲';
+    function setCollapsed(collapsed) {
+      if (collapsed) {
+        ft.classList.add('collapsed');
+        btn.textContent = '▲'; // arrow up = "expand footer"
+      } else {
+        ft.classList.remove('collapsed');
+        btn.textContent = '▼'; // arrow down = "collapse footer"
+      }
+      localStorage.setItem('footer_collapsed', String(collapsed));
     }
 
+    // Default: start collapsed so it doesn't cover content; user can expand
+    var saved = localStorage.getItem('footer_collapsed');
+    setCollapsed(saved === null ? true : saved === 'true');
+
     btn.addEventListener('click', function () {
-      ft.classList.toggle('collapsed');
-      btn.textContent = ft.classList.contains('collapsed') ? '▲' : '▼';
-      localStorage.setItem('footer_collapsed', ft.classList.contains('collapsed'));
+      setCollapsed(!ft.classList.contains('collapsed'));
     });
   }, 0);
 })();
