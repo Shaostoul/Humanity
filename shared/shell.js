@@ -4,8 +4,8 @@
  * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
  * If omitted, active tab is auto-detected from the current URL.
  *
- * Valid active keys: chat, dashboard, profile, home, skills, inventory, equipment, quests,
- *   calendar, logbook, board, map, market, browse, info, streams, debug, download,
+ * Valid active keys: landing, chat, dashboard, profile, home, skills, inventory, equipment,
+ *   quests, calendar, logbook, board, map, market, browse, info, streams, debug, download,
  *   settings, reality, fantasy
  *
  * Usage:
@@ -25,7 +25,7 @@
   let active = scriptTag && scriptTag.getAttribute('data-active');
   if (!active) {
     const p = location.pathname;
-    if (p === '/') active = 'home';
+    if (p === '/') active = 'landing';           // root landing page — H brand only, not Home tab
     else if (p.startsWith('/chat'))      active = 'chat';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/home'))      active = 'home';
@@ -35,21 +35,26 @@
     else if (p.startsWith('/quests'))    active = 'quests';
     else if (p.startsWith('/calendar'))  active = 'calendar';
     else if (p.startsWith('/logbook'))   active = 'logbook';
-    else if (p.startsWith('/board'))     active = 'board';
-    else if (p.startsWith('/map'))       active = 'map';
+    else if (p.startsWith('/systems'))   active = 'board';
+    else if (p.startsWith('/board'))     active = 'board';     // backward compat redirect
+    else if (p.startsWith('/maps'))      active = 'map';
+    else if (p.startsWith('/map'))       active = 'map';       // backward compat redirect
     else if (p.startsWith('/market'))    active = 'market';
-    else if (p.startsWith('/browse'))    active = 'browse';
-    else if (p.startsWith('/info'))      active = 'info';
+    else if (p.startsWith('/learn'))     active = 'browse';
+    else if (p.startsWith('/browse'))    active = 'browse';    // backward compat redirect
+    else if (p.startsWith('/knowledge')) active = 'info';
+    else if (p.startsWith('/info'))      active = 'info';      // backward compat redirect
     else if (p.startsWith('/streams'))   active = 'streams';
-    else if (p.startsWith('/studio'))    active = 'streams'; // studio is part of streams
+    else if (p.startsWith('/studio'))    active = 'streams';   // studio lives under streams
     else if (p.startsWith('/settings'))  active = 'settings';
-    else if (p.startsWith('/debug'))     active = 'debug';
+    else if (p.startsWith('/ops'))       active = 'debug';
+    else if (p.startsWith('/debug'))     active = 'debug';     // backward compat redirect
     else if (p.startsWith('/download'))  active = 'download';
-    // Legacy app.html SPA routes — kept for backward compat while those tabs still exist
-    else if (p.startsWith('/reality'))   active = 'reality';   // old profile/reality tab
-    else if (p.startsWith('/fantasy'))   active = 'skills';    // superseded by /skills
-    else if (p.startsWith('/source'))    active = 'equipment'; // superseded by /equipment
     else if (p.startsWith('/dashboard')) active = 'dashboard';
+    // Legacy SPA routes still in the wild
+    else if (p.startsWith('/reality'))   active = 'profile';
+    else if (p.startsWith('/fantasy'))   active = 'skills';
+    else if (p.startsWith('/source'))    active = 'equipment';
     else active = '';
   }
 
@@ -382,7 +387,7 @@
   nav.innerHTML =
     '<nav class="hub-nav">' +
       /* Brand */
-      '<a href="/" class="brand' + (active === 'home' ? ' active' : '') + '" data-tip="Home">H</a>' +
+      '<a href="/" class="brand' + (active === 'landing' ? ' active' : '') + '" data-tip="Home">H</a>' +
 
       /* Network (always first, most important) */
       navTab('/chat',      'chat.png',      'Network',   'chat') +
@@ -401,18 +406,18 @@
       '<div class="nav-divider"></div>' +
 
       /* Public — community pages */
-      navTab('/board',     'systems.png',   'Systems',   'board') +
-      navTab('/map',       'map.png',       'Maps',      'map') +
+      navTab('/systems',   'systems.png',   'Systems',   'board') +
+      navTab('/maps',      'map.png',       'Maps',      'map') +
       navTab('/market',    'market.png',    'Market',    'market') +
-      navTab('/browse',    'website.png',   'Learn',     'browse') +
-      navTab('/info',      'codex.png',     'Knowledge', 'info') +
+      navTab('/learn',     'website.png',   'Learn',     'browse') +
+      navTab('/knowledge', 'codex.png',     'Knowledge', 'info') +
       navTab('/streams',   'audio.png',     'Streams',   'streams') +
 
       /* Spacer pushes ops/account to the right */
       '<div class="spacer"></div>' +
 
       /* Right side — ops, download, settings */
-      navTab('/debug',    'system.png',   'Ops',      'debug') +
+      navTab('/ops',      'system.png',   'Ops',      'debug') +
       navTab('/download', 'save.png',     'Download', 'download') +
       navTab('/settings', 'settings.png', 'Settings', 'settings') +
 
@@ -429,7 +434,7 @@
   var mobileDrawer = document.createElement('aside');
   mobileDrawer.id = 'mobile-hub-drawer';
   function mobileLink(path, label) {
-    var current = pathname || '/';
+    var current = location.pathname;
     var isActive = current === path || (path !== '/' && current.startsWith(path + '/'));
     return '<a href="' + path + '"' + (isActive ? ' class="active"' : '') + '>' + label + '</a>';
   }
@@ -450,15 +455,15 @@
       mobileLink('/logbook',   'Logbook') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Public</h4>' +
-      mobileLink('/board',   'Systems') +
-      mobileLink('/map',     'Maps') +
-      mobileLink('/market',  'Market') +
-      mobileLink('/browse',  'Learn') +
-      mobileLink('/info',    'Knowledge') +
-      mobileLink('/streams', 'Streams') +
+      mobileLink('/systems',   'Systems') +
+      mobileLink('/maps',      'Maps') +
+      mobileLink('/market',    'Market') +
+      mobileLink('/learn',     'Learn') +
+      mobileLink('/knowledge', 'Knowledge') +
+      mobileLink('/streams',   'Streams') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>App</h4>' +
-      mobileLink('/debug',    'Ops') +
+      mobileLink('/ops',      'Ops') +
       mobileLink('/download', 'Download') +
       mobileLink('/settings', 'Settings') +
     '</div>';
