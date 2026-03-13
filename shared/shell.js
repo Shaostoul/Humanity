@@ -41,6 +41,7 @@
     else if (p.startsWith('/browse'))    active = 'browse';
     else if (p.startsWith('/info'))      active = 'info';
     else if (p.startsWith('/streams'))   active = 'streams';
+    else if (p.startsWith('/studio'))    active = 'streams'; // studio is part of streams
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/debug'))     active = 'debug';
     else if (p.startsWith('/download'))  active = 'download';

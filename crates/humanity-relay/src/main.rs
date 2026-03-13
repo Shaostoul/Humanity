@@ -71,13 +71,16 @@ async fn main() {
     let _ = db.create_channel("welcome", "welcome", Some("Welcome to Humanity Network"), "system", true);
     let _ = db.create_channel("announcements", "announcements", Some("Project updates and news"), "system", true);
     let _ = db.create_channel("rules", "rules", Some("Community guidelines"), "system", true);
+    let _ = db.create_channel("general", "general", Some("General discussion"), "system", false);
+    let _ = db.create_channel("stream", "stream", Some("Live streams and stream chat — visible without opening a stream"), "system", false);
     let _ = db.create_channel("dev", "dev", Some("Development discussion"), "system", false);
 
-    // Set channel display order: welcome(0), rules(1), announcements(2), general(10), dev(20).
+    // Set channel display order: welcome(0), rules(1), announcements(2), general(10), stream(15), dev(20).
     let _ = db.set_channel_position("welcome", 0);
     let _ = db.set_channel_position("rules", 1);
     let _ = db.set_channel_position("announcements", 2);
     let _ = db.set_channel_position("general", 10);
+    let _ = db.set_channel_position("stream", 15);
     let _ = db.set_channel_position("dev", 20);
 
     let state = Arc::new(RelayState::new(db));

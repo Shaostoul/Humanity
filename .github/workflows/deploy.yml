@@ -1,0 +1,113 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build relay binary
+        run: |
+          cargo build --release --bin humanity-relay
+          cp target/release/humanity-relay humanity-relay-linux
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/Humanity
+
+            # Pull latest code
+            git pull --ff-only origin main
+
+            # Sync web assets
+            rsync -a --delete \
+              /opt/Humanity/crates/humanity-relay/client/ \
+              /var/www/humanity/chat/
+            rsync -a \
+              /opt/Humanity/shared/ \
+              /var/www/humanity/shared/
+
+            # Copy standalone pages
+            for f in home.html skills.html inventory.html calendar.html quests.html \
+                     logbook.html settings.html equipment.html \
+                     ops.html knowledge.html learn.html market.html systems.html \
+                     maps.html streams.html studio.html; do
+              [ -f "/opt/Humanity/$f" ] && cp "/opt/Humanity/$f" "/var/www/humanity/$f"
+            done
+
+      - name: Upload binary to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: humanity-relay-linux
+          target: /tmp/
+
+      - name: Hot-swap relay binary
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            # Back up current binary
+            cp /opt/Humanity/target/release/humanity-relay \
+               /opt/Humanity/backups/humanity-relay-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+
+            # Install new binary
+            mv /tmp/humanity-relay-linux /opt/Humanity/target/release/humanity-relay
+            chmod +x /opt/Humanity/target/release/humanity-relay
+
+            # Graceful restart via systemd
+            systemctl restart humanity-relay
+            sleep 3
+            systemctl is-active humanity-relay
+
+      - name: Post deployment announcement
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            COMMIT_MSG=$(git -C /opt/Humanity log -1 --pretty=format:"%s")
+            COMMIT_SHA=$(git -C /opt/Humanity log -1 --pretty=format:"%h")
+            AUTHOR=$(git -C /opt/Humanity log -1 --pretty=format:"%an")
+            PAYLOAD="{\"channel\":\"announcements\",\"content\":\"🚀 **Deployed** — commit \`${COMMIT_SHA}\` by ${AUTHOR}: ${COMMIT_MSG}\",\"from_name\":\"Deploy Bot\"}"
+            curl -s -X POST "http://localhost:3210/api/send" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${API_SECRET}" \
+              -d "$PAYLOAD" || true
+        env:
+          API_SECRET: ${{ secrets.API_SECRET }}

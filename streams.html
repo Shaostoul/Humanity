@@ -10,1631 +10,229 @@
   --success:#4a8; --error:#e55; --warning:#eb4;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
 button { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; }
 #page-app { flex: 1; overflow-y: auto; }
-.btn-primary {
-  background: var(--accent); border: none; color: #fff;
-  padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
-}
+.btn { padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; border: none; font-family: inherit; }
+.btn-primary { background: var(--accent); color: #fff; }
 .btn-primary:hover { filter: brightness(1.15); }
-.btn-secondary {
-  background: transparent; border: 1px solid var(--border); color: var(--text-muted);
-  padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
-}
+.btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text-muted); }
 .btn-secondary:hover { border-color: var(--accent); color: var(--text); }
-.btn-danger {
-  background: rgba(220,50,50,0.15); border: 1px solid rgba(220,50,50,0.4);
-  color: #e55; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;
-}
-.btn-activated {
-  background: rgba(34,170,102,0.2) !important;
-  border-color: var(--accent) !important;
-  color: var(--accent) !important;
-}
-.btn-disabled { opacity: 0.4; pointer-events: none; }
-.panel {
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 1rem; margin-bottom: 0.8rem;
-}
-.panel-title {
-  font-weight: 700; font-size: 0.92rem; color: var(--accent);
-  margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.4rem;
-  cursor: pointer; user-select: none;
-}
+.btn-danger { background: rgba(220,50,50,0.15); border: 1px solid rgba(220,50,50,0.4); color: #e55; }
+.btn-danger:hover { background: rgba(220,50,50,0.25); }
+.btn-live { background: rgba(220,50,50,0.9); color: #fff; border: none; }
+.btn-live:hover { background: #e00; }
+@keyframes live-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,50,50,0.4)} 50%{box-shadow:0 0 0 8px rgba(220,50,50,0)} }
+.panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.8rem; }
+.panel-title { font-weight: 700; font-size: 0.92rem; color: var(--accent); margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; user-select: none; }
+.collapsible-body.collapsed { display: none; }
+
+.streams-page { padding: 1rem; display: flex; flex-direction: column; gap: 1rem; max-width: 1600px; margin: 0 auto; }
+.streams-toolbar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.search-bar { flex: 1; min-width: 150px; max-width: 300px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text); padding: 0.35rem 0.7rem; border-radius: 6px; font-size: 0.82rem; }
+.search-bar:focus { outline: none; border-color: var(--accent); }
+.live-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.8rem; }
+.stream-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; cursor: pointer; transition: border-color 0.15s, transform 0.1s; }
+.stream-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.stream-card .thumb { position: relative; width: 100%; aspect-ratio: 16/9; background: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 2rem; }
+.stream-card .thumb .live-dot { position: absolute; top: 0.4rem; left: 0.4rem; background: #e00; color: #fff; font-size: 0.65rem; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+.stream-card .thumb .viewer-count { position: absolute; top: 0.4rem; right: 0.4rem; background: rgba(0,0,0,0.7); color: #fff; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
+.stream-card .info { padding: 0.5rem 0.7rem; }
+.stream-card .info .s-title { font-size: 0.82rem; font-weight: 600; margin-bottom: 0.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream-card .info .s-meta { font-size: 0.72rem; color: var(--text-muted); }
+.multi-grid { display: grid; gap: 0.5rem; }
+.multi-grid.g1 { grid-template-columns: 1fr; }
+.multi-grid.g2 { grid-template-columns: 1fr 1fr; }
+.multi-grid.g3 { grid-template-columns: 1fr 1fr; }
+.multi-grid.g4 { grid-template-columns: 1fr 1fr; }
+.stream-viewer { position: relative; background: #000; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.stream-viewer-aspect { aspect-ratio: 16/9; }
+.stream-viewer video { width: 100%; height: 100%; object-fit: contain; }
+.stream-viewer-header { position: absolute; top: 0; left: 0; right: 0; padding: 0.3rem 0.6rem; background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent); display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
+.stream-viewer-close { margin-left: auto; background: rgba(220,50,50,0.7); border: none; color: #fff; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+.streams-layout { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; }
+@media (max-width: 900px) { .streams-layout { grid-template-columns: 1fr; } }
+.chat-box { display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.chat-box-header { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; font-weight: 600; font-size: 0.85rem; }
+.chat-box-messages { overflow-y: auto; padding: 0.5rem; font-size: 0.8rem; max-height: 380px; min-height: 160px; }
+.chat-box-messages .msg { padding: 0.1rem 0; }
+.chat-box-messages .msg .author { color: var(--accent); font-weight: 600; }
+.chat-box-input { display: flex; gap: 0.3rem; padding: 0.4rem 0.5rem; border-top: 1px solid var(--border); }
+.chat-box-input input { flex: 1; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.3rem 0.5rem; border-radius: 5px; font-size: 0.8rem; }
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); grid-column: 1/-1; }
+.empty-state .icon { font-size: 3rem; margin-bottom: 0.5rem; opacity: 0.3; }
 </style>
 </head>
 <body>
 <script src="/shared/shell.js" data-active="streams"></script>
 <div id="page-app">
-<style>
- #tab-streams .stream-grid { display:grid; grid-template-columns:1fr 360px; gap:1rem; }
- @media (max-width:768px) { #tab-streams .stream-grid { grid-template-columns:1fr; } }
- #tab-streams .stream-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1rem; }
- #tab-streams .stream-preview { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
- #tab-streams .stream-preview canvas,
- #tab-streams .stream-preview video { width:100%; height:100%; object-fit:contain; }
- #tab-streams .pip-overlay { position:absolute; left:-9999px; top:-9999px; width:240px; height:180px; pointer-events:none; }
- #tab-streams .pip-overlay video { width:100%; height:100%; object-fit:cover; }
- #tab-streams .stream-stats { display:flex; gap:1rem; flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted); margin:0.6rem 0; }
- #tab-streams .stream-stats span { display:flex; align-items:center; gap:0.3rem; }
- #tab-streams .stream-setting { display:flex; align-items:center; gap:0.5rem; margin:0.4rem 0; font-size:0.82rem; }
- #tab-streams .stream-setting label { color:var(--text-muted); min-width:90px; }
- #tab-streams .stream-setting input[type="text"],
- #tab-streams .stream-setting select { background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; flex:1; font-size:0.8rem; min-width:0; max-width:100%; }
- #tab-streams .stream-setting input[type="checkbox"] { accent-color:var(--accent); }
- #tab-streams .stream-setting input[type="range"] { flex:1; accent-color:var(--accent); }
- #tab-streams .corner-picker { display:grid; grid-template-columns:1fr 1fr; gap:2px; width:36px; }
- #tab-streams .corner-picker span { width:16px; height:16px; border:1px solid var(--border); border-radius:3px; cursor:pointer; background:rgba(255,255,255,0.03); }
- #tab-streams .corner-picker span.active { background:var(--accent); border-color:var(--accent); }
- #tab-streams .stream-chat-panel { display:flex; flex-direction:column; height:400px; }
- #tab-streams .stream-chat-tabs { display:flex; gap:0.3rem; margin-bottom:0.5rem; flex-wrap:wrap; }
- #tab-streams .stream-chat-tabs button { font-size:0.72rem; padding:0.2rem 0.5rem; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; }
- #tab-streams .stream-chat-tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
- #tab-streams .stream-chat-messages { flex:1; overflow-y:auto; font-size:0.8rem; padding:0.3rem; background:rgba(0,0,0,0.2); border-radius:6px; }
- #tab-streams .stream-chat-msg { padding:0.15rem 0; }
- #tab-streams .stream-chat-msg .src-humanity { color:#f90; }
- #tab-streams .stream-chat-msg .src-twitch { color:#9146ff; }
- #tab-streams .stream-chat-msg .src-youtube { color:#e55; }
- #tab-streams .stream-chat-msg .src-rumble { color:#6c5; }
- #tab-streams .stream-chat-input { display:flex; gap:0.3rem; margin-top:0.4rem; }
- #tab-streams .stream-chat-input input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; font-size:0.8rem; }
- #tab-streams .stream-chat-input button { padding:0.3rem 0.7rem; }
- #tab-streams #stream-live-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.8rem; }
- #tab-streams .viewer-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; max-width:300px; }
- #tab-streams .viewer-card:hover { border-color:var(--accent); }
- #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
- #tab-streams .viewer-card .meta { padding:0.4rem 0.6rem; }
- #tab-streams .viewer-card .meta h3 { font-size:0.8rem; margin:0 0 0.1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
- #tab-streams .viewer-card .meta .sub { font-size:0.7rem; color:var(--text-muted); }
- #tab-streams .stream-section { margin-bottom:1rem; }
- #tab-streams #stream-viewer-panel { display:none; }
- #tab-streams #stream-viewer-panel.active { display:flex; flex-direction:column; max-height:60vh; }
- #tab-streams .streams-layout { display:flex; flex-direction:column; gap:1rem; padding:1rem; }
- #tab-streams .streams-layout > .panel { width:100%; }
- #tab-streams .settings-section { margin-bottom:0.8rem; }
- #tab-streams .settings-section-title { font-weight:600; font-size:0.82rem; color:var(--accent); margin-bottom:0.4rem; border-bottom:1px solid var(--border); padding-bottom:0.2rem; }
- #tab-streams .metrics-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; margin-top:0.8rem; overflow:hidden; }
- #tab-streams .metrics-header { padding:0.5rem 1rem; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; user-select:none; }
- #tab-streams .metrics-header:hover { background:rgba(255,255,255,0.03); }
- #tab-streams .metrics-body { padding:0 1rem 0.8rem; display:none; }
- #tab-streams .metrics-body.open { display:block; }
- #tab-streams .metrics-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.2rem 1rem; font-size:0.78rem; }
- #tab-streams .metrics-grid .metric-label { color:var(--text-muted); }
- #tab-streams .metrics-grid .metric-value { color:var(--text); font-variant-numeric:tabular-nums; text-align:right; }
- #tab-streams .mic-toggle { width:32px; height:32px; border-radius:50%; border:1px solid var(--border); background:transparent; color:var(--text); cursor:pointer; font-size:0.9rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
- #tab-streams .mic-toggle.muted { background:rgba(255,50,50,0.2); border-color:#f55; }
- #tab-streams #stream-mic-status { font-size:0.74rem; color:var(--text-muted); margin-top:0.35rem; }
- @media (max-width: 640px) {
- #tab-streams .streams-layout { padding:0.55rem; gap:0.55rem; }
- #tab-streams .stream-panel { padding:0.65rem; border-radius:8px; }
- #tab-streams .stream-grid { gap:0.55rem; }
- #tab-streams .stream-setting { flex-wrap: wrap; align-items:flex-start; gap:0.35rem; margin:0.32rem 0; }
- #tab-streams .stream-setting label { min-width:auto; width:100%; font-size:0.74rem; }
- #tab-streams .stream-setting input[type="text"],
- #tab-streams .stream-setting select { width:100%; min-width:0; max-width:100%; font-size:0.78rem; }
- #tab-streams .stream-setting input[type="range"] { width:100%; }
- #tab-streams .stream-setting > span { width:100%; text-align:left !important; min-width:0 !important; }
- #tab-streams .stream-stats { gap:0.45rem; font-size:0.72rem; }
- #tab-streams .stream-stats span { white-space:nowrap; }
- #tab-streams .stream-chat-panel { height:320px; }
- #tab-streams #stream-live-list { grid-template-columns: 1fr; }
- #tab-streams .viewer-card { max-width:none; }
- }
- </style>
+<div class="streams-page">
+  <div class="streams-toolbar">
+    <h1 style="font-size:1.1rem;font-weight:700;color:var(--accent);">&#128250; Streams</h1>
+    <input class="search-bar" type="text" id="stream-search" placeholder="Search streams..." oninput="filterStreams(this.value)">
+    <div style="flex:1;"></div>
+    <button class="btn btn-secondary" style="font-size:0.8rem;" onclick="refreshStreams()">&#128260; Refresh</button>
+    <a href="/studio" class="btn btn-primary" style="font-size:0.8rem;text-decoration:none;">&#127897;&#65039; Go to Studio</a>
+  </div>
 
- <div class="streams-layout">
+  <!-- Active multi-stream viewer -->
+  <div id="active-viewers-section" style="display:none;">
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">
+      <span style="font-size:0.85rem;font-weight:600;color:var(--accent);">Watching</span>
+      <span id="watching-count" style="font-size:0.75rem;color:var(--text-muted);"></span>
+      <div style="flex:1;"></div>
+      <button class="btn btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.6rem;" onclick="closeAllStreams()">&#10005; Close All</button>
+      <button class="btn btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" onclick="setLayout(1)" title="1 stream">&#9632;</button>
+      <button class="btn btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" onclick="setLayout(2)" title="2 streams">&#8864;</button>
+      <button class="btn btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" onclick="setLayout(4)" title="4 streams">&#8862;</button>
+    </div>
+    <div class="streams-layout">
+      <div id="multi-stream-grid" class="multi-grid g1"></div>
+      <div>
+        <div class="chat-box" style="height:100%;max-height:500px;">
+          <div class="chat-box-header">&#128172; <span style="color:var(--accent);">#stream</span>
+            <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">visible without a stream open</span>
+          </div>
+          <div class="chat-box-messages" id="stream-channel-messages"></div>
+          <div class="chat-box-input">
+            <input type="text" id="stream-channel-input" placeholder="Chat in #stream..." onkeydown="if(event.key==='Enter')sendStreamChat('stream-channel-input')">
+            <button class="btn btn-primary" onclick="sendStreamChat('stream-channel-input')" style="padding:0.3rem 0.6rem;">&#10148;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
- <!-- "€"€ Streamer Dashboard (collapsible) "€"€ -->
- <div class="panel reality-card" id="streams-dashboard">
- <h2 class="reality-card-header" onclick="toggleStreamsCard('dashboard')">Ÿ"¡ Stream Control <span class="collapse-icon" id="dashboard-collapse">▼</span></h2>
- <div class="reality-card-body" id="dashboard-body">
- <div class="stream-grid">
- <!-- Left: Preview -->
- <div>
- <div class="stream-preview" id="stream-preview-container">
- <canvas id="stream-composite-canvas" width="1920" height="1080"></canvas>
- <div class="pip-overlay" id="pip-overlay" style="display:none;width:240px;height:180px;bottom:10px;right:10px;">
- <video id="pip-webcam-video" autoplay muted playsinline></video>
- </div>
- <div id="stream-preview-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text-muted);font-size:0.85rem;">
- <div style="font-size:1.1rem;margin-bottom:0.5rem;letter-spacing:0.08em;">PREVIEW</div>
- <div>Start screen capture to preview</div>
- </div>
- </div>
- <div class="stream-stats" id="stream-stats-bar">
- <span id="stream-stat-viewers">Viewers: 0</span>
- <span id="stream-stat-duration">Duration: --:--</span>
- <span id="stream-stat-quality">Quality: --</span>
- <span id="stream-stat-bitrate">Bitrate: --</span>
- </div>
- <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
- <button class="btn btn-clickable" id="stream-go-live-btn" onclick="streamGoLive()">GO LIVE</button>
- <button class="btn btn-disabled" id="stream-stop-btn" onclick="streamStop()" style="display:none;">END</button>
- <button class="btn" id="stream-brb-btn" onclick="streamToggleBrb()" style="display:none;">BRB</button>
- </div>
+  <!-- Live now grid -->
+  <div>
+    <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.6rem;">
+      <span style="font-size:0.85rem;font-weight:600;">&#128308; Live Now</span>
+      <span id="live-count" style="font-size:0.75rem;color:var(--text-muted);background:var(--bg-card);padding:1px 7px;border-radius:10px;border:1px solid var(--border);"></span>
+    </div>
+    <div class="live-grid" id="live-streams-grid">
+      <div class="empty-state">
+        <div class="icon">&#128225;</div>
+        <p>No one is live right now.<br>Be the first &#8212; <a href="/studio" style="color:var(--accent);">start your stream</a>.</p>
+      </div>
+    </div>
+  </div>
 
- <!-- Streamer Metrics -->
- <div class="metrics-panel" id="streamer-metrics-panel">
- <div class="metrics-header" onclick="document.getElementById('streamer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('streamer-metrics-body').classList.contains('open') ? '▲' : '▼';">Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
- <div class="metrics-body" id="streamer-metrics-body">
- <div class="metrics-grid" id="streamer-metrics-grid">
- <span class="metric-label">Upload</span><span class="metric-value" id="sm-upload">--</span>
- <span class="metric-label">Packets sent</span><span class="metric-value" id="sm-pkts-sent">--</span>
- <span class="metric-label">Packets lost</span><span class="metric-value" id="sm-pkts-lost">--</span>
- <span class="metric-label">Frame rate</span><span class="metric-value" id="sm-fps">--</span>
- <span class="metric-label">Resolution</span><span class="metric-value" id="sm-resolution">--</span>
- <span class="metric-label">Codec</span><span class="metric-value" id="sm-codec">--</span>
- <span class="metric-label">RTT</span><span class="metric-value" id="sm-rtt">--</span>
- <span class="metric-label">Jitter</span><span class="metric-value" id="sm-jitter">--</span>
- <span class="metric-label">Total sent</span><span class="metric-value" id="sm-total">--</span>
- <span class="metric-label">Connections</span><span class="metric-value" id="sm-connections">--</span>
- </div>
- </div>
- </div>
- </div>
-
- <!-- Right: Settings -->
- <div>
- <!-- Stream Info -->
- <div class="stream-panel" style="margin-bottom:0.8rem;">
- <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Stream Info</div>
- <div class="stream-setting">
- <label>Title</label>
- <input type="text" id="stream-title" placeholder="My Stream" maxlength="100">
- </div>
- <div class="stream-setting">
- <label>Category</label>
- <input type="text" id="stream-category" placeholder="Just Chatting" maxlength="50">
- </div>
- </div>
-
- <!-- Scenes v1 -->
- <div class="stream-panel" style="margin-bottom:0.8rem;">
- <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">PREVIEW Scenes</div>
- <div class="stream-setting">
- <label>Scene</label>
- <select id="stream-scene-select"></select>
- </div>
- <div class="stream-setting" style="gap:0.35rem;flex-wrap:wrap;">
- <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamApplySelectedScene()">Apply</button>
- <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamSaveCurrentScene()">Save Current</button>
- <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamCreateScene()">+ New</button>
- <button class="btn btn-clickable" style="font-size:0.72rem;padding:0.2rem 0.45rem;flex:1 1 120px;" onclick="streamDeleteScene()">Delete</button>
- </div>
- <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Scenes store stream layout/settings presets locally.</div>
- </div>
-
- <!-- Video Settings -->
- <div class="stream-panel" style="margin-bottom:0.8rem;">
- <div class="settings-section">
- <div class="settings-section-title">Ÿ–¥ï¸ Video</div>
- <div class="stream-setting">
- <input type="checkbox" id="stream-screen-cb" checked onchange="streamToggleScreen()">
- <label for="stream-screen-cb" style="min-width:auto;">Screen Capture</label>
- <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.4rem;margin-left:auto;" onclick="streamStartScreen()">Select</button>
- </div>
- <div class="stream-setting">
- <label>Resolution</label>
- <select id="stream-resolution" onchange="streamSaveSetting('resolution', this.value)">
- <option value="source">Match Source</option>
- <option value="720">720p</option>
- <option value="1080" selected>1080p</option>
- <option value="1440">1440p</option>
- <option value="2160">4K</option>
- </select>
- </div>
- <div class="stream-setting">
- <label>Frame Rate</label>
- <select id="stream-fps" onchange="streamSaveSetting('fps', this.value)">
- <option value="30" selected>30 fps</option>
- <option value="60">60 fps</option>
- <option value="120">120 fps</option>
- </select>
- </div>
- <div class="stream-setting">
- <label>Bitrate</label>
- <input type="range" id="stream-bitrate" min="1" max="20" value="6" step="0.5" oninput="document.getElementById('stream-bitrate-val').textContent=this.value+'Mbps'; streamSaveSetting('bitrate', this.value); streamApplyBitrate();">
- <span id="stream-bitrate-val" style="font-size:0.75rem;min-width:50px;text-align:right;">6Mbps</span>
- </div>
- </div>
-
- <!-- Audio Settings -->
- <div class="settings-section">
- <div class="settings-section-title">Mic On Audio</div>
- <div class="stream-setting">
- <label>Microphone</label>
- <select id="stream-mic-device" onchange="streamSwitchMic()"></select>
- <button class="mic-toggle" id="stream-mic-mute-btn" onclick="streamToggleMicMute()" title="Toggle mic mute">Mic</button>
- </div>
- <div class="stream-setting" style="margin-top:0.2rem;">
- <input type="checkbox" id="stream-advanced-devices" onchange="streamSaveSetting('advancedDevices', this.checked); streamEnumerateDevices();">
- <label for="stream-advanced-devices" style="min-width:auto;">Show advanced devices</label>
- </div>
- <div id="stream-mic-status">Mic status: idle</div>
- <div class="stream-setting">
- <label>Mic Volume</label>
- <input type="range" id="stream-mic-volume" min="0" max="200" value="100" step="5" oninput="streamSetMicVolume(this.value); document.getElementById('stream-mic-vol-val').textContent=this.value+'%';">
- <span id="stream-mic-vol-val" style="font-size:0.75rem;min-width:35px;text-align:right;">100%</span>
- </div>
- <div class="stream-setting">
- <input type="checkbox" id="stream-desktop-audio-cb" checked onchange="streamToggleDesktopAudio()">
- <label for="stream-desktop-audio-cb" style="min-width:auto;">Desktop Audio</label>
- </div>
- </div>
-
- <!-- Camera Settings -->
- <div class="settings-section">
- <div class="settings-section-title">Ÿ"· Camera</div>
- <div class="stream-setting">
- <input type="checkbox" id="stream-webcam-cb" onchange="streamToggleWebcam()">
- <label for="stream-webcam-cb" style="min-width:auto;">Webcam Overlay</label>
- </div>
- <div class="stream-setting" style="margin-left:1.4rem;">
- <label>Device</label>
- <select id="stream-webcam-device" onchange="streamSwitchWebcam()"></select>
- </div>
- <div class="stream-setting" style="margin-left:1.4rem;">
- <label>Size</label>
- <select id="stream-webcam-size" onchange="streamUpdatePipSize(); streamSaveSetting('webcamSize', this.value)">
- <option value="small">Small</option>
- <option value="medium" selected>Medium</option>
- <option value="large">Large</option>
- </select>
- </div>
- <div class="stream-setting" style="margin-left:1.4rem;">
- <label>Quality</label>
- <select id="stream-webcam-quality" onchange="streamSwitchWebcam(); streamSaveSetting('webcamQuality', this.value)">
- <option value="low">Low (480p)</option>
- <option value="medium" selected>Medium (720p)</option>
- <option value="high">High (1080p)</option>
- </select>
- </div>
- <div class="stream-setting" style="margin-left:1.4rem;">
- <label style="min-width:auto;font-size:0.75rem;">Position:</label>
- <div class="corner-picker" id="pip-corner-picker">
- <span data-corner="tl" onclick="streamSetPipCorner('tl')"></span>
- <span data-corner="tr" onclick="streamSetPipCorner('tr')"></span>
- <span data-corner="bl" onclick="streamSetPipCorner('bl')"></span>
- <span data-corner="br" class="active" onclick="streamSetPipCorner('br')"></span>
- </div>
- </div>
- </div>
- </div>
-
- <!-- Restream -->
- <div class="stream-panel">
- <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.6rem;">Restream To</div>
- <div class="stream-setting">
- <input type="checkbox" id="stream-relay-cb" checked>
- <label for="stream-relay-cb" style="min-width:auto;">Relay (direct)</label>
- <span style="font-size:0.7rem;color:var(--text-muted);margin-left:auto;">Admin only</span>
- </div>
- <div class="stream-setting">
- <input type="checkbox" id="stream-twitch-cb">
- <label for="stream-twitch-cb" style="min-width:auto;">Twitch</label>
- <input type="text" id="stream-twitch-url" placeholder="twitch.tv/username" style="flex:1;">
- </div>
- <div class="stream-setting">
- <input type="checkbox" id="stream-youtube-cb">
- <label for="stream-youtube-cb" style="min-width:auto;">YouTube</label>
- <input type="text" id="stream-youtube-url" placeholder="youtube.com/live/..." style="flex:1;">
- </div>
- <div class="stream-setting">
- <input type="checkbox" id="stream-rumble-cb">
- <label for="stream-rumble-cb" style="min-width:auto;">Rumble</label>
- <input type="text" id="stream-rumble-url" placeholder="rumble.com/user/..." style="flex:1;">
- </div>
- </div>
- </div>
- </div>
-
- <!-- Stream Chat -->
- <div class="stream-panel stream-chat-panel" style="margin-top:1rem;" id="stream-chat-section">
- <div style="font-weight:600;font-size:0.9rem;margin-bottom:0.4rem;">Stream Chat</div>
- <div class="stream-chat-tabs" id="stream-chat-tabs">
- <button class="active" onclick="streamChatFilter('all')">All</button>
- <button onclick="streamChatFilter('humanity')">Humanity</button>
- <button onclick="streamChatFilter('twitch')">Twitch</button>
- <button onclick="streamChatFilter('youtube')">YouTube</button>
- <button onclick="streamChatFilter('rumble')">Rumble</button>
- </div>
- <div class="stream-chat-messages" id="stream-chat-messages"></div>
- <div class="stream-chat-input">
- <input type="text" id="stream-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend()">
- <button class="btn btn-clickable" onclick="streamChatSend()">Send</button>
- </div>
- </div>
- </div>
- </div>
-
- <!-- "€"€ Live Streams (viewer) "€"€ -->
- <div class="panel reality-card" id="streams-live">
- <h2 class="reality-card-header" onclick="toggleStreamsCard('live')">LIVE Live Now <span class="collapse-icon" id="live-collapse">▼</span></h2>
- <div class="reality-card-body" id="live-body">
- <div id="stream-live-list">
- <div id="stream-live-empty" style="text-align:center;padding:2rem 1rem;">
- <div style="font-size:2rem;margin-bottom:0.5rem;">LIVE</div>
- <div style="color:var(--text-muted);font-size:0.85rem;">No one is live right now</div>
- </div>
- </div>
- </div>
- </div>
-
- <!-- "€"€ Viewer Panel (shown when watching) "€"€ -->
- <div class="panel reality-card" id="stream-viewer-panel">
- <h2 class="reality-card-header">
- <span id="viewer-stream-title">LIVE Watching Stream</span>
- <button class="btn btn-clickable" style="font-size:0.7rem;padding:0.15rem 0.5rem;margin-left:auto;" onclick="streamViewerLeave()">Close Close</button>
- </h2>
- <div class="reality-card-body">
- <div class="stream-preview" id="viewer-video-container">
- <video id="viewer-video" autoplay playsinline style="width:100%;height:100%;"></video>
- <div id="viewer-embed-container" style="display:none;width:100%;height:100%;"></div>
- </div>
- <div class="stream-stats" id="viewer-stats-bar">
- <span id="viewer-stat-viewers">Viewers 0</span>
- <span id="viewer-stat-duration">Duration --:--</span>
- </div>
- <!-- Viewer Metrics -->
- <div class="metrics-panel" id="viewer-metrics-panel">
- <div class="metrics-header" onclick="document.getElementById('viewer-metrics-body').classList.toggle('open'); this.querySelector('.mi').textContent = document.getElementById('viewer-metrics-body').classList.contains('open') ? '▲' : '▼';">Quality Stream Metrics <span class="mi" style="margin-left:auto;">▼</span></div>
- <div class="metrics-body" id="viewer-metrics-body">
- <div class="metrics-grid" id="viewer-metrics-grid">
- <span class="metric-label">Download</span><span class="metric-value" id="vm-download">--</span>
- <span class="metric-label">Packets recv</span><span class="metric-value" id="vm-pkts-recv">--</span>
- <span class="metric-label">Packets lost</span><span class="metric-value" id="vm-pkts-lost">--</span>
- <span class="metric-label">Frame rate</span><span class="metric-value" id="vm-fps">--</span>
- <span class="metric-label">Resolution</span><span class="metric-value" id="vm-resolution">--</span>
- <span class="metric-label">Codec</span><span class="metric-value" id="vm-codec">--</span>
- <span class="metric-label">Jitter buffer</span><span class="metric-value" id="vm-jitter">--</span>
- </div>
- </div>
- </div>
- <!-- Viewer chat -->
- <div class="stream-panel stream-chat-panel" style="margin-top:0.6rem;height:300px;">
- <div class="stream-chat-tabs" id="viewer-chat-tabs">
- <button class="active" onclick="streamChatFilter('all','viewer')">All</button>
- <button onclick="streamChatFilter('humanity','viewer')">Humanity</button>
- <button onclick="streamChatFilter('twitch','viewer')">Twitch</button>
- <button onclick="streamChatFilter('youtube','viewer')">YouTube</button>
- <button onclick="streamChatFilter('rumble','viewer')">Rumble</button>
- </div>
- <div class="stream-chat-messages" id="viewer-chat-messages"></div>
- <div class="stream-chat-input">
- <input type="text" id="viewer-chat-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')streamChatSend('viewer')">
- <button class="btn btn-clickable" onclick="streamChatSend('viewer')">Send</button>
- </div>
- </div>
- </div>
- </div>
-
- <!-- "€"€ Server List "€"€ -->
- <div class="panel reality-card" id="streams-servers">
- <h2 class="reality-card-header" onclick="toggleStreamsCard('servers')">Ÿ–¥ï¸ Servers <span class="collapse-icon" id="servers-collapse">▼</span></h2>
- <div class="reality-card-body" id="servers-body">
- <div id="stream-servers-list">
- <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;margin-bottom:0.4rem;">
- <span style="font-size:1.1rem;" id="server-status-dot">ŸŸ¢</span>
- <div>
- <div style="font-weight:600;font-size:0.85rem;">Humanity HQ</div>
- <div style="font-size:0.7rem;color:var(--text-muted);">united-humanity.us · Verified + Accord</div>
- </div>
- <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);" id="server-live-count">0 live</span>
- </div>
- </div>
- </div>
- </div>
-
- </div>
- </div>
-
- <!-- Info Tab -->
- <!-- NOTE: Add /info to the nginx hub route regex, e.g. location ~ ^/(board|reality|fantasy|streams|info|debug) -->
+  <!-- #stream chat — always visible -->
+  <div id="always-stream-chat">
+    <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">&#128172; #stream Chat <span style="font-size:0.72rem;color:var(--text-muted);font-weight:400;">&#8212; no stream required to participate</span></div>
+    <div class="chat-box">
+      <div class="chat-box-messages" id="stream-chat-feed"></div>
+      <div class="chat-box-input">
+        <input type="text" id="stream-chat-input-bottom" placeholder="Chat in #stream..." onkeydown="if(event.key==='Enter')sendStreamChat('stream-chat-input-bottom')">
+        <button class="btn btn-primary" onclick="sendStreamChat('stream-chat-input-bottom')" style="padding:0.3rem 0.6rem;">&#10148;</button>
+      </div>
+    </div>
+  </div>
+</div>
 </div>
 <script>
 
-// ── Relay WebSocket for Streams ──
-let streamWs = null;
-let streamWsReconnectTimer = null;
+let hubWs = null, hubWsTimer = null;
+let allStreams = [], openStreams = [], streamChatHistory = [];
+let myHubKey = '', myHubName = 'Viewer';
 
-function streamConnect() {
+function hubConnect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const host  = location.hostname + (location.port ? ':' + location.port : '');
-  streamWs = new WebSocket(proto + '//' + host + '/ws');
-  streamWs.onopen = function() {
-    clearTimeout(streamWsReconnectTimer);
+  hubWs = new WebSocket(proto + '//' + location.hostname + (location.port ? ':'+location.port : '') + '/ws');
+  hubWs.onopen = function() {
+    clearTimeout(hubWsTimer);
     const stored = localStorage.getItem('humanity_identity');
-    if (stored) {
-      try {
-        const id = JSON.parse(stored);
-        streamWs.send(JSON.stringify({ type: 'Hello', public_key: id.publicKeyHex || '' }));
-      } catch(e) {}
-    }
-    if (typeof streamRequestInfo === 'function') streamRequestInfo();
-    if (typeof streamUpdateLiveList === 'function') streamUpdateLiveList();
+    if (stored) { try { const id = JSON.parse(stored); myHubKey = id.publicKeyHex||''; myHubName = id.name||'Viewer'; hubWs.send(JSON.stringify({type:'Hello',public_key:myHubKey})); } catch(e){} }
+    hubWs.send(JSON.stringify({type:'chat',from:myHubKey,from_name:myHubName,content:'/history stream',timestamp:Date.now(),channel:'stream'}));
+    requestStreamList();
   };
-  streamWs.onclose = function() {
-    streamWsReconnectTimer = setTimeout(streamConnect, 5000);
-  };
-  streamWs.onerror = function() { streamWs.close(); };
-  streamWs.onmessage = function(event) {
-    try {
-      const msg = JSON.parse(event.data);
-      if (typeof streamHandleMessage === 'function') streamHandleMessage(msg);
-    } catch(e) {}
-  };
+  hubWs.onclose = function() { hubWsTimer = setTimeout(hubConnect, 4000); };
+  hubWs.onerror = function() { hubWs.close(); };
+  hubWs.onmessage = function(ev) { try { handleHubMsg(JSON.parse(ev.data)); } catch(e){} };
+}
+
+function requestStreamList() {
+  if (hubWs && hubWs.readyState === 1) hubWs.send(JSON.stringify({type:'stream_list_request'}));
+}
+
+function handleHubMsg(msg) {
+  if (msg.type === 'stream_list' || msg.type === 'live_list') { allStreams = msg.streams || msg.peers || []; renderLiveGrid(); }
+  if (msg.type === 'chat' && msg.channel === 'stream') addStreamChatMsg(msg.from_name||'anon', msg.content||'');
+  if (msg.type === 'history') (msg.messages||[]).forEach(m => { if (m.channel==='stream') addStreamChatMsg(m.from_name||'anon', m.content||''); });
+}
+
+function addStreamChatMsg(author, text) {
+  streamChatHistory.push({author,text}); if(streamChatHistory.length>300) streamChatHistory.shift(); renderStreamChat();
+}
+function renderStreamChat() {
+  ['stream-channel-messages','stream-chat-feed'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = streamChatHistory.slice(-100).map(m => '<div class="msg"><span class="author">'+esc(m.author)+':</span> '+esc(m.text)+'</div>').join('');
+    el.scrollTop = el.scrollHeight;
+  });
+}
+function sendStreamChat(inputId) {
+  const inp = document.getElementById(inputId); if (!inp) return;
+  const text = inp.value.trim(); if (!text) return; inp.value = '';
+  if (hubWs && hubWs.readyState === 1) hubWs.send(JSON.stringify({type:'chat',from:myHubKey,from_name:myHubName,content:text,timestamp:Date.now(),channel:'stream'}));
+  addStreamChatMsg(myHubName||'me', text);
+}
+
+function renderLiveGrid(filter) {
+  const grid = document.getElementById('live-streams-grid'); if (!grid) return;
+  const countEl = document.getElementById('live-count');
+  let streams = allStreams;
+  if (filter) streams = streams.filter(s => (s.title||s.display_name||'').toLowerCase().includes(filter.toLowerCase()));
+  if (countEl) countEl.textContent = streams.length + ' live';
+  if (!streams.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="icon">&#128225;</div><p>No one is live right now.<br>Be the first &#8212; <a href="/studio" style="color:var(--accent);">start your stream</a>.</p></div>';
+    return;
+  }
+  grid.innerHTML = streams.map(s => {
+    const k = esc(s.key||''), name = esc(s.display_name||s.name||'?'), title = esc(s.title||'Untitled'), viewers = s.viewer_count||0;
+    return '<div class="stream-card" onclick="openStream(''+k+'',''+name+'',''+title+'')">' +
+      '<div class="thumb"><span>&#127916;</span><span class="live-dot">LIVE</span><span class="viewer-count">&#128065; '+viewers+'</span></div>' +
+      '<div class="info"><div class="s-title">'+title+'</div><div class="s-meta">'+name+'</div></div></div>';
+  }).join('');
+}
+function filterStreams(q) { renderLiveGrid(q); }
+function refreshStreams() { requestStreamList(); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function openStream(key, name, title) {
+  if (openStreams.find(s=>s.key===key)) return;
+  if (openStreams.length >= 4) { alert('Max 4 streams at once'); return; }
+  openStreams.push({key,name,title,pc:null});
+  renderMultiGrid(); updateWatchingCount();
+  document.getElementById('active-viewers-section').style.display = '';
+  document.getElementById('always-stream-chat').style.display = 'none';
+  if (hubWs && hubWs.readyState===1) hubWs.send(JSON.stringify({type:'stream_offer',to:key,data:{type:'request'},from:myHubKey}));
+}
+function closeStream(key) {
+  openStreams = openStreams.filter(s=>s.key!==key); renderMultiGrid(); updateWatchingCount();
+  if (!openStreams.length) { document.getElementById('active-viewers-section').style.display='none'; document.getElementById('always-stream-chat').style.display=''; }
+}
+function closeAllStreams() { openStreams=[]; renderMultiGrid(); document.getElementById('active-viewers-section').style.display='none'; document.getElementById('always-stream-chat').style.display=''; }
+function setLayout(n) { const g=document.getElementById('multi-stream-grid'); if(g) g.className='multi-grid g'+Math.min(n,openStreams.length||1); }
+function updateWatchingCount() { const el=document.getElementById('watching-count'); if(el) el.textContent=openStreams.length+' stream'+(openStreams.length!==1?'s':''); }
+function renderMultiGrid() {
+  const grid = document.getElementById('multi-stream-grid'); if (!grid) return;
+  const n = openStreams.length;
+  grid.className = 'multi-grid g'+(n<=1?'1':n<=2?'2':n<=3?'3':'4');
+  grid.innerHTML = openStreams.map(s =>
+    '<div class="stream-viewer"><div class="stream-viewer-aspect"><video id="sv-'+esc(s.key)+'" autoplay playsinline style="width:100%;height:100%;object-fit:contain;background:#000;"></video></div>' +
+    '<div class="stream-viewer-header"><span style="color:#e00;font-size:0.65rem;font-weight:700;">LIVE</span>' +
+    '<span style="font-size:0.75rem;">'+esc(s.name)+'</span>' +
+    '<span style="font-size:0.72rem;color:var(--text-muted);">'+esc(s.title)+'</span>' +
+    '<button class="stream-viewer-close" onclick="closeStream(''+esc(s.key)+'')">&#10005;</button></div></div>'
+  ).join('');
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  streamConnect();
-  if (typeof streamLoadSettings === 'function') streamLoadSettings();
-  if (typeof streamLoadScenes === 'function') streamLoadScenes();
-  if (typeof streamEnumerateDevices === 'function') streamEnumerateDevices();
+  hubConnect();
+  setInterval(requestStreamList, 30000);
 });
-
-// ── Stream State ──
-const card = document.getElementById('streams-' + id);
-let streamScreenStream = null;
-let streamWebcamStream = null;
-let streamCompositeStream = null;
-let streamIsLive = false;
-let streamStartTime = null;
-let streamDurationTimer = null;
-let streamPeerConnection = null;
-let streamViewerPC = null;
-let streamChatMessages = [];
-let streamChatFilter_ = 'all';
-let streamCurrentInfo = { active: false };
-let streamPipCorner = 'br';
-let streamCompositeAnimFrame = null;
-let streamMetricsTimer = null;
-let streamMetricsPrevBytes = 0;
-let streamMetricsPrevTime = 0;
-let viewerMetricsPrevBytes = 0;
-let viewerMetricsPrevTime = 0;
-let streamAudioCtx = null;
-let streamMicStream = null;
-let streamMicGainNode = null;
-let streamMicSourceNode = null;
-let streamMicDestNode = null;
-let streamMicMuted = false;
-let streamBrbActive = false;
-let streamBrbStartAt = 0;
-let streamSafeMode = false;
-let streamPerfSlowFrames = 0;
-let streamLastLoopMs = 0;
-let streamLoopLastTs = 0;
-let twitchChatWs = null;
-const el = document.getElementById('stream-mic-status');
-const colors = {
-
-// ── streamSetMicStatus ──
-function streamSetMicStatus(text, tone) {
- const el = document.getElementById('stream-mic-status');
- if (!el) return;
- el.textContent = text;
- const colors = {
-  neutral: 'var(--text-muted)',
-  good: 'var(--success)',
-  warn: '#e0c860',
-  bad: '#ff6b6b'
- };
- el.style.color = colors[tone || 'neutral'] || colors.neutral;
-}
-
-// ── streamNormalizeUiText ──
-function streamNormalizeUiText() {
- // Repair any mojibake-heavy labels in Streams UI with plain text fallbacks.
- const goBtn = document.getElementById('stream-go-live-btn');
- if (goBtn) goBtn.textContent = 'GO LIVE';
- const stopBtn = document.getElementById('stream-stop-btn');
- if (stopBtn) stopBtn.textContent = 'END';
-
- const hdr = document.querySelector('#streams-dashboard .reality-card-header');
- if (hdr) {
-  const icon = hdr.querySelector('.collapse-icon');
-  hdr.textContent = 'Stream Control ';
-  if (icon) hdr.appendChild(icon);
- }
-
- const liveHdr = document.querySelector('#streams-live .reality-card-header');
- if (liveHdr) {
-  const icon = liveHdr.querySelector('.collapse-icon');
-  liveHdr.textContent = 'Live Now ';
-  if (icon) liveHdr.appendChild(icon);
- }
-
- const serversHdr = document.querySelector('#streams-servers .reality-card-header');
- if (serversHdr) {
-  const icon = serversHdr.querySelector('.collapse-icon');
-  serversHdr.textContent = 'Servers ';
-  if (icon) serversHdr.appendChild(icon);
- }
-
- const sectionTitles = document.querySelectorAll('#tab-streams .settings-section-title');
- if (sectionTitles[0]) sectionTitles[0].textContent = 'Video';
- if (sectionTitles[1]) sectionTitles[1].textContent = 'Audio';
- if (sectionTitles[2]) sectionTitles[2].textContent = 'Camera';
-
- const panelTitles = document.querySelectorAll('#tab-streams .stream-panel > div[style*="font-weight:600"]');
- panelTitles.forEach(el => {
-  const t = (el.textContent || '').toLowerCase();
-  if (t.includes('scene')) el.textContent = 'Scenes';
-  else if (t.includes('stream metrics')) el.textContent = 'Stream Metrics';
-  else if (t.includes('stream info')) el.textContent = 'Stream Info';
-  else if (t.includes('restream')) el.textContent = 'Restream To';
- });
-}
-
-// ── streamLoadScenes ──
-function streamLoadScenes() {
- try {
-  const saved = JSON.parse(localStorage.getItem(STREAM_SCENES_KEY) || 'null');
-  if (saved && typeof saved === 'object' && Object.keys(saved).length) return saved;
- } catch(e) {}
- return JSON.parse(JSON.stringify(STREAM_DEFAULT_SCENES));
-}
-
-// ── streamSaveScenes ──
-function streamSaveScenes(scenes) {
- localStorage.setItem(STREAM_SCENES_KEY, JSON.stringify(scenes));
-}
-
-// ── streamCurrentSceneState ──
-function streamCurrentSceneState() {
- return {
-  resolution: document.getElementById('stream-resolution')?.value || '1080',
-  fps: document.getElementById('stream-fps')?.value || '30',
-  bitrate: document.getElementById('stream-bitrate')?.value || '6',
-  screen: !!document.getElementById('stream-screen-cb')?.checked,
-  webcam: !!document.getElementById('stream-webcam-cb')?.checked,
-  desktopAudio: !!document.getElementById('stream-desktop-audio-cb')?.checked,
-  webcamSize: document.getElementById('stream-webcam-size')?.value || 'medium',
-  webcamQuality: document.getElementById('stream-webcam-quality')?.value || 'medium',
-  pipCorner: window.streamPipCorner || 'br',
-  advancedDevices: !!document.getElementById('stream-advanced-devices')?.checked,
- };
-}
-
-// ── streamApplySceneState ──
-function streamApplySceneState(s) {
- if (!s) return;
- if (s.resolution) document.getElementById('stream-resolution').value = s.resolution;
- if (s.fps) document.getElementById('stream-fps').value = s.fps;
- if (s.bitrate) {
-  document.getElementById('stream-bitrate').value = s.bitrate;
-  document.getElementById('stream-bitrate-val').textContent = s.bitrate + 'Mbps';
- }
- if (typeof s.screen !== 'undefined') document.getElementById('stream-screen-cb').checked = !!s.screen;
- if (typeof s.webcam !== 'undefined') document.getElementById('stream-webcam-cb').checked = !!s.webcam;
- if (typeof s.desktopAudio !== 'undefined') document.getElementById('stream-desktop-audio-cb').checked = !!s.desktopAudio;
- if (s.webcamSize) document.getElementById('stream-webcam-size').value = s.webcamSize;
- if (s.webcamQuality) document.getElementById('stream-webcam-quality').value = s.webcamQuality;
- if (s.pipCorner) streamSetPipCorner(s.pipCorner);
- if (typeof s.advancedDevices !== 'undefined') {
-  document.getElementById('stream-advanced-devices').checked = !!s.advancedDevices;
-  streamEnumerateDevices();
- }
- streamApplyBitrate();
- streamToggleDesktopAudio();
- streamToggleWebcam();
- streamNotify('Scene applied.', 'cyan', 4);
-}
-
-// ── streamNotify ──
-function streamNotify(text, tone, seconds) {
- if (typeof addNotice === 'function') addNotice(text, tone || 'cyan', seconds || 4);
- else console.log('[stream]', text);
-}
-
-// ── streamRenderScenes ──
-function streamRenderScenes() {
- const scenes = streamLoadScenes();
- const sel = document.getElementById('stream-scene-select');
- if (!sel) return;
- const current = sel.value;
- sel.innerHTML = Object.entries(scenes).map(([id, scene]) => `<option value="${escapeHtml(id)}">${escapeHtml(scene.name || id)}</option>`).join('');
- if (current && scenes[current]) sel.value = current;
-}
-
-// ── streamApplySelectedScene ──
-function streamApplySelectedScene() {
- const scenes = streamLoadScenes();
- const id = document.getElementById('stream-scene-select')?.value;
- if (!id || !scenes[id]) return;
- streamApplySceneState(scenes[id]);
-}
-
-// ── streamSaveCurrentScene ──
-function streamSaveCurrentScene() {
- const scenes = streamLoadScenes();
- const id = document.getElementById('stream-scene-select')?.value;
- if (!id || !scenes[id]) return;
- scenes[id] = { ...scenes[id], ...streamCurrentSceneState() };
- streamSaveScenes(scenes);
- streamNotify('Scene updated.', 'green', 4);
-}
-
-// ── streamCreateScene ──
-function streamCreateScene() {
- const name = prompt('Scene name:');
- if (!name || !name.trim()) return;
- const id = name.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32);
- if (!id) return;
- const scenes = streamLoadScenes();
- scenes[id] = { name: name.trim(), ...streamCurrentSceneState() };
- streamSaveScenes(scenes);
- streamRenderScenes();
- document.getElementById('stream-scene-select').value = id;
- streamNotify('Scene created.', 'green', 4);
-}
-
-// ── streamDeleteScene ──
-function streamDeleteScene() {
- const sel = document.getElementById('stream-scene-select');
- const id = sel?.value;
- if (!id) return;
- const scenes = streamLoadScenes();
- if (!scenes[id]) return;
- if (!confirm('Delete scene "' + (scenes[id].name || id) + '"?')) return;
- delete scenes[id];
- streamSaveScenes(scenes);
- streamRenderScenes();
- streamNotify('Scene deleted.', 'yellow', 4);
-}
-
-// ── streamSaveSetting ──
-function streamSaveSetting(key, val) {
- try {
-  const s = JSON.parse(localStorage.getItem('stream_settings') || '{}');
-  s[key] = val;
-  localStorage.setItem('stream_settings', JSON.stringify(s));
- } catch(e) {}
-}
-
-// ── streamLoadSettings ──
-function streamLoadSettings() {
- try {
-  const s = JSON.parse(localStorage.getItem('stream_settings') || '{}');
-  if (s.resolution) document.getElementById('stream-resolution').value = s.resolution;
-  if (s.fps) document.getElementById('stream-fps').value = s.fps;
-  if (s.bitrate) {
-   document.getElementById('stream-bitrate').value = s.bitrate;
-   document.getElementById('stream-bitrate-val').textContent = s.bitrate + 'Mbps';
-  }
-  if (s.webcamSize) document.getElementById('stream-webcam-size').value = s.webcamSize;
-  if (s.webcamQuality) document.getElementById('stream-webcam-quality').value = s.webcamQuality;
-  if (s.pipCorner) streamSetPipCorner(s.pipCorner);
-  if (typeof s.advancedDevices !== 'undefined') document.getElementById('stream-advanced-devices').checked = !!s.advancedDevices;
- } catch(e) {}
-}
-
-// ── streamPrettyDeviceLabel ──
-function streamPrettyDeviceLabel(label) {
- let s = String(label || '').trim();
- // Remove role prefixes that create duplicate-looking rows.
- s = s.replace(/^(Default|Communications)\s*-\s*/i, '');
- // Remove trailing parenthesized endpoint metadata aggressively.
- s = s.replace(/\s*\([^)]*\)\s*$/i, '');
- // Remove Windows endpoint id fragments like {0.0.1.00000000}.{GUID}
- s = s.replace(/\{[0-9a-fA-F.\-]+\}/g, '');
- // Remove long hex-ish tokens often appended by audio stacks.
- s = s.replace(/\b(?:0x)?[0-9a-fA-F]{8,}\b/g, '');
- // Collapse repeated separators and whitespace.
- s = s.replace(/\s*-\s*$/g, '').replace(/\s+/g, ' ').trim();
- if (!s) return 'Microphone';
- return s;
-}
-
-// ── streamEnumerateDevices ──
-async function streamEnumerateDevices() {
- try {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const micSel = document.getElementById('stream-mic-device');
-  const camSel = document.getElementById('stream-webcam-device');
-  const showAdvanced = !!document.getElementById('stream-advanced-devices')?.checked;
-  micSel.innerHTML = '<option value="">Default Microphone</option>';
-  camSel.innerHTML = '<option value="">Default Camera</option>';
-
-  const seenMics = new Set();
-  const seenCams = new Set();
-
-  if (!showAdvanced) return;
-
-  devices.forEach(d => {
-   if (d.kind === 'audioinput') {
-    const rawLabel = (d.label || '').trim();
-    if (!rawLabel) return; // skip anonymous duplicates before permission
-    if (/disabled|unplugged/i.test(rawLabel)) return; // hide obviously unavailable devices
-    const pretty = streamPrettyDeviceLabel(rawLabel) || rawLabel;
-    const norm = pretty.toLowerCase();
-    if (seenMics.has(norm)) return;
-    seenMics.add(norm);
-    const short = pretty.length > 42 ? pretty.slice(0, 39) + '…' : pretty;
-    micSel.innerHTML += '<option value="' + d.deviceId + '" title="' + escapeHtml(pretty) + '">' + escapeHtml(short) + '</option>';
-   }
-   if (d.kind === 'videoinput') {
-    const rawLabel = (d.label || '').trim();
-    if (!rawLabel) return;
-    if (/disabled|unplugged/i.test(rawLabel)) return;
-    const pretty = streamPrettyDeviceLabel(rawLabel) || rawLabel;
-    const norm = pretty.toLowerCase();
-    if (seenCams.has(norm)) return;
-    seenCams.add(norm);
-    const short = pretty.length > 42 ? pretty.slice(0, 39) + '…' : pretty;
-    camSel.innerHTML += '<option value="' + d.deviceId + '" title="' + escapeHtml(pretty) + '">' + escapeHtml(short) + '</option>';
-   }
-  });
- } catch(e) {}
-}
-
-// ── streamCompositeLoop ──
-function streamCompositeLoop() {
- if (!compositeCtx) return;
- const loopStart = performance.now();
- const w = compositeCanvas.width, h = compositeCanvas.height;
- compositeCtx.fillStyle = '#000';
- compositeCtx.fillRect(0, 0, w, h);
-
- if (streamScreenStream && hiddenScreenVideo.readyState >= 2) {
-  const vw = hiddenScreenVideo.videoWidth, vh = hiddenScreenVideo.videoHeight;
-  if (vw && vh) {
-   const scale = Math.min(w / vw, h / vh);
-   const dw = vw * scale, dh = vh * scale;
-   compositeCtx.drawImage(hiddenScreenVideo, (w - dw) / 2, (h - dh) / 2, dw, dh);
-  }
- }
-
- const pipVideo = document.getElementById('pip-webcam-video');
- if (!streamSafeMode && streamWebcamStream && pipVideo && pipVideo.readyState >= 2 && document.getElementById('stream-webcam-cb').checked) {
-  const sizeMap = { small: 0.15, medium: 0.2, large: 0.3 };
-  const sizeFrac = sizeMap[document.getElementById('stream-webcam-size').value] || 0.2;
-  const pw = w * sizeFrac;
-  const ph = pw * (pipVideo.videoHeight / pipVideo.videoWidth || 0.75);
-  const margin = 16;
-  let px, py;
-  if (streamPipCorner === 'tl') { px = margin; py = margin; }
-  else if (streamPipCorner === 'tr') { px = w - pw - margin; py = margin; }
-  else if (streamPipCorner === 'bl') { px = margin; py = h - ph - margin; }
-  else { px = w - pw - margin; py = h - ph - margin; }
-
-  compositeCtx.save();
-  compositeCtx.beginPath();
-  compositeCtx.roundRect(px, py, pw, ph, 12);
-  compositeCtx.clip();
-  compositeCtx.drawImage(pipVideo, px, py, pw, ph);
-  compositeCtx.restore();
-  compositeCtx.strokeStyle = 'rgba(153,102,255,0.6)';
-  compositeCtx.lineWidth = 3;
-  compositeCtx.beginPath();
-  compositeCtx.roundRect(px, py, pw, ph, 12);
-  compositeCtx.stroke();
- }
-
- if (streamBrbActive) {
-  const elapsed = Math.max(0, Math.floor((Date.now() - streamBrbStartAt) / 1000));
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const ss = String(elapsed % 60).padStart(2, '0');
-
-  compositeCtx.save();
-  compositeCtx.fillStyle = 'rgba(0,0,0,0.58)';
-  compositeCtx.fillRect(0, 0, w, h);
-
-  compositeCtx.fillStyle = '#f5f5f5';
-  compositeCtx.textAlign = 'center';
-  compositeCtx.font = 'bold 84px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-  compositeCtx.fillText('BRB', w / 2, h / 2 - 20);
-  compositeCtx.font = '500 36px system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
-  compositeCtx.fillText('AFK ' + mm + ':' + ss, w / 2, h / 2 + 42);
-  compositeCtx.restore();
- }
-
- streamLastLoopMs = Math.max(0, performance.now() - loopStart);
- streamLoopLastTs = Date.now();
- if (streamLastLoopMs > 42) streamPerfSlowFrames++; else streamPerfSlowFrames = Math.max(0, streamPerfSlowFrames - 1);
- if (!streamSafeMode && streamPerfSlowFrames >= 8) {
-  streamSafeMode = true;
-  const webcamCb = document.getElementById('stream-webcam-cb');
-  if (webcamCb) webcamCb.checked = false;
-  streamSetMicStatus('Mic status: safe mode (webcam overlay disabled)', 'warn');
- }
- const loopEl = document.getElementById('stream-stat-loop');
- if (loopEl) {
-  const suffix = streamSafeMode ? ' [SAFE]' : '';
-  loopEl.textContent = 'Loop: ' + streamLastLoopMs.toFixed(1) + 'ms' + suffix;
- }
-
- streamCompositeAnimFrame = requestAnimationFrame(streamCompositeLoop);
-}
-
-// ── streamStartCompositing ──
-function streamStartCompositing() {
- if (streamCompositeAnimFrame) cancelAnimationFrame(streamCompositeAnimFrame);
- streamCompositeLoop();
- document.getElementById('stream-preview-placeholder').style.display = 'none';
- const fps = parseInt(document.getElementById('stream-fps').value) || 30;
- streamCompositeStream = compositeCanvas.captureStream(fps);
- // Add desktop audio from screen capture if enabled
- if (streamScreenStream && document.getElementById('stream-desktop-audio-cb').checked) {
-  streamScreenStream.getAudioTracks().forEach(t => streamCompositeStream.addTrack(t));
- }
- // Add mic audio if active
- if (streamMicDestNode) {
-  streamMicDestNode.stream.getAudioTracks().forEach(t => streamCompositeStream.addTrack(t));
- }
-}
-
-// ── streamStopCompositing ──
-function streamStopCompositing() {
- if (streamCompositeAnimFrame) { cancelAnimationFrame(streamCompositeAnimFrame); streamCompositeAnimFrame = null; }
- streamCompositeStream = null;
- document.getElementById('stream-preview-placeholder').style.display = 'flex';
-}
-
-// ── streamStartScreen ──
-async function streamStartScreen() {
- try {
-  if (streamScreenStream) { streamScreenStream.getTracks().forEach(t => t.stop()); }
-  const resSel = document.getElementById('stream-resolution').value;
-  const fpsSel = parseInt(document.getElementById('stream-fps').value) || 30;
-  const resMap = { '720': {w:1280,h:720}, '1080': {w:1920,h:1080}, '1440': {w:2560,h:1440}, '2160': {w:3840,h:2160} };
-  const res = resMap[resSel] || { w: 1920, h: 1080 };
-  const constraints = { video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: fpsSel } }, audio: true };
-  streamScreenStream = await navigator.mediaDevices.getDisplayMedia(constraints);
-  hiddenScreenVideo.srcObject = streamScreenStream;
-  await hiddenScreenVideo.play();
-  streamScreenStream.getVideoTracks()[0].onended = () => {
-   streamScreenStream = null;
-   hiddenScreenVideo.srcObject = null;
-   if (!streamWebcamStream) streamStopCompositing();
-  };
-  // Update canvas size to match
-  if (resSel !== 'source') {
-   compositeCanvas.width = res.w;
-   compositeCanvas.height = res.h;
-  } else {
-   const vt = streamScreenStream.getVideoTracks()[0];
-   if (vt) {
-    const s = vt.getSettings();
-    if (s.width && s.height) { compositeCanvas.width = s.width; compositeCanvas.height = s.height; }
-   }
-  }
-  document.getElementById('stream-screen-cb').checked = true;
-  streamStartCompositing();
-  unlockAchievement('streamer');
- } catch (e) {
-  console.warn('Screen capture failed:', e);
- }
-}
-
-// ── streamToggleScreen ──
-function streamToggleScreen() {
- if (!document.getElementById('stream-screen-cb').checked && streamScreenStream) {
-  streamScreenStream.getTracks().forEach(t => t.stop());
-  streamScreenStream = null;
-  hiddenScreenVideo.srcObject = null;
-  if (!streamWebcamStream) streamStopCompositing();
- }
-}
-
-// ── streamToggleDesktopAudio ──
-function streamToggleDesktopAudio() {
- // Rebuild composite stream to add/remove desktop audio
- if (streamCompositeStream && streamScreenStream) {
-  // Remove existing audio tracks from screen
-  const screenAudioTracks = streamScreenStream.getAudioTracks();
-  if (document.getElementById('stream-desktop-audio-cb').checked) {
-   screenAudioTracks.forEach(t => {
-    if (!streamCompositeStream.getTrackById(t.id)) {
-     streamCompositeStream.addTrack(t);
-     // Update live WebRTC connections
-     streamUpdateLiveTracks();
-    }
-   });
-  } else {
-   screenAudioTracks.forEach(t => {
-    streamCompositeStream.removeTrack(t);
-    streamUpdateLiveTracks();
-   });
-  }
- }
-}
-
-// ── streamStartMic ──
-async function streamStartMic(deviceId) {
- // Clean up previous mic
- streamStopMic();
- try {
-  const constraints = { audio: deviceId ? { deviceId: { exact: deviceId } } : true };
-  streamMicStream = await navigator.mediaDevices.getUserMedia(constraints);
-  if (!streamAudioCtx) streamAudioCtx = new AudioContext();
-  streamMicSourceNode = streamAudioCtx.createMediaStreamSource(streamMicStream);
-  streamMicGainNode = streamAudioCtx.createGain();
-  streamMicGainNode.gain.value = parseInt(document.getElementById('stream-mic-volume').value) / 100;
-  streamMicDestNode = streamAudioCtx.createMediaStreamDestination();
-  streamMicSourceNode.connect(streamMicGainNode);
-  streamMicGainNode.connect(streamMicDestNode);
-  // Add to composite if active
-  if (streamCompositeStream) {
-   streamMicDestNode.stream.getAudioTracks().forEach(t => streamCompositeStream.addTrack(t));
-   streamUpdateLiveTracks();
-  }
-  // Re-enumerate to get labels
-  streamEnumerateDevices();
-  streamSetMicStatus('Mic status: active', 'good');
- } catch(e) {
-  console.warn('Mic start failed:', e);
-  streamSetMicStatus('Mic status: unavailable or denied', 'bad');
- }
-}
-
-// ── streamStopMic ──
-function streamStopMic() {
- if (streamMicStream) { streamMicStream.getTracks().forEach(t => t.stop()); streamMicStream = null; }
- if (streamMicSourceNode) { streamMicSourceNode.disconnect(); streamMicSourceNode = null; }
- if (streamMicGainNode) { streamMicGainNode.disconnect(); streamMicGainNode = null; }
- if (streamMicDestNode) {
-  if (streamCompositeStream) {
-   streamMicDestNode.stream.getAudioTracks().forEach(t => {
-    try { streamCompositeStream.removeTrack(t); } catch(e) {}
-   });
-  }
-  streamMicDestNode = null;
- }
- streamSetMicStatus('Mic status: idle', 'neutral');
-}
-
-// ── streamSwitchMic ──
-async function streamSwitchMic() {
- const deviceId = document.getElementById('stream-mic-device').value;
- if (deviceId || streamMicStream) {
-  await streamStartMic(deviceId || undefined);
- }
-}
-
-// ── streamToggleMicMute ──
-function streamToggleMicMute() {
- streamMicMuted = !streamMicMuted;
- const btn = document.getElementById('stream-mic-mute-btn');
- if (streamMicMuted) {
-  btn.textContent = 'Mic Off';
-  btn.classList.add('muted');
-  if (streamMicGainNode) streamMicGainNode.gain.value = 0;
- } else {
-  btn.textContent = 'Mic On';
-  btn.classList.remove('muted');
-  if (streamMicGainNode) streamMicGainNode.gain.value = parseInt(document.getElementById('stream-mic-volume').value) / 100;
- }
-}
-
-// ── streamSetMicVolume ──
-function streamSetMicVolume(val) {
- if (streamMicGainNode && !streamMicMuted) {
-  streamMicGainNode.gain.value = parseInt(val) / 100;
- }
- streamSaveSetting('micVolume', val);
-}
-
-// ── streamToggleWebcam ──
-async function streamToggleWebcam() {
- const cb = document.getElementById('stream-webcam-cb');
- if (cb.checked) {
-  await streamSwitchWebcam();
-  if (!streamCompositeAnimFrame) streamStartCompositing();
- } else {
-  if (streamWebcamStream) { streamWebcamStream.getTracks().forEach(t => t.stop()); streamWebcamStream = null; }
-  document.getElementById('pip-webcam-video').srcObject = null;
- }
-}
-
-// ── streamSwitchWebcam ──
-async function streamSwitchWebcam() {
- if (!document.getElementById('stream-webcam-cb').checked) return;
- try {
-  if (streamWebcamStream) { streamWebcamStream.getTracks().forEach(t => t.stop()); }
-  const deviceId = document.getElementById('stream-webcam-device').value;
-  const qualityMap = { low: {w:640,h:480}, medium: {w:1280,h:720}, high: {w:1920,h:1080} };
-  const q = qualityMap[document.getElementById('stream-webcam-quality').value] || qualityMap.medium;
-  const constraints = { video: { width: { ideal: q.w }, height: { ideal: q.h } }, audio: false };
-  if (deviceId) constraints.video.deviceId = { exact: deviceId };
-  streamWebcamStream = await navigator.mediaDevices.getUserMedia(constraints);
-  const pipVid = document.getElementById('pip-webcam-video');
-  pipVid.srcObject = streamWebcamStream;
-  pipVid.play().catch(() => {});
-  streamEnumerateDevices();
- } catch(e) {
-  document.getElementById('stream-webcam-cb').checked = false;
-  console.warn('Webcam failed:', e);
- }
-}
-
-// ── streamUpdatePipSize ──
-function streamUpdatePipSize() { /* Compositing loop reads the select value each frame */ }
-
-
-// ── streamSetPipCorner ──
-function streamSetPipCorner(corner) {
- streamPipCorner = corner;
- streamSaveSetting('pipCorner', corner);
- document.querySelectorAll('#pip-corner-picker span').forEach(s => s.classList.toggle('active', s.dataset.corner === corner));
-}
-
-// ── streamApplyBitrate ──
-function streamApplyBitrate() {
- const mbps = parseFloat(document.getElementById('stream-bitrate').value) || 6;
- const bps = mbps * 1000000;
- // Apply to all viewer PCs
- Object.values(streamViewerPCs).forEach(pc => {
-  pc.getSenders().forEach(sender => {
-   if (sender.track && sender.track.kind === 'video') {
-    const params = sender.getParameters();
-    if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-    params.encodings[0].maxBitrate = bps;
-    sender.setParameters(params).catch(() => {});
-   }
-  });
- });
-}
-
-// ── streamUpdateLiveTracks ──
-function streamUpdateLiveTracks() {
- // This is complex - for now, new viewers get updated tracks automatically
- // Existing viewers would need renegotiation; skip for simplicity
-}
-
-// ── streamGoLive ──
-async function streamGoLive() {
- if (streamIsLive) return;
- if (!streamCompositeStream && !streamScreenStream) {
-  await streamStartScreen();
-  if (!streamScreenStream) return;
- }
- // Ensure composite stream is fresh (fixes retry bug)
- if (streamCompositeStream) {
-  // Check if tracks are still live
-  const tracks = streamCompositeStream.getTracks();
-  const allLive = tracks.length > 0 && tracks.every(t => t.readyState === 'live');
-  if (!allLive) {
-   streamStartCompositing();
-  }
- }
- // Ensure microphone path is attempted (selected device or default mic).
- if (!streamMicStream) {
-  const selectedMic = document.getElementById('stream-mic-device').value || undefined;
-  await streamStartMic(selectedMic);
-  if (!streamMicStream) {
-   streamSetMicStatus('Mic status: missing (streaming without mic)', 'warn');
-  }
- }
-
- const title = document.getElementById('stream-title').value || 'Untitled Stream';
- const category = document.getElementById('stream-category').value || '';
-
- if (streamWs && streamWs.readyState === 1) {
-  streamWs.send(JSON.stringify({ type: 'stream_start', title, category }));
- }
-
- streamIsLive = true;
- streamStartTime = Date.now();
- streamSafeMode = false;
- streamPerfSlowFrames = 0;
- document.getElementById('stream-go-live-btn').style.display = 'none';
- document.getElementById('stream-stop-btn').style.display = 'inline-flex';
- document.getElementById('stream-brb-btn').style.display = 'inline-flex';
- document.getElementById('stream-stop-btn').classList.remove('btn-disabled');
- document.getElementById('stream-stop-btn').classList.add('btn-activated');
-
- // Duration timer
- streamDurationTimer = setInterval(() => {
-  const elapsed = Math.floor((Date.now() - streamStartTime) / 1000);
-  const h = Math.floor(elapsed / 3600);
-  const m = Math.floor((elapsed % 3600) / 60).toString().padStart(2, '0');
-  const s = (elapsed % 60).toString().padStart(2, '0');
-  document.getElementById('stream-stat-duration').textContent = 'Duration: ' + (h ? h + ':' : '') + m + ':' + s;
- }, 1000);
-
- // Update quality stats
- if (streamScreenStream) {
-  const vt = streamScreenStream.getVideoTracks()[0];
-  if (vt) {
-   const settings = vt.getSettings();
-   document.getElementById('stream-stat-quality').textContent = 'Quality: ' + (settings.width || '?') + 'x' + (settings.height || '?') + ' @ ' + (settings.frameRate ? Math.round(settings.frameRate) + 'fps' : '?');
-  }
- }
-
- // Apply bitrate setting
- streamApplyBitrate();
-
- // Start metrics collection
- streamStartMetrics();
-
- // External streams
- const externalUrls = [];
- if (document.getElementById('stream-twitch-cb').checked) {
-  externalUrls.push({ platform: 'twitch', url: document.getElementById('stream-twitch-url').value });
- }
- if (document.getElementById('stream-youtube-cb').checked) {
-  externalUrls.push({ platform: 'youtube', url: document.getElementById('stream-youtube-url').value });
- }
- if (document.getElementById('stream-rumble-cb').checked) {
-  externalUrls.push({ platform: 'rumble', url: document.getElementById('stream-rumble-url').value });
- }
- if (externalUrls.length > 0 && ws && ws.readyState === 1) {
-  streamWs.send(JSON.stringify({ type: 'stream_set_external', urls: externalUrls }));
- }
-
- const twitchUrl = document.getElementById('stream-twitch-url').value;
- if (document.getElementById('stream-twitch-cb').checked && twitchUrl) {
-  const twitchChannel = twitchUrl.replace(/.*twitch\.tv\/?/i, '').replace(/\//g, '').toLowerCase();
-  if (twitchChannel) connectTwitchChat(twitchChannel);
- }
-}
-
-// ── streamToggleBrb ──
-function streamToggleBrb() {
- if (!streamIsLive) return;
- streamBrbActive = !streamBrbActive;
- const btn = document.getElementById('stream-brb-btn');
- if (streamBrbActive) {
-  streamBrbStartAt = Date.now();
-  if (btn) {
-   btn.textContent = 'BACK';
-   btn.classList.add('btn-activated');
-  }
-  streamSetMicStatus('Mic status: BRB mode', 'warn');
- } else {
-  if (btn) {
-   btn.textContent = 'BRB';
-   btn.classList.remove('btn-activated');
-  }
-  streamSetMicStatus('Mic status: active', 'good');
- }
-}
-
-// ── streamStop ──
-function streamStop() {
- if (!streamIsLive) return;
- streamIsLive = false;
-
- if (streamDurationTimer) { clearInterval(streamDurationTimer); streamDurationTimer = null; }
- if (streamMetricsTimer) { clearInterval(streamMetricsTimer); streamMetricsTimer = null; }
- if (streamViewerPollInt) { clearInterval(streamViewerPollInt); streamViewerPollInt = null; }
- if (streamStatsPollInt) { clearInterval(streamStatsPollInt); streamStatsPollInt = null; }
- if (streamHeartbeatInt) { clearInterval(streamHeartbeatInt); streamHeartbeatInt = null; }
-
- if (streamCompositeAnimFrame) {
-  try { cancelAnimationFrame(streamCompositeAnimFrame); } catch(e) {}
-  streamCompositeAnimFrame = null;
- }
-
- // Stop all local capture streams/tracks to prevent lingering GPU/encoder load.
- [streamScreenStream, streamWebcamStream, streamCompositeStream].forEach(s => {
-  if (!s) return;
-  try { s.getTracks().forEach(t => t.stop()); } catch(e) {}
- });
- streamScreenStream = null;
- streamWebcamStream = null;
- streamCompositeStream = null;
-
- // Release media element sources.
- try {
-  const pv = document.getElementById('stream-preview-video');
-  if (pv) pv.srcObject = null;
-  if (screenVideo) screenVideo.srcObject = null;
-  if (pipVideo) pipVideo.srcObject = null;
- } catch(e) {}
-
- // Close WebAudio context used for compositing.
- try { if (streamAudioCtx) streamAudioCtx.close(); } catch(e) {}
- streamAudioCtx = null;
- streamAudioDestNode = null;
- streamDeskSourceNode = null;
- streamWebcamAudioSourceNode = null;
-
- document.getElementById('stream-go-live-btn').style.display = 'inline-flex';
- document.getElementById('stream-stop-btn').style.display = 'none';
- document.getElementById('stream-brb-btn').style.display = 'none';
- document.getElementById('stream-brb-btn').textContent = 'BRB';
- document.getElementById('stream-brb-btn').classList.remove('btn-activated');
- streamBrbActive = false;
- streamBrbStartAt = 0;
- const statDuration = document.getElementById('stream-stat-duration');
- const statQuality = document.getElementById('stream-stat-quality');
- const statBitrate = document.getElementById('stream-stat-bitrate');
- const statTracks = document.getElementById('stream-stat-tracks');
- const statLoop = document.getElementById('stream-stat-loop');
- if (statDuration) statDuration.textContent = 'Duration: --:--';
- if (statQuality) statQuality.textContent = 'Quality: --';
- if (statBitrate) statBitrate.textContent = 'Bitrate: --';
- if (statTracks) statTracks.textContent = 'Tracks: --';
- if (statLoop) statLoop.textContent = 'Loop: --';
- streamLastLoopMs = 0;
- streamLoopLastTs = 0;
- streamSafeMode = false;
- streamPerfSlowFrames = 0;
-
- if (streamWs && streamWs.readyState === 1) {
-  streamWs.send(JSON.stringify({ type: 'stream_stop' }));
- }
-
- // Close all viewer WebRTC connections
- Object.keys(streamViewerPCs).forEach(key => {
-  try { streamViewerPCs[key].close(); } catch(e) {}
-  delete streamViewerPCs[key];
- });
- if (streamPeerConnection) { streamPeerConnection.close(); streamPeerConnection = null; }
- if (twitchChatWs) { twitchChatWs.close(); twitchChatWs = null; }
-
- // Stop mic
- streamStopMic();
-}
-
-// ── streamStartMetrics ──
-function streamStartMetrics() {
- streamMetricsPrevBytes = 0;
- streamMetricsPrevTime = Date.now();
- if (streamMetricsTimer) clearInterval(streamMetricsTimer);
- streamMetricsTimer = setInterval(streamCollectMetrics, 2000);
-}
-
-// ── streamCollectMetrics ──
-async function streamCollectMetrics() {
- // Streamer metrics: aggregate from all viewer PCs
- const pcEntries = Object.entries(streamViewerPCs);
- const pcs = pcEntries.map(e => e[1]);
- // Show PC states in stats bar for debugging
- const states = pcEntries.map(([k,pc]) => k.substring(0,6) + ':' + pc.connectionState).join(' ');
- const stateEl = document.getElementById('stream-stat-bitrate');
- if (stateEl && pcEntries.length > 0) stateEl.title = 'PCs: ' + states;
- if (pcs.length === 0) return;
- // Use the first PC for codec/resolution info, aggregate bandwidth
- let totalBytesSent = 0, totalPacketsSent = 0, totalPacketsLost = 0;
- let fps = 0, resW = 0, resH = 0, codec = '--', rtt = 0, jitter = 0;
- let pcCount = 0;
-
- for (const pc of pcs) {
-  if (pc.connectionState === 'closed') continue;
-  try {
-   const stats = await pc.getStats();
-   stats.forEach(report => {
-    if (report.type === 'outbound-rtp' && report.kind === 'video') {
-     totalBytesSent += report.bytesSent || 0;
-     totalPacketsSent += report.packetsSent || 0;
-     if (report.framesPerSecond) fps = report.framesPerSecond;
-     if (report.frameWidth) { resW = report.frameWidth; resH = report.frameHeight; }
-     if (report.codecId) {
-      stats.forEach(r => { if (r.id === report.codecId) codec = (r.mimeType || '').replace('video/', ''); });
-     }
-    }
-    if (report.type === 'remote-inbound-rtp' && report.kind === 'video') {
-     totalPacketsLost += report.packetsLost || 0;
-     if (report.roundTripTime) rtt = report.roundTripTime;
-     if (report.jitter) jitter = report.jitter;
-    }
-    if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-     if (report.currentRoundTripTime) rtt = report.currentRoundTripTime;
-    }
-   });
-   pcCount++;
-  } catch(e) {}
- }
-
- const now = Date.now();
- const dt = (now - streamMetricsPrevTime) / 1000;
- const bps = dt > 0 ? ((totalBytesSent - streamMetricsPrevBytes) * 8) / dt : 0;
- streamMetricsPrevBytes = totalBytesSent;
- streamMetricsPrevTime = now;
-
- const formatBps = (b) => b > 1000000 ? (b/1000000).toFixed(1) + ' Mbps' : (b/1000).toFixed(0) + ' kbps';
- const formatBytes = (b) => b > 1073741824 ? (b/1073741824).toFixed(2) + ' GB' : b > 1048576 ? (b/1048576).toFixed(1) + ' MB' : (b/1024).toFixed(0) + ' KB';
-
- // Update stats bar
- document.getElementById('stream-stat-bitrate').textContent = 'Bitrate: ' + formatBps(bps);
-
- // Update metrics panel
- const el = (id) => document.getElementById(id);
- el('sm-upload').textContent = formatBps(bps);
- el('sm-pkts-sent').textContent = totalPacketsSent.toLocaleString();
- el('sm-pkts-lost').textContent = totalPacketsLost.toLocaleString();
- el('sm-fps').textContent = fps ? Math.round(fps) + ' fps' : '--';
- el('sm-resolution').textContent = resW ? resW + 'x' + resH : '--';
- el('sm-codec').textContent = codec;
- el('sm-rtt').textContent = rtt ? (rtt * 1000).toFixed(0) + ' ms' : '--';
- el('sm-jitter').textContent = jitter ? (jitter * 1000).toFixed(1) + ' ms' : '--';
- el('sm-total').textContent = formatBytes(totalBytesSent);
- el('sm-connections').textContent = pcCount + '/' + pcs.length + ' (' + states + ')';
-}
-
-// ── streamChatFilter ──
-function streamChatFilter(filter, context) {
- streamChatFilter_ = filter;
- const tabsId = context === 'viewer' ? 'viewer-chat-tabs' : 'stream-chat-tabs';
- document.querySelectorAll('#' + tabsId + ' button').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase() === filter || (filter === 'all' && b.textContent === 'All')));
- streamRenderChat(context);
-}
-
-// ── streamRenderChat ──
-function streamRenderChat(context) {
- const containerId = context === 'viewer' ? 'viewer-chat-messages' : 'stream-chat-messages';
- const container = document.getElementById(containerId);
- if (!container) return;
- const filtered = streamChatFilter_ === 'all' ? streamChatMessages : streamChatMessages.filter(m => m.source === streamChatFilter_);
- container.innerHTML = filtered.map(m => {
-  const srcClass = 'src-' + (m.source || 'humanity');
-  const srcIcon = { humanity: '🟠', twitch: '🟣', youtube: '🔴', rumble: '🟢' }[m.source] || '⚪';
-  const name = m.from_name || m.source_user || 'Anonymous';
-  return '<div class="stream-chat-msg">' + srcIcon + ' <span class="' + srcClass + '" style="font-weight:600;">' + escapeHtml(name) + '</span>: ' + escapeHtml(m.content) + '</div>';
- }).join('');
- container.scrollTop = container.scrollHeight;
-}
-
-// ── streamChatSend ──
-function streamChatSend(context) {
- const inputId = context === 'viewer' ? 'viewer-chat-input' : 'stream-chat-input';
- const input = document.getElementById(inputId);
- if (!input || !input.value.trim()) return;
- const content = input.value.trim();
- input.value = '';
- if (streamWs && streamWs.readyState === 1) {
-  streamWs.send(JSON.stringify({ type: 'stream_chat', content, source: 'humanity' }));
- }
-}
-
-// ── streamHandleMessage ──
-function streamHandleMessage(msg) {
- switch (msg.type) {
-  case 'stream_info':
-   streamCurrentInfo = msg;
-   streamUpdateLiveList();
-   document.getElementById('stream-stat-viewers').textContent = 'Viewers: ' + (msg.viewer_count || 0);
-   if (document.getElementById('viewer-stat-viewers')) {
-    document.getElementById('viewer-stat-viewers').textContent = 'Viewers ' + (msg.viewer_count || 0);
-   }
-   document.getElementById('server-live-count').textContent = msg.active ? '1 live' : '0 live';
-   break;
-
-  case 'stream_chat': {
-   streamChatMessages.push(msg);
-   if (streamChatMessages.length > 500) streamChatMessages.shift();
-   streamRenderChat();
-   streamRenderChat('viewer');
-   break;
-  }
-
-  case 'stream_offer':
-  case 'stream_answer':
-  case 'stream_ice':
-   streamHandleSignaling(msg);
-   break;
- }
-}
-
-// ── streamUpdateLiveList ──
-function streamUpdateLiveList() {
- const container = document.getElementById('stream-live-list');
- const empty = document.getElementById('stream-live-empty');
- if (!streamCurrentInfo.active) {
-  if (empty) empty.style.display = 'block';
-  container.querySelectorAll('.viewer-card').forEach(c => c.remove());
-  document.getElementById('stream-viewer-panel').classList.remove('active');
-  return;
- }
- if (empty) empty.style.display = 'none';
- container.querySelectorAll('.viewer-card').forEach(c => c.remove());
-
- const card = document.createElement('div');
- card.className = 'viewer-card';
- card.onclick = () => streamViewerJoin();
- card.innerHTML = '<div class="thumb">🔴</div><div class="meta"><h3>' + escapeHtml(streamCurrentInfo.title || 'Live Stream') + '</h3><div class="sub">' + escapeHtml(streamCurrentInfo.streamer_name || 'Unknown') + ' · Viewers ' + (streamCurrentInfo.viewer_count || 0) + (streamCurrentInfo.category ? ' · ' + escapeHtml(streamCurrentInfo.category) : '') + '</div></div>';
- container.appendChild(card);
-
- if (streamCurrentInfo.external_urls) {
-  streamCurrentInfo.external_urls.forEach(eu => {
-   const ecard = document.createElement('div');
-   ecard.className = 'viewer-card';
-   ecard.onclick = () => streamViewerJoinExternal(eu.platform, eu.url);
-   const icon = { twitch: '🟣', youtube: '🔴', rumble: '🟢' }[eu.platform] || 'LIVE';
-   ecard.innerHTML = '<div class="thumb">' + icon + '</div><div class="meta"><h3>' + escapeHtml(eu.platform.charAt(0).toUpperCase() + eu.platform.slice(1)) + '</h3><div class="sub">' + escapeHtml(eu.url) + '</div></div>';
-   container.appendChild(ecard);
-  });
- }
-}
-
-// ── streamViewerJoin ──
-function streamViewerJoin() {
- const panel = document.getElementById('stream-viewer-panel');
- panel.classList.add('active');
- document.getElementById('viewer-stream-title').textContent = 'LIVE ' + (streamCurrentInfo.title || 'Live Stream');
-
- // Clean up previous viewer PC if exists (fixes retry bug)
- if (streamViewerPC) {
-  streamViewerPC.close();
-  streamViewerPC = null;
- }
-
- if (streamWs && streamWs.readyState === 1) {
-  streamWs.send(JSON.stringify({ type: 'stream_viewer_join' }));
-  if (streamCurrentInfo && streamCurrentInfo.streamer_key) {
-   streamWs.send(JSON.stringify({ type: 'stream_offer', to: streamCurrentInfo.streamer_key, data: { type: 'request' }, from: marketMyKey }));
-  }
- }
-
- // Start viewer metrics
- viewerMetricsPrevBytes = 0;
- viewerMetricsPrevTime = Date.now();
- if (viewerMetricsTimer) clearInterval(viewerMetricsTimer);
- viewerMetricsTimer = setInterval(viewerCollectMetrics, 2000);
-}
-
-// ── streamViewerJoinExternal ──
-function streamViewerJoinExternal(platform, url) {
- const panel = document.getElementById('stream-viewer-panel');
- panel.classList.add('active');
- document.getElementById('viewer-stream-title').textContent = 'LIVE ' + platform.charAt(0).toUpperCase() + platform.slice(1) + ' Stream';
- document.getElementById('viewer-video').style.display = 'none';
- const embedContainer = document.getElementById('viewer-embed-container');
- embedContainer.style.display = 'block';
-
- if (platform === 'twitch') {
-  const channel = url.replace(/.*twitch\.tv\/?/i, '').replace(/\//g, '');
-  embedContainer.innerHTML = '<iframe src="https://player.twitch.tv/?channel=' + encodeURIComponent(channel) + '&parent=' + location.hostname + '" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>';
-  if (channel) connectTwitchChat(channel);
- } else if (platform === 'youtube') {
-  const videoId = url.match(/(?:live\/|watch\?v=|youtu\.be\/)([^&?/]+)/);
-  if (videoId) {
-   embedContainer.innerHTML = '<iframe src="https://www.youtube.com/embed/' + encodeURIComponent(videoId[1]) + '?autoplay=1" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>';
-  }
- } else if (platform === 'rumble') {
-  embedContainer.innerHTML = '<iframe src="' + escapeHtml(url) + '" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>';
- }
-}
-
-// ── streamViewerLeave ──
-function streamViewerLeave() {
- document.getElementById('stream-viewer-panel').classList.remove('active');
- document.getElementById('viewer-video').style.display = 'block';
- document.getElementById('viewer-embed-container').style.display = 'none';
- document.getElementById('viewer-embed-container').innerHTML = '';
- if (streamWs && streamWs.readyState === 1) {
-  streamWs.send(JSON.stringify({ type: 'stream_viewer_leave' }));
- }
- if (streamViewerPC) { streamViewerPC.close(); streamViewerPC = null; }
- if (viewerMetricsTimer) { clearInterval(viewerMetricsTimer); viewerMetricsTimer = null; }
- if (twitchChatWs) { twitchChatWs.close(); twitchChatWs = null; }
-}
-
-// ── streamCleanupViewerPC ──
-function streamCleanupViewerPC(key) {
- if (streamViewerPCs[key]) {
-  try { streamViewerPCs[key].close(); } catch(e) {}
-  delete streamViewerPCs[key];
- }
-}
-
-// ── streamCreateOfferForViewer ──
-function streamCreateOfferForViewer(viewerKey) {
- // Close existing connection to this viewer
- streamCleanupViewerPC(viewerKey);
-
- const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' }] });
- streamViewerPCs[viewerKey] = pc;
- streamPeerConnection = pc;
-
- // Clean up on disconnect
- pc.onconnectionstatechange = () => {
-  if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-   streamCleanupViewerPC(viewerKey);
-  }
- };
-
- if (streamCompositeStream) {
-  streamCompositeStream.getTracks().forEach(t => pc.addTrack(t, streamCompositeStream));
- }
-
- // Apply bitrate
- const mbps = parseFloat(document.getElementById('stream-bitrate').value) || 6;
- const bps = mbps * 1000000;
-
- pc.onicecandidate = (e) => {
-  if (e.candidate && ws && ws.readyState === 1) {
-   streamWs.send(JSON.stringify({ type: 'stream_ice', to: viewerKey, data: e.candidate, from: marketMyKey }));
-  }
- };
-
- pc.createOffer().then(offer => {
-  pc.setLocalDescription(offer);
-  if (streamWs && streamWs.readyState === 1) {
-   streamWs.send(JSON.stringify({ type: 'stream_offer', to: viewerKey, data: offer, from: marketMyKey }));
-  }
-  // Apply bitrate after offer
-  setTimeout(() => {
-   pc.getSenders().forEach(sender => {
-    if (sender.track && sender.track.kind === 'video') {
-     const params = sender.getParameters();
-     if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-     params.encodings[0].maxBitrate = bps;
-     sender.setParameters(params).catch(() => {});
-    }
-   });
-  }, 100);
- }).catch(e => console.warn('WebRTC offer failed:', e));
-}
-
-// ── streamHandleSignaling ──
-function streamHandleSignaling(msg) {
- // Streamer: handle request from viewer
- if (msg.type === 'stream_offer' && streamIsLive && msg.data && msg.data.type === 'request' && msg.from) {
-  streamCreateOfferForViewer(msg.from);
- }
-
- // Viewer: handle offer from streamer
- if (msg.type === 'stream_offer' && !streamIsLive && msg.data && msg.data.type !== 'request') {
-  // Close previous viewer PC (fixes retry + duplicate offer bug)
-  if (streamViewerPC) {
-   if (streamViewerPC.connectionState === 'connecting' || streamViewerPC.connectionState === 'connected') {
-    // Already handling an offer, skip duplicate
-    return;
-   }
-   streamViewerPC.close();
-   streamViewerPC = null;
-  }
-
-  const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun2.l.google.com:19302' }] });
-  streamViewerPC = pc;
-  pc.ontrack = (e) => {
-   document.getElementById('viewer-video').srcObject = e.streams[0];
-  };
-  pc.onicecandidate = (e) => {
-   if (e.candidate && ws && ws.readyState === 1) {
-    streamWs.send(JSON.stringify({ type: 'stream_ice', to: msg.from, data: e.candidate, from: marketMyKey }));
-   }
-  };
-  pc.setRemoteDescription(new RTCSessionDescription(msg.data)).then(() => pc.createAnswer()).then(answer => {
-   pc.setLocalDescription(answer);
-   if (streamWs && streamWs.readyState === 1) {
-    streamWs.send(JSON.stringify({ type: 'stream_answer', to: msg.from, data: answer, from: marketMyKey }));
-   }
-  }).catch(e => console.warn('WebRTC answer failed:', e));
- }
-
- // Streamer: handle answer from viewer
- if (msg.type === 'stream_answer' && streamIsLive) {
-  const pc = streamViewerPCs[msg.from] || streamPeerConnection;
-  if (pc) {
-   pc.setRemoteDescription(new RTCSessionDescription(msg.data)).catch(e => console.warn('setRemoteDescription failed:', e));
-  }
- }
-
- // ICE candidates
- if (msg.type === 'stream_ice') {
-  let pc;
-  if (streamIsLive) {
-   pc = streamViewerPCs[msg.from] || streamPeerConnection;
-  } else {
-   pc = streamViewerPC;
-  }
-  if (pc) {
-   pc.addIceCandidate(new RTCIceCandidate(msg.data)).catch(e => console.warn('addIceCandidate failed:', e));
-  }
- }
-}
-
-// ── streamRequestInfo ──
-function streamRequestInfo() {
- if (streamWs && streamWs.readyState === 1) {
-  streamWs.send(JSON.stringify({ type: 'stream_info_request' }));
- }
-}
-
 
 </script>
 </body>

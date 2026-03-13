@@ -1388,18 +1388,49 @@ function updateChannelHeader() {
   } else {
     header.style.display = 'none';
   }
+  updateRulesBanner();
 }
 
-async function updateStats() {
-  try {
-    const resp = await fetch('/api/stats');
-    const data = await resp.json();
-    document.getElementById('stats').textContent =
-      `${data.total_messages} msgs · ${data.connected_peers} online`;
-  } catch (e) { /* ignore */ }
+// ── #rules agree/disagree banner ──
+function updateRulesBanner() {
+  let banner = document.getElementById('rules-agree-banner');
+  if (activeChannel !== 'rules') { if (banner) banner.style.display = 'none'; return; }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'rules-agree-banner';
+    banner.style.cssText = 'padding:0.8rem 1rem;border-top:1px solid var(--border);background:var(--bg-panel,#141414);display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;flex-shrink:0;';
+    const inputArea = document.getElementById('input-area');
+    if (inputArea && inputArea.parentNode) inputArea.parentNode.insertBefore(banner, inputArea);
+  }
+  banner.style.display = 'flex';
+  const agreed = localStorage.getItem('humanity_rules_agreed');
+  if (agreed === 'true') {
+    banner.innerHTML = '<span style="color:#4a8;font-size:0.85rem;">✅ You have agreed to the community rules.</span>' +
+      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">❌ Withdraw</button>';
+  } else if (agreed === 'false') {
+    banner.innerHTML = '<span style="color:#e55;font-size:0.85rem;">❌ You have not agreed to the rules.</span>' +
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid #4a8;color:#4a8;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">✅ I Agree</button>';
+  } else {
+    banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the Community Guidelines?</span>' +
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:0.35rem 1.2rem;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">✅ I Agree</button>' +
+      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.35rem 1rem;border-radius:6px;cursor:pointer;font-size:0.85rem;">❌ Disagree</button>';
+  }
 }
 
-// ── Utilities ──
+function rulesAgree() {
+  localStorage.setItem('humanity_rules_agreed', 'true');
+  updateRulesBanner();
+  addSystemMessage('✅ You have agreed to the Humanity Network community rules. Welcome! 💚');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({type:'chat',from:myKey,from_name:myName,content:'/rules_agreed',timestamp:Date.now(),channel:'rules'}));
+  }
+}
+
+function rulesDisagree() {
+  localStorage.setItem('humanity_rules_agreed', 'false');
+  updateRulesBanner();
+  addSystemMessage('❌ You have not agreed to the rules. You can change your mind any time in #rules.');
+}
 function setStatus(cls, text) {
   const el = document.getElementById('status');
   el.className = cls;
@@ -2585,48 +2616,81 @@ function showUserContextMenu(e, name, publicKey) {
   e.stopPropagation();
   ctxMenuTarget = { name, publicKey };
 
+  // Role lookups
+  const targetPeer = peerData[publicKey] || {};
+  const targetRole = targetPeer.role || 'user';
+  const myRole = (peerData[myKey] && peerData[myKey].role) || 'user';
+  const amMod   = myRole === 'mod' || myRole === 'admin';
+  const amAdmin  = myRole === 'admin';
+
+  // Color-coded ctx-item: user=default, mod=green left border, admin=blue, danger=red
+  const ci = (onclick, label, tier) => {
+    const borderStyle = {
+      mod:    'border-left:3px solid #4a8;padding-left:9px;',
+      admin:  'border-left:3px solid #56b;padding-left:9px;',
+      danger: 'border-left:3px solid #e55;padding-left:9px;color:#e88;',
+    }[tier] || '';
+    return '<div class="ctx-item" style="' + borderStyle + '" onclick="' + onclick + '">' + label + '</div>';
+  };
+
+  // Role badge for target user header
+  const roleBadge = {
+    admin: '<span style="font-size:0.68rem;background:#56b;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">ADMIN</span>',
+    mod:   '<span style="font-size:0.68rem;background:#4a8;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">MOD</span>',
+  }[targetRole] || '<span style="font-size:0.68rem;background:#444;color:#aaa;padding:1px 5px;border-radius:3px;margin-left:4px;">USER</span>';
+
   const isBot = publicKey && publicKey.startsWith('bot_');
   let html = '';
+
   if (isBot) {
-    // Bot-specific context menu
-    html += `<div class="ctx-item" style="font-weight:bold;color:var(--accent);pointer-events:none">🤖 ${esc(name)}</div>`;
+    html += '<div class="ctx-item" style="font-weight:bold;color:var(--accent);pointer-events:none">\uD83E\uDD16 ' + esc(name) + '</div>';
     html += '<div class="ctx-sep"></div>';
-    html += `<div class="ctx-item" onclick="botCommand('status')">📊 Status</div>`;
-    html += `<div class="ctx-item" onclick="botCommand('summary')">📝 Today's Summary</div>`;
-    html += `<div class="ctx-item" onclick="botCommand('tasks')">📋 Current Tasks</div>`;
-    html += `<div class="ctx-item" onclick="botCommand('help')">❓ Help</div>`;
+    html += ci("botCommand('status')", '\uD83D\uDCCA Status', 'user');
+    html += ci("botCommand('summary')", "\uD83D\uDCDD Today's Summary", 'user');
+    html += ci("botCommand('tasks')", '\uD83D\uDCCB Current Tasks', 'user');
+    html += ci("botCommand('help')", '\u2753 Help', 'user');
   } else {
-    html += `<div class="ctx-item" onclick="viewProfileFromCtx()">👤 View Profile</div>`;
-    html += `<div class="ctx-item" onclick="copyPublicKey()">📋 Copy public key</div>`;
+    // Header with name + role badge
+    html += '<div class="ctx-item" style="font-weight:600;pointer-events:none;padding-bottom:0.2rem;">' + esc(name) + roleBadge + '</div>';
+    html += '<div class="ctx-sep"></div>';
+    html += ci("viewProfileFromCtx()", '\uD83D\uDC64 View Profile', 'user');
+    html += ci("copyPublicKey()", '\uD83D\uDCCB Copy Key', 'user');
     if (name !== myName) {
-      html += `<div class="ctx-item" onclick="dmFromCtx()">💬 Direct Message</div>`;
-      // Follow/unfollow toggle
+      html += ci("dmFromCtx()", '\uD83D\uDCAC Direct Message', 'user');
       if (typeof myFollowing !== 'undefined' && myFollowing.has(publicKey)) {
-        html += `<div class="ctx-item" onclick="followFromCtx(false)">❌ Unfollow</div>`;
+        html += ci("followFromCtx(false)", '\u274C Unfollow', 'user');
       } else {
-        html += `<div class="ctx-item" onclick="followFromCtx(true)">👁️ Follow</div>`;
+        html += ci("followFromCtx(true)", '\uD83D\uDC41\uFE0F Follow', 'user');
       }
-      // Block/unblock toggle.
       if (isBlocked(name)) {
-        html += `<div class="ctx-item" onclick="unblockFromCtx()">✅ Unblock</div>`;
+        html += ci("unblockFromCtx()", '\u2705 Unblock', 'user');
       } else {
-        html += `<div class="ctx-item" onclick="blockFromCtx()">🚫 Block</div>`;
+        html += ci("blockFromCtx()", '\uD83D\uDEAB Block', 'user');
       }
-      html += `<div class="ctx-item" onclick="reportUser()">🚩 Report</div>`;
-      html += '<div class="ctx-sep"></div>';
-      html += `<div class="ctx-item" onclick="ctxCommand('/kick')">👢 Kick</div>`;
-      html += `<div class="ctx-item" onclick="ctxCommand('/mute')">🔇 Mute</div>`;
-      html += `<div class="ctx-item" onclick="ctxCommand('/ban')">🚫 Ban</div>`;
-      html += `<div class="ctx-item" onclick="ctxCommand('/verify')">✦ Verify</div>`;
+      html += ci("reportUser()", '\uD83D\uDEA9 Report', 'danger');
+      if (amMod) {
+        html += '<div class="ctx-sep"></div>';
+        html += '<div class="ctx-item" style="font-size:0.68rem;color:#4a8;pointer-events:none;">\u2014 Mod Actions \u2014</div>';
+        html += ci("ctxCommand('/kick')", '\uD83D\uDC62 Kick', 'mod');
+        html += ci("ctxCommand('/mute')", '\uD83D\uDD07 Mute', 'mod');
+        html += ci("ctxCommand('/ban')", '\uD83D\uDEB7 Ban', 'danger');
+      }
+      if (amAdmin) {
+        html += '<div class="ctx-item" style="font-size:0.68rem;color:#56b;pointer-events:none;padding-top:0.3rem;">\u2014 Admin Actions \u2014</div>';
+        html += ci("ctxCommand('/verify')", '\u2736 Verify', 'admin');
+        html += ci("ctxCommand('/promote mod')", '\u2B06\uFE0F Promote to Mod', 'admin');
+        html += ci("ctxCommand('/demote')", '\u2B07\uFE0F Demote', 'admin');
+        html += ci("ctxCommand('/unban')", '\uD83D\uDD13 Unban', 'admin');
+      }
     }
   }
 
   ctxMenu.innerHTML = html;
   if (window.twemoji) twemoji.parse(ctxMenu);
 
-  // Position near click.
-  const x = Math.min(e.clientX, window.innerWidth - 170);
-  const y = Math.min(e.clientY, window.innerHeight - 200);
+  const menuH = amAdmin ? 380 : amMod ? 300 : 220;
+  const x = Math.min(e.clientX, window.innerWidth - 180);
+  const y = Math.min(e.clientY, window.innerHeight - menuH);
   ctxMenu.style.left = x + 'px';
   ctxMenu.style.top = y + 'px';
   ctxMenu.classList.add('open');
