@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Humanity — Open-source platform for human cooperation</title>
+  <meta name="description" content="Free, open-source communication and life-management platform. No accounts, no tracking, E2E encrypted. Chat, voice, DMs, project tools — you own your identity.">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Humanity — Open-source platform for human cooperation">
+  <meta property="og:description" content="Free, open-source communication and life-management platform. No accounts, no tracking, E2E encrypted. Chat, voice, DMs, project tools — you own your identity.">
+  <meta property="og:url" content="https://united-humanity.us">
+  <meta property="og:image" content="https://shaostoul.github.io/Humanity/assets/img/brand/logo/logo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Humanity — Open-source platform for human cooperation">
+  <meta name="twitter:description" content="Free, open-source communication and life-management platform. No accounts, no tracking, E2E encrypted.">
+  <meta name="twitter:image" content="https://shaostoul.github.io/Humanity/assets/img/brand/logo/logo.png">
+
+  <link rel="manifest" href="/shared/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Humanity">
+  <link rel="apple-touch-icon" href="/shared/icons/icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/shared/theme.css">
+
+  <style>
+    body { line-height: 1.7; min-height: 100vh; padding-bottom: 80px; }
+    a { transition: color 0.2s; }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 80px 0 70px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+    .hero h1 em { font-style: normal; color: var(--accent); }
+    .hero .what-is-it {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      margin: 0 auto 36px;
+    }
+    .hero .what-is-it strong { color: var(--text); }
+    .hero-ctas {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    /* ── Three Paths ── */
+    .paths {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .path-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .path-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(255,136,17,0.1);
+    }
+    .path-card .path-icon { font-size: 1.8rem; }
+    .path-card .path-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .path-card h3 { font-size: 1.1rem; margin: 0; }
+    .path-card p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
+    .path-card .path-action {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: auto;
+      padding-top: 8px;
+    }
+
+    /* ── Section headers ── */
+    section { padding: 60px 0; }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    section h2 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    section > .container > p {
+      color: var(--text-muted);
+      max-width: 640px;
+      margin-bottom: 12px;
+    }
+
+    /* ── Live banner ── */
+    .live-banner {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+    }
+    .live-banner h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #2a6;
+      display: inline-block;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+    }
+    .live-banner p { color: var(--text-muted); margin-bottom: 20px; }
+    .live-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin: 20px 0 28px;
+    }
+    .live-features span {
+      background: var(--bg-input, #1a1a2e);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Pages grid ── */
+    .pages-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 28px;
+    }
+    .page-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: all 0.15s;
+    }
+    .page-link:hover { border-color: var(--accent); color: var(--accent); }
+    .page-link .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.live { background: #2a6; }
+    .status-dot.building { background: #f90; }
+    .status-dot.stub { background: #444; }
+
+    /* ── How it differs ── */
+    .diff-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+    .diff-item {
+      padding: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .diff-item .diff-icon { font-size: 1.4rem; margin-bottom: 8px; }
+    .diff-item h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
+    .diff-item p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Get involved ── */
+    .involve-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .involve-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.88rem;
+      transition: all 0.15s;
+    }
+    .involve-item:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+
+    /* ── Donate ── */
+    .donate-section { text-align: center; padding: 60px 0; }
+    .donate-section p { max-width: 500px; margin: 0 auto 28px; color: var(--text-muted); }
+    .donate-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    @media (max-width: 600px) {
+      .hero { padding: 50px 0 40px; }
+      section { padding: 44px 0; }
+      .paths { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/settings.js"></script>
+
+  <!-- ── Hero ── -->
+  <header class="hero">
+    <div class="container">
+      <h1>Wholesomely aiding<br><em>humanity's betterment</em></h1>
+      <p class="what-is-it">
+        <strong>Humanity</strong> is a free, open-source platform for communication and cooperation.
+        Chat, voice calls, encrypted DMs, project tools — built on cryptographic identity you own completely.
+        No accounts. No tracking. Public domain.
+      </p>
+      <div class="hero-ctas">
+        <a href="/chat" class="btn btn-primary">💬 Open the Chat</a>
+        <a href="/download" class="btn btn-secondary">⬇ Download the App</a>
+        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener">📦 View on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Three Paths ── -->
+  <section id="start">
+    <div class="container">
+      <div class="section-label">Get Started</div>
+      <h2>Where do you fit?</h2>
+      <div class="paths">
+        <a href="/chat" class="path-card">
+          <div class="path-icon">💬</div>
+          <div class="path-label">I want to use it</div>
+          <h3>Join the Network</h3>
+          <p>Open the chat, pick a username, and start talking. No signup form. Your cryptographic identity is created automatically.</p>
+          <div class="path-action">Open the chat →</div>
+        </a>
+        <a href="ONBOARDING.md" class="path-card">
+          <div class="path-icon">🔧</div>
+          <div class="path-label">I want to build it</div>
+          <h3>Contribute Code</h3>
+          <p>Rust server, plain JS client, no build step. The codebase is modular and well-structured. Start with ONBOARDING.md.</p>
+          <div class="path-action">Read the onboarding guide →</div>
+        </a>
+        <a href="SELF-HOSTING.md" class="path-card">
+          <div class="path-icon">🖥</div>
+          <div class="path-label">I want to host it</div>
+          <h3>Run Your Own Server</h3>
+          <p>Single Rust binary. Under 10 minutes to production. Your users keep their identity when switching servers.</p>
+          <div class="path-action">Self-hosting guide →</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── The Chat is Live ── -->
+  <section id="chat">
+    <div class="container">
+      <div class="live-banner">
+        <h3><span class="pulse"></span> The Network is Live</h3>
+        <p>The communication layer is fully operational. Everything below works right now at <a href="/chat">united-humanity.us/chat</a>.</p>
+        <div class="live-features">
+          <span>No accounts</span>
+          <span>No tracking</span>
+          <span>Ed25519 identity</span>
+          <span>E2E encrypted DMs</span>
+          <span>Voice &amp; video calls</span>
+          <span>Threaded replies</span>
+          <span>Friend codes</span>
+          <span>Message search</span>
+          <span>Emoji reactions</span>
+          <span>Image sharing</span>
+          <span>Push notifications</span>
+          <span>Streaming + PiP</span>
+          <span>Twitch IRC integration</span>
+          <span>Asset library</span>
+          <span>Project boards</span>
+          <span>Marketplace</span>
+          <span>Federated servers</span>
+          <span>Desktop app</span>
+          <span>PWA installable</span>
+        </div>
+        <a href="/chat" class="btn btn-primary">Join the Conversation →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── All Pages ── -->
+  <section id="pages">
+    <div class="container">
+      <div class="section-label">The Platform</div>
+      <h2>18 pages, one nav</h2>
+      <p>Humanity is a life-management OS. The chat is the foundation — everything else is being built on top of it. Pages marked in green are fully working.</p>
+
+      <div class="pages-grid">
+        <a href="/chat"      class="page-link"><span class="status-dot live"></span> Network Chat</a>
+        <a href="/home"      class="page-link"><span class="status-dot building"></span> Home</a>
+        <a href="/profile"   class="page-link"><span class="status-dot building"></span> Profile</a>
+        <a href="/skills"    class="page-link"><span class="status-dot building"></span> Skills</a>
+        <a href="/dashboard" class="page-link"><span class="status-dot live"></span> Dashboard</a>
+        <a href="/inventory" class="page-link"><span class="status-dot building"></span> Inventory</a>
+        <a href="/equipment" class="page-link"><span class="status-dot building"></span> Equipment</a>
+        <a href="/quests"    class="page-link"><span class="status-dot building"></span> Quests</a>
+        <a href="/calendar"  class="page-link"><span class="status-dot building"></span> Calendar</a>
+        <a href="/logbook"   class="page-link"><span class="status-dot building"></span> Logbook</a>
+        <a href="/systems"   class="page-link"><span class="status-dot live"></span> Systems Board</a>
+        <a href="/maps"      class="page-link"><span class="status-dot live"></span> Maps</a>
+        <a href="/market"    class="page-link"><span class="status-dot live"></span> Marketplace</a>
+        <a href="/learn"     class="page-link"><span class="status-dot live"></span> Learn</a>
+        <a href="/knowledge" class="page-link"><span class="status-dot building"></span> Knowledge</a>
+        <a href="/streams"   class="page-link"><span class="status-dot live"></span> Streams</a>
+        <a href="/settings"  class="page-link"><span class="status-dot live"></span> Settings</a>
+        <a href="/ops"       class="page-link"><span class="status-dot live"></span> Ops</a>
+      </div>
+      <p style="margin-top: 12px; font-size: 0.82rem;">
+        <span style="color: #2a6;">●</span> Live &nbsp;
+        <span style="color: #f90;">●</span> In active development &nbsp;
+        <span style="color: #444;">●</span> Stub
+      </p>
+    </div>
+  </section>
+
+  <!-- ── How It Differs ── -->
+  <section id="different">
+    <div class="container">
+      <div class="section-label">Why This Exists</div>
+      <h2>What makes it different</h2>
+      <div class="diff-grid">
+        <div class="diff-item">
+          <div class="diff-icon">🔑</div>
+          <h4>You own your identity</h4>
+          <p>Your identity is a cryptographic keypair stored in your browser. No server can take it away. Move to any server and take your keys with you.</p>
+        </div>
+        <div class="diff-item">
+          <div class="diff-icon">🔐</div>
+          <h4>Private by default</h4>
+          <p>DMs are encrypted end-to-end. The server never sees plaintext. No IP logging. No analytics. Nothing stored that doesn't need to exist.</p>
+        </div>
+        <div class="diff-item">
+          <div class="diff-icon">🌐</div>
+          <h4>Federated</h4>
+          <p>Anyone can run a server. Your identity works across all servers. No central authority controls access.</p>
+        </div>
+        <div class="diff-item">
+          <div class="diff-icon">📜</div>
+          <h4>Public domain</h4>
+          <p>Everything here is CC0. No permission required. No attribution required. This belongs to everyone — present and future.</p>
+        </div>
+        <div class="diff-item">
+          <div class="diff-icon">🧰</div>
+          <h4>More than chat</h4>
+          <p>Project boards, marketplace, asset library, skill tracking, maps, inventory. The full life-management OS, not just a chat app.</p>
+        </div>
+        <div class="diff-item">
+          <div class="diff-icon">🎮</div>
+          <h4>A game that teaches</h4>
+          <p>Project Universe is a free game teaching practical skills — homesteading, agriculture, building, health. Your game progress reflects real capability.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Why It Exists ── -->
+  <section id="why">
+    <div class="container">
+      <div class="section-label">The Mission</div>
+      <h2>Poverty is lack of capability</h2>
+      <p>Not just lack of money. People trapped in systems they can't understand, knowledge they can't access, skills they never learned.</p>
+      <p>In 2017, Michael Boisson nearly died. That experience stripped away the noise and left one clear answer: help people become capable of helping themselves. Education is the foundation. Tools are the path. Community is the engine.</p>
+      <p>Everything here is public domain — CC0. No permission needed. This belongs to everyone.</p>
+      <p style="margin-top: 24px;">
+        <a href="accord/humanity_accord.md" class="btn btn-secondary" target="_blank" rel="noopener">📜 Read the Humanity Accord</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ── Get Involved ── -->
+  <section id="involved">
+    <div class="container">
+      <div class="section-label">Get Involved</div>
+      <h2>This is a community project</h2>
+      <p>Writers, designers, developers, educators, translators — or just someone who cares. There's a place for you here. The easiest way to start is to show up in the chat and ask what needs doing.</p>
+
+      <div class="involve-grid" style="margin-top: 28px;">
+        <a href="/chat" class="involve-item"><span>💬</span> Humanity Chat</a>
+        <a href="https://discord.gg/9XxmmeQnWC" class="involve-item" target="_blank" rel="noopener"><span>💜</span> Discord</a>
+        <a href="https://github.com/Shaostoul/Humanity" class="involve-item" target="_blank" rel="noopener"><span>📦</span> GitHub</a>
+        <a href="ONBOARDING.md" class="involve-item"><span>📖</span> Onboarding Guide</a>
+        <a href="CONTRIBUTING.md" class="involve-item"><span>🔧</span> Contributing</a>
+        <a href="SELF-HOSTING.md" class="involve-item"><span>🖥</span> Self-Hosting</a>
+      </div>
+
+      <h3 style="margin-top: 40px; margin-bottom: 12px; font-size: 1rem; color: var(--text-muted);">Follow Michael (project lead)</h3>
+      <div class="involve-grid">
+        <a href="https://youtube.com/@Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🎥</span> YouTube</a>
+        <a href="https://twitch.tv/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>📺</span> Twitch</a>
+        <a href="https://x.com/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>𝕏</span> X / Twitter</a>
+        <a href="https://bsky.app/profile/shaostoul.bsky.social" class="involve-item" target="_blank" rel="noopener"><span>🔵</span> Bluesky</a>
+        <a href="https://reddit.com/user/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🟠</span> Reddit</a>
+        <a href="https://instagram.com/shaostoul" class="involve-item" target="_blank" rel="noopener"><span>📷</span> Instagram</a>
+        <a href="https://rumble.com/user/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🟢</span> Rumble</a>
+        <a href="https://www.facebook.com/2571477392923654" class="involve-item" target="_blank" rel="noopener"><span>👤</span> Facebook</a>
+        <a href="https://steamcommunity.com/id/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🎮</span> Steam</a>
+        <a href="https://shaostoul.itch.io" class="involve-item" target="_blank" rel="noopener"><span>🕹️</span> itch.io</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Donate ── -->
+  <section class="donate-section">
+    <div class="container">
+      <div class="section-label">Support the Project</div>
+      <h2>Keep it running</h2>
+      <p>Servers and infrastructure cost money. Every dollar goes toward development and hosting. No venture capital, no ads — just people who believe in this.</p>
+      <div class="donate-buttons">
+        <a href="https://github.com/sponsors/Shaostoul" class="btn btn-primary" target="_blank" rel="noopener">💜 GitHub Sponsors</a>
+        <a href="https://ko-fi.com/shaostoul" class="btn btn-secondary" target="_blank" rel="noopener">☕ Ko-fi</a>
+        <a href="https://www.patreon.com/c/Shaostoul" class="btn btn-secondary" target="_blank" rel="noopener">🎗 Patreon</a>
+      </div>
+    </div>
+  </section>
+</body>
+</html>
