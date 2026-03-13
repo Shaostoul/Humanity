@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width, initial-scale=1.0>
+  <title>Market — HumanityOS</title>
+  <style>
+    :root{--bg:#0d0d0d;--bg-card:#131313;--bg-panel:#141414;--bg-input:#1a1a1a;--border:#222;--text:#e0e0e0;--text-muted:#888;--accent:#22aa66;--success:#4a8;--error:#e55;--warning:#eb4;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+    a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
+    input,select,textarea{font-family:inherit;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.6rem;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+    .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.25rem}
+
+    #page-app{flex:1;overflow-y:auto;padding:1rem 1.25rem;max-width:1100px;width:100%;margin:0 auto}
+</style>
+</head>
+<body>
+<script src=/shared/shell.js data-active=market></script>
+<div id=page-app><div id="tab-market" class="tab-content" style="padding:1rem;overflow-y:auto;">
+  <!-- Sub-navigation -->
+  <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
+   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏪 Marketplace</button>
+   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏬 Stores</button>
+   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">📋 My Listings</button>
+   <span style="flex:1;"></span>
+   <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:none;">+ Create Listing</button>
+  </div>
+
+  <!-- Marketplace Section -->
+  <div id="market-section-marketplace">
+   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:0.5rem 0;">
+    <input type="text" id="market-search" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:0.4rem 0.6rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-category-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="">All Categories</option>
+     <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
+     <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
+     <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
+    </select>
+    <select id="market-condition-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="">Any Condition</option>
+     <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+    </select>
+    <select id="market-sort" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="newest">Newest</option>
+     <option value="oldest">Oldest</option>
+     <option value="alpha">A-Z</option>
+    </select>
+   </div>
+   <div id="market-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
+   <div id="market-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">No listings yet. Be the first to list something!</div>
+  </div>
+
+  <!-- Store Directory Section -->
+  <div id="market-section-stores" style="display:none;">
+   <div style="margin-bottom:1rem;">
+    <select id="store-category-filter" onchange="renderStoreDirectory()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+     <option value="">All Categories</option>
+    </select>
+   </div>
+   <div id="store-directory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;"></div>
+  </div>
+
+  <!-- My Listings Section -->
+  <div id="market-section-mylistings" style="display:none;">
+   <div id="my-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
+   <div id="my-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">You haven't listed anything yet.</div>
+  </div>
+
+  <!-- Listing Detail Modal -->
+  <div id="listing-detail-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
+   <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+    <div id="listing-detail-content"></div>
+   </div>
+  </div>
+
+  <!-- Create/Edit Listing Modal -->
+  <div id="listing-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
+   <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+    <h2 style="color:var(--accent);margin-bottom:1rem;font-size:1rem;" id="listing-modal-title">Create Listing</h2>
+    <input type="hidden" id="listing-edit-id" value="">
+    <div style="display:flex;flex-direction:column;gap:0.6rem;">
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Title *</label>
+      <input type="text" id="listing-title" maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Description</label>
+      <textarea id="listing-description" rows="3" maxlength="2000" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
+     </div>
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+      <div>
+       <label style="font-size:0.75rem;color:var(--text-muted);">Category *</label>
+       <select id="listing-category" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+        <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
+        <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
+        <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
+       </select>
+      </div>
+      <div>
+       <label style="font-size:0.75rem;color:var(--text-muted);">Condition</label>
+       <select id="listing-condition" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+        <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
+       </select>
+      </div>
+     </div>
+     <div id="listing-3d-subcategory-wrap" style="display:none;">
+      <label style="font-size:0.75rem;color:var(--text-muted);">Model Subcategory</label>
+      <select id="listing-3d-subcategory" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+       <option value="">None</option>
+       <option>Vehicles</option><option>Architecture</option><option>Characters</option><option>Props</option>
+       <option>Weapons</option><option>Nature</option><option>Sci-Fi</option><option>Other</option>
+      </select>
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Price</label>
+      <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <div style="display:flex;gap:0.3rem;margin-top:0.3rem;flex-wrap:wrap;">
+       <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Free</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Donations Welcome</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Pay What You Want</button>
+      </div>
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Payment Methods</label>
+      <input type="text" id="listing-payment" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+     </div>
+     <div>
+      <label style="font-size:0.75rem;color:var(--text-muted);">Location</label>
+      <input type="text" id="listing-location" placeholder='Seattle area, Ships worldwide…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+     </div>
+     <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem;">
+      <button class="btn" onclick="closeListingModal()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Cancel</button>
+      <button class="btn btn-clickable" onclick="submitListing()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Submit</button>
+     </div>
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <!-- Browse Tab --></div>
+<script>
+const API_BASE = '';
+let marketWs = null;
+let marketListings = [];
+let myListings = [];
+let marketTab = 'browse';
+
+function marketConnect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const storedKey = localStorage.getItem('humanity_key') || localStorage.getItem('hos_identity_pub');
+  marketWs = new WebSocket(proto + '//' + location.host + '/ws');
+  marketWs.onopen = () => {
+    if (storedKey) marketWs.send(JSON.stringify({ type: 'identify', public_key: storedKey }));
+    marketWs.send(JSON.stringify({ type: 'market_list' }));
+  };
+  marketWs.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'market_listings') {
+        marketListings = msg.listings || [];
+        if (typeof renderMarketListings === 'function') renderMarketListings();
+      } else if (msg.type === 'market_my_listings') {
+        myListings = msg.listings || [];
+        if (typeof renderMyListings === 'function') renderMyListings();
+      }
+    } catch(e) {}
+  };
+  marketWs.onclose = () => setTimeout(marketConnect, 5000);
+  marketWs.onerror = () => {};
+}
+document.addEventListener('DOMContentLoaded', function() {
+  marketConnect();
+  if (typeof renderMarketListings === 'function') renderMarketListings();
+});
+
+  let marketListings = [];
+  let marketWs = null;
+      const existing = marketListings.findIndex(l => l.id === msg.listing.id);
+      const idx = marketListings.findIndex(l => l.id === msg.listing.id);
+   let filtered = marketListings.filter(l => {
+   const l = marketListings.find(x => x.id === id);
+   const l = marketListings.find(x => x.id === id);
+    const l = marketListings.find(x => x.id === id);
+   const mine = marketListings.filter(l => l.seller_key === marketMyKey);
+
+  function marketConnect() {
+   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+   marketWs = new WebSocket(proto + '//' + location.host + '/ws');
+   marketWs.onopen = () => {
+    let storedKey = localStorage.getItem('humanity_key');
+    // Also check the Ed25519 key backup (set by chat client's crypto.js)
+    if (!storedKey) {
+     try {
+      const backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
+      if (backup && backup.publicKeyHex) storedKey = backup.publicKeyHex;
+     } catch(e) {}
+    }
+    const storedName = localStorage.getItem('humanity_name');
+    if (storedKey) {
+     marketMyKey = storedKey;
+     marketMyName = storedName;
+     marketWs.send(JSON.stringify({ type: 'identify', public_key: storedKey, display_name: storedName || null }));
+    } else {
+     marketMyKey = 'viewer_' + Math.random().toString(36).slice(2, 10);
+     marketWs.send(JSON.stringify({ type: 'identify', public_key: marketMyKey, display_name: null }));
+    }
+   };
+   ws = marketWs; // Alias for streaming code
+   window._humanityWs = marketWs; // Alias for Skill DNA
+   marketWs.onmessage = (e) => {
+    try {
+     const msg = JSON.parse(e.data);
+     handleMarketMessage(msg);
+     // Route stream messages
+     if (msg.type && msg.type.startsWith('stream_')) {
+      streamHandleMessage(msg);
+     }
+     // (stream_viewer_ready via Private/System removed — using direct stream_offer request instead)
+     // Handle skill verification messages via Private/system
+     if (msg.type === 'private' && msg.message) {
+      if (msg.message.startsWith('__skill_verify_req__:')) {
+       try {
+        const payload = JSON.parse(msg.message.slice('__skill_verify_req__:'.length));
+        if (confirm(`${payload.from_name} claims ${payload.skill_id} Lv ${payload.level} — can you verify?\n\nClick OK to verify, Cancel to decline.`)) {
+         const note = prompt('Add a note (optional):') || 'Verified';
+         window._humanityWs.send(JSON.stringify({ type: 'skill_verify_response', skill_id: payload.skill_id, to_key: payload.from_key, approved: true, note }));
+        }
+       } catch(e) {}
+      }
+      if (msg.message.startsWith('__skill_verify_resp__:')) {
+       try {
+        const payload = JSON.parse(msg.message.slice('__skill_verify_resp__:'.length));
+        if (window._sdHandleVerifyResponse) window._sdHandleVerifyResponse(payload);
+       } catch(e) {}
+      }
+     }
+    } catch {}
+   };
+   marketWs.onclose = () => { setTimeout(marketConnect, 3000); };
+   marketWs.onerror = () => {};
+  }
+
+  function renderMarketListings() {
+   const search = (document.getElementById('market-search').value || '').toLowerCase();
+   const catFilter = document.getElementById('market-category-filter').value;
+   const condFilter = document.getElementById('market-condition-filter').value;
+   const sort = document.getElementById('market-sort').value;
+
+   let filtered = marketListings.filter(l => {
+    if (l.status !== 'active') return false;
+    if (catFilter && l.category !== catFilter) return false;
+    if (condFilter && l.condition !== condFilter) return false;
+    if (search && !l.title.toLowerCase().includes(search) && !(l.description||'').toLowerCase().includes(search) && !(l.seller_name||'').toLowerCase().includes(search)) return false;
+    return true;
+   });
+
+   if (sort === 'oldest') filtered.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+   else if (sort === 'alpha') filtered.sort((a, b) => a.title.localeCompare(b.title));
+   else filtered.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
+   const grid = document.getElementById('market-listings-grid');
+   const empty = document.getElementById('market-listings-empty');
+   if (filtered.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = '';
+   } else {
+    empty.style.display = 'none';
+    grid.innerHTML = filtered.map(l => renderListingCard(l, false)).join('');
+   }
+  }
+
+  function renderListingCard(l, showActions) {
+   const catColor = CATEGORY_COLORS[l.category] || '#888';
+   const isMine = l.seller_key === marketMyKey;
+   const isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
+   const actions = (isMine || showActions) ? `
+    <div style="display:flex;gap:0.3rem;margin-top:0.5rem;">
+     ${isMine?`<button onclick="editListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">✏️ Edit</button>`:''}
+     ${isMine?`<button onclick="markListingSold('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--success);cursor:pointer;font-size:0.7rem;">✅ Sold</button>`:''}
+     ${(isMine||isAdmin)?`<button onclick="deleteListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--error);cursor:pointer;font-size:0.7rem;">🗑️ Delete</button>`:''}
+    </div>` : '';
+   const statusBadge = l.status === 'sold' ? '<span style="background:#4a8;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">SOLD</span>' :
+             l.status === 'withdrawn' ? '<span style="background:#888;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">WITHDRAWN</span>' : '';
+   return `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'" onclick="showListingDetail('${l.id}')">
+     <div style="height:120px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.06));display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem;">${l.category === '3D Models' ? '🧊' : '📦'}</div>
+     <div style="padding:0.8rem;">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.3rem;">
+       <span style="font-weight:600;font-size:0.85rem;color:var(--text);flex:1;">${escHtml(l.title)}${statusBadge}</span>
+      </div>
+      <div style="font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:0.3rem;">${escHtml(l.price || 'Contact for price')}</div>
+      <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+       <span style="background:${catColor}22;color:${catColor};font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;">${escHtml(l.category)}</span>
+       ${l.condition && l.condition !== 'N/A' ? `<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;">${escHtml(l.condition)}</span>` : ''}
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted);">by ${escHtml(l.seller_name || 'Anonymous')}</div>
+      ${l.location ? `<div style="font-size:0.68rem;color:var(--text-muted);">📍 ${escHtml(l.location)}</div>` : ''}
+      ${actions}
+     </div>
+    </div>`;
+  }
+
+  function closeListingModal() {
+   document.getElementById('listing-modal').style.display = 'none';
+  }
+
+  function submitListing() {
+   const title = document.getElementById('listing-title').value.trim();
+   if (!title) { document.getElementById('listing-title').style.borderColor = '#e55'; return; }
+   const editId = document.getElementById('listing-edit-id').value;
+   const data = {
+    title,
+    description: document.getElementById('listing-description').value.trim(),
+    category: document.getElementById('listing-category').value,
+    condition: document.getElementById('listing-condition').value,
+    price: document.getElementById('listing-price').value.trim(),
+    payment_methods: document.getElementById('listing-payment').value.trim(),
+    location: document.getElementById('listing-location').value.trim(),
+   };
+   if (editId) {
+    data.id = editId;
+    if (marketWs && marketWs.readyState === 1) {
+     marketWs.send(JSON.stringify({ type: 'listing_update', ...data }));
+    }
+   } else {
+    data.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    if (marketWs && marketWs.readyState === 1) {
+     marketWs.send(JSON.stringify({ type: 'listing_create', ...data }));
+    }
+   }
+   closeListingModal();
+  }
+
+  function renderMyListings() {
+   const mine = marketListings.filter(l => l.seller_key === marketMyKey);
+   const grid = document.getElementById('my-listings-grid');
+   const empty = document.getElementById('my-listings-empty');
+   if (mine.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = '';
+   } else {
+    empty.style.display = 'none';
+    grid.innerHTML = mine.map(l => renderListingCard(l, true)).join('');
+   }
+  }
+
+  function renderStoreDirectory() {
+   const filter = document.getElementById('store-category-filter').value;
+   const filtered = filter ? STORE_DIRECTORY.filter(s => s.category === filter) : STORE_DIRECTORY;
+   document.getElementById('store-directory-grid').innerHTML = filtered.map(s => `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1rem;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'">
+     <div style="font-size:1.5rem;margin-bottom:0.4rem;">${s.icon}</div>
+     <div style="font-weight:600;font-size:0.9rem;color:var(--text);margin-bottom:0.2rem;">${escHtml(s.name)}</div>
+     <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.4rem;">${escHtml(s.category)}</div>
+     <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">${escHtml(s.description)}</div>
+     <a href="${s.url}" target="_blank" rel="noopener" style="display:inline-block;padding:0.3rem 0.8rem;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.75rem;font-weight:600;">Visit Store →</a>
+    </div>`).join('');
+  }
+
+</script>
+</body>
+</html>

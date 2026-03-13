@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width, initial-scale=1.0>
+  <title>Maps — HumanityOS</title>
+  <style>:root {
+  --bg:#0d0d0d; --bg-card:#131313; --bg-panel:#141414; --bg-input:#1a1a1a;
+  --border:#222; --text:#e0e0e0; --text-muted:#888; --accent:#22aa66;
+  --success:#4a8; --error:#e55; --warning:#eb4;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+#page-app {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: calc(100vh - 42px);
+}
+.map-mode-btn { transition: background 0.15s, border-color 0.15s; }
+.map-mode-btn.active {
+  background: rgba(34,170,102,0.2) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+#map-search:focus { border-color: var(--accent) !important; }
+</style>
+</head>
+<body>
+<script src=/shared/shell.js data-active=map></script>
+<div id=page-app>
+<!-- Mode bar -->
+  <div id="map-modes" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap;">
+   <span style="font-size:0.8rem;color:var(--text-muted);">🧘 Astral Projection:</span>
+   <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;">🌍 Surface</button>
+   <button onclick="mapSetView('system')" class="map-mode-btn" data-mode="system" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">☀️ Solar System</button>
+   <button onclick="mapSetView('sector')" class="map-mode-btn" data-mode="sector" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">⭐ Stellar Neighborhood</button>
+   <button onclick="mapSetView('galaxy')" class="map-mode-btn" data-mode="galaxy" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">🌌 Galaxy</button>
+   <button onclick="mapSetView('skyview')" class="map-mode-btn" data-mode="skyview" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(180,140,255,0.3);color:#b48cff;border-radius:4px;cursor:pointer;">🔭 Sky View</button>
+   <span style="flex:1;"></span>
+   <span id="map-coords" style="font-size:0.7rem;color:var(--text-muted);font-family:monospace;"></span>
+  </div>
+  <div style="display:flex;flex:1;min-height:0;">
+   <!-- Map canvas area -->
+   <div id="map-canvas-container" style="flex:1;position:relative;background:#0a0a1a;overflow:hidden;">
+    <canvas id="map-canvas" style="width:100%;height:100%;display:block;"></canvas>
+    <!-- Overlay controls -->
+    <div id="map-overlay-controls" style="position:absolute;top:0.5rem;right:0.5rem;display:flex;flex-direction:column;gap:0.3rem;z-index:10;">
+     <button onclick="mapZoomIn()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">+</button>
+     <button onclick="mapZoomOut()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">−</button>
+     <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Go to home location">🏠</button>
+     <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="My location (GPS)">📍</button>
+     <button onclick="mapToggleWeather()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle weather overlay">🌤️</button>
+     <button onclick="mapToggleGrid()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle icosphere grid">📐</button>
+    </div>
+    <!-- Search bar overlay -->
+    <div style="position:absolute;top:0.5rem;left:0.5rem;right:3.5rem;z-index:10;">
+     <input type="text" id="map-search" placeholder="Search location, star, planet..." style="width:100%;max-width:350px;background:rgba(26,26,46,0.9);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.8rem;border-radius:8px;font-size:0.8rem;backdrop-filter:blur(4px);outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')mapDoSearch()">
+    </div>
+   </div>
+   <!-- Info sidebar -->
+   <div id="map-sidebar" style="width:320px;border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;background:var(--bg-card,#141414);">
+    <div id="map-info-panel" style="padding:0.8rem;font-size:0.82rem;"></div>
+   </div>
+  </div>
+</div>
+<script>
+
+let canvas, ctx;
+let mapView = 'surface';
+let mapPan = {x:0, y:0};
+let mapZoom = 1.0;
+let mapDragging = false;
+let mapDragStart = {x:0,y:0};
+let mapPanStart = {x:0,y:0};
+let mapShowGrid = false;
+let mapShowWeather = false;
+let mapSelectedLocation = null;
+let mapInitialized = false;
+let mapWeatherCache = {};
+let mapWeatherTimer = null;
+let mapAnimating = false;
+let mapAnimFrame = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  canvas = document.getElementById('map-canvas');
+  ctx = canvas.getContext('2d');
+
+  // Resize canvas to fill container
+  function resizeCanvas() {
+    const container = document.getElementById('map-canvas-container');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = container.clientWidth * dpr;
+    canvas.height = container.clientHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    mapRender();
+  }
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 100);
+
+  // Mouse events
+  canvas.addEventListener('mousedown', function(e) {
+    mapDragging = true;
+    mapDragStart = {x: e.clientX, y: e.clientY};
+    mapPanStart = {x: mapPan.x, y: mapPan.y};
+  });
+  canvas.addEventListener('mousemove', function(e) {
+    if (!mapDragging) return;
+    mapPan.x = mapPanStart.x + (e.clientX - mapDragStart.x);
+    mapPan.y = mapPanStart.y + (e.clientY - mapDragStart.y);
+    mapRender();
+  });
+  canvas.addEventListener('mouseup', function() { mapDragging = false; });
+  canvas.addEventListener('mouseleave', function() { mapDragging = false; });
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    mapZoom = Math.max(0.2, Math.min(50, mapZoom * factor));
+    mapRender();
+  }, {passive: false});
+
+  // Touch events
+  let lastTouchDist = 0;
+  canvas.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      mapDragging = true;
+      mapDragStart = {x: e.touches[0].clientX, y: e.touches[0].clientY};
+      mapPanStart = {x: mapPan.x, y: mapPan.y};
+    } else if (e.touches.length === 2) {
+      lastTouchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                                  e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, {passive: true});
+  canvas.addEventListener('touchmove', function(e) {
+    if (e.touches.length === 1 && mapDragging) {
+      mapPan.x = mapPanStart.x + (e.touches[0].clientX - mapDragStart.x);
+      mapPan.y = mapPanStart.y + (e.touches[0].clientY - mapDragStart.y);
+      mapRender();
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                               e.touches[0].clientY - e.touches[1].clientY);
+      mapZoom = Math.max(0.2, Math.min(50, mapZoom * (dist / lastTouchDist)));
+      lastTouchDist = dist;
+      mapRender();
+    }
+  }, {passive: true});
+  canvas.addEventListener('touchend', function() { mapDragging = false; });
+
+  mapRender();
+  mapInitialized = true;
+});
+
+// ── Map State ──
+const canvas = document.getElementById('map-canvas');
+const ctx = canvas.getContext('2d');
+let mapView = 'surface'; // surface | system | sector | galaxy
+let mapPan = {x:0, y:0};
+let mapZoom = 1.0;
+let mapDragging = false;
+let mapDragStart = {x:0,y:0};
+let mapPanStart = {x:0,y:0};
+let mapShowGrid = false;
+let mapShowWeather = false;
+let mapSelectedLocation = null; // {lat, lng}
+let mapInitialized = false;
+let mapWeatherCache = {};
+let mapWeatherTimer = null;
+let mapAnimating = false;
+
+// ── Canvas Init (called after DOM ready) ──
+function mapInit() {
+  const canvas = document.getElementById('world-map-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  // Seed-based pseudo-random
+  let seed = 42;
+  function rng() { seed = (seed * 16807 + 0) % 2147483647; return (seed - 1) / 2147483646; }
+  
+  // Draw terrain grid
+  const cellSize = 8;
+  const cols = Math.ceil(w / cellSize), rows = Math.ceil(h / cellSize);
+  for (let y = 0; y < rows; y++) {
+  for (let x = 0; x < cols; x++) {
+  const v = rng();
+  const cx = x / cols, cy = y / rows;
+  const dist = Math.sqrt((cx - 0.5) ** 2 + (cy - 0.5) ** 2);
+  if (v < 0.15 + dist * 0.3) {
+  // water
+  const b = Math.floor(40 + rng() * 30);
+  ctx.fillStyle = `rgb(${5+Math.floor(rng()*10)},${10+Math.floor(rng()*15)},${b})`;
+  } else if (v < 0.5) {
+  // land
+  const g = Math.floor(25 + rng() * 35);
+  ctx.fillStyle = `rgb(${8+Math.floor(rng()*12)},${g},${8+Math.floor(rng()*10)})`;
+  } else if (v < 0.75) {
+  // highlands
+  const g = Math.floor(35 + rng() * 20);
+  ctx.fillStyle = `rgb(${15+Math.floor(rng()*10)},${g},${20+Math.floor(rng()*10)})`;
+  } else {
+  // mountains
+  const g = Math.floor(20 + rng() * 15);
+  ctx.fillStyle = `rgb(${g},${g},${g+5})`;
+  }
+  ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+  }
+  }
+  // Overlay fog
+  const grad = ctx.createRadialGradient(w/2, h/2, w*0.15, w/2, h/2, w*0.5);
+  grad.addColorStop(0, 'rgba(10,10,26,0)');
+  grad.addColorStop(1, 'rgba(10,10,26,0.85)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  // Label
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = 'rgba(153,102,255,0.6)';
+  ctx.textAlign = 'center';
+  ctx.fillText('âš" Terra Incognita âš"', w/2, h/2);
+  })();
+  
+  // ── Character Sheet ──
+  function loadCharacter() {
+  try { return JSON.parse(localStorage.getItem('humanity_character')); } catch { return null; }
+  }
+  function saveCharacter(c) { localStorage.setItem('humanity_character', JSON.stringify(c)); }
+  
+  function rollStats() {
+  const roll = () => Math.floor(Math.random() * 16) + 3; // 3-18
+  return { Strength: roll(), Intelligence: roll(), Dexterity: roll(), Charisma: roll() };
+  }
+  
+  function renderCharacter() {
+  const c = loadCharacter();
+  const create = document.getElementById('char-create');
+  const display = document.getElementById('char-display');
+  if (!c) {
+  create.style.display = 'block';
+  display.style.display = 'none';
+  return;
+  }
+  create.style.display = 'none';
+  display.style.display = 'block';
+  const classIcons = { Explorer: '🧭', Builder: '🔨', Scholar: '📚', Guardian: '🛡️' };
+  document.getElementById('char-d-name').textContent = c.name;
+  document.getElementById('char-d-class').textContent = (classIcons[c.class] || '') + ' ' + c.class;
+  document.getElementById('char-d-level').textContent = 'Lv. ' + (c.level || 1);
+  const statsEl = document.getElementById('char-stats');
+  const statColors = { Strength: '#e55', Intelligence: '#58f', Dexterity: '#4c8', Charisma: '#eb4' };
+  statsEl.innerHTML = Object.entries(c.stats).map(([k, v]) => {
+  const pct = ((v - 3) / 15 * 100).toFixed(0);
+  return `<div style="background:var(--bg-input);border-radius:6px;padding:0.35rem 0.5rem;">
+}
+
+// ── renderSurface ──
+function renderSurface(cw, ch) {
+ // Ocean
+ ctx.fillStyle = '#0c1a3a';
+ ctx.fillRect(0, 0, cw, ch);
+
+ // Draw coastlines
+ ctx.strokeStyle = 'rgba(100,200,150,0.5)';
+ ctx.fillStyle = 'rgba(30,80,50,0.4)';
+ ctx.lineWidth = 1;
+ for (const coast of COASTLINES) {
+  ctx.beginPath();
+  for (let i = 0; i < coast.length; i++) {
+   const p = latLngToScreen(coast[i][0], coast[i][1], cw, ch);
+   if (i === 0) ctx.moveTo(p.x, p.y);
+   else ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+ }
+
+ // Lat/lng grid
+ ctx.strokeStyle = 'rgba(100,150,200,0.1)';
+ ctx.lineWidth = 0.5;
+ for (let lat = -60; lat <= 60; lat += 30) {
+  const p1 = latLngToScreen(lat, -180, cw, ch);
+  const p2 = latLngToScreen(lat, 180, cw, ch);
+  ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+ }
+ for (let lng = -180; lng <= 180; lng += 30) {
+  const p1 = latLngToScreen(90, lng, cw, ch);
+  const p2 = latLngToScreen(-90, lng, cw, ch);
+  ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+ }
+
+ // Icosphere grid overlay
+ if (mapShowGrid) {
+  ctx.strokeStyle = 'rgba(150,100,255,0.2)';
+  ctx.lineWidth = 0.8;
+  // Draw base icosahedron edges projected
+  for (const face of ICO_FACES) {
+   for (let i = 0; i < 3; i++) {
+    const v1 = ICO_VERTS[face[i]];
+    const v2 = ICO_VERTS[face[(i+1)%3]];
+    // Convert 3D to lat/lng
+    const lat1 = 90 - Math.acos(Math.max(-1,Math.min(1,v1[1]))) * 180/Math.PI;
+    const lng1 = Math.atan2(v1[2],v1[0]) * 180/Math.PI - 180;
+    const lat2 = 90 - Math.acos(Math.max(-1,Math.min(1,v2[1]))) * 180/Math.PI;
+    const lng2 = Math.atan2(v2[2],v2[0]) * 180/Math.PI - 180;
+    const p1 = latLngToScreen(lat1, lng1 < -180 ? lng1+360 : lng1, cw, ch);
+    const p2 = latLngToScreen(lat2, lng2 < -180 ? lng2+360 : lng2, cw, ch);
+    // Skip wrap-around edges
+    if (Math.abs(p1.x - p2.x) < cw * 0.5) {
+     ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+    }
+   }
+  }
+ }
+
+ // Cities
+ ctx.font = (mapZoom > 1.5 ? '9' : '7') + 'px sans-serif';
+ for (const city of CITIES) {
+  const p = latLngToScreen(city.lat, city.lng, cw, ch);
+  if (p.x < -10 || p.x > cw+10 || p.y < -10 || p.y > ch+10) continue;
+  ctx.fillStyle = 'rgba(255,200,100,0.8)';
+  ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, Math.PI*2); ctx.fill();
+  if (mapZoom > 0.8) {
+   ctx.fillStyle = 'rgba(255,200,100,0.6)';
+   ctx.textAlign = 'center';
+   ctx.fillText(city.name, p.x, p.y - 5);
+  }
+ }
+
+ // Pins
+ const pins = loadPins();
+ for (const pin of pins) {
+  const p = latLngToScreen(pin.lat, pin.lng, cw, ch);
+  ctx.fillStyle = '#ff4444';
+  ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = '8px sans-serif';
+  ctx.fillText(pin.name || 'Pin', p.x, p.y - 7);
+ }
+
+ // Home marker
+ const home = loadHome();
+ if (home) {
+  const p = latLngToScreen(home.lat, home.lng, cw, ch);
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🏠', p.x, p.y + 5);
+  ctx.font = '8px sans-serif';
+  ctx.fillStyle = 'rgba(100,200,150,0.8)';
+  ctx.fillText(home.name || 'Home', p.x, p.y - 10);
+ }
+
+ // Selected location
+ if (mapSelectedLocation) {
+  const p = latLngToScreen(mapSelectedLocation.lat, mapSelectedLocation.lng, cw, ch);
+  ctx.strokeStyle = '#ff8811';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x-12,p.y); ctx.lineTo(p.x+12,p.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p.x,p.y-12); ctx.lineTo(p.x,p.y+12); ctx.stroke();
+ }
+
+ // Scale bar
+ ctx.fillStyle = 'rgba(200,210,255,0.5)';
+ ctx.font = '10px sans-serif';
+ ctx.textAlign = 'left';
+ const kmPerPx = 40075 / (cw * mapZoom);
+ let scaleKm = 1000;
+ if (kmPerPx < 5) scaleKm = 500;
+ if (kmPerPx < 2) scaleKm = 200;
+ if (kmPerPx < 1) scaleKm = 100;
+ const scalePx = scaleKm / kmPerPx;
+ if (scalePx > 20 && scalePx < cw*0.5) {
+  ctx.fillRect(10, ch-20, scalePx, 2);
+  ctx.fillText(scaleKm + ' km', 10, ch-25);
+ }
+}
+
+// ── renderSystem ──
+function renderSystem(cw, ch) {
+ ctx.fillStyle = '#05050f';
+ ctx.fillRect(0, 0, cw, ch);
+ // Background stars
+ let bgSeed = 99;
+ const bgRng = () => { bgSeed=(bgSeed*16807)%2147483647; return (bgSeed-1)/2147483646; };
+ for (let i=0;i<150;i++){
+  ctx.fillStyle = `rgba(200,210,255,${bgRng()*0.3+0.1})`;
+  ctx.beginPath(); ctx.arc(bgRng()*cw,bgRng()*ch,bgRng()*0.8+0.2,0,Math.PI*2); ctx.fill();
+ }
+
+ const cx = cw/2 + mapPan.x;
+ const cy = ch/2 + mapPan.y;
+ function auToR(au){ return (30+Math.log2(au+0.1)*35)*mapZoom; }
+
+ // Sun
+ ctx.fillStyle='#FFF5E0';
+ ctx.beginPath(); ctx.arc(cx,cy,8*Math.min(mapZoom,2),0,Math.PI*2); ctx.fill();
+ const sg=ctx.createRadialGradient(cx,cy,0,cx,cy,20*Math.min(mapZoom,2));
+ sg.addColorStop(0,'rgba(255,245,224,0.3)'); sg.addColorStop(1,'transparent');
+ ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(cx,cy,20*Math.min(mapZoom,2),0,Math.PI*2); ctx.fill();
+ ctx.fillStyle='rgba(255,245,224,0.8)'; ctx.font='10px sans-serif'; ctx.textAlign='center'; ctx.fillText('☀ Sol',cx,cy-14*Math.min(mapZoom,2));
+
+ const now=Date.now();
+ const J2000=Date.UTC(2000,0,1,12,0,0);
+ const days=(now-J2000)/86400000;
+ for (const p of MAP_PLANETS) {
+  const orbitR=auToR(p.semiMajor);
+  ctx.strokeStyle='rgba(100,150,255,0.12)'; ctx.lineWidth=0.8;
+  ctx.beginPath(); ctx.ellipse(cx,cy,orbitR,orbitR*(1-p.eccentricity*0.3),0,0,Math.PI*2); ctx.stroke();
+  const angle=((p.meanLongitude||0)+(360/p.period)*days)%360*Math.PI/180;
+  const px=cx+Math.cos(angle)*orbitR;
+  const py=cy+Math.sin(angle)*orbitR*(1-p.eccentricity*0.3);
+  let pr=p.type==='gas_giant'?6:p.type==='ice_giant'?5:3.5;
+  pr*=Math.min(mapZoom,2);
+  ctx.fillStyle=p.color; ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(200,210,255,0.7)'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(p.symbol+' '+p.name,px,py-pr-4);
+ }
+}
+
+// ── renderSector ──
+function renderSector(cw, ch) {
+ ctx.fillStyle='#05050f'; ctx.fillRect(0,0,cw,ch);
+ let bgSeed=12345;
+ const bgRng=()=>{bgSeed=(bgSeed*16807)%2147483647;return(bgSeed-1)/2147483646;};
+ for(let i=0;i<200;i++){ctx.fillStyle=`rgba(200,210,255,${bgRng()*0.4+0.1})`;ctx.beginPath();ctx.arc(bgRng()*cw,bgRng()*ch,bgRng()*0.8+0.2,0,Math.PI*2);ctx.fill();}
+
+ const cx=cw/2+mapPan.x, cy=ch/2+mapPan.y;
+ const scale=25*mapZoom;
+
+ // Grid
+ ctx.strokeStyle='rgba(50,70,120,0.15)'; ctx.lineWidth=0.5;
+ const gPx=5*scale;
+ if(gPx>20){for(let gx=cx%gPx;gx<cw;gx+=gPx){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,ch);ctx.stroke();}for(let gy=cy%gPx;gy<ch;gy+=gPx){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(cw,gy);ctx.stroke();}}
+
+ // Sol
+ function drawStar(x,y,color,radius,label){
+  const g=ctx.createRadialGradient(x,y,0,x,y,radius*3);g.addColorStop(0,color);g.addColorStop(1,'transparent');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,radius*3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();
+  if(label){ctx.fillStyle='rgba(200,210,255,0.7)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText(label,x,y-radius-4);}
+ }
+ drawStar(cx,cy,'#FFF5E0',4,'Sol');
+
+ for(const s of MAP_STARS){
+  const sx=cx+s[1]*scale, sy=cy-s[3]*scale;
+  const col=mapSpectralColor(s[4]);
+  const r=Math.max(1.5,Math.min(4,(8-s[5])*0.3))*Math.min(mapZoom,2);
+  if(sx>-20&&sx<cw+20&&sy>-20&&sy<ch+20) drawStar(sx,sy,col,r,mapZoom>0.8?(s[6]||''):'');
+ }
+
+ ctx.fillStyle='rgba(100,150,255,0.5)'; ctx.font='10px sans-serif'; ctx.textAlign='left';
+ const sBarPx=5*scale;
+ if(sBarPx>20&&sBarPx<cw*0.6){ctx.fillRect(10,ch-20,sBarPx,2);ctx.fillText('5 pc',10,ch-25);}
+}
+
+// ── renderGalaxy ──
+function renderGalaxy(cw, ch) {
+ ctx.fillStyle='#020208'; ctx.fillRect(0,0,cw,ch);
+ // Background stars
+ let bgSeed=777;
+ const bgRng=()=>{bgSeed=(bgSeed*16807)%2147483647;return(bgSeed-1)/2147483646;};
+ for(let i=0;i<300;i++){ctx.fillStyle=`rgba(200,210,255,${bgRng()*0.2+0.05})`;ctx.beginPath();ctx.arc(bgRng()*cw,bgRng()*ch,bgRng()*0.6+0.1,0,Math.PI*2);ctx.fill();}
+
+ const cx=cw/2+mapPan.x, cy=ch/2+mapPan.y;
+ // Stylized spiral galaxy
+ ctx.save();
+ for(let arm=0;arm<4;arm++){
+  const armAngle=arm*Math.PI/2;
+  for(let t=0;t<200;t++){
+   const r=(t/200)*Math.min(cw,ch)*0.4*mapZoom;
+   const a=armAngle+t*0.05;
+   const x=cx+Math.cos(a)*r;
+   const y=cy+Math.sin(a)*r*0.4; // edge-on tilt
+   const spread=bgRng()*20-10;
+   const alpha=Math.max(0.02,(1-t/200)*0.4);
+   ctx.fillStyle=`rgba(180,160,220,${alpha})`;
+   ctx.beginPath();ctx.arc(x+spread,y+spread*0.4,bgRng()*2+0.5,0,Math.PI*2);ctx.fill();
+  }
+ }
+ // Central bulge
+ const bulge=ctx.createRadialGradient(cx,cy,0,cx,cy,30*mapZoom);
+ bulge.addColorStop(0,'rgba(255,240,200,0.5)');bulge.addColorStop(1,'transparent');
+ ctx.fillStyle=bulge;ctx.beginPath();ctx.arc(cx,cy,30*mapZoom,0,Math.PI*2);ctx.fill();
+ // "You are here" marker
+ const solX=cx+60*mapZoom, solY=cy+5*mapZoom;
+ ctx.fillStyle='#ff4444';ctx.beginPath();ctx.arc(solX,solY,3,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='rgba(255,100,100,0.8)';ctx.font='9px sans-serif';ctx.textAlign='left';
+ ctx.fillText('← You are here (Sol)',solX+6,solY+3);
+ ctx.restore();
+
+ // Label
+ ctx.fillStyle='rgba(200,210,255,0.4)';ctx.font='12px sans-serif';ctx.textAlign='center';
+ ctx.fillText('Milky Way Galaxy',cx,ch-15);
+ ctx.fillStyle='rgba(200,210,255,0.25)';ctx.font='10px sans-serif';
+ ctx.fillText('~200 billion stars · ~100,000 ly diameter',cx,ch-3);
+}
+
+// ── renderSkyView ──
+function renderSkyView(cw, ch) {
+ const date = skyGetTime();
+ const home = loadHome();
+ const lat = home ? home.lat : 46.7853;
+ const lng = home ? home.lng : -121.7365;
+
+ // Sun position for day/night
+ const sunRD = getSunRADec(date);
+ const sunPos = raDecToAltAz(sunRD.ra, sunRD.dec, lat, lng, date);
+ const sunAlt = sunPos.altitude;
+
+ // Sky background based on sun altitude
+ let skyDarkness = 1; // 1 = full dark
+ if (sunAlt > 0) skyDarkness = 0;
+ else if (sunAlt > -6) skyDarkness = (-sunAlt) / 6 * 0.5; // civil twilight
+ else if (sunAlt > -12) skyDarkness = 0.5 + (-sunAlt - 6) / 6 * 0.3; // nautical
+ else if (sunAlt > -18) skyDarkness = 0.8 + (-sunAlt - 12) / 6 * 0.2; // astronomical
+ else skyDarkness = 1;
+
+ // Background gradient
+ const cx = cw / 2, cy = ch / 2;
+ const radius = Math.min(cw, ch) * 0.45;
+
+ // Sky gradient from zenith to horizon
+ if (sunAlt > -6) {
+  // Twilight/day colors
+  const dayFrac = Math.max(0, Math.min(1, (sunAlt + 6) / 20));
+  const r1 = Math.round(10 + dayFrac * 100);
+  const g1 = Math.round(10 + dayFrac * 140);
+  const b1 = Math.round(30 + dayFrac * 200);
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.1);
+  grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
+  const r2 = Math.round(20 + dayFrac * 180);
+  const g2 = Math.round(15 + dayFrac * 120);
+  const b2 = Math.round(40 + dayFrac * 80);
+  grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
+  ctx.fillStyle = grad;
+ } else {
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.1);
+  grad.addColorStop(0, '#0a0a1a');
+  grad.addColorStop(0.7, '#080818');
+  grad.addColorStop(1, '#0c0c25');
+  ctx.fillStyle = grad;
+ }
+ ctx.fillRect(0, 0, cw, ch);
+
+ // Clip to circular sky area
+ ctx.save();
+ ctx.beginPath();
+ ctx.arc(cx, cy, radius + 2, 0, Math.PI * 2);
+ ctx.clip();
+
+ // Milky Way band
+ if (skyShowMilkyWay && skyDarkness > 0.5) {
+  ctx.save();
+  const mwAlpha = (skyDarkness - 0.5) * 0.15;
+  for (let i = 0; i < MILKY_WAY_POINTS.length - 1; i++) {
+   const p1 = MILKY_WAY_POINTS[i];
+   const p2 = MILKY_WAY_POINTS[i + 1];
+   const pos1 = raDecToAltAz(p1[0], p1[1], lat, lng, date);
+   const pos2 = raDecToAltAz(p2[0], p2[1], lat, lng, date);
+   if (pos1.altitude < -5 && pos2.altitude < -5) continue;
+   const c1 = altAzToCanvas(Math.max(0, pos1.altitude), pos1.azimuth, cx, cy, radius);
+   const c2 = altAzToCanvas(Math.max(0, pos2.altitude), pos2.azimuth, cx, cy, radius);
+   const w = (p1[2] + p2[2]) * 0.5 * radius / 90;
+   const dx = c2.x - c1.x, dy = c2.y - c1.y;
+   const len = Math.sqrt(dx * dx + dy * dy);
+   if (len < 1) continue;
+   const nx = -dy / len * w, ny = dx / len * w;
+   const mwGrad = ctx.createLinearGradient(c1.x + nx, c1.y + ny, c1.x - nx, c1.y - ny);
+   mwGrad.addColorStop(0, 'transparent');
+   mwGrad.addColorStop(0.3, `rgba(180,190,220,${mwAlpha})`);
+   mwGrad.addColorStop(0.5, `rgba(200,210,240,${mwAlpha * 1.3})`);
+   mwGrad.addColorStop(0.7, `rgba(180,190,220,${mwAlpha})`);
+   mwGrad.addColorStop(1, 'transparent');
+   ctx.fillStyle = mwGrad;
+   ctx.beginPath();
+   ctx.moveTo(c1.x + nx, c1.y + ny);
+   ctx.lineTo(c2.x + nx, c2.y + ny);
+   ctx.lineTo(c2.x - nx, c2.y - ny);
+   ctx.lineTo(c1.x - nx, c1.y - ny);
+   ctx.closePath();
+   ctx.fill();
+  }
+  ctx.restore();
+ }
+
+ // Procedural faint background stars (galactic plane weighted)
+ if (skyDarkness > 0.3 && skyDarkSky) {
+  let seed = 42;
+  const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  const count = Math.round(800 * skyDarkness);
+  for (let i = 0; i < count; i++) {
+   const fakeRA = rng() * 24;
+   // Weight toward galactic plane (dec ~-30 to +60 band)
+   let fakeDec = (rng() - 0.3) * 180;
+   if (rng() < 0.4) fakeDec = rng() * 60 - 30; // galactic plane bias
+   fakeDec = Math.max(-90, Math.min(90, fakeDec));
+   const pos = raDecToAltAz(fakeRA, fakeDec, lat, lng, date);
+   if (pos.altitude < 2) continue;
+   const pt = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius);
+   const mag = 4 + rng() * 2;
+   const sz = Math.max(0.3, 2 - mag * 0.3);
+   const alpha = skyDarkness * (0.1 + rng() * 0.25);
+   ctx.fillStyle = `rgba(200,210,230,${alpha})`;
+   ctx.beginPath();
+   ctx.arc(pt.x, pt.y, sz, 0, Math.PI * 2);
+   ctx.fill();
+  }
+ }
+
+ // Named stars
+ const magLimit = skyDarkSky ? 6.0 : 3.0;
+ const starScreenPos = []; // for constellation lines
+ const spectralColors = {O:'#9bb0ff',B:'#aabfff',A:'#cad7ff',F:'#f8f7ff',G:'#fff4ea',K:'#ffd2a1',M:'#ffcc6f'};
+
+ for (let i = 0; i < SKY_STARS.length; i++) {
+  const s = SKY_STARS[i];
+  if (s[3] > magLimit) continue;
+  if (s[3] > 2 && skyDarkness < 0.3) continue;
+  if (s[3] > 0 && skyDarkness < 0.1) continue;
+
+  const pos = raDecToAltAz(s[1], s[2], lat, lng, date);
+  if (pos.altitude < 0) { starScreenPos[i] = null; continue; }
+
+  const pt = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius);
+  const sz = Math.max(0.5, 4 - s[3] * 0.5) * Math.min(skyDarkness + 0.3, 1);
+  const col = spectralColors[s[4]] || '#fff';
+  starScreenPos[i] = pt;
+
+  // Glow for bright stars
+  if (s[3] < 2 && skyDarkness > 0.3) {
+   const glowR = sz * 4;
+   const glow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, glowR);
+   glow.addColorStop(0, col.replace(')', `,${0.3 * skyDarkness})`).replace('rgb', 'rgba'));
+   glow.addColorStop(1, 'transparent');
+   ctx.fillStyle = glow;
+   ctx.beginPath();
+   ctx.arc(pt.x, pt.y, glowR, 0, Math.PI * 2);
+   ctx.fill();
+  }
+
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.arc(pt.x, pt.y, sz, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Label bright stars
+  if (s[3] < 2 && skyDarkness > 0.2) {
+   ctx.fillStyle = `rgba(200,210,230,${0.5 * skyDarkness})`;
+   ctx.font = '9px sans-serif';
+   ctx.textAlign = 'left';
+   ctx.fillText(s[0], pt.x + sz + 3, pt.y + 3);
+  }
+ }
+
+ // Constellation lines
+ if (skyShowConstellations && skyDarkness > 0.2) {
+  for (const con of SKY_CONSTELLATIONS) {
+   if (!con.lines || con.lines.length === 0) continue;
+   const isHovered = skyHoveredConstellation === con.name;
+   const isSelected = skySelectedConstellation === con.name;
+   const alpha = isHovered || isSelected ? 0.6 : 0.25;
+   ctx.strokeStyle = `rgba(100,180,255,${alpha * skyDarkness})`;
+   ctx.lineWidth = isHovered || isSelected ? 1.5 : 0.8;
+
+   let conCx = 0, conCy = 0, conCount = 0;
+   let anyVisible = false;
+
+   for (const line of con.lines) {
+    if (line.length < 2) continue;
+    const i1 = skyStarMap[line[0]];
+    const i2 = skyStarMap[line[1]];
+    if (i1 === undefined || i2 === undefined) continue;
+
+    // Calculate positions on-the-fly if not cached
+    let p1 = starScreenPos[i1];
+    let p2 = starScreenPos[i2];
+    if (!p1) {
+     const s = SKY_STARS[i1];
+     const pos = raDecToAltAz(s[1], s[2], lat, lng, date);
+     if (pos.altitude > 0) { p1 = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius); starScreenPos[i1] = p1; }
+    }
+    if (!p2) {
+     const s = SKY_STARS[i2];
+     const pos = raDecToAltAz(s[1], s[2], lat, lng, date);
+     if (pos.altitude > 0) { p2 = altAzToCanvas(pos.altitude, pos.azimuth, cx, cy, radius); starScreenPos[i2] = p2; }
+    }
+    if (!p1 || !p2) continue;
+
+    anyVisible = true;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+
+    conCx += p1.x + p2.x;
+    conCy += p1.y + p2.y;
+    conCount += 2;
+   }
+
+   // Also handle single-star constellations for label
+   if (con.lines.length === 1 && con.lines[0].length === 1) {
+    const idx = skyStarMap[con.lines[0][0]];
+    if (idx !== undefined && starScreenPos[idx]) {
+     anyVisible = true;
+     conCx = starScreenPos[idx].x;
+     conCy = starScreenPos[idx].y;
+     conCount = 1;
+    }
+   }
+
+   // Constellation label
+   if (anyVisible && conCount > 0) {
+    const lx = conCx / conCount, ly = conCy / conCount;
+    ctx.fillStyle = `rgba(100,180,255,${(isHovered || isSelected ? 0.7 : 0.3) * skyDarkness})`;
+    ctx.font = `${isHovered || isSelected ? '11px' : '9px'} sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(con.name, lx, ly - 8);
+   }
+  }
+ }
+
+ // Sun
+ if (sunAlt > -5) {
+  const sunPt = altAzToCanvas(Math.max(0, sunAlt), sunPos.azimuth, cx, cy, radius);
+  if (sunAlt > 0) {
+   const sunGlow = ctx.createRadialGradient(sunPt.x, sunPt.y, 0, sunPt.x, sunPt.y, 30);
+   sunGlow.addColorStop(0, 'rgba(255,240,180,0.9)');
+   sunGlow.addColorStop(0.3, 'rgba(255,200,100,0.4)');
+   sunGlow.addColorStop(1, 'transparent');
+   ctx.fillStyle = sunGlow;
+   ctx.beginPath(); ctx.arc(sunPt.x, sunPt.y, 30, 0, Math.PI * 2); ctx.fill();
+   ctx.fillStyle = '#FFF5E0';
+   ctx.beginPath(); ctx.arc(sunPt.x, sunPt.y, 8, 0, Math.PI * 2); ctx.fill();
+   ctx.fillStyle = 'rgba(255,240,200,0.8)'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+   ctx.fillText('☀ Sun', sunPt.x, sunPt.y - 14);
+  }
+ }
+
+ // Moon
+ const moonRD = getMoonRADec(date);
+ const moonPos = raDecToAltAz(moonRD.ra, moonRD.dec, lat, lng, date);
+ if (moonPos.altitude > 0) {
+  const moonPt = altAzToCanvas(moonPos.altitude, moonPos.azimuth, cx, cy, radius);
+  const phase = getMoonPhase(date);
+  const moonR = 8;
+  // Draw moon body
+  ctx.fillStyle = '#e8e0c8';
+  ctx.beginPath(); ctx.arc(moonPt.x, moonPt.y, moonR, 0, Math.PI * 2); ctx.fill();
+  // Phase shadow
+  ctx.fillStyle = 'rgba(10,10,26,0.85)';
+  ctx.beginPath();
+  const illumination = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+  const shadowX = (phase < 0.5) ? moonR * (1 - illumination * 2) : -moonR * (1 - illumination * 2);
+  ctx.ellipse(moonPt.x, moonPt.y, Math.abs(shadowX) || 0.1, moonR, 0, -Math.PI / 2, Math.PI / 2, phase > 0.5);
+  ctx.arc(moonPt.x, moonPt.y, moonR, Math.PI / 2, -Math.PI / 2, phase < 0.25 || phase > 0.75);
+  ctx.fill();
+  // Glow
+  const moonGlow = ctx.createRadialGradient(moonPt.x, moonPt.y, moonR, moonPt.x, moonPt.y, moonR * 3);
+  moonGlow.addColorStop(0, `rgba(200,200,180,${0.15 * illumination})`);
+  moonGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = moonGlow;
+  ctx.beginPath(); ctx.arc(moonPt.x, moonPt.y, moonR * 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(220,215,200,0.7)'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('☽ Moon', moonPt.x, moonPt.y - moonR - 4);
+ }
+
+ ctx.restore(); // End clip
+
+ // Horizon circle
+ ctx.strokeStyle = 'rgba(100,200,150,0.4)';
+ ctx.lineWidth = 1.5;
+ ctx.beginPath();
+ ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+ ctx.stroke();
+
+ // Horizon gradient (ground below)
+ const hGrad = ctx.createRadialGradient(cx, cy, radius - 2, cx, cy, radius + 20);
+ hGrad.addColorStop(0, 'transparent');
+ hGrad.addColorStop(0.5, 'rgba(30,50,30,0.3)');
+ hGrad.addColorStop(1, 'rgba(20,30,20,0.5)');
+ ctx.fillStyle = hGrad;
+ ctx.beginPath();
+ // Fill outside the circle
+ ctx.rect(0, 0, cw, ch);
+ ctx.arc(cx, cy, radius, 0, Math.PI * 2, true);
+ ctx.fill();
+
+ // Cardinal directions
+ ctx.fillStyle = 'rgba(100,200,150,0.7)';
+ ctx.font = 'bold 12px sans-serif';
+ ctx.textAlign = 'center';
+ ctx.fillText('N', cx, cy - radius - 6);
+ ctx.fillText('S', cx, cy + radius + 15);
+ ctx.fillText('E', cx + radius + 10, cy + 4);
+ ctx.fillText('W', cx - radius - 10, cy + 4);
+
+ // Zenith marker
+ ctx.fillStyle = 'rgba(200,210,255,0.3)';
+ ctx.font = '8px sans-serif';
+ ctx.fillText('zenith', cx, cy - 5);
+ ctx.fillStyle = 'rgba(200,210,255,0.15)';
+ ctx.beginPath(); ctx.arc(cx, cy, 2, 0, Math.PI * 2); ctx.fill();
+
+ // Time display
+ const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+ const dateStr = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+ ctx.fillStyle = 'rgba(200,210,255,0.7)';
+ ctx.font = '11px monospace';
+ ctx.textAlign = 'left';
+ ctx.fillText(`${dateStr} ${timeStr}`, 10, ch - 25);
+ ctx.fillStyle = 'rgba(200,210,255,0.4)';
+ ctx.font = '9px sans-serif';
+ const locName = home ? home.name : 'Default';
+ ctx.fillText(`📍 ${locName} (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`, 10, ch - 10);
+
+ // Sun altitude indicator
+ const sunLabel = sunAlt > 0 ? '☀ Daytime' : sunAlt > -6 ? '🌅 Civil Twilight' : sunAlt > -12 ? '🌆 Nautical Twilight' : sunAlt > -18 ? '🌃 Astronomical Twilight' : '🌑 Full Night';
+ ctx.fillStyle = 'rgba(200,210,255,0.5)';
+ ctx.font = '9px sans-serif';
+ ctx.textAlign = 'right';
+ ctx.fillText(sunLabel, cw - 10, ch - 10);
+
+ // Stargazer progress
+ const sg = loadStargazer();
+ ctx.fillText(`⭐ ${sg.identified.length}/88 constellations`, cw - 10, ch - 25);
+}
+
+// ── mapRender ──
+function mapRender() {
+ const dpr = window.devicePixelRatio || 1;
+ canvas.width = canvas.clientWidth * dpr;
+ canvas.height = canvas.clientHeight * dpr;
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ const cw = canvas.clientWidth, ch = canvas.clientHeight;
+
+ if (mapView === 'surface') renderSurface(cw, ch);
+ else if (mapView === 'system') renderSystem(cw, ch);
+ else if (mapView === 'sector') renderSector(cw, ch);
+ else if (mapView === 'galaxy') renderGalaxy(cw, ch);
+ else if (mapView === 'skyview') renderSkyView(cw, ch);
+}
+
+// ── mapSetView ──
+window.mapSetView = function(view) {
+ if (view === mapView) return;
+ // Animation: brief darken
+ mapAnimating = true;
+ const canvasEl = canvas;
+ canvasEl.style.transition = 'opacity 0.2s';
+ canvasEl.style.opacity = '0.3';
+ setTimeout(() => {
+  mapView = view;
+  mapPan = {x:0,y:0};
+  mapZoom = 1.0;
+  // Update mode buttons
+  document.querySelectorAll('.map-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === view));
+  mapRender();
+  updateSidebar();
+  canvasEl.style.opacity = '1';
+  setTimeout(() => { canvasEl.style.transition = ''; mapAnimating = false; }, 200);
+ }, 200);
+};
+
+// ── mapZoomIn ──
+window.mapZoomIn = function() { mapZoom = Math.min(mapZoom*1.4, 50); mapRender(); };
+window.mapZoomOut = function() { mapZoom = Math.max(mapZoom/1.4, 0.3); mapRender(); };
+
+// ── mapZoomOut ──
+window.mapZoomOut = function() { mapZoom = Math.max(mapZoom/1.4, 0.3); mapRender(); };
+
+
+// ── mapGoHome ──
+window.mapGoHome = function() {
+ const home = loadHome();
+ if (!home) return;
+ if (mapView !== 'surface') { mapSetView('surface'); setTimeout(() => mapGoHome(), 500); return; }
+ const container = document.getElementById('map-canvas-container');
+ const cw = container.clientWidth, ch = container.clientHeight;
+ mapZoom = 4;
+ const target = latLngToScreen(home.lat, home.lng, cw, ch);
+ mapPan.x = cw/2 - (home.lng+180)/360*cw*mapZoom - cw/2*(1-mapZoom) + mapPan.x + cw/2 - target.x;
+ mapPan.y = ch/2 - (90-home.lat)/180*ch*mapZoom - ch/2*(1-mapZoom) + mapPan.y + ch/2 - target.y;
+ mapSelectedLocation = {lat:home.lat,lng:home.lng};
+ mapRender();
+ updateCoordsBar(home.lat, home.lng);
+ showLocationInfo(home.lat, home.lng, home.name);
+};
+
+// ── mapLocateMe ──
+window.mapLocateMe = function() {
+ if (!navigator.geolocation) { alert('Geolocation not available'); return; }
+ navigator.geolocation.getCurrentPosition(pos => {
+  const lat = pos.coords.latitude, lng = pos.coords.longitude;
+  if (mapView !== 'surface') mapSetView('surface');
+  setTimeout(() => {
+   const container = document.getElementById('map-canvas-container');
+   const cw = container.clientWidth, ch = container.clientHeight;
+   mapZoom = 6;
+   mapPan = {x:0,y:0};
+   const target = latLngToScreen(lat, lng, cw, ch);
+   mapPan.x = cw/2 - target.x;
+   mapPan.y = ch/2 - target.y;
+   mapSelectedLocation = {lat, lng};
+   mapRender();
+   updateCoordsBar(lat, lng);
+   showLocationInfo(lat, lng, 'My Location');
+  }, mapView !== 'surface' ? 500 : 0);
+ }, err => { alert('Could not get location: ' + err.message); });
+};
+
+// ── mapToggleWeather ──
+window.mapToggleWeather = function() {
+ mapShowWeather = !mapShowWeather;
+ if (mapShowWeather && mapSelectedLocation) {
+  showLocationInfo(mapSelectedLocation.lat, mapSelectedLocation.lng);
+ }
+ updateSidebar();
+};
+
+// ── mapToggleGrid ──
+window.mapToggleGrid = function() {
+ mapShowGrid = !mapShowGrid;
+ mapRender();
+};
+
+// ── mapDoSearch ──
+window.mapDoSearch = function() {
+ const q = document.getElementById('map-search').value.trim().toLowerCase();
+ if (!q) return;
+ // Check GPS coords format
+ const gpsMatch = q.match(/^(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)$/);
+ if (gpsMatch) {
+  const lat = parseFloat(gpsMatch[1]), lng = parseFloat(gpsMatch[2]);
+  if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+   mapSetView('surface');
+   setTimeout(() => mapGoToPin(lat, lng, `${lat.toFixed(4)}, ${lng.toFixed(4)}`), 300);
+   return;
+  }
+ }
+ // Check icosphere format
+ const icoMatch = q.match(/^f(\d+)\.l(\d+)\.t(\d+)$/i);
+ if (icoMatch) {
+  const face = parseInt(icoMatch[1]), level = parseInt(icoMatch[2]), tri = parseInt(icoMatch[3]);
+  const gps = icosphereToGPS(face, level, tri);
+  mapSetView('surface');
+  setTimeout(() => mapGoToPin(gps.lat, gps.lng, `${q.toUpperCase()}`), 300);
+  return;
+ }
+ // Search cities
+ const city = CITIES.find(c => c.name.toLowerCase().includes(q));
+ if (city) { mapSetView('surface'); setTimeout(() => mapGoToPin(city.lat, city.lng, city.name), 300); return; }
+ // Search planets
+ const planet = MAP_PLANETS.find(p => p.name.toLowerCase().includes(q));
+ if (planet) { mapSetView('system'); return; }
+ // Search stars
+ const star = MAP_STARS.find(s => (s[6]||s[0]).toLowerCase().includes(q));
+ if (star) { mapSetView('sector'); return; }
+ // Galaxy
+ if (q.includes('galaxy') || q.includes('milky')) { mapSetView('galaxy'); return; }
+ if (q.includes('sky') || q.includes('constellation') || q.includes('stargazer') || q.includes('night sky')) { mapSetView('skyview'); return; }
+ const skyConMatch = SKY_CONSTELLATIONS && SKY_CONSTELLATIONS.find(c => c.name.toLowerCase().includes(q));
+ if (skyConMatch) { mapSetView('skyview'); setTimeout(() => { skySelectedConstellation = skyConMatch.name; updateSidebar(); mapRender(); }, 500); return; }
+};
+
+
+</script>
+</body>
+</html>

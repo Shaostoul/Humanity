@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width, initial-scale=1.0>
+  <title>Ops — HumanityOS</title>
+  <style>
+
+    :root {
+      --bg: #0d0d0d;
+      --bg-card: #131313;
+      --bg-panel: #141414;
+      --bg-input: #1a1a1a;
+      --border: #222;
+      --text: #e0e0e0;
+      --text-muted: #888;
+      --accent: #22aa66;
+      --success: #4a8;
+      --error: #e55;
+      --warning: #eb4;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; max-width: 1200px; width: 100%; margin: 0 auto; }
+    .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1.25rem; }
+    .panel h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; }
+    .panel p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem; line-height: 1.5; }
+    a { color: var(--accent); }
+
+    .debug-info { display: grid; grid-template-columns: 140px 1fr; gap: 0.3rem 1rem; font-size: 0.82rem; margin: 0.75rem 0; }
+    .debug-info dt { color: var(--text-muted); font-weight: 600; }
+    .debug-info dd { color: var(--text); font-family: monospace; word-break: break-all; }
+    .btn-grid { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.75rem 0 1rem; }
+    .btn-demo { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+    .btn-label { font-size: 0.7rem; color: var(--text-muted); text-align: center; max-width: 110px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-width: 100px; min-height: 40px; padding: 0.4rem 1rem; font-size: 0.82rem; font-weight: 600; color: var(--text); background: var(--bg-panel); border: 1px solid var(--btn-clickable,#44cc66); border-radius: 8px; cursor: pointer; position: relative; transition: border-color 0.1s; }
+    .btn:hover { border-color: #4488ff; border-width: 2px; }
+    .btn-clickable { border-color: #44cc66; border-width: 1px; }
+    .btn-channeling { animation: rainbow-border 2s linear infinite; }
+    .btn-activated  { border-color: #ee3333; border-width: 5px; }
+    .btn-disabled   { border-color: #222; cursor: not-allowed; opacity: 0.5; }
+    .btn-cooldown   { border-color: #8844cc; border-width: 7px; }
+    .btn-cooldown-timer { position: absolute; font-size: 0.65rem; font-weight: 700; color: #c8a; }
+    .btn-cooldown-timer.top { top: 2px; left: 50%; transform: translateX(-50%); }
+    .btn-cooldown-timer.bottom { bottom: 2px; left: 50%; transform: translateX(-50%); }
+    @keyframes rainbow-border { 0%{border-color:#f44}16%{border-color:#f80}33%{border-color:#ff0}50%{border-color:#0f4}66%{border-color:#08f}83%{border-color:#80f}100%{border-color:#f44} }
+    h3 { font-size: 0.9rem; color: var(--text); margin: 1rem 0 0.3rem; }
+
+  </style>
+</head>
+<body>
+<script src=/shared/shell.js data-active=debug></script>
+<div id=page-app>
+<div class="panel">
+   <h2>🔧 System Information</h2>
+   <p>Version, connection status, and system diagnostics.</p>
+   <dl class="debug-info">
+    <dt>Client Version</dt>
+    <dd id="debug-version">—</dd>
+    <dt>Server</dt>
+    <dd id="debug-server">—</dd>
+    <dt>Connection</dt>
+    <dd id="debug-connection">Checking…</dd>
+    <dt>User Agent</dt>
+    <dd id="debug-ua">—</dd>
+    <dt>Screen</dt>
+    <dd id="debug-screen">—</dd>
+    <dt>Page Loaded</dt>
+    <dd id="debug-loaded">—</dd>
+   </dl>
+  </div>
+
+  <div class="panel">
+   <h2>🎨 Button Design System</h2>
+   <p>Interactive preview of all button states. These are the standard interaction patterns for the entire game UI.</p>
+
+   <h3>All States (static preview)</h3>
+   <div class="btn-grid">
+    <div class="btn-demo">
+     <button class="btn btn-clickable">Clickable</button>
+     <span class="btn-label">Default · 1px green</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-channeling">Channeling</button>
+     <span class="btn-label">Active/looping · 1px rainbow</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-activated">Activated</button>
+     <span class="btn-label">Pressed · 5px red</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-disabled">Disabled</button>
+     <span class="btn-label">Unclickable · 2px black</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-cooldown">
+      Cooldown
+      <span class="btn-cooldown-timer top">3.2s</span>
+      <span class="btn-cooldown-timer bottom">3.2s</span>
+     </button>
+     <span class="btn-label">Waiting · 7px purple + timer</span>
+    </div>
+   </div>
+
+   <h3>Interactive Test — Hover &amp; Click</h3>
+   <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
+   <div class="btn-grid">
+    <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
+    <button class="btn" onclick="testBtnClick(this)">Another Button</button>
+    <button class="btn" onclick="testBtnClick(this)">And Another</button>
+   </div>
+
+   <h3>Toggle Test — Click to Cycle States</h3>
+   <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me</button>
+    <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me Too</button>
+    <button class="btn btn-clickable" onclick="cycleState(this)">And Me</button>
+   </div>
+
+   <h3>Cooldown Test — Click to Start Cooldown</h3>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="startCooldown(this, 5)">5s Cooldown</button>
+    <button class="btn btn-clickable" onclick="startCooldown(this, 10)">10s Cooldown</button>
+    <button class="btn btn-clickable" onclick="startCooldown(this, 3)">3s Cooldown</button>
+   </div>
+
+   <h3>Channeling Test — Click to Start/Stop</h3>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
+    <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
+   </div>
+  </div>
+
+  <div class="panel">
+   <h2>🎨 Color Reference</h2>
+   <p>The visual language for button borders:</p>
+   <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.8rem; margin-top: 0.5rem;">
+    <div style="padding:0.5rem;border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid #222;background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#666;">Black 2px</strong> — Disabled / locked
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
+    </div>
+    <div style="padding:0.5rem;border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
+     <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <!-- ══════════════════════════════════════ -->
+ <!-- Market Tab -->
+ <!-- ══════════════════════════════════════ -->
+</div>
+<script>
+
+(function() {
+  // Populate system info
+  const el = id => document.getElementById(id);
+  if (el('debug-version')) el('debug-version').textContent = 'v0.2.0';
+  if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
+  if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
+  if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';
+  if (el('debug-loaded'))  el('debug-loaded').textContent  = new Date().toISOString();
+  fetch('/api/stats').then(r => r.ok ? r.json() : null).then(data => {
+    if (!data) { if(el('debug-connection')) el('debug-connection').textContent = '⚠️ Server unreachable'; return; }
+    if(el('debug-connection')) el('debug-connection').textContent = '✅ Connected — ' + (data.online_users||0) + ' online';
+    if(el('debug-version') && data.version) el('debug-version').textContent = data.version;
+  }).catch(() => { if(el('debug-connection')) el('debug-connection').textContent = '❌ Cannot reach server'; });
+})();
+
+  function testBtnClick(btn) {
+   btn.textContent = '✓ Clicked!';
+   setTimeout(() => { btn.textContent = 'Hover / Click Me'; }, 800);
+  }
+  function cycleState(btn) {
+   const current = states.find(s => btn.classList.contains(s)) || 'btn-clickable';
+   const idx = states.indexOf(current);
+   const next = states[(idx + 1) % states.length];
+   states.forEach(s => btn.classList.remove(s));
+   btn.classList.add(next);
+   btn.querySelectorAll('.btn-cooldown-timer').forEach(t => t.remove());
+   if (next === 'btn-cooldown') {
+    btn.innerHTML = btn.textContent.replace(/[\d.]+s/g, '').trim();
+    const topT = document.createElement('span');
+    topT.className = 'btn-cooldown-timer top';
+    topT.textContent = '∞';
+    const botT = document.createElement('span');
+    botT.className = 'btn-cooldown-timer bottom';
+    botT.textContent = '∞';
+    btn.appendChild(topT);
+    btn.appendChild(botT);
+   }
+  }
+  function startCooldown(btn, seconds) {
+   if (btn.classList.contains('btn-cooldown')) return;
+   const originalText = btn.textContent;
+   btn.classList.remove('btn-clickable');
+   btn.classList.add('btn-cooldown');
+
+   const topT = document.createElement('span');
+   topT.className = 'btn-cooldown-timer top';
+   const botT = document.createElement('span');
+   botT.className = 'btn-cooldown-timer bottom';
+   btn.appendChild(topT);
+   btn.appendChild(botT);
+
+   let remaining = seconds;
+   const update = () => {
+    topT.textContent = remaining.toFixed(1) + 's';
+    botT.textContent = remaining.toFixed(1) + 's';
+   };
+   update();
+
+   const interval = setInterval(() => {
+    remaining -= 0.1;
+    if (remaining <= 0) {
+     clearInterval(interval);
+     btn.classList.remove('btn-cooldown');
+     btn.classList.add('btn-clickable');
+     topT.remove();
+     botT.remove();
+     btn.textContent = originalText;
+    } else {
+     update();
+    }
+   }, 100);
+  }
+</script>
+</body>
+</html>
