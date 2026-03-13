@@ -1,0 +1,18 @@
+/* base.css — CSS custom properties, resets, and typography */
+
+:root {
+  --accent: #e07020;
+  --accent-hover: #ff8c40;
+  --accent-dim: rgba(224,112,32,0.15);
+  /* Alias for unified-section default background — theme.css defines --bg */
+  --bg-primary: var(--bg, #0d0d0d);
+}
+
+/* Twemoji */
+img.emoji {
+  height: 1.2em;
+  width: 1.2em;
+  margin: 0 .05em 0 .1em;
+  vertical-align: -0.2em;
+  display: inline-block;
+}
