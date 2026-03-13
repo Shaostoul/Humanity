@@ -1,0 +1,728 @@
+//! SQLite persistence for relay message history and peers.
+//!
+//! Security note: The security of the Humanity protocol lives in the
+//! cryptographic object layer (Ed25519 signatures, XChaCha20-Poly1305
+//! encryption), not in the storage layer. SQLite is just the container
+//! for signed, tamper-evident objects.
+
+use rand::Rng;
+use rusqlite::{Connection, OptionalExtension, params};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::Mutex;
+use tracing::info;
+
+use crate::relay::RelayMessage;
+
+/// A persisted DM record.
+#[derive(Debug, Clone)]
+pub struct DmRecord {
+    pub from_key: String,
+    pub from_name: String,
+    pub to_key: String,
+    pub content: String,
+    pub timestamp: u64,
+    /// Whether this DM is end-to-end encrypted.
+    pub encrypted: bool,
+    /// Base64-encoded nonce/IV for encrypted DMs.
+    pub nonce: Option<String>,
+}
+
+/// A DM conversation summary.
+#[derive(Debug, Clone)]
+pub struct DmConversation {
+    pub partner_key: String,
+    pub partner_name: String,
+    pub last_message: String,
+    pub last_timestamp: u64,
+    pub unread_count: i64,
+}
+
+/// A persisted pinned message record.
+#[derive(Debug, Clone)]
+pub struct PinnedMessageRecord {
+    pub channel: String,
+    pub from_key: String,
+    pub from_name: String,
+    pub content: String,
+    pub original_timestamp: u64,
+    pub pinned_by: String,
+    pub pinned_at: u64,
+}
+
+/// A persisted emoji reaction record.
+#[derive(Debug, Clone)]
+pub struct ReactionRecord {
+    pub target_from: String,
+    pub target_timestamp: u64,
+    pub emoji: String,
+    pub reactor_key: String,
+    pub reactor_name: String,
+}
+
+/// A project task record from the database.
+#[derive(Debug, Clone)]
+pub struct TaskRecord {
+    pub id: i64,
+    pub title: String,
+    pub description: String,
+    pub status: String,
+    pub priority: String,
+    pub assignee: Option<String>,
+    pub created_by: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub position: i64,
+    pub labels: String,
+}
+
+/// A task comment record from the database.
+#[derive(Debug, Clone)]
+pub struct TaskCommentRecord {
+    pub id: i64,
+    pub task_id: i64,
+    pub author_key: String,
+    pub author_name: String,
+    pub content: String,
+    pub created_at: i64,
+}
+
+/// A cached link preview record.
+#[derive(Debug, Clone)]
+pub struct LinkPreviewRecord {
+    pub url: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub image: Option<String>,
+    pub site_name: Option<String>,
+    pub fetched_at: i64,
+}
+
+/// A voice channel record from the database.
+#[derive(Debug, Clone)]
+pub struct VoiceChannelRecord {
+    pub id: i64,
+    pub name: String,
+    pub position: i64,
+    pub created_by: Option<String>,
+    pub created_at: i64,
+}
+
+/// A marketplace listing record from the database.
+#[derive(Debug, Clone)]
+pub struct MarketplaceListing {
+    pub id: String,
+    pub seller_key: String,
+    pub seller_name: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub condition: Option<String>,
+    pub price: Option<String>,
+    pub payment_methods: Option<String>,
+    pub location: Option<String>,
+    pub images: Option<String>,
+    pub status: String,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+/// A federated server record from the database.
+#[derive(Debug, Clone)]
+pub struct FederatedServer {
+    pub server_id: String,
+    pub name: String,
+    pub url: String,
+    pub public_key: Option<String>,
+    pub trust_tier: i32,
+    pub accord_compliant: bool,
+    pub status: String,
+    pub last_seen: Option<i64>,
+    pub added_at: i64,
+}
+
+/// Persistent storage backed by SQLite.
+pub struct Storage {
+    pub(crate) conn: Mutex<Connection>,
+}
+
+/// Shared timestamp helper used by multiple submodules.
+pub(crate) fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+impl Storage {
+    /// Open or create the database at the given path.
+    pub fn open(path: &Path) -> Result<Self, rusqlite::Error> {
+        let conn = Connection::open(path)?;
+
+        // Enable WAL mode for better concurrent read/write performance.
+        conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS messages (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                msg_type  TEXT NOT NULL,
+                from_key  TEXT,
+                from_name TEXT,
+                content   TEXT,
+                timestamp INTEGER NOT NULL,
+                signature TEXT,
+                raw_json  TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_messages_timestamp
+                ON messages(timestamp);
+
+            -- Add channel_id column if it doesn't exist (migration).
+            -- SQLite doesn't have IF NOT EXISTS for ALTER TABLE, so we handle it in code.
+
+            CREATE TABLE IF NOT EXISTS peers (
+                public_key  TEXT PRIMARY KEY,
+                display_name TEXT,
+                last_seen   INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS registered_names (
+                name        TEXT NOT NULL COLLATE NOCASE,
+                public_key  TEXT NOT NULL,
+                registered_at INTEGER NOT NULL,
+                PRIMARY KEY (name, public_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_registered_names_name
+                ON registered_names(name COLLATE NOCASE);
+
+            CREATE TABLE IF NOT EXISTS link_codes (
+                code        TEXT PRIMARY KEY,
+                name        TEXT NOT NULL COLLATE NOCASE,
+                created_by  TEXT NOT NULL,
+                created_at  INTEGER NOT NULL,
+                expires_at  INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS channels (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                description TEXT,
+                created_by  TEXT,
+                created_at  INTEGER NOT NULL,
+                read_only   INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS invite_codes (
+                code        TEXT PRIMARY KEY,
+                created_by  TEXT NOT NULL,
+                created_at  INTEGER NOT NULL,
+                expires_at  INTEGER NOT NULL,
+                used_by     TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS user_roles (
+                public_key  TEXT PRIMARY KEY,
+                role        TEXT NOT NULL DEFAULT 'user'
+            );
+
+            CREATE TABLE IF NOT EXISTS banned_keys (
+                public_key  TEXT PRIMARY KEY,
+                banned_at   INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS user_uploads (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                public_key  TEXT NOT NULL,
+                filename    TEXT NOT NULL,
+                uploaded_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_user_uploads_key
+                ON user_uploads(public_key, id);
+
+            CREATE TABLE IF NOT EXISTS reports (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                reporter_key TEXT NOT NULL,
+                reported_name TEXT NOT NULL,
+                reason      TEXT NOT NULL DEFAULT '',
+                created_at  INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS reactions (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                target_from     TEXT NOT NULL,
+                target_timestamp INTEGER NOT NULL,
+                emoji           TEXT NOT NULL,
+                reactor_key     TEXT NOT NULL,
+                reactor_name    TEXT NOT NULL DEFAULT '',
+                channel         TEXT NOT NULL DEFAULT 'general',
+                created_at      INTEGER NOT NULL,
+                UNIQUE(target_from, target_timestamp, emoji, reactor_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_reactions_target
+                ON reactions(target_from, target_timestamp);
+            CREATE INDEX IF NOT EXISTS idx_reactions_channel
+                ON reactions(channel);
+
+            CREATE TABLE IF NOT EXISTS pinned_messages (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                channel           TEXT NOT NULL,
+                from_key          TEXT NOT NULL,
+                from_name         TEXT NOT NULL,
+                content           TEXT NOT NULL,
+                original_timestamp INTEGER NOT NULL,
+                pinned_by         TEXT NOT NULL,
+                pinned_at         INTEGER NOT NULL,
+                UNIQUE(channel, from_key, original_timestamp)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_pinned_channel
+                ON pinned_messages(channel);"
+        )?;
+
+        // Server state key-value store (for persisting lockdown, etc.).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS server_state (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );"
+        )?;
+
+        // Federation: federated server registry.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS federated_servers (
+                server_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                url TEXT NOT NULL,
+                public_key TEXT,
+                trust_tier INTEGER NOT NULL DEFAULT 0,
+                accord_compliant INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'unknown',
+                last_seen INTEGER,
+                added_at INTEGER NOT NULL
+            );"
+        )?;
+
+        // DM table for direct messages.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS direct_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_key TEXT NOT NULL,
+                from_name TEXT NOT NULL,
+                to_key TEXT NOT NULL,
+                content TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                read INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_dm_conversation
+                ON direct_messages(from_key, to_key);
+            CREATE INDEX IF NOT EXISTS idx_dm_to
+                ON direct_messages(to_key);"
+        )?;
+
+        // Migration: add channel_id column to messages if missing.
+        let has_channel_id: bool = conn
+            .prepare("SELECT channel_id FROM messages LIMIT 0")
+            .is_ok();
+        if !has_channel_id {
+            conn.execute_batch(
+                "ALTER TABLE messages ADD COLUMN channel_id TEXT DEFAULT 'general';"
+            )?;
+            info!("Migration: added channel_id column to messages");
+        }
+
+        // Create index on channel_id for efficient per-channel queries.
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, id);"
+        )?;
+
+        // User data sync table (settings, notes, todos, etc.).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS user_data (
+                public_key TEXT PRIMARY KEY,
+                data BLOB NOT NULL,
+                updated_at INTEGER NOT NULL
+            );"
+        )?;
+
+        // Migration: user_status table.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS user_status (
+                name TEXT PRIMARY KEY COLLATE NOCASE,
+                status TEXT NOT NULL DEFAULT 'online',
+                status_text TEXT NOT NULL DEFAULT ''
+            );"
+        )?;
+
+        // Migration: profiles table for user bios and social links.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS profiles (
+                name    TEXT PRIMARY KEY COLLATE NOCASE,
+                bio     TEXT NOT NULL DEFAULT '',
+                socials TEXT NOT NULL DEFAULT '{}'
+            );"
+        )?;
+
+        // Migration: add extended profile columns if the table was created without them.
+        // SQLite ALTER TABLE ADD COLUMN is safe to run if the column already exists — it will
+        // return an error that we intentionally ignore by using execute_batch's best-effort mode.
+        for alter in &[
+            "ALTER TABLE profiles ADD COLUMN avatar_url TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE profiles ADD COLUMN banner_url  TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE profiles ADD COLUMN pronouns    TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE profiles ADD COLUMN location    TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE profiles ADD COLUMN website     TEXT NOT NULL DEFAULT ''",
+            // privacy is a JSON map: {"location":"private", ...}  — default = all public.
+            "ALTER TABLE profiles ADD COLUMN privacy     TEXT NOT NULL DEFAULT '{}'",
+        ] {
+            let _ = conn.execute(alter, []);
+        }
+
+        // Channel categories for Discord-like grouping.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS channel_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                position INTEGER NOT NULL DEFAULT 0,
+                collapsed INTEGER NOT NULL DEFAULT 0
+            );"
+        )?;
+
+        // Persistent voice channels.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS voice_channels (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT NOT NULL,
+                position    INTEGER DEFAULT 0,
+                created_by  TEXT,
+                created_at  INTEGER NOT NULL
+            );"
+        )?;
+
+        // Link preview cache for URL embeds.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS link_previews (
+                url TEXT PRIMARY KEY,
+                title TEXT,
+                description TEXT,
+                image TEXT,
+                site_name TEXT,
+                fetched_at INTEGER NOT NULL
+            );"
+        )?;
+
+        // Project board: tasks (kanban).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS project_tasks (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                title       TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status      TEXT NOT NULL DEFAULT 'backlog',
+                priority    TEXT NOT NULL DEFAULT 'medium',
+                assignee    TEXT,
+                created_by  TEXT NOT NULL,
+                created_at  INTEGER NOT NULL,
+                updated_at  INTEGER NOT NULL,
+                position    INTEGER NOT NULL DEFAULT 0,
+                labels      TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_project_tasks_status
+                ON project_tasks(status);
+
+            CREATE TABLE IF NOT EXISTS task_comments (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id     INTEGER NOT NULL,
+                author_key  TEXT NOT NULL,
+                author_name TEXT NOT NULL,
+                content     TEXT NOT NULL,
+                created_at  INTEGER NOT NULL,
+                FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_task_comments_task
+                ON task_comments(task_id);"
+        )?;
+
+        // Migration: add read_only column to channels if missing.
+        let has_read_only: bool = conn
+            .prepare("SELECT read_only FROM channels LIMIT 0")
+            .is_ok();
+        if !has_read_only {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN read_only INTEGER DEFAULT 0;"
+            )?;
+            info!("Migration: added read_only column to channels");
+        }
+
+        // Migration: add position column to channels if missing.
+        let has_position: bool = conn
+            .prepare("SELECT position FROM channels LIMIT 0")
+            .is_ok();
+        if !has_position {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN position INTEGER DEFAULT 100;"
+            )?;
+            info!("Migration: added position column to channels");
+        }
+
+        // Migration: add category_id column to channels if missing.
+        let has_category_id: bool = conn
+            .prepare("SELECT category_id FROM channels LIMIT 0")
+            .is_ok();
+        if !has_category_id {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN category_id INTEGER DEFAULT NULL;"
+            )?;
+            info!("Migration: added category_id column to channels");
+        }
+
+        // Migration: add ecdh_public column to registered_names for E2EE DMs.
+        let has_ecdh: bool = conn
+            .prepare("SELECT ecdh_public FROM registered_names LIMIT 0")
+            .is_ok();
+        if !has_ecdh {
+            conn.execute_batch(
+                "ALTER TABLE registered_names ADD COLUMN ecdh_public TEXT DEFAULT NULL;"
+            )?;
+            info!("Migration: added ecdh_public column to registered_names");
+        }
+
+        // Migration: add encrypted and nonce columns to direct_messages for E2EE.
+        let has_dm_encrypted: bool = conn
+            .prepare("SELECT encrypted FROM direct_messages LIMIT 0")
+            .is_ok();
+        if !has_dm_encrypted {
+            conn.execute_batch(
+                "ALTER TABLE direct_messages ADD COLUMN encrypted INTEGER DEFAULT 0;
+                 ALTER TABLE direct_messages ADD COLUMN nonce TEXT DEFAULT NULL;"
+            )?;
+            info!("Migration: added encrypted/nonce columns to direct_messages");
+        }
+
+        // Migration: add reply_to columns to messages for threaded replies.
+        let has_reply_to: bool = conn
+            .prepare("SELECT reply_to_from FROM messages LIMIT 0")
+            .is_ok();
+        if !has_reply_to {
+            conn.execute_batch(
+                "ALTER TABLE messages ADD COLUMN reply_to_from TEXT DEFAULT NULL;
+                 ALTER TABLE messages ADD COLUMN reply_to_timestamp INTEGER DEFAULT NULL;"
+            )?;
+            info!("Migration: added reply_to_from/reply_to_timestamp columns to messages");
+        }
+
+        // Index for efficient thread queries (find all replies to a message).
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_messages_reply_to
+                ON messages(reply_to_from, reply_to_timestamp);"
+        )?;
+
+        // Migration: add label column to registered_names for device labeling.
+        if conn.prepare("SELECT label FROM registered_names LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE registered_names ADD COLUMN label TEXT DEFAULT NULL;"
+            )?;
+            info!("Migration: added label column to registered_names");
+        }
+
+        // Migration: add federated column to channels for federation phase 2.
+        if conn.prepare("SELECT federated FROM channels LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE channels ADD COLUMN federated INTEGER DEFAULT 0;"
+            )?;
+            info!("Migration: added federated column to channels");
+        }
+
+        // Follows table (social system).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS follows (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                follower_key TEXT NOT NULL,
+                followed_key TEXT NOT NULL,
+                created_at  TEXT NOT NULL,
+                UNIQUE(follower_key, followed_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_follows_follower
+                ON follows(follower_key);
+            CREATE INDEX IF NOT EXISTS idx_follows_followed
+                ON follows(followed_key);"
+        )?;
+
+        // Groups tables (foundation).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS groups (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                creator_key TEXT NOT NULL,
+                created_at  TEXT NOT NULL,
+                invite_code TEXT UNIQUE
+            );
+
+            CREATE TABLE IF NOT EXISTS group_members (
+                group_id    TEXT NOT NULL,
+                member_key  TEXT NOT NULL,
+                role        TEXT NOT NULL DEFAULT 'member',
+                joined_at   TEXT NOT NULL,
+                PRIMARY KEY (group_id, member_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_group_members_key
+                ON group_members(member_key);
+
+            CREATE TABLE IF NOT EXISTS group_messages (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id    TEXT NOT NULL,
+                from_key    TEXT NOT NULL,
+                from_name   TEXT NOT NULL DEFAULT '',
+                content     TEXT NOT NULL,
+                timestamp   INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_group_messages_group
+                ON group_messages(group_id, timestamp);"
+        )?;
+
+        // Friend codes table (out-of-band friend discovery).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS friend_codes (
+                code TEXT PRIMARY KEY,
+                public_key TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                uses_remaining INTEGER NOT NULL DEFAULT 1
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_friend_codes_key
+                ON friend_codes(public_key);"
+        )?;
+
+        // Marketplace listings table.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS marketplace_listings (
+                id TEXT PRIMARY KEY,
+                seller_key TEXT NOT NULL,
+                seller_name TEXT,
+                title TEXT NOT NULL,
+                description TEXT,
+                category TEXT NOT NULL,
+                condition TEXT,
+                price TEXT,
+                payment_methods TEXT,
+                location TEXT,
+                images TEXT,
+                status TEXT DEFAULT 'active',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_marketplace_seller
+                ON marketplace_listings(seller_key);
+            CREATE INDEX IF NOT EXISTS idx_marketplace_status
+                ON marketplace_listings(status);
+            CREATE INDEX IF NOT EXISTS idx_marketplace_category
+                ON marketplace_listings(category);"
+        )?;
+
+        // Assets table for the Asset Library.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS assets (
+                id          TEXT PRIMARY KEY,
+                owner_key   TEXT NOT NULL,
+                filename    TEXT NOT NULL,
+                file_type   TEXT NOT NULL,
+                category    TEXT NOT NULL,
+                tags        TEXT DEFAULT '[]',
+                size_bytes  INTEGER NOT NULL DEFAULT 0,
+                url         TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                uploaded_at TEXT DEFAULT (datetime('now'))
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets(owner_key);
+            CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category);
+            CREATE INDEX IF NOT EXISTS idx_assets_file_type ON assets(file_type);"
+        )?;
+
+        // Streams tables for live streaming history and chat.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS streams (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                streamer_key TEXT NOT NULL,
+                title        TEXT NOT NULL DEFAULT '',
+                category     TEXT NOT NULL DEFAULT '',
+                started_at   INTEGER NOT NULL,
+                ended_at     INTEGER,
+                viewer_peak  INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_streams_started
+                ON streams(started_at);
+
+            CREATE TABLE IF NOT EXISTS stream_chat (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                stream_id  INTEGER NOT NULL,
+                content    TEXT NOT NULL,
+                from_name  TEXT NOT NULL DEFAULT '',
+                source     TEXT NOT NULL DEFAULT 'humanity',
+                timestamp  INTEGER NOT NULL,
+                FOREIGN KEY (stream_id) REFERENCES streams(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_stream_chat_stream
+                ON stream_chat(stream_id, timestamp);"
+        )?;
+
+        // Skill DNA tables
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS user_skills (
+                user_key    TEXT NOT NULL,
+                skill_id    TEXT NOT NULL,
+                reality_xp  REAL NOT NULL DEFAULT 0,
+                fantasy_xp  REAL NOT NULL DEFAULT 0,
+                level       INTEGER NOT NULL DEFAULT 0,
+                updated_at  INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (user_key, skill_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_user_skills_skill
+                ON user_skills(skill_id, level);
+
+            CREATE TABLE IF NOT EXISTS skill_verifications (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                skill_id    TEXT NOT NULL,
+                from_key    TEXT NOT NULL,
+                to_key      TEXT NOT NULL,
+                note        TEXT NOT NULL DEFAULT '',
+                created_at  INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_skill_verifications_to
+                ON skill_verifications(to_key, skill_id);"
+        )?;
+
+        info!("Database opened: {}", path.display());
+        Ok(Self { conn: Mutex::new(conn) })
+    }
+}
+
+// Domain method modules — each has its own impl Storage block.
+// Rust supports splitting impl blocks across files via the module system.
+mod assets;
+mod board;
+mod channels;
+mod dms;
+mod marketplace;
+mod messages;
+mod misc;
+mod pins;
+mod profile;
+mod reactions;
+mod skill_dna;
+mod social;
+mod streams;
+mod uploads;

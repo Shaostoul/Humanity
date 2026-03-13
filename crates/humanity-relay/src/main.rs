@@ -7,6 +7,7 @@
 mod relay;
 mod api;
 mod storage;
+pub mod handlers;
 
 use axum::{
     Router,
