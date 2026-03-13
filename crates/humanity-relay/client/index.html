@@ -441,13 +441,18 @@
 
   <!-- External scripts: crypto module must load before app -->
   <!-- nginx serves these from /chat/ which aliases to this directory -->
-  <!-- Load order: crypto → app (core) → feature modules -->
-  <script src="/chat/crypto.js?v=3"></script>
-  <script src="/chat/app.js?v=3"></script>
-  <script src="/chat/chat-profile.js?v=3"></script>
+  <!-- Load order: crypto → app (core) → feature modules (each patches globals from prior scripts) -->
+  <script src="/chat/crypto.js?v=4"></script>
+  <script src="/chat/app.js?v=4"></script>
+  <script src="/chat/chat-messages.js?v=4"></script>
+  <script src="/chat/chat-dms.js?v=4"></script>
+  <script src="/chat/chat-social.js?v=4"></script>
+  <script src="/chat/chat-ui.js?v=4"></script>
+  <script src="/chat/chat-voice.js?v=4"></script>
+  <script src="/chat/chat-profile.js?v=4"></script>
   <!-- qrcode-generator (public domain, ~18 KB) — used by chat-p2p.js for contact card QR codes -->
-  <script src="/shared/qrcode.js?v=3" onerror="console.warn('qrcode.js not found — QR codes will be unavailable')"></script>
-  <script src="/chat/chat-p2p.js?v=3"></script>
+  <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found — QR codes will be unavailable')"></script>
+  <script src="/chat/chat-p2p.js?v=4"></script>
 
 </body>
 </html>
