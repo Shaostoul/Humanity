@@ -4,7 +4,7 @@
  * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
  * If omitted, active tab is auto-detected from the current URL.
  *
- * Valid active keys: chat, profile, home, skills, inventory, equipment, quests,
+ * Valid active keys: chat, dashboard, profile, home, skills, inventory, equipment, quests,
  *   calendar, logbook, board, map, market, browse, info, streams, debug, download,
  *   settings, reality, fantasy
  *
@@ -49,7 +49,7 @@
     else if (p.startsWith('/reality'))   active = 'reality';   // old profile/reality tab
     else if (p.startsWith('/fantasy'))   active = 'skills';    // superseded by /skills
     else if (p.startsWith('/source'))    active = 'equipment'; // superseded by /equipment
-    else if (p.startsWith('/dashboard')) active = 'home';      // superseded by /home
+    else if (p.startsWith('/dashboard')) active = 'dashboard';
     else active = '';
   }
 
@@ -368,6 +368,7 @@
 
       /* Network (always first, most important) */
       navTab('/chat',      'chat.png',      'Network',   'chat') +
+      navTab('/dashboard', '📊',            'Dashboard', 'dashboard') +
       '<div class="nav-divider"></div>' +
 
       /* Private — personal pages */
@@ -422,6 +423,7 @@
     '<div class="mobile-hub-group"><h4>Private</h4>' +
       mobileLink('/profile',   'Profile') +
       mobileLink('/home',      'Home') +
+      mobileLink('/dashboard', 'Dashboard') +
       mobileLink('/skills',    'Skills') +
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/equipment', 'Equipment') +
