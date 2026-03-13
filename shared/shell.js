@@ -47,6 +47,7 @@
     else if (p.startsWith('/streams'))   active = 'streams';
     else if (p.startsWith('/studio'))    active = 'streams';   // studio lives under streams
     else if (p.startsWith('/settings'))  active = 'settings';
+    else if (p.startsWith('/tasks'))     active = 'tasks';
     else if (p.startsWith('/ops'))       active = 'debug';
     else if (p.startsWith('/debug'))     active = 'debug';     // backward compat redirect
     else if (p.startsWith('/download'))  active = 'download';
@@ -413,6 +414,9 @@
       navTab('/knowledge', 'codex.png',     'Knowledge', 'info') +
       navTab('/streams',   'audio.png',     'Streams',   'streams') +
 
+      navTab('/tasks',     '🎯',            'Tasks',     'tasks') +
+      '<div class="nav-divider"></div>' +
+
       /* Spacer pushes ops/account to the right */
       '<div class="spacer"></div>' +
 
@@ -463,6 +467,7 @@
       mobileLink('/streams',   'Streams') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>App</h4>' +
+      mobileLink('/tasks',    'Tasks') +
       mobileLink('/ops',      'Ops') +
       mobileLink('/download', 'Download') +
       mobileLink('/settings', 'Settings') +

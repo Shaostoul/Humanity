@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Tasks — HumanityOS</title>
+  <style>
+    :root {
+      --bg: #0a0a0a; --bg-card: #111; --bg-panel: #131313; --bg-input: #1a1a1a;
+      --border: #1e1e1e; --border-bright: #2a2a2a;
+      --text: #e0e0e0; --text-muted: #666; --text-dim: #444;
+      --accent: #f0a500;
+      --col-backlog: #333; --col-progress: #0a3a6e; --col-testing: #4a3500; --col-done: #0a3a1a;
+      --col-backlog-h: #2a2a2a; --col-progress-h: #0d4d8a; --col-testing-h: #5a4200; --col-done-h: #0d4d22;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Scope bar ── */
+    .scope-bar {
+      background: linear-gradient(180deg, #0e0e0e 0%, #0a0a0a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem 0;
+      position: relative; overflow: hidden;
+    }
+    .scope-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem; }
+    .spiral-icon { width: 28px; height: 28px; flex-shrink: 0; }
+    .scope-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; color: var(--text-muted); text-transform: uppercase; }
+    .scope-tabs { display: flex; gap: 0.35rem; overflow-x: auto; scrollbar-width: none; padding-bottom: 0.6rem; }
+    .scope-tabs::-webkit-scrollbar { display: none; }
+    .scope-tab {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 0.35rem 0.65rem; border-radius: 8px 8px 0 0; border: 1px solid transparent;
+      border-bottom: none; cursor: pointer; white-space: nowrap; transition: all 0.15s;
+      background: transparent; position: relative; flex-shrink: 0;
+    }
+    .scope-tab:hover { background: #1a1a1a; }
+    .scope-tab.active { background: var(--bg-panel); border-color: var(--border-bright); border-bottom-color: var(--bg-panel); }
+    .scope-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: var(--bg-panel); }
+    .scope-fib { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 0.1rem; }
+    .scope-label { font-size: 0.72rem; font-weight: 600; }
+    .scope-tab-dot { width: 5px; height: 5px; border-radius: 50%; margin-top: 0.2rem; }
+
+    /* ── Board controls ── */
+    .board-controls {
+      display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border); background: var(--bg-panel);
+      flex-shrink: 0;
+    }
+    .scope-desc { flex: 1; font-size: 0.78rem; color: var(--text-muted); }
+    .scope-desc strong { color: var(--text); }
+    .stats { display: flex; gap: 0.75rem; font-size: 0.75rem; color: var(--text-muted); }
+    .stat-pill { background: var(--bg-input); border-radius: 20px; padding: 0.2rem 0.6rem; }
+    .stat-pill span { color: var(--text); font-weight: 700; }
+    .btn-new {
+      display: flex; align-items: center; gap: 0.4rem;
+      background: var(--accent); color: #000; border: none;
+      border-radius: 8px; padding: 0.45rem 0.9rem; font-size: 0.8rem; font-weight: 700;
+      cursor: pointer; transition: opacity 0.15s; flex-shrink: 0;
+    }
+    .btn-new:hover { opacity: 0.85; }
+    .btn-refresh { background: transparent; border: 1px solid var(--border-bright); color: var(--text-muted); border-radius: 6px; padding: 0.4rem 0.6rem; font-size: 0.75rem; cursor: pointer; }
+    .btn-refresh:hover { color: var(--text); border-color: #444; }
+
+    /* ── Kanban ── */
+    .kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; flex: 1; overflow: hidden; }
+    .col { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: hidden; }
+    .col:last-child { border-right: none; }
+    .col-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.6rem 0.75rem; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .col-count { background: var(--bg-input); border-radius: 10px; padding: 0.1rem 0.5rem; font-size: 0.68rem; font-weight: 800; color: var(--text-muted); }
+    .col[data-status=backlog] .col-header  { color: #888; background: var(--col-backlog); }
+    .col[data-status=in_progress] .col-header { color: #6ab0f5; background: var(--col-progress); }
+    .col[data-status=testing] .col-header { color: #f0c040; background: var(--col-testing); }
+    .col[data-status=done] .col-header { color: #4ec87a; background: var(--col-done); }
+    .col-body { flex: 1; overflow-y: auto; padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; scrollbar-width: thin; scrollbar-color: #222 transparent; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.6rem 0.7rem; cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+      border-left: 3px solid var(--border);
+    }
+    .card:hover { border-color: #333; transform: translateY(-1px); }
+    .card.priority-critical { border-left-color: #e53935; }
+    .card.priority-high     { border-left-color: #f0a500; }
+    .card.priority-medium   { border-left-color: #2196f3; }
+    .card.priority-low      { border-left-color: #444; }
+    .card-title { font-size: 0.82rem; font-weight: 600; line-height: 1.3; margin-bottom: 0.3rem; color: var(--text); }
+    .card-desc { font-size: 0.73rem; color: var(--text-muted); line-height: 1.4; margin-bottom: 0.35rem; }
+    .card-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.3rem; }
+    .scope-badge { font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 4px; background: rgba(255,255,255,0.05); }
+    .label-tag { font-size: 0.63rem; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 4px; padding: 0.1rem 0.35rem; color: var(--text-muted); }
+    .card-footer { display: flex; align-items: center; gap: 0.5rem; font-size: 0.67rem; color: var(--text-dim); margin-top: 0.2rem; }
+    .card-footer .assignee { color: #888; background: #1a1a1a; border-radius: 4px; padding: 0.1rem 0.3rem; }
+    .card-footer .age { margin-left: auto; }
+    .empty-col { color: var(--text-dim); font-size: 0.75rem; text-align: center; padding: 1.5rem 0; }
+
+    /* ── Modal ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #141414; border: 1px solid #2a2a2a; border-radius: 14px; padding: 1.5rem; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+    .modal h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .form-group { margin-bottom: 0.9rem; }
+    .form-group label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; background: var(--bg-input); border: 1px solid var(--border-bright);
+      border-radius: 7px; padding: 0.5rem 0.7rem; color: var(--text); font-size: 0.83rem;
+      font-family: inherit; outline: none; transition: border-color 0.15s;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--accent); }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .modal-footer { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem; }
+    .btn-cancel { background: transparent; border: 1px solid var(--border-bright); color: var(--text-muted); border-radius: 7px; padding: 0.5rem 1rem; font-size: 0.82rem; cursor: pointer; }
+    .btn-cancel:hover { color: var(--text); }
+    .btn-submit { background: var(--accent); color: #000; border: none; border-radius: 7px; padding: 0.5rem 1.2rem; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+    .btn-submit:hover { opacity: 0.85; }
+    .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+    .auth-note { font-size: 0.72rem; color: var(--text-dim); margin-top: 0.3rem; }
+    .msg-error { color: #e55; font-size: 0.75rem; margin-top: 0.5rem; }
+    .msg-success { color: #4ec87a; font-size: 0.75rem; margin-top: 0.5rem; }
+
+    /* ── Loading ── */
+    .loading { text-align: center; padding: 3rem; color: var(--text-muted); font-size: 0.85rem; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #333; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 0.5rem; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Responsive ── */
+    @media (max-width: 800px) {
+      .kanban { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 500px) {
+      .kanban { grid-template-columns: 1fr; }
+      .stats { display: none; }
+    }
+  </style>
+</head>
+<body>
+<script src=/shared/shell.js data-active="tasks"></script>
+<div id=page-app>
+
+  <!-- Scope selector -->
+  <div class="scope-bar">
+    <div class="scope-header">
+      <!-- Golden spiral SVG icon -->
+      <svg class="spiral-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 14 Q14 8 19 9.5 Q24 11 22.5 16 Q21 21 16 20.5 Q11 20 10.5 15 Q10 10 14.5 8.5 Q19 7 22 11 Q25 15 23 19.5 Q21 24 16.5 24.5"
+              stroke="#f0a500" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.9"/>
+        <circle cx="14" cy="14" r="1.5" fill="#f0a500" opacity="0.6"/>
+      </svg>
+      <span class="scope-title">Mission Control — Fibonacci Scope</span>
+    </div>
+    <div class="scope-tabs" id="scope-tabs"></div>
+  </div>
+
+  <!-- Controls bar -->
+  <div class="board-controls">
+    <div class="scope-desc" id="scope-desc">Loading…</div>
+    <div class="stats" id="stats-bar"></div>
+    <button class="btn-refresh" onclick="loadTasks()" title="Refresh">↻</button>
+    <button class="btn-new" onclick="openModal()">+ New Task</button>
+  </div>
+
+  <!-- Kanban board -->
+  <div class="kanban">
+    <div class="col" data-status="backlog">
+      <div class="col-header">Backlog <span class="col-count" id="count-backlog">0</span></div>
+      <div class="col-body" id="col-backlog"><div class="loading"><span class="spinner"></span>Loading</div></div>
+    </div>
+    <div class="col" data-status="in_progress">
+      <div class="col-header">In Progress <span class="col-count" id="count-in_progress">0</span></div>
+      <div class="col-body" id="col-in_progress"></div>
+    </div>
+    <div class="col" data-status="testing">
+      <div class="col-header">Testing <span class="col-count" id="count-testing">0</span></div>
+      <div class="col-body" id="col-testing"></div>
+    </div>
+    <div class="col" data-status="done">
+      <div class="col-header">Done <span class="col-count" id="count-done">0</span></div>
+      <div class="col-body" id="col-done"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Create task modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2>🎯 New Task</h2>
+    <div class="form-group">
+      <label>Title *</label>
+      <input type=text id=f-title placeholder="What needs to be done?" maxlength=200>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id=f-desc placeholder="Context, acceptance criteria, links…"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Priority</label>
+        <select id=f-priority>
+          <option value=low>Low</option>
+          <option value=medium selected>Medium</option>
+          <option value=high>High</option>
+          <option value=critical>Critical</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Scope</label>
+        <select id=f-scope></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Status</label>
+        <select id=f-status>
+          <option value=backlog selected>Backlog</option>
+          <option value=in_progress>In Progress</option>
+          <option value=testing>Testing</option>
+          <option value=done>Done</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Assignee (name or key)</label>
+        <input type=text id=f-assignee placeholder="Optional">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Labels (comma-separated)</label>
+      <input type=text id=f-labels placeholder="backend, relay, urgent">
+    </div>
+    <div class="form-group">
+      <label>Admin API Key</label>
+      <input type=password id=f-apikey placeholder="Bearer token from server .env">
+      <div class="auth-note">Required to create tasks. Get with: <code>ssh humanity-vps "grep API_SECRET /opt/Humanity/.env"</code></div>
+    </div>
+    <div id=form-msg></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" id=btn-submit onclick="submitTask()">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Fibonacci scope definitions ── */
+const SCOPES = [
+  { n:1,  key:'self',    label:'Self',    color:'#ff6b6b', desc:'Personal health, body, daily needs' },
+  { n:1,  key:'mind',    label:'Mind',    color:'#ff9f43', desc:'Learning, mental health, personal skills' },
+  { n:2,  key:'hearth',  label:'Hearth',  color:'#ffd32a', desc:'Home, close relationships, household' },
+  { n:3,  key:'circle',  label:'Circle',  color:'#0be881', desc:'Friend group / small team (3–8 people)' },
+  { n:5,  key:'village', label:'Village', color:'#05c46b', desc:'Neighborhood / working group (8–21 people)' },
+  { n:8,  key:'city',    label:'City',    color:'#0fbcf9', desc:'Project level — HumanityOS (default)' },
+  { n:13, key:'region',  label:'Region',  color:'#7f8fa6', desc:'Large organization / national / bioregional' },
+  { n:21, key:'world',   label:'World',   color:'#a29bfe', desc:'Civilization-wide, planetary goals' },
+  { n:34, key:'solar',   label:'Solar',   color:'#74b9ff', desc:'Solar System — space stations, Mars colony' },
+  { n:55, key:'cosmos',  label:'Cosmos',  color:'#dfe6e9', desc:'Interstellar civilization' },
+];
+
+let allTasks = [];
+let activeScope = 'city';
+
+/* ── Init ── */
+function init() {
+  buildScopeTabs();
+  buildScopeSelect();
+  loadTasks();
+}
+
+function buildScopeTabs() {
+  const container = document.getElementById('scope-tabs');
+  container.innerHTML = SCOPES.map(s => `
+    <button class="scope-tab${s.key === activeScope ? ' active' : ''}"
+            data-key="${s.key}" onclick="setScope('${s.key}')"
+            title="${s.desc}">
+      <span class="scope-fib" style="color:${s.color}">${s.n}</span>
+      <span class="scope-label">${s.label}</span>
+      <span class="scope-tab-dot" style="background:${s.color}"></span>
+    </button>`).join('');
+}
+
+function buildScopeSelect() {
+  const sel = document.getElementById('f-scope');
+  sel.innerHTML = SCOPES.map(s =>
+    `<option value="${s.key}"${s.key === 'city' ? ' selected' : ''}>${s.n}·${s.label} — ${s.desc}</option>`
+  ).join('');
+}
+
+function setScope(key) {
+  activeScope = key;
+  document.querySelectorAll('.scope-tab').forEach(t => t.classList.toggle('active', t.dataset.key === key));
+  renderBoard();
+  renderControls();
+}
+
+/* ── Data loading ── */
+async function loadTasks() {
+  try {
+    const res = await fetch('/api/tasks');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    allTasks = data.tasks || [];
+    renderBoard();
+    renderControls();
+  } catch (e) {
+    document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ Could not load tasks<br><small>${e.message}</small></div>`;
+  }
+}
+
+/* ── Scope helpers ── */
+function getTaskScope(task) {
+  try {
+    const labels = JSON.parse(task.labels || '[]');
+    const sl = labels.find(l => l.startsWith('scope:'));
+    return sl ? sl.replace('scope:', '') : 'city';
+  } catch { return 'city'; }
+}
+
+function getNonScopeLabels(task) {
+  try { return JSON.parse(task.labels || '[]').filter(l => !l.startsWith('scope:')); }
+  catch { return []; }
+}
+
+function scopedTasks() {
+  return allTasks.filter(t => getTaskScope(t) === activeScope);
+}
+
+/* ── Render ── */
+function renderBoard() {
+  const tasks = scopedTasks();
+  ['backlog','in_progress','testing','done'].forEach(status => {
+    const col = document.getElementById('col-' + status);
+    const count = document.getElementById('count-' + status);
+    const filtered = tasks.filter(t => t.status === status);
+    count.textContent = filtered.length;
+    col.innerHTML = filtered.length
+      ? filtered.map(renderCard).join('')
+      : `<div class="empty-col">—</div>`;
+  });
+}
+
+function renderControls() {
+  const scope = SCOPES.find(s => s.key === activeScope) || SCOPES[5];
+  document.getElementById('scope-desc').innerHTML =
+    `<strong style="color:${scope.color}">${scope.n}·${scope.label}</strong> &mdash; ${scope.desc}`;
+  const tasks = scopedTasks();
+  const bp = allTasks.filter(t => t.status === 'backlog').length;
+  const ip = allTasks.filter(t => t.status === 'in_progress').length;
+  document.getElementById('stats-bar').innerHTML =
+    `<span class="stat-pill"><span>${allTasks.length}</span> total</span>` +
+    `<span class="stat-pill"><span>${tasks.length}</span> this scope</span>` +
+    `<span class="stat-pill"><span>${ip}</span> active</span>`;
+}
+
+function renderCard(task) {
+  const scope = SCOPES.find(s => s.key === getTaskScope(task)) || SCOPES[5];
+  const labels = getNonScopeLabels(task);
+  return `<div class="card priority-${task.priority}" onclick="openDetail(${task.id})">
+    <div class="card-title">${esc(task.title)}</div>
+    ${task.description ? `<div class="card-desc">${esc(task.description.slice(0,120))}${task.description.length > 120 ? '…' : ''}</div>` : ''}
+    <div class="card-meta">
+      <span class="scope-badge" style="color:${scope.color}">${scope.n}·${scope.label}</span>
+      ${labels.map(l => `<span class="label-tag">${esc(l)}</span>`).join('')}
+    </div>
+    <div class="card-footer">
+      <span style="color:${priorityColor(task.priority)};font-weight:700;font-size:0.65rem">${task.priority.toUpperCase()}</span>
+      ${task.assignee ? `<span class="assignee">${esc(task.assignee.slice(0,12))}</span>` : ''}
+      ${task.comment_count > 0 ? `<span>💬 ${task.comment_count}</span>` : ''}
+      <span class="age">${timeAgo(task.created_at)}</span>
+    </div>
+  </div>`;
+}
+
+/* ── Modal ── */
+function openModal() {
+  document.getElementById('modal-overlay').classList.add('open');
+  document.getElementById('f-title').focus();
+  document.getElementById('form-msg').innerHTML = '';
+  document.getElementById('f-scope').value = activeScope;
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+async function submitTask() {
+  const title = document.getElementById('f-title').value.trim();
+  const apiKey = document.getElementById('f-apikey').value.trim();
+  const msg = document.getElementById('form-msg');
+
+  if (!title) { msg.innerHTML = '<div class="msg-error">Title is required.</div>'; return; }
+  if (!apiKey) { msg.innerHTML = '<div class="msg-error">Admin API key required to create tasks.</div>'; return; }
+
+  const rawLabels = document.getElementById('f-labels').value.trim();
+  const labelArr = rawLabels ? rawLabels.split(',').map(l => l.trim()).filter(Boolean) : [];
+  labelArr.push('scope:' + document.getElementById('f-scope').value);
+
+  const body = {
+    title,
+    description: document.getElementById('f-desc').value.trim(),
+    priority: document.getElementById('f-priority').value,
+    status: document.getElementById('f-status').value,
+    labels: JSON.stringify(labelArr),
+  };
+  const assignee = document.getElementById('f-assignee').value.trim();
+  if (assignee) body.assignee = assignee;
+
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+
+  try {
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'HTTP ' + res.status);
+    msg.innerHTML = `<div class="msg-success">✓ Task #${data.id} created.</div>`;
+    setTimeout(() => { closeModal(); loadTasks(); }, 800);
+  } catch(e) {
+    msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Task';
+  }
+}
+
+function openDetail(id) {
+  // TODO: detail panel — for now open a quick info alert
+  const task = allTasks.find(t => t.id === id);
+  if (!task) return;
+  // Future: slide-in detail panel
+}
+
+/* ── Helpers ── */
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function priorityColor(p) {
+  return { critical:'#e53935', high:'#f0a500', medium:'#2196f3', low:'#555' }[p] || '#555';
+}
+
+function timeAgo(ms) {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm';
+  if (s < 86400) return Math.floor(s/3600) + 'h';
+  return Math.floor(s/86400) + 'd';
+}
+
+/* Close modal on overlay click */
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+/* Escape key */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+init();
+</script>
+</body>
+</html>
