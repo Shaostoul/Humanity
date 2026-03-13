@@ -2582,6 +2582,16 @@ function updateCharCounter(len) {
   }
 })();
 
+// Fetch and display server-wide message/user stats in the header bar.
+async function updateStats() {
+  try {
+    const resp = await fetch('/api/stats');
+    const data = await resp.json();
+    document.getElementById('stats').textContent =
+      `${data.total_messages} msgs · ${data.connected_peers} online`;
+  } catch (e) { /* ignore — stats are cosmetic */ }
+}
+
 // Update stats every 30s.
 setInterval(updateStats, 30000);
 
