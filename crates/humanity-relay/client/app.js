@@ -5127,9 +5127,9 @@ function renderUnifiedRightSidebar() {
     if ((s.name || '').toLowerCase().includes('dm') || (s.name || '').toLowerCase().includes('friend')) friendStreamRows.push(row);
   });
 
-  const friendVoip = friendOnline.map(u => `<div class="unified-row"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-  const friendOnlineRows = friendOnline.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-  const friendOfflineRows = friendOffline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const friendVoip = friendOnline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const friendOnlineRows = friendOnline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const friendOfflineRows = friendOffline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
 
   const sections = [];
   sections.push(renderUnifiedSection('friends', 'Friends', friendStreamRows, friendVoip, friendOnlineRows, friendOfflineRows, friendPreview.join('')));
@@ -5148,9 +5148,9 @@ function renderUnifiedRightSidebar() {
           streamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
         }
       });
-      const voipRows = online.map(u => `<div class="unified-row"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-      const onlineRows = online.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-      const offlineRows = offline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+      const voipRows = online.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+      const onlineRows = online.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+      const offlineRows = offline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
       sections.push(renderUnifiedSection('group-' + g.id, `Groups (${g.name})`, streamRows, voipRows, onlineRows, offlineRows, ''));
     });
   }
@@ -5174,8 +5174,8 @@ function renderUnifiedRightSidebar() {
   active.forEach((s, id) => {
     serverStreamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
   });
-  const serverOnlineRows = serverOnline.map(u => `<div class="unified-row"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-  const serverOfflineRows = serverOffline.map(u => `<div class="unified-row"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const serverOnlineRows = serverOnline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  const serverOfflineRows = serverOffline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
   sections.push(renderUnifiedSection('server-main', 'Servers (United-Humanity)', serverStreamRows, serverVoipRows, serverOnlineRows, serverOfflineRows, ''));
 
   peerList.innerHTML = sections.join('');
@@ -6377,3 +6377,14 @@ handleMessage = function(msg) {
   }
 };
 })();
+
+// ── Sidebar initial render ──
+// Populate the unified right sidebar sections (Friends/Groups/Servers) immediately on load
+// so the colored boxes are visible even before any WebSocket data arrives.
+setTimeout(function() {
+  if (window.__UNIFIED_RIGHT_SIDEBAR__ && typeof renderUnifiedRightSidebar === 'function') {
+    renderUnifiedRightSidebar();
+  }
+  // Also ensure server channel list section is populated if channelList was already received.
+  if (typeof renderServerList === 'function') renderServerList();
+}, 250);

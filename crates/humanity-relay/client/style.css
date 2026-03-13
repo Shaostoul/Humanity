@@ -2,6 +2,8 @@
   --accent: #e07020;
   --accent-hover: #ff8c40;
   --accent-dim: rgba(224,112,32,0.15);
+  /* Alias for unified-section default background — theme.css defines --bg */
+  --bg-primary: var(--bg, #0d0d0d);
 }
 
 body {

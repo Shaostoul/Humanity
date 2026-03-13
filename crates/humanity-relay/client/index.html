@@ -24,13 +24,13 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/shared/theme.css">
-  <link rel="stylesheet" href="/chat/style.css">
+  <link rel="stylesheet" href="/shared/theme.css?v=3">
+  <link rel="stylesheet" href="/chat/style.css?v=3">
   <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
-  <script src="/shared/shell.js" data-active="chat"></script>
-  <script src="/shared/settings.js"></script>
+  <script src="/shared/shell.js?v=3" data-active="chat"></script>
+  <script src="/shared/settings.js?v=3"></script>
 
   <!-- Login Screen -->
   <div id="login-screen">
@@ -442,12 +442,12 @@
   <!-- External scripts: crypto module must load before app -->
   <!-- nginx serves these from /chat/ which aliases to this directory -->
   <!-- Load order: crypto → app (core) → feature modules -->
-  <script src="/chat/crypto.js"></script>
-  <script src="/chat/app.js"></script>
-  <script src="/chat/chat-profile.js"></script>
+  <script src="/chat/crypto.js?v=3"></script>
+  <script src="/chat/app.js?v=3"></script>
+  <script src="/chat/chat-profile.js?v=3"></script>
   <!-- qrcode-generator (public domain, ~18 KB) — used by chat-p2p.js for contact card QR codes -->
-  <script src="/shared/qrcode.js" onerror="console.warn('qrcode.js not found — QR codes will be unavailable')"></script>
-  <script src="/chat/chat-p2p.js"></script>
+  <script src="/shared/qrcode.js?v=3" onerror="console.warn('qrcode.js not found — QR codes will be unavailable')"></script>
+  <script src="/chat/chat-p2p.js?v=3"></script>
 
 </body>
 </html>
