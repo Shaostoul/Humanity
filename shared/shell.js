@@ -1,11 +1,15 @@
 /**
- * Humanity Shared Shell — Nav + Footer
- * Include this script at the top of <body> on any page.
- * Set data-active="chat" (or home/reality/fantasy/streams/debug) on the <script> tag
- * to highlight the active tab. If omitted, auto-detects from URL.
+ * HumanityOS Shared Shell — Nav + Footer
+ * Place as the FIRST child of <body> on any page.
+ * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
+ * If omitted, active tab is auto-detected from the current URL.
+ *
+ * Valid active keys: chat, profile, home, skills, inventory, equipment, quests,
+ *   calendar, logbook, board, map, market, browse, info, streams, debug, download,
+ *   settings, reality, fantasy
  *
  * Usage:
- *   <script src="/shared/shell.js" data-active="chat"></script>
+ *   <script src="/shared/shell.js" data-active="inventory"></script>
  */
 (function () {
   if (window.__HOS_SHELL_INIT__) return;
@@ -40,10 +44,11 @@
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/debug'))     active = 'debug';
     else if (p.startsWith('/download'))  active = 'download';
-    else if (p.startsWith('/reality'))   active = 'reality';
-    else if (p.startsWith('/fantasy'))   active = 'fantasy';
-    else if (p.startsWith('/source'))    active = 'equipment';
-    else if (p.startsWith('/dashboard')) active = 'home';
+    // Legacy app.html SPA routes — kept for backward compat while those tabs still exist
+    else if (p.startsWith('/reality'))   active = 'reality';   // old profile/reality tab
+    else if (p.startsWith('/fantasy'))   active = 'skills';    // superseded by /skills
+    else if (p.startsWith('/source'))    active = 'equipment'; // superseded by /equipment
+    else if (p.startsWith('/dashboard')) active = 'home';      // superseded by /home
     else active = '';
   }
 
@@ -410,27 +415,31 @@
   }
 
   mobileDrawer.innerHTML =
+    '<div class="mobile-hub-group"><h4>Network</h4>' +
+      mobileLink('/chat', 'Network Chat') +
+    '</div>' +
     '<div class="mobile-hub-group"><h4>Private</h4>' +
-      mobileLink('/profile', 'Profile') +
+      mobileLink('/profile',   'Profile') +
+      mobileLink('/home',      'Home') +
+      mobileLink('/skills',    'Skills') +
       mobileLink('/inventory', 'Inventory') +
-      mobileLink('/avatars', 'Identity') +
-      mobileLink('/downloads', 'Downloads') +
-      mobileLink('/reality', 'Reality') +
+      mobileLink('/equipment', 'Equipment') +
+      mobileLink('/quests',    'Quests') +
+      mobileLink('/calendar',  'Calendar') +
+      mobileLink('/logbook',   'Logbook') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Public</h4>' +
-      mobileLink('/board', 'Systems') +
-      mobileLink('/map', 'Maps') +
-      mobileLink('/market', 'Market') +
-      mobileLink('/learn', 'Learn') +
-      mobileLink('/info', 'Knowledge') +
+      mobileLink('/board',   'Systems') +
+      mobileLink('/map',     'Maps') +
+      mobileLink('/market',  'Market') +
+      mobileLink('/browse',  'Learn') +
+      mobileLink('/info',    'Knowledge') +
       mobileLink('/streams', 'Streams') +
     '</div>' +
-    '<div class="mobile-hub-group"><h4>Ops</h4>' +
-      mobileLink('/debug', 'Health') +
-      mobileLink('/debug', 'Deploy') +
-      mobileLink('/debug', 'Logs') +
-      mobileLink('/debug', 'Debug') +
-      mobileLink('/debug', 'Moderation') +
+    '<div class="mobile-hub-group"><h4>App</h4>' +
+      mobileLink('/debug',    'Ops') +
+      mobileLink('/download', 'Download') +
+      mobileLink('/settings', 'Settings') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
