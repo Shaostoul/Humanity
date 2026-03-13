@@ -139,6 +139,16 @@
       opacity: 0.65;
       transition: opacity 0.1s;
     }
+    /* Emoji icons (tabs without a PNG file) */
+    .hub-nav .tab .tab-emoji-icon {
+      font-size: 0.88rem;
+      line-height: 1;
+      opacity: 0.65;
+      transition: opacity 0.1s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
     /* Label hidden on inactive tabs — only visible when active */
     .hub-nav .tab .tab-label {
@@ -156,6 +166,7 @@
       color: #e0e0e0;
     }
     .hub-nav .tab:not(.active):hover .tab-icon img { opacity: 1; }
+    .hub-nav .tab:not(.active):hover .tab-emoji-icon { opacity: 1; }
     .hub-nav .tab:not(.active):hover::after {
       content: attr(data-tip);
       position: absolute;
@@ -186,6 +197,7 @@
     }
     .hub-nav .tab.active .tab-label { display: inline; }
     .hub-nav .tab.active .tab-icon img { opacity: 1; }
+    .hub-nav .tab.active .tab-emoji-icon { opacity: 1; }
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
@@ -199,7 +211,8 @@
     }
 
     /* ── Spacer pushes right-side items to the right ── */
-    .hub-nav .spacer { flex: 1; }
+    /* min-width:0 ensures the spacer collapses before right-side tabs get pushed off-screen */
+    .hub-nav .spacer { flex: 1; min-width: 0; }
 
     /* ── Mobile hamburger — hidden on desktop ── */
     .hub-nav .mobile-menu-btn {
@@ -349,12 +362,17 @@
   `;
   document.head.appendChild(style);
 
-  // Helper: build a nav tab anchor
+  // Helper: build a nav tab anchor.
+  // icon can be a PNG filename (e.g. 'chat.png') or an emoji/short string (e.g. '📊').
+  // PNG filenames are rendered as <img>; anything without a '.' is rendered as a text span.
   function navTab(href, icon, label, activeKey) {
     var isActive = active === activeKey;
     var cls = 'tab' + (isActive ? ' active' : '');
+    var iconHtml = icon.indexOf('.') !== -1
+      ? '<span class="tab-icon"><img src="/shared/ui-icons/' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/shared/ui-icons/warning.png\';"></span>'
+      : '<span class="tab-icon tab-emoji-icon">' + icon + '</span>';
     return '<a href="' + href + '" class="' + cls + '" data-tip="' + label + '">' +
-      '<span class="tab-icon"><img src="/shared/ui-icons/' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/shared/ui-icons/warning.png\';"></span>' +
+      iconHtml +
       '<span class="tab-label">' + label + '</span>' +
     '</a>';
   }
@@ -529,6 +547,8 @@
     document.addEventListener('mouseover', function(e) {
       var el = e.target.closest('[data-native-title],[data-tip],[aria-label],button,a,[role="button"]');
       if (!el) return;
+      // Nav tabs already have CSS ::after tooltips — skip them to avoid double-tooltip
+      if (el.closest('.hub-nav')) return;
       showFor(el, e.clientX || 8, e.clientY || 8);
     });
     document.addEventListener('mousemove', function(e) {
