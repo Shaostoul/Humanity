@@ -628,7 +628,12 @@ function renderHome(home) {
   const details = [];
   if (home.climate)  details.push(`<div class="home-detail-item"><span class="di-icon">🌡️</span>${esc(home.climate)}</div>`);
   if (home.coords)   details.push(`<div class="home-detail-item"><span class="di-icon">📍</span>${home.coords.lat.toFixed(4)}°N ${Math.abs(home.coords.lng).toFixed(4)}°W</div>`);
+  details.push(`<div class="home-detail-item" id="home-weather"><span class="di-icon">🌤</span><span id="weather-text">—</span></div>`);
   detailRow.innerHTML = details.join('');
+
+  // Fetch live weather from Open-Meteo (free, no key) if coords available.
+  if (home.coords) fetchWeather(home.coords.lat, home.coords.lng);
+  else document.getElementById('weather-text') && (document.getElementById('weather-text').textContent = 'No coordinates');
 
   // ── Rooms ──
   renderRooms(home);
@@ -837,6 +842,49 @@ function scheduleRoomNoteSave(el) {
     room.notes = el.value;
     saveHomes();
   }, 450);
+}
+
+// ────────────────────────────────────────────────
+// Live weather via Open-Meteo (free, no API key)
+// ────────────────────────────────────────────────
+const WMO_CODE = {
+  0:'Clear', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+  45:'Foggy', 48:'Icy fog',
+  51:'Light drizzle', 53:'Drizzle', 55:'Heavy drizzle',
+  61:'Light rain', 63:'Rain', 65:'Heavy rain',
+  71:'Light snow', 73:'Snow', 75:'Heavy snow', 77:'Snow grains',
+  80:'Light showers', 81:'Showers', 82:'Heavy showers',
+  85:'Snow showers', 86:'Heavy snow showers',
+  95:'Thunderstorm', 96:'T-storm w/hail', 99:'T-storm w/heavy hail',
+};
+const WMO_ICON = {
+  0:'☀️', 1:'🌤', 2:'⛅', 3:'☁️',
+  45:'🌫', 48:'🌫',
+  51:'🌦', 53:'🌧', 55:'🌧',
+  61:'🌧', 63:'🌧', 65:'🌧',
+  71:'🌨', 73:'❄️', 75:'❄️', 77:'❄️',
+  80:'🌦', 81:'🌧', 82:'⛈',
+  85:'🌨', 86:'🌨',
+  95:'⛈', 96:'⛈', 99:'⛈',
+};
+
+async function fetchWeather(lat, lng) {
+  const el = document.getElementById('weather-text');
+  if (!el) return;
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=temperature_2m,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const c = data.current;
+    if (!c) throw new Error('no data');
+    const code = c.weather_code;
+    const icon = WMO_ICON[code] || '🌡️';
+    const desc = WMO_CODE[code] || 'Unknown';
+    el.textContent = `${icon} ${Math.round(c.temperature_2m)}°F — ${desc} · 💨 ${Math.round(c.wind_speed_10m)} mph`;
+  } catch(e) {
+    if (el) el.textContent = 'Weather unavailable';
+  }
 }
 
 // ────────────────────────────────────────────────
