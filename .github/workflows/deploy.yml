@@ -44,7 +44,7 @@ jobs:
 
             # Copy standalone pages
             for f in home.html skills.html inventory.html calendar.html quests.html \
-                     logbook.html settings.html equipment.html \
+                     logbook.html settings.html equipment.html profile.html \
                      ops.html tasks.html knowledge.html learn.html market.html systems.html \
                      maps.html streams.html studio.html index.html notes.html dashboard.html; do
               [ -f "/opt/Humanity/$f" ] && cp "/opt/Humanity/$f" "/var/www/humanity/$f"
