@@ -577,14 +577,49 @@ const VOTES_KEY = 'hos_task_votes';
 function loadVotes() { try { return JSON.parse(localStorage.getItem(VOTES_KEY)) || {}; } catch { return {}; } }
 function saveVotes(v) { localStorage.setItem(VOTES_KEY, JSON.stringify(v)); }
 
+/* ── Lightweight identity reader (uses chat page's localStorage backup) ── */
+let _voteId = null, _voteIdTried = false;
+async function getVoteIdentity() {
+  if (_voteIdTried) return _voteId;
+  _voteIdTried = true;
+  try {
+    const raw = localStorage.getItem('humanity_key_backup');
+    if (!raw) return null;
+    const { publicKeyHex, privateKeyPkcs8 } = JSON.parse(raw);
+    if (!publicKeyHex || !privateKeyPkcs8) return null;
+    const buf = Uint8Array.from(atob(privateKeyPkcs8), c => c.charCodeAt(0));
+    const pk  = await crypto.subtle.importKey('pkcs8', buf, 'Ed25519', false, ['sign']);
+    _voteId = { publicKeyHex, privateKey: pk };
+  } catch(e) { /* unsigned votes still work */ }
+  return _voteId;
+}
+async function signVote(taskId, result) {
+  const id = await getVoteIdentity();
+  if (!id) return null;
+  try {
+    const ts  = Date.now();
+    const msg = `vote:${taskId}:${result}:${ts}`;
+    const sig = await crypto.subtle.sign('Ed25519', id.privateKey, new TextEncoder().encode(msg));
+    return { sig: [...new Uint8Array(sig)].map(b=>b.toString(16).padStart(2,'0')).join(''), pub: id.publicKeyHex, ts };
+  } catch { return null; }
+}
+
 /**
- * Cast the owner/determining test vote on a task. Toggling the same result clears it.
- * The owner vote is stored separately and is the final word on pass/fail.
+ * Cast the owner/determining test vote on a task. Signs with Ed25519 if
+ * the chat identity is available in localStorage. Toggling the same result clears it.
  */
-function castOwnerVote(taskId, result) {
+async function castOwnerVote(taskId, result) {
   const v = loadVotes();
   if (!v[taskId]) v[taskId] = { owner: null, community: [] };
-  v[taskId].owner = v[taskId].owner === result ? null : result;
+  if (v[taskId].owner === result) {
+    v[taskId].owner = null;
+    delete v[taskId].ownerSig;
+    delete v[taskId].ownerPub;
+  } else {
+    v[taskId].owner = result;
+    const proof = await signVote(taskId, result);
+    if (proof) { v[taskId].ownerSig = proof.sig; v[taskId].ownerPub = proof.pub; v[taskId].ownerTs = proof.ts; }
+  }
   saveVotes(v);
   openDetail(taskId);
   renderBoard();
@@ -606,12 +641,42 @@ function castCommunityVote(taskId, result) {
       already.time = Date.now();
     }
   } else {
-    v[taskId].community.push({ device: '_local', name: 'You', result, time: Date.now() });
+    const id = await getVoteIdentity();
+    v[taskId].community.push({
+      device: '_local',
+      name: id ? id.publicKeyHex.slice(0,12) + '…' : 'Anonymous',
+      pub: id ? id.publicKeyHex : null,
+      result,
+      time: Date.now(),
+    });
   }
   saveVotes(v);
   openDetail(taskId);
   renderBoard();
 }
+castCommunityVote = async function(taskId, result) {
+  const v = loadVotes();
+  if (!v[taskId]) v[taskId] = { owner: null, community: [] };
+  const already = v[taskId].community.find(x => x.device === '_local');
+  if (already) {
+    if (already.result === result) {
+      v[taskId].community = v[taskId].community.filter(x => x.device !== '_local');
+    } else {
+      already.result = result;
+      already.time = Date.now();
+    }
+    saveVotes(v); openDetail(taskId); renderBoard();
+  } else {
+    const id = await getVoteIdentity();
+    v[taskId].community.push({
+      device: '_local',
+      name: id ? id.publicKeyHex.slice(0,12) + '…' : 'Anonymous',
+      pub: id ? id.publicKeyHex : null,
+      result, time: Date.now(),
+    });
+    saveVotes(v); openDetail(taskId); renderBoard();
+  }
+};
 
 /**
  * Build the test-voting panel HTML for the task detail drawer.
@@ -645,7 +710,7 @@ function renderTestPanel(task) {
              <span class="test-summary-fail">❌ ${totalFail} fail</span>
            </div>`
         : ''}
-      <div class="test-owner-label">Your vote (determining):</div>
+      <div class="test-owner-label">Your vote (determining)${tv.ownerPub ? ` · <code style="font-size:.6rem;color:#555">${tv.ownerPub.slice(0,16)}…</code> ✍️` : ' · unsigned'}:</div>
       <div class="test-vote-row">
         <button class="btn-test-vote${ownerPass?' vote-pass':''}" onclick="castOwnerVote(${task.id},'pass')">
           ✅ Pass${ownerPass?' ← your vote':''}

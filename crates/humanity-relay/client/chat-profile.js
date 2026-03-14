@@ -638,6 +638,86 @@ async function doRestoreIdentity() {
   }
 }
 
+// ── Passphrase Key Protection UI ──
+// Goal: let users wrap their in-browser key with a passphrase so the raw private
+// key material isn't sitting in plaintext localStorage.
+
+/**
+ * Open the key-protection modal. Shows current status and lets the user
+ * enable, change, or (with care) remove passphrase protection.
+ */
+function openKeyProtectionModal() {
+  const wrapped = isKeyWrapped();
+  const overlay = document.createElement('div');
+  overlay.id = 'key-protection-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:500px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">🔒 Key Protection</h2>
+      <div style="font-size:.78rem;color:#888;line-height:1.6;margin-bottom:1.1rem">
+        ${wrapped
+          ? `<span style="color:#4ec87a;font-weight:600">✅ Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
+          : `<span style="color:#f0a500;font-weight:600">⚠️ Not protected</span> — your private key is in <code style="color:#ccc">localStorage</code> as plaintext. Someone with DevTools access on this device could read it.`
+        }
+      </div>
+      <div style="margin-bottom:.8rem">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">${wrapped ? 'New passphrase' : 'Set passphrase'}</label>
+        <input id="kp-pass1" type="password" placeholder="At least 8 characters…" autocomplete="new-password"
+          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none;margin-bottom:.5rem">
+        <input id="kp-pass2" type="password" placeholder="Confirm passphrase…" autocomplete="new-password"
+          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+      </div>
+      <div id="kp-msg" style="font-size:.75rem;margin-bottom:.85rem;min-height:1.2em"></div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end">
+        <button onclick="document.getElementById('key-protection-overlay').remove()"
+          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+        ${wrapped ? `<button id="kp-remove-btn" onclick="doRemoveKeyProtection()"
+          style="background:none;border:1px solid #c44;color:#c44;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer"
+          title="Remove passphrase protection — key will be stored in plaintext again">Remove Protection</button>` : ''}
+        <button id="kp-save-btn" onclick="doEnableKeyProtection()"
+          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.4rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">
+          ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('kp-pass1').focus();
+}
+
+async function doEnableKeyProtection() {
+  const p1  = document.getElementById('kp-pass1').value;
+  const p2  = document.getElementById('kp-pass2').value;
+  const msg = document.getElementById('kp-msg');
+  const btn = document.getElementById('kp-save-btn');
+  if (p1.length < 8) { msg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
+  if (p1 !== p2)     { msg.innerHTML = '<span style="color:#e55">Passphrases do not match.</span>'; return; }
+  btn.disabled = true; btn.textContent = 'Encrypting…'; msg.innerHTML = '';
+  try {
+    await wrapAndStoreKey(p1);
+    msg.innerHTML = '<span style="color:#4ec87a">✅ Key protected. Plaintext backup is still kept as fallback — click "Remove Protection" to clear it.</span>';
+    btn.textContent = 'Done'; btn.disabled = false;
+    // Update the button label in sidebar
+    const protBtn = document.getElementById('key-protect-btn');
+    if (protBtn) { protBtn.textContent = '🔒 Protected'; protBtn.style.color = '#4ec87a'; }
+  } catch(e) {
+    msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+    btn.disabled = false; btn.textContent = 'Protect Key';
+  }
+}
+
+function doRemoveKeyProtection() {
+  if (!confirm('Remove passphrase protection? Your private key will be stored in plaintext in localStorage again.')) return;
+  try {
+    localStorage.removeItem(WRAPPED_KEY_LS);
+    localStorage.removeItem(WRAPPED_ECDH_LS);
+    const msg = document.getElementById('kp-msg');
+    if (msg) msg.innerHTML = '<span style="color:#f0a500">⚠️ Protection removed. Key is now stored in plaintext.</span>';
+    const protBtn = document.getElementById('key-protect-btn');
+    if (protBtn) { protBtn.textContent = '🔓 Protect Key'; protBtn.style.color = ''; }
+  } catch(e) {}
+}
+
 /** Force re-render user list with updated block indicators. */
 function rerenderUserList() {
   const list = document.getElementById('peer-list');

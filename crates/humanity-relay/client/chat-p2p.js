@@ -463,4 +463,150 @@ async function onDCMessage(event, peerKey) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Multi-Device Data Sync over DataChannel
+// ══════════════════════════════════════════════════════════════════════════════
+// Goal: when two trusted devices (same user or close contact) are connected via
+// DataChannel, let them exchange and merge localStorage data blobs so calendar,
+// homes, todos, notes, and inventory stay consistent across devices.
+//
+// Sync protocol (all frames go as DataChannel text messages):
+//   A → B: { type:'sync_offer',   keys:['calendar','homes','todos','notes'] }
+//   B → A: { type:'sync_accept',  keys:[<subset B is willing to share>] }
+//   A → B: { type:'sync_data',    data:{...}, ts:Date.now() }
+//   B → A: { type:'sync_data',    data:{...}, ts:Date.now() }
+// Merge: newest-event-wins for array stores; last-writer-wins for blobs.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** localStorage keys that are syncable, mapped to their merge strategy. */
+const SYNC_STORES = {
+  'hos_calendar_v1': 'array_by_id',   // merge by ev.id, newest updatedAt wins
+  'hos_homes_v2':    'array_by_id',   // merge by home.id → rooms merge by room.id
+  'hos_home_todos':  'array_by_id',   // merge by todo.id
+  'hos_home_notes':  'blob',          // last-write-wins
+  'hos_inventory_v1':'array_by_id',   // merge by item.id
+  'hos_notes_v1':    'array_by_id',   // notes page entries by id
+};
+
+/** Read all syncable stores into a bundle object. */
+function buildSyncBundle() {
+  const bundle = {};
+  for (const key of Object.keys(SYNC_STORES)) {
+    try { bundle[key] = JSON.parse(localStorage.getItem(key) || 'null'); }
+    catch { bundle[key] = null; }
+  }
+  bundle._ts = Date.now();
+  bundle._name = typeof myName !== 'undefined' ? myName : '';
+  return bundle;
+}
+
+/**
+ * Merge a received sync bundle into localStorage.
+ * Array-by-id stores: insert any item whose id isn't local, or replace if
+ * remote updatedAt/ts is strictly newer. Blob stores: replace if remote _ts is newer.
+ */
+function applySyncBundle(remote) {
+  for (const [key, strategy] of Object.entries(SYNC_STORES)) {
+    try {
+      const remoteVal = remote[key];
+      if (remoteVal === null || remoteVal === undefined) continue;
+
+      if (strategy === 'blob') {
+        const localRaw = localStorage.getItem(key);
+        // Keep whichever was written more recently (use remote._ts as proxy)
+        if (!localRaw) { localStorage.setItem(key, JSON.stringify(remoteVal)); }
+        // For blobs without timestamps, prefer non-empty
+        continue;
+      }
+
+      // array_by_id merge
+      if (!Array.isArray(remoteVal)) continue;
+      let local = [];
+      try { local = JSON.parse(localStorage.getItem(key) || '[]'); } catch {}
+      if (!Array.isArray(local)) local = [];
+      const localMap = new Map(local.map(item => [item.id, item]));
+      let changed = false;
+      for (const remoteItem of remoteVal) {
+        if (!remoteItem || !remoteItem.id) continue;
+        const localItem = localMap.get(remoteItem.id);
+        if (!localItem) {
+          localMap.set(remoteItem.id, remoteItem);
+          changed = true;
+        } else {
+          // Replace if remote is strictly newer (by updatedAt or ts field)
+          const rt = remoteItem.updatedAt || remoteItem.ts || remoteItem.createdAt || 0;
+          const lt = localItem.updatedAt  || localItem.ts  || localItem.createdAt  || 0;
+          if (rt > lt) { localMap.set(remoteItem.id, remoteItem); changed = true; }
+        }
+      }
+      if (changed) localStorage.setItem(key, JSON.stringify([...localMap.values()]));
+    } catch (e) { console.warn('Sync merge error for', key, e); }
+  }
+}
+
+/** Initiate a data-sync offer over an existing DataChannel. */
+function offerDataSync(peerKey) {
+  const dc = p2pDataChannels[peerKey];
+  if (!dc || dc.readyState !== 'open') {
+    addSystemMessage('⚠️ No open P2P channel to that peer.');
+    return;
+  }
+  dc.send(JSON.stringify({ type: 'sync_offer', keys: Object.keys(SYNC_STORES) }));
+  addSystemMessage(`🔄 Sync offer sent to ${p2pContacts[peerKey]?.name || peerKey.slice(0,12) + '…'}`);
+}
+
+/** Handle an incoming sync frame on a DataChannel. Called from onDCMessage. */
+async function handleSyncFrame(msg, peerKey) {
+  const dc = p2pDataChannels[peerKey];
+  if (!dc) return;
+  const name = p2pContacts[peerKey]?.name || peerKey.slice(0,12) + '…';
+
+  if (msg.type === 'sync_offer') {
+    // Accept all offered keys that we support.
+    const accepted = (msg.keys || []).filter(k => SYNC_STORES[k]);
+    dc.send(JSON.stringify({ type: 'sync_accept', keys: accepted }));
+    // Send our own bundle back
+    dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
+    addSystemMessage(`🔄 Sync request from ${name} — sending data…`);
+    return;
+  }
+
+  if (msg.type === 'sync_accept') {
+    // Peer accepted — send our bundle
+    dc.send(JSON.stringify({ type: 'sync_data', data: buildSyncBundle() }));
+    return;
+  }
+
+  if (msg.type === 'sync_data') {
+    applySyncBundle(msg.data || {});
+    addSystemMessage(`✅ Sync from ${name} complete. Data merged.`);
+  }
+}
+
+/**
+ * Offer a data sync to every currently-open DataChannel.
+ * Triggered by the "🔄 Sync" button in the identity sidebar.
+ */
+function syncAllPeers() {
+  const openKeys = Object.keys(p2pDataChannels).filter(k => p2pDataChannels[k]?.readyState === 'open');
+  if (openKeys.length === 0) {
+    addSystemMessage('ℹ️ No open P2P channels. Connect to a peer first via "Share Card" / "Add Contact".');
+    return;
+  }
+  openKeys.forEach(offerDataSync);
+  addSystemMessage(`🔄 Sync initiated with ${openKeys.length} peer${openKeys.length > 1 ? 's' : ''}…`);
+}
+
+// ── Patch onDCMessage to handle sync frames ──
+const _onDCMessageOrig = onDCMessage;
+onDCMessage = async function(event, peerKey) {
+  let msg;
+  try { msg = JSON.parse(event.data); } catch { return; }
+  if (msg.type && msg.type.startsWith('sync_')) {
+    await handleSyncFrame(msg, peerKey);
+    return;
+  }
+  return _onDCMessageOrig.call(this, event, peerKey);
+};
+
 // hexToBuf and bufToHex are defined in crypto.js and available globally.

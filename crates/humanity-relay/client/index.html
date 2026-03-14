@@ -94,10 +94,12 @@
             <button onclick="openRestoreIdentityModal()" title="Restore identity from a backup file" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
             <button onclick="openSeedPhraseModal()" title="Show paper backup seed phrase (write on paper, store separately)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📄 Phrase</button>
           </div>
+          <button id="key-protect-btn" onclick="openKeyProtectionModal()" title="Encrypt your private key in localStorage with a passphrase" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔓 Protect Key (localStorage encryption)</button>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
             <button onclick="exportContactCard()" title="Share your contact card (QR / JSON) so others can add you P2P" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📤 Share Card</button>
             <button onclick="showContactCardImportModal()" title="Paste a contact card from another user to add them P2P" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Add Contact</button>
+            <button onclick="syncAllPeers()" title="Sync calendar, homes, todos, and notes with all connected P2P peers" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔄 Sync</button>
           </div>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">

@@ -303,6 +303,15 @@ function onIdentityConfirmed() {
     ? '<span style="color:var(--success)">✓ Signing enabled</span>'
     : '<span style="color:var(--warning)">⚠ Unsigned mode</span>';
 
+  // Update key-protection button to reflect current state.
+  const kpBtn = document.getElementById('key-protect-btn');
+  if (kpBtn && typeof isKeyWrapped === 'function') {
+    if (isKeyWrapped()) {
+      kpBtn.textContent = '🔒 Key Protected';
+      kpBtn.style.color = 'var(--success)';
+    }
+  }
+
   // Auto-download identity backup on first registration.
   if (myIdentity && myIdentity.isNew) {
     myIdentity.isNew = false; // Only trigger once

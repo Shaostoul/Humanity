@@ -443,6 +443,109 @@ async function importIdentityBackup(parsed, passphrase) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// Passphrase-Protected Key Storage (keys at rest)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const WRAPPED_KEY_LS   = 'humanity_key_wrapped';
+const WRAPPED_ECDH_LS  = 'humanity_ecdh_wrapped';
+
+/**
+ * Encrypt the current Ed25519 (and optionally ECDH) private keys with a
+ * passphrase and persist them in localStorage as AES-256-GCM blobs.
+ * Wrapped keys are safe to leave in localStorage even if DevTools are open —
+ * they are useless without the passphrase.
+ * @param {string} passphrase - User-chosen passphrase (≥ 8 chars)
+ */
+async function wrapAndStoreKey(passphrase) {
+  if (!myIdentity || !myIdentity.privateKey) throw new Error('No identity loaded.');
+  if (!passphrase || passphrase.length < 8)  throw new Error('Passphrase must be at least 8 characters.');
+
+  // Wrap Ed25519 key
+  const pkcs8    = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+  const salt     = crypto.getRandomValues(new Uint8Array(16));
+  const iv       = crypto.getRandomValues(new Uint8Array(12));
+  const wrapKey  = await deriveKeyFromPassphrase(passphrase, salt);
+  const ct       = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrapKey, pkcs8);
+  localStorage.setItem(WRAPPED_KEY_LS, JSON.stringify({
+    v: 1, publicKeyHex: myIdentity.publicKeyHex,
+    salt: bufToHex(salt), iv: bufToHex(iv),
+    ct: btoa(String.fromCharCode(...new Uint8Array(ct))),
+    wrappedAt: new Date().toISOString(),
+  }));
+
+  // Wrap ECDH key if available
+  if (myEcdhKeyPair) {
+    try {
+      const ePkcs8   = await crypto.subtle.exportKey('pkcs8', myEcdhKeyPair.privateKey);
+      const eSalt    = crypto.getRandomValues(new Uint8Array(16));
+      const eIv      = crypto.getRandomValues(new Uint8Array(12));
+      const eWrapKey = await deriveKeyFromPassphrase(passphrase, eSalt);
+      const eCt      = await crypto.subtle.encrypt({ name: 'AES-GCM', eIv }, eWrapKey, ePkcs8);
+      localStorage.setItem(WRAPPED_ECDH_LS, JSON.stringify({
+        v: 1, publicKeyRaw: myEcdhPublicBase64,
+        salt: bufToHex(eSalt), iv: bufToHex(eIv),
+        ct: btoa(String.fromCharCode(...new Uint8Array(eCt))),
+      }));
+    } catch (e) { console.warn('ECDH wrap failed:', e); }
+  }
+  return true;
+}
+
+/**
+ * Decrypt a wrapped Ed25519 keypair from localStorage.
+ * Throws 'Wrong passphrase.' if the passphrase is incorrect.
+ * @param {string} passphrase
+ * @returns {Promise<object|null>} Identity object or null if no wrapped key exists.
+ */
+async function loadWrappedKey(passphrase) {
+  const raw = localStorage.getItem(WRAPPED_KEY_LS);
+  if (!raw) return null;
+  const b = JSON.parse(raw);
+  const wrapKey = await deriveKeyFromPassphrase(passphrase, hexToBuf(b.salt));
+  let pkcs8;
+  try {
+    pkcs8 = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: hexToBuf(b.iv) },
+      wrapKey,
+      Uint8Array.from(atob(b.ct), c => c.charCodeAt(0))
+    );
+  } catch { throw new Error('Wrong passphrase.'); }
+  const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign']);
+  const publicKey  = await crypto.subtle.importKey('raw', hexToBuf(b.publicKeyHex), 'Ed25519', true, ['verify']);
+  // Also restore ECDH key if wrapped
+  try {
+    const er = localStorage.getItem(WRAPPED_ECDH_LS);
+    if (er) {
+      const eb      = JSON.parse(er);
+      const eWrapKey = await deriveKeyFromPassphrase(passphrase, hexToBuf(eb.salt));
+      const ePkcs8  = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: hexToBuf(eb.iv) },
+        eWrapKey,
+        Uint8Array.from(atob(eb.ct), c => c.charCodeAt(0))
+      );
+      const ePriv = await crypto.subtle.importKey('pkcs8', ePkcs8, { name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
+      const ePub  = await crypto.subtle.importKey('raw', Uint8Array.from(atob(eb.publicKeyRaw), c => c.charCodeAt(0)), { name: 'ECDH', namedCurve: 'P-256' }, true, []);
+      myEcdhKeyPair = { privateKey: ePriv, publicKey: ePub };
+      myEcdhPublicBase64 = eb.publicKeyRaw;
+    }
+  } catch (e) { console.warn('ECDH unwrap failed:', e); }
+  return { publicKeyHex: b.publicKeyHex, privateKey, publicKey, canSign: true, isNew: false };
+}
+
+/** Returns true if the identity is currently protected by a passphrase. */
+function isKeyWrapped() { return !!localStorage.getItem(WRAPPED_KEY_LS); }
+
+/**
+ * Remove the plaintext localStorage backup after confirming the wrapped copy
+ * exists. Call only after wrapAndStoreKey() succeeds.
+ */
+function removeUnwrappedKey() {
+  if (!isKeyWrapped()) throw new Error('Enable key protection before removing the plain backup.');
+  localStorage.removeItem('humanity_key_backup');
+  localStorage.removeItem('humanity_ecdh_backup');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // E2EE: ECDH P-256 + AES-256-GCM for end-to-end encrypted DMs
 // ══════════════════════════════════════════════════════════════════════════════
 
