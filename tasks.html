@@ -246,6 +246,9 @@
     <div class="scope-tabs" id="scope-tabs"></div>
   </div>
 
+  <!-- Debug bar — shows init/fetch progress when tasks don't load; auto-hides on success -->
+  <div id="task-debug" style="display:none;padding:0.3rem 1rem;font-size:0.75rem;font-family:monospace;background:#1a1000;border-bottom:1px solid #443;color:#fa0;"></div>
+
   <!-- Controls bar -->
   <div class="board-controls">
     <div class="scope-desc" id="scope-desc">Loading…</div>
@@ -387,10 +390,25 @@ let allTasks = [];
 let activeScope = 'cosmos';
 let openDetailId = null; // track currently open detail drawer for real-time updates
 
+/* ── Debug helper (auto-hides once tasks load successfully) ── */
+function dbg(msg, isError) {
+  const el = document.getElementById('task-debug');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.color = isError ? '#f55' : '#fa0';
+  el.textContent = '⚙ ' + msg;
+}
+function dbgClear() {
+  const el = document.getElementById('task-debug');
+  if (el) el.style.display = 'none';
+}
+
 /* ── Init ── */
 function init() {
+  dbg('init() started — building scope tabs...');
   buildScopeTabs();
   buildScopeSelect();
+  dbg('fetchng /api/tasks...');
   loadTasks();
   // Connect to relay for real-time updates if user has an identity
   setTimeout(ensureTaskWs, 1000);
@@ -424,14 +442,19 @@ function setScope(key) {
 
 /* ── Data loading ── */
 async function loadTasks() {
+  dbg('fetch started — waiting for /api/tasks response...');
   try {
     const res = await fetch('/api/tasks');
+    dbg('got response: HTTP ' + res.status);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     allTasks = data.tasks || [];
+    dbg('parsed ' + allTasks.length + ' tasks — rendering...');
     renderBoard();
     renderControls();
+    dbgClear(); // success — hide debug bar
   } catch (e) {
+    dbg('ERROR: ' + e.message, true);
     document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ Could not load tasks<br><small>${e.message}</small></div>`;
   }
 }

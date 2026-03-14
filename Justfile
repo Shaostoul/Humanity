@@ -238,9 +238,9 @@ loc:
 # Make sure the app is CLOSED before running this
 clear-desktop-cache:
     @echo "Clearing Humanity desktop WebView2 cache..."
-    @rm -rf "$LOCALAPPDATA/HumanityOS/EBWebView/Default/Cache" \
-            "$LOCALAPPDATA/HumanityOS/EBWebView/Default/Code Cache" \
-            "$LOCALAPPDATA/HumanityOS/EBWebView/Default/GPUCache" \
+    @rm -rf "$LOCALAPPDATA/us.united-humanity.app/EBWebView/Default/Cache" \
+            "$LOCALAPPDATA/us.united-humanity.app/EBWebView/Default/Code Cache" \
+            "$LOCALAPPDATA/us.united-humanity.app/EBWebView/Default/GPUCache" \
         && echo "✓ Cache cleared. Reopen the app." \
         || echo "Cache folder not found (app may not have run yet, or path differs)"
 
