@@ -2265,6 +2265,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 continue;
                             }
+                            Some("skill_endorsements_request") => {
+                                // Client wants to know how many endorsements each of their skills has.
+                                let target_key = raw.get("user_key")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or(&my_key_for_recv)
+                                    .to_string();
+                                if let Ok(counts) = state_clone.db.get_skill_endorsement_counts(&target_key) {
+                                    let entries: Vec<serde_json::Value> = counts.into_iter().map(|(skill_id, count, endorser)| {
+                                        serde_json::json!({ "skill_id": skill_id, "count": count, "last_endorser": endorser })
+                                    }).collect();
+                                    let payload = serde_json::json!({ "type": "skill_endorsements", "user_key": target_key, "endorsements": entries }).to_string();
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: format!("__skill_endorsements__:{}", payload),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                }
+                                continue;
+                            }
                             _ => {} // Fall through to normal RelayMessage handling
                         }
                     }

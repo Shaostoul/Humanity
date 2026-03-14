@@ -69,4 +69,22 @@ impl Storage {
         )?;
         Ok(conn.last_insert_rowid())
     }
+
+    /// Return endorsement counts per skill for a given user key.
+    /// Returns Vec of (skill_id, count, most_recent_endorser_name).
+    pub fn get_skill_endorsement_counts(&self, user_key: &str) -> Result<Vec<(String, i64, Option<String>)>, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT sv.skill_id, COUNT(*) as cnt,
+                    (SELECT rn.name FROM registered_names rn WHERE rn.public_key = sv.from_key LIMIT 1) as endorser_name
+             FROM skill_verifications sv
+             WHERE sv.to_key = ?1
+             GROUP BY sv.skill_id
+             ORDER BY cnt DESC"
+        )?;
+        let results = stmt.query_map(params![user_key], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?.filter_map(|r| r.ok()).collect();
+        Ok(results)
+    }
 }

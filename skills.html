@@ -609,15 +609,21 @@ function buildSkillCard(skill, color) {
     `<div class="level-pip${i < s.level ? ' filled' : ''}" onclick="pipClick('${skill.id}', ${i+1}, this)"></div>`
   ).join('');
 
+  const endorsement = skillEndorsements[skill.id.toLowerCase()];
+  const endorseBadge = endorsement && endorsement.count > 0
+    ? `<span style="font-size:0.7rem;color:#ffd700;margin-top:0.2rem;display:block;" title="Endorsed by ${endorsement.last_endorser || 'a peer'}">🏅 ${endorsement.count}</span>`
+    : '';
+
   return `<div class="skill-card" id="card-${skill.id}">
     <div class="skill-card-header">
       <div>
         <div class="skill-name">${skill.name}</div>
         <div class="skill-tags">${skill.tags}</div>
       </div>
-      <div>
+      <div style="text-align:center">
         <div class="skill-level-badge">${s.level}</div>
         <div class="skill-level-label">Level</div>
+        ${endorseBadge}
       </div>
     </div>
     <div class="skill-desc">${skill.desc}</div>
@@ -689,6 +695,31 @@ window.selectDomain = function(id) {
   origSelect(id);
   localStorage.setItem('hos_skills_last_domain', id);
 };
+
+// ── Endorsement counts from relay ──
+// Keyed by skill_id (lowercase), value is { count, last_endorser }
+let skillEndorsements = {};
+
+/** Hook called by app.js when relay sends back endorsement counts. */
+window.onSkillEndorsementsReceived = function(data) {
+  if (!data || !Array.isArray(data.endorsements)) return;
+  skillEndorsements = {};
+  for (const e of data.endorsements) {
+    skillEndorsements[e.skill_id.toLowerCase()] = { count: e.count, last_endorser: e.last_endorser };
+  }
+  // Re-render current domain to show updated badges
+  if (activeDomain) renderSkillGrid(activeDomain);
+};
+
+/** Request endorsement counts from relay if connected. */
+function loadEndorsements() {
+  if (typeof requestSkillEndorsements === 'function') {
+    requestSkillEndorsements();
+  }
+}
+
+// Try loading endorsements once page has had time to connect (3 s delay).
+setTimeout(loadEndorsements, 3000);
 </script>
 </body>
 </html>

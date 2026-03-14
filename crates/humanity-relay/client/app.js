@@ -809,6 +809,14 @@ async function handleMessage(msg) {
         break;
       }
       if (msg.message === 'sync_ack') break; // Silent ack
+      // Skill endorsement counts response.
+      if (msg.message && msg.message.startsWith('__skill_endorsements__:')) {
+        try {
+          const d = JSON.parse(msg.message.slice('__skill_endorsements__:'.length));
+          if (typeof window.onSkillEndorsementsReceived === 'function') window.onSkillEndorsementsReceived(d);
+        } catch (e) { console.warn('Bad skill_endorsements', e); }
+        break;
+      }
       // Skill verification request — another peer wants to endorse our skill.
       if (msg.message && msg.message.startsWith('__skill_verify_req__:')) {
         try {
@@ -996,6 +1004,16 @@ function requestSkillEndorsement(peerName, skillId, level) {
   if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected.'); return; }
   ws.send(JSON.stringify({ type: 'skill_verify_request', to_name: peerName, skill_id: skillId, level }));
   addSystemMessage(`📤 Endorsement request sent to ${peerName} for skill "${skillId}".`);
+}
+
+/**
+ * Request endorsement counts for a user (defaults to self) from the relay.
+ * The response triggers window.onSkillEndorsementsReceived(data).
+ * @param {string} [userKey] - Public key of user to query; omit for self
+ */
+function requestSkillEndorsements(userKey) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'skill_endorsements_request', user_key: userKey || myKey }));
 }
 
 async function sendChatCommand(command, channelOverride) {
