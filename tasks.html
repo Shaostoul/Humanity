@@ -469,9 +469,13 @@ function renderBoard() {
     const count = document.getElementById('count-' + status);
     const filtered = tasks.filter(t => t.status === status);
     count.textContent = filtered.length;
-    col.innerHTML = filtered.length
-      ? filtered.map(renderCard).join('')
-      : `<div class="empty-col">—</div>`;
+    if (!filtered.length) { col.innerHTML = `<div class="empty-col">—</div>`; return; }
+    try {
+      col.innerHTML = filtered.map(renderCard).join('');
+    } catch (e) {
+      col.innerHTML = `<div class="empty-col">⚠️ Render error<br><small>${esc(e.message)}</small></div>`;
+      console.error('renderCard error in', status, e);
+    }
   });
 }
 
