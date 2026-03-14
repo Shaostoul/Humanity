@@ -423,7 +423,10 @@
       <h2>🔑 My Devices</h2>
       <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem">Keys linked to your account. Label them to remember which device is which.</p>
       <div id="device-list"></div>
-      <button onclick="requestDeviceList()" style="margin-top:0.5rem;font-size:0.8rem;padding:0.3rem 0.6rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">↻ Refresh</button>
+      <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
+        <button onclick="requestDeviceList()" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">↻ Refresh</button>
+        <button onclick="openLinkDeviceModal()" title="Show QR code to link this identity to a new device" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Link New Device</button>
+      </div>
     </div>
   </div>
 

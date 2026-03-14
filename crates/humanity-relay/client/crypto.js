@@ -258,6 +258,70 @@ function renderDeviceList(devices) {
   });
 }
 
+/**
+ * Show a QR code + copyable JSON so the user can transfer their identity
+ * to a new device by scanning or pasting. The JSON is the same format
+ * used by downloadIdentityBackup() / importIdentityBackup().
+ */
+async function openLinkDeviceModal() {
+  const name = (typeof myName !== 'undefined' && myName) || localStorage.getItem('humanity_name') || 'user';
+  const data = await exportIdentityJSON(name);
+  if (!data) {
+    alert('Cannot export identity — this key was created before backup support was added. Please download a backup from the 🔐 Backup button instead.');
+    return;
+  }
+  const json = JSON.stringify(data, null, 2);
+  const overlay = document.createElement('div');
+  overlay.id = 'link-device-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:7000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.5rem;width:100%;max-width:440px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;max-height:90vh;overflow-y:auto;">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.4rem">📱 Link New Device</h2>
+      <p style="font-size:.75rem;color:#f0a500;background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.2);border-radius:6px;padding:.5rem .75rem;margin-bottom:.9rem;line-height:1.55">
+        ⚠️ <strong>Private:</strong> this QR code contains your private key. Only scan it in a physically private location. Close this modal immediately after use.
+      </p>
+      <canvas id="link-device-qr" style="display:block;margin:0 auto .75rem;border-radius:6px;background:#fff;padding:6px;max-width:220px;width:100%;height:auto;"></canvas>
+      <p style="font-size:.72rem;color:#888;text-align:center;margin-bottom:.75rem">Scan with your new device's camera. Or copy the JSON below.</p>
+      <textarea id="link-device-json" readonly rows="5"
+        style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.5rem;font-size:.7rem;color:#aaa;font-family:monospace;resize:none;margin-bottom:.75rem">${json.replace(/</g,'&lt;')}</textarea>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end">
+        <button onclick="navigator.clipboard.writeText(document.getElementById('link-device-json').value).then(()=>this.textContent='Copied!')"
+          style="background:var(--bg-input,#1a1a1a);border:1px solid #333;color:#ccc;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer;">📋 Copy JSON</button>
+        <button onclick="document.getElementById('link-device-overlay').remove()"
+          style="background:none;border:1px solid #444;color:#888;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer;">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  // Render QR code using the shared qrcode.js helper from chat-p2p.js.
+  // Falls back to text if qrcode.js isn't available (e.g. pages other than /chat).
+  if (typeof renderQrCode === 'function') {
+    renderQrCode('link-device-qr', json);
+  } else if (typeof qrcode !== 'undefined') {
+    try {
+      const qr = qrcode(0, 'L');
+      qr.addData(json);
+      qr.make();
+      const canvas = document.getElementById('link-device-qr');
+      const size = Math.min(canvas.parentElement.offsetWidth - 50, 220);
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const cells = qr.getModuleCount();
+      const cell = size / cells;
+      for (let r = 0; r < cells; r++) {
+        for (let c = 0; c < cells; c++) {
+          ctx.fillStyle = qr.isDark(r, c) ? '#000' : '#fff';
+          ctx.fillRect(c * cell, r * cell, cell, cell);
+        }
+      }
+    } catch (e) {
+      document.getElementById('link-device-qr').style.display = 'none';
+    }
+  } else {
+    document.getElementById('link-device-qr').style.display = 'none';
+  }
+}
+
 function labelDevice(publicKey, label) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'device_label', public_key: publicKey, label: label }));
