@@ -208,6 +208,21 @@
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
+    /* ── Theme toggle button ── */
+    .hub-nav .theme-toggle-btn {
+      background: none;
+      border: none;
+      font-size: 0.9rem;
+      opacity: 0.65;
+      transition: opacity 0.15s;
+      box-shadow: none;
+    }
+    .hub-nav .theme-toggle-btn:hover { opacity: 1; }
+    [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
+    [data-theme="light"] .hub-nav .tab { color: #555; box-shadow: inset 0 0 0 1px #2a6; }
+    [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
+    [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
+
     /* ── Divider between nav groups — negative margin cancels the double flex-gap ── */
     .hub-nav .nav-divider {
       width: 1px;
@@ -422,10 +437,11 @@
       /* Spacer pushes ops/account to the right */
       '<div class="spacer"></div>' +
 
-      /* Right side — ops, download, settings */
+      /* Right side — ops, download, settings, theme toggle */
       navTab('/ops',      'system.png',   'Ops',      'debug') +
       navTab('/download', 'save.png',     'Download', 'download') +
       navTab('/settings', 'settings.png', 'Settings', 'settings') +
+      '<button class="tab theme-toggle-btn" id="hos-theme-toggle" title="Toggle light/dark mode" onclick="hosToggleTheme()" aria-label="Toggle theme">🌙</button>' +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
@@ -781,4 +797,33 @@
       setCollapsed(!ft.classList.contains('collapsed'));
     });
   }, 0);
+
+  // ── Theme toggle (light/dark) ──
+  (function () {
+    var THEME_KEY = 'hos_theme';
+    var root = document.documentElement;
+
+    function applyTheme(theme) {
+      if (theme === 'light') {
+        root.setAttribute('data-theme', 'light');
+        var btn = document.getElementById('hos-theme-toggle');
+        if (btn) btn.textContent = '☀️';
+      } else {
+        root.removeAttribute('data-theme');
+        var btn = document.getElementById('hos-theme-toggle');
+        if (btn) btn.textContent = '🌙';
+      }
+      localStorage.setItem(THEME_KEY, theme);
+    }
+
+    // Expose globally so the onclick="hosToggleTheme()" in the nav can reach it
+    window.hosToggleTheme = function () {
+      var current = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      applyTheme(current);
+    };
+
+    // Apply saved preference immediately on page load
+    applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+  })();
+
 })();

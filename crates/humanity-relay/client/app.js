@@ -1435,6 +1435,23 @@ function setStatus(cls, text) {
   const el = document.getElementById('status');
   el.className = cls;
   document.getElementById('status-text').textContent = text;
+  // Reflect connection state on the nav Chat tab for visibility from any scroll position
+  updateNavDot(cls);
+}
+
+function updateNavDot(cls) {
+  let dot = document.getElementById('hos-ws-dot');
+  if (!dot) {
+    // Inject a small dot into the Chat nav tab
+    const chatTab = document.querySelector('.hub-nav .tab[href="/chat"]');
+    if (!chatTab) return;
+    dot = document.createElement('span');
+    dot.id = 'hos-ws-dot';
+    dot.style.cssText = 'position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;transition:background 0.4s';
+    chatTab.appendChild(dot);
+  }
+  dot.style.background = cls === 'connected' ? '#4ec87a' : cls === 'reconnecting' ? '#f0c040' : '#e55';
+  dot.title = cls === 'connected' ? 'Connected' : cls === 'reconnecting' ? 'Reconnecting…' : 'Disconnected';
 }
 
 function formatTime(ts) {

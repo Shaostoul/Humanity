@@ -21,6 +21,25 @@
   --radius: 8px;
 }
 
+/* ── Light theme — toggled by adding data-theme="light" to <html> ── */
+[data-theme="light"] {
+  --bg: #f4f4f4;
+  --bg-secondary: #e8e8e8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f0f0;
+  --bg-input: #e8e8e8;
+  --bg-hover: #e0e0e0;
+  --text: #1a1a1a;
+  --text-muted: #555;
+  --accent: #d06600;
+  --accent-hover: #b35500;
+  --accent-dim: rgba(208,102,0,0.12);
+  --border: #ccc;
+  --success: #2a7;
+  --danger: #c33;
+  --warning: #a83;
+}
+
 /* Base Typography */
 html { scroll-behavior: smooth; }
 
