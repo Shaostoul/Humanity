@@ -318,9 +318,9 @@
       <input type=text id=f-labels placeholder="backend, relay, urgent">
     </div>
     <div class="form-group">
-      <label>Admin API Key</label>
-      <input type=password id=f-apikey placeholder="Bearer token from server .env">
-      <div class="auth-note">Required to create tasks. Get with: <code>ssh humanity-vps "grep API_SECRET /opt/Humanity/.env"</code></div>
+      <label>Admin API Key <span style="font-weight:400;color:var(--text-muted)">(optional — or sign in at /chat)</span></label>
+      <input type=password id=f-apikey placeholder="Leave blank if signed into /chat">
+      <div class="auth-note">Signed-in relay users can create tasks without a key. Admins: <code>grep API_SECRET /opt/Humanity/.env</code></div>
     </div>
     <div id=form-msg></div>
     <div class="modal-footer">
@@ -481,13 +481,45 @@ function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
 }
 
+// WebSocket connection for task creation by authenticated relay users.
+let taskWs = null;
+let taskWsReady = false;
+let taskWsPending = null; // resolve fn waiting for task_created confirmation
+
+function ensureTaskWs() {
+  if (taskWs && taskWs.readyState === WebSocket.OPEN) return;
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const raw = localStorage.getItem('humanity_key_backup');
+  if (!raw) return;
+  let pub;
+  try { pub = JSON.parse(raw).publicKeyHex; } catch { return; }
+  if (!pub) return;
+  const name = localStorage.getItem('humanity_name') || 'Task_User';
+  taskWs = new WebSocket(`${proto}//${location.host}/ws`);
+  taskWs.addEventListener('open', () => {
+    taskWs.send(JSON.stringify({ type: 'identify', public_key: pub, display_name: name }));
+  });
+  taskWs.addEventListener('message', e => {
+    try {
+      const m = JSON.parse(e.data);
+      if (m.type === 'task_created' && taskWsPending) {
+        taskWsPending(m.task);
+        taskWsPending = null;
+      }
+      if (m.type === 'system' && m.message && taskWsPending) {
+        taskWsPending(null, m.message);
+        taskWsPending = null;
+      }
+    } catch {}
+  });
+}
+
 async function submitTask() {
   const title = document.getElementById('f-title').value.trim();
   const apiKey = document.getElementById('f-apikey').value.trim();
   const msg = document.getElementById('form-msg');
 
   if (!title) { msg.innerHTML = '<div class="msg-error">Title is required.</div>'; return; }
-  if (!apiKey) { msg.innerHTML = '<div class="msg-error">Admin API key required to create tasks.</div>'; return; }
 
   const rawLabels = document.getElementById('f-labels').value.trim();
   const labelArr = rawLabels ? rawLabels.split(',').map(l => l.trim()).filter(Boolean) : [];
@@ -507,21 +539,51 @@ async function submitTask() {
   btn.disabled = true;
   btn.textContent = 'Creating…';
 
-  try {
-    const res = await fetch('/api/tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'HTTP ' + res.status);
-    msg.innerHTML = `<div class="msg-success">✓ Task #${data.id} created.</div>`;
-    setTimeout(() => { closeModal(); loadTasks(); }, 800);
-  } catch(e) {
-    msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Create Task';
+  // Use API key if provided; otherwise use relay WebSocket (signed-in users).
+  if (apiKey) {
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'HTTP ' + res.status);
+      msg.innerHTML = `<div class="msg-success">✓ Task #${data.id} created.</div>`;
+      setTimeout(() => { closeModal(); loadTasks(); }, 800);
+    } catch(e) {
+      msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create Task';
+    }
+  } else {
+    // Relay WebSocket path — requires humanity_key_backup in localStorage.
+    ensureTaskWs();
+    if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
+      // Give it 1.5s to connect
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
+      msg.innerHTML = '<div class="msg-error">Not signed in. Enter Admin API Key or sign in at /chat first.</div>';
+      btn.disabled = false;
+      btn.textContent = 'Create Task';
+      return;
+    }
+    try {
+      const task = await new Promise((resolve, reject) => {
+        taskWsPending = (task, err) => err ? reject(new Error(err)) : resolve(task);
+        taskWs.send(JSON.stringify({ type: 'task_create', ...body }));
+        setTimeout(() => { if (taskWsPending) { taskWsPending = null; reject(new Error('Timeout')); } }, 5000);
+      });
+      msg.innerHTML = `<div class="msg-success">✓ Task #${task?.id || '?'} created.</div>`;
+      setTimeout(() => { closeModal(); loadTasks(); }, 800);
+    } catch(e) {
+      msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create Task';
+    }
   }
 }
 

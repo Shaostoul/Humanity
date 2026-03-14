@@ -2284,6 +2284,52 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 continue;
                             }
+                            Some("task_create") => {
+                                // Any authenticated relay user can create a task.
+                                let title = raw.get("title").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                                if title.is_empty() || title.len() > 200 {
+                                    let private = RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Task title must be 1-200 characters.".to_string(),
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(private);
+                                    continue;
+                                }
+                                let desc    = raw.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                let status  = raw.get("status").and_then(|v| v.as_str()).unwrap_or("backlog");
+                                let prio    = raw.get("priority").and_then(|v| v.as_str()).unwrap_or("medium");
+                                let labels  = raw.get("labels").and_then(|v| v.as_str()).unwrap_or("[]");
+                                let creator_name = {
+                                    let peers = state_clone.peers.read().await;
+                                    peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| my_key_for_recv[..8].to_string())
+                                };
+                                let valid_statuses  = ["backlog", "in_progress", "testing", "done"];
+                                let valid_priorities = ["low", "medium", "high", "critical"];
+                                let status  = if valid_statuses.contains(&status)  { status  } else { "backlog" };
+                                let prio    = if valid_priorities.contains(&prio)  { prio    } else { "medium"  };
+                                match state_clone.db.create_task(&title, &desc, status, prio, None, &creator_name, labels) {
+                                    Ok(id) => {
+                                        if let Ok(Some(task)) = state_clone.db.get_task(id) {
+                                            let td = TaskData {
+                                                id: task.id, title: task.title, description: task.description,
+                                                status: task.status, priority: task.priority, assignee: task.assignee,
+                                                created_by: task.created_by, created_at: task.created_at,
+                                                updated_at: task.updated_at, position: task.position,
+                                                labels: task.labels, comment_count: 0,
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let private = RelayMessage::Private {
+                                            to: my_key_for_recv.clone(),
+                                            message: format!("Failed to create task: {e}"),
+                                        };
+                                        let _ = state_clone.broadcast_tx.send(private);
+                                    }
+                                }
+                                continue;
+                            }
                             _ => {} // Fall through to normal RelayMessage handling
                         }
                     }
