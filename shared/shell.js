@@ -5,7 +5,7 @@
  * If omitted, active tab is auto-detected from the current URL.
  *
  * Valid active keys: landing, chat, dashboard, profile, home, skills, inventory, equipment,
- *   quests, calendar, logbook, board, map, market, browse, info, streams, debug, download,
+ *   quests, calendar, logbook, board, map, market, browse, info, streams, studio, debug, download,
  *   settings, reality, fantasy
  *
  * Usage:
@@ -45,7 +45,7 @@
     else if (p.startsWith('/knowledge')) active = 'info';
     else if (p.startsWith('/info'))      active = 'info';      // backward compat redirect
     else if (p.startsWith('/streams'))   active = 'streams';
-    else if (p.startsWith('/studio'))    active = 'streams';   // studio lives under streams
+    else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/tasks'))     active = 'tasks';
     else if (p.startsWith('/ops'))       active = 'debug';
@@ -432,6 +432,7 @@
       navTab('/learn',     'website.png',   'Learn',     'browse') +
       navTab('/knowledge', 'codex.png',     'Knowledge', 'info') +
       navTab('/streams',   'audio.png',     'Streams',   'streams') +
+      navTab('/studio',    '🎬',            'Studio',    'studio') +
 
       navTab('/tasks',     '🎯',            'Tasks',     'tasks') +
       '<div class="nav-divider"></div>' +
@@ -485,6 +486,7 @@
       mobileLink('/learn',     'Learn') +
       mobileLink('/knowledge', 'Knowledge') +
       mobileLink('/streams',   'Streams') +
+      mobileLink('/studio',    'Studio') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>App</h4>' +
       mobileLink('/vault',    'Vault') +

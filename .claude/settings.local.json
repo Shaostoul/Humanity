@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Humanity -type f \\\\\\(-name *test* -o -name *spec* \\\\\\) ! -path */.git/* ! -path */.claude/*)",
+      "Read(//c/Humanity/**)",
+      "Bash(cargo check:*)",
+      "Bash(node -e \":*)"
+    ]
+  }
+}

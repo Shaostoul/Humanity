@@ -117,6 +117,8 @@
   function injectGearButton() {
     const nav = document.querySelector('.hub-nav');
     if (!nav) return;
+    // shell.js already renders a /settings nav tab — don't add a second one
+    if (nav.querySelector('a[href="/settings"]')) return;
     const spacer = nav.querySelector('.spacer');
     if (!spacer) return;
 
