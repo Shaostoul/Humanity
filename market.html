@@ -144,46 +144,126 @@
 const API_BASE = '';
 let marketWs = null;
 let marketListings = [];
-let myListings = [];
-let marketTab = 'browse';
+let marketMyKey = '';
+let marketMyName = 'Visitor';
+let marketMyRole = '';
+const CATEGORY_COLORS = {
+  Electronics:'#4488ff', Vehicles:'#f80', Clothing:'#f48', Tools:'#8b4',
+  Furniture:'#a67', Home:'#68a', 'Books/Media':'#a88', Gaming:'#84f',
+  Sports:'#4b8', Crafts:'#fa8', 'Food/Garden':'#4a8', Services:'#88f',
+  '3D Models':'#f84', Other:'#888'
+};
+const STORE_DIRECTORY = [];
 
-function marketConnect() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const storedKey = localStorage.getItem('humanity_key') || localStorage.getItem('hos_identity_pub');
-  marketWs = new WebSocket(proto + '//' + location.host + '/ws');
-  marketWs.onopen = () => {
-    if (storedKey) marketWs.send(JSON.stringify({ type: 'identify', public_key: storedKey }));
-    marketWs.send(JSON.stringify({ type: 'market_list' }));
-  };
-  marketWs.onmessage = (e) => {
-    try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'market_listings') {
-        marketListings = msg.listings || [];
-        if (typeof renderMarketListings === 'function') renderMarketListings();
-      } else if (msg.type === 'market_my_listings') {
-        myListings = msg.listings || [];
-        if (typeof renderMyListings === 'function') renderMyListings();
-      }
-    } catch(e) {}
-  };
-  marketWs.onclose = () => setTimeout(marketConnect, 5000);
-  marketWs.onerror = () => {};
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showMarketSection(section) {
+  ['marketplace','stores','mylistings'].forEach(s => {
+    document.getElementById('market-section-' + s).style.display = s === section ? '' : 'none';
+    const btn = document.getElementById('market-nav-' + s);
+    if (btn) { btn.classList.toggle('btn-clickable', s === section); }
+  });
+  if (section === 'marketplace') renderMarketListings();
+  if (section === 'stores') renderStoreDirectory();
+  if (section === 'mylistings') renderMyListings();
 }
-document.addEventListener('DOMContentLoaded', function() {
-  marketConnect();
-  if (typeof renderMarketListings === 'function') renderMarketListings();
-});
 
-  let marketListings = [];
-  let marketWs = null;
-      const existing = marketListings.findIndex(l => l.id === msg.listing.id);
-      const idx = marketListings.findIndex(l => l.id === msg.listing.id);
-   let filtered = marketListings.filter(l => {
-   const l = marketListings.find(x => x.id === id);
-   const l = marketListings.find(x => x.id === id);
-    const l = marketListings.find(x => x.id === id);
-   const mine = marketListings.filter(l => l.seller_key === marketMyKey);
+function handleMarketMessage(msg) {
+  if (msg.type === 'market_listings') {
+    marketListings = msg.listings || [];
+    renderMarketListings();
+    renderMyListings();
+  } else if (msg.type === 'market_listing_created' || msg.type === 'market_listing_updated') {
+    const listing = msg.listing;
+    if (listing) {
+      const existing = marketListings.findIndex(l => l.id === listing.id);
+      if (existing >= 0) marketListings[existing] = listing;
+      else marketListings.push(listing);
+      renderMarketListings();
+      renderMyListings();
+    }
+  } else if (msg.type === 'market_listing_deleted') {
+    if (msg.id) marketListings = marketListings.filter(l => l.id !== msg.id);
+    renderMarketListings();
+    renderMyListings();
+  } else if (msg.type === 'peer_list' || msg.type === 'identified') {
+    if (msg.peers && marketMyKey) {
+      const me = msg.peers.find(p => p.public_key_hex === marketMyKey || p.public_key === marketMyKey);
+      if (me) { marketMyRole = me.role || ''; }
+    }
+    const canList = marketMyRole === 'admin' || marketMyRole === 'mod' || marketMyRole === 'verified' || marketMyRole === 'donor';
+    const btn = document.getElementById('market-create-btn');
+    if (btn) btn.style.display = canList ? 'inline-flex' : 'none';
+    // Request listing data
+    if (marketWs && marketWs.readyState === 1) marketWs.send(JSON.stringify({ type: 'market_list' }));
+  }
+}
+
+function openListingModal(editId) {
+  document.getElementById('listing-edit-id').value = editId || '';
+  document.getElementById('listing-modal-title').textContent = editId ? 'Edit Listing' : 'Create Listing';
+  if (editId) {
+    const l = marketListings.find(x => x.id === editId);
+    if (l) {
+      document.getElementById('listing-title').value = l.title || '';
+      document.getElementById('listing-description').value = l.description || '';
+      document.getElementById('listing-category').value = l.category || 'Other';
+      document.getElementById('listing-condition').value = l.condition || 'N/A';
+      document.getElementById('listing-price').value = l.price || '';
+      document.getElementById('listing-payment').value = l.payment_methods || '';
+      document.getElementById('listing-location').value = l.location || '';
+    }
+  } else {
+    document.getElementById('listing-title').value = '';
+    document.getElementById('listing-description').value = '';
+    document.getElementById('listing-price').value = '';
+    document.getElementById('listing-payment').value = '';
+    document.getElementById('listing-location').value = '';
+  }
+  document.getElementById('listing-modal').style.display = '';
+}
+
+function editListing(id) { openListingModal(id); }
+
+function markListingSold(id) {
+  if (marketWs && marketWs.readyState === 1) marketWs.send(JSON.stringify({ type: 'listing_update', id, status: 'sold' }));
+}
+
+function deleteListing(id) {
+  if (!confirm('Delete this listing?')) return;
+  if (marketWs && marketWs.readyState === 1) marketWs.send(JSON.stringify({ type: 'listing_delete', id }));
+}
+
+function showListingDetail(id) {
+  const l = marketListings.find(x => x.id === id);
+  if (!l) return;
+  const modal = document.getElementById('listing-detail-modal');
+  const content = document.getElementById('listing-detail-content');
+  const isMine = l.seller_key === marketMyKey;
+  const catColor = CATEGORY_COLORS[l.category] || '#888';
+  content.innerHTML =
+    '<button onclick="closeListingDetail()" style="float:right;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">✕</button>' +
+    '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.05rem;">' + escHtml(l.title) + '</h3>' +
+    '<div style="font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:0.5rem;">' + escHtml(l.price || 'Contact for price') + '</div>' +
+    '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.7rem;">' +
+      '<span style="background:' + catColor + '22;color:' + catColor + ';font-size:0.7rem;padding:0.1rem 0.5rem;border-radius:4px;">' + escHtml(l.category) + '</span>' +
+      (l.condition && l.condition !== 'N/A' ? '<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.7rem;padding:0.1rem 0.5rem;border-radius:4px;">' + escHtml(l.condition) + '</span>' : '') +
+    '</div>' +
+    (l.description ? '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.7rem;white-space:pre-wrap;line-height:1.5;">' + escHtml(l.description) + '</div>' : '') +
+    '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.3rem;">Seller: <strong style="color:var(--text);">' + escHtml(l.seller_name || 'Anonymous') + '</strong></div>' +
+    (l.payment_methods ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">Payment: ' + escHtml(l.payment_methods) + '</div>' : '') +
+    (l.location ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">📍 ' + escHtml(l.location) + '</div>' : '') +
+    (isMine ? '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">' +
+      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-size:0.8rem;">✏️ Edit</button>' +
+      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--success);cursor:pointer;font-size:0.8rem;">✅ Mark Sold</button>' +
+      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid rgba(229,85,85,0.4);border-radius:6px;color:var(--error);cursor:pointer;font-size:0.8rem;">🗑️ Delete</button>' +
+    '</div>' : '');
+  modal.style.display = '';
+}
+
+function closeListingDetail() { document.getElementById('listing-detail-modal').style.display = 'none'; }
+
+function streamHandleMessage(msg) { /* WebRTC streaming not yet implemented in market view */ }
 
   function marketConnect() {
    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -349,7 +429,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderStoreDirectory() {
    const filter = document.getElementById('store-category-filter').value;
    const filtered = filter ? STORE_DIRECTORY.filter(s => s.category === filter) : STORE_DIRECTORY;
-   document.getElementById('store-directory-grid').innerHTML = filtered.map(s => `
+   const grid = document.getElementById('store-directory-grid');
+   if (!grid) return;
+   if (!filtered.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-style:italic;padding:2rem;text-align:center;">No stores listed yet.</div>'; return; }
+   grid.innerHTML = filtered.map(s => `
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1rem;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'">
      <div style="font-size:1.5rem;margin-bottom:0.4rem;">${s.icon}</div>
      <div style="font-weight:600;font-size:0.9rem;color:var(--text);margin-bottom:0.2rem;">${escHtml(s.name)}</div>
@@ -358,6 +441,11 @@ document.addEventListener('DOMContentLoaded', function() {
      <a href="${s.url}" target="_blank" rel="noopener" style="display:inline-block;padding:0.3rem 0.8rem;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.75rem;font-weight:600;">Visit Store →</a>
     </div>`).join('');
   }
+
+document.addEventListener('DOMContentLoaded', function() {
+  marketConnect();
+  renderMarketListings();
+});
 
 </script>
 </body>
