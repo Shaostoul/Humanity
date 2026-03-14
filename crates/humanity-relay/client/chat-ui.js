@@ -1494,6 +1494,23 @@ navigator.serviceWorker.register('/sw.js')
   .catch(err => console.error('SW failed:', err));
 }
 
+/* ── User Status ── */
+window.setMyStatus = function(status) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'set_status', status, text: '' }));
+    document.querySelectorAll('.status-option').forEach(el => {
+      el.classList.toggle('active', el.dataset.status === status);
+    });
+  }
+};
+
+window.clearMyStatus = function() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'set_status', status: 'online', text: '' }));
+    document.querySelectorAll('.status-option').forEach(el => el.classList.remove('active'));
+  }
+};
+
 /* ── Message Search ── */
 (function() {
 let searchTimer = null;
