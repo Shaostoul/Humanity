@@ -742,8 +742,8 @@ setTimeout(loadEndorsements, 3000);
   ws.addEventListener('message', e => {
     try {
       const m = JSON.parse(e.data);
-      // Once identified, send all skills with a non-zero level
-      if (m.type === 'identified') {
+      // peer_list is the first message sent after a successful identify
+      if (m.type === 'peer_list') {
         const data = skillData || {};
         for (const [sid, sk] of Object.entries(data)) {
           if (!sk || !sk.level) continue;
