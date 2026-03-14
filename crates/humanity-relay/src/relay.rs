@@ -2284,6 +2284,35 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 continue;
                             }
+                            Some("task_comment") => {
+                                // Any authenticated relay user can comment on a task.
+                                if let (Some(task_id), Some(content)) = (
+                                    raw.get("task_id").and_then(|v| v.as_i64()),
+                                    raw.get("content").and_then(|v| v.as_str()),
+                                ) {
+                                    let content = content.trim().to_string();
+                                    if content.is_empty() || content.len() > 2000 {
+                                        continue;
+                                    }
+                                    let author_name = {
+                                        let peers = state_clone.peers.read().await;
+                                        peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| my_key_for_recv[..8].to_string())
+                                    };
+                                    if let Ok(cid) = state_clone.db.add_task_comment(task_id, &my_key_for_recv, &author_name, &content) {
+                                        // Broadcast comment so all open task boards can refresh.
+                                        let msg = serde_json::json!({
+                                            "type": "task_comment_added",
+                                            "task_id": task_id,
+                                            "comment_id": cid,
+                                            "author_name": author_name,
+                                            "content": content,
+                                            "created_at": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
+                                        }).to_string();
+                                        let _ = state_clone.broadcast_tx.send(RelayMessage::System { message: format!("__task_comment__:{}", msg) });
+                                    }
+                                }
+                                continue;
+                            }
                             Some("task_create") => {
                                 // Any authenticated relay user can create a task.
                                 let title = raw.get("title").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();

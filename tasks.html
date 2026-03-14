@@ -267,6 +267,14 @@
       <div class="detail-labels" id="detail-labels"></div>
       <div class="detail-meta" id="detail-meta"></div>
       <div id="detail-test-panel"></div>
+      <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:0.8rem">
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:0.5rem">💬 Comments</div>
+        <div id="detail-comments"></div>
+        <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
+          <input id="comment-input" type="text" placeholder="Add a comment…" maxlength="2000" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.35rem 0.6rem;font-size:0.8rem;font-family:inherit" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(openDetailId)}">
+          <button onclick="submitComment(openDetailId)" style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:0.35rem 0.8rem;cursor:pointer;font-size:0.8rem">Send</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -518,6 +526,15 @@ function ensureTaskWs() {
         renderBoard();
         if (document.getElementById('detail-overlay').classList.contains('open') && openDetailId === m.task.id) openDetail(m.task.id);
       }
+      // Decode task_comment_added system messages
+      if (m.type === 'system' && m.message && m.message.startsWith('__task_comment__:')) {
+        try {
+          const c = JSON.parse(m.message.slice('__task_comment__:'.length));
+          const t = allTasks.find(t => t.id === c.task_id);
+          if (t) t.comment_count = (t.comment_count || 0) + 1;
+          if (openDetailId === c.task_id) loadTaskComments(c.task_id);
+        } catch {}
+      }
     } catch {}
   });
   // Reconnect on close
@@ -642,6 +659,46 @@ function openDetail(id) {
   }
 
   document.getElementById('detail-overlay').classList.add('open');
+
+  // Load comments asynchronously
+  loadTaskComments(id);
+}
+
+async function loadTaskComments(taskId) {
+  const el = document.getElementById('detail-comments');
+  if (!el) return;
+  try {
+    const res = await fetch(`/api/tasks/${taskId}/comments`);
+    if (!res.ok) { el.innerHTML = ''; return; }
+    const data = await res.json();
+    const comments = data.comments || [];
+    el.innerHTML = comments.length === 0 ? '<div style="color:var(--text-muted);font-size:0.78rem;padding:0.3rem 0">No comments yet.</div>' :
+      comments.map(c => `<div style="border-left:2px solid var(--border);padding:0.35rem 0.5rem;margin-bottom:0.4rem;">
+        <div style="font-size:0.72rem;color:var(--accent);font-weight:600">${esc(c.author_name)}</div>
+        <div style="font-size:0.8rem;white-space:pre-wrap">${esc(c.content)}</div>
+        <div style="font-size:0.68rem;color:var(--text-muted)">${new Date(c.created_at * 1000).toLocaleString()}</div>
+      </div>`).join('');
+  } catch { el.innerHTML = ''; }
+}
+
+async function submitComment(taskId) {
+  const input = document.getElementById('comment-input');
+  const content = (input && input.value || '').trim();
+  if (!content) return;
+  input.disabled = true;
+  if (taskWs && taskWs.readyState === WebSocket.OPEN) {
+    taskWs.send(JSON.stringify({ type: 'task_comment', task_id: taskId, content }));
+    input.value = '';
+    // Update comment count optimistically
+    const t = allTasks.find(t => t.id === taskId);
+    if (t) t.comment_count = (t.comment_count || 0) + 1;
+    await new Promise(r => setTimeout(r, 500));
+    await loadTaskComments(taskId);
+  } else {
+    alert('Sign in at /chat to post comments.');
+  }
+  input.disabled = false;
+  input.focus();
 }
 
 function closeDetail() {

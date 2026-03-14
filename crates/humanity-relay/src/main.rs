@@ -113,6 +113,7 @@ async fn main() {
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/tasks/{id}", patch(api::update_task).delete(api::delete_task))
+        .route("/api/tasks/{id}/comments", get(api::get_task_comments).post(api::create_task_comment))
         .route("/api/server-info", get(api::get_server_info))
         .route("/api/assets", get(api::get_assets).post(api::create_asset))
         .route("/api/assets/{id}", delete(api::delete_asset))

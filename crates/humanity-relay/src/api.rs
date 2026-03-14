@@ -892,6 +892,53 @@ pub async fn delete_task(
     }
 }
 
+/// GET /api/tasks/:id/comments — list comments for a task (public).
+pub async fn get_task_comments(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(task_id): axum::extract::Path<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match state.db.get_task_comments(task_id) {
+        Ok(comments) => {
+            let list: Vec<serde_json::Value> = comments.into_iter().map(|c| serde_json::json!({
+                "id": c.id,
+                "task_id": c.task_id,
+                "author_key": c.author_key,
+                "author_name": c.author_name,
+                "content": c.content,
+                "created_at": c.created_at,
+            })).collect();
+            Ok(Json(serde_json::json!({ "comments": list })))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to load comments: {e}"))),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCommentRequest {
+    pub content: String,
+    /// Display name — optional, used when posting via API key (bots).
+    #[serde(default)]
+    pub author_name: Option<String>,
+}
+
+/// POST /api/tasks/:id/comments — add a comment (requires API_SECRET auth).
+pub async fn create_task_comment(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    axum::extract::Path(task_id): axum::extract::Path<i64>,
+    Json(req): Json<CreateCommentRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+    if req.content.trim().is_empty() || req.content.len() > 2000 {
+        return Err((StatusCode::BAD_REQUEST, "Comment must be 1-2000 characters.".into()));
+    }
+    let author_name = req.author_name.as_deref().unwrap_or("bot_api");
+    match state.db.add_task_comment(task_id, "bot_api", author_name, &req.content) {
+        Ok(id) => Ok(Json(serde_json::json!({ "id": id, "status": "created" }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to add comment: {e}"))),
+    }
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,
