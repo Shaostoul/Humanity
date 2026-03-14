@@ -115,53 +115,92 @@ impl Storage {
         let conn = self.conn.lock().unwrap();
         let limit = limit.min(100);
 
-        // Escape SQL LIKE special chars
-        let escaped_query = query
-            .replace('\\', "\\\\")
-            .replace('%', "\\%")
-            .replace('_', "\\_");
+        // Escape FTS5 phrase query: wrap in double-quotes so special chars are literal.
+        // This gives exact-phrase matching, which is what users expect for message search.
+        let fts_query = format!("\"{}\"", query.replace('"', "\"\""));
 
-        // Build dynamic query for channel messages
-        let mut sql = String::from(
-            "SELECT id, channel_id, raw_json FROM messages WHERE msg_type = 'chat' AND content LIKE '%' || ?1 || '%' ESCAPE '\\'"
-        );
-        let mut param_idx = 2u32;
-        let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(escaped_query.clone())];
+        // Try FTS5 first (fast full-text index). Falls back to LIKE if unavailable.
+        let mut results: Vec<(i64, String, crate::relay::RelayMessage)> = {
+            let mut fts_sql = String::from(
+                "SELECT m.id, m.channel_id, m.raw_json \
+                 FROM messages_fts \
+                 JOIN messages m ON messages_fts.rowid = m.id \
+                 WHERE messages_fts MATCH ?1 AND m.msg_type = 'chat'"
+            );
+            let mut fts_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(fts_query)];
+            let mut idx = 2u32;
 
-        if let Some(ch) = channel {
-            sql.push_str(&format!(" AND channel_id = ?{param_idx}"));
-            params_vec.push(Box::new(ch.to_string()));
-            param_idx += 1;
-        }
-        if let Some(fname) = from_name {
-            let escaped_from = fname
-                .replace('\\', "\\\\")
-                .replace('%', "\\%")
-                .replace('_', "\\_");
-            sql.push_str(&format!(" AND from_name LIKE '%' || ?{param_idx} || '%' ESCAPE '\\'"));
-            params_vec.push(Box::new(escaped_from));
-            param_idx += 1;
-        }
-        sql.push_str(&format!(" ORDER BY timestamp DESC LIMIT ?{param_idx}"));
-        params_vec.push(Box::new(limit as i64));
+            if let Some(ch) = channel {
+                fts_sql.push_str(&format!(" AND m.channel_id = ?{idx}"));
+                fts_params.push(Box::new(ch.to_string()));
+                idx += 1;
+            }
+            if let Some(fname) = from_name {
+                let escaped_from = fname.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+                fts_sql.push_str(&format!(" AND m.from_name LIKE '%' || ?{idx} || '%' ESCAPE '\\'"));
+                fts_params.push(Box::new(escaped_from));
+                idx += 1;
+            }
+            fts_sql.push_str(&format!(" ORDER BY messages_fts.rank, m.timestamp DESC LIMIT ?{idx}"));
+            fts_params.push(Box::new(limit as i64));
 
-        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+            let fts_refs: Vec<&dyn rusqlite::types::ToSql> = fts_params.iter().map(|p| p.as_ref()).collect();
 
-        let mut stmt = conn.prepare(&sql)?;
-        let mut results: Vec<(i64, String, crate::relay::RelayMessage)> = stmt.query_map(params_refs.as_slice(), |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-        })?.filter_map(|r| r.ok())
-        .filter_map(|(id, ch, raw)| {
-            serde_json::from_str::<crate::relay::RelayMessage>(&raw).ok().map(|msg| (id, ch, msg))
-        })
-        .collect();
+            match conn.prepare(&fts_sql).and_then(|mut s| {
+                s.query_map(fts_refs.as_slice(), |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                }).map(|rows| {
+                    rows.filter_map(|r| r.ok())
+                        .filter_map(|(id, ch, raw)| {
+                            serde_json::from_str::<crate::relay::RelayMessage>(&raw)
+                                .ok().map(|msg| (id, ch, msg))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            }) {
+                Ok(v) if !v.is_empty() => v,
+                // FTS5 unavailable or no results — fall back to LIKE
+                _ => {
+                    let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+                    let mut sql = String::from(
+                        "SELECT id, channel_id, raw_json FROM messages \
+                         WHERE msg_type = 'chat' AND content LIKE '%' || ?1 || '%' ESCAPE '\\'"
+                    );
+                    let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(escaped.clone())];
+                    let mut pidx = 2u32;
+                    if let Some(ch) = channel {
+                        sql.push_str(&format!(" AND channel_id = ?{pidx}"));
+                        params.push(Box::new(ch.to_string()));
+                        pidx += 1;
+                    }
+                    if let Some(fname) = from_name {
+                        let ef = fname.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+                        sql.push_str(&format!(" AND from_name LIKE '%' || ?{pidx} || '%' ESCAPE '\\'"));
+                        params.push(Box::new(ef));
+                        pidx += 1;
+                    }
+                    sql.push_str(&format!(" ORDER BY timestamp DESC LIMIT ?{pidx}"));
+                    params.push(Box::new(limit as i64));
+                    let refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+                    conn.prepare(&sql)?.query_map(refs.as_slice(), |row| {
+                        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                    })?.filter_map(|r| r.ok())
+                    .filter_map(|(id, ch, raw)| {
+                        serde_json::from_str::<crate::relay::RelayMessage>(&raw)
+                            .ok().map(|msg| (id, ch, msg))
+                    })
+                    .collect()
+                }
+            }
+        };
 
         // Also search DMs if no specific channel filter
         if channel.is_none() {
             let mut dm_sql = String::from(
                 "SELECT id, from_key, from_name, content, timestamp FROM direct_messages WHERE content LIKE '%' || ?1 || '%' ESCAPE '\\' AND (from_key = ?2 OR to_key = ?2)"
             );
-            let mut dm_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(escaped_query.clone()), Box::new(requester_key.to_string())];
+            let dm_escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            let mut dm_params: Vec<Box<dyn rusqlite::types::ToSql>> = vec![Box::new(dm_escaped.clone()), Box::new(requester_key.to_string())];
             let mut dm_idx = 3u32;
 
             if let Some(fname) = from_name {

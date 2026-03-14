@@ -725,6 +725,42 @@ impl Storage {
             );"
         )?;
 
+        // FTS5 full-text search over chat messages.
+        // Uses a content table (content=messages) so we don't duplicate data.
+        // Triggers keep the index in sync with every insert/update/delete.
+        // Falls back silently if FTS5 is not compiled into this SQLite build.
+        let fts_ok = conn.execute_batch("
+            CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts
+            USING fts5(content, from_name, content='messages', content_rowid='id');
+
+            -- Keep FTS index up to date automatically
+            CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+                INSERT INTO messages_fts(rowid, content, from_name)
+                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''));
+            END;
+            CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content, from_name)
+                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''));
+            END;
+            CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content, from_name)
+                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''));
+                INSERT INTO messages_fts(rowid, content, from_name)
+                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''));
+            END;
+        ");
+
+        if fts_ok.is_ok() {
+            // Populate FTS for any rows that pre-date the virtual table.
+            // 'rebuild' is idempotent with content tables and only re-reads missing rows.
+            let _ = conn.execute_batch(
+                "INSERT INTO messages_fts(messages_fts) VALUES ('rebuild');"
+            );
+            info!("FTS5 search index ready");
+        } else {
+            info!("FTS5 not available — falling back to LIKE search");
+        }
+
         info!("Database opened: {}", path.display());
         Ok(Self { conn: Mutex::new(conn) })
     }
