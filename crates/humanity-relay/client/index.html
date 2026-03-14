@@ -90,9 +90,10 @@
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
           <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
-            <button onclick="openEncryptedBackupModal()" title="Download passphrase-encrypted identity backup" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔐 Backup</button>
-            <button onclick="openRestoreIdentityModal()" title="Restore identity from a backup file" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
-            <button onclick="openSeedPhraseModal()" title="Show paper backup seed phrase (write on paper, store separately)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📄 Phrase</button>
+            <button onclick="openEncryptedBackupModal()" title="Download a passphrase-encrypted backup file you can store in the cloud" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔐 Backup</button>
+            <button onclick="openRestoreIdentityModal()" title="Restore your identity from a backup file" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
+            <button onclick="openSeedPhraseModal()" title="Show your 24-word recovery phrase — write it on paper, store offline" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🌱 Phrase</button>
+            <button onclick="openRestoreFromMnemonicModal()" title="Restore your identity from your 24-word recovery phrase" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔤 Words</button>
           </div>
           <button id="key-protect-btn" onclick="openKeyProtectionModal()" title="Encrypt your private key in localStorage with a passphrase" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔓 Protect Key (localStorage encryption)</button>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
@@ -247,6 +248,17 @@
     <div id="help-modal" onclick="event.stopPropagation()">
       <button id="help-close" onclick="toggleHelpModal()">✕</button>
       <h2>📖 Commands & Help</h2>
+
+      <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:.65rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem">
+        <div>
+          <p style="margin:0;font-size:.82rem;font-weight:600;color:var(--text)">🌱 New here?</p>
+          <p style="margin:.15rem 0 0;font-size:.74rem;color:var(--text-muted)">See the plain-English intro to identities, seed phrases, and how Humanity works.</p>
+        </div>
+        <button onclick="reopenOnboardingWizard();toggleHelpModal();"
+          style="flex-shrink:0;background:#f0a500;color:#000;border:none;border-radius:7px;padding:.4rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">
+          Getting Started
+        </button>
+      </div>
 
       <h4>💬 Basic Commands</h4>
       <div class="cmd"><code>/help</code> — Show available commands</div>
@@ -467,6 +479,8 @@
   <script src="/chat/chat-ui.js?v=4"></script>
   <script src="/chat/chat-voice.js?v=4"></script>
   <script src="/chat/chat-profile.js?v=4"></script>
+  <!-- Onboarding wizard: first-time user guide (ELI5 identity + seed phrase) -->
+  <script src="/chat/chat-onboarding.js?v=1"></script>
   <!-- qrcode-generator (public domain, ~18 KB) — used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found — QR codes will be unavailable')"></script>
   <script src="/chat/chat-p2p.js?v=4"></script>

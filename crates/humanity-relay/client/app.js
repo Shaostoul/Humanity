@@ -312,17 +312,23 @@ function onIdentityConfirmed() {
     }
   }
 
-  // Auto-download identity backup on first registration.
+  // Launch onboarding wizard for first-time users — explains the identity
+  // system in plain language and walks them through the seed phrase backup.
   if (myIdentity && myIdentity.isNew) {
     myIdentity.isNew = false; // Only trigger once
     setTimeout(async () => {
-      const ok = await downloadIdentityBackup(myName);
-      if (ok) {
-        addNotice("🔑 IMPORTANT: Your identity file was downloaded. This is your ONLY recovery method if browser data is cleared. Save it somewhere safe (cloud drive, USB, email to yourself). Without it, your identity is GONE forever.", 'red', 120);
+      // Generate mnemonic first so the wizard can show it on step 2.
+      let mnemonic = null;
+      try { mnemonic = await generateMnemonic(); } catch(e) {}
+      if (typeof showOnboardingWizard === 'function') {
+        showOnboardingWizard(mnemonic);
+      } else {
+        // Fallback: just download the backup file if wizard script didn't load.
+        const ok = await downloadIdentityBackup(myName);
+        if (ok) addNotice("🔑 Identity backup downloaded — save it somewhere safe.", 'red', 60);
       }
-      // Request persistent storage
       requestPersistentStorage();
-    }, 1500);
+    }, 1200);
   }
 
   // Notify if identity was restored from backup
