@@ -165,7 +165,22 @@ function saveProfile() {
  * has the latest version after a page reload or new device login.
  */
 function syncProfileOnConnect() {
-  const local = loadProfileLocal();
+  // Merge any pending sync from the standalone profile.html page.
+  let local = loadProfileLocal();
+  try {
+    const pending = JSON.parse(localStorage.getItem('humanity_profile_pending_sync') || 'null');
+    if (pending) {
+      if (pending.bio)        local.bio        = pending.bio;
+      if (pending.avatar_url) local.avatar_url = pending.avatar_url;
+      if (pending.banner_url) local.banner_url = pending.banner_url;
+      if (pending.pronouns)   local.pronouns   = pending.pronouns;
+      if (pending.location)   local.location   = pending.location;
+      if (pending.website)    local.website    = pending.website;
+      saveProfileLocal(local);
+      localStorage.removeItem('humanity_profile_pending_sync');
+    }
+  } catch (e) { /* ignore parse errors */ }
+
   const hasData = local.bio
     || (local.socials && Object.keys(local.socials).length > 0)
     || local.avatar_url || local.banner_url
