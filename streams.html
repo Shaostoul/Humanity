@@ -142,9 +142,16 @@ function hubConnect() {
   hubWs = new WebSocket(proto + '//' + location.hostname + (location.port ? ':'+location.port : '') + '/ws');
   hubWs.onopen = function() {
     clearTimeout(hubWsTimer);
-    const stored = localStorage.getItem('humanity_identity');
-    if (stored) { try { const id = JSON.parse(stored); myHubKey = id.publicKeyHex||''; myHubName = id.name||'Viewer'; hubWs.send(JSON.stringify({type:'Hello',public_key:myHubKey})); } catch(e){} }
-    hubWs.send(JSON.stringify({type:'chat',from:myHubKey,from_name:myHubName,content:'/history stream',timestamp:Date.now(),channel:'stream'}));
+    const storedKey = localStorage.getItem('humanity_key') || localStorage.getItem('humanity_key_backup');
+    if (storedKey) {
+      try {
+        const backup = JSON.parse(storedKey);
+        myHubKey = (backup && backup.publicKey) ? backup.publicKey : storedKey;
+      } catch(e) { myHubKey = storedKey; }
+    }
+    myHubName = localStorage.getItem('humanity_name') || 'Viewer';
+    hubWs.send(JSON.stringify({ type: 'identify', public_key: myHubKey, display_name: myHubName }));
+    hubWs.send(JSON.stringify({ type: 'history_request', channel: 'stream' }));
     requestStreamList();
   };
   hubWs.onclose = function() { hubWsTimer = setTimeout(hubConnect, 4000); };
@@ -159,7 +166,7 @@ function requestStreamList() {
 function handleHubMsg(msg) {
   if (msg.type === 'stream_list' || msg.type === 'live_list') { allStreams = msg.streams || msg.peers || []; renderLiveGrid(); }
   if (msg.type === 'chat' && msg.channel === 'stream') addStreamChatMsg(msg.from_name||'anon', msg.content||'');
-  if (msg.type === 'history') (msg.messages||[]).forEach(m => { if (m.channel==='stream') addStreamChatMsg(m.from_name||'anon', m.content||''); });
+  if (msg.type === 'history' || msg.type === 'channel_history') (msg.messages||[]).forEach(m => { if (m.channel==='stream'||!m.channel) addStreamChatMsg(m.from_name||'anon', m.content||''); });
 }
 
 function addStreamChatMsg(author, text) {
