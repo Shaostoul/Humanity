@@ -14,14 +14,44 @@ use axum::{
     routing::{get, post, delete, patch},
     extract::ws::{WebSocket, WebSocketUpgrade},
     response::IntoResponse,
+    middleware,
 };
-use axum::http::{self, HeaderMap, StatusCode};
+use axum::http::{self, HeaderMap, HeaderValue, StatusCode};
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 use std::sync::Arc;
 
 use relay::RelayState;
 use serde_json;
+
+/// Add security headers to every response.
+/// CSP uses unsafe-inline for now (inline scripts/handlers exist throughout the
+/// client); this still blocks external script injection and eval().
+/// X-Frame-Options + CSP frame-ancestors together prevent clickjacking.
+async fn security_headers(
+    req: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let mut res = next.run(req).await;
+    let h = res.headers_mut();
+    h.insert("x-content-type-options",   HeaderValue::from_static("nosniff"));
+    h.insert("x-frame-options",          HeaderValue::from_static("SAMEORIGIN"));
+    h.insert("referrer-policy",          HeaderValue::from_static("strict-origin-when-cross-origin"));
+    h.insert("permissions-policy",       HeaderValue::from_static("camera=(), microphone=(), geolocation=(), payment=()"));
+    h.insert("content-security-policy",  HeaderValue::from_static(
+        "default-src 'self'; \
+         script-src 'self' 'unsafe-inline'; \
+         style-src 'self' 'unsafe-inline'; \
+         img-src 'self' data: https:; \
+         connect-src 'self' wss://united-humanity.us wss://chat.united-humanity.us; \
+         font-src 'self'; \
+         frame-src 'self'; \
+         object-src 'none'; \
+         base-uri 'self'; \
+         form-action 'self';"
+    ));
+    res
+}
 
 #[tokio::main]
 async fn main() {
@@ -127,6 +157,7 @@ async fn main() {
             tower_http::services::ServeDir::new("client")
                 .fallback(tower_http::services::ServeFile::new("client/index.html")),
         )
+        .layer(middleware::from_fn(security_headers))
         .layer(
             CorsLayer::new()
                 .allow_origin([

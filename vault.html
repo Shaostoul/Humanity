@@ -205,7 +205,8 @@
       align-items: center;
       gap: .5rem;
     }
-    #vault-sidebar-footer span { font-size: .68rem; color: #444; flex: 1; }
+    #vault-sidebar-footer span { font-size: .68rem; color: #444; }
+    #vault-lock-countdown { font-size: .62rem; color: #3a3a3a; flex: 1; text-align: center; }
     .btn-lock {
       background: none;
       border: 1px solid #2a2a2a;
@@ -558,7 +559,11 @@
   <div id="vault-sidebar">
     <div id="vault-sidebar-header">
       <h2>Vault</h2>
-      <button onclick="openNewEntryModal()" title="Add a new entry"
+      <button onclick="exportVault()" title="Download an encrypted backup of your vault"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer" title="Export backup">⬇</button>
+      <button onclick="openImportUI()" title="Restore vault from a backup file"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer" title="Import backup">⬆</button>
+      <button onclick="openNewEntryModal()" title="Add a new entry (Ctrl+N)"
         style="background:#f0a500;color:#000;border:none;border-radius:5px;padding:.25rem .55rem;font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
     </div>
     <div id="vault-search">
@@ -567,7 +572,8 @@
     <div id="vault-entry-list"></div>
     <div id="vault-sidebar-footer">
       <span id="vault-entry-count">0 entries</span>
-      <button class="btn-lock" onclick="lockVault()" title="Lock the vault">🔒 Lock</button>
+      <span id="vault-lock-countdown"></span>
+      <button class="btn-lock" onclick="lockVault()" title="Lock the vault now (Ctrl+L)">🔒 Lock</button>
     </div>
   </div>
 
@@ -663,6 +669,47 @@
       <div id="vault-detail-fields"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- ══ Tab-hidden blur overlay — secrets hidden when user switches away ══ -->
+<div id="vault-blur-overlay"
+  style="display:none;position:fixed;inset:0;z-index:900;background:rgba(8,8,8,.97);
+         align-items:center;justify-content:center;flex-direction:column;gap:.6rem;cursor:pointer"
+  onclick="document.getElementById('vault-blur-overlay').style.display='none'">
+  <div style="font-size:2.5rem">🔒</div>
+  <div style="font-size:.95rem;color:#888;font-family:'Segoe UI',system-ui,sans-serif">Vault hidden while you were away</div>
+  <div style="font-size:.75rem;color:#444;font-family:'Segoe UI',system-ui,sans-serif">Click to continue — or wait for auto-lock</div>
+</div>
+
+<!-- ══ Import vault modal ══ -->
+<div id="import-vault-overlay"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;
+         align-items:center;justify-content:center;padding:1rem"
+  onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#111;border:1px solid #222;border-radius:14px;padding:1.75rem;width:100%;max-width:460px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
+    <h3 style="font-size:.95rem;font-weight:700;color:#e0e0e0;margin-bottom:.4rem">⬆ Import Vault Backup</h3>
+    <p style="font-size:.78rem;color:#666;line-height:1.5;margin-bottom:1rem">
+      Select a <code>humanity-vault-backup.json</code> file and enter the passphrase you used when you exported it.
+      Entries will be merged — nothing gets overwritten.
+    </p>
+    <div style="margin-bottom:.8rem">
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.3rem">Backup File</label>
+      <input type="file" id="import-file" accept=".json,application/json"
+        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:.45rem .7rem;color:#e0e0e0;font-size:.82rem;cursor:pointer">
+    </div>
+    <div style="margin-bottom:1rem">
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.3rem">Vault Passphrase</label>
+      <input type="password" id="import-pass" placeholder="The passphrase used when this backup was created…"
+        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:.5rem .7rem;color:#e0e0e0;font-size:.85rem;outline:none">
+    </div>
+    <div id="import-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.75rem"></div>
+    <div style="display:flex;gap:.65rem;justify-content:flex-end">
+      <button onclick="document.getElementById('import-vault-overlay').style.display='none'"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+      <button id="import-btn" onclick="doImportVault()"
+        style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import & Merge</button>
+    </div>
   </div>
 </div>
 
@@ -853,9 +900,12 @@ async function doUnlockVault() {
 // ── Lock ─────────────────────────────────────────────────────────────────────
 
 function lockVault() {
+  clearTimeout(lockTimer);
+  lockTimer = null; lockAt = null;
   vaultKey = null;
   vault    = null;
   activeId = null;
+  document.getElementById('vault-blur-overlay').style.display = 'none';
   showScreen('lock');
   setTimeout(() => {
     const lp = document.getElementById('lock-pass');
@@ -870,6 +920,7 @@ function showVault() {
   showScreen('vault');
   renderEntryList();
   showWelcome();
+  resetLockTimer();
 }
 
 // ── Save vault to localStorage ────────────────────────────────────────────────
@@ -984,11 +1035,34 @@ function toggleReveal(fid) {
 
 function copyField(fid, value, btn) {
   navigator.clipboard.writeText(value).then(() => {
-    const cc = document.getElementById(fid + '-cc');
-    if (cc) { cc.textContent = '✓ Copied'; setTimeout(() => { cc.textContent = ''; }, 2500); }
+    const cc   = document.getElementById(fid + '-cc');
     const orig = btn.textContent;
     btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 2500);
+
+    // Detect if this is a secret field — look it up from the active entry
+    const fieldIndex = parseInt(fid.replace('fv-', ''), 10);
+    const entry = vault && vault.entries.find(e => e.id === activeId);
+    const isSecret = entry && entry.fields[fieldIndex] && entry.fields[fieldIndex].secret;
+
+    if (isSecret) {
+      // Auto-clear clipboard after 30 seconds with visible countdown
+      let remaining = 30;
+      if (cc) cc.textContent = `✓ Copied — clipboard clears in ${remaining}s`;
+      const iv = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(iv);
+          navigator.clipboard.writeText('').catch(() => {});
+          if (cc) { cc.textContent = '🧹 Clipboard cleared'; setTimeout(() => { cc.textContent = ''; }, 2000); }
+          btn.textContent = orig;
+        } else {
+          if (cc) cc.textContent = `✓ Copied — clipboard clears in ${remaining}s`;
+        }
+      }, 1000);
+    } else {
+      if (cc) { cc.textContent = '✓ Copied'; setTimeout(() => { cc.textContent = ''; }, 2500); }
+      setTimeout(() => { btn.textContent = orig; }, 2500);
+    }
   }).catch(() => {});
 }
 
@@ -1240,6 +1314,77 @@ function entryIcon(type) {
 
 function typeLabel(type) {
   return { seed_phrase: 'Seed Phrase', password: 'Password', note: 'Secure Note', login: 'Login', custom: 'Custom' }[type] || type;
+}
+
+// ── Auto-lock inactivity timer ────────────────────────────────────────────────
+// Goal: protect secrets if the user walks away. Locks vault after 5 minutes of
+// no interaction. Countdown is shown in the footer so users aren't surprised.
+
+const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+let lockTimer = null;
+let lockAt    = null;
+
+function resetLockTimer() {
+  if (!vault) return;
+  clearTimeout(lockTimer);
+  lockAt    = Date.now() + LOCK_TIMEOUT_MS;
+  lockTimer = setTimeout(lockVault, LOCK_TIMEOUT_MS);
+}
+
+function updateLockCountdown() {
+  const el = document.getElementById('vault-lock-countdown');
+  if (!el) return;
+  if (!vault || !lockAt) { el.textContent = ''; return; }
+  const rem = Math.max(0, lockAt - Date.now());
+  const m   = Math.floor(rem / 60000);
+  const s   = Math.floor((rem % 60000) / 1000);
+  el.textContent = `Auto-locks in ${m}:${String(s).padStart(2, '0')}`;
+}
+
+setInterval(() => { if (vault) updateLockCountdown(); }, 1000);
+
+// Reset the timer on any user interaction
+['mousemove', 'keydown', 'click', 'touchstart', 'scroll'].forEach(ev =>
+  document.addEventListener(ev, () => { if (vault) resetLockTimer(); }, { passive: true })
+);
+
+// ── Tab-hide blur overlay ─────────────────────────────────────────────────────
+// Goal: if the user switches away from this tab, blur the vault screen so
+// secrets aren't visible on screen-share or shoulder-surfing return.
+
+document.addEventListener('visibilitychange', () => {
+  const overlay = document.getElementById('vault-blur-overlay');
+  if (!overlay || !vault) return;
+  overlay.style.display = document.visibilityState === 'hidden' ? 'flex' : 'none';
+});
+
+// ── Import vault UI ───────────────────────────────────────────────────────────
+
+function openImportUI() {
+  document.getElementById('import-vault-overlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('import-pass').focus(), 80);
+}
+
+async function doImportVault() {
+  const fileInput = document.getElementById('import-file');
+  const pass      = document.getElementById('import-pass').value;
+  const msg       = document.getElementById('import-msg');
+  const btn       = document.getElementById('import-btn');
+
+  if (!fileInput.files.length) { msg.innerHTML = '<span style="color:#e55">Select a backup file first.</span>'; return; }
+  if (!pass)                   { msg.innerHTML = '<span style="color:#e55">Enter the passphrase used when this backup was created.</span>'; return; }
+
+  btn.disabled = true; btn.textContent = 'Importing…'; msg.textContent = '';
+
+  try {
+    await importVault(fileInput.files[0], pass);
+    msg.innerHTML = '<span style="color:#4ec87a">✓ Imported and merged. Entries are now in your vault.</span>';
+    btn.textContent = 'Done';
+    setTimeout(() => { document.getElementById('import-vault-overlay').style.display = 'none'; }, 2000);
+  } catch(e) {
+    msg.innerHTML = `<span style="color:#e55">⚠ ${e.message} — wrong passphrase?</span>`;
+    btn.disabled = false; btn.textContent = 'Import & Merge';
+  }
 }
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
