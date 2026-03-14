@@ -720,6 +720,49 @@ function loadEndorsements() {
 
 // Try loading endorsements once page has had time to connect (3 s delay).
 setTimeout(loadEndorsements, 3000);
+
+// ── Relay sync — push skill levels to server when user is signed in ──
+// This keeps the relay's skill_verifications/skill_dns table current so
+// /api/skills/{key} and /api/skills/search return accurate data.
+(function initSkillRelaySync() {
+  const raw = localStorage.getItem('humanity_key_backup');
+  if (!raw) return; // not signed in
+  let pub, name;
+  try { const b = JSON.parse(raw); pub = b.publicKeyHex; name = localStorage.getItem('humanity_name') || 'user'; }
+  catch { return; }
+  if (!pub) return;
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.addEventListener('open', () => {
+    ws.send(JSON.stringify({ type: 'identify', public_key: pub, display_name: name }));
+  });
+
+  ws.addEventListener('message', e => {
+    try {
+      const m = JSON.parse(e.data);
+      // Once identified, send all skills with a non-zero level
+      if (m.type === 'identified') {
+        const data = skillData || {};
+        for (const [sid, sk] of Object.entries(data)) {
+          if (!sk || !sk.level) continue;
+          ws.send(JSON.stringify({
+            type: 'skill_update',
+            skill_id: sid,
+            reality_xp: sk.xp || 0,
+            fantasy_xp: 0,
+            level: sk.level,
+          }));
+        }
+        // Done — no need to keep the socket open
+        setTimeout(() => ws.close(), 500);
+      }
+    } catch {}
+  });
+
+  ws.addEventListener('error', () => ws.close());
+})();
 </script>
 </body>
 </html>
