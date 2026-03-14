@@ -488,53 +488,141 @@ function reRenderMessagesForBlockChange() {
   });
 }
 
-// ── Seed Phrase Display UI ──
-// Goal: show the user their identity as a writable paper backup.
+// ── Seed Phrase (BIP39) UI ──
+// Goal: let users back up and restore their Ed25519 identity using a standard
+// 24-word BIP39 mnemonic — writeable on paper, hardware-wallet compatible.
 
 /**
- * Open a modal showing the identity seed as a paper-backup phrase.
- * Displays 8 groups of 4 hex chars the user can write on paper for
- * offline recovery without relying on a backup file or passphrase memory.
+ * Open a modal showing the identity as a 24-word BIP39 mnemonic.
+ * Words are derived deterministically from the 32-byte Ed25519 seed via
+ * SHA-256 checksum → 264 bits → 24×11-bit word indices.
+ * The user can copy the phrase or write it on paper for offline recovery.
  */
 async function openSeedPhraseModal() {
-  const phrase = await getSeedPhrase();
-  if (!phrase) {
+  let mnemonic;
+  try {
+    mnemonic = await generateMnemonic();
+  } catch (e) {
+    addSystemMessage('⚠️ Seed phrase unavailable — ' + e.message);
+    return;
+  }
+  if (!mnemonic) {
     addSystemMessage('⚠️ Seed phrase unavailable — key may be non-extractable.');
     return;
   }
 
+  const words = mnemonic.trim().split(/\s+/);
   const overlay = document.createElement('div');
   overlay.id = 'seed-phrase-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;';
-
-  const groups = phrase.trim().split(/\s+/);
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
 
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">📄 Paper Backup — Seed Phrase</h2>
-      <p style="font-size:.8rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
-        Write these groups on paper and store them somewhere <strong style="color:#e0e0e0">separate</strong> from your encrypted backup file.
-        Together they give you a second recovery method if you forget your passphrase.<br>
-        <strong style="color:#e55">Never photograph or digitally copy this screen.</strong>
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;max-height:90vh;overflow-y:auto">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .4rem">🌱 Identity Seed Phrase (24 words)</h2>
+      <p style="font-size:.78rem;color:#888;line-height:1.5;margin:0 0 1.1rem">
+        These 24 words <em>are</em> your identity. Anyone who has them can use your account —
+        guard them like a password. Write them on paper and keep them <strong style="color:#e0e0e0">offline and separate</strong>
+        from your encrypted backup file.<br>
+        <strong style="color:#e55">⚠ Never share, photograph, or paste these into any website.</strong>
       </p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.25rem">
-        ${groups.map((g, i) => `
-          <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:.6rem .75rem;display:flex;align-items:center;gap:.6rem">
-            <span style="font-size:.65rem;color:#555;min-width:16px">${i+1}.</span>
-            <code style="font-size:.95rem;letter-spacing:.12em;color:#f0a500;font-family:'Courier New',monospace">${g}</code>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin-bottom:1.1rem">
+        ${words.map((w, i) => `
+          <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:.45rem .6rem;display:flex;align-items:baseline;gap:.35rem">
+            <span style="font-size:.62rem;color:#444;min-width:18px;text-align:right">${i+1}.</span>
+            <span style="font-size:.88rem;color:#f0a500;font-weight:600;letter-spacing:.01em">${w}</span>
           </div>`).join('')}
       </div>
-      <p style="font-size:.72rem;color:#555;margin-bottom:1rem">
-        Identity: <code style="color:#888">${(myIdentity && myIdentity.publicKeyHex || '').slice(0,16)}…</code>
+      <p style="font-size:.68rem;color:#444;margin:0 0 1rem">
+        Identity: <code style="color:#666">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
       </p>
-      <div style="display:flex;gap:.75rem;justify-content:flex-end">
-        <button onclick="this.closest('#seed-phrase-overlay').remove()"
+      <div id="sp-copy-msg" style="font-size:.72rem;color:#4ec87a;min-height:1em;margin-bottom:.6rem"></div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end;flex-wrap:wrap">
+        <button id="sp-copy-btn" onclick="(function(){
+          navigator.clipboard.writeText('${mnemonic}').then(()=>{
+            document.getElementById('sp-copy-msg').textContent='✓ Copied to clipboard — paste it somewhere secure then clear your clipboard.';
+            document.getElementById('sp-copy-btn').textContent='Copied!';
+          }).catch(()=>{
+            document.getElementById('sp-copy-msg').textContent='Copy failed — select the words manually.';
+          });
+        })()"
+          style="background:none;border:1px solid #444;color:#aaa;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">📋 Copy</button>
+        <button onclick="document.getElementById('seed-phrase-overlay').remove()"
           style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Done — I wrote it down</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+/**
+ * Open the restore-from-mnemonic modal.
+ * User pastes or types their 24 BIP39 words; on submit calls
+ * restoreIdentityFromMnemonic() which validates the checksum, rebuilds the
+ * Ed25519 keypair, stores it, then reloads to reconnect as the restored identity.
+ */
+function openRestoreFromMnemonicModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'restore-mnemonic-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:520px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .4rem">🌱 Restore from Seed Phrase</h2>
+      <p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 1rem">
+        Enter your 24 recovery words separated by spaces.
+        <strong style="color:#e55">This will permanently replace your current identity on this device.</strong>
+      </p>
+      <div style="margin-bottom:.9rem">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">24-Word Seed Phrase</label>
+        <textarea id="rm-words" rows="4" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          style="width:100%;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:.6rem .75rem;color:#e0e0e0;font-size:.88rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.5"></textarea>
+      </div>
+      <div id="rm-word-count" style="font-size:.7rem;color:#555;margin-bottom:.5rem">0 / 24 words entered</div>
+      <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.9rem"></div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end">
+        <button onclick="document.getElementById('restore-mnemonic-overlay').remove()"
+          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+        <button id="rm-btn" onclick="doRestoreFromMnemonic()"
+          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  const ta = document.getElementById('rm-words');
+  const counter = document.getElementById('rm-word-count');
+  ta.addEventListener('input', () => {
+    const count = ta.value.trim().split(/\s+/).filter(Boolean).length;
+    counter.textContent = `${count} / 24 words entered`;
+    counter.style.color = count === 24 ? '#4ec87a' : '#555';
+  });
+  ta.focus();
+}
+
+async function doRestoreFromMnemonic() {
+  const ta  = document.getElementById('rm-words');
+  const msg = document.getElementById('rm-msg');
+  const btn = document.getElementById('rm-btn');
+  const mnemonic = ta.value.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const wordCount = mnemonic.split(' ').filter(Boolean).length;
+  if (wordCount !== 24) {
+    msg.innerHTML = `<span style="color:#e55">Expected 24 words, got ${wordCount}. Check for extra spaces or missing words.</span>`;
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Restoring…'; msg.innerHTML = '';
+
+  try {
+    const identity = await restoreIdentityFromMnemonic(mnemonic);
+    msg.innerHTML = `<span style="color:#4ec87a">✓ Identity restored! Public key: <code>${identity.publicKeyHex.slice(0,16)}…</code><br>Reloading in 2 seconds…</span>`;
+    setTimeout(() => location.reload(), 2000);
+  } catch (e) {
+    msg.innerHTML = `<span style="color:#e55">⚠ ${e.message}</span>`;
+    btn.disabled = false; btn.textContent = 'Restore Identity';
+  }
 }
 
 // ── Identity Backup / Restore UI ──

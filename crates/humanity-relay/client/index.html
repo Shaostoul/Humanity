@@ -456,7 +456,9 @@
 
   <!-- External scripts: crypto module must load before app -->
   <!-- nginx serves these from /chat/ which aliases to this directory -->
-  <!-- Load order: crypto → app (core) → feature modules (each patches globals from prior scripts) -->
+  <!-- Load order: bip39-english (wordlist) → crypto → app (core) → feature modules (each patches globals from prior scripts) -->
+  <!-- bip39-english.js must load before crypto.js so generateMnemonic() and restoreIdentityFromMnemonic() have the wordlist -->
+  <script src="/chat/bip39-english.js?v=1"></script>
   <script src="/chat/crypto.js?v=4"></script>
   <script src="/chat/app.js?v=4"></script>
   <script src="/chat/chat-messages.js?v=4"></script>
