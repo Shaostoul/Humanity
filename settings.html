@@ -657,6 +657,17 @@
         </div>
       </div>
 
+      <div class="settings-group">
+        <div class="settings-group-title">App Cache</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Clear App Cache &amp; Reload</strong>
+            <span>Forces every page to re-download fresh — use when an update isn't showing up. Keyboard shortcut: <kbd style="background:#222;border:1px solid #444;border-radius:3px;padding:1px 5px;font-size:0.78rem;">Ctrl+Shift+Delete</kbd></span>
+          </div>
+          <button onclick="clearAppCache()" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.84rem;font-weight:600;">Clear Cache</button>
+        </div>
+      </div>
+
       <p class="version-tag" id="version-tag">HumanityOS — loading version…</p>
     </section>
 
@@ -728,6 +739,18 @@ function showSaved() {
   btn.style.background = '#1a5a3a';
   setTimeout(() => { btn.textContent = '💾 Save Settings'; btn.style.background = ''; }, 1800);
   savePref();
+}
+
+async function clearAppCache() {
+  // Wipe all service-worker caches and force a full network reload.
+  // Fixes stale JS/HTML after a deploy — same as Ctrl+Shift+Delete.
+  try {
+    const names = await caches.keys();
+    await Promise.all(names.map(n => caches.delete(n)));
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map(r => r.unregister()));
+  } catch (_) {}
+  location.reload(true);
 }
 
 function clearAllData() {

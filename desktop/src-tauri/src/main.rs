@@ -1,18 +1,45 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
 use tauri_plugin_updater::UpdaterExt;
+
+/// JS injected into every page load.
+/// Ctrl+Shift+Delete clears all SW caches and hard-reloads — fixes stale pages after a deploy.
+const INIT_SCRIPT: &str = r#"
+(function () {
+    if (window.__HOS_APP_INIT__) return;
+    window.__HOS_APP_INIT__ = true;
+    document.addEventListener('keydown', async function (e) {
+        if (e.ctrlKey && e.shiftKey && e.key === 'Delete') {
+            e.preventDefault();
+            try {
+                const names = await caches.keys();
+                await Promise.all(names.map(n => caches.delete(n)));
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map(r => r.unregister()));
+            } catch (_) {}
+            location.reload(true);
+        }
+    });
+})();
+"#;
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            // Navigate the main window to the remote Humanity web app
-            if let Some(window) = app.get_webview_window("main") {
-                let version = app.config().version.clone().unwrap_or_else(|| "dev".to_string());
-                let _ = window.set_title(&format!("Humanity — v{version}"));
-                let _ = window.navigate("https://united-humanity.us".parse().unwrap());
-            }
+            let version = app.config().version.clone().unwrap_or_else(|| "dev".to_string());
+
+            // Build main window pointing at the live site, with keyboard shortcut injection
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::External("https://united-humanity.us".parse().unwrap()),
+            )
+            .title(format!("Humanity — v{version}"))
+            .inner_size(1200.0, 800.0)
+            .min_inner_size(400.0, 300.0)
+            .initialization_script(INIT_SCRIPT)
+            .build()?;
 
             // Check for updates in the background
             let handle = app.handle().clone();
