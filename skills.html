@@ -637,6 +637,7 @@ function buildSkillCard(skill, color) {
       <button class="xp-btn primary" onclick="addXp('${skill.id}', 50, document.getElementById('card-${skill.id}'))">+50 XP</button>
       <button class="xp-btn" onclick="addXp('${skill.id}', 100, document.getElementById('card-${skill.id}'))">+100 XP</button>
       <span class="xp-current">${s.level >= MAX_LEVEL ? '✓ Mastered' : 'Total XP: ' + totalXp(skill.id)}</span>
+      <button class="xp-btn" style="margin-left:auto;font-size:0.65rem" title="Find community members with this skill" onclick="findUsersWithSkill('${skill.id}', '${skill.name}')">👥 Find</button>
     </div>
   </div>`;
 }
@@ -695,6 +696,49 @@ window.selectDomain = function(id) {
   origSelect(id);
   localStorage.setItem('hos_skills_last_domain', id);
 };
+
+/**
+ * Show a modal listing community members who have this skill,
+ * fetched from /api/skills/search. Useful for finding collaborators.
+ */
+async function findUsersWithSkill(skillId, skillName) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;">
+      <h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:0.25rem">👥 ${skillName}</h2>
+      <p style="font-size:0.73rem;color:#666;margin-bottom:1rem">Community members with this skill (from relay database):</p>
+      <div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+        <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:0.4rem 1rem;font-size:0.82rem;cursor:pointer;">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  const resultsEl = document.getElementById('skill-find-results');
+  try {
+    const res = await fetch(`/api/skills/search?skill=${encodeURIComponent(skillId)}&min_level=1&limit=20`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const users = await res.json();
+    if (!users || users.length === 0) {
+      resultsEl.innerHTML = '<span style="color:#555">No community members found with this skill yet. Be the first to level it up!</span>';
+      return;
+    }
+    const lvColors = ['#555','#888','#aaa','#6ab0f5','#4ec87a','#f0c040','#f0a500','#e57c00','#e53935','#c62828','#9c27b0'];
+    resultsEl.innerHTML = users.map(u => {
+      const lv = u.level || 0;
+      const c = lvColors[Math.min(lv, lvColors.length-1)];
+      return `<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid #1e1e1e;">
+        <div style="width:28px;height:28px;border-radius:50%;background:#222;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:${c}">${lv}</div>
+        <span style="flex:1;font-weight:600">${u.display_name || u.public_key.slice(0,12)+'…'}</span>
+        <span style="font-size:0.68rem;color:#555">${u.reality_xp|0} XP</span>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    resultsEl.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+  }
+}
 
 // ── Endorsement counts from relay ──
 // Keyed by skill_id (lowercase), value is { count, last_endorser }
