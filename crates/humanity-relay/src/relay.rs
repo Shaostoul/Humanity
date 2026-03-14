@@ -2292,7 +2292,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     let new_status   = raw.get("status").and_then(|v| v.as_str()).filter(|s| valid_statuses.contains(s));
                                     let new_priority = raw.get("priority").and_then(|v| v.as_str()).filter(|p| valid_priorities.contains(p));
                                     let new_title    = raw.get("title").and_then(|v| v.as_str());
-                                    let new_assignee = raw.get("assignee").and_then(|v| v.as_str());
+                                    // assignee key present (even empty) means "set this value"; absent means "don't change"
+                                    let assignee_present = raw.get("assignee").is_some();
+                                    let new_assignee_str = raw.get("assignee").and_then(|v| v.as_str());
                                     if let Ok(Some(task)) = state_clone.db.get_task(task_id) {
                                         // Move to new status if changed
                                         if let Some(ns) = new_status {
@@ -2301,10 +2303,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             }
                                         }
                                         // Update other fields if any changed
-                                        if new_priority.is_some() || new_title.is_some() || new_assignee.is_some() {
+                                        if new_priority.is_some() || new_title.is_some() || assignee_present {
                                             let priority = new_priority.unwrap_or(&task.priority);
                                             let title    = new_title.unwrap_or(&task.title);
-                                            let assignee = new_assignee.or(task.assignee.as_deref());
+                                            // Empty string → clear (None); absent key → keep existing
+                                            let assignee = if assignee_present {
+                                                new_assignee_str.filter(|s| !s.is_empty())
+                                            } else {
+                                                task.assignee.as_deref()
+                                            };
                                             let _ = state_clone.db.update_task(task_id, title, &task.description, priority, assignee, &task.labels);
                                         }
                                         if let Ok(Some(updated)) = state_clone.db.get_task(task_id) {
