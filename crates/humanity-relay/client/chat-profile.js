@@ -518,41 +518,103 @@ async function openSeedPhraseModal() {
 
   overlay.innerHTML = `
     <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .4rem">🌱 Identity Seed Phrase (24 words)</h2>
-      <p style="font-size:.78rem;color:#888;line-height:1.5;margin:0 0 1.1rem">
-        These 24 words <em>are</em> your identity. Anyone who has them can use your account —
-        guard them like a password. Write them on paper and keep them <strong style="color:#e0e0e0">offline and separate</strong>
-        from your encrypted backup file.<br>
-        <strong style="color:#e55">⚠ Never share, photograph, or paste these into any website.</strong>
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .3rem">🌱 Identity Seed Phrase (24 words)</h2>
+      <p style="font-size:.76rem;color:#888;line-height:1.5;margin:0 0 .8rem">
+        These 24 words <em>are</em> your identity — anyone who has them can use your account.
+        Store at least one copy somewhere safe. <strong style="color:#e55">Never photograph this screen.</strong>
       </p>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin-bottom:1.1rem">
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.9rem">
         ${words.map((w, i) => `
-          <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:.45rem .6rem;display:flex;align-items:baseline;gap:.35rem">
-            <span style="font-size:.62rem;color:#444;min-width:18px;text-align:right">${i+1}.</span>
-            <span style="font-size:.88rem;color:#f0a500;font-weight:600;letter-spacing:.01em">${w}</span>
+          <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:.4rem .55rem;display:flex;align-items:baseline;gap:.3rem">
+            <span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">${i+1}.</span>
+            <span style="font-size:.86rem;color:#f0a500;font-weight:600">${w}</span>
           </div>`).join('')}
       </div>
-      <p style="font-size:.68rem;color:#444;margin:0 0 1rem">
-        Identity: <code style="color:#666">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
+
+      <p style="font-size:.7rem;color:#555;margin:0 0 .6rem">Pick at least one storage method:</p>
+
+      <div style="display:grid;gap:.5rem;margin-bottom:1rem">
+        <!-- Paper -->
+        <div style="background:#0f0f0f;border:1px solid #222;border-radius:8px;padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+          <div>
+            <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">📝 Paper — write it down</p>
+            <p style="font-size:.72rem;color:#555;margin:0">Offline. Can't be hacked. Fireproof box or safe.</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <button id="sp-copy-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy</button>
+            <span id="sp-copy-msg" style="font-size:.68rem;color:#4ec87a"></span>
+          </div>
+        </div>
+
+        <!-- Encrypted file -->
+        <div style="background:#0f0f0f;border:1px solid #222;border-radius:8px;padding:.7rem .9rem">
+          <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">💾 Encrypted file — store in cloud</p>
+          <p style="font-size:.72rem;color:#555;margin:0 0 .5rem">Lock the words with a passphrase → download a tiny file → store in Google Drive, Dropbox, etc. Useless without the passphrase, so keep them separate.</p>
+          <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+            <input id="sp-enc-pass" type="password" placeholder="Choose a passphrase (8+ chars)…" autocomplete="new-password"
+              style="flex:1;min-width:150px;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.3rem .6rem;color:#e0e0e0;font-size:.76rem;outline:none">
+            <button id="sp-enc-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer;white-space:nowrap">💾 Download</button>
+          </div>
+          <span id="sp-enc-msg" style="font-size:.7rem;color:#4ec87a;display:block;margin-top:.3rem;min-height:1em"></span>
+        </div>
+
+        <!-- Password manager -->
+        <div style="background:#0f0f0f;border:1px solid #222;border-radius:8px;padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+          <div>
+            <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">🔐 Password manager Secure Note</p>
+            <p style="font-size:.72rem;color:#555;margin:0">Copy → paste into <strong style="color:#777">Bitwarden</strong> or <strong style="color:#777">1Password</strong> as a Secure Note. Syncs everywhere.</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">
+            <button id="sp-pm-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy</button>
+            <span id="sp-pm-msg" style="font-size:.68rem;color:#4ec87a"></span>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size:.66rem;color:#3a3a3a;margin:0 0 .9rem">
+        Identity: <code style="color:#555">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
       </p>
-      <div id="sp-copy-msg" style="font-size:.72rem;color:#4ec87a;min-height:1em;margin-bottom:.6rem"></div>
-      <div style="display:flex;gap:.75rem;justify-content:flex-end;flex-wrap:wrap">
-        <button id="sp-copy-btn" onclick="(function(){
-          navigator.clipboard.writeText('${mnemonic}').then(()=>{
-            document.getElementById('sp-copy-msg').textContent='✓ Copied to clipboard — paste it somewhere secure then clear your clipboard.';
-            document.getElementById('sp-copy-btn').textContent='Copied!';
-          }).catch(()=>{
-            document.getElementById('sp-copy-msg').textContent='Copy failed — select the words manually.';
-          });
-        })()"
-          style="background:none;border:1px solid #444;color:#aaa;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">📋 Copy</button>
+      <div style="display:flex;justify-content:flex-end">
         <button onclick="document.getElementById('seed-phrase-overlay').remove()"
-          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Done — I wrote it down</button>
+          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  // Wire copy buttons and encrypted download
+  const _mn = mnemonic;
+  overlay.querySelector('#sp-copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(_mn).then(() => {
+      overlay.querySelector('#sp-copy-msg').textContent = '✓ Copied';
+      overlay.querySelector('#sp-copy-btn').textContent = 'Copied!';
+    }).catch(() => { overlay.querySelector('#sp-copy-msg').textContent = 'Failed'; });
+  });
+
+  overlay.querySelector('#sp-pm-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(_mn).then(() => {
+      overlay.querySelector('#sp-pm-msg').textContent = '✓ Copied — paste into a Secure Note';
+      overlay.querySelector('#sp-pm-btn').textContent = 'Copied!';
+    }).catch(() => { overlay.querySelector('#sp-pm-msg').textContent = 'Failed'; });
+  });
+
+  overlay.querySelector('#sp-enc-btn').addEventListener('click', async () => {
+    const pass = overlay.querySelector('#sp-enc-pass').value.trim();
+    const encMsg = overlay.querySelector('#sp-enc-msg');
+    const encBtn = overlay.querySelector('#sp-enc-btn');
+    if (pass.length < 8) { encMsg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
+    encBtn.disabled = true; encBtn.textContent = 'Encrypting…'; encMsg.textContent = '';
+    try {
+      await downloadEncryptedMnemonic(_mn, pass);
+      encMsg.textContent = '✓ Downloaded — store the file in cloud, passphrase stays in your head.';
+      encBtn.textContent = 'Downloaded!';
+    } catch(e) {
+      encMsg.innerHTML = `<span style="color:#e55">${e.message}</span>`;
+      encBtn.disabled = false; encBtn.textContent = '💾 Download';
+    }
+  });
 }
 
 /**
@@ -567,19 +629,37 @@ function openRestoreFromMnemonicModal() {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
 
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:520px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .4rem">🌱 Restore from Seed Phrase</h2>
-      <p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 1rem">
-        Enter your 24 recovery words separated by spaces.
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;max-height:90vh;overflow-y:auto">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .3rem">🌱 Restore from Seed Phrase</h2>
+      <p style="font-size:.78rem;color:#888;line-height:1.5;margin:0 0 .9rem">
         <strong style="color:#e55">This will permanently replace your current identity on this device.</strong>
+        Use one of the two methods below:
       </p>
-      <div style="margin-bottom:.9rem">
-        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">24-Word Seed Phrase</label>
-        <textarea id="rm-words" rows="4" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          style="width:100%;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:.6rem .75rem;color:#e0e0e0;font-size:.88rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.5"></textarea>
+
+      <!-- Tab: type words -->
+      <div style="border:1px solid #2a2a2a;border-radius:9px;padding:.9rem 1rem;margin-bottom:.6rem">
+        <p style="font-size:.82rem;color:#e0e0e0;font-weight:600;margin:0 0 .4rem">✍️ Type or paste your 24 words</p>
+        <textarea id="rm-words" rows="3" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          style="width:100%;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:.55rem .7rem;color:#e0e0e0;font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
+        <div id="rm-word-count" style="font-size:.7rem;color:#555;margin:.3rem 0 0">0 / 24 words</div>
       </div>
-      <div id="rm-word-count" style="font-size:.7rem;color:#555;margin-bottom:.5rem">0 / 24 words entered</div>
-      <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.9rem"></div>
+
+      <!-- Tab: decrypt encrypted file -->
+      <div style="border:1px solid #2a2a2a;border-radius:9px;padding:.9rem 1rem;margin-bottom:.9rem">
+        <p style="font-size:.82rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">💾 Restore from encrypted phrase file</p>
+        <p style="font-size:.72rem;color:#555;margin:0 0 .5rem">If you saved a <code>humanity-phrase-backup.json</code> earlier, upload it here with the passphrase you chose.</p>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+          <input id="rm-file" type="file" accept=".json,application/json"
+            style="flex:1;min-width:120px;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:6px;padding:.3rem .5rem;color:#aaa;font-size:.74rem;cursor:pointer">
+          <input id="rm-file-pass" type="password" placeholder="Passphrase…" autocomplete="current-password"
+            style="flex:1;min-width:110px;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:6px;padding:.3rem .6rem;color:#e0e0e0;font-size:.76rem;outline:none">
+          <button id="rm-file-btn"
+            style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.74rem;cursor:pointer;white-space:nowrap">Decrypt</button>
+        </div>
+        <div id="rm-file-msg" style="font-size:.7rem;color:#4ec87a;min-height:1em;margin-top:.3rem"></div>
+      </div>
+
+      <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.7rem"></div>
       <div style="display:flex;gap:.75rem;justify-content:flex-end">
         <button onclick="document.getElementById('restore-mnemonic-overlay').remove()"
           style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
@@ -595,10 +675,29 @@ function openRestoreFromMnemonicModal() {
   const counter = document.getElementById('rm-word-count');
   ta.addEventListener('input', () => {
     const count = ta.value.trim().split(/\s+/).filter(Boolean).length;
-    counter.textContent = `${count} / 24 words entered`;
+    counter.textContent = `${count} / 24 words`;
     counter.style.color = count === 24 ? '#4ec87a' : '#555';
   });
   ta.focus();
+
+  // Wire the encrypted-file decrypt button — decrypts and fills the textarea.
+  document.getElementById('rm-file-btn').addEventListener('click', async () => {
+    const fileInput = document.getElementById('rm-file');
+    const pass      = document.getElementById('rm-file-pass').value;
+    const fileMsg   = document.getElementById('rm-file-msg');
+    if (!fileInput.files.length) { fileMsg.innerHTML = '<span style="color:#e55">Select a file first.</span>'; return; }
+    if (!pass) { fileMsg.innerHTML = '<span style="color:#e55">Enter your passphrase.</span>'; return; }
+    try {
+      const text   = await fileInput.files[0].text();
+      const blob   = JSON.parse(text);
+      const words  = await decryptMnemonic(blob, pass);
+      ta.value = words;
+      ta.dispatchEvent(new Event('input'));
+      fileMsg.textContent = '✓ Decrypted — verify the words above, then click Restore Identity.';
+    } catch(e) {
+      fileMsg.innerHTML = `<span style="color:#e55">⚠ ${e.message}</span>`;
+    }
+  });
 }
 
 async function doRestoreFromMnemonic() {

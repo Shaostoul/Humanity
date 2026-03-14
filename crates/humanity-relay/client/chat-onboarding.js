@@ -127,63 +127,130 @@ function step0() {
   `;
 }
 
-// ── Step 1: Seed Phrase ───────────────────────────────────────────────────────
+// ── Step 1: Seed Phrase + Storage Options ────────────────────────────────────
 function step1(mnemonic) {
   const words = mnemonic ? mnemonic.trim().split(/\s+/) : [];
   const wordGrid = words.length === 24
-    ? `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin:1rem 0">
+    ? `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin:.75rem 0 .6rem">
         ${words.map((w, i) => `
-          <div style="background:#0a0a0a;border:1px solid #2a2a2a;border-radius:7px;
-                      padding:.4rem .5rem;display:flex;align-items:baseline;gap:.3rem">
-            <span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">${i+1}.</span>
-            <span style="font-size:.82rem;color:#f0a500;font-weight:600">${w}</span>
+          <div style="background:#0a0a0a;border:1px solid #2a2a2a;border-radius:6px;
+                      padding:.35rem .45rem;display:flex;align-items:baseline;gap:.25rem">
+            <span style="font-size:.58rem;color:#444;min-width:15px;text-align:right">${i+1}.</span>
+            <span style="font-size:.8rem;color:#f0a500;font-weight:600">${w}</span>
           </div>`).join('')}
-      </div>
-      <div id="ob-copy-row" style="display:flex;align-items:center;gap:.75rem;margin-bottom:.6rem">
-        <button id="ob-copy-btn"
-          style="background:none;border:1px solid #333;color:#888;border-radius:7px;
-                 padding:.35rem .9rem;font-size:.78rem;cursor:pointer">📋 Copy all 24 words</button>
-        <span id="ob-copy-msg" style="font-size:.72rem;color:#4ec87a"></span>
       </div>`
-    : `<div style="background:#1a1a1a;border:1px dashed #333;border-radius:8px;padding:1rem;
-                   font-size:.8rem;color:#666;margin:1rem 0;text-align:center">
-         Seed phrase unavailable — your key may not be extractable in this browser.<br>
-         Use <strong>Encrypted Backup</strong> from the profile menu instead.
+    : `<div style="background:#1a1a1a;border:1px dashed #333;border-radius:8px;padding:.9rem;
+                   font-size:.8rem;color:#666;margin:.75rem 0;text-align:center">
+         Seed phrase unavailable in this browser. Use <strong>Encrypted Backup</strong> instead.
        </div>`;
 
   return `
-    <h2 style="font-size:1.2rem;font-weight:800;color:#f0a500;margin:0 0 .4rem">🌱 Your 24-Word Recovery Phrase</h2>
-    <p style="font-size:.83rem;line-height:1.6;color:#888;margin:0 0 .75rem">
-      Here's the most important thing we'll tell you today:
+    <h2 style="font-size:1.15rem;font-weight:800;color:#f0a500;margin:0 0 .3rem">🌱 Your 24-Word Recovery Phrase</h2>
+    <p style="font-size:.8rem;line-height:1.5;color:#888;margin:0 0 .5rem">
+      These 24 words <em>are</em> your identity — they can recreate your account on any device, forever.
+      Think of them as a master key. <strong style="color:#ccc">Anyone who has them is you.</strong>
     </p>
-
-    <div style="background:#1c1200;border:1px solid #5a3800;border-radius:10px;padding:1rem 1.1rem;margin-bottom:.75rem">
-      <p style="font-size:.85rem;color:#f0a500;font-weight:700;margin:0 0 .4rem">⚠️ Think of this as your master key</p>
-      <p style="font-size:.8rem;color:#ccc;line-height:1.6;margin:0">
-        These 24 words can restore your entire identity on any device, forever.
-        Anyone who has them <em>is</em> you — so keep them offline, on paper,
-        somewhere only you can find. <strong>Don't screenshot. Don't email. Don't type them into any website.</strong>
-      </p>
-    </div>
 
     ${wordGrid}
 
-    <label style="display:flex;align-items:flex-start;gap:.6rem;cursor:pointer;font-size:.8rem;color:#888;line-height:1.5" id="ob-wrote-label">
-      <input type="checkbox" id="ob-wrote-check" style="margin-top:.15rem;accent-color:#f0a500">
-      I've written these 24 words on paper and stored them somewhere safe.
-    </label>
+    <p style="font-size:.75rem;color:#555;margin:0 0 .7rem">Choose at least one backup method below. Two is better.</p>
+
+    <!-- Option A: Paper -->
+    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.8rem 1rem;margin-bottom:.5rem">
+      <p style="font-size:.82rem;color:#e0e0e0;font-weight:700;margin:0 0 .25rem">📝 Paper (most secure)</p>
+      <p style="font-size:.76rem;color:#666;line-height:1.5;margin:0 0 .5rem">
+        Write the 24 words by hand. Store the paper somewhere safe — a fireproof box, a safe, a trusted person's home.
+        Paper can't be hacked. Just don't lose it or get it wet.
+      </p>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <button id="ob-copy-btn"
+          style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;
+                 padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy words</button>
+        <span id="ob-copy-msg" style="font-size:.7rem;color:#4ec87a"></span>
+      </div>
+    </div>
+
+    <!-- Option B: Encrypted file -->
+    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.8rem 1rem;margin-bottom:.5rem">
+      <p style="font-size:.82rem;color:#e0e0e0;font-weight:700;margin:0 0 .25rem">💾 Encrypted file (easiest digital)</p>
+      <p style="font-size:.76rem;color:#666;line-height:1.5;margin:0 0 .5rem">
+        We lock the 24 words with a passphrase you choose, then download a tiny file (~1 KB).
+        Store that file in your cloud (Google Drive, Dropbox, iCloud) — it's useless without the passphrase,
+        so keep the passphrase in your head or a password manager. <strong style="color:#888">Never store the file and passphrase in the same place.</strong>
+      </p>
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <input id="ob-enc-pass" type="password" placeholder="Choose a passphrase…" autocomplete="new-password"
+          style="flex:1;min-width:140px;background:#111;border:1px solid #2a2a2a;border-radius:6px;
+                 padding:.3rem .6rem;color:#e0e0e0;font-size:.78rem;outline:none">
+        <button id="ob-enc-btn"
+          style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;
+                 padding:.3rem .8rem;font-size:.75rem;cursor:pointer;white-space:nowrap">💾 Download</button>
+        <span id="ob-enc-msg" style="font-size:.7rem;color:#4ec87a;width:100%"></span>
+      </div>
+    </div>
+
+    <!-- Option C: Password manager -->
+    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.8rem 1rem">
+      <p style="font-size:.82rem;color:#e0e0e0;font-weight:700;margin:0 0 .25rem">🔐 Password manager (most accessible)</p>
+      <p style="font-size:.76rem;color:#666;line-height:1.5;margin:0 0 .5rem">
+        Open <a href="https://bitwarden.com" target="_blank" rel="noopener"
+          style="color:#f0a500">Bitwarden</a>, <strong style="color:#888">1Password</strong>, or any password manager.
+        Create a new <em>Secure Note</em> called "Humanity seed phrase" and paste the 24 words there.
+        Password managers are encrypted, sync across devices, and survive losing your phone or laptop.
+        <br><strong style="color:#888">Bitwarden is free and open source.</strong>
+      </p>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <button id="ob-pm-btn"
+          style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;
+                 padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy for password manager</button>
+        <span id="ob-pm-msg" style="font-size:.7rem;color:#4ec87a"></span>
+      </div>
+    </div>
   `;
 }
 
 function wireStep1(overlay, mnemonic) {
+  // Paper copy
   const copyBtn = overlay.querySelector('#ob-copy-btn');
   const copyMsg = overlay.querySelector('#ob-copy-msg');
   if (copyBtn && mnemonic) {
     copyBtn.addEventListener('click', () => {
       navigator.clipboard.writeText(mnemonic).then(() => {
-        copyMsg.textContent = '✓ Copied — paste it somewhere offline, then clear your clipboard.';
+        copyMsg.textContent = '✓ Copied — write them down, then clear your clipboard.';
         copyBtn.textContent = 'Copied!';
-      }).catch(() => { copyMsg.textContent = 'Copy failed — select the words above manually.'; });
+      }).catch(() => { copyMsg.textContent = 'Copy failed — select the words manually.'; });
+    });
+  }
+
+  // Encrypted file download
+  const encBtn  = overlay.querySelector('#ob-enc-btn');
+  const encPass = overlay.querySelector('#ob-enc-pass');
+  const encMsg  = overlay.querySelector('#ob-enc-msg');
+  if (encBtn && mnemonic) {
+    encBtn.addEventListener('click', async () => {
+      const pass = encPass ? encPass.value.trim() : '';
+      if (pass.length < 8) { encMsg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
+      encBtn.disabled = true; encBtn.textContent = 'Encrypting…'; encMsg.textContent = '';
+      try {
+        await downloadEncryptedMnemonic(mnemonic, pass);
+        encMsg.textContent = '✓ File downloaded — store it in your cloud, keep the passphrase separate.';
+        encBtn.textContent = 'Downloaded!';
+      } catch(e) {
+        encMsg.innerHTML = `<span style="color:#e55">${e.message}</span>`;
+        encBtn.disabled = false; encBtn.textContent = '💾 Download';
+      }
+    });
+  }
+
+  // Password manager copy
+  const pmBtn = overlay.querySelector('#ob-pm-btn');
+  const pmMsg = overlay.querySelector('#ob-pm-msg');
+  if (pmBtn && mnemonic) {
+    pmBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(mnemonic).then(() => {
+        pmMsg.textContent = '✓ Copied — paste into a Secure Note in your password manager.';
+        pmBtn.textContent = 'Copied!';
+      }).catch(() => { pmMsg.textContent = 'Copy failed — select the words manually.'; });
     });
   }
 }

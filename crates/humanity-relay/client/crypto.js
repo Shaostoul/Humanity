@@ -765,3 +765,215 @@ function getPeerEcdhPublic(peerKey) {
 // ══════════════════════════════════════════════════════════════════════════════
 // End E2EE
 // ══════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BIP39 Seed Phrase — 24-word paper backup for the Ed25519 identity key
+// ══════════════════════════════════════════════════════════════════════════════
+// Goal: let users write 24 words on paper and fully restore their identity
+// on a new device with no cloud, no server, no QR code required.
+//
+// Encoding: 256-bit entropy (32-byte Ed25519 seed) + 8-bit SHA-256 checksum
+//           = 264 bits → 24 × 11 bits → 24 BIP39 words.
+//
+// The wordlist is loaded from window.BIP39_ENGLISH (bip39-english.js must be
+// loaded before crypto.js).  If unavailable the functions return null gracefully.
+
+/** @returns {string[]|null} The 2048-word BIP39 English list, or null. */
+function bip39Words() {
+  return (typeof window !== 'undefined' && Array.isArray(window.BIP39_ENGLISH) &&
+          window.BIP39_ENGLISH.length === 2048)
+    ? window.BIP39_ENGLISH : null;
+}
+
+/**
+ * Encode a 32-byte Uint8Array as a 24-word BIP39 mnemonic.
+ * 256-bit entropy + 8-bit checksum → 264 bits → 24 × 11 bits.
+ * @param {Uint8Array} seed32
+ * @returns {Promise<string|null>} Space-separated 24 words, or null.
+ */
+async function mnemonicFromSeed(seed32) {
+  const words = bip39Words();
+  if (!words || seed32.length !== 32) return null;
+  // Compute 8-bit checksum: first byte of SHA-256(seed)
+  const hashBuf = await crypto.subtle.digest('SHA-256', seed32);
+  const checksum = new Uint8Array(hashBuf)[0];
+  // Build bit array: 256 entropy bits + 8 checksum bits = 264 bits
+  const bits = [];
+  for (const byte of seed32) for (let i = 7; i >= 0; i--) bits.push((byte >> i) & 1);
+  for (let i = 7; i >= 0; i--) bits.push((checksum >> i) & 1);
+  // Group into 24 × 11-bit chunks → word indices
+  const result = [];
+  for (let i = 0; i < 24; i++) {
+    let idx = 0;
+    for (let j = 0; j < 11; j++) idx = (idx << 1) | bits[i * 11 + j];
+    result.push(words[idx]);
+  }
+  return result.join(' ');
+}
+
+/**
+ * Decode a 24-word BIP39 mnemonic back to the 32-byte seed.
+ * Validates word membership and SHA-256 checksum.
+ * @param {string} mnemonic - Space-separated 24 words (case-insensitive).
+ * @returns {Promise<Uint8Array>} 32-byte seed.
+ * @throws {Error} If words are invalid or checksum fails.
+ */
+async function seedFromMnemonic(mnemonic) {
+  const words = bip39Words();
+  if (!words) throw new Error('BIP39 wordlist not loaded.');
+  const list = mnemonic.toLowerCase().trim().split(/\s+/);
+  if (list.length !== 24) throw new Error('Recovery phrase must be exactly 24 words.');
+  // Decode words → bit array (264 bits)
+  const bits = [];
+  for (const word of list) {
+    const idx = words.indexOf(word);
+    if (idx < 0) throw new Error(`Unknown word: "${word}". Check spelling.`);
+    for (let j = 10; j >= 0; j--) bits.push((idx >> j) & 1);
+  }
+  // Extract 256 entropy bits → 32 bytes
+  const seed = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    for (let j = 0; j < 8; j++) seed[i] = (seed[i] << 1) | bits[i * 8 + j];
+  }
+  // Verify 8-bit checksum
+  const hashBuf = await crypto.subtle.digest('SHA-256', seed);
+  const expectedChecksum = new Uint8Array(hashBuf)[0];
+  let actualChecksum = 0;
+  for (let i = 0; i < 8; i++) actualChecksum = (actualChecksum << 1) | bits[256 + i];
+  if (actualChecksum !== expectedChecksum) {
+    throw new Error('Invalid recovery phrase — checksum failed. Check for typos.');
+  }
+  return seed;
+}
+
+/**
+ * Return the current identity as a 24-word BIP39 mnemonic.
+ * @returns {Promise<string|null>} Mnemonic string or null if unavailable.
+ */
+async function generateMnemonic() {
+  if (!myIdentity || !myIdentity.privateKey) return null;
+  try {
+    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+    const seed = extractSeedFromPkcs8(pkcs8);
+    return mnemonicFromSeed(seed);
+  } catch (e) { console.error('generateMnemonic failed:', e); return null; }
+}
+
+/**
+ * Restore identity from a 24-word BIP39 mnemonic.
+ * Derives the Ed25519 keypair, stores it to IndexedDB + localStorage,
+ * and returns an identity object ready to pass to reconnect().
+ * @param {string} mnemonic - 24-word recovery phrase.
+ * @returns {Promise<object>} Identity: { publicKeyHex, privateKey, publicKey, canSign }
+ * @throws {Error} If the mnemonic is invalid or the browser lacks Ed25519 support.
+ */
+async function restoreIdentityFromMnemonic(mnemonic) {
+  // Decode + checksum-validate the 24 words → 32-byte seed
+  const seed = await seedFromMnemonic(mnemonic);
+
+  // Wrap in Ed25519 PKCS8 structure (same prefix used by importIdentityFromJSON)
+  const pkcs8Prefix = new Uint8Array([
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+    0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20
+  ]);
+  const pkcs8 = new Uint8Array(48);
+  pkcs8.set(pkcs8Prefix, 0);
+  pkcs8.set(seed, 16);
+
+  // Import private key
+  const privateKey = await crypto.subtle.importKey('pkcs8', pkcs8, 'Ed25519', true, ['sign']);
+
+  // Derive public key via JWK export (Chrome 80+/Firefox 79+: JWK includes `x` = public key)
+  let publicKeyHex;
+  let publicKey;
+  try {
+    const jwk = await crypto.subtle.exportKey('jwk', privateKey);
+    if (!jwk.x) throw new Error('JWK missing public key field');
+    // base64url → bytes → hex
+    const pubBytes = Uint8Array.from(atob(jwk.x.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    publicKeyHex = bufToHex(pubBytes);
+    publicKey = await crypto.subtle.importKey('raw', pubBytes, 'Ed25519', true, ['verify']);
+  } catch (e) {
+    throw new Error('Could not derive public key from seed. Your browser may not fully support Ed25519. Error: ' + e.message);
+  }
+
+  // Sanity-check: sign + verify a test message
+  const test = new TextEncoder().encode('humanity-identity-verify');
+  const sig = await crypto.subtle.sign('Ed25519', privateKey, test);
+  const ok  = await crypto.subtle.verify('Ed25519', publicKey, sig, test);
+  if (!ok) throw new Error('Key self-verification failed — seed may be corrupted.');
+
+  // Persist to IndexedDB and localStorage backup
+  const db = await openKeyDB();
+  await storeKeypair(db, publicKeyHex, { privateKey, publicKey });
+  await saveKeyBackupToLocalStorage(publicKeyHex, privateKey);
+
+  console.log('Identity restored from mnemonic:', publicKeyHex.substring(0, 16) + '…');
+  return { publicKeyHex, privateKey, publicKey, canSign: true, isNew: false, restored: true };
+}
+
+/**
+ * Encrypt a BIP39 mnemonic with a user passphrase and return a small portable
+ * JSON blob that can be saved anywhere (file, password manager note, cloud).
+ * Uses PBKDF2-SHA256 (600k iterations) → AES-256-GCM, same as identity backup.
+ * The output contains everything needed to decrypt — no server, no account.
+ * @param {string} mnemonic  - 24-word space-separated BIP39 phrase.
+ * @param {string} passphrase - User-chosen encryption passphrase.
+ * @returns {Promise<object>} Blob: { v, enc, iv, salt } (all base64).
+ */
+async function encryptMnemonic(mnemonic, passphrase) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const key  = await deriveKeyFromPassphrase(passphrase, salt);
+  const data = new TextEncoder().encode(mnemonic);
+  const encBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+  const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  return {
+    v:    1,
+    type: 'humanity-mnemonic',
+    enc:  b64(encBuf),
+    iv:   b64(iv),
+    salt: b64(salt),
+  };
+}
+
+/**
+ * Decrypt a mnemonic blob produced by encryptMnemonic().
+ * @param {object} blob       - The { v, enc, iv, salt } object.
+ * @param {string} passphrase - The passphrase used when encrypting.
+ * @returns {Promise<string>} The 24-word mnemonic.
+ * @throws {Error} If the passphrase is wrong or the blob is malformed.
+ */
+async function decryptMnemonic(blob, passphrase) {
+  if (!blob || blob.type !== 'humanity-mnemonic') throw new Error('Not a mnemonic backup file.');
+  const b64dec = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const salt = b64dec(blob.salt);
+  const iv   = b64dec(blob.iv);
+  const enc  = b64dec(blob.enc);
+  const key  = await deriveKeyFromPassphrase(passphrase, salt);
+  let plain;
+  try {
+    plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, enc);
+  } catch {
+    throw new Error('Wrong passphrase or corrupted file.');
+  }
+  return new TextDecoder().decode(plain);
+}
+
+/**
+ * Encrypt a mnemonic and trigger a browser download of a tiny JSON file the
+ * user can store anywhere — cloud, USB, password manager attachment.
+ * Accepts an already-generated mnemonic string, or generates one if omitted.
+ * @param {string|null} mnemonic  - Pre-generated mnemonic, or null to generate.
+ * @param {string}      passphrase - User-chosen passphrase.
+ */
+async function downloadEncryptedMnemonic(mnemonic, passphrase) {
+  if (!mnemonic) mnemonic = await generateMnemonic();
+  if (!mnemonic) throw new Error('Key is not extractable — use Encrypted Backup instead.');
+  const blob = await encryptMnemonic(mnemonic, passphrase);
+  const json = JSON.stringify(blob, null, 2);
+  const a = document.createElement('a');
+  a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
+  a.download = 'humanity-phrase-backup.json';
+  a.click();
+}
