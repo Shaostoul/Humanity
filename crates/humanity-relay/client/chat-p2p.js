@@ -489,6 +489,9 @@ const SYNC_STORES = {
   'hos_skills_v1':   'skill_merge',   // skills XP/level map — merge by taking max(level, xp) per skill
   'hos_quests_v1':   'array_by_id',   // quests by id
   'hos_equipment_v1':'array_by_id',   // equipment items by id
+  'hos_logbook_v1':  'array_by_id',   // logbook journal entries by id
+  'map_pins_v1':     'blob',          // map pins array (no id field; last-write-wins)
+  'map_polygons_v1': 'array_by_id',   // map zone polygons by id
 };
 
 /** Read all syncable stores into a bundle object. */
