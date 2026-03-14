@@ -33,6 +33,16 @@ function upsertDmConversation(partnerKey, partnerName, lastMessage, lastTimestam
   }
   dmConversations.sort((a, b) => Number(b.last_timestamp || 0) - Number(a.last_timestamp || 0));
   renderDmList();
+  // Persist recent DMs summary for dashboard widget.
+  try {
+    const recent = dmConversations.slice(0, 10).map(c => ({
+      name: c.partner_name,
+      preview: c.last_message ? c.last_message.slice(0, 80) : '',
+      time: c.last_timestamp ? new Date(Number(c.last_timestamp) * (c.last_timestamp < 1e12 ? 1000 : 1)).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
+      unread: c.unread_count || 0,
+    }));
+    localStorage.setItem('hos_dm_recent', JSON.stringify(recent));
+  } catch {}
 }
 
 /** Switch to DM conversation view. */
