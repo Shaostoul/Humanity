@@ -1,4 +1,6 @@
-const CACHE_NAME = 'humanity-v5';
+// Bump version whenever cached assets change.
+// HTML pages are intentionally NEVER cached (they change every deploy).
+const CACHE_NAME = 'humanity-v6';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -7,21 +9,20 @@ const SHELL_URLS = [
   '/favicon.png'
 ];
 
-// Don't pre-cache /chat — it changes frequently and should always be network-first.
-
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(SHELL_URLS))
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()) // take control immediately
   );
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    // Delete all old caches (different version names)
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(() => self.clients.claim()) // claim existing tabs
   );
 });
 
@@ -49,17 +50,30 @@ self.addEventListener('notificationclick', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Never cache WebSocket, API, chat page, or uploads
   const url = event.request.url;
-  if (url.includes('/ws') || url.includes('/api/') || url.includes('/chat') || url.includes('/uploads/')) return;
 
+  // ── Never intercept these — always go to network ──────────────────────────
+  // HTML pages (document navigations): these change with every deploy,
+  // stale HTML = broken JS. The browser's HTTP cache handles them via ETag.
+  if (event.request.destination === 'document') return;
+
+  // API calls, WebSocket upgrades, uploads
+  if (url.includes('/ws') || url.includes('/api/') || url.includes('/uploads/')) return;
+
+  // ── Cache-first for static assets (CSS, JS, images, fonts) ────────────────
+  // These are safe to cache because they change rarely and when they do,
+  // bumping CACHE_NAME above ensures a fresh install wipes the old copies.
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request).then(response => {
+        // Only cache successful same-origin responses
+        if (response.ok && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
         return response;
-      })
-      .catch(() => caches.match(event.request))
+      });
+    }).catch(() => caches.match(event.request))
   );
 });
