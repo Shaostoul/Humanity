@@ -132,6 +132,45 @@
     .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #333; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 0.5rem; vertical-align: middle; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── Detail drawer ── */
+    .detail-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 800; }
+    .detail-overlay.open { display: block; }
+    #detail-drawer {
+      position: absolute; right: 0; top: 0; bottom: 0; width: 460px; max-width: 100%;
+      background: #141414; border-left: 1px solid #2a2a2a;
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.22s ease;
+    }
+    .detail-overlay.open #detail-drawer { transform: translateX(0); }
+    .detail-header {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.9rem 1rem; border-bottom: 1px solid #222; flex-shrink: 0;
+    }
+    .detail-body { flex: 1; overflow-y: auto; padding: 1.25rem; }
+    .detail-title { font-size: 1.05rem; font-weight: 700; color: var(--text); line-height: 1.4; margin-bottom: 1rem; }
+    .detail-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+    .detail-badge { font-size: 0.72rem; padding: 0.2rem 0.55rem; border-radius: 5px; font-weight: 600; text-transform: capitalize; }
+    .badge-status-backlog { background: #1a1a1a; color: #888; }
+    .badge-status-in_progress { background: #0a3a6e; color: #6ab0f5; }
+    .badge-status-testing { background: #4a3500; color: #f0c040; }
+    .badge-status-done { background: #0a3a1a; color: #4ec87a; }
+    .badge-priority-critical { background: rgba(229,57,53,.15); color: #e53935; }
+    .badge-priority-high { background: rgba(240,165,0,.15); color: #f0a500; }
+    .badge-priority-medium { background: rgba(33,150,243,.15); color: #2196f3; }
+    .badge-priority-low { background: rgba(80,80,80,.15); color: #666; }
+    .detail-desc {
+      font-size: 0.85rem; color: #c0c0c0; line-height: 1.65;
+      margin-bottom: 1.25rem; white-space: pre-wrap; word-break: break-word;
+      background: #0f0f0f; border: 1px solid #1e1e1e; border-radius: 6px; padding: 0.75rem 1rem;
+    }
+    .detail-meta { font-size: 0.73rem; color: var(--text-muted); border-top: 1px solid #1e1e1e; padding-top: 1rem; display: flex; flex-direction: column; gap: 0.45rem; }
+    .detail-meta-row { display: flex; align-items: flex-start; gap: 0.5rem; }
+    .detail-meta-label { color: var(--text-dim); min-width: 75px; flex-shrink: 0; }
+    .btn-close-detail { background: none; border: none; color: #666; font-size: 1.1rem; cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px; }
+    .btn-close-detail:hover { color: var(--text); background: #1a1a1a; }
+    .detail-id { font-size: 0.68rem; color: var(--text-dim); font-family: monospace; }
+    .detail-labels { margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
     /* ── Responsive ── */
     @media (max-width: 800px) {
       .kanban { grid-template-columns: 1fr 1fr; }
@@ -185,6 +224,25 @@
     <div class="col" data-status="done">
       <div class="col-header">Done <span class="col-count" id="count-done">0</span></div>
       <div class="col-body" id="col-done"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Task detail drawer -->
+<div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div id="detail-drawer">
+    <div class="detail-header">
+      <button class="btn-close-detail" onclick="closeDetail()" title="Close (Esc)">✕</button>
+      <span class="detail-id" id="detail-id"></span>
+      <div style="flex:1"></div>
+      <span id="detail-scope-badge" class="scope-badge"></span>
+    </div>
+    <div class="detail-body">
+      <div class="detail-title" id="detail-title"></div>
+      <div class="detail-badges" id="detail-badges"></div>
+      <div class="detail-desc" id="detail-desc"></div>
+      <div class="detail-labels" id="detail-labels"></div>
+      <div class="detail-meta" id="detail-meta"></div>
     </div>
   </div>
 </div>
@@ -434,10 +492,42 @@ async function submitTask() {
 }
 
 function openDetail(id) {
-  // TODO: detail panel — for now open a quick info alert
   const task = allTasks.find(t => t.id === id);
   if (!task) return;
-  // Future: slide-in detail panel
+
+  const scope = SCOPES.find(s => s.key === getTaskScope(task)) || SCOPES[5];
+  const labels = getNonScopeLabels(task);
+
+  document.getElementById('detail-id').textContent = '#' + task.id;
+  document.getElementById('detail-title').textContent = task.title;
+
+  const scopeBadge = document.getElementById('detail-scope-badge');
+  scopeBadge.textContent = scope.n + '·' + scope.label;
+  scopeBadge.style.color = scope.color;
+
+  const statusLabel = task.status.replace(/_/g, ' ');
+  document.getElementById('detail-badges').innerHTML =
+    `<span class="detail-badge badge-status-${task.status}">${statusLabel}</span>` +
+    `<span class="detail-badge badge-priority-${task.priority}">${task.priority}</span>`;
+
+  document.getElementById('detail-desc').textContent = task.description || '(No description)';
+
+  document.getElementById('detail-labels').innerHTML = labels.length
+    ? labels.map(l => `<span class="label-tag">${esc(l)}</span>`).join('')
+    : '';
+
+  const created = task.created_at ? new Date(task.created_at).toLocaleString() : '—';
+  const age = task.created_at ? timeAgo(task.created_at) + ' ago' : '';
+  document.getElementById('detail-meta').innerHTML =
+    `<div class="detail-meta-row"><span class="detail-meta-label">Created</span><span>${created}${age ? ' · ' + age : ''}</span></div>` +
+    (task.assignee ? `<div class="detail-meta-row"><span class="detail-meta-label">Assignee</span><span>${esc(task.assignee)}</span></div>` : '') +
+    (task.comment_count > 0 ? `<div class="detail-meta-row"><span class="detail-meta-label">Comments</span><span>${task.comment_count}</span></div>` : '');
+
+  document.getElementById('detail-overlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-overlay').classList.remove('open');
 }
 
 /* ── Helpers ── */
@@ -464,7 +554,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 /* Escape key */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape') { closeDetail(); closeModal(); }
 });
 
 init();

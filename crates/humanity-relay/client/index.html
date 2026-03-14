@@ -89,7 +89,11 @@
           <div id="my-key-display" style="font-family:monospace; font-size:0.6rem;"></div>
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
           <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
-          <button id="export-identity-btn" onclick="downloadIdentityBackup(myName)" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">📥 Export Identity</button>
+          <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
+            <button onclick="openEncryptedBackupModal()" title="Download passphrase-encrypted identity backup" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔐 Backup</button>
+            <button onclick="openRestoreIdentityModal()" title="Restore identity from a backup file" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
+            <button onclick="downloadIdentityBackup(myName)" title="Export plain (unencrypted) identity backup" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📄 Plain</button>
+          </div>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
             <button onclick="exportContactCard()" title="Share your contact card (QR / JSON) so others can add you P2P" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📤 Share Card</button>

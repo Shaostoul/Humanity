@@ -456,6 +456,139 @@ function reRenderMessagesForBlockChange() {
   });
 }
 
+// ── Identity Backup / Restore UI ──
+// Goal: give users a secure, frictionless way to protect and recover their
+// cryptographic identity from loss of device or browser data clear.
+
+/**
+ * Open the encrypted backup modal. Prompts user for a passphrase then downloads
+ * an AES-256-GCM encrypted identity backup file they can store anywhere.
+ */
+function openEncryptedBackupModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'encrypted-backup-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:6000;
+    display:flex;align-items:center;justify-content:center;
+  `;
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">🔑 Encrypted Identity Backup</h2>
+      <p style="font-size:.82rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
+        Choose a passphrase to protect your backup. Anyone with the file AND passphrase can use your identity —
+        so keep them <strong style="color:#e0e0e0">separate</strong> (file in cloud, passphrase memorised or in password manager).
+      </p>
+      <div style="margin-bottom:.9rem">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Passphrase</label>
+        <input id="eb-passphrase" type="password" placeholder="At least 8 characters…" autocomplete="new-password"
+          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+      </div>
+      <div style="margin-bottom:1.25rem">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Confirm Passphrase</label>
+        <input id="eb-passphrase2" type="password" placeholder="Repeat passphrase…" autocomplete="new-password"
+          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+      </div>
+      <div id="eb-msg" style="font-size:.75rem;margin-bottom:.9rem"></div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end">
+        <button onclick="this.closest('#encrypted-backup-overlay').remove()"
+          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+        <button id="eb-btn" onclick="doEncryptedBackup()"
+          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('eb-passphrase').focus();
+}
+
+async function doEncryptedBackup() {
+  const p1 = document.getElementById('eb-passphrase').value;
+  const p2 = document.getElementById('eb-passphrase2').value;
+  const msg = document.getElementById('eb-msg');
+
+  if (p1.length < 8) { msg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
+  if (p1 !== p2)     { msg.innerHTML = '<span style="color:#e55">Passphrases do not match.</span>'; return; }
+
+  const btn = document.getElementById('eb-btn');
+  btn.disabled = true; btn.textContent = 'Encrypting…';
+  msg.innerHTML = '';
+
+  try {
+    await exportEncryptedIdentityBackup(p1);
+    msg.innerHTML = '<span style="color:#4ec87a">✓ Backup downloaded. Keep the file and passphrase safe — separately.</span>';
+    btn.textContent = 'Done';
+    setTimeout(() => document.getElementById('encrypted-backup-overlay')?.remove(), 2500);
+  } catch (e) {
+    msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+    btn.disabled = false; btn.textContent = 'Download Encrypted Backup';
+  }
+}
+
+/**
+ * Open the restore identity modal. Accepts a file upload (plain or encrypted)
+ * and optionally a passphrase for encrypted backups.
+ */
+function openRestoreIdentityModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'restore-identity-overlay';
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:6000;
+    display:flex;align-items:center;justify-content:center;
+  `;
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">📥 Restore Identity</h2>
+      <p style="font-size:.82rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
+        Upload your identity backup file. If it was encrypted, enter the passphrase you used when creating it.
+        <strong style="color:#e55">This will replace your current identity.</strong>
+      </p>
+      <div style="margin-bottom:.9rem">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Backup File (.json)</label>
+        <input id="ri-file" type="file" accept=".json,application/json"
+          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.45rem .75rem;color:#e0e0e0;font-size:.82rem;cursor:pointer">
+      </div>
+      <div style="margin-bottom:1.25rem">
+        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Passphrase (if encrypted)</label>
+        <input id="ri-passphrase" type="password" placeholder="Leave blank for plain backups…" autocomplete="current-password"
+          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+      </div>
+      <div id="ri-msg" style="font-size:.75rem;margin-bottom:.9rem"></div>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end">
+        <button onclick="this.closest('#restore-identity-overlay').remove()"
+          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+        <button id="ri-btn" onclick="doRestoreIdentity()"
+          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function doRestoreIdentity() {
+  const fileInput = document.getElementById('ri-file');
+  const passphrase = document.getElementById('ri-passphrase').value;
+  const msg = document.getElementById('ri-msg');
+  const btn = document.getElementById('ri-btn');
+
+  if (!fileInput.files.length) { msg.innerHTML = '<span style="color:#e55">Please select a backup file.</span>'; return; }
+
+  btn.disabled = true; btn.textContent = 'Restoring…'; msg.innerHTML = '';
+
+  try {
+    const text = await fileInput.files[0].text();
+    const parsed = JSON.parse(text);
+    const result = await importIdentityBackup(parsed, passphrase || undefined);
+
+    msg.innerHTML = `<span style="color:#4ec87a">✓ Identity restored for <strong>${result.name}</strong>. Reloading…</span>`;
+    setTimeout(() => location.reload(), 1800);
+  } catch (e) {
+    msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+    btn.disabled = false; btn.textContent = 'Restore Identity';
+  }
+}
+
 /** Force re-render user list with updated block indicators. */
 function rerenderUserList() {
   const list = document.getElementById('peer-list');

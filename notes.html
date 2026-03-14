@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notes — HumanityOS</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #notes-app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      height: calc(100vh - 42px);
+    }
+
+    /* ── Sidebar ── */
+    #notes-sidebar {
+      width: 260px;
+      min-width: 200px;
+      background: #111;
+      border-right: 1px solid #1e1e1e;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #sidebar-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #1e1e1e;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #sidebar-header h2 {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #666;
+      flex: 1;
+    }
+
+    #btn-new-note {
+      background: #FF8811;
+      color: #000;
+      border: none;
+      border-radius: 5px;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #btn-new-note:hover { opacity: 0.85; }
+
+    #note-search {
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    #note-search input {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 5px;
+      padding: 0.3rem 0.6rem;
+      color: #e0e0e0;
+      font-size: 0.78rem;
+      outline: none;
+    }
+    #note-search input:focus { border-color: #FF8811; }
+
+    #note-list {
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #222 transparent;
+    }
+
+    .note-item {
+      padding: 0.65rem 1rem;
+      cursor: pointer;
+      border-bottom: 1px solid #141414;
+      border-left: 3px solid transparent;
+      transition: background 0.12s;
+    }
+    .note-item:hover { background: #161616; }
+    .note-item.active { background: #181818; border-left-color: #FF8811; }
+    .note-item-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #e0e0e0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 0.2rem;
+    }
+    .note-item-preview {
+      font-size: 0.7rem;
+      color: #555;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .note-item-date {
+      font-size: 0.65rem;
+      color: #444;
+      margin-top: 0.2rem;
+    }
+    .note-item-encrypted {
+      font-size: 0.6rem;
+      color: #FF8811;
+      opacity: 0.7;
+    }
+
+    #sidebar-footer {
+      padding: 0.6rem 1rem;
+      border-top: 1px solid #1a1a1a;
+      font-size: 0.65rem;
+      color: #444;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .lock-status { color: #FF8811; font-size: 0.7rem; }
+
+    /* ── Main panel ── */
+    #note-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #note-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #1a1a1a;
+      background: #0f0f0f;
+      flex-shrink: 0;
+    }
+
+    #note-title-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #e0e0e0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      outline: none;
+      font-family: inherit;
+    }
+    #note-title-input::placeholder { color: #333; }
+
+    .toolbar-btn {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      color: #888;
+      border-radius: 5px;
+      padding: 0.28rem 0.6rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .toolbar-btn:hover { color: #e0e0e0; background: #222; }
+    .toolbar-btn.danger:hover { color: #e55; border-color: #500; }
+    .toolbar-btn.encrypt-on { color: #FF8811; border-color: #553300; background: #1a1000; }
+
+    #note-body {
+      flex: 1;
+      padding: 1.25rem 1.5rem;
+      overflow-y: auto;
+    }
+
+    #note-content {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      color: #d0d0d0;
+      font-size: 0.9rem;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.75;
+      outline: none;
+      resize: none;
+      min-height: 400px;
+    }
+    #note-content::placeholder { color: #2a2a2a; }
+
+    #note-status {
+      padding: 0.35rem 1rem;
+      border-top: 1px solid #1a1a1a;
+      font-size: 0.68rem;
+      color: #444;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    /* ── Empty state ── */
+    #empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      gap: 0.75rem;
+    }
+    #empty-state .big { font-size: 3rem; }
+    #empty-state p { font-size: 0.85rem; color: #444; }
+
+    /* ── Encrypt unlock overlay ── */
+    #unlock-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,.85);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    #unlock-overlay.open { display: flex; }
+    #unlock-box {
+      background: #181818;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 360px;
+      text-align: center;
+    }
+    #unlock-box h3 { color: #FF8811; font-size: 0.95rem; margin-bottom: 0.5rem; }
+    #unlock-box p { font-size: 0.78rem; color: #666; margin-bottom: 1rem; }
+    #unlock-pass {
+      width: 100%;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 7px;
+      padding: 0.5rem 0.75rem;
+      color: #e0e0e0;
+      font-size: 0.85rem;
+      outline: none;
+      margin-bottom: 0.75rem;
+    }
+    #unlock-pass:focus { border-color: #FF8811; }
+    #unlock-btn {
+      width: 100%;
+      background: #FF8811;
+      color: #000;
+      border: none;
+      border-radius: 7px;
+      padding: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #unlock-err { font-size: 0.75rem; color: #e55; margin-top: 0.5rem; }
+
+    #note-panel { position: relative; }
+
+    @media (max-width: 600px) {
+      #notes-sidebar { width: 200px; }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/shell.js" data-active="notes"></script>
+
+<div id="notes-app">
+  <!-- Sidebar -->
+  <div id="notes-sidebar">
+    <div id="sidebar-header">
+      <h2>Notes</h2>
+      <button id="btn-new-note" onclick="newNote()">+ New</button>
+    </div>
+    <div id="note-search">
+      <input type="text" id="search-input" placeholder="Search notes…" oninput="renderList()">
+    </div>
+    <div id="note-list"></div>
+    <div id="sidebar-footer">
+      <span class="lock-status">🔒</span>
+      <span id="lock-label">Encrypted locally</span>
+    </div>
+  </div>
+
+  <!-- Main panel -->
+  <div id="note-panel">
+    <!-- Unlock overlay (shown when opening an encrypted note) -->
+    <div id="unlock-overlay">
+      <div id="unlock-box">
+        <h3>🔒 Encrypted Note</h3>
+        <p>Enter your note passphrase to read this note.</p>
+        <input id="unlock-pass" type="password" placeholder="Passphrase…" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')doUnlock()">
+        <button id="unlock-btn" onclick="doUnlock()">Unlock</button>
+        <div id="unlock-err"></div>
+      </div>
+    </div>
+
+    <!-- Toolbar (shown when a note is selected) -->
+    <div id="note-toolbar" style="display:none">
+      <input type="text" id="note-title-input" placeholder="Note title…" oninput="scheduleAutoSave()">
+      <button class="toolbar-btn" id="btn-encrypt-toggle" onclick="toggleEncrypt()" title="Toggle per-note encryption">🔓 Plain</button>
+      <button class="toolbar-btn danger" onclick="deleteActiveNote()" title="Delete note">🗑</button>
+    </div>
+
+    <!-- Body -->
+    <div id="note-body" style="display:none">
+      <textarea id="note-content" placeholder="Start writing…" oninput="scheduleAutoSave()"></textarea>
+    </div>
+    <div id="note-status" style="display:none">
+      <span id="status-msg">All changes saved</span>
+      <span id="word-count" style="margin-left:auto"></span>
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state">
+      <div class="big">📝</div>
+      <p>Select a note or create one.</p>
+      <p style="font-size:.75rem">Notes are stored locally, encrypted with AES-256-GCM.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Notes — Personal encrypted data store ──
+// Goal: local-first encrypted notes using AES-256-GCM. Each note can optionally
+// have per-note passphrase encryption on top of the base localStorage layer.
+// All data lives in localStorage under 'hos_notes_v1'.
+
+const NOTES_KEY = 'hos_notes_v1';
+
+let notes = [];      // Array of note objects
+let activeId = null; // ID of the currently open note
+let saveTimer = null;
+let pendingUnlockId = null; // Note ID waiting for passphrase unlock
+
+// ── Crypto helpers (stand-alone, no dependency on chat crypto.js) ──
+
+async function aesEncrypt(plaintext, passphrase) {
+  const enc = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const keyMat = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 300000, hash: 'SHA-256' },
+    keyMat, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+  );
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+  return {
+    v: 1,
+    salt: btoa(String.fromCharCode(...salt)),
+    iv:   btoa(String.fromCharCode(...iv)),
+    ct:   btoa(String.fromCharCode(...new Uint8Array(ct))),
+  };
+}
+
+async function aesDecrypt(bundle, passphrase) {
+  const salt = Uint8Array.from(atob(bundle.salt), c => c.charCodeAt(0));
+  const iv   = Uint8Array.from(atob(bundle.iv),   c => c.charCodeAt(0));
+  const ct   = Uint8Array.from(atob(bundle.ct),   c => c.charCodeAt(0));
+  const enc  = new TextEncoder();
+  const keyMat = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 300000, hash: 'SHA-256' },
+    keyMat, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+  );
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  return new TextDecoder().decode(plain);
+}
+
+// ── Data helpers ──
+
+function loadNotes() {
+  try {
+    notes = JSON.parse(localStorage.getItem(NOTES_KEY) || '[]');
+  } catch { notes = []; }
+}
+
+function saveNotes() {
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function getNote(id) { return notes.find(n => n.id === id) || null; }
+
+// ── Rendering ──
+
+function renderList() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const list = document.getElementById('note-list');
+  const filtered = notes.filter(n =>
+    !q ||
+    (n.title || '').toLowerCase().includes(q) ||
+    (!n.encrypted && (n.content || '').toLowerCase().includes(q))
+  ).sort((a, b) => b.updatedAt - a.updatedAt);
+
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:1rem;color:#444;font-size:.78rem;text-align:center">No notes yet.</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(n => {
+    const title = n.title || 'Untitled';
+    const preview = n.encrypted ? '🔒 encrypted' : (n.content || '').slice(0, 60).replace(/\n/g, ' ');
+    const date = new Date(n.updatedAt).toLocaleDateString();
+    return `<div class="note-item${n.id === activeId ? ' active' : ''}" onclick="openNote('${n.id}')">
+      <div class="note-item-title">${esc(title)}</div>
+      <div class="note-item-preview">${esc(preview)}</div>
+      <div class="note-item-date">${date}${n.encrypted ? ' <span class="note-item-encrypted">encrypted</span>' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+function showNotePanel(show) {
+  document.getElementById('note-toolbar').style.display = show ? 'flex' : 'none';
+  document.getElementById('note-body').style.display = show ? 'block' : 'none';
+  document.getElementById('note-status').style.display = show ? 'flex' : 'none';
+  document.getElementById('empty-state').style.display = show ? 'none' : 'flex';
+}
+
+function updateWordCount() {
+  const text = document.getElementById('note-content').value;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  document.getElementById('word-count').textContent = words + ' words · ' + text.length + ' chars';
+}
+
+function setStatus(msg, timeout) {
+  document.getElementById('status-msg').textContent = msg;
+  if (timeout) setTimeout(() => {
+    const cur = document.getElementById('status-msg');
+    if (cur && cur.textContent === msg) cur.textContent = 'All changes saved';
+  }, timeout);
+}
+
+// ── Note operations ──
+
+function newNote() {
+  const note = {
+    id: uid(),
+    title: '',
+    content: '',
+    encrypted: false,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  notes.unshift(note);
+  saveNotes();
+  openNote(note.id);
+}
+
+function openNote(id) {
+  const note = getNote(id);
+  if (!note) return;
+
+  if (note.encrypted && typeof note.content === 'object') {
+    // Need passphrase to unlock
+    pendingUnlockId = id;
+    document.getElementById('unlock-overlay').classList.add('open');
+    document.getElementById('unlock-err').textContent = '';
+    document.getElementById('unlock-pass').value = '';
+    showNotePanel(true);
+    document.getElementById('note-title-input').value = note.title || '';
+    document.getElementById('note-content').value = '';
+    document.getElementById('note-content').placeholder = '🔒 Enter passphrase to view…';
+    document.getElementById('note-content').readOnly = true;
+    setTimeout(() => document.getElementById('unlock-pass').focus(), 100);
+  } else {
+    pendingUnlockId = null;
+    document.getElementById('unlock-overlay').classList.remove('open');
+    activeId = id;
+    showNotePanel(true);
+    document.getElementById('note-title-input').value = note.title || '';
+    document.getElementById('note-content').value = note.content || '';
+    document.getElementById('note-content').placeholder = 'Start writing…';
+    document.getElementById('note-content').readOnly = false;
+    const encBtn = document.getElementById('btn-encrypt-toggle');
+    encBtn.textContent = note.encrypted ? '🔒 Encrypted' : '🔓 Plain';
+    encBtn.classList.toggle('encrypt-on', note.encrypted);
+    updateWordCount();
+    setStatus('');
+    renderList();
+    document.getElementById('note-content').focus();
+  }
+}
+
+async function doUnlock() {
+  const passphrase = document.getElementById('unlock-pass').value;
+  const note = getNote(pendingUnlockId);
+  if (!note || !passphrase) return;
+
+  try {
+    const plain = await aesDecrypt(note.content, passphrase);
+    note._unlockPassphrase = passphrase; // keep for re-encrypting on save
+    activeId = pendingUnlockId;
+    pendingUnlockId = null;
+    document.getElementById('unlock-overlay').classList.remove('open');
+    document.getElementById('note-content').value = plain;
+    document.getElementById('note-content').placeholder = 'Start writing…';
+    document.getElementById('note-content').readOnly = false;
+    const encBtn = document.getElementById('btn-encrypt-toggle');
+    encBtn.textContent = '🔒 Encrypted';
+    encBtn.classList.add('encrypt-on');
+    updateWordCount();
+    setStatus('');
+    renderList();
+    document.getElementById('note-content').focus();
+  } catch (e) {
+    document.getElementById('unlock-err').textContent = 'Wrong passphrase.';
+  }
+}
+
+function scheduleAutoSave() {
+  if (!activeId) return;
+  updateWordCount();
+  setStatus('Saving…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(autoSave, 800);
+}
+
+async function autoSave() {
+  const note = getNote(activeId);
+  if (!note) return;
+  const title   = document.getElementById('note-title-input').value;
+  const content = document.getElementById('note-content').value;
+  note.title     = title;
+  note.updatedAt = Date.now();
+
+  if (note.encrypted && note._unlockPassphrase) {
+    note.content = await aesEncrypt(content, note._unlockPassphrase);
+  } else {
+    note.content = content;
+  }
+
+  saveNotes();
+  renderList();
+  setStatus('Saved ' + new Date().toLocaleTimeString(), 3000);
+}
+
+function toggleEncrypt() {
+  const note = getNote(activeId);
+  if (!note) return;
+
+  if (!note.encrypted) {
+    // Enable encryption — prompt for passphrase
+    const pass = prompt('Choose a passphrase for this note.\nYou must enter it every time you open the note.');
+    if (!pass || pass.length < 4) { alert('Passphrase too short (min 4 characters).'); return; }
+    note.encrypted = true;
+    note._unlockPassphrase = pass;
+    const encBtn = document.getElementById('btn-encrypt-toggle');
+    encBtn.textContent = '🔒 Encrypted';
+    encBtn.classList.add('encrypt-on');
+    scheduleAutoSave(); // triggers aesEncrypt on the content
+    setStatus('Note will be encrypted on next save.');
+  } else {
+    // Disable encryption
+    if (!confirm('Remove encryption from this note? The content will be stored in plain text.')) return;
+    note.encrypted = false;
+    note._unlockPassphrase = null;
+    note.content = document.getElementById('note-content').value;
+    note.updatedAt = Date.now();
+    saveNotes();
+    const encBtn = document.getElementById('btn-encrypt-toggle');
+    encBtn.textContent = '🔓 Plain';
+    encBtn.classList.remove('encrypt-on');
+    renderList();
+    setStatus('Encryption removed.');
+  }
+}
+
+function deleteActiveNote() {
+  if (!activeId) return;
+  const note = getNote(activeId);
+  if (!confirm('Delete "' + (note?.title || 'Untitled') + '"? This cannot be undone.')) return;
+  notes = notes.filter(n => n.id !== activeId);
+  activeId = null;
+  saveNotes();
+  showNotePanel(false);
+  renderList();
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──
+
+loadNotes();
+renderList();
+showNotePanel(false);
+</script>
+</body>
+</html>

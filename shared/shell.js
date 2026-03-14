@@ -52,6 +52,7 @@
     else if (p.startsWith('/debug'))     active = 'debug';     // backward compat redirect
     else if (p.startsWith('/download'))  active = 'download';
     else if (p.startsWith('/dashboard')) active = 'dashboard';
+    else if (p.startsWith('/notes'))     active = 'notes';
     // Legacy SPA routes still in the wild
     else if (p.startsWith('/reality'))   active = 'profile';
     else if (p.startsWith('/fantasy'))   active = 'skills';
@@ -404,6 +405,7 @@
       navTab('/quests',    'tasklist.png',  'Quests',    'quests') +
       navTab('/calendar',  'calendar.png',  'Calendar',  'calendar') +
       navTab('/logbook',   'logs.png',      'Logbook',   'logbook') +
+      navTab('/notes',     '📝',            'Notes',     'notes') +
       '<div class="nav-divider"></div>' +
 
       /* Public — community pages */

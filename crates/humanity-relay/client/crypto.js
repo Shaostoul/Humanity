@@ -327,6 +327,99 @@ async function importIdentityFromJSON(jsonData) {
   };
 }
 
+// ── Passphrase-Encrypted Identity Backup ──
+// Goal: let users protect their identity backup file with a passphrase so that
+// losing the file to an attacker doesn't compromise their identity.
+
+/**
+ * Derive an AES-256-GCM key from a user passphrase + random salt using PBKDF2.
+ * Uses 600,000 iterations (OWASP 2023 recommendation for SHA-256).
+ * @param {string} passphrase
+ * @param {Uint8Array} salt
+ * @returns {Promise<CryptoKey>}
+ */
+async function deriveKeyFromPassphrase(passphrase, salt) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Export the current identity as a passphrase-encrypted JSON file download.
+ * The file is safe to store in cloud drives — it's useless without the passphrase.
+ * @param {string} passphrase - User-chosen passphrase to protect the backup.
+ */
+async function exportEncryptedIdentityBackup(passphrase) {
+  if (!myIdentity || !myIdentity.privateKey) throw new Error('No identity loaded.');
+  if (!passphrase || passphrase.length < 8) throw new Error('Passphrase must be at least 8 characters.');
+
+  const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+  const seed = extractSeedFromPkcs8(pkcs8);
+  const plain = JSON.stringify({ v: 1, name: myName, publicKey: myIdentity.publicKeyHex, privateKey: bufToHex(seed) });
+
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const wrapKey = await deriveKeyFromPassphrase(passphrase, salt);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, wrapKey, new TextEncoder().encode(plain));
+
+  const bundle = {
+    v: 1, encrypted: true,
+    kdf: 'PBKDF2-SHA256-600k',
+    cipher: 'AES-256-GCM',
+    salt: bufToHex(salt),
+    iv:   bufToHex(iv),
+    ct:   btoa(String.fromCharCode(...new Uint8Array(ct))),
+    exportedAt: new Date().toISOString(),
+  };
+
+  const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `humanity-backup-${(myName || 'identity').replace(/[^a-z0-9]/gi, '_')}-encrypted.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return true;
+}
+
+/**
+ * Import an identity from a passphrase-encrypted backup file.
+ * Handles both encrypted bundles (v1 with `encrypted: true`) and
+ * plain JSON backups created by downloadIdentityBackup().
+ * @param {object} parsed - Parsed JSON from the backup file.
+ * @param {string} [passphrase] - Required only for encrypted backups.
+ * @returns {Promise<object>} Identity object ready to use.
+ */
+async function importIdentityBackup(parsed, passphrase) {
+  if (parsed.encrypted) {
+    if (!passphrase) throw new Error('This backup is encrypted. Please enter your passphrase.');
+    const salt = hexToBuf(parsed.salt);
+    const iv   = hexToBuf(parsed.iv);
+    const ct   = Uint8Array.from(atob(parsed.ct), c => c.charCodeAt(0));
+    const wrapKey = await deriveKeyFromPassphrase(passphrase, salt);
+    let plainBuf;
+    try {
+      plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, wrapKey, ct);
+    } catch (e) {
+      throw new Error('Wrong passphrase or corrupted backup file.');
+    }
+    const inner = JSON.parse(new TextDecoder().decode(plainBuf));
+    return importIdentityFromJSON(inner);
+  }
+  // Plain backup
+  return importIdentityFromJSON(parsed);
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // E2EE: ECDH P-256 + AES-256-GCM for end-to-end encrypted DMs
 // ══════════════════════════════════════════════════════════════════════════════
