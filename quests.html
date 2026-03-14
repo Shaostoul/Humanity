@@ -384,9 +384,15 @@
         <input id="q-xp" type="number" min="0" step="10" placeholder="e.g. 50" value="25">
       </div>
     </div>
-    <div>
-      <label>Due Date (optional)</label>
-      <input id="q-due" type="date">
+    <div class="modal-row">
+      <div>
+        <label>Due Date (optional)</label>
+        <input id="q-due" type="date">
+      </div>
+      <div>
+        <label>Award XP to Skill (optional)</label>
+        <input id="q-skill" type="text" placeholder="e.g. algebra, cooking, yoga" maxlength="50">
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
@@ -481,7 +487,44 @@ function esc(s) {
 
 function toggleDone(id) {
   const q = quests.find(x => x.id === id);
-  if (q) { q.done = !q.done; save(); renderList(); }
+  if (!q) return;
+  const wasNotDone = !q.done;
+  q.done = !q.done;
+  q.updatedAt = Date.now();
+  save();
+  renderList();
+  // Award XP to linked skill when a quest is completed (not un-completed)
+  if (wasNotDone && q.skill_id && q.xp > 0) {
+    awardSkillXp(q.skill_id, q.xp);
+  }
+}
+
+/**
+ * Award XP to a skill in hos_skills_v1 when a linked quest is completed.
+ * Applies level-ups automatically using the same XP table as skills.html.
+ */
+function awardSkillXp(skillId, amount) {
+  const XP_PER_LEVEL = [100,150,225,338,507,760,1140,1710,2565,3848];
+  const MAX_LEVEL = 10;
+  try {
+    const data = JSON.parse(localStorage.getItem('hos_skills_v1') || '{}');
+    if (!data[skillId]) data[skillId] = { level: 0, xp: 0 };
+    const s = data[skillId];
+    if (s.level >= MAX_LEVEL) return;
+    s.xp = (s.xp || 0) + amount;
+    let leveled = false;
+    while (s.level < MAX_LEVEL && s.xp >= (XP_PER_LEVEL[s.level] || 100)) {
+      s.xp -= XP_PER_LEVEL[s.level] || 100;
+      s.level++;
+      leveled = true;
+    }
+    localStorage.setItem('hos_skills_v1', JSON.stringify(data));
+    const msg = leveled
+      ? `🎉 Quest complete! +${amount} XP to "${skillId}" → Level ${s.level}!`
+      : `✅ Quest complete! +${amount} XP awarded to "${skillId}"`;
+    if (typeof showToast === 'function') showToast(msg, 4000);
+    else alert(msg);
+  } catch(e) { console.warn('awardSkillXp error:', e); }
 }
 
 function deleteQuest(id) {
@@ -498,6 +541,7 @@ function openModal(id) {
   document.getElementById('q-type').value  = q ? q.type : 'personal';
   document.getElementById('q-xp').value    = q ? (q.xp || 25) : 25;
   document.getElementById('q-due').value   = q ? (q.due || '') : '';
+  document.getElementById('q-skill').value = q ? (q.skill_id || '') : '';
   document.getElementById('quest-modal').classList.add('open');
   setTimeout(() => document.getElementById('q-title').focus(), 50);
 }
@@ -516,19 +560,22 @@ function saveQuest() {
       q.title = title;
       q.desc  = document.getElementById('q-desc').value.trim();
       q.type  = document.getElementById('q-type').value;
-      q.xp    = parseInt(document.getElementById('q-xp').value) || 0;
-      q.due   = document.getElementById('q-due').value || null;
+      q.xp       = parseInt(document.getElementById('q-xp').value) || 0;
+      q.due      = document.getElementById('q-due').value || null;
+      q.skill_id = document.getElementById('q-skill').value.trim().toLowerCase() || null;
     }
   } else {
     quests.unshift({
-      id:    uid(),
-      title: title,
-      desc:  document.getElementById('q-desc').value.trim(),
-      type:  document.getElementById('q-type').value,
-      xp:    parseInt(document.getElementById('q-xp').value) || 0,
-      due:   document.getElementById('q-due').value || null,
-      done:  false,
-      created: new Date().toISOString()
+      id:       uid(),
+      title:    title,
+      desc:     document.getElementById('q-desc').value.trim(),
+      type:     document.getElementById('q-type').value,
+      xp:       parseInt(document.getElementById('q-xp').value) || 0,
+      due:      document.getElementById('q-due').value || null,
+      skill_id: document.getElementById('q-skill').value.trim().toLowerCase() || null,
+      done:     false,
+      created:  new Date().toISOString(),
+      updatedAt: Date.now(),
     });
   }
   save(); closeModal(); renderList();
@@ -544,6 +591,20 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeModal();
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveQuest();
 });
+
+function showToast(msg, duration) {
+  let el = document.getElementById('quest-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'quest-toast';
+    el.style.cssText = 'position:fixed;bottom:3rem;left:50%;transform:translateX(-50%);background:#222;border:1px solid #f0a500;color:#e0e0e0;padding:0.6rem 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = '0'; }, duration || 3000);
+}
 
 load();
 renderList();
