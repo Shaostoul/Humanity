@@ -262,35 +262,6 @@ const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
 
 document.addEventListener('DOMContentLoaded', function() { boardConnect(); });
 
-  let boardTasks = [];
-  let boardWs = null;
-  let boardMyKey = null;
-  let boardMyRole = '';
-  const PRIORITY_COLORS = { critical: '#e55', high: '#f80', medium: '#eb4', low: '#666' };
-  const STATUS_LABELS = { backlog: '📥 Backlog', in_progress: '🔧 In Progress', testing: '🧪 Testing', done: '✅ Done' };
-  const VALID_STATUSES = ['backlog', 'in_progress', 'testing', 'done'];
-  const FEATURE_WEB_KEY = 'humanity_feature_web_v1';
-   const task = boardTasks.find(t => t.id === taskId);
-   const task = boardTasks.find(t => t.id === node.taskId);
-    const orderedTasks = boardTasks.slice().sort((a, b) => {
-     const t = boardTasks.find(x => x.id === node.taskId);
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
-  const API_BASE = 'https://united-humanity.us';
-      const me = msg.peers.find(p => p.public_key === boardMyKey);
-      const idx = boardTasks.findIndex(t => t.id === msg.task.id);
-      const t = boardTasks.find(t => t.id === msg.id);
-      const t = boardTasks.find(t => t.id === msg.task_id);
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
-    const tasks = boardTasks.filter(t => t.status === status).sort((a, b) => a.position - b.position);
-   const pc = PRIORITY_COLORS[task.priority] || '#666';
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
-    const moves = VALID_STATUSES.filter(s => s !== task.status);
-   const task = boardTasks.find(t => t.id === taskId);
-   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
-   const canComment = canEdit || boardMyRole === 'verified' || boardMyRole === 'donor';
-   const pc = PRIORITY_COLORS[task.priority] || '#666';
-   const task = boardTasks.find(t => t.id === taskId);
-
   function boardConnect() {
    // Always try REST API first (reliable, works everywhere)
    fetch(API_BASE + '/api/tasks').then(r => r.json()).then(data => {
@@ -521,6 +492,107 @@ document.addEventListener('DOMContentLoaded', function() { boardConnect(); });
     '<div style="font-size:0.8rem;color:var(--text);white-space:pre-wrap;">' + escHtml(c.content) + '</div>' +
    '</div>';
   }
+
+  function escHtml(s) {
+   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function updateBoardPermissions() {
+   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+   const btn = document.getElementById('board-create-btn');
+   if (btn) btn.style.display = canEdit ? 'inline-flex' : 'none';
+  }
+
+  function openTaskModal(taskId) {
+   const task = boardTasks.find(t => t.id === taskId);
+   if (!task) return;
+   const canEdit = boardMyRole === 'admin' || boardMyRole === 'mod';
+   const canComment = canEdit || boardMyRole === 'verified' || boardMyRole === 'donor';
+   const pc = PRIORITY_COLORS[task.priority] || '#666';
+   const labels = (() => { try { return JSON.parse(task.labels || '[]'); } catch { return []; } })();
+   const modal = document.getElementById('task-modal');
+   const content = document.getElementById('task-modal-content');
+   if (!modal || !content) return;
+   content.dataset.taskId = taskId;
+   content.innerHTML =
+    '<h3 style="margin:0 0 0.5rem;font-size:1rem;color:var(--text);padding-right:2rem;">' + escHtml(task.title) + '</h3>' +
+    '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">' +
+     '<span style="background:' + pc + ';color:#fff;font-size:0.7rem;padding:0.1rem 0.45rem;border-radius:4px;font-weight:700;">' + task.priority + '</span>' +
+     '<span style="background:var(--bg-input);color:var(--text-muted);font-size:0.7rem;padding:0.1rem 0.45rem;border-radius:4px;">' + STATUS_LABELS[task.status] + '</span>' +
+     (task.assignee ? '<span style="font-size:0.75rem;color:var(--text-muted);">👤 ' + escHtml(task.assignee) + '</span>' : '') +
+    '</div>' +
+    (task.description ? '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;white-space:pre-wrap;line-height:1.5;">' + escHtml(task.description) + '</div>' : '') +
+    (labels.length ? '<div style="margin-bottom:0.75rem;">' + labels.map(l => '<span style="display:inline-block;background:rgba(255,136,17,0.15);color:var(--accent);font-size:0.7rem;padding:0.1rem 0.4rem;border-radius:3px;margin-right:0.3rem;">' + escHtml(l) + '</span>').join('') + '</div>' : '') +
+    (canEdit ? '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1rem;">' +
+     VALID_STATUSES.filter(s => s !== task.status).map(s => '<button onclick="boardMoveTask(' + taskId + ',\'' + s + '\')" style="background:none;border:1px solid var(--border);color:var(--text);font-size:0.75rem;padding:0.25rem 0.6rem;border-radius:5px;cursor:pointer;">→ ' + (STATUS_LABELS[s]||s) + '</button>').join('') +
+    '</div>' : '') +
+    '<h4 style="font-size:0.85rem;margin:0 0 0.4rem;color:var(--text);">💬 Comments <span style="color:var(--text-muted);font-weight:400;">(' + (task.comment_count || 0) + ')</span></h4>' +
+    '<div id="task-comments-list" data-task-id="' + taskId + '" style="margin-bottom:0.75rem;"><div style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">Loading…</div></div>' +
+    (canComment ? '<div style="display:flex;gap:0.4rem;"><textarea id="task-comment-input" placeholder="Add a comment…" rows="2" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.4rem;font-size:0.82rem;resize:vertical;"></textarea><button onclick="boardAddComment(' + taskId + ')" style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:0.4rem 0.8rem;cursor:pointer;font-size:0.8rem;font-weight:600;">Post</button></div>' : '') +
+    (canEdit ? '<div style="margin-top:0.75rem;display:flex;justify-content:flex-end;"><button onclick="boardDeleteTask(' + taskId + ')" style="background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;font-size:0.78rem;padding:0.3rem 0.7rem;border-radius:6px;cursor:pointer;">Delete Task</button></div>' : '');
+   modal.style.display = 'flex';
+   // Request comments
+   if (boardWs && boardWs.readyState === 1) {
+    boardWs.send(JSON.stringify({ type: 'task_comments_request', task_id: taskId }));
+   }
+  }
+
+  function closeTaskModal() {
+   const modal = document.getElementById('task-modal');
+   if (modal) modal.style.display = 'none';
+  }
+
+  // Close modal on backdrop click
+  document.getElementById('task-modal')?.addEventListener('click', function(e) {
+   if (e.target === this) closeTaskModal();
+  });
+
+  // Feature Web stubs — prevent ReferenceError for UI buttons
+  // The full feature web engine is in systems.html's embedded feature-web code block.
+  // These stubs fire gracefully if that block hasn't initialised featureWeb yet.
+  const _fwStub = name => function() { console.warn('featureWeb not ready:', name); };
+  if (typeof featureWebRender === 'undefined') window.featureWebRender = _fwStub('featureWebRender');
+  if (typeof featureWebSave === 'undefined') window.featureWebSave = _fwStub('featureWebSave');
+  if (typeof featureWebAddNode === 'undefined') window.featureWebAddNode = _fwStub('featureWebAddNode');
+  if (typeof featureWebAddEdge === 'undefined') window.featureWebAddEdge = _fwStub('featureWebAddEdge');
+  if (typeof featureWebSaveFilters === 'undefined') window.featureWebSaveFilters = _fwStub('featureWebSaveFilters');
+  if (typeof featureWebRenderEditor === 'undefined') window.featureWebRenderEditor = _fwStub('featureWebRenderEditor');
+  if (typeof featureWebSaveNodeEdits === 'undefined') window.featureWebSaveNodeEdits = _fwStub('featureWebSaveNodeEdits');
+  if (typeof featureWebClearSearch === 'undefined') window.featureWebClearSearch = _fwStub('featureWebClearSearch');
+  if (typeof featureWebClearFilters === 'undefined') window.featureWebClearFilters = _fwStub('featureWebClearFilters');
+  if (typeof featureWebToggleShortcutHint === 'undefined') window.featureWebToggleShortcutHint = _fwStub('featureWebToggleShortcutHint');
+  if (typeof featureWebToggleAdvanced === 'undefined') window.featureWebToggleAdvanced = _fwStub('featureWebToggleAdvanced');
+  if (typeof featureWebAutoLayout === 'undefined') window.featureWebAutoLayout = _fwStub('featureWebAutoLayout');
+  if (typeof featureWebConstellationLayout === 'undefined') window.featureWebConstellationLayout = _fwStub('featureWebConstellationLayout');
+  if (typeof featureWebOrbitLayout === 'undefined') window.featureWebOrbitLayout = _fwStub('featureWebOrbitLayout');
+  if (typeof featureWebFitToView === 'undefined') window.featureWebFitToView = _fwStub('featureWebFitToView');
+  if (typeof featureWebCenterSelected === 'undefined') window.featureWebCenterSelected = _fwStub('featureWebCenterSelected');
+  if (typeof featureWebDuplicateSelected === 'undefined') window.featureWebDuplicateSelected = _fwStub('featureWebDuplicateSelected');
+  if (typeof featureWebDeleteSelectedLinks === 'undefined') window.featureWebDeleteSelectedLinks = _fwStub('featureWebDeleteSelectedLinks');
+  if (typeof featureWebDeleteOutgoingLinks === 'undefined') window.featureWebDeleteOutgoingLinks = _fwStub('featureWebDeleteOutgoingLinks');
+  if (typeof featureWebDeleteIncomingLinks === 'undefined') window.featureWebDeleteIncomingLinks = _fwStub('featureWebDeleteIncomingLinks');
+  if (typeof featureWebClearSelection === 'undefined') window.featureWebClearSelection = _fwStub('featureWebClearSelection');
+  if (typeof featureWebNudgeSelected === 'undefined') window.featureWebNudgeSelected = _fwStub('featureWebNudgeSelected');
+  if (typeof featureWebNudgeToGrid === 'undefined') window.featureWebNudgeToGrid = _fwStub('featureWebNudgeToGrid');
+  if (typeof featureWebTeachMode === 'undefined') window.featureWebTeachMode = _fwStub('featureWebTeachMode');
+  if (typeof featureWebExport === 'undefined') window.featureWebExport = _fwStub('featureWebExport');
+  if (typeof featureWebImport === 'undefined') window.featureWebImport = _fwStub('featureWebImport');
+  if (typeof featureWebReset === 'undefined') window.featureWebReset = _fwStub('featureWebReset');
+  if (typeof featureWebCopyShare === 'undefined') window.featureWebCopyShare = _fwStub('featureWebCopyShare');
+  if (typeof featureWebPasteJson === 'undefined') window.featureWebPasteJson = _fwStub('featureWebPasteJson');
+  if (typeof featureWebCanvasAdd === 'undefined') window.featureWebCanvasAdd = _fwStub('featureWebCanvasAdd');
+  if (typeof featureWebCanvasKeydown === 'undefined') window.featureWebCanvasKeydown = _fwStub('featureWebCanvasKeydown');
+  if (typeof featureWebCopySelectedTitle === 'undefined') window.featureWebCopySelectedTitle = _fwStub('featureWebCopySelectedTitle');
+  if (typeof featureWebCopySelectedId === 'undefined') window.featureWebCopySelectedId = _fwStub('featureWebCopySelectedId');
+  if (typeof featureWebCopySelectedJson === 'undefined') window.featureWebCopySelectedJson = _fwStub('featureWebCopySelectedJson');
+  if (typeof featureWebUnlinkSelected === 'undefined') window.featureWebUnlinkSelected = _fwStub('featureWebUnlinkSelected');
+  if (typeof featureWebLinkSelectedToTask === 'undefined') window.featureWebLinkSelectedToTask = _fwStub('featureWebLinkSelectedToTask');
+  if (typeof featureWebSyncNodesToBoard === 'undefined') window.featureWebSyncNodesToBoard = _fwStub('featureWebSyncNodesToBoard');
+  if (typeof featureWebOpenLinkedTask === 'undefined') window.featureWebOpenLinkedTask = _fwStub('featureWebOpenLinkedTask');
+  if (typeof featureWebAddNodeFromTask === 'undefined') window.featureWebAddNodeFromTask = _fwStub('featureWebAddNodeFromTask');
+  if (typeof featureWebFocusByTitle === 'undefined') window.featureWebFocusByTitle = _fwStub('featureWebFocusByTitle');
+  if (typeof featureWebSeedPU === 'undefined') window.featureWebSeedPU = _fwStub('featureWebSeedPU');
+  if (typeof showCreateTaskModal === 'undefined') window.showCreateTaskModal = _fwStub('showCreateTaskModal');
 
 </script>
 </body>
