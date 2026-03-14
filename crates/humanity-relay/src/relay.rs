@@ -2315,12 +2315,14 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             let _ = state_clone.db.update_task(task_id, title, &task.description, priority, assignee, &task.labels);
                                         }
                                         if let Ok(Some(updated)) = state_clone.db.get_task(task_id) {
+                                            let cc = state_clone.db.get_task_comment_counts().unwrap_or_default();
                                             let td = TaskData {
                                                 id: updated.id, title: updated.title, description: updated.description,
                                                 status: updated.status, priority: updated.priority, assignee: updated.assignee,
                                                 created_by: updated.created_by, created_at: updated.created_at,
                                                 updated_at: updated.updated_at, position: updated.position,
-                                                labels: updated.labels, comment_count: 0,
+                                                labels: updated.labels,
+                                                comment_count: *cc.get(&task_id).unwrap_or(&0),
                                             };
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
                                         }
