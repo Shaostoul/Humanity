@@ -798,6 +798,17 @@
     });
   }, 0);
 
+  // ── PWA Service Worker registration ──
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/shared/sw.js').then(function (reg) {
+        console.log('[SW] Registered, scope:', reg.scope);
+      }).catch(function (e) {
+        console.warn('[SW] Registration failed:', e);
+      });
+    });
+  }
+
   // ── Keyboard shortcut panel (? key) ──
   (function () {
     var overlay = document.createElement('div');

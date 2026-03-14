@@ -449,9 +449,21 @@
       <label>Color</label>
       <div class="color-picker" id="color-picker"></div>
     </div>
-    <div class="ev-field">
-      <label>Notes</label>
-      <input type="text" id="ef-notes" placeholder="Optional description">
+    <div class="ev-row">
+      <div class="ev-field">
+        <label>Repeat</label>
+        <select id="ef-recur">
+          <option value="">No repeat</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="yearly">Yearly</option>
+        </select>
+      </div>
+      <div class="ev-field">
+        <label>Notes</label>
+        <input type="text" id="ef-notes" placeholder="Optional description">
+      </div>
     </div>
     <div class="ev-actions">
       <button class="ev-btn danger" id="ev-delete-btn" style="display:none;margin-right:auto" onclick="deleteEvent()">Delete</button>
@@ -478,8 +490,27 @@ function load() {
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(events)); }
 function nextId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
+function eventMatchesDate(ev, dateStr) {
+  if (!ev.recurrence) return false;
+  const evDate = new Date(ev.date + 'T00:00:00');
+  const check  = new Date(dateStr + 'T00:00:00');
+  if (evDate > check) return false; // haven't reached start date yet
+  if (ev.date === dateStr) return false; // already included as the base event
+  switch (ev.recurrence) {
+    case 'daily':   return true;
+    case 'weekly':  return evDate.getDay() === check.getDay();
+    case 'monthly': return evDate.getDate() === check.getDate();
+    case 'yearly':  return evDate.getMonth() === check.getMonth() && evDate.getDate() === check.getDate();
+    default: return false;
+  }
+}
+
 function eventsOn(dateStr) {
-  return events.filter(e => e.date === dateStr);
+  const direct   = events.filter(e => e.date === dateStr);
+  const expanded = events
+    .filter(e => e.recurrence && eventMatchesDate(e, dateStr))
+    .map(e => ({ ...e, _recurring: true }));
+  return [...direct, ...expanded];
 }
 
 // ─────────────────────────────────────────────
@@ -584,7 +615,7 @@ function dayCell(d, otherMonth, todayStr) {
   const maxShow = 3;
 
   let chips = evs.slice(0, maxShow).map(e =>
-    `<div class="event-chip" style="background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')">${esc(e.title)}</div>`
+    `<div class="event-chip" style="background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')" title="${e._recurring ? '↻ Recurring' : ''}">${e._recurring ? '↻ ' : ''}${esc(e.title)}</div>`
   ).join('');
   if (evs.length > maxShow) chips += `<div class="more-chip">+${evs.length - maxShow} more</div>`;
 
@@ -758,6 +789,7 @@ function openAddEvent(dateStr, startTime, endTime) {
   document.getElementById('ef-start').value = startTime || '09:00';
   document.getElementById('ef-end').value = endTime || '10:00';
   document.getElementById('ef-notes').value = '';
+  document.getElementById('ef-recur').value = '';
   document.getElementById('ev-delete-btn').style.display = 'none';
   selectedColor = '#3498db';
   buildColorPicker();
@@ -776,6 +808,7 @@ function openEditEvent(id) {
   document.getElementById('ef-start').value = ev.startTime || '09:00';
   document.getElementById('ef-end').value = ev.endTime || '10:00';
   document.getElementById('ef-notes').value = ev.notes || '';
+  document.getElementById('ef-recur').value = ev.recurrence || '';
   document.getElementById('ev-delete-btn').style.display = '';
   document.getElementById('ef-time-row').style.display = ev.allday ? 'none' : 'flex';
   selectedColor = ev.color || '#3498db';
@@ -804,6 +837,7 @@ function saveEvent() {
     endTime: allday ? null : document.getElementById('ef-end').value,
     color: selectedColor,
     notes: document.getElementById('ef-notes').value.trim(),
+    recurrence: document.getElementById('ef-recur').value || null,
   };
   if (editingId) {
     const idx = events.findIndex(e => e.id === editingId);
