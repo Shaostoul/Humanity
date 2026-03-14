@@ -1406,6 +1406,18 @@ cats.push({ name: '🔧 Utility', items: [
   { icon: '📊', label: 'Server Stats', desc: 'View stats', cmd: '/stats', action: function(){ window.open('/info','_blank'); } },
 ]});
 
+cats.push({ name: '🧭 Navigate', items: [
+  { icon: '📊', label: 'Dashboard', desc: 'Go to /dashboard', action: function(){ location.href='/dashboard'; } },
+  { icon: '🏠', label: 'Home', desc: 'Go to /home', action: function(){ location.href='/home'; } },
+  { icon: '🧠', label: 'Skills', desc: 'Go to /skills', action: function(){ location.href='/skills'; } },
+  { icon: '🎯', label: 'Tasks', desc: 'Go to /tasks', action: function(){ location.href='/tasks'; } },
+  { icon: '⚔️', label: 'Quests', desc: 'Go to /quests', action: function(){ location.href='/quests'; } },
+  { icon: '📅', label: 'Calendar', desc: 'Go to /calendar', action: function(){ location.href='/calendar'; } },
+  { icon: '🗺️', label: 'Maps', desc: 'Go to /maps', action: function(){ location.href='/maps'; } },
+  { icon: '📦', label: 'Inventory', desc: 'Go to /inventory', action: function(){ location.href='/inventory'; } },
+  { icon: '📝', label: 'Notes', desc: 'Go to /notes', action: function(){ location.href='/notes'; } },
+]});
+
 return cats;
 }
 
