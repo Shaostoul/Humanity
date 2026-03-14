@@ -228,3 +228,94 @@ loc:
     @echo "── JavaScript ────────" && find . -name "*.js" -not -path "*/target/*" -not -path "*/node_modules/*" | xargs wc -l 2>/dev/null | tail -1
     @echo "── HTML ──────────────" && find . -name "*.html" -not -path "*/target/*" | xargs wc -l 2>/dev/null | tail -1
     @echo "── CSS ───────────────" && find . -name "*.css" -not -path "*/target/*" | xargs wc -l 2>/dev/null | tail -1
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CACHE & DESKTOP — fix stale UI
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Clear the WebView2 cache for the Humanity desktop app (Windows)
+# Run this if the app is showing old HTML/JS after a deploy
+# Make sure the app is CLOSED before running this
+clear-desktop-cache:
+    @echo "Clearing Humanity desktop WebView2 cache..."
+    @rm -rf "$LOCALAPPDATA/HumanityOS/EBWebView/Default/Cache" \
+            "$LOCALAPPDATA/HumanityOS/EBWebView/Default/Code Cache" \
+            "$LOCALAPPDATA/HumanityOS/EBWebView/Default/GPUCache" \
+        && echo "✓ Cache cleared. Reopen the app." \
+        || echo "Cache folder not found (app may not have run yet, or path differs)"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GIT HOOKS — install once, runs automatically on every commit
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Install a pre-commit hook that runs `cargo check` before every git commit
+# Prevents shipping broken Rust — run once after cloning
+install-hooks:
+    #!/usr/bin/env bash
+    HOOK=.git/hooks/pre-commit
+    cat > "$HOOK" << 'HOOKEOF'
+    #!/usr/bin/env bash
+    # Auto-installed by: just install-hooks
+    echo "→ pre-commit: cargo check..."
+    if ! cargo check --bin humanity-relay -q 2>&1; then
+        echo "✗ Rust errors found. Fix before committing. (bypass with git commit --no-verify)"
+        exit 1
+    fi
+    echo "✓ Rust OK"
+    HOOKEOF
+    chmod +x "$HOOK"
+    echo "✓ Pre-commit hook installed at $HOOK"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WATCH — auto-deploy on file change (requires watchexec: scoop install watchexec)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Watch web files and auto-sync to VPS on save (HTML/JS/CSS only — fast)
+# Good for iterating on front-end. Ctrl+C to stop.
+watch-web:
+    watchexec --exts html,js,css --on-busy-update restart -- just sync-web
+
+# Watch Rust files and auto-check on save (shows errors without building)
+watch-check:
+    watchexec --exts rs --on-busy-update restart -- cargo check --bin humanity-relay 2>&1
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NEW PAGE — scaffold a new standalone HTML page
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Create a new standalone page from the standard template
+# Usage: just new-page market   (creates market.html)
+new-page name:
+    #!/usr/bin/env bash
+    FILE="{{name}}.html"
+    if [ -f "$FILE" ]; then
+        echo "✗ $FILE already exists"
+        exit 1
+    fi
+    TITLE="$(echo {{name}} | sed 's/\b./\u&/g')"
+    cat > "$FILE" << EOF
+    <!DOCTYPE html>
+    <html lang=en>
+    <head>
+      <meta charset=UTF-8>
+      <meta name=viewport content=width=device-width,initial-scale=1.0>
+      <title>${TITLE} — HumanityOS</title>
+      <link rel=stylesheet href="/shared/theme.css">
+      <style>
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+        #page-app { flex: 1; padding: 1.5rem; max-width: 960px; margin: 0 auto; width: 100%; }
+        h1 { font-size: 1.3rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; }
+        p { color: var(--text-muted, #888); font-size: 0.9rem; }
+      </style>
+    </head>
+    <body>
+    <script src="/shared/shell.js" data-active="{{name}}"></script>
+    <div id="page-app">
+      <h1>${TITLE}</h1>
+      <p>Coming soon.</p>
+    </div>
+    <script src="/shared/settings.js"></script>
+    </body>
+    </html>
+    EOF
+    echo "✓ Created $FILE — add it to shell.js nav if needed"
