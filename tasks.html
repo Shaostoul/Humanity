@@ -208,6 +208,15 @@
     .btn-status.current-testing  { background: var(--col-testing); border-color: #8a6200; color: #f0c040; }
     .btn-status.current-done     { background: var(--col-done); border-color: #1a7a3a; color: #4ec87a; }
     .status-move-label { font-size: 0.65rem; color: var(--text-dim); align-self: center; }
+    .btn-status.current-critical { background: rgba(229,57,53,.15); border-color: #e53935; color: #e53935; }
+    .btn-status.current-high     { background: rgba(240,165,0,.15); border-color: #f0a500; color: #f0a500; }
+    .btn-status.current-medium   { background: rgba(33,150,243,.15); border-color: #2196f3; color: #2196f3; }
+    .btn-status.current-low      { background: rgba(80,80,80,.1); border-color: #555; color: #666; }
+    .assignee-row { display: flex; align-items: center; gap: 0.4rem; }
+    .assignee-row input { flex: 1; background: var(--bg-input); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 0.28rem 0.5rem; font-size: 0.78rem; font-family: inherit; outline: none; }
+    .assignee-row input:focus { border-color: var(--accent); }
+    .assignee-row button { padding: 0.28rem 0.6rem; border-radius: 5px; border: 1px solid var(--border-bright); background: var(--bg-input); color: var(--text-muted); font-size: 0.72rem; cursor: pointer; }
+    .assignee-row button:hover { color: var(--text); }
 
     /* ── Responsive ── */
     @media (max-width: 800px) {
@@ -241,6 +250,9 @@
   <div class="board-controls">
     <div class="scope-desc" id="scope-desc">Loading…</div>
     <div class="stats" id="stats-bar"></div>
+    <input id="task-search" type="search" placeholder="Filter tasks…" oninput="renderBoard()"
+      style="background:var(--bg-input);border:1px solid var(--border-bright);border-radius:6px;padding:0.3rem 0.6rem;color:var(--text);font-size:0.78rem;font-family:inherit;outline:none;width:130px;flex-shrink:0;"
+      onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor=''">
     <button class="btn-refresh" onclick="loadTasks()" title="Refresh">↻</button>
     <button class="btn-new" onclick="openModal()">+ New Task</button>
   </div>
@@ -280,6 +292,8 @@
       <div class="detail-badges" id="detail-badges"></div>
       <div class="status-actions" id="detail-status-btns"></div>
       <div class="detail-desc" id="detail-desc"></div>
+      <div class="status-actions" id="detail-priority-btns" style="margin-bottom:0.5rem"></div>
+      <div id="detail-assignee-row" style="margin-bottom:0.85rem"></div>
       <div class="detail-labels" id="detail-labels"></div>
       <div class="detail-meta" id="detail-meta"></div>
       <div id="detail-test-panel"></div>
@@ -437,7 +451,14 @@ function getNonScopeLabels(task) {
 }
 
 function scopedTasks() {
-  return allTasks.filter(t => getTaskScope(t) === activeScope);
+  const q = (document.getElementById('task-search')?.value || '').trim().toLowerCase();
+  return allTasks.filter(t => {
+    if (getTaskScope(t) !== activeScope) return false;
+    if (!q) return true;
+    return t.title.toLowerCase().includes(q) ||
+           (t.description || '').toLowerCase().includes(q) ||
+           (t.assignee || '').toLowerCase().includes(q);
+  });
 }
 
 /* ── Render ── */
@@ -667,6 +688,29 @@ function openDetail(id) {
         : `<button class="btn-status" onclick="changeTaskStatus(${task.id},'${s.key}')" title="Move to ${s.label}">${s.label}</button>`
     ).join('') +
     `<span class="status-move-label">← move to</span>`;
+
+  // Priority change buttons.
+  const priorities = [
+    { key: 'low',      label: '▽ Low' },
+    { key: 'medium',   label: '◆ Medium' },
+    { key: 'high',     label: '▲ High' },
+    { key: 'critical', label: '🔥 Critical' },
+  ];
+  document.getElementById('detail-priority-btns').innerHTML =
+    priorities.map(p =>
+      p.key === task.priority
+        ? `<button class="btn-status current current-${p.key}" disabled title="Current priority">${p.label}</button>`
+        : `<button class="btn-status" onclick="changeTaskPriority(${task.id},'${p.key}')" title="Set priority to ${p.label}">${p.label}</button>`
+    ).join('') +
+    `<span class="status-move-label">← priority</span>`;
+
+  // Assignee inline editor.
+  document.getElementById('detail-assignee-row').innerHTML =
+    `<div class="assignee-row">
+       <span style="font-size:0.68rem;color:var(--text-dim);min-width:65px;flex-shrink:0">Assignee</span>
+       <input id="detail-assignee-input" type="text" value="${esc(task.assignee || '')}" placeholder="unassigned" maxlength="80">
+       <button onclick="changeTaskAssignee(${task.id})" title="Save assignee">Save</button>
+     </div>`;
 
   document.getElementById('detail-desc').textContent = task.description || '(No description)';
 
@@ -919,6 +963,41 @@ function changeTaskStatus(taskId, newStatus) {
     openDetail(taskId);
     renderBoard();
   }
+}
+
+/**
+ * Change the priority of a task via relay WebSocket.
+ */
+function changeTaskPriority(taskId, newPriority) {
+  ensureTaskWs();
+  if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
+    alert('Sign in at /chat to update tasks.');
+    return;
+  }
+  taskWs.send(JSON.stringify({ type: 'task_update', task_id: taskId, priority: newPriority }));
+  const t = allTasks.find(t => t.id === taskId);
+  if (t) {
+    t.priority = newPriority;
+    openDetail(taskId);
+    renderBoard();
+  }
+}
+
+/**
+ * Save the assignee field for a task via relay WebSocket.
+ */
+function changeTaskAssignee(taskId) {
+  const input = document.getElementById('detail-assignee-input');
+  if (!input) return;
+  const assignee = input.value.trim();
+  ensureTaskWs();
+  if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
+    alert('Sign in at /chat to update tasks.');
+    return;
+  }
+  taskWs.send(JSON.stringify({ type: 'task_update', task_id: taskId, assignee: assignee || '' }));
+  const t = allTasks.find(t => t.id === taskId);
+  if (t) { t.assignee = assignee || null; renderBoard(); }
 }
 
 /* ── Helpers ── */
