@@ -486,6 +486,9 @@ const SYNC_STORES = {
   'hos_home_notes':  'blob',          // last-write-wins
   'hos_inventory_v1':'array_by_id',   // merge by item.id
   'hos_notes_v1':    'array_by_id',   // notes page entries by id
+  'hos_skills_v1':   'skill_merge',   // skills XP/level map — merge by taking max(level, xp) per skill
+  'hos_quests_v1':   'array_by_id',   // quests by id
+  'hos_equipment_v1':'array_by_id',   // equipment items by id
 };
 
 /** Read all syncable stores into a bundle object. */
@@ -513,9 +516,34 @@ function applySyncBundle(remote) {
 
       if (strategy === 'blob') {
         const localRaw = localStorage.getItem(key);
-        // Keep whichever was written more recently (use remote._ts as proxy)
+        // Keep whichever was written more recently — only replace if local is absent
         if (!localRaw) { localStorage.setItem(key, JSON.stringify(remoteVal)); }
-        // For blobs without timestamps, prefer non-empty
+        continue;
+      }
+
+      if (strategy === 'skill_merge') {
+        // Skills data: { skill_id: { level, xp } } — take the higher level+xp per skill.
+        if (typeof remoteVal !== 'object' || Array.isArray(remoteVal)) continue;
+        let local = {};
+        try { local = JSON.parse(localStorage.getItem(key) || '{}'); } catch {}
+        if (typeof local !== 'object' || Array.isArray(local)) local = {};
+        let changed = false;
+        for (const [id, remoteSkill] of Object.entries(remoteVal)) {
+          if (!remoteSkill) continue;
+          const localSkill = local[id];
+          if (!localSkill) {
+            local[id] = remoteSkill;
+            changed = true;
+          } else {
+            const rl = remoteSkill.level || 0, ll = localSkill.level || 0;
+            const rx = remoteSkill.xp || 0,    lx = localSkill.xp || 0;
+            if (rl > ll || (rl === ll && rx > lx)) {
+              local[id] = { ...localSkill, level: Math.max(rl, ll), xp: Math.max(rx, lx) };
+              changed = true;
+            }
+          }
+        }
+        if (changed) localStorage.setItem(key, JSON.stringify(local));
         continue;
       }
 
