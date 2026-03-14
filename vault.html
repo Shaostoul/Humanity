@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vault — HumanityOS</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css?v=3">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg, #0d0d0d);
+      color: var(--text, #e0e0e0);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Screens ── */
+    .screen { display: none; }
+    .screen.active { display: flex; }
+
+    /* ── Lock / Setup screen ── */
+    #screen-lock, #screen-setup {
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      flex-direction: column;
+    }
+
+    .lock-card {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 18px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .lock-card h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #f0a500;
+      margin-bottom: .35rem;
+    }
+
+    .lock-card .subtitle {
+      font-size: .82rem;
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .eli5-box {
+      background: #0a0a0a;
+      border: 1px solid #1a1a1a;
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .eli5-box p { font-size: .8rem; color: #888; line-height: 1.65; margin: 0; }
+    .eli5-box p + p { margin-top: .5rem; }
+    .eli5-box strong { color: #ccc; }
+
+    .field-group { margin-bottom: .9rem; }
+    .field-group label {
+      display: block;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #555;
+      margin-bottom: .3rem;
+    }
+    .field-group input {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: .55rem .8rem;
+      color: var(--text, #e0e0e0);
+      font-size: .88rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .field-group input:focus { border-color: #f0a500; }
+
+    .btn-primary {
+      width: 100%;
+      background: #f0a500;
+      color: #000;
+      border: none;
+      border-radius: 9px;
+      padding: .65rem 1.2rem;
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: .88; }
+    .btn-primary:disabled { opacity: .45; cursor: default; }
+
+    .screen-msg {
+      font-size: .76rem;
+      min-height: 1.3em;
+      margin-top: .55rem;
+    }
+
+    /* ── Main vault UI ── */
+    #screen-vault {
+      flex: 1;
+      flex-direction: row;
+      overflow: hidden;
+      height: calc(100vh - 42px);
+    }
+
+    /* Sidebar */
+    #vault-sidebar {
+      width: 260px;
+      min-width: 220px;
+      background: #111;
+      border-right: 1px solid #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #vault-sidebar-header {
+      padding: .65rem .85rem;
+      border-bottom: 1px solid #1a1a1a;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    #vault-sidebar-header h2 {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #555;
+      flex: 1;
+    }
+
+    #vault-search {
+      padding: .5rem .6rem;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    #vault-search input {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #1e1e1e;
+      border-radius: 6px;
+      padding: .35rem .65rem;
+      color: #e0e0e0;
+      font-size: .8rem;
+      outline: none;
+    }
+    #vault-search input:focus { border-color: #333; }
+
+    #vault-entry-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: .4rem 0;
+    }
+
+    .entry-item {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .55rem .85rem;
+      cursor: pointer;
+      border-radius: 0;
+      transition: background .1s;
+    }
+    .entry-item:hover { background: #181818; }
+    .entry-item.active { background: #1a1a0a; border-left: 2px solid #f0a500; }
+
+    .entry-item-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .entry-item-info { overflow: hidden; }
+    .entry-item-title {
+      font-size: .82rem;
+      font-weight: 600;
+      color: #e0e0e0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .entry-item-type {
+      font-size: .66rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    #vault-sidebar-footer {
+      padding: .5rem .85rem;
+      border-top: 1px solid #1a1a1a;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    #vault-sidebar-footer span { font-size: .68rem; color: #444; flex: 1; }
+    .btn-lock {
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #555;
+      border-radius: 5px;
+      padding: .25rem .55rem;
+      font-size: .72rem;
+      cursor: pointer;
+    }
+    .btn-lock:hover { border-color: #555; color: #888; }
+
+    /* Main panel */
+    #vault-main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Empty / welcome state */
+    #vault-welcome {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    #vault-welcome h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #e0e0e0;
+      margin-bottom: .35rem;
+    }
+
+    #vault-welcome p {
+      font-size: .83rem;
+      color: #666;
+      line-height: 1.65;
+      margin-bottom: 1.25rem;
+    }
+
+    .quick-add-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: .65rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .quick-add-btn {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 11px;
+      padding: 1rem;
+      cursor: pointer;
+      text-align: left;
+      transition: border-color .15s, background .15s;
+    }
+    .quick-add-btn:hover { background: #181818; border-color: #2a2a2a; }
+    .quick-add-btn .qa-icon { font-size: 1.4rem; margin-bottom: .35rem; display: block; }
+    .quick-add-btn .qa-title { font-size: .82rem; font-weight: 700; color: #e0e0e0; display: block; }
+    .quick-add-btn .qa-desc { font-size: .72rem; color: #555; margin-top: .15rem; display: block; line-height: 1.4; }
+
+    .eli5-section {
+      background: #111;
+      border: 1px solid #1a1a1a;
+      border-radius: 12px;
+      padding: 1.25rem 1.4rem;
+      margin-bottom: 1rem;
+    }
+    .eli5-section h3 { font-size: .85rem; font-weight: 700; color: #ccc; margin-bottom: .75rem; }
+    .eli5-row {
+      display: flex;
+      gap: .75rem;
+      margin-bottom: .7rem;
+      align-items: flex-start;
+    }
+    .eli5-row:last-child { margin-bottom: 0; }
+    .eli5-row .eli5-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
+    .eli5-row p { font-size: .8rem; color: #777; line-height: 1.55; }
+    .eli5-row strong { color: #aaa; }
+
+    /* Entry detail */
+    #vault-detail { display: none; max-width: 580px; }
+    #vault-detail.visible { display: block; }
+
+    #vault-detail-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    #vault-detail-icon { font-size: 2rem; }
+    #vault-detail-title-block { flex: 1; }
+    #vault-detail-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #e0e0e0;
+      margin-bottom: .2rem;
+      word-break: break-word;
+    }
+    #vault-detail-type { font-size: .7rem; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+
+    .detail-actions { display: flex; gap: .5rem; flex-shrink: 0; }
+    .btn-detail-edit, .btn-detail-delete {
+      background: none;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: .3rem .75rem;
+      font-size: .76rem;
+      cursor: pointer;
+    }
+    .btn-detail-edit { color: #aaa; }
+    .btn-detail-edit:hover { border-color: #555; color: #e0e0e0; }
+    .btn-detail-delete { color: #c44; border-color: #3a1515; }
+    .btn-detail-delete:hover { background: #1a0505; }
+
+    .field-display { margin-bottom: 1rem; }
+    .field-display-label {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #444;
+      margin-bottom: .3rem;
+    }
+    .field-display-value {
+      background: #0d0d0d;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: .55rem .75rem;
+      font-size: .85rem;
+      color: #e0e0e0;
+      word-break: break-word;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      position: relative;
+    }
+    .field-display-value.secret { color: transparent; text-shadow: 0 0 8px #888; user-select: none; cursor: pointer; }
+    .field-display-value.secret.revealed { color: #e0e0e0; text-shadow: none; user-select: text; }
+
+    .field-copy-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-top: .35rem;
+    }
+    .btn-copy-field, .btn-reveal {
+      background: none;
+      border: 1px solid #222;
+      border-radius: 5px;
+      padding: .2rem .6rem;
+      font-size: .7rem;
+      color: #666;
+      cursor: pointer;
+    }
+    .btn-copy-field:hover, .btn-reveal:hover { border-color: #444; color: #aaa; }
+    .copy-confirm { font-size: .68rem; color: #4ec87a; }
+
+    /* New entry / edit modal */
+    #entry-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.82);
+      z-index: 800;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    #entry-modal-overlay.open { display: flex; }
+    #entry-modal {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 14px;
+      padding: 1.75rem;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    #entry-modal h3 {
+      font-size: .95rem;
+      font-weight: 700;
+      color: #e0e0e0;
+      margin-bottom: 1.1rem;
+    }
+    .modal-field { margin-bottom: .85rem; }
+    .modal-field label {
+      display: block;
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #555;
+      margin-bottom: .3rem;
+    }
+    .modal-field input, .modal-field textarea, .modal-field select {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #222;
+      border-radius: 7px;
+      padding: .5rem .7rem;
+      color: #e0e0e0;
+      font-size: .85rem;
+      outline: none;
+      font-family: inherit;
+    }
+    .modal-field input:focus, .modal-field textarea:focus, .modal-field select:focus { border-color: #f0a500; }
+    .modal-field textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+    #modal-msg { font-size: .75rem; min-height: 1.2em; margin-bottom: .5rem; }
+    .modal-actions { display: flex; gap: .65rem; justify-content: flex-end; }
+    .btn-cancel {
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #666;
+      border-radius: 7px;
+      padding: .45rem 1rem;
+      font-size: .82rem;
+      cursor: pointer;
+    }
+    .btn-save {
+      background: #f0a500;
+      color: #000;
+      border: none;
+      border-radius: 7px;
+      padding: .45rem 1.2rem;
+      font-size: .82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-save:disabled { opacity: .5; cursor: default; }
+
+    .type-selector {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: .4rem;
+      margin-bottom: 1rem;
+    }
+    .type-chip {
+      border: 1px solid #222;
+      border-radius: 7px;
+      padding: .45rem .6rem;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      cursor: pointer;
+      font-size: .78rem;
+      color: #888;
+      background: #0d0d0d;
+      transition: border-color .12s;
+    }
+    .type-chip:hover { border-color: #444; color: #ccc; }
+    .type-chip.selected { border-color: #f0a500; color: #f0a500; background: #1a1000; }
+    .type-chip .chip-icon { font-size: 1rem; }
+
+    /* No entries */
+    .no-entries {
+      padding: 1.5rem .85rem;
+      font-size: .78rem;
+      color: #444;
+      text-align: center;
+    }
+
+    /* Mobile */
+    @media (max-width: 600px) {
+      #vault-sidebar { width: 200px; min-width: 160px; }
+      #vault-main { padding: 1rem; }
+    }
+    @media (max-width: 480px) {
+      #vault-sidebar { display: none; }
+      #screen-vault { flex-direction: column; }
+      #vault-main { padding: .75rem; }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/shell.js" data-active="vault"></script>
+
+<!-- ══ SETUP SCREEN (first time — no vault exists) ══ -->
+<div id="screen-setup" class="screen">
+  <div class="lock-card">
+    <h1>🔐 Create Your Vault</h1>
+    <p class="subtitle">
+      A secure place for passwords, recovery phrases, and private notes —
+      all on your device, all encrypted, none of it visible to anyone but you.
+    </p>
+
+    <div class="eli5-box">
+      <p>
+        <strong>Think of this like a filing cabinet with a combination lock.</strong>
+        Only you know the combination. Everything inside is scrambled into
+        unreadable gibberish — even if someone got into your computer,
+        they would see nothing useful.
+      </p>
+      <p>
+        We <strong>never</strong> see any of this. It never touches any server.
+        It lives entirely on your device.
+      </p>
+    </div>
+
+    <div class="eli5-box" style="margin-bottom:1.25rem;border-color:#3a3000;background:#100e00">
+      <p>
+        <strong style="color:#f0a500">⚠ Choose a passphrase you'll remember.</strong>
+        If you forget your vault passphrase, everything inside is gone —
+        there is no "forgot password" because only you hold the key.
+        Make it long and memorable: a phrase or three words you won't forget.
+      </p>
+    </div>
+
+    <div class="field-group">
+      <label>Vault Passphrase</label>
+      <input type="password" id="setup-pass1" placeholder="Choose a strong passphrase…" autocomplete="new-password">
+    </div>
+    <div class="field-group">
+      <label>Confirm Passphrase</label>
+      <input type="password" id="setup-pass2" placeholder="Type it again…" autocomplete="new-password">
+    </div>
+    <div id="setup-msg" class="screen-msg"></div>
+    <button class="btn-primary" id="setup-btn" onclick="doSetupVault()">Create Vault</button>
+
+    <p style="font-size:.7rem;color:#3a3a3a;margin-top:1rem;text-align:center">
+      Your passphrase is never stored or transmitted — only a mathematical lock derived from it.
+    </p>
+  </div>
+</div>
+
+<!-- ══ LOCKED SCREEN ══ -->
+<div id="screen-lock" class="screen">
+  <div class="lock-card">
+    <h1>🔒 Vault Locked</h1>
+    <p class="subtitle">Enter your vault passphrase to open your secure storage.</p>
+
+    <div class="field-group">
+      <label>Vault Passphrase</label>
+      <input type="password" id="lock-pass" placeholder="Your vault passphrase…" autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') doUnlockVault()">
+    </div>
+    <div id="lock-msg" class="screen-msg"></div>
+    <button class="btn-primary" id="lock-btn" onclick="doUnlockVault()">Unlock Vault</button>
+
+    <p style="font-size:.72rem;color:#3a3a3a;margin-top:1.1rem;line-height:1.5">
+      💡 Don't have a vault yet? <a href="#" onclick="showScreen('setup');return false;" style="color:#f0a500">Create one.</a>
+    </p>
+  </div>
+</div>
+
+<!-- ══ VAULT SCREEN (unlocked) ══ -->
+<div id="screen-vault" class="screen">
+
+  <!-- Sidebar -->
+  <div id="vault-sidebar">
+    <div id="vault-sidebar-header">
+      <h2>Vault</h2>
+      <button onclick="openNewEntryModal()" title="Add a new entry"
+        style="background:#f0a500;color:#000;border:none;border-radius:5px;padding:.25rem .55rem;font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
+    </div>
+    <div id="vault-search">
+      <input type="text" id="vault-search-input" placeholder="Search…" oninput="renderEntryList()">
+    </div>
+    <div id="vault-entry-list"></div>
+    <div id="vault-sidebar-footer">
+      <span id="vault-entry-count">0 entries</span>
+      <button class="btn-lock" onclick="lockVault()" title="Lock the vault">🔒 Lock</button>
+    </div>
+  </div>
+
+  <!-- Main panel -->
+  <div id="vault-main">
+
+    <!-- Welcome / empty state -->
+    <div id="vault-welcome">
+      <h2>Your vault is unlocked 🔓</h2>
+      <p>
+        Add anything you want to keep private — seed phrases, passwords, secure notes.
+        Everything is encrypted with your passphrase before it's saved.
+        Nothing leaves your device.
+      </p>
+
+      <div class="quick-add-grid" id="quick-add-grid">
+        <button class="quick-add-btn" onclick="openNewEntryModal('seed_phrase')">
+          <span class="qa-icon">🌱</span>
+          <span class="qa-title">Seed Phrase</span>
+          <span class="qa-desc">Your 24-word Humanity recovery phrase or any BIP39 phrase</span>
+        </button>
+        <button class="quick-add-btn" onclick="openNewEntryModal('password')">
+          <span class="qa-icon">🔑</span>
+          <span class="qa-title">Password</span>
+          <span class="qa-desc">A username and password for any website or service</span>
+        </button>
+        <button class="quick-add-btn" onclick="openNewEntryModal('note')">
+          <span class="qa-icon">📝</span>
+          <span class="qa-title">Secure Note</span>
+          <span class="qa-desc">Anything you want to remember privately</span>
+        </button>
+        <button class="quick-add-btn" onclick="openNewEntryModal('login')">
+          <span class="qa-icon">🔗</span>
+          <span class="qa-title">Login</span>
+          <span class="qa-desc">Website address, username, and password together</span>
+        </button>
+      </div>
+
+      <div class="eli5-section">
+        <h3>📖 How the vault works</h3>
+        <div class="eli5-row">
+          <span class="eli5-icon">🔒</span>
+          <p>
+            <strong>Your passphrase = your key.</strong>
+            When you save an entry, it's scrambled using your passphrase.
+            Only someone who knows that passphrase can unscramble it —
+            not us, not your internet provider, not anyone else.
+          </p>
+        </div>
+        <div class="eli5-row">
+          <span class="eli5-icon">📱</span>
+          <p>
+            <strong>It stays on your device.</strong>
+            Unlike a cloud password manager, this vault lives in your browser's
+            local storage. It doesn't sync across devices automatically —
+            that's a trade-off for maximum privacy. Export a backup if you want
+            to move it somewhere else.
+          </p>
+        </div>
+        <div class="eli5-row">
+          <span class="eli5-icon">👁️</span>
+          <p>
+            <strong>Secret fields are hidden until you click them.</strong>
+            Passwords and seed phrases show as blur by default —
+            tap to reveal. This protects you from someone glancing at your screen.
+          </p>
+        </div>
+        <div class="eli5-row">
+          <span class="eli5-icon">💾</span>
+          <p>
+            <strong>Back it up.</strong>
+            If you clear your browser data, you lose your vault.
+            Use the <strong>Export</strong> button above to download an encrypted
+            copy you can store in cloud or on a USB drive.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Entry detail (shown when an entry is selected) -->
+    <div id="vault-detail">
+      <div id="vault-detail-header">
+        <span id="vault-detail-icon"></span>
+        <div id="vault-detail-title-block">
+          <div id="vault-detail-title"></div>
+          <div id="vault-detail-type"></div>
+        </div>
+        <div class="detail-actions">
+          <button class="btn-detail-edit" onclick="openEditEntryModal()">✏️ Edit</button>
+          <button class="btn-detail-delete" onclick="deleteEntry()">🗑 Delete</button>
+        </div>
+      </div>
+      <div id="vault-detail-fields"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ New / Edit Entry Modal ══ -->
+<div id="entry-modal-overlay" onclick="if(event.target===this) closeEntryModal()">
+  <div id="entry-modal">
+    <h3 id="modal-title">New Entry</h3>
+
+    <!-- Type selector (only shown for new entries) -->
+    <div id="type-selector-row">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.5rem">Type</div>
+      <div class="type-selector">
+        <div class="type-chip selected" data-type="seed_phrase" onclick="selectEntryType('seed_phrase')">
+          <span class="chip-icon">🌱</span> Seed Phrase
+        </div>
+        <div class="type-chip" data-type="password" onclick="selectEntryType('password')">
+          <span class="chip-icon">🔑</span> Password
+        </div>
+        <div class="type-chip" data-type="note" onclick="selectEntryType('note')">
+          <span class="chip-icon">📝</span> Secure Note
+        </div>
+        <div class="type-chip" data-type="login" onclick="selectEntryType('login')">
+          <span class="chip-icon">🔗</span> Login
+        </div>
+        <div class="type-chip" data-type="custom" onclick="selectEntryType('custom')">
+          <span class="chip-icon">🪙</span> Custom
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-field">
+      <label>Title</label>
+      <input type="text" id="modal-entry-title" placeholder="e.g. My Humanity Seed Phrase…">
+    </div>
+
+    <!-- Dynamic fields populated by selectEntryType() -->
+    <div id="modal-dynamic-fields"></div>
+
+    <div id="modal-msg"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEntryModal()">Cancel</button>
+      <button class="btn-save" id="modal-save-btn" onclick="saveEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Vault — encrypted local-first secure storage ──
+// Goal: give users a private filing cabinet for seed phrases, passwords, and
+// secure notes. All data is AES-256-GCM encrypted with a vault passphrase
+// derived via PBKDF2-SHA256. Nothing leaves the device.
+
+const VAULT_LS_KEY = 'hos_vault_v1';
+
+// In-memory state — cleared on lock
+let vaultKey  = null; // CryptoKey — held in memory only, never serialised
+let vault     = null; // Decrypted vault object { version, entries, created_at }
+let activeId  = null; // Currently selected entry ID
+let editingId = null; // Entry being edited in the modal (null = new)
+let selectedType = 'seed_phrase';
+
+// ── Crypto helpers ────────────────────────────────────────────────────────────
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+function b64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function unb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+
+/**
+ * Derive a CryptoKey from a passphrase + salt using PBKDF2-SHA256 (600k iter).
+ * Returns a key usable for AES-256-GCM encrypt/decrypt.
+ */
+async function deriveVaultKey(passphrase, salt) {
+  const raw = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 600_000 },
+    raw,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+/**
+ * Encrypt a vault object to an opaque blob stored in localStorage.
+ * @param {object} vaultObj  - The decrypted vault to save.
+ * @param {CryptoKey} key    - The vault AES key.
+ * @param {Uint8Array} salt  - The same salt used when deriving the key.
+ * @returns {string} JSON string safe to store in localStorage.
+ */
+async function encryptVault(vaultObj, key, salt) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(JSON.stringify(vaultObj)));
+  return JSON.stringify({ v: 1, salt: b64(salt), iv: b64(iv), enc: b64(ct) });
+}
+
+/**
+ * Decrypt the stored vault blob using the provided key.
+ * @throws {Error} If the passphrase is wrong (AES-GCM auth tag fails).
+ */
+async function decryptVaultBlob(blob, key) {
+  let pt;
+  try {
+    pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(blob.iv) }, key, unb64(blob.enc));
+  } catch {
+    throw new Error('Wrong passphrase or corrupted vault.');
+  }
+  return JSON.parse(dec.decode(pt));
+}
+
+// ── Screen management ─────────────────────────────────────────────────────────
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+function determineInitialScreen() {
+  const stored = localStorage.getItem(VAULT_LS_KEY);
+  if (!stored) { showScreen('setup'); return; }
+  showScreen('lock');
+  setTimeout(() => document.getElementById('lock-pass').focus(), 80);
+}
+
+// ── Setup (create vault) ──────────────────────────────────────────────────────
+
+async function doSetupVault() {
+  const p1  = document.getElementById('setup-pass1').value;
+  const p2  = document.getElementById('setup-pass2').value;
+  const msg = document.getElementById('setup-msg');
+  const btn = document.getElementById('setup-btn');
+
+  if (p1.length < 8) { showMsg(msg, 'Passphrase must be at least 8 characters.', 'red'); return; }
+  if (p1 !== p2)     { showMsg(msg, 'Passphrases do not match.', 'red'); return; }
+
+  btn.disabled = true; btn.textContent = 'Creating…';
+  showMsg(msg, '', '');
+
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key  = await deriveVaultKey(p1, salt);
+
+    vault = { version: 1, entries: [], created_at: Date.now() };
+    const blob = await encryptVault(vault, key, salt);
+    localStorage.setItem(VAULT_LS_KEY, blob);
+    vaultKey = key;
+
+    // Remember the salt separately so unlock can use it without decrypting
+    const meta = JSON.parse(blob);
+    // (salt is already in the blob, unlock reads it from there)
+
+    showVault();
+  } catch(e) {
+    showMsg(msg, 'Error: ' + e.message, 'red');
+    btn.disabled = false; btn.textContent = 'Create Vault';
+  }
+}
+
+// ── Unlock ────────────────────────────────────────────────────────────────────
+
+async function doUnlockVault() {
+  const pass = document.getElementById('lock-pass').value;
+  const msg  = document.getElementById('lock-msg');
+  const btn  = document.getElementById('lock-btn');
+
+  if (!pass) { showMsg(msg, 'Enter your passphrase.', 'red'); return; }
+
+  btn.disabled = true; btn.textContent = 'Unlocking…';
+  showMsg(msg, '', '');
+
+  try {
+    const stored = localStorage.getItem(VAULT_LS_KEY);
+    if (!stored) { showScreen('setup'); return; }
+    const blob = JSON.parse(stored);
+    const salt = unb64(blob.salt);
+    const key  = await deriveVaultKey(pass, salt);
+    vault      = await decryptVaultBlob(blob, key);
+    vaultKey   = key;
+    document.getElementById('lock-pass').value = '';
+    showVault();
+  } catch(e) {
+    showMsg(msg, e.message, 'red');
+    btn.disabled = false; btn.textContent = 'Unlock Vault';
+  }
+}
+
+// ── Lock ─────────────────────────────────────────────────────────────────────
+
+function lockVault() {
+  vaultKey = null;
+  vault    = null;
+  activeId = null;
+  showScreen('lock');
+  setTimeout(() => {
+    const lp = document.getElementById('lock-pass');
+    lp.value = '';
+    lp.focus();
+  }, 80);
+}
+
+// ── Show vault (unlocked) ─────────────────────────────────────────────────────
+
+function showVault() {
+  showScreen('vault');
+  renderEntryList();
+  showWelcome();
+}
+
+// ── Save vault to localStorage ────────────────────────────────────────────────
+
+async function persistVault() {
+  if (!vaultKey || !vault) return;
+  const stored = localStorage.getItem(VAULT_LS_KEY);
+  const blob   = JSON.parse(stored);
+  const salt   = unb64(blob.salt); // reuse same salt
+  const newBlob = await encryptVault(vault, vaultKey, salt);
+  localStorage.setItem(VAULT_LS_KEY, newBlob);
+}
+
+// ── Entry list ────────────────────────────────────────────────────────────────
+
+function renderEntryList() {
+  const list  = document.getElementById('vault-entry-list');
+  const query = (document.getElementById('vault-search-input').value || '').toLowerCase();
+  const entries = (vault && vault.entries || [])
+    .filter(e => !query || e.title.toLowerCase().includes(query) || e.type.includes(query));
+
+  const count = document.getElementById('vault-entry-count');
+  count.textContent = `${vault && vault.entries.length || 0} ${vault && vault.entries.length === 1 ? 'entry' : 'entries'}`;
+
+  if (!entries.length) {
+    list.innerHTML = `<div class="no-entries">${query ? 'No matches.' : 'No entries yet — click + New to add one.'}</div>`;
+    return;
+  }
+
+  list.innerHTML = entries.map(e => `
+    <div class="entry-item ${e.id === activeId ? 'active' : ''}" onclick="selectEntry('${e.id}')">
+      <span class="entry-item-icon">${entryIcon(e.type)}</span>
+      <div class="entry-item-info">
+        <div class="entry-item-title">${esc(e.title)}</div>
+        <div class="entry-item-type">${typeLabel(e.type)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Entry selection / detail ──────────────────────────────────────────────────
+
+function selectEntry(id) {
+  activeId = id;
+  renderEntryList();
+  showEntryDetail(id);
+}
+
+function showWelcome() {
+  activeId = null;
+  document.getElementById('vault-welcome').style.display = '';
+  document.getElementById('vault-detail').classList.remove('visible');
+  // Hide quick-add if vault already has entries
+  const qa = document.getElementById('quick-add-grid');
+  if (qa) qa.style.display = vault && vault.entries.length ? 'none' : '';
+  renderEntryList();
+}
+
+function showEntryDetail(id) {
+  const entry = vault && vault.entries.find(e => e.id === id);
+  if (!entry) { showWelcome(); return; }
+
+  document.getElementById('vault-welcome').style.display = 'none';
+  const detail = document.getElementById('vault-detail');
+  detail.classList.add('visible');
+
+  document.getElementById('vault-detail-icon').textContent  = entryIcon(entry.type);
+  document.getElementById('vault-detail-title').textContent = entry.title;
+  document.getElementById('vault-detail-type').textContent  = typeLabel(entry.type);
+
+  const fieldsEl = document.getElementById('vault-detail-fields');
+  fieldsEl.innerHTML = entry.fields.map((f, i) => {
+    const fid = 'fv-' + i;
+    if (f.secret) {
+      return `
+        <div class="field-display">
+          <div class="field-display-label">${esc(f.label)}</div>
+          <div class="field-display-value secret" id="${fid}" onclick="toggleReveal('${fid}')"
+               title="Click to reveal">${esc(f.value)}</div>
+          <div class="field-copy-row">
+            <button class="btn-reveal" onclick="toggleReveal('${fid}')">👁 Reveal</button>
+            <button class="btn-copy-field" onclick="copyField('${fid}', '${escAttr(f.value)}', this)">📋 Copy</button>
+            <span class="copy-confirm" id="${fid}-cc"></span>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="field-display">
+        <div class="field-display-label">${esc(f.label)}</div>
+        <div class="field-display-value" id="${fid}">${esc(f.value)}</div>
+        <div class="field-copy-row">
+          <button class="btn-copy-field" onclick="copyField('${fid}', '${escAttr(f.value)}', this)">📋 Copy</button>
+          <span class="copy-confirm" id="${fid}-cc"></span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const ts = new Date(entry.updated_at || entry.created_at);
+  const dateEl = document.createElement('p');
+  dateEl.style.cssText = 'font-size:.66rem;color:#3a3a3a;margin-top:1rem';
+  dateEl.textContent = 'Last updated ' + ts.toLocaleDateString() + ' at ' + ts.toLocaleTimeString();
+  fieldsEl.appendChild(dateEl);
+}
+
+function toggleReveal(fid) {
+  const el = document.getElementById(fid);
+  if (!el) return;
+  el.classList.toggle('revealed');
+  const btn = el.nextElementSibling && el.nextElementSibling.querySelector('.btn-reveal');
+  if (btn) btn.textContent = el.classList.contains('revealed') ? '🙈 Hide' : '👁 Reveal';
+}
+
+function copyField(fid, value, btn) {
+  navigator.clipboard.writeText(value).then(() => {
+    const cc = document.getElementById(fid + '-cc');
+    if (cc) { cc.textContent = '✓ Copied'; setTimeout(() => { cc.textContent = ''; }, 2500); }
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2500);
+  }).catch(() => {});
+}
+
+// ── Delete entry ──────────────────────────────────────────────────────────────
+
+async function deleteEntry() {
+  if (!activeId || !vault) return;
+  const entry = vault.entries.find(e => e.id === activeId);
+  if (!entry) return;
+  if (!confirm(`Delete "${entry.title}"? This cannot be undone.`)) return;
+  vault.entries = vault.entries.filter(e => e.id !== activeId);
+  await persistVault();
+  activeId = null;
+  renderEntryList();
+  showWelcome();
+}
+
+// ── Entry modal ───────────────────────────────────────────────────────────────
+
+const TYPE_TEMPLATES = {
+  seed_phrase: {
+    label: 'Seed Phrase',
+    icon: '🌱',
+    fields: [
+      { label: 'Seed Phrase (24 words)', key: 'phrase', placeholder: 'word1 word2 … word24', multiline: true, secret: true }
+    ],
+    note: 'These 24 words are your identity master key. Anyone who has them can use your account — guard them carefully.'
+  },
+  password: {
+    label: 'Password',
+    icon: '🔑',
+    fields: [
+      { label: 'Username or Email', key: 'username', placeholder: 'you@example.com', secret: false },
+      { label: 'Password',          key: 'password', placeholder: '••••••••',         secret: true },
+      { label: 'Notes (optional)',  key: 'notes',    placeholder: 'Any extra info…',  multiline: true, secret: false, optional: true }
+    ]
+  },
+  note: {
+    label: 'Secure Note',
+    icon: '📝',
+    fields: [
+      { label: 'Note', key: 'content', placeholder: 'Your private note…', multiline: true, secret: true }
+    ]
+  },
+  login: {
+    label: 'Login',
+    icon: '🔗',
+    fields: [
+      { label: 'Website',  key: 'url',      placeholder: 'https://example.com', secret: false },
+      { label: 'Username', key: 'username', placeholder: 'your username',        secret: false },
+      { label: 'Password', key: 'password', placeholder: '••••••••',             secret: true }
+    ]
+  },
+  custom: {
+    label: 'Custom',
+    icon: '🪙',
+    fields: [
+      { label: 'Field 1', key: 'f1', placeholder: 'Label: value…', multiline: true, secret: false }
+    ],
+    note: 'Use this for anything that doesn\'t fit the other types. You can put any text you like here.'
+  }
+};
+
+function selectEntryType(type) {
+  selectedType = type;
+  document.querySelectorAll('.type-chip').forEach(c => c.classList.toggle('selected', c.dataset.type === type));
+  renderModalFields(type);
+}
+
+function renderModalFields(type, existingFields) {
+  const tmpl = TYPE_TEMPLATES[type] || TYPE_TEMPLATES.custom;
+  const container = document.getElementById('modal-dynamic-fields');
+  let html = '';
+
+  if (tmpl.note) {
+    html += `<div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:7px;padding:.65rem .8rem;margin-bottom:.8rem;font-size:.76rem;color:#666;line-height:1.5">${esc(tmpl.note)}</div>`;
+  }
+
+  tmpl.fields.forEach(f => {
+    const existing = existingFields && existingFields.find(ef => ef.label === f.label);
+    const val = existing ? existing.value : '';
+    const input = f.multiline
+      ? `<textarea id="mf-${f.key}" placeholder="${esc(f.placeholder || '')}" rows="3">${esc(val)}</textarea>`
+      : `<input type="${f.secret ? 'password' : 'text'}" id="mf-${f.key}" placeholder="${esc(f.placeholder || '')}" value="${escAttr(val)}" autocomplete="off">`;
+    html += `<div class="modal-field"><label>${esc(f.label)}</label>${input}</div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function openNewEntryModal(type) {
+  type = type || 'seed_phrase';
+  selectedType  = type;
+  editingId     = null;
+
+  document.getElementById('modal-title').textContent = 'New Entry';
+  document.getElementById('modal-entry-title').value = '';
+  document.getElementById('modal-msg').textContent   = '';
+  document.getElementById('modal-save-btn').disabled = false;
+  document.getElementById('modal-save-btn').textContent = 'Save';
+  document.getElementById('type-selector-row').style.display = '';
+
+  document.querySelectorAll('.type-chip').forEach(c => c.classList.toggle('selected', c.dataset.type === type));
+  renderModalFields(type);
+  document.getElementById('entry-modal-overlay').classList.add('open');
+  document.getElementById('modal-entry-title').focus();
+}
+
+function openEditEntryModal() {
+  if (!activeId) return;
+  const entry = vault && vault.entries.find(e => e.id === activeId);
+  if (!entry) return;
+
+  editingId    = activeId;
+  selectedType = entry.type;
+
+  document.getElementById('modal-title').textContent = 'Edit Entry';
+  document.getElementById('modal-entry-title').value = entry.title;
+  document.getElementById('modal-msg').textContent   = '';
+  document.getElementById('modal-save-btn').disabled = false;
+  document.getElementById('modal-save-btn').textContent = 'Save';
+  document.getElementById('type-selector-row').style.display = 'none';
+
+  renderModalFields(entry.type, entry.fields);
+
+  // Reveal values (edit mode shows plaintext)
+  const tmpl = TYPE_TEMPLATES[entry.type] || TYPE_TEMPLATES.custom;
+  tmpl.fields.forEach(f => {
+    const el = document.getElementById('mf-' + f.key);
+    if (el && el.type === 'password') el.type = 'text';
+  });
+
+  document.getElementById('entry-modal-overlay').classList.add('open');
+  document.getElementById('modal-entry-title').focus();
+}
+
+function closeEntryModal() {
+  document.getElementById('entry-modal-overlay').classList.remove('open');
+  editingId = null;
+}
+
+async function saveEntry() {
+  const title = document.getElementById('modal-entry-title').value.trim();
+  const msg   = document.getElementById('modal-msg');
+  const btn   = document.getElementById('modal-save-btn');
+
+  if (!title) { showMsg(msg, 'Please enter a title.', 'red'); return; }
+
+  const tmpl = TYPE_TEMPLATES[selectedType] || TYPE_TEMPLATES.custom;
+  const fields = tmpl.fields.map(f => ({
+    label:  f.label,
+    value:  (document.getElementById('mf-' + f.key) || {}).value || '',
+    secret: f.secret || false
+  }));
+
+  // Basic validation — at least one non-empty field value
+  if (fields.every(f => !f.value.trim())) {
+    showMsg(msg, 'Fill in at least one field.', 'red'); return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  showMsg(msg, '', '');
+
+  try {
+    if (editingId) {
+      const idx = vault.entries.findIndex(e => e.id === editingId);
+      if (idx !== -1) {
+        vault.entries[idx] = { ...vault.entries[idx], title, fields, updated_at: Date.now() };
+      }
+    } else {
+      vault.entries.push({
+        id: uid(),
+        type: selectedType,
+        title,
+        fields,
+        created_at: Date.now(),
+        updated_at: Date.now()
+      });
+    }
+
+    await persistVault();
+    closeEntryModal();
+    renderEntryList();
+
+    const savedId = editingId || vault.entries[vault.entries.length - 1].id;
+    activeId = savedId;
+    renderEntryList();
+    showEntryDetail(savedId);
+  } catch(e) {
+    showMsg(msg, 'Error saving: ' + e.message, 'red');
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+// ── Export vault (encrypted) ──────────────────────────────────────────────────
+
+function exportVault() {
+  const stored = localStorage.getItem(VAULT_LS_KEY);
+  if (!stored) { alert('No vault to export.'); return; }
+  const a = document.createElement('a');
+  a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(stored);
+  a.download = 'humanity-vault-backup.json';
+  a.click();
+}
+
+async function importVault(file, passphrase) {
+  const text = await file.text();
+  const blob = JSON.parse(text);
+  const salt = unb64(blob.salt);
+  const key  = await deriveVaultKey(passphrase, salt);
+  const vaultObj = await decryptVaultBlob(blob, key);
+  // Merge: keep existing entries, add imported ones that aren't already present
+  if (vault) {
+    const existingIds = new Set(vault.entries.map(e => e.id));
+    vaultObj.entries.forEach(e => { if (!existingIds.has(e.id)) vault.entries.push(e); });
+    await persistVault();
+  } else {
+    vault = vaultObj;
+    vaultKey = key;
+    localStorage.setItem(VAULT_LS_KEY, text);
+  }
+  renderEntryList();
+  showWelcome();
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+
+function uid() {
+  return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,
+    c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+}
+
+function esc(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function showMsg(el, text, type) {
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = type === 'red' ? '#e55' : type === 'green' ? '#4ec87a' : '#888';
+}
+
+function entryIcon(type) {
+  return { seed_phrase: '🌱', password: '🔑', note: '📝', login: '🔗', custom: '🪙' }[type] || '📄';
+}
+
+function typeLabel(type) {
+  return { seed_phrase: 'Seed Phrase', password: 'Password', note: 'Secure Note', login: 'Login', custom: 'Custom' }[type] || type;
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('entry-modal-overlay').classList.contains('open')) {
+      closeEntryModal();
+    }
+  }
+  // Ctrl/Cmd+L = lock
+  if ((e.ctrlKey || e.metaKey) && e.key === 'l' && vault) {
+    e.preventDefault();
+    lockVault();
+  }
+  // Ctrl/Cmd+N = new entry
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && vault) {
+    e.preventDefault();
+    openNewEntryModal();
+  }
+});
+
+// ── Enter key on setup/lock fields ────────────────────────────────────────────
+document.getElementById('setup-pass1').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('setup-pass2').focus();
+});
+document.getElementById('setup-pass2').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSetupVault();
+});
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+determineInitialScreen();
+</script>
+</body>
+</html>

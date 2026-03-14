@@ -53,6 +53,7 @@
     else if (p.startsWith('/download'))  active = 'download';
     else if (p.startsWith('/dashboard')) active = 'dashboard';
     else if (p.startsWith('/notes'))     active = 'notes';
+    else if (p.startsWith('/vault'))     active = 'vault';
     // Legacy SPA routes still in the wild
     else if (p.startsWith('/reality'))   active = 'profile';
     else if (p.startsWith('/fantasy'))   active = 'skills';
@@ -421,6 +422,7 @@
       navTab('/calendar',  'calendar.png',  'Calendar',  'calendar') +
       navTab('/logbook',   'logs.png',      'Logbook',   'logbook') +
       navTab('/notes',     '📝',            'Notes',     'notes') +
+      navTab('/vault',     '🔐',            'Vault',     'vault') +
       '<div class="nav-divider"></div>' +
 
       /* Public — community pages */
@@ -485,6 +487,7 @@
       mobileLink('/streams',   'Streams') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>App</h4>' +
+      mobileLink('/vault',    'Vault') +
       mobileLink('/tasks',    'Tasks') +
       mobileLink('/ops',      'Ops') +
       mobileLink('/download', 'Download') +
