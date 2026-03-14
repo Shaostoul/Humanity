@@ -563,6 +563,15 @@ function ensureTaskWs() {
         renderBoard();
         if (document.getElementById('detail-overlay').classList.contains('open') && openDetailId === m.task.id) openDetail(m.task.id);
       }
+      if (m.type === 'task_moved') {
+        const t = allTasks.find(t => t.id === m.id);
+        if (t) { t.status = m.status; renderBoard(); }
+      }
+      if (m.type === 'task_deleted') {
+        allTasks = allTasks.filter(t => t.id !== m.id);
+        renderBoard();
+        if (openDetailId === m.id) closeDetail();
+      }
       // Decode task_comment_added system messages
       if (m.type === 'system' && m.message && m.message.startsWith('__task_comment__:')) {
         try {
