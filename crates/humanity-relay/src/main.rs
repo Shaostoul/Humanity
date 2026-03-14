@@ -152,6 +152,11 @@ async fn main() {
         .route("/api/search", get(api::search_messages))
         .route("/api/skills/search", get(api::search_skills))
         .route("/api/skills/{user_key}", get(api::get_user_skills))
+        .route("/api/vault/sync",
+            get(api::vault_sync_get)
+            .put(api::vault_sync_put)
+            .delete(api::vault_sync_delete)
+        )
         .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
         .fallback_service(
             tower_http::services::ServeDir::new("client")
@@ -164,7 +169,7 @@ async fn main() {
                     "https://chat.united-humanity.us".parse::<http::HeaderValue>().unwrap(),
                     "https://united-humanity.us".parse::<http::HeaderValue>().unwrap(),
                 ])
-                .allow_methods([http::Method::GET, http::Method::POST])
+                .allow_methods([http::Method::GET, http::Method::POST, http::Method::PUT, http::Method::DELETE, http::Method::PATCH])
                 .allow_headers([http::header::CONTENT_TYPE, http::header::AUTHORIZATION])
         )
         .with_state(state);

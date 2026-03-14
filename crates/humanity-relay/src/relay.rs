@@ -2200,6 +2200,48 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 continue;
                             }
+                            Some("key_rotation") => {
+                                // Identity key rotation: old_key → new_key, dual-signed.
+                                // sig_by_old = sign(new_key + "\n" + timestamp, old_private)
+                                // sig_by_new = sign(old_key + "\n" + timestamp, new_private)
+                                // Both sigs required; only the key owner can initiate.
+                                if let (Some(new_key), Some(sig_by_old), Some(sig_by_new), Some(ts)) = (
+                                    raw.get("new_key").and_then(|v| v.as_str()),
+                                    raw.get("sig_by_old").and_then(|v| v.as_str()),
+                                    raw.get("sig_by_new").and_then(|v| v.as_str()),
+                                    raw.get("timestamp").and_then(|v| v.as_u64()),
+                                ) {
+                                    use crate::handlers::broadcast::verify_ed25519_signature;
+                                    let old_key = &my_key_for_recv;
+                                    let now_ms = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_default().as_millis() as u64;
+                                    let fresh = now_ms.saturating_sub(ts) < 5 * 60 * 1000;
+                                    let ok_old = verify_ed25519_signature(old_key, new_key, ts, sig_by_old);
+                                    let ok_new = verify_ed25519_signature(new_key, old_key, ts, sig_by_new);
+                                    if fresh && ok_old && ok_new {
+                                        match state_clone.db.record_key_rotation(old_key, new_key, sig_by_old, sig_by_new) {
+                                            Ok(()) => {
+                                                // Notify all connected peers of the rotation.
+                                                let notif = serde_json::json!({
+                                                    "type": "key_rotated",
+                                                    "old_key": old_key,
+                                                    "new_key": new_key,
+                                                    "timestamp": ts
+                                                }).to_string();
+                                                let _ = state_clone.broadcast_tx.send(
+                                                    RelayMessage::System { message: notif }
+                                                );
+                                                tracing::info!("Key rotation: {old_key:.16}… → {new_key:.16}…");
+                                            }
+                                            Err(e) => tracing::error!("Key rotation DB error: {e}"),
+                                        }
+                                    } else {
+                                        tracing::warn!("Key rotation rejected for {old_key:.16}… fresh={fresh} ok_old={ok_old} ok_new={ok_new}");
+                                    }
+                                }
+                                continue;
+                            }
                             Some("skill_update") => {
                                 // User is broadcasting a skill update
                                 if let (Some(skill_id), Some(reality_xp), Some(fantasy_xp), Some(level)) = (

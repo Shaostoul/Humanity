@@ -705,6 +705,26 @@ impl Storage {
                 ON skill_verifications(to_key, skill_id);"
         )?;
 
+        conn.execute_batch("
+            -- Key rotation: maps an old identity key to a new one.
+            -- old_key is PRIMARY KEY so each identity can only rotate forward once per entry.
+            CREATE TABLE IF NOT EXISTS key_rotations (
+                old_key    TEXT PRIMARY KEY,
+                new_key    TEXT NOT NULL,
+                sig_by_old TEXT NOT NULL,
+                sig_by_new TEXT NOT NULL,
+                rotated_at INTEGER NOT NULL
+            );
+
+            -- Encrypted vault blobs for cross-device sync.
+            -- The blob is already AES-256-GCM encrypted by the client — we store it opaquely.
+            CREATE TABLE IF NOT EXISTS vault_blobs (
+                public_key TEXT PRIMARY KEY,
+                blob       TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );"
+        )?;
+
         info!("Database opened: {}", path.display());
         Ok(Self { conn: Mutex::new(conn) })
     }
@@ -716,6 +736,7 @@ mod assets;
 mod board;
 mod channels;
 mod dms;
+mod key_rotation;
 mod marketplace;
 mod messages;
 mod misc;
@@ -726,3 +747,4 @@ mod skill_dna;
 mod social;
 mod streams;
 mod uploads;
+mod vault_sync;

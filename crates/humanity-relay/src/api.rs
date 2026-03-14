@@ -1360,3 +1360,105 @@ pub async fn get_user_skills(
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
     }
 }
+
+// ── Vault Sync API ────────────────────────────────────────────────────────────
+// Goal: let users back up their encrypted vault blob to the relay so they can
+// restore it on another device. The blob is already AES-256-GCM encrypted by
+// the client — we store it opaquely and never see plaintext.
+
+#[derive(Debug, Deserialize)]
+pub struct VaultSyncUpload {
+    /// Ed25519 public key (hex) of the vault owner.
+    pub key: String,
+    /// Unix milliseconds when this request was made (anti-replay).
+    pub timestamp: u64,
+    /// sign("vault_sync\n" + timestamp, private_key) — proves ownership.
+    pub sig: String,
+    /// The encrypted vault blob (same format as localStorage hos_vault_v1).
+    pub blob: String,
+}
+
+/// PUT /api/vault/sync — Upload (or replace) the encrypted vault blob.
+pub async fn vault_sync_put(
+    state: State<Arc<RelayState>>,
+    Json(body): Json<VaultSyncUpload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    // Reject requests older than 5 minutes to prevent replay attacks.
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
+    }
+
+    if !verify_ed25519_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    // Cap blob size at 512 KB to prevent abuse.
+    if body.blob.len() > 512 * 1024 {
+        return Err((StatusCode::PAYLOAD_TOO_LARGE, "Vault blob exceeds 512 KB limit.".into()));
+    }
+
+    state.db.store_vault_blob(&body.key, &body.blob)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+
+    Ok(Json(serde_json::json!({ "status": "stored", "updated_at": now_ms })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VaultSyncQuery {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+}
+
+/// GET /api/vault/sync — Download the encrypted vault blob.
+pub async fn vault_sync_get(
+    state: State<Arc<RelayState>>,
+    Query(q): Query<VaultSyncQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+
+    if !verify_ed25519_signature(&q.key, "vault_sync", q.timestamp, &q.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    match state.db.get_vault_blob(&q.key) {
+        Some((blob, updated_at)) => Ok(Json(serde_json::json!({ "blob": blob, "updated_at": updated_at }))),
+        None => Err((StatusCode::NOT_FOUND, "No vault found for this key.".into())),
+    }
+}
+
+/// DELETE /api/vault/sync — Wipe the server-side vault blob.
+pub async fn vault_sync_delete(
+    state: State<Arc<RelayState>>,
+    Json(body): Json<VaultSyncUpload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+    if !verify_ed25519_signature(&body.key, "vault_sync", body.timestamp, &body.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+    state.db.delete_vault_blob(&body.key)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+    Ok(Json(serde_json::json!({ "status": "deleted" })))
+}

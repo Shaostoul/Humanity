@@ -559,10 +559,14 @@
   <div id="vault-sidebar">
     <div id="vault-sidebar-header">
       <h2>Vault</h2>
-      <button onclick="exportVault()" title="Download an encrypted backup of your vault"
-        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer" title="Export backup">⬇</button>
+      <button id="cloud-sync-btn" onclick="syncVaultToCloud()" title="Sync encrypted vault to Humanity relay (requires chat identity)"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">☁ Sync</button>
+      <button onclick="restoreVaultFromCloud()" title="Restore vault from Humanity relay cloud backup"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">☁⬇</button>
+      <button onclick="exportVault()" title="Download an encrypted backup file of your vault"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">⬇</button>
       <button onclick="openImportUI()" title="Restore vault from a backup file"
-        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer" title="Import backup">⬆</button>
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">⬆</button>
       <button onclick="openNewEntryModal()" title="Add a new entry (Ctrl+N)"
         style="background:#f0a500;color:#000;border:none;border-radius:5px;padding:.25rem .55rem;font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
     </div>
@@ -671,8 +675,19 @@
           <p>
             <strong>Back it up.</strong>
             If you clear your browser data, you lose your vault.
-            Use the <strong>Export</strong> button above to download an encrypted
-            copy you can store in cloud or on a USB drive.
+            Use <strong>⬇ Export</strong> to download an encrypted copy, or
+            <strong>☁ Sync</strong> to save it to the Humanity relay — then
+            <strong>☁⬇ Restore</strong> on any other device using the same identity.
+          </p>
+        </div>
+        <div class="eli5-row">
+          <span class="eli5-icon">☁</span>
+          <p>
+            <strong>Cloud sync is still encrypted.</strong>
+            The relay server never sees your passwords or seed phrases — only scrambled
+            data that only you can unscramble with your vault passphrase.
+            You need a Humanity chat identity to use cloud sync (it signs the request
+            to prove it's really you).
           </p>
         </div>
       </div>
@@ -1407,6 +1422,69 @@ document.addEventListener('visibilitychange', () => {
   if (!overlay || !vault) return;
   overlay.style.display = document.visibilityState === 'hidden' ? 'flex' : 'none';
 });
+
+// ── Cloud vault sync (relay-backed) ──────────────────────────────────────────
+// Goal: let users with a Humanity chat identity sync their encrypted vault blob
+// to the relay server so they can restore it on another device.
+// The blob is already AES-256-GCM encrypted — the relay stores it opaquely.
+
+async function signVaultSyncRequest() {
+  // We need the identity's private key to sign the API request.
+  // Reads the JWK backup from localStorage and re-imports it.
+  const backup = localStorage.getItem('humanity_key_backup');
+  const keyHex = localStorage.getItem('humanity_key');
+  if (!backup || !keyHex) return null;
+  try {
+    const { jwk } = JSON.parse(backup);
+    if (!jwk) return null;
+    const privateKey = await crypto.subtle.importKey('jwk', jwk, 'Ed25519', false, ['sign']);
+    const ts = Date.now();
+    const payload = `vault_sync\n${ts}`;
+    const sigBuf = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(payload));
+    const sig = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+    return { key: keyHex, timestamp: ts, sig };
+  } catch(e) { console.warn('Vault sync sign failed:', e); return null; }
+}
+
+async function syncVaultToCloud() {
+  const stored = localStorage.getItem(VAULT_LS_KEY);
+  if (!stored) { alert('No vault to sync.'); return; }
+  const auth = await signVaultSyncRequest();
+  if (!auth) { alert('No Humanity identity found — vault sync requires a chat identity to authenticate.'); return; }
+  const btn = document.getElementById('cloud-sync-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+  try {
+    const res = await fetch('/api/vault/sync', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...auth, blob: stored })
+    });
+    if (!res.ok) { const t = await res.text(); throw new Error(t); }
+    if (btn) { btn.textContent = '☁ Synced ✓'; setTimeout(() => { btn.disabled = false; btn.textContent = '☁ Sync'; }, 3000); }
+  } catch(e) {
+    alert('Sync failed: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '☁ Sync'; }
+  }
+}
+
+async function restoreVaultFromCloud() {
+  const auth = await signVaultSyncRequest();
+  if (!auth) { alert('No Humanity identity found — vault sync requires a chat identity to authenticate.'); return; }
+  if (!confirm('Restore vault from cloud? Any entries not in the cloud backup will be lost unless you export first.')) return;
+  try {
+    const url = `/api/vault/sync?key=${encodeURIComponent(auth.key)}&timestamp=${auth.timestamp}&sig=${encodeURIComponent(auth.sig)}`;
+    const res = await fetch(url);
+    if (res.status === 404) { alert('No cloud backup found for this identity.'); return; }
+    if (!res.ok) { const t = await res.text(); throw new Error(t); }
+    const { blob, updated_at } = await res.json();
+    const date = new Date(updated_at).toLocaleString();
+    if (!confirm(`Found cloud backup from ${date}. Overwrite local vault and reload?`)) return;
+    localStorage.setItem(VAULT_LS_KEY, blob);
+    location.reload();
+  } catch(e) {
+    alert('Restore failed: ' + e.message);
+  }
+}
 
 // ── Import vault UI ───────────────────────────────────────────────────────────
 
