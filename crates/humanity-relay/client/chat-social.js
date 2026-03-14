@@ -61,7 +61,7 @@ handleMessage = function(msg) {
         ws.send(JSON.stringify({ type: 'chat', content: '/friends', channel: activeChannel || 'general', from: myKey, from_name: myName, timestamp: Date.now() }));
       }
     } else {
-      addSystemMessage(`⚠️ Friend code failed: ${esc(msg.error || 'Unknown error')}`);
+      addSystemMessage(`⚠️ Friend code failed: ${esc(msg.message || 'Unknown error')}`);
     }
     return;
   }
