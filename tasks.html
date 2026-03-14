@@ -347,12 +347,15 @@ const SCOPES = [
 
 let allTasks = [];
 let activeScope = 'cosmos';
+let openDetailId = null; // track currently open detail drawer for real-time updates
 
 /* ── Init ── */
 function init() {
   buildScopeTabs();
   buildScopeSelect();
   loadTasks();
+  // Connect to relay for real-time updates if user has an identity
+  setTimeout(ensureTaskWs, 1000);
 }
 
 function buildScopeTabs() {
@@ -502,15 +505,25 @@ function ensureTaskWs() {
   taskWs.addEventListener('message', e => {
     try {
       const m = JSON.parse(e.data);
-      if (m.type === 'task_created' && taskWsPending) {
-        taskWsPending(m.task);
-        taskWsPending = null;
+      // Resolve pending create promise
+      if (m.type === 'task_created' && taskWsPending) { taskWsPending(m.task); taskWsPending = null; }
+      if (m.type === 'system' && m.message && taskWsPending) { taskWsPending(null, m.message); taskWsPending = null; }
+      // Real-time board updates — add/update tasks without full reload
+      if (m.type === 'task_created') {
+        if (!allTasks.find(t => t.id === m.task.id)) { allTasks.push(m.task); renderBoard(); }
       }
-      if (m.type === 'system' && m.message && taskWsPending) {
-        taskWsPending(null, m.message);
-        taskWsPending = null;
+      if (m.type === 'task_updated') {
+        const idx = allTasks.findIndex(t => t.id === m.task.id);
+        if (idx >= 0) { allTasks[idx] = { ...allTasks[idx], ...m.task }; } else { allTasks.push(m.task); }
+        renderBoard();
+        if (document.getElementById('detail-overlay').classList.contains('open') && openDetailId === m.task.id) openDetail(m.task.id);
       }
     } catch {}
+  });
+  // Reconnect on close
+  taskWs.addEventListener('close', () => {
+    taskWs = null;
+    setTimeout(ensureTaskWs, 5000);
   });
 }
 
@@ -588,6 +601,7 @@ async function submitTask() {
 }
 
 function openDetail(id) {
+  openDetailId = id;
   const task = allTasks.find(t => t.id === id);
   if (!task) return;
 
