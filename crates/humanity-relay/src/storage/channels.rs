@@ -1,6 +1,15 @@
 use super::Storage;
 use rusqlite::params;
 
+/// Set the `message_id` field on a Chat message so clients can correlate `message_deleted` events.
+fn inject_message_id(msg: crate::relay::RelayMessage, id: i64) -> crate::relay::RelayMessage {
+    if let crate::relay::RelayMessage::Chat { from, from_name, content, timestamp, signature, channel, reply_to, thread_count, .. } = msg {
+        crate::relay::RelayMessage::Chat { from, from_name, content, timestamp, signature, channel, reply_to, thread_count, message_id: Some(id) }
+    } else {
+        msg
+    }
+}
+
 impl Storage {
     // ── Channel methods ──
 
@@ -212,7 +221,7 @@ impl Storage {
     pub fn load_channel_messages(&self, channel_id: &str, limit: usize) -> Result<Vec<crate::relay::RelayMessage>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT raw_json FROM (
+            "SELECT id, raw_json FROM (
                 SELECT raw_json, id FROM messages
                 WHERE msg_type = 'chat' AND channel_id = ?1
                 ORDER BY id DESC
@@ -220,10 +229,14 @@ impl Storage {
             ) sub ORDER BY id ASC"
         )?;
         let messages = stmt.query_map(params![channel_id, limit], |row| {
-            let raw: String = row.get(0)?;
-            Ok(raw)
+            let id: i64 = row.get(0)?;
+            let raw: String = row.get(1)?;
+            Ok((id, raw))
         })?.filter_map(|r| r.ok())
-        .filter_map(|raw| serde_json::from_str::<crate::relay::RelayMessage>(&raw).ok())
+        .filter_map(|(id, raw)| {
+            serde_json::from_str::<crate::relay::RelayMessage>(&raw).ok()
+                .map(|msg| inject_message_id(msg, id))
+        })
         .collect();
         Ok(messages)
     }
@@ -248,7 +261,7 @@ impl Storage {
             if let Ok((id, raw)) = row {
                 if id > max_id { max_id = id; }
                 if let Ok(msg) = serde_json::from_str::<crate::relay::RelayMessage>(&raw) {
-                    messages.push(msg);
+                    messages.push(inject_message_id(msg, id));
                 }
             }
         }

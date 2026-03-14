@@ -357,6 +357,9 @@ pub enum RelayMessage {
         /// Number of replies to this message (populated server-side).
         #[serde(skip_serializing_if = "Option::is_none", default)]
         thread_count: Option<u32>,
+        /// Database row ID (set after persistence; lets clients match message_deleted events).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        message_id: Option<i64>,
     },
 
     /// Server announces a peer joined.
@@ -3740,7 +3743,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 // Only include signature in broadcast if it verified server-side.
                                 let broadcast_sig = if verified_sig { signature } else { None };
 
-                                let chat = RelayMessage::Chat {
+                                let mut chat = RelayMessage::Chat {
                                     from: my_key_for_recv.clone(),
                                     from_name: Some(display.clone()),
                                     content: content.clone(),
@@ -3749,17 +3752,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     channel: ch.clone(),
                                     reply_to: reply_to.clone(),
                                     thread_count: None,
+                                    message_id: None,
                                 };
 
                                 // Store in channel-specific table (with reply_to metadata).
-                                if let Some(ref rt) = reply_to {
-                                    if let Err(e) = state_clone.db.store_message_in_channel_with_reply(&chat, &ch, &rt.from, rt.timestamp) {
-                                        tracing::error!("Failed to persist message: {e}");
+                                // Capture the row ID so clients can correlate message_deleted events.
+                                let stored_id = if let Some(ref rt) = reply_to {
+                                    match state_clone.db.store_message_in_channel_with_reply(&chat, &ch, &rt.from, rt.timestamp) {
+                                        Ok(id) => Some(id),
+                                        Err(e) => { tracing::error!("Failed to persist message: {e}"); None }
                                     }
                                 } else {
-                                    if let Err(e) = state_clone.db.store_message_in_channel(&chat, &ch) {
-                                        tracing::error!("Failed to persist message: {e}");
+                                    match state_clone.db.store_message_in_channel(&chat, &ch) {
+                                        Ok(id) => Some(id),
+                                        Err(e) => { tracing::error!("Failed to persist message: {e}"); None }
                                     }
+                                };
+                                if let RelayMessage::Chat { ref mut message_id, .. } = chat {
+                                    *message_id = stored_id;
                                 }
                                 // Broadcast to all (clients filter by their active channel).
                                 let _ = state_clone.broadcast_tx.send(chat);

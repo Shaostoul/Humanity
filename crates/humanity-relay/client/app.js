@@ -402,7 +402,9 @@ async function loadHistory() {
           true, // isHistory
           !!msg.signature,
           msg.reply_to || null,
-          msg.thread_count || null
+          msg.thread_count || null,
+          false,
+          msg.message_id || null
         );
       }
 
@@ -515,10 +517,10 @@ async function handleMessage(msg) {
       // If message has a signature, verify it client-side.
       if (hasSig && msg.signature && msg.from && !msg.from.startsWith('bot_')) {
         verifyMessage(msg.from, msg.signature, msg.content, msg.timestamp).then(valid => {
-          addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, valid, msg.reply_to || null, msg.thread_count || null);
+          addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, valid, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
         });
       } else {
-        addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, hasSig, msg.reply_to || null, msg.thread_count || null);
+        addChatMessage(resolveSenderName(msg.from_name, msg.from), msg.content, msg.timestamp, msg.from, false, hasSig, msg.reply_to || null, msg.thread_count || null, false, msg.message_id || null);
       }
       // If this message is a reply, update the parent's thread count badge in the DOM.
       if (msg.reply_to) {
@@ -623,6 +625,14 @@ async function handleMessage(msg) {
       // Remove the deleted message from the DOM.
       const msgs = document.querySelectorAll('.message[data-from="' + msg.from + '"][data-timestamp="' + msg.timestamp + '"]');
       msgs.forEach(m => m.remove());
+      break;
+    }
+    case 'message_deleted': {
+      // Admin/mod deleted a message by database ID — find and remove by data-message-id.
+      if (msg.message_id != null) {
+        const el = document.querySelector('.message[data-message-id="' + msg.message_id + '"]');
+        if (el) el.remove();
+      }
       break;
     }
     case 'edit': {
@@ -1064,7 +1074,7 @@ async function sendChatCommand(command, channelOverride) {
 }
 
 // ── Rendering ──
-function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated) {
+function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, replyTo, threadCount, isFederated, messageId) {
   // Skip messages from blocked users entirely.
   if (author && isBlocked(author)) return;
 
@@ -1072,6 +1082,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   el.className = 'message' + (isFederated ? ' federated-msg' : '');
   el.dataset.from = fromKey;
   el.dataset.timestamp = timestamp;
+  if (messageId != null) el.dataset.messageId = messageId;
 
   const time = formatTime(timestamp);
   const isMe = fromKey === myKey;

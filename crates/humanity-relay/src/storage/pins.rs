@@ -201,6 +201,7 @@ impl Storage {
                         channel: "DM".to_string(),
                         reply_to: None,
                         thread_count: None,
+                        message_id: None,
                     };
                     (id, "DM".to_string(), msg)
                 })

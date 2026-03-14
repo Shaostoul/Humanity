@@ -149,6 +149,7 @@ pub async fn send_message(
         channel: channel.clone(),
         reply_to: None,
         thread_count: None,
+        message_id: None,
     };
 
     // Store and broadcast.
@@ -560,6 +561,7 @@ pub async fn github_webhook(
         channel: "announcements".to_string(),
         reply_to: None,
         thread_count: None,
+        message_id: None,
     };
 
     // Ensure bot peer exists (for display purposes).
