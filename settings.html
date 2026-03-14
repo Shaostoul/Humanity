@@ -745,7 +745,13 @@ function resetSettings() {
 }
 
 function exportData() {
-  const keys = ['hos_skills_v1','hos_inventory_v1','hos_logbook_v1','hos_quests_v1','hos_calendar_v1','hos_settings_v1','hos_identity','hos_profile_v1'];
+  const keys = [
+    'hos_skills_v1','hos_inventory_v1','hos_logbook_v1','hos_quests_v1',
+    'hos_calendar_v1','hos_homes_v2','hos_home_todos','hos_home_notes',
+    'hos_notes_v1','hos_equipment_v1','hos_settings_v1','hos_identity','hos_profile_v1',
+    'map_pins_v1','map_polygons_v1','map_home_location',
+    'humanity_name','hos_dm_recent',
+  ];
   const out = {};
   keys.forEach(k => {
     try { out[k] = JSON.parse(localStorage.getItem(k)); } catch(e) {}
