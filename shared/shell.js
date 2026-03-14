@@ -798,6 +798,81 @@
     });
   }, 0);
 
+  // ── Keyboard shortcut panel (? key) ──
+  (function () {
+    var overlay = document.createElement('div');
+    overlay.id = 'hos-shortcut-overlay';
+    overlay.style.cssText = [
+      'display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000',
+      'align-items:center;justify-content:center;font-family:\'Segoe UI\',system-ui,sans-serif'
+    ].join(';');
+
+    var shortcuts = [
+      ['Navigation', [
+        ['?', 'Open / close this shortcut panel'],
+        ['Esc', 'Close modals and panels'],
+        ['Alt + ←', 'Browser back'],
+        ['Alt + →', 'Browser forward'],
+      ]],
+      ['Chat (/chat)', [
+        ['Enter', 'Send message'],
+        ['Shift + Enter', 'New line in message'],
+        ['↑ (empty input)', 'Edit your last message'],
+        ['Ctrl + K', 'Open command palette'],
+        ['/ (or !)  ', 'Slash commands'],
+        ['Tab', 'Autocomplete mention / command'],
+      ]],
+      ['Tasks (/tasks)', [
+        ['Click card', 'Open detail panel'],
+        ['Esc', 'Close detail panel'],
+        ['← →', 'Scroll scope tabs'],
+      ]],
+      ['Notes (/notes)', [
+        ['Ctrl + S', 'Force save (auto-saves on pause)'],
+      ]],
+      ['Global', [
+        ['🌙 / ☀️ nav button', 'Toggle light / dark theme'],
+      ]],
+    ];
+
+    var html = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;' +
+      'padding:1.5rem 2rem;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;color:#e0e0e0">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">' +
+      '<h2 style="font-size:1rem;font-weight:700;color:#f0a500">Keyboard Shortcuts</h2>' +
+      '<button onclick="document.getElementById(\'hos-shortcut-overlay\').style.display=\'none\'" ' +
+      'style="background:none;border:none;color:#666;font-size:1.1rem;cursor:pointer">✕</button>' +
+      '</div>';
+
+    shortcuts.forEach(function (group) {
+      html += '<div style="margin-bottom:1.25rem">';
+      html += '<div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#555;' +
+        'text-transform:uppercase;margin-bottom:.6rem">' + group[0] + '</div>';
+      html += '<table style="width:100%;border-collapse:collapse">';
+      group[1].forEach(function (row) {
+        html += '<tr style="border-bottom:1px solid #1e1e1e">' +
+          '<td style="padding:.3rem .5rem;font-family:monospace;font-size:.78rem;color:#f0a500;white-space:nowrap">' + row[0] + '</td>' +
+          '<td style="padding:.3rem .5rem;font-size:.78rem;color:#aaa">' + row[1] + '</td></tr>';
+      });
+      html += '</table></div>';
+    });
+    html += '</div>';
+    overlay.innerHTML = html;
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) overlay.style.display = 'none';
+    });
+    document.body.appendChild(overlay);
+
+    document.addEventListener('keydown', function (e) {
+      // ? key — but NOT when focus is in an input/textarea
+      if (e.key === '?' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+        e.preventDefault();
+        var vis = overlay.style.display;
+        overlay.style.display = (vis === 'none' || vis === '') ? 'flex' : 'none';
+      }
+      if (e.key === 'Escape') overlay.style.display = 'none';
+    });
+  })();
+
   // ── Theme toggle (light/dark) ──
   (function () {
     var THEME_KEY = 'hos_theme';
