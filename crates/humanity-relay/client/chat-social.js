@@ -11,6 +11,7 @@ let activeGroupId = null; // Currently viewing group
 let activeGroupName = '';
 let myGroups = []; // Array of { id, name, invite_code, role }
 let groupMembersByGroup = {}; // group_id -> [{ key, role }]
+let groupUnread = {}; // group_id -> unread message count
 
 function isFriend(key) {
   return myFollowing.has(key) && myFollowers.has(key);
@@ -64,6 +65,10 @@ handleMessage = function(msg) {
       const name = resolveSenderName(msg.from_name, msg.from);
       const isYou = msg.from === myKey;
       addMessageToChat(name, msg.content, msg.timestamp, isYou, msg.from);
+    } else {
+      // Track unread count for groups not currently in view
+      groupUnread[msg.group_id] = (groupUnread[msg.group_id] || 0) + 1;
+      renderGroupList();
     }
     return;
   }
@@ -170,9 +175,11 @@ function renderGroupList() {
   let html = '';
   for (const g of myGroups) {
     const isActive = activeGroupId === g.id;
+    const unread = groupUnread[g.id] || 0;
+    const badge = unread > 0 ? `<span style="background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:auto;">${unread}</span>` : `<span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>`;
     html += `<div class="channel-item${isActive ? ' active' : ''}" data-group-id="${g.id}" style="cursor:pointer;">
       <span style="opacity:0.6">👥 </span>${esc(g.name)}
-      <span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>
+      ${badge}
     </div>`;
   }
   html += '<div style="display:flex;gap:0.25rem;padding:0.3rem 0;">'
@@ -235,6 +242,7 @@ function openGroup(groupId) {
   if (!group) return;
   activeGroupId = groupId;
   activeGroupName = group.name;
+  groupUnread[groupId] = 0; // Clear unread on enter
   activeDmPartner = null; // Exit DM view
   // Update channel header
   const header = document.getElementById('channel-header');
@@ -260,6 +268,21 @@ switchChannel = function(channelId) {
   activeGroupName = '';
   _origSwitchChannelFollow(channelId);
   if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
+};
+
+// Patch sendMessage to route to group_msg when a group is active.
+// Without this, pressing Enter while in a group view sends to the channel instead.
+const _origSendMessageGroup = sendMessage;
+sendMessage = async function() {
+  if (!activeGroupId) return _origSendMessageGroup();
+  const input = document.getElementById('msg-input');
+  const content = input.value.trim();
+  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'group_msg', group_id: activeGroupId, content }));
+  addMessageToChat(myName, content, Date.now(), true, myKey);
+  input.value = '';
+  input.style.height = 'auto';
+  input.focus();
 };
 
 // Helper to add a message to the chat (for groups)
