@@ -17,6 +17,13 @@ function isFriend(key) {
   return myFollowing.has(key) && myFollowers.has(key);
 }
 
+/** Send a friend_code_request to the relay; response arrives as friend_code_response. */
+function sendFriendCodeRequest() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'friend_code_request' }));
+  }
+}
+
 function isFollowing(key) {
   return myFollowing.has(key);
 }
