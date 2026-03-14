@@ -809,6 +809,22 @@ async function handleMessage(msg) {
         break;
       }
       if (msg.message === 'sync_ack') break; // Silent ack
+      // Skill verification request — another peer wants to endorse our skill.
+      if (msg.message && msg.message.startsWith('__skill_verify_req__:')) {
+        try {
+          const d = JSON.parse(msg.message.slice('__skill_verify_req__:'.length));
+          handleSkillVerifyRequest(d);
+        } catch (e) { console.warn('Bad skill_verify_req', e); }
+        break;
+      }
+      // Skill verification response — our endorsement request was approved.
+      if (msg.message && msg.message.startsWith('__skill_verify_resp__:')) {
+        try {
+          const d = JSON.parse(msg.message.slice('__skill_verify_resp__:'.length));
+          handleSkillVerifyResponse(d);
+        } catch (e) { console.warn('Bad skill_verify_resp', e); }
+        break;
+      }
       const handledAdminFeedback = handleChannelAdminFeedback(msg.message);
       if (!handledAdminFeedback) addSystemMessage(msg.message);
       break;
@@ -937,6 +953,49 @@ function handleChannelAdminFeedback(message) {
     return true;
   }
   return false;
+}
+
+/**
+ * Show a toast notification asking the local user to approve a peer's skill endorsement request.
+ * Sends a skill_verify_response back to the relay if approved.
+ * @param {{from_key, from_name, skill_id, level}} d
+ */
+function handleSkillVerifyRequest(d) {
+  const msg = `${d.from_name || 'A peer'} is asking to verify your "${d.skill_id}" skill (level ${d.level}). Approve?`;
+  if (!confirm(msg)) return;
+  const note = prompt('Optional note for the endorsement:', 'Verified!') ?? 'Verified';
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'skill_verify_response',
+      skill_id: d.skill_id,
+      to_key: d.from_key,
+      approved: true,
+      note,
+    }));
+  }
+}
+
+/**
+ * Show a system message when a peer approves our skill endorsement request.
+ * @param {{from_name, skill_id, approved, note}} d
+ */
+function handleSkillVerifyResponse(d) {
+  if (d.approved) {
+    addSystemMessage(`✅ ${d.from_name || 'A peer'} endorsed your "${d.skill_id}" skill: "${d.note || 'Verified'}"`);
+  }
+}
+
+/**
+ * Send a skill verification request to another peer via the relay.
+ * Called from the peer profile modal.
+ * @param {string} peerName - Display name of the peer to ask
+ * @param {string} skillId - Skill ID to request verification for
+ * @param {number} level - Current level of the skill
+ */
+function requestSkillEndorsement(peerName, skillId, level) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { alert('Not connected.'); return; }
+  ws.send(JSON.stringify({ type: 'skill_verify_request', to_name: peerName, skill_id: skillId, level }));
+  addSystemMessage(`📤 Endorsement request sent to ${peerName} for skill "${skillId}".`);
 }
 
 async function sendChatCommand(command, channelOverride) {

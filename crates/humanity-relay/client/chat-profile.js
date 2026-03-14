@@ -345,8 +345,10 @@ function showViewProfileCard(name, publicKey, profile) {
     const btnLabel = following ? '❌ Unfollow' : '👁️ Follow';
     html += '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);">';
     if (statusText) html += '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">' + statusText + '</div>';
+    html += '<div style="display:flex;gap:0.4rem;flex-wrap:wrap">';
     html += '<button id="profile-follow-btn" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;">' + btnLabel + '</button>';
-    html += '</div>';
+    html += '<button id="profile-endorse-btn" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;" title="Ask this user to verify one of your skills">🏅 Ask to Endorse</button>';
+    html += '</div></div>';
   }
 
   document.getElementById('view-profile-content').innerHTML = html;
@@ -368,6 +370,21 @@ function showViewProfileCard(name, publicKey, profile) {
           const type = myFollowing.has(publicKey) ? 'unfollow' : 'follow';
           ws.send(JSON.stringify({ type, target_key: publicKey }));
           closeViewProfileOverlay();
+        }
+      });
+    }
+  }
+  // Endorse skill button — prompts for skill ID + level, then sends request to the peer
+  if (publicKey && publicKey !== myKey) {
+    const endorseBtn = document.getElementById('profile-endorse-btn');
+    if (endorseBtn) {
+      endorseBtn.addEventListener('click', () => {
+        const skillId = prompt(`Ask ${name} to endorse which of your skills? (Enter skill ID, e.g. "Cooking", "Coding")`);
+        if (!skillId || !skillId.trim()) return;
+        const levelStr = prompt(`Your current level in "${skillId}":`, '1');
+        const level = parseInt(levelStr, 10) || 1;
+        if (typeof requestSkillEndorsement === 'function') {
+          requestSkillEndorsement(name, skillId.trim(), level);
         }
       });
     }
