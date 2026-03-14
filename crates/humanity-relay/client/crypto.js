@@ -327,6 +327,28 @@ async function importIdentityFromJSON(jsonData) {
   };
 }
 
+// ── Seed Phrase Display (paper backup) ──
+// Goal: let users write their identity key on paper in a readable format.
+// Displays the 32-byte Ed25519 seed as 8 groups of 4 hex chars (like a PIN
+// sheet) — easy to write down, hard to misread. No word list required.
+
+/**
+ * Return the current identity seed as a formatted "paper phrase":
+ * 8 groups of 4 hex chars separated by dashes.
+ * Example: a1b2-c3d4-e5f6-a7b8-c9d0-e1f2-a3b4-c5d6
+ * @returns {Promise<string|null>}
+ */
+async function getSeedPhrase() {
+  if (!myIdentity || !myIdentity.privateKey) return null;
+  try {
+    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+    const seed = extractSeedFromPkcs8(pkcs8);
+    const hex = bufToHex(seed);
+    // Split into 8 groups of 4 hex chars
+    return hex.match(/.{1,8}/g).map(g => g.match(/.{1,4}/g).join('-')).join('  ');
+  } catch (e) { return null; }
+}
+
 // ── Passphrase-Encrypted Identity Backup ──
 // Goal: let users protect their identity backup file with a passphrase so that
 // losing the file to an attacker doesn't compromise their identity.

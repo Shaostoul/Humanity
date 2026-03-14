@@ -456,6 +456,55 @@ function reRenderMessagesForBlockChange() {
   });
 }
 
+// ── Seed Phrase Display UI ──
+// Goal: show the user their identity as a writable paper backup.
+
+/**
+ * Open a modal showing the identity seed as a paper-backup phrase.
+ * Displays 8 groups of 4 hex chars the user can write on paper for
+ * offline recovery without relying on a backup file or passphrase memory.
+ */
+async function openSeedPhraseModal() {
+  const phrase = await getSeedPhrase();
+  if (!phrase) {
+    addSystemMessage('⚠️ Seed phrase unavailable — key may be non-extractable.');
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'seed-phrase-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;';
+
+  const groups = phrase.trim().split(/\s+/);
+
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">📄 Paper Backup — Seed Phrase</h2>
+      <p style="font-size:.8rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
+        Write these groups on paper and store them somewhere <strong style="color:#e0e0e0">separate</strong> from your encrypted backup file.
+        Together they give you a second recovery method if you forget your passphrase.<br>
+        <strong style="color:#e55">Never photograph or digitally copy this screen.</strong>
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.25rem">
+        ${groups.map((g, i) => `
+          <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:.6rem .75rem;display:flex;align-items:center;gap:.6rem">
+            <span style="font-size:.65rem;color:#555;min-width:16px">${i+1}.</span>
+            <code style="font-size:.95rem;letter-spacing:.12em;color:#f0a500;font-family:'Courier New',monospace">${g}</code>
+          </div>`).join('')}
+      </div>
+      <p style="font-size:.72rem;color:#555;margin-bottom:1rem">
+        Identity: <code style="color:#888">${(myIdentity && myIdentity.publicKeyHex || '').slice(0,16)}…</code>
+      </p>
+      <div style="display:flex;gap:.75rem;justify-content:flex-end">
+        <button onclick="this.closest('#seed-phrase-overlay').remove()"
+          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Done — I wrote it down</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
 // ── Identity Backup / Restore UI ──
 // Goal: give users a secure, frictionless way to protect and recover their
 // cryptographic identity from loss of device or browser data clear.

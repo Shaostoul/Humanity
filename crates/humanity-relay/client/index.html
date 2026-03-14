@@ -92,7 +92,7 @@
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
             <button onclick="openEncryptedBackupModal()" title="Download passphrase-encrypted identity backup" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔐 Backup</button>
             <button onclick="openRestoreIdentityModal()" title="Restore identity from a backup file" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
-            <button onclick="downloadIdentityBackup(myName)" title="Export plain (unencrypted) identity backup" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📄 Plain</button>
+            <button onclick="openSeedPhraseModal()" title="Show paper backup seed phrase (write on paper, store separately)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📄 Phrase</button>
           </div>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
