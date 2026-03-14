@@ -34,6 +34,7 @@
       padding: 0.35rem 0.65rem; border-radius: 8px 8px 0 0; border: 1px solid transparent;
       border-bottom: none; cursor: pointer; white-space: nowrap; transition: all 0.15s;
       background: transparent; position: relative; flex-shrink: 0;
+      color: var(--text); font-family: inherit;
     }
     .scope-tab:hover { background: #1a1a1a; }
     .scope-tab.active { background: var(--bg-panel); border-color: var(--border-bright); border-bottom-color: var(--bg-panel); }
@@ -263,7 +264,7 @@ const SCOPES = [
 ];
 
 let allTasks = [];
-let activeScope = 'city';
+let activeScope = 'cosmos';
 
 /* ── Init ── */
 function init() {
