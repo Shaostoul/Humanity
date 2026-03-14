@@ -2284,6 +2284,43 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                                 continue;
                             }
+                            Some("task_update") => {
+                                // Any authenticated relay user can update task status/priority.
+                                if let Some(task_id) = raw.get("task_id").and_then(|v| v.as_i64()) {
+                                    let valid_statuses  = ["backlog", "in_progress", "testing", "done"];
+                                    let valid_priorities = ["low", "medium", "high", "critical"];
+                                    let new_status   = raw.get("status").and_then(|v| v.as_str()).filter(|s| valid_statuses.contains(s));
+                                    let new_priority = raw.get("priority").and_then(|v| v.as_str()).filter(|p| valid_priorities.contains(p));
+                                    let new_title    = raw.get("title").and_then(|v| v.as_str());
+                                    let new_assignee = raw.get("assignee").and_then(|v| v.as_str());
+                                    if let Ok(Some(task)) = state_clone.db.get_task(task_id) {
+                                        // Move to new status if changed
+                                        if let Some(ns) = new_status {
+                                            if ns != task.status.as_str() {
+                                                let _ = state_clone.db.move_task(task_id, ns);
+                                            }
+                                        }
+                                        // Update other fields if any changed
+                                        if new_priority.is_some() || new_title.is_some() || new_assignee.is_some() {
+                                            let priority = new_priority.unwrap_or(&task.priority);
+                                            let title    = new_title.unwrap_or(&task.title);
+                                            let assignee = new_assignee.or(task.assignee.as_deref());
+                                            let _ = state_clone.db.update_task(task_id, title, &task.description, priority, assignee, &task.labels);
+                                        }
+                                        if let Ok(Some(updated)) = state_clone.db.get_task(task_id) {
+                                            let td = TaskData {
+                                                id: updated.id, title: updated.title, description: updated.description,
+                                                status: updated.status, priority: updated.priority, assignee: updated.assignee,
+                                                created_by: updated.created_by, created_at: updated.created_at,
+                                                updated_at: updated.updated_at, position: updated.position,
+                                                labels: updated.labels, comment_count: 0,
+                                            };
+                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
+                                        }
+                                    }
+                                }
+                                continue;
+                            }
                             Some("task_comment") => {
                                 // Any authenticated relay user can comment on a task.
                                 if let (Some(task_id), Some(content)) = (
