@@ -37,6 +37,27 @@ function resolveNameToKey(name) {
 // Handle follow/friend/group messages from server
 const _origHandleMessageFollow = handleMessage;
 handleMessage = function(msg) {
+  if (msg.type === 'friend_code_response') {
+    // Server generated a one-time friend code for us to share.
+    const code = msg.code || '';
+    const expires = msg.expires_at ? new Date(msg.expires_at).toLocaleString() : '24h';
+    addSystemMessage(`🤝 Your friend code: <strong style="font-family:monospace;color:var(--accent);">${esc(code)}</strong> (expires ${expires}). Share it with someone; they can use /redeem ${esc(code)} to auto-follow each other.`);
+    navigator.clipboard?.writeText(code);
+    return;
+  }
+  if (msg.type === 'friend_code_result') {
+    if (msg.success) {
+      const name = esc(msg.new_friend_name || msg.redeemer_name || 'them');
+      addSystemMessage(`🤝 Friend code redeemed! You and ${name} now follow each other.`);
+      // Refresh follow list
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'chat', content: '/friends', channel: activeChannel || 'general', from: myKey, from_name: myName, timestamp: Date.now() }));
+      }
+    } else {
+      addSystemMessage(`⚠️ Friend code failed: ${esc(msg.error || 'Unknown error')}`);
+    }
+    return;
+  }
   if (msg.type === 'follow_list') {
     myFollowing = new Set(msg.following || []);
     myFollowers = new Set(msg.followers || []);
