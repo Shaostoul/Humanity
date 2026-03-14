@@ -150,7 +150,25 @@ document.addEventListener('DOMContentLoaded', function() {
     mapPan.y = mapPanStart.y + (e.clientY - mapDragStart.y);
     mapRender();
   });
-  canvas.addEventListener('mouseup', function() { mapDragging = false; });
+  canvas.addEventListener('mouseup', function(e) {
+    const wasDragging = mapDragging;
+    mapDragging = false;
+    // Detect short click (not a drag) to select location
+    if (!wasDragging || (Math.abs(e.clientX - mapDragStart.x) < 4 && Math.abs(e.clientY - mapDragStart.y) < 4)) {
+      if (!mapDrawMode && mapView === 'surface') {
+        const rect = canvas.getBoundingClientRect();
+        const sx = (e.clientX - rect.left) * (canvas.width / rect.width / (window.devicePixelRatio || 1));
+        const sy = (e.clientY - rect.top)  * (canvas.height / rect.height / (window.devicePixelRatio || 1));
+        const ll = screenToLatLng(sx, sy, canvas.clientWidth, canvas.clientHeight);
+        if (ll.lat >= -90 && ll.lat <= 90 && ll.lng >= -180 && ll.lng <= 180) {
+          mapSelectedLocation = ll;
+          updateCoordsBar(ll.lat, ll.lng);
+          updateSidebar();
+          mapRender();
+        }
+      }
+    }
+  });
   canvas.addEventListener('mouseleave', function() { mapDragging = false; mapDrawMouseLatLng = null; });
   canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
@@ -189,6 +207,132 @@ document.addEventListener('DOMContentLoaded', function() {
   mapRender();
   mapInitialized = true;
 });
+
+// ── Persistent data helpers ──
+function loadHome() { try { return JSON.parse(localStorage.getItem('map_home_location')); } catch { return null; } }
+function saveHome(h) { localStorage.setItem('map_home_location', JSON.stringify(h)); }
+function loadPins() { try { return JSON.parse(localStorage.getItem('map_pins_v1') || '[]'); } catch { return []; } }
+function savePins(p) { localStorage.setItem('map_pins_v1', JSON.stringify(p)); }
+function loadStargazer() {
+  try { return JSON.parse(localStorage.getItem('map_stargazer') || '{"identified":[]}'); }
+  catch { return { identified: [] }; }
+}
+
+// ── UI helpers ──
+function updateCoordsBar(lat, lng) {
+  const el = document.getElementById('map-coords');
+  if (el) el.textContent = `${lat >= 0 ? lat.toFixed(4)+'°N' : (-lat).toFixed(4)+'°S'}  ${lng >= 0 ? lng.toFixed(4)+'°E' : (-lng).toFixed(4)+'°W'}`;
+}
+
+function showLocationInfo(lat, lng, name) {
+  mapSelectedLocation = { lat, lng };
+  updateCoordsBar(lat, lng);
+  updateSidebar();
+}
+
+function mapGoToPin(lat, lng, name) {
+  if (mapView !== 'surface') return;
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  mapZoom = Math.max(mapZoom, 4);
+  mapPan = { x: 0, y: 0 };
+  const target = latLngToScreen(lat, lng, cw, ch);
+  mapPan.x = cw / 2 - target.x;
+  mapPan.y = ch / 2 - target.y;
+  mapSelectedLocation = { lat, lng, name };
+  mapRender();
+  updateCoordsBar(lat, lng);
+  updateSidebar();
+}
+
+function updateSidebar() {
+  const panel = document.getElementById('map-info-panel');
+  if (!panel) return;
+  let html = '';
+
+  // Location info
+  if (mapSelectedLocation) {
+    const { lat, lng, name } = mapSelectedLocation;
+    html += `<div style="margin-bottom:0.8rem">
+      <div style="font-size:0.9rem;font-weight:600;margin-bottom:0.3rem">${name ? `📍 ${name}` : '📍 Selected Location'}</div>
+      <div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
+      <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
+        <button onclick="setHomeHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">🏠 Set Home</button>
+        <button onclick="addPinHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:#f0c040;cursor:pointer;">📌 Add Pin</button>
+      </div>
+    </div><hr style="border-color:var(--border);margin-bottom:0.8rem">`;
+  }
+
+  // Home
+  const home = loadHome();
+  if (home) {
+    html += `<div style="margin-bottom:0.8rem">
+      <div style="font-size:0.8rem;font-weight:600;color:var(--accent)">🏠 Home</div>
+      <div style="font-size:0.75rem;color:var(--text-muted)">${home.name || 'Home'}</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);font-family:monospace">${home.lat.toFixed(4)}, ${home.lng.toFixed(4)}</div>
+      <button onclick="mapGoHome()" style="font-size:0.72rem;padding:2px 7px;margin-top:0.3rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">Go Here</button>
+    </div>`;
+  }
+
+  // Pins
+  const pins = loadPins();
+  if (pins.length > 0) {
+    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#f0c040;margin-bottom:0.4rem">📌 Pins</div>`;
+    for (let i = 0; i < pins.length; i++) {
+      const p = pins[i];
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;font-size:0.75rem">
+        <span style="cursor:pointer;color:var(--text)" onclick="mapGoToPin(${p.lat},${p.lng},'${(p.name||'Pin').replace(/'/g,"\\'")}')">${p.name || 'Pin'}</span>
+        <button onclick="deletePin(${i})" style="font-size:0.65rem;padding:1px 5px;background:transparent;border:none;color:#e55;cursor:pointer">✕</button>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // Polygons
+  const polys = loadPolygons();
+  if (polys.length > 0) {
+    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#ff8811;margin-bottom:0.4rem">✏️ Zones</div>`;
+    for (const poly of polys) {
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;font-size:0.75rem">
+        <span style="color:var(--text)">${poly.label || 'Zone'} <span style="color:var(--text-muted)">(${poly.points.length} pts)</span></span>
+        <button onclick="deleteMapPolygon(${poly.id})" style="font-size:0.65rem;padding:1px 5px;background:transparent;border:none;color:#e55;cursor:pointer">✕</button>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  // View-specific info
+  if (mapView === 'surface' && !mapSelectedLocation && !home && pins.length === 0) {
+    html += `<div style="color:var(--text-muted);font-size:0.75rem">Click on the map to select a location.</div>`;
+  }
+
+  panel.innerHTML = html || `<div style="color:var(--text-muted);font-size:0.75rem">Explore the map.</div>`;
+}
+
+function setHomeHere(lat, lng) {
+  const name = prompt('Name this home location:', 'Home');
+  if (!name) return;
+  saveHome({ lat, lng, name });
+  updateSidebar();
+  mapRender();
+}
+
+function addPinHere(lat, lng) {
+  const name = prompt('Pin label:');
+  if (!name) return;
+  const pins = loadPins();
+  pins.push({ lat, lng, name });
+  savePins(pins);
+  updateSidebar();
+  mapRender();
+}
+
+function deletePin(idx) {
+  const pins = loadPins();
+  pins.splice(idx, 1);
+  savePins(pins);
+  updateSidebar();
+  mapRender();
+}
 
 // ── Polygon Store ──
 function loadPolygons() { try { return JSON.parse(localStorage.getItem('map_polygons_v1') || '[]'); } catch { return []; } }
