@@ -179,9 +179,12 @@
   }).catch(() => { if(el('debug-connection')) el('debug-connection').textContent = '❌ Cannot reach server'; });
 })();
 
+  const states = ['btn-clickable','btn-channeling','btn-activated','btn-cooldown'];
+
   function testBtnClick(btn) {
+   const orig = btn.textContent;
    btn.textContent = '✓ Clicked!';
-   setTimeout(() => { btn.textContent = 'Hover / Click Me'; }, 800);
+   setTimeout(() => { btn.textContent = orig; }, 800);
   }
   function cycleState(btn) {
    const current = states.find(s => btn.classList.contains(s)) || 'btn-clickable';
@@ -202,6 +205,16 @@
     btn.appendChild(botT);
    }
   }
+  function toggleChannel(btn) {
+   if (btn.classList.contains('btn-channeling')) {
+    btn.classList.remove('btn-channeling');
+    btn.classList.add('btn-clickable');
+   } else {
+    btn.classList.remove('btn-clickable');
+    btn.classList.add('btn-channeling');
+   }
+  }
+
   function startCooldown(btn, seconds) {
    if (btn.classList.contains('btn-cooldown')) return;
    const originalText = btn.textContent;

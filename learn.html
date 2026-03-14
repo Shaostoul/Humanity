@@ -155,19 +155,6 @@
    browseNavigate(url);
   }
 
-  function browseNavigateTracked(url) {
-   if (!url) return;
-   const status = getPingStatus(url.startsWith('http') ? url : 'https://'+url);
-   if (status === 'down') {
-    if (!confirm('⚠️ This site may be down. Continue anyway?')) return;
-   }
-   const data = getBrowseData();
-   data.clickCounts[url] = (data.clickCounts[url] || 0) + 1;
-   data.lastVisited[url] = Date.now();
-   saveBrowseData(data);
-   browseNavigate(url);
-  }
-
   function browsePanelBack() {
    document.getElementById('browse-iframe').style.display = 'none';
    document.getElementById('browse-iframe').src = '';
@@ -190,9 +177,9 @@
 
 
 // Init on load
-document.addEventListener(DOMContentLoaded, function() {
-  if (typeof renderBrowseSites === function) renderBrowseSites();
-  if (typeof renderQuickBar === function) renderQuickBar();
+document.addEventListener('DOMContentLoaded', function() {
+  if (typeof renderBrowseSites === 'function') renderBrowseSites();
+  if (typeof renderQuickBar === 'function') renderQuickBar();
 });
 </script>
 </body>
