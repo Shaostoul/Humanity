@@ -169,24 +169,31 @@ function showMarketSection(section) {
 }
 
 function handleMarketMessage(msg) {
-  if (msg.type === 'market_listings') {
+  // Relay uses listing_list (response to listing_browse), listing_new, listing_updated, listing_deleted
+  if (msg.type === 'listing_list') {
     marketListings = msg.listings || [];
     renderMarketListings();
     renderMyListings();
-  } else if (msg.type === 'market_listing_created' || msg.type === 'market_listing_updated') {
-    const listing = msg.listing;
-    if (listing) {
-      const existing = marketListings.findIndex(l => l.id === listing.id);
-      if (existing >= 0) marketListings[existing] = listing;
-      else marketListings.push(listing);
+  } else if (msg.type === 'listing_new') {
+    if (msg.listing) {
+      marketListings = marketListings.filter(l => l.id !== msg.listing.id);
+      marketListings.unshift(msg.listing);
       renderMarketListings();
       renderMyListings();
     }
-  } else if (msg.type === 'market_listing_deleted') {
+  } else if (msg.type === 'listing_updated') {
+    if (msg.listing) {
+      const idx = marketListings.findIndex(l => l.id === msg.listing.id);
+      if (idx >= 0) marketListings[idx] = msg.listing;
+      else marketListings.unshift(msg.listing);
+      renderMarketListings();
+      renderMyListings();
+    }
+  } else if (msg.type === 'listing_deleted') {
     if (msg.id) marketListings = marketListings.filter(l => l.id !== msg.id);
     renderMarketListings();
     renderMyListings();
-  } else if (msg.type === 'peer_list' || msg.type === 'identified') {
+  } else if (msg.type === 'peer_list') {
     if (msg.peers && marketMyKey) {
       const me = msg.peers.find(p => p.public_key_hex === marketMyKey || p.public_key === marketMyKey);
       if (me) { marketMyRole = me.role || ''; }
@@ -194,8 +201,8 @@ function handleMarketMessage(msg) {
     const canList = marketMyRole === 'admin' || marketMyRole === 'mod' || marketMyRole === 'verified' || marketMyRole === 'donor';
     const btn = document.getElementById('market-create-btn');
     if (btn) btn.style.display = canList ? 'inline-flex' : 'none';
-    // Request listing data
-    if (marketWs && marketWs.readyState === 1) marketWs.send(JSON.stringify({ type: 'market_list' }));
+    // Request full listing catalog
+    if (marketWs && marketWs.readyState === 1) marketWs.send(JSON.stringify({ type: 'listing_browse' }));
   }
 }
 
