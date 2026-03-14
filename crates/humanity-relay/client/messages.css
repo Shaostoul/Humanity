@@ -63,6 +63,17 @@
   border-radius: 3px;
   font-weight: 600;
 }
+/* Signature present but not yet verified (history loaded before crypto ready) */
+.sig-badge.unverified {
+  color: var(--text-muted);
+  background: rgba(128,128,128,0.12);
+}
+/* Signature present but verification failed — possible tampering */
+.sig-badge.invalid {
+  color: #e55;
+  background: rgba(220,60,60,0.15);
+  cursor: help;
+}
 
 .message .time {
   font-size: 0.65rem;
