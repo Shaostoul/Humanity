@@ -510,7 +510,17 @@ function eventsOn(dateStr) {
   const expanded = events
     .filter(e => e.recurrence && eventMatchesDate(e, dateStr))
     .map(e => ({ ...e, _recurring: true }));
-  return [...direct, ...expanded];
+  // Include quests with due dates on this day.
+  const questsOnDay = [];
+  try {
+    const qs = JSON.parse(localStorage.getItem('hos_quests_v1') || '[]');
+    for (const q of qs) {
+      if (q.due === dateStr && !q.done) {
+        questsOnDay.push({ id: 'quest:'+q.id, title: '⚔️ '+q.title, date: dateStr, color: '#7f5af0', _quest: true });
+      }
+    }
+  } catch {}
+  return [...direct, ...expanded, ...questsOnDay];
 }
 
 // ─────────────────────────────────────────────
