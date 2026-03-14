@@ -836,6 +836,13 @@ async function handleMessage(msg) {
       const handledAdminFeedback = handleChannelAdminFeedback(msg.message);
       if (!handledAdminFeedback) addSystemMessage(msg.message);
       break;
+    case 'thread_response': {
+      // Server sent back the messages in a thread. Pass to chat-messages.js renderer.
+      if (typeof renderThreadMessages === 'function') {
+        renderThreadMessages(msg.messages || []);
+      }
+      break;
+    }
     case 'name_taken': {
       // Stop reconnecting — this is a permanent error, not a transient disconnect.
       clearTimeout(reconnectTimer);
