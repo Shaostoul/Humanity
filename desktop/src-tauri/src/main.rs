@@ -1,14 +1,22 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use tauri::Manager;
 use tauri_plugin_updater::UpdaterExt;
 
-/// JS injected into every page load.
-/// Ctrl+Shift+Delete clears all SW caches and hard-reloads — fixes stale pages after a deploy.
+/// JS injected before every page runs.
+/// F12            → open DevTools
+/// Ctrl+Shift+Del → clear all SW caches and hard-reload (fixes stale pages after a deploy)
 const INIT_SCRIPT: &str = r#"
 (function () {
     if (window.__HOS_APP_INIT__) return;
     window.__HOS_APP_INIT__ = true;
     document.addEventListener('keydown', async function (e) {
+        // F12 — open DevTools
+        if (e.key === 'F12') {
+            e.preventDefault();
+            window.__TAURI__?.core?.invoke('open_devtools').catch(() => {});
+        }
+        // Ctrl+Shift+Delete — clear all caches and hard-reload
         if (e.ctrlKey && e.shiftKey && e.key === 'Delete') {
             e.preventDefault();
             try {
@@ -23,13 +31,20 @@ const INIT_SCRIPT: &str = r#"
 })();
 "#;
 
+/// Called from JS (F12) to open the WebView DevTools panel.
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) {
+    window.open_devtools();
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .invoke_handler(tauri::generate_handler![open_devtools])
         .setup(|app| {
             let version = app.config().version.clone().unwrap_or_else(|| "dev".to_string());
 
-            // Build main window pointing at the live site, with keyboard shortcut injection
+            // Build the main window — loads united-humanity.us, injects keyboard shortcuts
             tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
@@ -38,6 +53,7 @@ fn main() {
             .title(format!("Humanity — v{version}"))
             .inner_size(1200.0, 800.0)
             .min_inner_size(400.0, 300.0)
+            .devtools(true)
             .initialization_script(INIT_SCRIPT)
             .build()?;
 
@@ -49,9 +65,7 @@ fn main() {
                     Ok(updater) => {
                         if let Ok(Some(update)) = updater.check().await {
                             let _ = update.download_and_install(
-                                |downloaded, total| {
-                                    let _ = (downloaded, total);
-                                },
+                                |downloaded, total| { let _ = (downloaded, total); },
                                 || {},
                             ).await;
                         }

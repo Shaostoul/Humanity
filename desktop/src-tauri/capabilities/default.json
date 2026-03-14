@@ -5,6 +5,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-title",
+    "core:webview:allow-open-devtools",
     "updater:default"
   ],
   "remote": {
