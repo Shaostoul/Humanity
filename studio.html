@@ -217,8 +217,8 @@ function streamConnect() {
   streamWs = new WebSocket(proto + '//' + location.hostname + (location.port ? ':'+location.port : '') + '/ws');
   streamWs.onopen = function() {
     clearTimeout(streamWsReconnectTimer);
-    const stored = localStorage.getItem('humanity_identity');
-    if (stored) { try { const id = JSON.parse(stored); streamWs.send(JSON.stringify({ type: 'Hello', public_key: id.publicKeyHex||'' })); } catch(e){} }
+    const stored = localStorage.getItem('humanity_key_backup');
+    if (stored) { try { const id = JSON.parse(stored); streamWs.send(JSON.stringify({ type: 'identify', public_key: id.publicKeyHex||'', display_name: localStorage.getItem('humanity_name') || 'Streamer' })); } catch(e){} }
     if (typeof streamRequestInfo === 'function') streamRequestInfo();
   };
   streamWs.onclose = function() { streamWsReconnectTimer = setTimeout(streamConnect, 5000); };
@@ -255,8 +255,8 @@ function studioAddChatFromChannel(msg) { studioAddChat('humanity', msg.from_name
 function studioChatSend() {
   const inp = document.getElementById('studio-chat-input'); const text = inp.value.trim(); if (!text) return; inp.value = '';
   if (streamWs && streamWs.readyState === 1) {
-    const stored = localStorage.getItem('humanity_identity'); let myKey='', myName='Streamer';
-    if (stored) { try { const id=JSON.parse(stored); myKey=id.publicKeyHex||''; myName=id.name||'Streamer'; } catch(e){} }
+    const stored = localStorage.getItem('humanity_key_backup'); let myKey='', myName='Streamer';
+    if (stored) { try { const id=JSON.parse(stored); myKey=id.publicKeyHex||''; myName=localStorage.getItem('humanity_name')||'Streamer'; } catch(e){} }
     streamWs.send(JSON.stringify({type:'chat',from:myKey,from_name:myName,content:text,timestamp:Date.now(),channel:'stream'}));
   }
   studioAddChat('humanity', 'me', text);
@@ -277,7 +277,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ── Stream State ──
-const card = document.getElementById('streams-' + id);
 let streamScreenStream = null;
 let streamWebcamStream = null;
 let streamCompositeStream = null;

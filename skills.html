@@ -681,6 +681,10 @@ function showToast(msg) {
 // ─────────────────────────────────────────────
 // Init
 // ─────────────────────────────────────────────
+
+// Must be declared before buildSkillCard is called during auto-select.
+let skillEndorsements = {};
+
 loadSkillData();
 renderSidebar();
 
@@ -742,7 +746,6 @@ async function findUsersWithSkill(skillId, skillName) {
 
 // ── Endorsement counts from relay ──
 // Keyed by skill_id (lowercase), value is { count, last_endorser }
-let skillEndorsements = {};
 
 /** Hook called by app.js when relay sends back endorsement counts. */
 window.onSkillEndorsementsReceived = function(data) {
