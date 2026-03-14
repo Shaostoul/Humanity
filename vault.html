@@ -580,6 +580,31 @@
   <!-- Main panel -->
   <div id="vault-main">
 
+    <!-- Seed phrase nudge banner (hidden until checkSeedPhraseBanner decides) -->
+    <div id="seed-nudge-banner" style="display:none;align-items:flex-start;gap:.9rem;
+         background:#1a1000;border:1px solid #3a2800;border-radius:11px;
+         padding:1rem 1.1rem;margin-bottom:1.25rem;max-width:640px">
+      <span style="font-size:1.4rem;flex-shrink:0">🌱</span>
+      <div style="flex:1">
+        <div style="font-size:.85rem;font-weight:700;color:#f0a500;margin-bottom:.25rem">Your Humanity identity isn't backed up here yet</div>
+        <div style="font-size:.78rem;color:#888;line-height:1.55;margin-bottom:.7rem">
+          Your chat identity has a 24-word seed phrase — like a master key written in plain English.
+          Save it here and you can always recover your account, even if your device is lost or your browser is wiped.
+        </div>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+          <a href="/chat" style="background:#f0a500;color:#000;border:none;border-radius:6px;
+             padding:.35rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none">
+            Go to Chat → Get Seed Phrase
+          </a>
+          <button onclick="dismissSeedNudge()"
+            style="background:none;border:1px solid #2a2a2a;color:#555;border-radius:6px;
+                   padding:.35rem .75rem;font-size:.78rem;cursor:pointer">
+            Don't show again
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Welcome / empty state -->
     <div id="vault-welcome">
       <h2>Your vault is unlocked 🔓</h2>
@@ -977,6 +1002,31 @@ function showWelcome() {
   const qa = document.getElementById('quick-add-grid');
   if (qa) qa.style.display = vault && vault.entries.length ? 'none' : '';
   renderEntryList();
+  checkSeedPhraseBanner();
+}
+
+/**
+ * If the user has a Humanity chat identity but no seed phrase saved in the
+ * vault yet, show a one-time nudge banner pointing them to Chat → Profile.
+ * Dismissed state is stored in localStorage so it doesn't reappear.
+ */
+function checkSeedPhraseBanner() {
+  const banner = document.getElementById('seed-nudge-banner');
+  if (!banner) return;
+  // Already dismissed permanently
+  if (localStorage.getItem('hos_vault_seed_nudge_dismissed')) { banner.remove(); return; }
+  // No chat identity on this device
+  if (!localStorage.getItem('humanity_key')) { banner.remove(); return; }
+  // Already have a seed phrase entry in the vault
+  const hasSeed = vault && vault.entries.some(e => e.type === 'seed_phrase');
+  if (hasSeed) { banner.remove(); return; }
+  banner.style.display = 'flex';
+}
+
+function dismissSeedNudge() {
+  localStorage.setItem('hos_vault_seed_nudge_dismissed', '1');
+  const b = document.getElementById('seed-nudge-banner');
+  if (b) b.remove();
 }
 
 function showEntryDetail(id) {
