@@ -54,7 +54,7 @@ handleMessage = function(msg) {
   }
   if (msg.type === 'friend_code_result') {
     if (msg.success) {
-      const name = esc(msg.new_friend_name || msg.redeemer_name || 'them');
+      const name = esc(msg.name || 'them');
       addSystemMessage(`🤝 Friend code redeemed! You and ${name} now follow each other.`);
       // Refresh follow list
       if (ws && ws.readyState === WebSocket.OPEN) {
