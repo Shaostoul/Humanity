@@ -64,6 +64,7 @@ button {
      <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="My location (GPS)">📍</button>
      <button onclick="mapToggleWeather()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle weather overlay">🌤️</button>
      <button onclick="mapToggleGrid()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle icosphere grid">📐</button>
+     <button id="draw-polygon-btn" onclick="mapToggleDrawMode()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Draw polygon / zone">✏️</button>
     </div>
     <!-- Search bar overlay -->
     <div style="position:absolute;top:0.5rem;left:0.5rem;right:3.5rem;z-index:10;">
@@ -82,6 +83,9 @@ let canvas, ctx;
 let mapView = 'surface';
 let mapPan = {x:0, y:0};
 let mapZoom = 1.0;
+let mapDrawMode = false;          // polygon draw mode active
+let mapDrawPoints = [];           // [{lat, lng}] in-progress polygon vertices
+let mapDrawMouseLatLng = null;    // current cursor position for ghost line
 let mapDragging = false;
 let mapDragStart = {x:0,y:0};
 let mapPanStart = {x:0,y:0};
@@ -112,18 +116,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Mouse events
   canvas.addEventListener('mousedown', function(e) {
+    if (mapView !== 'surface') return;
+    if (mapDrawMode) {
+      // In draw mode: left-click adds vertex; right-click closes polygon
+      const rect = canvas.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) * (canvas.width / rect.width / (window.devicePixelRatio || 1));
+      const sy = (e.clientY - rect.top)  * (canvas.height / rect.height / (window.devicePixelRatio || 1));
+      const cw = canvas.clientWidth, ch = canvas.clientHeight;
+      if (e.button === 2) {
+        if (mapDrawPoints.length >= 3) finishPolygon();
+        return;
+      }
+      mapDrawPoints.push(screenToLatLng(sx, sy, cw, ch));
+      mapRender();
+      return;
+    }
     mapDragging = true;
     mapDragStart = {x: e.clientX, y: e.clientY};
     mapPanStart = {x: mapPan.x, y: mapPan.y};
   });
+  canvas.addEventListener('contextmenu', function(e) { if (mapDrawMode) e.preventDefault(); });
   canvas.addEventListener('mousemove', function(e) {
+    if (mapDrawMode && mapView === 'surface') {
+      const rect = canvas.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) * (canvas.width / rect.width / (window.devicePixelRatio || 1));
+      const sy = (e.clientY - rect.top)  * (canvas.height / rect.height / (window.devicePixelRatio || 1));
+      mapDrawMouseLatLng = screenToLatLng(sx, sy, canvas.clientWidth, canvas.clientHeight);
+      mapRender();
+      return;
+    }
     if (!mapDragging) return;
     mapPan.x = mapPanStart.x + (e.clientX - mapDragStart.x);
     mapPan.y = mapPanStart.y + (e.clientY - mapDragStart.y);
     mapRender();
   });
   canvas.addEventListener('mouseup', function() { mapDragging = false; });
-  canvas.addEventListener('mouseleave', function() { mapDragging = false; });
+  canvas.addEventListener('mouseleave', function() { mapDragging = false; mapDrawMouseLatLng = null; });
   canvas.addEventListener('wheel', function(e) {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.1 : 0.9;
@@ -162,22 +190,9 @@ document.addEventListener('DOMContentLoaded', function() {
   mapInitialized = true;
 });
 
-// ── Map State ──
-const canvas = document.getElementById('map-canvas');
-const ctx = canvas.getContext('2d');
-let mapView = 'surface'; // surface | system | sector | galaxy
-let mapPan = {x:0, y:0};
-let mapZoom = 1.0;
-let mapDragging = false;
-let mapDragStart = {x:0,y:0};
-let mapPanStart = {x:0,y:0};
-let mapShowGrid = false;
-let mapShowWeather = false;
-let mapSelectedLocation = null; // {lat, lng}
-let mapInitialized = false;
-let mapWeatherCache = {};
-let mapWeatherTimer = null;
-let mapAnimating = false;
+// ── Polygon Store ──
+function loadPolygons() { try { return JSON.parse(localStorage.getItem('map_polygons_v1') || '[]'); } catch { return []; } }
+function savePolygons(p) { localStorage.setItem('map_polygons_v1', JSON.stringify(p)); }
 
 // ── Canvas Init (called after DOM ready) ──
 function mapInit() {
@@ -261,6 +276,26 @@ function mapInit() {
   statsEl.innerHTML = Object.entries(c.stats).map(([k, v]) => {
   const pct = ((v - 3) / 15 * 100).toFixed(0);
   return `<div style="background:var(--bg-input);border-radius:6px;padding:0.35rem 0.5rem;">
+}
+
+// ── Coordinate helpers ──
+/**
+ * Convert geographic lat/lng to canvas pixel coordinates, accounting for
+ * current mapPan and mapZoom. Uses simple equirectangular projection.
+ */
+function latLngToScreen(lat, lng, cw, ch) {
+  const x = ((lng + 180) / 360) * cw * mapZoom + mapPan.x;
+  const y = ((90 - lat) / 180) * ch * mapZoom + mapPan.y;
+  return { x, y };
+}
+
+/**
+ * Convert canvas pixel coordinates back to lat/lng.
+ */
+function screenToLatLng(sx, sy, cw, ch) {
+  const lng = ((sx - mapPan.x) / (cw * mapZoom)) * 360 - 180;
+  const lat = 90 - ((sy - mapPan.y) / (ch * mapZoom)) * 180;
+  return { lat, lng };
 }
 
 // ── renderSurface ──
@@ -369,6 +404,61 @@ function renderSurface(cw, ch) {
   ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI*2); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(p.x-12,p.y); ctx.lineTo(p.x+12,p.y); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(p.x,p.y-12); ctx.lineTo(p.x,p.y+12); ctx.stroke();
+ }
+
+ // Saved polygons
+ const savedPolys = loadPolygons();
+ for (const poly of savedPolys) {
+  if (!poly.points || poly.points.length < 3) continue;
+  ctx.beginPath();
+  const p0 = latLngToScreen(poly.points[0].lat, poly.points[0].lng, cw, ch);
+  ctx.moveTo(p0.x, p0.y);
+  for (let i = 1; i < poly.points.length; i++) {
+   const pp = latLngToScreen(poly.points[i].lat, poly.points[i].lng, cw, ch);
+   ctx.lineTo(pp.x, pp.y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = poly.fill || 'rgba(255,140,0,0.15)';
+  ctx.fill();
+  ctx.strokeStyle = poly.stroke || 'rgba(255,140,0,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  if (poly.label) {
+   // Label at centroid
+   const cx2 = poly.points.reduce((s, p) => s + p.lng, 0) / poly.points.length;
+   const cy2 = poly.points.reduce((s, p) => s + p.lat, 0) / poly.points.length;
+   const lp = latLngToScreen(cy2, cx2, cw, ch);
+   ctx.fillStyle = poly.stroke || 'rgba(255,140,0,0.9)';
+   ctx.font = '9px sans-serif';
+   ctx.textAlign = 'center';
+   ctx.fillText(poly.label, lp.x, lp.y);
+  }
+ }
+
+ // In-progress draw polygon
+ if (mapDrawMode && mapDrawPoints.length > 0) {
+  ctx.beginPath();
+  const dp0 = latLngToScreen(mapDrawPoints[0].lat, mapDrawPoints[0].lng, cw, ch);
+  ctx.moveTo(dp0.x, dp0.y);
+  for (let i = 1; i < mapDrawPoints.length; i++) {
+   const dpi = latLngToScreen(mapDrawPoints[i].lat, mapDrawPoints[i].lng, cw, ch);
+   ctx.lineTo(dpi.x, dpi.y);
+  }
+  if (mapDrawMouseLatLng) {
+   const dm = latLngToScreen(mapDrawMouseLatLng.lat, mapDrawMouseLatLng.lng, cw, ch);
+   ctx.lineTo(dm.x, dm.y);
+  }
+  ctx.strokeStyle = '#ff8811';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Draw vertex dots
+  for (const pt of mapDrawPoints) {
+   const pp = latLngToScreen(pt.lat, pt.lng, cw, ch);
+   ctx.fillStyle = '#ff8811';
+   ctx.beginPath(); ctx.arc(pp.x, pp.y, 4, 0, Math.PI*2); ctx.fill();
+  }
  }
 
  // Scale bar
@@ -974,6 +1064,45 @@ window.mapDoSearch = function() {
  if (skyConMatch) { mapSetView('skyview'); setTimeout(() => { skySelectedConstellation = skyConMatch.name; updateSidebar(); mapRender(); }, 500); return; }
 };
 
+// ── Polygon Draw Tool ──
+window.mapToggleDrawMode = function() {
+  mapDrawMode = !mapDrawMode;
+  mapDrawPoints = [];
+  mapDrawMouseLatLng = null;
+  const btn = document.getElementById('draw-polygon-btn');
+  if (btn) {
+    btn.style.background = mapDrawMode ? 'rgba(255,140,0,0.4)' : 'rgba(20,20,40,0.85)';
+    btn.title = mapDrawMode ? 'Drawing… left-click to add vertex, right-click to finish' : 'Draw polygon / zone';
+  }
+  if (mapDrawMode) {
+    canvas.style.cursor = 'crosshair';
+  } else {
+    canvas.style.cursor = '';
+  }
+  mapRender();
+};
+
+function finishPolygon() {
+  if (mapDrawPoints.length < 3) { alert('Need at least 3 points to close a polygon.'); return; }
+  const label = prompt('Zone label (optional):') || '';
+  const polys = loadPolygons();
+  polys.push({ id: Date.now(), points: mapDrawPoints.slice(), label, fill: 'rgba(255,140,0,0.15)', stroke: '#ff8811', createdAt: Date.now() });
+  savePolygons(polys);
+  mapDrawPoints = [];
+  mapDrawMouseLatLng = null;
+  mapDrawMode = false;
+  canvas.style.cursor = '';
+  const btn = document.getElementById('draw-polygon-btn');
+  if (btn) btn.style.background = 'rgba(20,20,40,0.85)';
+  mapRender();
+}
+
+window.deleteMapPolygon = function(id) {
+  const polys = loadPolygons().filter(p => p.id !== id);
+  savePolygons(polys);
+  mapRender();
+  updateSidebar();
+};
 
 </script>
 </body>

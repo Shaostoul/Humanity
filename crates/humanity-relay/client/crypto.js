@@ -117,6 +117,24 @@ async function getOrCreateIdentity() {
     // IndexedDB empty — try localStorage backup before generating new key
     const restored = await restoreKeyFromLocalStorage();
     if (restored) return restored;
+    // No plaintext backup — check for passphrase-wrapped key
+    if (isKeyWrapped()) {
+      const pp = window.prompt('Your identity is passphrase-protected.\nEnter your passphrase to unlock it:');
+      if (pp) {
+        try {
+          const wrapped = await loadWrappedKey(pp);
+          if (wrapped) {
+            const db2 = await openKeyDB();
+            await storeKeypair(db2, wrapped.publicKeyHex, wrapped);
+            await saveKeyBackupToLocalStorage(wrapped.publicKeyHex, wrapped.privateKey);
+            console.log('Unlocked identity from wrapped key:', wrapped.publicKeyHex.substring(0, 16) + '…');
+            return wrapped;
+          }
+        } catch (e) {
+          alert('Could not unlock identity: ' + e.message + '\nA new identity will be generated.');
+        }
+      }
+    }
     // Generate new identity
     const kp = await generateKeypair();
     await storeKeypair(db, kp.publicKeyHex, kp);
@@ -480,7 +498,7 @@ async function wrapAndStoreKey(passphrase) {
       const eSalt    = crypto.getRandomValues(new Uint8Array(16));
       const eIv      = crypto.getRandomValues(new Uint8Array(12));
       const eWrapKey = await deriveKeyFromPassphrase(passphrase, eSalt);
-      const eCt      = await crypto.subtle.encrypt({ name: 'AES-GCM', eIv }, eWrapKey, ePkcs8);
+      const eCt      = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: eIv }, eWrapKey, ePkcs8);
       localStorage.setItem(WRAPPED_ECDH_LS, JSON.stringify({
         v: 1, publicKeyRaw: myEcdhPublicBase64,
         salt: bufToHex(eSalt), iv: bufToHex(eIv),
