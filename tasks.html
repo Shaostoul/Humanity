@@ -194,6 +194,21 @@
     .test-summary-fail { color: #e53935; font-weight: 700; }
     .test-owner-label { font-size: 0.68rem; color: #666; margin-bottom: 0.35rem; }
 
+    /* ── Status action buttons ── */
+    .status-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-bottom: 0.85rem; }
+    .btn-status {
+      padding: 0.28rem 0.65rem; border-radius: 5px; font-size: 0.7rem; font-weight: 700;
+      border: 1px solid #2a2a2a; background: #1a1a1a; color: #666;
+      cursor: pointer; transition: all 0.12s; text-transform: capitalize; letter-spacing: 0.03em;
+    }
+    .btn-status:hover { color: var(--text); border-color: #444; }
+    .btn-status.current { cursor: default; }
+    .btn-status.current-backlog   { background: #1a1a1a; border-color: #555; color: #aaa; }
+    .btn-status.current-in_progress { background: var(--col-progress); border-color: #1a6ec7; color: #6ab0f5; }
+    .btn-status.current-testing  { background: var(--col-testing); border-color: #8a6200; color: #f0c040; }
+    .btn-status.current-done     { background: var(--col-done); border-color: #1a7a3a; color: #4ec87a; }
+    .status-move-label { font-size: 0.65rem; color: var(--text-dim); align-self: center; }
+
     /* ── Responsive ── */
     @media (max-width: 800px) {
       .kanban { grid-template-columns: 1fr 1fr; }
@@ -263,6 +278,7 @@
     <div class="detail-body">
       <div class="detail-title" id="detail-title"></div>
       <div class="detail-badges" id="detail-badges"></div>
+      <div class="status-actions" id="detail-status-btns"></div>
       <div class="detail-desc" id="detail-desc"></div>
       <div class="detail-labels" id="detail-labels"></div>
       <div class="detail-meta" id="detail-meta"></div>
@@ -637,6 +653,21 @@ function openDetail(id) {
     `<span class="detail-badge badge-status-${task.status}">${statusLabel}</span>` +
     `<span class="detail-badge badge-priority-${task.priority}">${task.priority}</span>`;
 
+  // Status action buttons — clicking moves the task to that status.
+  const statusSteps = [
+    { key: 'backlog',     label: '📋 Backlog' },
+    { key: 'in_progress', label: '⚙️ In Progress' },
+    { key: 'testing',     label: '🧪 Testing' },
+    { key: 'done',        label: '✅ Done' },
+  ];
+  document.getElementById('detail-status-btns').innerHTML =
+    statusSteps.map(s =>
+      s.key === task.status
+        ? `<button class="btn-status current current-${s.key}" disabled title="Current status">${s.label}</button>`
+        : `<button class="btn-status" onclick="changeTaskStatus(${task.id},'${s.key}')" title="Move to ${s.label}">${s.label}</button>`
+    ).join('') +
+    `<span class="status-move-label">← move to</span>`;
+
   document.getElementById('detail-desc').textContent = task.description || '(No description)';
 
   document.getElementById('detail-labels').innerHTML = labels.length
@@ -868,6 +899,26 @@ function renderTestPanel(task) {
         </div>
       </div>
     </div>`;
+}
+
+/**
+ * Move a task to a new status via relay WebSocket (task_update message).
+ * Falls back to a page alert if the user's WS is not connected.
+ */
+function changeTaskStatus(taskId, newStatus) {
+  ensureTaskWs();
+  if (!taskWs || taskWs.readyState !== WebSocket.OPEN) {
+    alert('Sign in at /chat to update tasks.');
+    return;
+  }
+  taskWs.send(JSON.stringify({ type: 'task_update', task_id: taskId, status: newStatus }));
+  // Optimistic update so the detail drawer immediately reflects the change.
+  const t = allTasks.find(t => t.id === taskId);
+  if (t) {
+    t.status = newStatus;
+    openDetail(taskId);
+    renderBoard();
+  }
 }
 
 /* ── Helpers ── */
