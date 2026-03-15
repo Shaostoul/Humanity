@@ -1859,6 +1859,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     let _ = ws_tx.send(Message::Text(serde_json::to_string(&vc_msg).unwrap().into())).await;
                 }
 
+                // Replay message history so the client sees past messages on connect/refresh.
+                {
+                    let history = state.history.read().await;
+                    for msg in history.iter() {
+                        if let Ok(txt) = serde_json::to_string(msg) {
+                            let _ = ws_tx.send(Message::Text(txt.into())).await;
+                        }
+                    }
+                }
+
                 // Announce to everyone.
                 let peer_role = state.db.get_role(&public_key).unwrap_or_default();
                 let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {
@@ -2483,8 +2493,27 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     let now = Instant::now();
                                     let mut rate_limits = state_clone.rate_limits.write().await;
                                     let rl = rate_limits.entry(my_key_for_recv.clone()).or_insert_with(|| {
+                                        // Use DB registered_at so relay restarts don't retroactively
+                                        // slow-mode established accounts (in-memory first_seen resets on restart).
+                                        let unix_now = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default().as_secs();
+                                        let reg_at = {
+                                            let conn = state_clone.db.conn.lock().unwrap();
+                                            conn.query_row(
+                                                "SELECT MIN(registered_at) FROM registered_names WHERE public_key = ?1",
+                                                rusqlite::params![&my_key_for_recv],
+                                                |row| row.get::<_, Option<i64>>(0),
+                                            ).ok().flatten().unwrap_or(unix_now as i64) as u64
+                                        };
+                                        let account_age = unix_now.saturating_sub(reg_at);
+                                        let first_seen = if account_age >= NEW_ACCOUNT_WINDOW_SECS {
+                                            now - std::time::Duration::from_secs(NEW_ACCOUNT_WINDOW_SECS + 1)
+                                        } else {
+                                            now - std::time::Duration::from_secs(account_age)
+                                        };
                                         RateLimitState {
-                                            first_seen: now,
+                                            first_seen,
                                             last_message_time: now - std::time::Duration::from_secs(60), // allow first message
                                             fib_index: 0,
                                         }
@@ -4285,8 +4314,25 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     let now = Instant::now();
                                     let mut rate_limits = state_clone.rate_limits.write().await;
                                     let rl = rate_limits.entry(my_key_for_recv.clone()).or_insert_with(|| {
+                                        let unix_now = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default().as_secs();
+                                        let reg_at = {
+                                            let conn = state_clone.db.conn.lock().unwrap();
+                                            conn.query_row(
+                                                "SELECT MIN(registered_at) FROM registered_names WHERE public_key = ?1",
+                                                rusqlite::params![&my_key_for_recv],
+                                                |row| row.get::<_, Option<i64>>(0),
+                                            ).ok().flatten().unwrap_or(unix_now as i64) as u64
+                                        };
+                                        let account_age = unix_now.saturating_sub(reg_at);
+                                        let first_seen = if account_age >= NEW_ACCOUNT_WINDOW_SECS {
+                                            now - std::time::Duration::from_secs(NEW_ACCOUNT_WINDOW_SECS + 1)
+                                        } else {
+                                            now - std::time::Duration::from_secs(account_age)
+                                        };
                                         RateLimitState {
-                                            first_seen: now,
+                                            first_seen,
                                             last_message_time: now - std::time::Duration::from_secs(60),
                                             fib_index: 0,
                                         }
