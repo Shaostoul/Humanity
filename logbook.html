@@ -17,7 +17,8 @@
     #logbook-app {
       display: flex;
       flex: 1;
-      height: calc(100vh - 42px);
+      /* 42px = fixed nav; 30px = footer-toggle tab height clearance */
+      height: calc(100vh - 42px - 30px);
       overflow: hidden;
     }
 

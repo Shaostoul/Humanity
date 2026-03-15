@@ -16,7 +16,9 @@
   window.__HOS_SHELL_INIT__ = true;
 
   // If prior shell artifacts somehow exist, remove them before injecting once.
-  document.querySelectorAll('.hub-nav, .nav-separator, .site-footer, #webview-tabs-bar').forEach(function(el){
+  // Also remove the old standalone #footer-toggle that existed before the toggle
+  // was moved inside .site-footer.
+  document.querySelectorAll('.hub-nav, .nav-separator, .site-footer, #webview-tabs-bar, #footer-toggle').forEach(function(el){
     if (el && el.parentNode) el.parentNode.removeChild(el);
   });
 
@@ -326,9 +328,11 @@
     .site-footer .footer-links a { color: #888; text-decoration: none; font-size: 0.8rem; }
     .site-footer .footer-links a:hover { color: #FF8811; }
     /* Toggle is its own fixed element — always visible above all content */
+    /* Toggle lives INSIDE .site-footer so it slides with the panel.
+       It sticks 28px above the footer's top edge — always visible. */
     .footer-toggle {
-      position: fixed;
-      bottom: 0;
+      position: absolute;
+      top: -28px;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(18, 18, 18, 0.97);
@@ -341,12 +345,15 @@
       font-size: 0.78rem;
       font-weight: 700;
       line-height: 1;
-      z-index: 5200; /* above everything except the nav (5500) */
+      z-index: 1; /* stacking within footer is sufficient */
       transition: color 0.15s, border-color 0.15s, background 0.15s;
       white-space: nowrap;
       letter-spacing: 0.05em;
     }
     .footer-toggle:hover { color: #fff; border-color: #FF8811; background: rgba(30,20,10,0.98); }
+    /* Give body a little breathing room so the toggle tab never overlaps
+       bottom-of-page content (e.g. logbook word-count bar). */
+    body { padding-bottom: 30px; }
 
     /* ── Mobile drawer ── */
     #mobile-hub-backdrop {
@@ -734,19 +741,16 @@
   });
 
   // ── Inject Footer ──
-  // Toggle and footer are SEPARATE direct body children so neither can be
-  // clipped, buried, or displaced by page-level overflow/transform/stacking.
-  var footerToggle = document.createElement('button');
-  footerToggle.className = 'footer-toggle';
-  footerToggle.id = 'footer-toggle';
-  footerToggle.setAttribute('aria-label', 'Toggle footer');
-  footerToggle.textContent = '▲';
-  document.body.appendChild(footerToggle);
-
+  // The toggle button lives INSIDE the footer so it slides with the panel
+  // (position:absolute, top:-28px). This fixes the gap between the tab and
+  // the panel that appeared when the footer was open in the old design.
   var footerEl = document.createElement('footer');
   footerEl.className = 'site-footer';
   footerEl.id = 'site-footer';
+  // footer needs overflow:visible so the absolute toggle can peek above it
+  footerEl.style.overflow = 'visible';
   footerEl.innerHTML =
+    '<button class="footer-toggle" id="footer-toggle" aria-label="Toggle footer">▲</button>' +
     '<div class="footer-content" id="footer-content">' +
       '<span>HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
       '<div class="footer-links">' +
@@ -855,10 +859,9 @@
   }
 
   // ── Footer toggle logic ──
-  // Both elements are already in the DOM (appended above) — no getElementById needed.
   setTimeout(function () {
     var ft  = footerEl;
-    var btn = footerToggle;
+    var btn = document.getElementById('footer-toggle'); // toggle is inside footerEl
     if (!ft || !btn) return;
 
     function setCollapsed(collapsed) {
