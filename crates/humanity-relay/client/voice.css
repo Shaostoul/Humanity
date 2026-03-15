@@ -162,6 +162,12 @@
 }
 #voice-control-bar button:hover { background: var(--bg-hover); }
 #voice-control-bar button.vc-muted { background: var(--warning); color: #000; }
+#voice-control-bar .vc-vol-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 #voice-control-bar .vc-volume {
   flex: 1;
   min-width: 50px;

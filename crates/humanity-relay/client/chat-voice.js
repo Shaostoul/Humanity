@@ -305,6 +305,7 @@ async function handleVoiceRoomSignal(msg) {
   let vcInputMode = localStorage.getItem('humanity-vc-input-mode') || 'open'; // open|ptt|vad
   let vcSquelch = localStorage.getItem('humanity-vc-squelch') === 'true';
   let vcThreshold = parseFloat(localStorage.getItem('humanity-vc-threshold') || '24');
+  let vcPttKey = localStorage.getItem('humanity-vc-ptt-key') || 'KeyV';
   let vcPttDown = false;
   let vcSpeaking = false;
   let audioCtx = null;
@@ -313,13 +314,13 @@ async function handleVoiceRoomSignal(msg) {
   let remoteAnalysers = {}; // peerKey → { analyser, source, interval }
 
   document.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyV') {
+    if (e.code === vcPttKey) {
       vcPttDown = true;
       applyTxGate();
     }
   });
   document.addEventListener('keyup', (e) => {
-    if (e.code === 'KeyV') {
+    if (e.code === vcPttKey) {
       vcPttDown = false;
       applyTxGate();
     }
@@ -357,12 +358,17 @@ async function handleVoiceRoomSignal(msg) {
     window._roomLocalStream.getAudioTracks().forEach(t => { t.enabled = !!allow; });
   }
 
+  function pttKeyLabel() {
+    // Convert code like 'KeyV' → 'V', 'Space' → 'Space', 'F5' → 'F5'
+    return vcPttKey.replace(/^Key/, '').replace(/^Digit/, '');
+  }
+
   function refreshVoiceButtons() {
     const modeBtn = document.getElementById('vc-mode-btn');
     const sqBtn = document.getElementById('vc-squelch-btn');
     const presetBtn = document.getElementById('vc-mic-preset-btn');
     if (modeBtn) {
-      modeBtn.textContent = vcInputMode === 'ptt' ? '🎙️ PTT' : (vcInputMode === 'vad' ? '🗣️ VAD' : '🗣️ Open');
+      modeBtn.textContent = vcInputMode === 'ptt' ? `🎙️ PTT [${pttKeyLabel()}]` : (vcInputMode === 'vad' ? '🗣️ VAD' : '🗣️ Open');
     }
     if (sqBtn) sqBtn.textContent = vcSquelch ? '🚫 Gate On' : '🚫 Gate Off';
     if (presetBtn) {
@@ -394,6 +400,39 @@ async function handleVoiceRoomSignal(msg) {
   };
 
   setTimeout(refreshVoiceButtons, 0);
+
+  /** Called from settings page to change input mode externally. */
+  window.setVcInputMode = function(mode) {
+    if (!['open','ptt','vad'].includes(mode)) return;
+    vcInputMode = mode;
+    localStorage.setItem('humanity-vc-input-mode', mode);
+    refreshVoiceButtons();
+    applyTxGate();
+  };
+
+  /** Capture the next keypress and assign it as the PTT key. */
+  window.startVcPttRebind = function(onDone) {
+    const btn = document.getElementById('vc-mode-btn');
+    if (btn) btn.textContent = '⌨️ Press key…';
+    function capture(e) {
+      if (['Escape','Tab','Enter'].includes(e.key)) {
+        document.removeEventListener('keydown', capture, true);
+        refreshVoiceButtons();
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      document.removeEventListener('keydown', capture, true);
+      vcPttKey = e.code;
+      localStorage.setItem('humanity-vc-ptt-key', vcPttKey);
+      refreshVoiceButtons();
+      if (typeof onDone === 'function') onDone(vcPttKey);
+    }
+    document.addEventListener('keydown', capture, true);
+  };
+
+  /** Returns the current PTT key code (for settings display). */
+  window.getVcPttKey = function() { return vcPttKey; };
 
   function updateVoiceControlBar() {
     const bar = document.getElementById('voice-control-bar');

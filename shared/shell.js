@@ -889,6 +889,43 @@
     });
   })();
 
+  // ── Debug Overlay ──
+  // Shows when Settings > Advanced > "Show Debug Panel" is enabled.
+  // Displays page path, WebSocket state, identity key prefix, and SW cache version.
+  (function () {
+    function debugEnabled() {
+      try { var s = JSON.parse(localStorage.getItem('hos_settings_v1')); return !!(s && s['debug-panel']); }
+      catch (_) { return false; }
+    }
+    if (!debugEnabled()) return;
+
+    var dbg = document.createElement('div');
+    dbg.id = 'hos-debug-overlay';
+    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:7px;padding:6px 10px;font-size:0.68rem;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;min-width:190px;max-width:300px;box-shadow:0 4px 14px rgba(0,0,0,0.5);';
+    document.body.appendChild(dbg);
+
+    var WS_LABELS = ['CONNECTING','OPEN','CLOSING','CLOSED'];
+    function wsLabel(state) { return WS_LABELS[state] || '—'; }
+    function wsColor(state) { return state === 1 ? '#3d3' : state === 0 ? '#fa0' : '#f55'; }
+    function keyPrefix() {
+      try { var id = JSON.parse(localStorage.getItem('hos_identity')); if (id && id.publicKeyHex) return id.publicKeyHex.slice(0,10) + '…'; } catch (_) {}
+      return '—';
+    }
+
+    function update() {
+      var ws = window.App && window.App.ws;
+      var state = ws ? ws.readyState : null;
+      dbg.innerHTML =
+        '<b style="color:#6f6">🐛 Debug</b><br>' +
+        '<span style="color:#888">Page: </span>' + location.pathname + '<br>' +
+        '<span style="color:#888">WS: </span><span style="color:' + (state !== null ? wsColor(state) : '#888') + '">' + (state !== null ? wsLabel(state) : '—') + '</span><br>' +
+        '<span style="color:#888">Key: </span>' + keyPrefix() + '<br>' +
+        '<span style="color:#888">SW: </span>humanity-v6';
+    }
+    update();
+    setInterval(update, 2000);
+  })();
+
   // ── Theme toggle (light/dark) ──
   (function () {
     var THEME_KEY = 'hos_theme';

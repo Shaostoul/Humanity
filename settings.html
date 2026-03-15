@@ -486,6 +486,31 @@
           <input type="url" class="setting-input" id="pref-relay-url" placeholder="wss://your-relay.example.com" oninput="savePref()">
         </div>
       </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Voice</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Input Mode</strong>
+            <span>How your microphone activates in voice channels</span>
+          </div>
+          <select class="setting-select" id="vc-input-mode-select" onchange="saveVoicePref()">
+            <option value="open">Open Mic (always on)</option>
+            <option value="ptt">Push to Talk</option>
+            <option value="vad">Voice Activated (VAD)</option>
+          </select>
+        </div>
+        <div class="setting-row" id="ptt-key-row">
+          <div class="setting-label">
+            <strong>Push-to-Talk Key</strong>
+            <span>Hold this key while in PTT mode to transmit</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <kbd id="ptt-key-display" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem 0.7rem;border-radius:5px;font-family:monospace;font-size:0.9rem;min-width:48px;text-align:center;">V</kbd>
+            <button onclick="beginPttRebind()" id="ptt-rebind-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:0.25rem 0.6rem;border-radius:5px;cursor:pointer;font-size:0.8rem;">Rebind</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- App -->
@@ -708,6 +733,10 @@ function savePref() {
     else prefs[k] = el.value;
   });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  // Reflect debug-panel toggle: remove instantly; enable after brief delay (shell.js needs reload to inject)
+  const dbgExisting = document.getElementById('hos-debug-overlay');
+  if (!prefs['debug-panel'] && dbgExisting) dbgExisting.remove();
+  else if (prefs['debug-panel'] && !dbgExisting) setTimeout(() => location.reload(), 400);
 }
 
 function applyPrefs() {
@@ -751,6 +780,60 @@ async function clearAppCache() {
     await Promise.all(regs.map(r => r.unregister()));
   } catch (_) {}
   location.reload(true);
+}
+
+function loadVoicePrefs() {
+  const mode = localStorage.getItem('humanity-vc-input-mode') || 'open';
+  const keyCode = localStorage.getItem('humanity-vc-ptt-key') || 'KeyV';
+  const sel = document.getElementById('vc-input-mode-select');
+  if (sel) sel.value = mode;
+  updatePttKeyDisplay(keyCode);
+  togglePttKeyRow(mode);
+}
+
+function saveVoicePref() {
+  const sel = document.getElementById('vc-input-mode-select');
+  if (!sel) return;
+  const mode = sel.value;
+  localStorage.setItem('humanity-vc-input-mode', mode);
+  // Sync to live voice module if open
+  if (typeof window.setVcInputMode === 'function') window.setVcInputMode(mode);
+  togglePttKeyRow(mode);
+}
+
+function togglePttKeyRow(mode) {
+  const row = document.getElementById('ptt-key-row');
+  if (row) row.style.display = mode === 'ptt' ? '' : 'none';
+}
+
+function updatePttKeyDisplay(code) {
+  const disp = document.getElementById('ptt-key-display');
+  if (disp) disp.textContent = (code || 'KeyV').replace(/^Key/, '').replace(/^Digit/, '');
+}
+
+function beginPttRebind() {
+  const btn = document.getElementById('ptt-rebind-btn');
+  const disp = document.getElementById('ptt-key-display');
+  if (btn) { btn.textContent = 'Press a key…'; btn.disabled = true; }
+  if (disp) disp.textContent = '?';
+  function capture(e) {
+    if (['Escape','Tab'].includes(e.key)) {
+      document.removeEventListener('keydown', capture, true);
+      loadVoicePrefs();
+      if (btn) { btn.textContent = 'Rebind'; btn.disabled = false; }
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
+    document.removeEventListener('keydown', capture, true);
+    localStorage.setItem('humanity-vc-ptt-key', e.code);
+    if (typeof window.setVcInputMode === 'function') {
+      // Trigger reload of key in the voice module via a temporary hack
+      // (the module reads the key on next keydown — just update display here)
+    }
+    updatePttKeyDisplay(e.code);
+    if (btn) { btn.textContent = 'Rebind'; btn.disabled = false; }
+  }
+  document.addEventListener('keydown', capture, true);
 }
 
 function clearAllData() {
@@ -815,6 +898,7 @@ document.getElementById('settings-save').textContent = '💾 Save Settings';
 
 loadPrefs();
 applyPrefs();
+loadVoicePrefs();
 </script>
 </body>
 </html>

@@ -129,17 +129,19 @@
         <div id="voice-control-bar">
           <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
           <div class="vc-bar-controls">
-            <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()" title="Mute/Unmute">🎤</button>
-            <button id="vc-mode-btn" onclick="toggleVoiceInputMode()" title="Input mode: Open / Push-to-Talk / Voice Activated">🗣️ Open</button>
-            <button id="vc-squelch-btn" onclick="toggleVoiceSquelch()" title="Noise gate / squelch">🚫 Gate Off</button>
-            <button id="vc-mic-preset-btn" onclick="cycleMicPreset()" title="Mic processing preset">🎚️ Clarity</button>
-            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')" title="Toggle Camera (right-click to select device)">📹</button>
-            <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()" title="Screen Share">🖥️</button>
+            <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()" title="Mute/Unmute">🎤 Mute</button>
+            <button id="vc-mode-btn" onclick="toggleVoiceInputMode()" title="Cycle input mode: Open Mic → Push-to-Talk → Voice Activated">🗣️ Open</button>
+            <button id="vc-ptt-rebind-btn" onclick="startVcPttRebind()" title="Click then press a key to rebind Push-to-Talk" style="font-size:0.62rem;padding:0.15rem 0.3rem;opacity:0.7;">⌨️</button>
+            <button id="vc-squelch-btn" onclick="toggleVoiceSquelch()" title="Toggle noise gate (squelch)">🚫 Gate</button>
+            <button id="vc-mic-preset-btn" onclick="cycleMicPreset()" title="Cycle mic processing preset">🎚️ Clarity</button>
+            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')" title="Toggle Camera (right-click to choose device)">📹 Cam</button>
+            <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()" title="Share your screen">🖥️ Screen</button>
             <button id="vc-chat-overlay-btn" onclick="toggleStreamChatOverlay()" title="Toggle stream chat overlay">💬 Overlay</button>
             <button id="vc-chat-channel-btn" onclick="selectStreamChatChannel()" title="Select stream chat channel"># Channel</button>
-            <button id="vc-pip-btn" onclick="togglePiP()" title="Pin stream">📌</button>
+            <button id="vc-pip-btn" onclick="togglePiP()" title="Pin/unpin video">📌 Pin</button>
+            <span class="vc-vol-label">Vol</span>
             <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100" title="Master volume" oninput="setVoiceRoomVolume(this.value)">
-            <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect">🔌</button>
+            <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect from voice channel">🔌 Leave</button>
           </div>
         </div>
       </div>
