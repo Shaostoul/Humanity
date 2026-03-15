@@ -69,6 +69,7 @@ handleMessage = function(msg) {
     myFollowing = new Set(msg.following || []);
     myFollowers = new Set(msg.followers || []);
     updateFriendIndicators();
+    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
     return;
   }
   if (msg.type === 'follow_update') {
@@ -81,6 +82,7 @@ handleMessage = function(msg) {
       else myFollowers.delete(msg.follower_key);
     }
     updateFriendIndicators();
+    if (typeof renderPresenceSidebarForActiveContext === 'function') renderPresenceSidebarForActiveContext();
     return;
   }
   if (msg.type === 'group_list') {

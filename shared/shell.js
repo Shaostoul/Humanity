@@ -669,6 +669,10 @@
     return display !== 'none';
   }
 
+  function isInActiveVoiceRoom() {
+    return !!(window._currentRoomId && window._roomLocalStream);
+  }
+
   // ── SPA Navigation for Hub Tabs ──
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
     if (e.target.closest('.mobile-menu-btn')) return;
@@ -682,6 +686,20 @@
                       '/streams', '/info', '/source', '/debug'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub  = hubPaths.some(function(p) { return href === p || href.startsWith(p + '#') || href.startsWith(p + '?'); });
+
+    // Voice room continuity guard — navigating away from /chat while in a voice
+    // channel would destroy the WebSocket and WebRTC connections. Open the target
+    // page in a background webview tab instead so /chat stays alive.
+    if (location.pathname === '/chat' && isInActiveVoiceRoom() && href !== '/chat') {
+      e.preventDefault();
+      var title = (link.getAttribute('data-tip-title') || link.textContent || href).trim();
+      if (typeof openWebviewTab === 'function') {
+        openWebviewTab(href, title);
+      } else {
+        if (confirm('You are in a voice channel. Leaving this page will disconnect you. Continue?')) location.href = href;
+      }
+      return;
+    }
 
     // Streaming continuity guard
     if (location.pathname === '/streams' && targetIsHub && href !== '/streams' && isLikelyLiveStreamingSession()) {

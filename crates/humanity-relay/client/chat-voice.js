@@ -109,6 +109,8 @@ function cleanupRoomAudio() {
   window._currentRoomId = null;
   // Remove room audio elements
   document.querySelectorAll('.room-remote-audio').forEach(el => el.remove());
+  // Hide peer video viewer in right sidebar
+  if (typeof hidePeerStreamViewer === 'function') hidePeerStreamViewer();
   if (typeof renderServerList === 'function') renderServerList();
 }
 
@@ -251,6 +253,11 @@ async function handleVoiceRoomSignal(msg) {
   }
 
   if (msg.signal_type === 'offer') {
+    // Ensure our mic stream exists before answering — if not set up yet the
+    // RTCPeerConnection will have no audio tracks and createAnswer() produces
+    // a=recvonly SDP, meaning the remote peer never receives our audio.
+    if (!window._roomLocalStream) await setupRoomAudio();
+    if (!window._roomLocalStream) return; // mic denied — can't send audio
     // Someone is sending us an offer — create connection and answer
     await connectToRoomPeer(peerKey, '', roomId, false);
     const pc = window._roomPeerConnections[peerKey];
@@ -596,9 +603,35 @@ async function handleVoiceRoomSignal(msg) {
           // Start speaking detection for this remote stream
           if (event.streams[0]) startRemoteSpeakingDetection(peerKey, event.streams[0]);
         }, 100);
+        // If this track is video, show it in the right sidebar peer viewer
+        if (event.track && event.track.kind === 'video') {
+          showPeerStreamViewer(peerKey, peerName || shortKey(peerKey), event.streams[0]);
+        }
       };
     }
   };
+
+  /** Show a peer's video feed in the right-sidebar viewer. */
+  function showPeerStreamViewer(peerKey, peerName, stream) {
+    const viewer = document.getElementById('peer-stream-viewer');
+    const nameEl = document.getElementById('peer-stream-name');
+    const videoEl = document.getElementById('peer-stream-video');
+    if (!viewer || !videoEl) return;
+    nameEl.textContent = peerName || shortKey(peerKey);
+    videoEl.srcObject = stream;
+    viewer.style.display = '';
+    videoEl.play().catch(() => {});
+  }
+
+  /** Hide the peer stream viewer (called when the peer's video track ends or they leave). */
+  function hidePeerStreamViewer() {
+    const viewer = document.getElementById('peer-stream-viewer');
+    const videoEl = document.getElementById('peer-stream-video');
+    if (!viewer) return;
+    viewer.style.display = 'none';
+    if (videoEl) videoEl.srcObject = null;
+  }
+  window.hidePeerStreamViewer = hidePeerStreamViewer;
 
   // Patch renderServerList to update voice control bar
   const _origRenderServerList = window.renderServerList;

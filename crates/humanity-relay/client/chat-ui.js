@@ -394,7 +394,8 @@ function copyPublicKey() {
 }
 
 function ctxCommand(cmd) {
-  if (!ctxMenuTarget || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!ctxMenuTarget) { console.warn('[ctxCommand] ctxMenuTarget is null'); return; }
+  if (!ws || ws.readyState !== WebSocket.OPEN) { console.warn('[ctxCommand] WebSocket not open'); return; }
   const msg = `${cmd} ${ctxMenuTarget.name}`;
   const timestamp = Date.now();
   ws.send(JSON.stringify({

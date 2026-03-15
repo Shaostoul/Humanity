@@ -168,6 +168,26 @@
         </div>
         <!-- Hidden channel-list container used by renderChannelList() -->
         <div id="channel-list" style="display:none;"></div>
+        <!-- My Stream Studio (left panel — private/own controls) -->
+        <div id="stream-studio-panel" class="unified-section collapsed" data-usid="server-studio">
+          <button class="unified-header" onclick="toggleUnifiedSection('server-studio')">My Stream Studio ▸</button>
+          <div class="unified-body">
+            <div id="stream-studio-preview" class="stream-studio-preview">No active local feed</div>
+            <div class="unified-subblock" data-subid="studio:controls">
+              <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('studio:controls')">
+                <span>Controls ▾</span><span class="unified-subsummary">live</span>
+              </button>
+              <div class="unified-subcontent">
+                <div class="unified-row"><span>Camera</span><button onclick="toggleVoiceRoomVideo()">Toggle</button></div>
+                <div class="unified-row"><span>Screen</span><button onclick="toggleVoiceRoomScreenShare()">Toggle</button></div>
+                <div class="unified-row"><span>Chat Overlay</span><button onclick="toggleStreamChatOverlay()">Toggle</button></div>
+                <div class="unified-row"><span>Chat Channel</span><button onclick="selectStreamChatChannel()">Select</button></div>
+                <div class="unified-row"><span>PIP Size</span><input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)"></div>
+                <div class="unified-row"><span>Preview Volume</span><input type="range" min="0" max="100" value="100" oninput="setVoiceRoomVolume(this.value)"></div>
+              </div>
+            </div>
+          </div>
+        </div>
         <!-- Voice Control Bar (shown when in a voice channel) -->
         <div id="voice-control-bar">
           <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
@@ -322,24 +342,10 @@
       </div>
       <div id="right-sidebar">
         <h3>People & Streams</h3>
-        <div id="stream-studio-panel" class="unified-section" data-usid="server-studio">
-          <button class="unified-header" onclick="toggleUnifiedSection('server-studio')">My Stream Studio ▾</button>
-          <div class="unified-body">
-            <div id="stream-studio-preview" class="stream-studio-preview">No active local feed</div>
-            <div class="unified-subblock" data-subid="studio:controls">
-              <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('studio:controls')">
-                <span>Controls ▾</span><span class="unified-subsummary">live</span>
-              </button>
-              <div class="unified-subcontent">
-                <div class="unified-row"><span>Camera</span><button onclick="toggleVoiceRoomVideo()">Toggle</button></div>
-                <div class="unified-row"><span>Screen</span><button onclick="toggleVoiceRoomScreenShare()">Toggle</button></div>
-                <div class="unified-row"><span>Chat Overlay</span><button onclick="toggleStreamChatOverlay()">Toggle</button></div>
-                <div class="unified-row"><span>Chat Channel</span><button onclick="selectStreamChatChannel()">Select</button></div>
-                <div class="unified-row"><span>PIP Size</span><input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)"></div>
-                <div class="unified-row"><span>Preview Volume</span><input type="range" min="0" max="100" value="100" oninput="setVoiceRoomVolume(this.value)"></div>
-              </div>
-            </div>
-          </div>
+        <!-- Peer stream viewer — shows when watching a peer's stream/video -->
+        <div id="peer-stream-viewer" style="display:none;">
+          <div id="peer-stream-name" style="font-size:0.75rem;font-weight:600;color:var(--text);padding:0.3rem 0.4rem 0.2rem;"></div>
+          <video id="peer-stream-video" autoplay playsinline style="width:100%;border-radius:4px;background:#000;max-height:160px;object-fit:contain;"></video>
         </div>
         <div id="peer-list"></div>
         <div id="stream-sidebar" style="display:none;">
