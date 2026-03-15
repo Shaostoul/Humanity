@@ -359,8 +359,8 @@ function showUserContextMenu(e, name, publicKey) {
       if (amAdmin) {
         html += '<div class="ctx-item" style="font-size:0.68rem;color:#56b;pointer-events:none;padding-top:0.3rem;">\u2014 Admin Actions \u2014</div>';
         html += ci("ctxCommand('/verify')", '\u2736 Verify', 'admin');
-        html += ci("ctxCommand('/promote mod')", '\u2B06\uFE0F Promote to Mod', 'admin');
-        html += ci("ctxCommand('/demote')", '\u2B07\uFE0F Demote', 'admin');
+        html += ci("ctxCommand('/mod')", '\u2B06\uFE0F Promote to Mod', 'admin');
+        html += ci("ctxCommand('/unmod')", '\u2B07\uFE0F Demote', 'admin');
         html += ci("ctxCommand('/unban')", '\uD83D\uDD13 Unban', 'admin');
       }
     }
