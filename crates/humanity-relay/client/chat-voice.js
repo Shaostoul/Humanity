@@ -1582,7 +1582,7 @@ return result;
   let vrScreenActive = false;
 
   window.toggleVoiceRoomVideo = async function() {
-if (!window._currentRoomId) return;
+// No voice-room guard — camera preview works standalone; tracks are added to peers only if in a room.
 if (vrVideoActive) {
   stopVrVideo();
 } else {
@@ -1635,7 +1635,7 @@ updateVideoPanel();
   }
 
   window.toggleVoiceRoomScreenShare = async function() {
-if (!window._currentRoomId) return;
+// No voice-room guard — screen share preview works standalone; tracks added to peers only if in a room.
 if (vrScreenActive) {
   stopVrScreenShare();
 } else {
@@ -2233,20 +2233,35 @@ _origHandleMessage4(msg);
     let devices = [];
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
-      devices = all.filter(d => d.kind === 'audioinput');
+      const raw = all.filter(d => d.kind === 'audioinput');
+      // Windows exposes each physical mic as up to 3 entries: Default, Communications, actual hardware.
+      // Keep the "default" system entry (auto-follows OS setting), skip "Communications", and
+      // deduplicate real hardware entries by groupId so each physical device appears once.
+      const seenGroups = new Set();
+      devices = raw.filter(d => {
+        if (d.deviceId === 'default') return true;
+        if (d.label && /^communications\s*[-–]/i.test(d.label)) return false;
+        if (d.groupId && seenGroups.has(d.groupId)) return false;
+        if (d.groupId) seenGroups.add(d.groupId);
+        return true;
+      });
     } catch (_) { return; }
     const preferred = getPreferredMic();
     sel.innerHTML = '';
     if (devices.length === 0) {
       const opt = document.createElement('option');
-      opt.value = ''; opt.textContent = 'No microphones found';
+      opt.value = ''; opt.textContent = '🎙️ No microphones found';
       sel.appendChild(opt);
       return;
     }
     devices.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
-      opt.textContent = '🎙️ ' + (d.label || `Microphone ${i + 1}`);
+      // Simplify "Default - Realtek HD Audio..." → just "Default" for the virtual entry.
+      let label = d.label || `Microphone ${i + 1}`;
+      if (d.deviceId === 'default') label = 'Default';
+      else label = label.replace(/^default\s*[-–]\s*/i, '');
+      opt.textContent = '🎙️ ' + label;
       if (d.deviceId === preferred) opt.selected = true;
       sel.appendChild(opt);
     });
