@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
+use tauri::Manager as _;
 use tauri_plugin_updater::UpdaterExt;
 
 /// JS injected before every page runs.
