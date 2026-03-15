@@ -70,7 +70,7 @@ jobs:
           - os: macos-latest
             target: aarch64-apple-darwin
             label: macos-arm64
-          - os: macos-13
+          - os: macos-latest
             target: x86_64-apple-darwin
             label: macos-x64
 
@@ -129,7 +129,8 @@ jobs:
   # ── Generate latest.json for auto-updater ───────────────────────────────────
   publish-update:
     needs: [build-windows, build-others]
-    if: startsWith(github.ref, 'refs/tags/')
+    # Run as long as Windows succeeded — other platforms failing is non-blocking
+    if: always() && needs.build-windows.result == 'success' && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       contents: write
