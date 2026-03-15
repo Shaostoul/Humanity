@@ -368,12 +368,62 @@ async function handleVoiceRoomSignal(msg) {
     const sqBtn = document.getElementById('vc-squelch-btn');
     const presetBtn = document.getElementById('vc-mic-preset-btn');
     if (modeBtn) {
-      modeBtn.textContent = vcInputMode === 'ptt' ? `🎙️ PTT [${pttKeyLabel()}]` : (vcInputMode === 'vad' ? '🗣️ VAD' : '🗣️ Open');
+      const MODE_INFO = {
+        open: {
+          label: '🗣️ Open',
+          desc: 'Open Mic — your mic transmits continuously whenever you are unmuted.',
+          detail: `Best for: quiet rooms, casual chat · Next: PTT [${pttKeyLabel()}]`
+        },
+        ptt: {
+          label: `🎙️ PTT [${pttKeyLabel()}]`,
+          desc: `Push-to-Talk — hold ${pttKeyLabel()} to transmit. Mic is silent when the key is released.`,
+          detail: 'Best for: noisy rooms, background audio, gaming · Next: VAD'
+        },
+        vad: {
+          label: '🗣️ VAD',
+          desc: 'Voice Activated — mic gates open automatically when your voice exceeds the noise threshold.',
+          detail: 'Best for: hands-free use · Adjust threshold with Noise Gate · Next: Open'
+        }
+      };
+      const mi = MODE_INFO[vcInputMode] || MODE_INFO.open;
+      modeBtn.textContent = mi.label;
+      modeBtn.setAttribute('data-tip-title', 'Input Mode — ' + mi.label.replace(/[🗣️🎙️]\s*/, ''));
+      modeBtn.setAttribute('data-tip-desc', mi.desc);
+      modeBtn.setAttribute('data-tip-detail', mi.detail);
     }
-    if (sqBtn) sqBtn.textContent = vcSquelch ? '🚫 Gate On' : '🚫 Gate Off';
+    if (sqBtn) {
+      const gateOn = vcSquelch;
+      sqBtn.textContent = gateOn ? '🚫 Gate On' : '🚫 Gate Off';
+      sqBtn.setAttribute('data-tip-title', gateOn ? 'Noise Gate — On' : 'Noise Gate — Off');
+      sqBtn.setAttribute('data-tip-desc', gateOn
+        ? 'Gate is active — audio below the volume threshold is muted before it reaches others.'
+        : 'Gate is off — all audio above the mic floor passes through (use with PTT or a quiet room).');
+      sqBtn.setAttribute('data-tip-detail', 'Best for: suppressing keyboard clicks, mouse noise, breathing · Works alongside VAD mode');
+    }
     if (presetBtn) {
       const p = localStorage.getItem('humanity-mic-preset') || 'clarity';
-      presetBtn.textContent = p === 'noise_block' ? '🎚️ NoiseBlock' : (p === 'natural' ? '🎚️ Natural' : '🎚️ Clarity');
+      const PRESET_INFO = {
+        clarity: {
+          label: '🎚️ Clarity',
+          desc: 'Best for most calls. Removes background noise while keeping your volume natural — no pumping or over-compression.',
+          detail: 'Echo cancel ✓ · Noise suppress ✓ · Auto-gain off · Next: Noise Block'
+        },
+        noise_block: {
+          label: '🎚️ Noise Block',
+          desc: 'Best for loud rooms (fans, keyboard, AC, café). Auto-adjusts your volume level and aggressively filters all background sound.',
+          detail: 'Echo cancel ✓ · Noise suppress ✓ · Auto-gain ✓ · Next: Natural'
+        },
+        natural: {
+          label: '🎚️ Natural',
+          desc: 'Minimal processing — ideal for music, podcasting, or a quality mic in a quiet room. Captures your voice exactly as the mic hears it.',
+          detail: 'Echo cancel ✓ · Noise suppress off · Auto-gain off · Use headphones to avoid echo · Next: Clarity'
+        }
+      };
+      const info = PRESET_INFO[p] || PRESET_INFO.clarity;
+      presetBtn.textContent = info.label;
+      presetBtn.setAttribute('data-tip-title', 'Mic Preset — ' + info.label.replace('🎚️ ', ''));
+      presetBtn.setAttribute('data-tip-desc', info.desc);
+      presetBtn.setAttribute('data-tip-detail', info.detail);
     }
   }
 
