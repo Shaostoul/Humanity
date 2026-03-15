@@ -1859,16 +1859,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     let _ = ws_tx.send(Message::Text(serde_json::to_string(&vc_msg).unwrap().into())).await;
                 }
 
-                // Replay message history so the client sees past messages on connect/refresh.
-                {
-                    let history = state.history.read().await;
-                    for msg in history.iter() {
-                        if let Ok(txt) = serde_json::to_string(msg) {
-                            let _ = ws_tx.send(Message::Text(txt.into())).await;
-                        }
-                    }
-                }
-
                 // Announce to everyone.
                 let peer_role = state.db.get_role(&public_key).unwrap_or_default();
                 let _ = state.broadcast_tx.send(RelayMessage::PeerJoined {

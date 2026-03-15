@@ -242,14 +242,24 @@ impl Storage {
     }
 
     /// Load messages for a channel after a given row ID (for API polling).
+    /// When after_id == 0 (initial load), returns the most recent `limit` messages
+    /// ordered oldest-first so the client can display them chronologically.
     pub fn load_channel_messages_after(&self, channel_id: &str, after_id: i64, limit: usize) -> Result<(Vec<crate::relay::RelayMessage>, i64), rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
+        // Initial load: get the most recent N, then reverse to oldest-first for display.
+        // Polling (after_id > 0): get everything after the cursor, oldest-first.
+        let sql = if after_id == 0 {
+            "SELECT id, raw_json FROM (
+                SELECT id, raw_json FROM messages
+                WHERE msg_type = 'chat' AND channel_id = ?2
+                ORDER BY id DESC LIMIT ?3
+             ) sub ORDER BY id ASC"
+        } else {
             "SELECT id, raw_json FROM messages
              WHERE id > ?1 AND msg_type = 'chat' AND channel_id = ?2
-             ORDER BY id ASC
-             LIMIT ?3"
-        )?;
+             ORDER BY id ASC LIMIT ?3"
+        };
+        let mut stmt = conn.prepare(sql)?;
         let mut messages = Vec::new();
         let mut max_id = after_id;
         let rows = stmt.query_map(params![after_id, channel_id, limit], |row| {
