@@ -197,6 +197,7 @@ jobs:
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            SECRET=$(grep '^API_SECRET' /opt/Humanity/.env | cut -d= -f2- | tr -d '\r')
             WIN="${{ needs.build-windows.result }}"
             OTHERS="${{ needs.build-others.result }}"
             TAG="${{ github.ref_name }}"
@@ -212,7 +213,5 @@ jobs:
 
             curl -s -X POST "http://localhost:3210/api/send" \
               -H "Content-Type: application/json" \
-              -H "Authorization: Bearer ${API_SECRET}" \
+              -H "Authorization: Bearer ${SECRET}" \
               -d "{\"channel\":\"announcements\",\"content\":\"$MSG\",\"from_name\":\"Deploy Bot\"}" || true
-        env:
-          API_SECRET: ${{ secrets.API_SECRET }}

@@ -1181,66 +1181,90 @@ function renderUnifiedRightSidebar() {
   const byKey = new Map(users.map(u => [u.public_key, u]));
   const active = activeStreams || new Map();
 
-  const friendUsers = users.filter(u => u.public_key !== myKey && isFriend(u.public_key));
-  const friendOnline = friendUsers.filter(u => !!u.online);
-  const friendOffline = friendUsers.filter(u => !u.online);
-  const friendStreamRows = [];
-  const friendPreview = [];
-  active.forEach((s, id) => {
-    const row = `<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`;
-    if ((s.name || '').toLowerCase().includes('dm') || (s.name || '').toLowerCase().includes('friend')) friendStreamRows.push(row);
+  // Map: publicKey → voiceChannelId (only for users actually in a VC participant list)
+  const voiceMap = new Map();
+  (window._voiceChannels || []).forEach(vc => {
+    (vc.participants || []).forEach(p => {
+      const pk = p.public_key || p.key;
+      if (pk) voiceMap.set(pk, vc.id);
+    });
   });
 
-  const friendVoip = friendOnline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-  const friendOnlineRows = friendOnline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-  const friendOfflineRows = friendOffline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
+  // Map: publicKey → streamId (only actual peer streams)
+  const streamMap = new Map();
+  active.forEach((s, id) => { if (s.peerKey) streamMap.set(s.peerKey, id); });
+
+  // Collapse state for top-level sections
+  const colKey = 'humanity-unified-right-collapsed';
+  let colState = {};
+  try { colState = JSON.parse(localStorage.getItem(colKey) || '{}') || {}; } catch (_) {}
+
+  // Build a single icon-row HTML for a user. isFriend controls whether 💬 call icon shows.
+  function userRow(u, showCall) {
+    const pk = u.public_key;
+    const name = u.name || shortKey(pk);
+    const dot = u.online
+      ? '<span class="status-dot online" title="Online"></span>'
+      : '<span class="status-dot offline" title="Offline"></span>';
+    let badges = '';
+    if (showCall) {
+      badges += `<button class="ulist-icon" onclick="openDmConversation('${esc(pk)}')" title="Message ${esc(name)}">💬</button>`;
+    }
+    if (voiceMap.has(pk)) {
+      const vcId = voiceMap.get(pk);
+      const vc = (window._voiceChannels || []).find(c => String(c.id) === String(vcId));
+      const vcName = vc ? esc(vc.name) : 'Voice';
+      badges += `<button class="ulist-icon" onclick="joinVoiceRoom(${vcId})" title="Join ${vcName}">🎤</button>`;
+    }
+    if (streamMap.has(pk)) {
+      const sid = streamMap.get(pk);
+      const s = active.get(sid);
+      badges += `<button class="ulist-icon" onclick="toggleStreamVisibilityById('${esc(sid)}')" title="${s && !s.hidden ? 'Hide stream' : 'Watch stream'}">📺</button>`;
+    }
+    return `<div class="unified-row peer" data-username="${esc(name)}" data-pubkey="${esc(pk)}">${dot}<span class="peer-name">${esc(name)}</span>${badges}</div>`;
+  }
+
+  // Build a collapsible section with a flat alphabetical user list
+  function section(id, title, userList, showCall) {
+    const c = !!colState[id];
+    const sorted = [...userList].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const rows = sorted.map(u => userRow(u, showCall)).join('') ||
+      '<div class="stream-empty" style="padding:2px 4px;color:#555;font-size:0.78rem;">None</div>';
+    const count = userList.length ? ` <span class="unified-subsummary">(${userList.length})</span>` : '';
+    return `<div class="unified-section${c ? ' collapsed' : ''}" data-usid="${esc(id)}">
+      <button class="unified-header" onclick="toggleUnifiedSection('${esc(id)}')">${esc(title)}${count} ${c ? '▸' : '▾'}</button>
+      <div class="unified-body">${rows}</div>
+    </div>`;
+  }
 
   const sections = [];
-  sections.push(renderUnifiedSection('friends', 'Friends', friendStreamRows, friendVoip, friendOnlineRows, friendOfflineRows, friendPreview.join('')));
+  const friendKeys = new Set();
 
-  const groups = (myGroups || []);
+  // ── Friends (mutual follows) — shown once, never repeated below ──────────
+  const friendUsers = users.filter(u => u.public_key !== myKey && isFriend(u.public_key));
+  friendUsers.forEach(u => friendKeys.add(u.public_key));
+  sections.push(section('friends', 'Friends', friendUsers, true));
+
+  // ── Groups — exclude friends and self to avoid duplicates ────────────────
+  const groups = myGroups || [];
   if (groups.length === 0) {
-    sections.push(renderUnifiedSection('group-none', 'Groups (none)', [], [], [], [], ''));
+    sections.push(section('group-none', 'Groups', [], false));
   } else {
     groups.forEach(g => {
-      const members = (groupMembersByGroup[g.id] || []).map(m => byKey.get(m.key) || { public_key: m.key, name: shortKey(m.key), online: false });
-      const online = members.filter(m => !!m.online);
-      const offline = members.filter(m => !m.online);
-      const streamRows = [];
-      active.forEach((s, id) => {
-        if ((s.name || '').toLowerCase().includes((g.name || '').toLowerCase())) {
-          streamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
-        }
-      });
-      const voipRows = online.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🎤 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-      const onlineRows = online.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-      const offlineRows = offline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-      sections.push(renderUnifiedSection('group-' + g.id, `Groups (${g.name})`, streamRows, voipRows, onlineRows, offlineRows, ''));
+      const members = (groupMembersByGroup[g.id] || [])
+        .map(m => byKey.get(m.key) || { public_key: m.key, name: shortKey(m.key), online: false })
+        .filter(u => u.public_key !== myKey && !friendKeys.has(u.public_key));
+      sections.push(section('group-' + g.id, `${esc(g.name)}`, members, false));
     });
   }
 
-  const serverOnline = users.filter(u => !!u.online && u.public_key !== myKey);
-  const serverOffline = users.filter(u => !u.online && u.public_key !== myKey);
-  const serverVoipRows = [];
-  (window._voiceChannels || []).forEach(vc => {
-    vc.participants.forEach(p => {
-      serverVoipRows.push(`<div class="unified-row"><span>🎤 ${esc(p.display_name)} · ${esc(vc.name)}</span></div>`);
-    });
+  // ── Server — exclude self, friends, and group members already shown ──────
+  const shownKeys = new Set([...friendKeys, myKey]);
+  groups.forEach(g => {
+    (groupMembersByGroup[g.id] || []).forEach(m => shownKeys.add(m.key));
   });
-  if (window._currentRoomId) {
-    const ch = (window._voiceChannels || []).find(c => String(c.id) === String(window._currentRoomId));
-    const label = ch ? ch.name : ('Room ' + window._currentRoomId);
-    if (!serverVoipRows.some(r => r.includes('(you)'))) {
-      serverVoipRows.unshift(`<div class="unified-row"><span>🎤 ${esc(myName || shortKey(myKey))} (you) · ${esc(label)}</span></div>`);
-    }
-  }
-  const serverStreamRows = [];
-  active.forEach((s, id) => {
-    serverStreamRows.push(`<div class="unified-row"><span>${esc(s.name || id)}</span><button onclick="toggleStreamVisibilityById('${esc(id)}')">${s.hidden ? 'Watch' : 'Hide'}</button></div>`);
-  });
-  const serverOnlineRows = serverOnline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>🟢 ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-  const serverOfflineRows = serverOffline.map(u => `<div class="unified-row peer" data-username="${esc(u.name || shortKey(u.public_key))}" data-pubkey="${esc(u.public_key)}"><span>⚫ ${esc(u.name || shortKey(u.public_key))}</span></div>`);
-  sections.push(renderUnifiedSection('server-main', 'Servers (United-Humanity)', serverStreamRows, serverVoipRows, serverOnlineRows, serverOfflineRows, ''));
+  const serverUsers = users.filter(u => !shownKeys.has(u.public_key));
+  sections.push(section('server-main', 'United-Humanity', serverUsers, false));
 
   peerList.innerHTML = sections.join('');
 }

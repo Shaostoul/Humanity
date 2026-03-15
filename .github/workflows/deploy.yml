@@ -61,13 +61,12 @@ jobs:
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            SECRET=$(grep '^API_SECRET' /opt/Humanity/.env | cut -d= -f2- | tr -d '\r')
             COMMIT_MSG=$(git -C /opt/Humanity log -1 --pretty=format:"%s")
             COMMIT_SHA=$(git -C /opt/Humanity log -1 --pretty=format:"%h")
             AUTHOR=$(git -C /opt/Humanity log -1 --pretty=format:"%an")
-            PAYLOAD="{\"channel\":\"announcements\",\"content\":\"🚀 **Deployed** — \`${COMMIT_SHA}\` by ${AUTHOR}: ${COMMIT_MSG}\",\"from_name\":\"Deploy Bot\"}"
+            PAYLOAD="{\"channel\":\"announcements\",\"content\":\"🚀 **Deployed** \`${COMMIT_SHA}\` by ${AUTHOR}: ${COMMIT_MSG}\",\"from_name\":\"Deploy Bot\"}"
             curl -s -X POST "http://localhost:3210/api/send" \
               -H "Content-Type: application/json" \
-              -H "Authorization: Bearer ${API_SECRET}" \
+              -H "Authorization: Bearer ${SECRET}" \
               -d "$PAYLOAD" || true
-        env:
-          API_SECRET: ${{ secrets.API_SECRET }}

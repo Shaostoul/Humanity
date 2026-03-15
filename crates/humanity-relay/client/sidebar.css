@@ -236,19 +236,48 @@
 .unified-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem;
-  padding: 0.08rem 0;
+  gap: 0.3rem;
+  padding: 0.12rem 0.2rem;
   font-size: 0.74rem;
+  border-radius: 3px;
+  cursor: default;
 }
-.unified-row button {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 0.08rem 0.4rem;
+.unified-row:hover {
+  background: rgba(255,255,255,0.04);
+}
+/* Online/offline presence dot */
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot.online  { background: #3c3; }
+.status-dot.offline { background: #444; }
+/* Name takes remaining space */
+.peer-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Small icon buttons for call/mic/stream — no visible border at rest */
+.ulist-icon {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 0 0.1rem;
   cursor: pointer;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  border-radius: 3px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+.ulist-icon:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.07);
 }
 .unified-stream-preview {
   margin: 0.2rem 0 0.35rem;
