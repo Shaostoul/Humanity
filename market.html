@@ -4,10 +4,16 @@
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width, initial-scale=1.0>
   <title>Market — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
   <style>
-    :root{--bg:#0d0d0d;--bg-card:#131313;--bg-panel:#141414;--bg-input:#1a1a1a;--border:#222;--text:#e0e0e0;--text-muted:#888;--accent:#22aa66;--success:#4a8;--error:#e55;--warning:#eb4;}
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+    :root {
+  --bg: #0d0d0d;
+  --bg-panel: #141414;
+  --border: #222;
+  --accent: #22aa66;
+  --error: #e55;
+}
+    body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
     a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
     input,select,textarea{font-family:inherit;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.6rem;outline:none}
     input:focus,select:focus,textarea:focus{border-color:var(--accent)}

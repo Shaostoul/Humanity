@@ -4,17 +4,27 @@
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width,initial-scale=1.0>
   <title>Tasks — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
   <style>
     :root {
-      --bg: #0a0a0a; --bg-card: #111; --bg-panel: #131313; --bg-input: #1a1a1a;
-      --border: #1e1e1e; --border-bright: #2a2a2a;
-      --text: #e0e0e0; --text-muted: #666; --text-dim: #444;
-      --accent: #f0a500;
-      --col-backlog: #333; --col-progress: #0a3a6e; --col-testing: #4a3500; --col-done: #0a3a1a;
-      --col-backlog-h: #2a2a2a; --col-progress-h: #0d4d8a; --col-testing-h: #5a4200; --col-done-h: #0d4d22;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+  --bg: #0a0a0a;
+  --bg-panel: #131313;
+  --border: #1e1e1e;
+  --border-bright: #2a2a2a;
+  --text-muted: #666;
+  --text-dim: #444;
+  --accent: #f0a500;
+  --col-backlog: #333;
+  --col-progress: #0a3a6e;
+  --col-testing: #4a3500;
+  --col-done: #0a3a1a;
+  --col-backlog-h: #2a2a2a;
+  --col-progress-h: #0d4d8a;
+  --col-testing-h: #5a4200;
+  --col-done-h: #0d4d22;
+}
+
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     #page-app { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
     /* ── Scope bar ── */
@@ -79,7 +89,7 @@
     .col[data-status=in_progress] .col-header { color: #6ab0f5; background: var(--col-progress); }
     .col[data-status=testing] .col-header { color: #f0c040; background: var(--col-testing); }
     .col[data-status=done] .col-header { color: #4ec87a; background: var(--col-done); }
-    .col-body { flex: 1; overflow-y: auto; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem; scrollbar-width: thin; scrollbar-color: #222 transparent; }
+    .col-body { flex: 1; overflow-y: auto; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem; scrollbar-width: thin; scrollbar-transparent; }
 
     /* ── Cards ── */
     .card {
