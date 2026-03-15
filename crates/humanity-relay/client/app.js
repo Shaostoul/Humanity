@@ -751,7 +751,14 @@ async function handleMessage(msg) {
       break;
     }
     case 'dm_list': {
-      dmConversations = msg.conversations || [];
+      // Merge server list with locally-seeded entries (e.g. brand-new conversations)
+      // so that an open DM view doesn't disappear from the sidebar while waiting for
+      // the first message to be stored server-side.
+      const serverList = msg.conversations || [];
+      const serverKeys = new Set(serverList.map(c => c.partner_key));
+      const localOnly = dmConversations.filter(c => !serverKeys.has(c.partner_key));
+      dmConversations = [...serverList, ...localOnly];
+      dmConversations.sort((a, b) => Number(b.last_timestamp || 0) - Number(a.last_timestamp || 0));
       renderDmList();
       break;
     }

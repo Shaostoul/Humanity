@@ -82,10 +82,18 @@
       height: 40px;
       gap: 0.2rem;
       flex-shrink: 0;
-      position: sticky;
+      position: fixed;
       top: 0;
+      left: 0;
+      right: 0;
       z-index: 5500;
       isolation: isolate;
+    }
+    /* Spacer pushes page content below the fixed nav */
+    .hub-nav-spacer {
+      height: 41px; /* 40px nav + 1px separator */
+      flex-shrink: 0;
+      pointer-events: none;
     }
 
     /* ── Brand ── */
@@ -209,20 +217,25 @@
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
-    /* ── Theme toggle button ── */
-    .hub-nav .theme-toggle-btn {
+    /* ── Footer theme toggle button ── */
+    .footer-theme-btn {
       background: none;
-      border: none;
-      font-size: 0.9rem;
-      opacity: 0.65;
-      transition: opacity 0.15s;
-      box-shadow: none;
+      border: 1px solid #444;
+      border-radius: 5px;
+      color: #888;
+      cursor: pointer;
+      font-size: 0.78rem;
+      padding: 0.15rem 0.45rem;
+      transition: color 0.15s, border-color 0.15s;
+      line-height: 1.5;
     }
-    .hub-nav .theme-toggle-btn:hover { opacity: 1; }
+    .footer-theme-btn:hover { color: #FF8811; border-color: #FF8811; }
     [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
     [data-theme="light"] .hub-nav .tab { color: #555; box-shadow: inset 0 0 0 1px #2a6; }
     [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
     [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
+    [data-theme="light"] .footer-theme-btn { color: #555; border-color: #ccc; }
+    [data-theme="light"] .footer-theme-btn:hover { color: #FF8811; border-color: #FF8811; }
 
     /* ── Divider between nav groups — negative margin cancels the double flex-gap ── */
     .hub-nav .nav-divider {
@@ -381,6 +394,7 @@
       .hub-nav .spacer { display: none !important; }
       .hub-nav .brand { margin-right: 0.25rem; }
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
+      .hub-nav-spacer { height: 37px; }
     }
   `;
   document.head.appendChild(style);
@@ -435,16 +449,6 @@
       navTab('/studio',    '🎬',            'Studio',    'studio') +
 
       navTab('/tasks',     '🎯',            'Tasks',     'tasks') +
-      '<div class="nav-divider"></div>' +
-
-      /* Spacer pushes ops/account to the right */
-      '<div class="spacer"></div>' +
-
-      /* Right side — ops, download, settings, theme toggle */
-      navTab('/ops',      'system.png',   'Ops',      'debug') +
-      navTab('/download', 'save.png',     'Download', 'download') +
-      navTab('/settings', 'settings.png', 'Settings', 'settings') +
-      '<button class="tab theme-toggle-btn" id="hos-theme-toggle" title="Toggle light/dark mode" onclick="hosToggleTheme()" aria-label="Toggle theme">🌙</button>' +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
@@ -452,6 +456,10 @@
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
+  // Spacer so fixed nav doesn't overlap page content
+  var navSpacer = document.createElement('div');
+  navSpacer.className = 'hub-nav-spacer';
+  nav.insertAdjacentElement('afterend', navSpacer);
 
   // Mobile drawer fallback menu (for reliable touch nav)
   var mobileBackdrop = document.createElement('div');
@@ -491,9 +499,12 @@
     '<div class="mobile-hub-group"><h4>App</h4>' +
       mobileLink('/vault',    'Vault') +
       mobileLink('/tasks',    'Tasks') +
+    '</div>' +
+    '<div class="mobile-hub-group"><h4>Config</h4>' +
       mobileLink('/ops',      'Ops') +
-      mobileLink('/download', 'Download') +
+      mobileLink('/download', 'Download App') +
       mobileLink('/settings', 'Settings') +
+      '<a href="#" onclick="hosToggleTheme();return false;" id="mobile-theme-link">🌙 Toggle Theme</a>' +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
@@ -741,12 +752,17 @@
       '<div class="footer-links">' +
         '<a href="/">Home</a>' +
         '<a href="/chat">Chat</a>' +
-        '<a href="/download" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">Download</a>' +
         '<a href="https://shaostoul.github.io/Humanity" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'https://shaostoul.github.io/Humanity\',\'Docs\');return false;}">Docs</a>' +
-        '<a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>' +
         '<a href="https://discord.gg/9XxmmeQnWC" target="_blank">Discord</a>' +
         '<a href="https://youtube.com/@Shaostoul" target="_blank">YouTube</a>' +
         '<a href="https://x.com/Shaostoul" target="_blank">X</a>' +
+      '</div>' +
+      '<div class="footer-links" style="margin-top:4px;">' +
+        '<a href="/download" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">⬇ Download App</a>' +
+        '<a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>' +
+        '<a href="/ops">Ops</a>' +
+        '<a href="/settings">Settings</a>' +
+        '<button class="footer-theme-btn" id="hos-theme-toggle" onclick="hosToggleTheme()" aria-label="Toggle theme">🌙 Theme</button>' +
       '</div>' +
     '</div>';
   document.body.appendChild(footerEl);
@@ -994,14 +1010,16 @@
     var root = document.documentElement;
 
     function applyTheme(theme) {
+      var btn = document.getElementById('hos-theme-toggle');
+      var mobileLink = document.getElementById('mobile-theme-link');
       if (theme === 'light') {
         root.setAttribute('data-theme', 'light');
-        var btn = document.getElementById('hos-theme-toggle');
-        if (btn) btn.textContent = '☀️';
+        if (btn) btn.textContent = '☀️ Theme';
+        if (mobileLink) mobileLink.textContent = '☀️ Toggle Theme';
       } else {
         root.removeAttribute('data-theme');
-        var btn = document.getElementById('hos-theme-toggle');
-        if (btn) btn.textContent = '🌙';
+        if (btn) btn.textContent = '🌙 Theme';
+        if (mobileLink) mobileLink.textContent = '🌙 Toggle Theme';
       }
       localStorage.setItem(THEME_KEY, theme);
     }

@@ -1,3 +1,37 @@
+// ── P2P: inject overlay modal CSS (no style.css dependency) ──
+(function () {
+  if (document.getElementById('p2p-modal-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'p2p-modal-styles';
+  s.textContent = `
+    .overlay-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 8500;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay-modal.open { display: flex; }
+    .overlay-modal .overlay-content {
+      background: var(--bg-panel, #1a1a1a);
+      border: 1px solid var(--border, #333);
+      border-radius: 10px;
+      padding: 1.2rem;
+      width: 90%;
+      max-width: 480px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    .overlay-modal .overlay-content h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+      color: var(--text, #ddd);
+    }
+  `;
+  document.head.appendChild(s);
+})();
+
 // ── P2P Contact Cards & DataChannel Messaging ──
 // Goal: enable direct peer-to-peer messaging between users without routing
 // message content through the central relay server.
@@ -95,13 +129,14 @@ function showContactCardExportModal(cardJson) {
         <textarea id="p2p-card-json" readonly
           style="width:100%;height:120px;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.4rem;resize:none;"></textarea>
         <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
-          <button onclick="navigator.clipboard.writeText(document.getElementById('p2p-card-json').value).then(()=>addSystemMessage('Card copied!'))"
+          <button id="p2p-copy-btn"
+            onclick="(function(btn){navigator.clipboard.writeText(document.getElementById('p2p-card-json').value).then(function(){btn.textContent='✅ Copied!';btn.style.background='#1a5c2a';setTimeout(function(){btn.textContent='📋 Copy JSON';btn.style.background='';},2000);}).catch(function(){btn.textContent='❌ Failed';setTimeout(function(){btn.textContent='📋 Copy JSON';},2000);})})(this)"
             style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.4rem;cursor:pointer;">
             📋 Copy JSON
           </button>
-          <button onclick="document.getElementById('p2p-export-modal').classList.remove('open')"
+          <button onclick="var m=document.getElementById('p2p-export-modal');if(m)m.classList.remove('open');"
             style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.4rem;cursor:pointer;">
-            Close
+            ✕ Close
           </button>
         </div>
       </div>`;
@@ -178,12 +213,15 @@ function showContactCardImportModal() {
           </button>
         </div>
         <p id="p2p-import-error" style="color:#e74c3c;font-size:0.8rem;margin-top:0.4rem;display:none;"></p>
+        <p id="p2p-import-success" style="color:#2a6;font-size:0.85rem;font-weight:600;margin-top:0.4rem;display:none;"></p>
       </div>`;
     document.body.appendChild(modal);
   }
   document.getElementById('p2p-import-json').value = '';
   const errEl = document.getElementById('p2p-import-error');
-  if (errEl) errEl.style.display = 'none';
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  const okEl = document.getElementById('p2p-import-success');
+  if (okEl)  { okEl.style.display = 'none';  okEl.textContent = ''; }
   modal.classList.add('open');
 }
 
@@ -193,9 +231,23 @@ function showContactCardImportModal() {
 async function importContactCardFromModal() {
   const json = document.getElementById('p2p-import-json').value.trim();
   const errEl = document.getElementById('p2p-import-error');
+  const okEl  = document.getElementById('p2p-import-success');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+  if (okEl)  { okEl.style.display  = 'none'; okEl.textContent  = ''; }
   try {
-    await importContactCard(json);
-    document.getElementById('p2p-import-modal').classList.remove('open');
+    const name = await importContactCard(json);
+    // Clear textarea so it's blank if modal is reopened
+    const ta = document.getElementById('p2p-import-json');
+    if (ta) ta.value = '';
+    // Show success banner, then auto-close after 1.5s
+    if (okEl) {
+      okEl.textContent = '✅ Contact added' + (name ? ': ' + name : '') + '!';
+      okEl.style.display = 'block';
+    }
+    setTimeout(function () {
+      const m = document.getElementById('p2p-import-modal');
+      if (m) m.classList.remove('open');
+    }, 1500);
   } catch (err) {
     if (errEl) {
       errEl.textContent = '⚠️ ' + err.message;
@@ -247,6 +299,8 @@ async function importContactCard(json) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'follow', target_key: card.pub }));
   }
+
+  return card.name;
 }
 
 /**

@@ -1208,7 +1208,7 @@ function renderUnifiedRightSidebar() {
       : '<span class="status-dot offline" title="Offline"></span>';
     let badges = '';
     if (showCall) {
-      badges += `<button class="ulist-icon" onclick="openDmConversation('${esc(pk)}')" title="Message ${esc(name)}">💬</button>`;
+      badges += `<button class="ulist-icon" onclick="openDmConversation('${esc(pk)}','${esc(name)}')" title="Message ${esc(name)}">💬</button>`;
     }
     if (voiceMap.has(pk)) {
       const vcId = voiceMap.get(pk);

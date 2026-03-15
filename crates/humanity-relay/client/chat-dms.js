@@ -47,8 +47,17 @@ function upsertDmConversation(partnerKey, partnerName, lastMessage, lastTimestam
 
 /** Switch to DM conversation view. */
 function openDmConversation(partnerKey, partnerName) {
+  if (!partnerKey) return;
+  // Resolve best display name: passed arg > peerData > short key
+  const resolvedName = partnerName ||
+    (window.peerData && window.peerData[partnerKey]?.display_name) ||
+    (typeof shortKey === 'function' ? shortKey(partnerKey) : partnerKey.slice(0, 8));
   activeDmPartner = partnerKey;
-  activeDmPartnerName = partnerName;
+  activeDmPartnerName = resolvedName;
+
+  // Ensure conversation appears in DM list immediately, even before server confirms.
+  // (A brand-new conversation won't be in dm_list yet, so we seed it locally.)
+  upsertDmConversation(partnerKey, resolvedName, '', Date.now(), false);
 
   // Switch to DMs tab in sidebar.
   if (typeof switchSidebarTab === 'function') switchSidebarTab('dms', true);
