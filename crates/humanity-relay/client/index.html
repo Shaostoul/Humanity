@@ -65,9 +65,20 @@
         <span id="stats"></span>
       </div>
       <div style="display:flex;align-items:center;gap:0.5rem;">
-        <button id="search-toggle" onclick="toggleSearch()" title="Search messages">🔍</button>
-        <button id="sound-toggle" onclick="toggleSoundMenu()" title="Notification sounds" style="background:none;border:none;color:var(--text);cursor:pointer;font-size:1.1rem;padding:0.2rem;">🔔</button>
-        <button id="people-toggle" onclick="toggleSidebar('right-sidebar')" title="Users">👤</button>
+        <button id="search-toggle" onclick="toggleSearch()"
+          data-tip-title="Search Messages"
+          data-tip-hotkey="Ctrl + F"
+          data-tip-desc="Search messages by keyword or sender in the current channel."
+          data-tip-detail="Full-text search powered by FTS5 — supports phrases and author filter">🔍</button>
+        <button id="sound-toggle" onclick="toggleSoundMenu()"
+          data-tip-title="Notification Sounds"
+          data-tip-desc="Configure which events play audio alerts."
+          data-tip-detail="DMs, mentions, and channel messages can each be set independently"
+          style="background:none;border:none;color:var(--text);cursor:pointer;font-size:1.1rem;padding:0.2rem;">🔔</button>
+        <button id="people-toggle" onclick="toggleSidebar('right-sidebar')"
+          data-tip-title="People & Streams"
+          data-tip-desc="Opens the sidebar showing online members, voice participants, and streaming controls."
+          data-tip-detail="Shows STREAMING, VOIP, ONLINE, and OFFLINE presence sections">👤</button>
         <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
       </div>
       <div id="sound-menu" style="display:none;position:absolute;top:3rem;right:5rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:0.6rem;z-index:200;min-width:200px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
@@ -90,17 +101,49 @@
           <div id="my-sign-status" style="margin-top:0.2rem;"></div>
           <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
-            <button onclick="openEncryptedBackupModal()" title="Download a passphrase-encrypted backup file you can store in the cloud" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔐 Backup</button>
-            <button onclick="openRestoreIdentityModal()" title="Restore your identity from a backup file" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
-            <button onclick="openSeedPhraseModal()" title="Show your 24-word recovery phrase — write it on paper, store offline" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🌱 Phrase</button>
-            <button onclick="openRestoreFromMnemonicModal()" title="Restore your identity from your 24-word recovery phrase" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔤 Words</button>
+            <button onclick="openEncryptedBackupModal()"
+              data-tip-title="Backup Identity"
+              data-tip-desc="Download a passphrase-encrypted backup of your private key."
+              data-tip-detail="Store the file in the cloud or offline — it's useless without the passphrase"
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔐 Backup</button>
+            <button onclick="openRestoreIdentityModal()"
+              data-tip-title="Restore from Backup"
+              data-tip-desc="Restore your identity from a previously downloaded encrypted backup file."
+              data-tip-detail="You will need the passphrase you used when the backup was created"
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
+            <button onclick="openSeedPhraseModal()"
+              data-tip-title="Seed Phrase"
+              data-tip-desc="Shows your 24-word recovery phrase — the master key to your identity."
+              data-tip-detail="Write it on paper and store offline. Anyone with this phrase controls your account."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🌱 Phrase</button>
+            <button onclick="openRestoreFromMnemonicModal()"
+              data-tip-title="Restore from Seed Phrase"
+              data-tip-desc="Rebuild your identity from your 24-word recovery phrase."
+              data-tip-detail="Use this if you lost your key file but kept the seed phrase"
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔤 Words</button>
           </div>
-          <button id="key-protect-btn" onclick="openKeyProtectionModal()" title="Encrypt your private key in localStorage with a passphrase" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔓 Protect Key (localStorage encryption)</button>
+          <button id="key-protect-btn" onclick="openKeyProtectionModal()"
+            data-tip-title="Protect Key"
+            data-tip-desc="Encrypts your private key stored in the browser with a passphrase."
+            data-tip-detail="Without this, your key is stored in plain text in localStorage — protection adds AES-256-GCM encryption"
+            style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔓 Protect Key (localStorage encryption)</button>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
-            <button onclick="exportContactCard()" title="Share your contact card (QR / JSON) so others can add you P2P" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📤 Share Card</button>
-            <button onclick="showContactCardImportModal()" title="Paste a contact card from another user to add them P2P" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Add Contact</button>
-            <button onclick="syncAllPeers()" title="Sync calendar, homes, todos, and notes with all connected P2P peers" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔄 Sync</button>
+            <button onclick="exportContactCard()"
+              data-tip-title="Share Contact Card"
+              data-tip-desc="Generates a QR code and JSON card others can scan or paste to add you as a P2P contact."
+              data-tip-detail="Card contains your public key and is signed with your identity — valid for 7 days"
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📤 Share Card</button>
+            <button onclick="showContactCardImportModal()"
+              data-tip-title="Add Contact"
+              data-tip-desc="Paste or scan another user's contact card JSON to add them as a P2P peer."
+              data-tip-detail="Validates their Ed25519 signature before saving — rejects expired or tampered cards"
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Add Contact</button>
+            <button onclick="syncAllPeers()"
+              data-tip-title="Sync with Peers"
+              data-tip-desc="Pushes your latest calendar, homes, todos, and notes to all connected P2P contacts."
+              data-tip-detail="Data is encrypted end-to-end using ECDH — the relay never sees the content"
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔄 Sync</button>
           </div>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
@@ -129,24 +172,67 @@
         <div id="voice-control-bar">
           <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
           <div class="vc-bar-controls">
-            <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()" title="Mute/Unmute">🎤 Mute</button>
-            <button id="vc-mode-btn" onclick="toggleVoiceInputMode()" title="Cycle input mode: Open Mic → Push-to-Talk → Voice Activated">🗣️ Open</button>
-            <button id="vc-ptt-rebind-btn" onclick="startVcPttRebind()" title="Click then press a key to rebind Push-to-Talk" style="font-size:0.62rem;padding:0.15rem 0.3rem;opacity:0.7;">⌨️</button>
-            <button id="vc-squelch-btn" onclick="toggleVoiceSquelch()" title="Toggle noise gate (squelch)">🚫 Gate</button>
-            <button id="vc-mic-preset-btn" onclick="cycleMicPreset()" title="Cycle mic processing preset">🎚️ Clarity</button>
-            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')" title="Toggle Camera (right-click to choose device)">📹 Cam</button>
-            <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()" title="Share your screen">🖥️ Screen</button>
-            <button id="vc-chat-overlay-btn" onclick="toggleStreamChatOverlay()" title="Toggle stream chat overlay">💬 Overlay</button>
-            <button id="vc-chat-channel-btn" onclick="selectStreamChatChannel()" title="Select stream chat channel"># Channel</button>
-            <button id="vc-pip-btn" onclick="togglePiP()" title="Pin/unpin video">📌 Pin</button>
+            <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()"
+              data-tip-title="Mute Microphone"
+              data-tip-desc="Silences your mic so others in the channel cannot hear you."
+              data-tip-detail="Toggle: 🎤 Unmuted / 🔇 Muted">🎤 Mute</button>
+            <button id="vc-mode-btn" onclick="toggleVoiceInputMode()"
+              data-tip-title="Input Mode"
+              data-tip-desc="Cycles between Open Mic, Push-to-Talk (PTT), and Voice Activated Detection (VAD)."
+              data-tip-detail="Open: always on · PTT: hold key to transmit · VAD: mic gates on sound">🗣️ Open</button>
+            <button id="vc-ptt-rebind-btn" onclick="startVcPttRebind()"
+              data-tip-title="Rebind PTT Key"
+              data-tip-desc="Click, then press any key to set your Push-to-Talk button."
+              data-tip-detail="Current key shown in the mode button label when PTT is active"
+              style="font-size:0.62rem;padding:0.15rem 0.3rem;opacity:0.7;">⌨️</button>
+            <button id="vc-squelch-btn" onclick="toggleVoiceSquelch()"
+              data-tip-title="Noise Gate"
+              data-tip-desc="Blocks audio below a volume threshold from being transmitted."
+              data-tip-detail="Prevents hiss and ambient background noise from leaking through">🚫 Gate</button>
+            <button id="vc-mic-preset-btn" onclick="cycleMicPreset()"
+              data-tip-title="Mic Preset"
+              data-tip-desc="Cycles your microphone processing profile. Rejoin channel to fully apply capture constraints."
+              data-tip-detail="Clarity → Noise Block → Natural → Clarity">🎚️ Clarity</button>
+            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')"
+              data-tip-title="Camera"
+              data-tip-desc="Starts or stops sharing your webcam video with the voice channel."
+              data-tip-detail="Right-click to select a different camera device">📹 Cam</button>
+            <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()"
+              data-tip-title="Screen Share"
+              data-tip-desc="Broadcasts your screen or a chosen window to everyone in the voice channel."
+              data-tip-detail="You choose which monitor or window to share after clicking">🖥️ Screen</button>
+            <button id="vc-chat-overlay-btn" onclick="toggleStreamChatOverlay()"
+              data-tip-title="Chat Overlay"
+              data-tip-desc="Displays live chat messages overlaid on the stream preview."
+              data-tip-detail="Only visible in Studio layout when an active stream is running">💬 Overlay</button>
+            <button id="vc-chat-channel-btn" onclick="selectStreamChatChannel()"
+              data-tip-title="Overlay Chat Channel"
+              data-tip-desc="Choose which channel's messages feed into the stream chat overlay."
+              data-tip-detail="Useful for a dedicated viewer chat channel separate from #general"># Channel</button>
+            <button id="vc-pip-btn" onclick="togglePiP()"
+              data-tip-title="Pin Video (PiP)"
+              data-tip-desc="Pins the selected video feed so it stays visible while you browse other tabs."
+              data-tip-detail="Click again to unpin and return to the default layout">📌 Pin</button>
             <span class="vc-vol-label">Vol</span>
-            <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100" title="Master volume" oninput="setVoiceRoomVolume(this.value)">
-            <button class="vc-disconnect" onclick="leaveVoiceRoom()" title="Disconnect from voice channel">🔌 Leave</button>
+            <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100"
+              data-tip-title="Volume"
+              data-tip-desc="Controls how loud incoming voice audio is for you only."
+              data-tip-detail="Range: 0–100% · Soft-limited at 85% to protect hearing"
+              oninput="setVoiceRoomVolume(this.value)">
+            <button class="vc-disconnect" onclick="leaveVoiceRoom()"
+              data-tip-title="Leave Voice Channel"
+              data-tip-desc="Disconnects you from the current voice channel immediately."
+              data-tip-detail="Your mic, camera, and screen share streams stop. Others will see you leave.">🔌 Leave</button>
           </div>
         </div>
       </div>
-      <div id="left-resizer" class="panel-resizer" title="Resize left panel">
-        <button class="resizer-lock" id="left-lock-btn" onclick="togglePanelLock('left')">🔓</button>
+      <div id="left-resizer" class="panel-resizer"
+        data-tip-title="Resize Left Panel"
+        data-tip-desc="Drag to resize the sidebar. Click the lock icon to fix it at its current width.">
+        <button class="resizer-lock" id="left-lock-btn" onclick="togglePanelLock('left')"
+          data-tip-title="Lock Panel Width"
+          data-tip-desc="Locks the sidebar at its current size so dragging doesn't resize it."
+          data-tip-detail="Toggle: 🔓 Unlocked (resizable) / 🔒 Locked (fixed)">🔓</button>
       </div>
       <div id="chat-area">
         <div id="search-bar" style="position:relative;">
@@ -192,7 +278,9 @@
         <div id="typing-indicator"></div>
         <div id="reply-bar" style="display:none;">
           <div id="reply-preview"></div>
-          <button id="reply-cancel" title="Cancel reply">✕</button>
+          <button id="reply-cancel"
+            data-tip-title="Cancel Reply"
+            data-tip-desc="Clears the reply context and returns to a normal message.">✕</button>
         </div>
         <div id="upload-indicator"></div>
         <div id="char-counter"></div>
@@ -200,16 +288,37 @@
           <div id="cmd-palette" onclick="event.stopPropagation()"></div>
         </div>
         <div id="input-area">
-          <button id="cmd-palette-btn" onclick="toggleCmdPalette()" title="Commands">+</button>
-          <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()" title="Attach file">📎</button>
+          <button id="cmd-palette-btn" onclick="toggleCmdPalette()"
+            data-tip-title="Command Palette"
+            data-tip-hotkey="Ctrl + K"
+            data-tip-desc="Opens slash commands and quick actions for this channel."
+            data-tip-detail="Type / or ! to filter — try /me, /nick, /clear, /dm">+</button>
+          <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()"
+            data-tip-title="Attach File"
+            data-tip-desc="Upload an image or file to share in this channel."
+            data-tip-detail="Supports images, video, audio, PDF, text, JSON, ZIP (max 50 MB)">📎</button>
           <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
-          <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
-          <button id="help-btn" onclick="toggleHelpModal()" title="Help & Commands">?</button>
+          <button id="send-btn" onclick="sendMessage()"
+            data-tip-title="Send Message"
+            data-tip-hotkey="Enter"
+            data-tip-desc="Sends your message to the current channel."
+            data-tip-detail="Shift + Enter inserts a new line instead of sending"
+            disabled>Send</button>
+          <button id="help-btn" onclick="toggleHelpModal()"
+            data-tip-title="Help & Shortcuts"
+            data-tip-hotkey="?"
+            data-tip-desc="Shows all slash commands and keyboard shortcuts."
+            data-tip-detail="Press ? anywhere outside a text field to open this panel">?</button>
         </div>
       </div>
-      <div id="right-resizer" class="panel-resizer" title="Resize right panel">
-        <button class="resizer-lock" id="right-lock-btn" onclick="togglePanelLock('right')">🔓</button>
+      <div id="right-resizer" class="panel-resizer"
+        data-tip-title="Resize Right Panel"
+        data-tip-desc="Drag to resize the People & Streams sidebar.">
+        <button class="resizer-lock" id="right-lock-btn" onclick="togglePanelLock('right')"
+          data-tip-title="Lock Panel Width"
+          data-tip-desc="Locks the right sidebar at its current size."
+          data-tip-detail="Toggle: 🔓 Unlocked (resizable) / 🔒 Locked (fixed)">🔓</button>
       </div>
       <div id="right-sidebar">
         <h3>People & Streams</h3>
@@ -352,19 +461,28 @@
       <!-- Privacy-toggleable fields — lock icon toggles public ↔ private -->
       <div class="profile-field-row">
         <label for="profile-pronouns">🏷️ Pronouns</label>
-        <button type="button" class="privacy-toggle" id="privacy-pronouns" data-field="pronouns" title="Toggle visibility" onclick="togglePrivacyField('pronouns')">🌐</button>
+        <button type="button" class="privacy-toggle" id="privacy-pronouns" data-field="pronouns"
+          data-tip-title="Toggle Visibility"
+          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
+          onclick="togglePrivacyField('pronouns')">🌐</button>
       </div>
       <input type="text" id="profile-pronouns" maxlength="64" placeholder="she/her, he/him, they/them…">
 
       <div class="profile-field-row">
         <label for="profile-location">📍 Location</label>
-        <button type="button" class="privacy-toggle" id="privacy-location" data-field="location" title="Toggle visibility" onclick="togglePrivacyField('location')">🌐</button>
+        <button type="button" class="privacy-toggle" id="privacy-location" data-field="location"
+          data-tip-title="Toggle Visibility"
+          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
+          onclick="togglePrivacyField('location')">🌐</button>
       </div>
       <input type="text" id="profile-location" maxlength="128" placeholder="City, Country">
 
       <div class="profile-field-row">
         <label for="profile-website-url">🌐 Website</label>
-        <button type="button" class="privacy-toggle" id="privacy-website" data-field="website" title="Toggle visibility" onclick="togglePrivacyField('website')">🌐</button>
+        <button type="button" class="privacy-toggle" id="privacy-website" data-field="website"
+          data-tip-title="Toggle Visibility"
+          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
+          onclick="togglePrivacyField('website')">🌐</button>
       </div>
       <input type="text" id="profile-website-url" maxlength="256" placeholder="https://yoursite.com">
 
@@ -439,7 +557,11 @@
       <div id="device-list"></div>
       <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
         <button onclick="requestDeviceList()" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">↻ Refresh</button>
-        <button onclick="openLinkDeviceModal()" title="Show QR code to link this identity to a new device" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Link New Device</button>
+        <button onclick="openLinkDeviceModal()"
+          data-tip-title="Link New Device"
+          data-tip-desc="Displays a QR code your other device can scan to share this identity."
+          data-tip-detail="Uses encrypted P2P transfer — your private key is never sent to the server"
+          style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Link New Device</button>
       </div>
     </div>
   </div>
@@ -458,7 +580,10 @@
   <div id="thread-panel">
     <div id="thread-panel-header">
       <span>Thread</span>
-      <button onclick="closeThreadPanel()" title="Close">✕</button>
+      <button onclick="closeThreadPanel()"
+        data-tip-title="Close Thread"
+        data-tip-hotkey="Esc"
+        data-tip-desc="Closes the thread reply panel and returns to the main channel view.">✕</button>
     </div>
     <div id="thread-panel-messages"></div>
     <div id="thread-panel-input">

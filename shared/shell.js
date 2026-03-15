@@ -551,51 +551,95 @@
 
     var tip = document.createElement('div');
     tip.id = 'hos-rich-tooltip';
-    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:260px;background:rgba(8,8,10,0.96);border:1px solid rgba(130,130,140,0.35);border-radius:8px;padding:6px 8px;color:#ddd;font-size:12px;line-height:1.35;box-shadow:0 8px 20px rgba(0,0,0,0.45);display:none;';
+    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:300px;background:rgba(8,8,10,0.97);border:1px solid rgba(130,130,140,0.35);border-radius:9px;padding:8px 11px;color:#ddd;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,0.55);display:none;';
     document.body.appendChild(tip);
 
-    function showFor(el, x, y) {
-      if (!el) return;
-      var title = el.getAttribute('data-tip-title') || el.getAttribute('data-native-title') || el.getAttribute('aria-label') || el.getAttribute('data-tip') || (el.textContent || '').trim();
-      if (!title) return;
-      var desc = el.getAttribute('data-tip-desc') || defaultTooltipDescription(title);
-      tip.innerHTML = '<div style="font-weight:600;color:#fff;margin-bottom:2px;">' + title.replace(/</g,'&lt;') + '</div><div style="color:#b9c2d0;">' + desc.replace(/</g,'&lt;') + '</div>';
-      tip.style.display = 'block';
-      var tx = Math.min(window.innerWidth - 280, Math.max(8, x + 12));
-      var ty = Math.min(window.innerHeight - 90, Math.max(8, y + 12));
-      tip.style.left = tx + 'px';
-      tip.style.top = ty + 'px';
-    }
-
-    function hideTip() { tip.style.display = 'none'; }
-
-    document.querySelectorAll('[title]').forEach(function(el) {
-      var t = el.getAttribute('title');
+    /** Strip native title to prevent browser double-tooltip. */
+    function stripTitle(el) {
+      var t = el.getAttribute && el.getAttribute('title');
       if (t && !el.getAttribute('data-native-title')) {
         el.setAttribute('data-native-title', t);
         el.removeAttribute('title');
       }
-    });
+    }
 
-    document.addEventListener('mouseover', function(e) {
-      var el = e.target.closest('[data-native-title],[data-tip],[aria-label],button,a,[role="button"]');
+    function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+    function showFor(el, x, y) {
       if (!el) return;
-      // Nav tabs already have CSS ::after tooltips — skip them to avoid double-tooltip
-      if (el.closest('.hub-nav')) return;
+      var name = el.getAttribute('data-tip-title') || el.getAttribute('data-native-title') ||
+                 el.getAttribute('aria-label') || el.getAttribute('data-tip') ||
+                 (el.textContent || '').trim().slice(0, 48);
+      if (!name) return;
+      var hotkey = el.getAttribute('data-tip-hotkey') || '';
+      var desc   = el.getAttribute('data-tip-desc')   || defaultTooltipDescription(name);
+      var detail = el.getAttribute('data-tip-detail')  || '';
+
+      var html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:' + (desc ? '4' : '0') + 'px;">' +
+        '<span style="font-weight:600;color:#fff;font-size:12.5px;">' + esc(name) + '</span>';
+      if (hotkey) {
+        html += '<kbd style="font-size:10px;background:#0e2010;border:1px solid #2a4a2a;border-radius:3px;padding:1px 6px;color:#5d5;white-space:nowrap;flex-shrink:0;">' + esc(hotkey) + '</kbd>';
+      }
+      html += '</div>';
+      if (desc) {
+        html += '<div style="color:#b9c2d0;margin-bottom:' + (detail ? '4' : '0') + 'px;">' + esc(desc) + '</div>';
+      }
+      if (detail) {
+        html += '<div style="color:#687888;font-size:10.5px;border-top:1px solid rgba(100,110,120,0.2);padding-top:3px;margin-top:1px;">' + esc(detail) + '</div>';
+      }
+
+      tip.innerHTML = html;
+      tip.style.display = 'block';
+      // Keep tooltip inside viewport, prefer below-right of cursor
+      var tw = 320, th = tip.offsetHeight || 80;
+      var tx = x + 14;
+      var ty = y + 14;
+      if (tx + tw > window.innerWidth  - 8) tx = x - tw - 8;
+      if (ty + th > window.innerHeight - 8) ty = y - th - 8;
+      tip.style.left = Math.max(8, tx) + 'px';
+      tip.style.top  = Math.max(8, ty) + 'px';
+    }
+
+    function hideTip() { tip.style.display = 'none'; }
+
+    // Strip all existing title attributes at init time
+    document.querySelectorAll('[title]').forEach(stripTitle);
+
+    // Watch for dynamically-added elements (dynamic UI, voice bar shown/hidden, modals)
+    // so they never show a native browser tooltip alongside the rich one.
+    var obs = new MutationObserver(function(mutations) {
+      mutations.forEach(function(m) {
+        if (m.type === 'attributes') { stripTitle(m.target); return; }
+        m.addedNodes.forEach(function(node) {
+          if (node.nodeType !== 1) return;
+          stripTitle(node);
+          node.querySelectorAll('[title]').forEach(stripTitle);
+        });
+      });
+    });
+    obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['title'] });
+
+    var SELECTOR = '[data-native-title],[data-tip-title],[data-tip],[aria-label],button,a,[role="button"]';
+    document.addEventListener('mouseover', function(e) {
+      var el = e.target.closest(SELECTOR);
+      if (!el) return;
+      if (el.closest('.hub-nav')) return; // nav tabs use CSS ::after tooltips
       showFor(el, e.clientX || 8, e.clientY || 8);
     });
     document.addEventListener('mousemove', function(e) {
       if (tip.style.display !== 'block') return;
-      var tx = Math.min(window.innerWidth - 280, Math.max(8, (e.clientX || 8) + 12));
-      var ty = Math.min(window.innerHeight - 90, Math.max(8, (e.clientY || 8) + 12));
-      tip.style.left = tx + 'px';
-      tip.style.top = ty + 'px';
+      var tw = 320, th = tip.offsetHeight || 80;
+      var tx = (e.clientX || 8) + 14, ty = (e.clientY || 8) + 14;
+      if (tx + tw > window.innerWidth  - 8) tx = (e.clientX || 8) - tw - 8;
+      if (ty + th > window.innerHeight - 8) ty = (e.clientY || 8) - th - 8;
+      tip.style.left = Math.max(8, tx) + 'px';
+      tip.style.top  = Math.max(8, ty) + 'px';
     });
     document.addEventListener('mouseout', function(e) {
-      if (e.target && e.target.closest && e.target.closest('[data-native-title],[data-tip],[aria-label],button,a,[role="button"]')) hideTip();
+      if (e.target && e.target.closest && e.target.closest(SELECTOR)) hideTip();
     });
     document.addEventListener('focusin', function(e) {
-      var el = e.target.closest('[data-native-title],[data-tip],[aria-label],button,a,[role="button"]');
+      var el = e.target.closest(SELECTOR);
       if (!el) return;
       var r = el.getBoundingClientRect();
       showFor(el, r.left + 8, r.bottom + 8);
