@@ -963,7 +963,7 @@
 
     var dbg = document.createElement('div');
     dbg.id = 'hos-debug-overlay';
-    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:7px;padding:6px 10px;font-size:0.68rem;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;min-width:190px;max-width:300px;box-shadow:0 4px 14px rgba(0,0,0,0.5);';
+    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:7px;padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.5;pointer-events:none;min-width:190px;max-width:300px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;';
     document.body.appendChild(dbg);
 
     var WS_LABELS = ['CONNECTING','OPEN','CLOSING','CLOSED'];
