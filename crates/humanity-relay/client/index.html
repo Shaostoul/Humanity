@@ -174,40 +174,32 @@
           <div class="unified-body">
             <div id="stream-studio-preview" class="stream-studio-preview">No active local feed</div>
 
-            <!-- Device controls (always visible when studio is open) -->
-            <div class="unified-subblock" data-subid="studio:devices">
-              <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('studio:devices')">
-                <span>Devices ▾</span>
-              </button>
-              <div class="unified-subcontent">
-                <div class="unified-row">
-                  <span>Mic</span>
-                  <select id="studio-mic-select" onchange="setStudioMic(this.value)"
-                    style="flex:1;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.15rem 0.25rem;cursor:pointer;">
-                    <option value="">Default mic</option>
-                  </select>
-                </div>
-                <div class="unified-row"><span>Camera</span>
-                  <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')"
-                    data-tip-title="Camera" data-tip-desc="Toggle webcam. Right-click to select device.">📹 Toggle</button>
-                </div>
-                <div class="unified-row"><span>Screen</span>
-                  <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()"
-                    data-tip-title="Screen Share" data-tip-desc="Broadcast your screen to the voice channel.">🖥️ Toggle</button>
-                </div>
-                <div class="unified-row"><span>Chat Overlay</span>
-                  <button id="vc-chat-overlay-btn" onclick="toggleStreamChatOverlay()">💬 Toggle</button></div>
-                <div class="unified-row"><span>Chat Channel</span>
-                  <button id="vc-chat-channel-btn" onclick="selectStreamChatChannel()"># Select</button></div>
-                <div class="unified-row"><span>PIP Size</span>
-                  <input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)"></div>
-                <div class="unified-row"><span>Preview Vol</span>
-                  <input type="range" min="0" max="100" value="100" oninput="setVoiceRoomVolume(this.value)"></div>
-                <div class="unified-row"><span>AFK</span>
-                  <button id="studio-afk-btn" onclick="toggleStudioAfk()"
-                    data-tip-title="AFK Overlay" data-tip-desc="Shows an AFK notice on your stream preview so viewers know you stepped away.">🌙 AFK Off</button>
-                </div>
+            <!-- Device + stream controls — pill layout -->
+            <div class="studio-devices">
+              <select id="studio-mic-select" class="studio-pill studio-pill-select" onchange="setStudioMic(this.value)">
+                <option value="">🎙️ Mic — Default</option>
+              </select>
+              <button id="vc-video-btn" class="studio-pill"
+                onclick="toggleVoiceRoomVideo()"
+                oncontextmenu="event.preventDefault();showCameraSelector('vr')"
+                data-tip-title="Camera" data-tip-desc="Toggle webcam. Right-click to select device.">📹 Camera — Off</button>
+              <button id="vc-screen-btn" class="studio-pill"
+                onclick="toggleVoiceRoomScreenShare()"
+                data-tip-title="Screen Share" data-tip-desc="Broadcast your screen to the voice channel.">🖥️ Screen — Off</button>
+              <button id="vc-chat-overlay-btn" class="studio-pill"
+                onclick="toggleStreamChatOverlay()"
+                data-tip-title="Chat Overlay" data-tip-desc="Toggle live chat overlay. Click again to change channel.">💬 Overlay — Off</button>
+              <div class="studio-pill-range">
+                <span>⊞ PIP</span>
+                <input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)">
               </div>
+              <div class="studio-pill-range">
+                <span>🔊 Vol</span>
+                <input type="range" min="0" max="100" value="100" oninput="setVoiceRoomVolume(this.value)">
+              </div>
+              <button id="studio-afk-btn" class="studio-pill"
+                onclick="toggleStudioAfk()"
+                data-tip-title="AFK Overlay" data-tip-desc="Shows an AFK notice on your stream so viewers know you stepped away.">🌙 AFK — Off</button>
             </div>
 
             <!-- Voice control bar (shown inside Studio when in a voice channel) -->

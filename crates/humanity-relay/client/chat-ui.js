@@ -948,11 +948,21 @@ var federatedServersFetched = false;
     const isCollapsed = collapsed.has('Humanity');
     const myRoleCh = (window.myPeerRole || '').toLowerCase();
 
-    // Standard channels rendered as icon buttons on the server header row.
+    // Standard channels rendered as monochromatic icon buttons on the server header row.
+    // SVG icons mirror the hub-nav rounded-square aesthetic.
     const PINNED_CHANNELS = {
-      welcome:       { icon: '👋', tip: 'Welcome' },
-      rules:         { icon: '📋', tip: 'Rules' },
-      announcements: { icon: '📢', tip: 'Announcements' },
+      welcome: {
+        tip: 'Welcome',
+        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M14 2H2a1 1 0 00-1 1v8a1 1 0 001 1h3v3l4-3h5a1 1 0 001-1V3a1 1 0 00-1-1zM6 8H4V7h2v1zm3 0H7V7h2v1zm3 0h-2V7h2v1z"/></svg>`,
+      },
+      rules: {
+        tip: 'Rules',
+        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M11 1H5a2 2 0 00-2 2v10a2 2 0 002 2h6a2 2 0 002-2V3a2 2 0 00-2-2zM5 5h6v1.5H5V5zm0 3h6v1.5H5V8zm0 3h4v1.5H5V11z"/></svg>`,
+      },
+      announcements: {
+        tip: 'Announcements',
+        icon: `<svg viewBox="0 0 16 16" fill="currentColor" width="12" height="12"><path d="M12.5 1.5v13L7 11H4a1.5 1.5 0 01-1.5-1.5v-3A1.5 1.5 0 014 5h3l5.5-3.5z"/><path d="M4.5 11h.5l.8 3.5H4.7l-.7-3.5z"/><circle cx="14" cy="8" r="1"/></svg>`,
+      },
     };
     const pinnedIds = new Set(Object.keys(PINNED_CHANNELS));
 
@@ -972,7 +982,9 @@ var federatedServersFetched = false;
       ? `<div class="server-pinned-btns">${existingPinnedIds.map(id => {
           const p = PINNED_CHANNELS[id];
           const isActive = id === activeChannel && !activeDmPartner;
-          return `<button onclick="event.stopPropagation();switchChannel('${esc(id)}')" title="${p.tip}" class="${isActive ? 'active-ch' : ''}">${p.icon}</button>`;
+          const count = (window.unreadChannelCounts && window.unreadChannelCounts[id]) || 0;
+          const badge = count > 0 ? `<span class="pinned-notif-badge">${count > 99 ? '99+' : count}</span>` : '';
+          return `<button onclick="event.stopPropagation();switchChannel('${esc(id)}')" title="${p.tip}" class="${isActive ? 'active-ch' : ''}" data-pinned-id="${esc(id)}">${p.icon}${badge}</button>`;
         }).join('')}</div>`
       : '';
 
@@ -1194,18 +1206,45 @@ switchChannel = function(channelId) {
 };
 
 // ── Unread Indicators ──
-// Track unread state per channel.
+// Track unread state and per-channel message counts.
 var unreadChannels = new Set();
+window.unreadChannelCounts = window.unreadChannelCounts || {};
 
 function markUnread(channelId) {
   if (channelId === activeChannel) return; // Don't mark current channel.
   unreadChannels.add(channelId);
+  window.unreadChannelCounts[channelId] = (window.unreadChannelCounts[channelId] || 0) + 1;
   renderUnreadDots();
+  updatePinnedBadges();
 }
 
 function clearUnread(channelId) {
   unreadChannels.delete(channelId);
+  delete window.unreadChannelCounts[channelId];
   renderUnreadDots();
+  updatePinnedBadges();
+}
+
+/**
+ * Updates the notification count badges on pinned channel icon buttons
+ * without re-rendering the full server list — just patches the DOM in place.
+ */
+function updatePinnedBadges() {
+  document.querySelectorAll('.server-pinned-btns button[data-pinned-id]').forEach(btn => {
+    const id = btn.getAttribute('data-pinned-id');
+    const count = (window.unreadChannelCounts && window.unreadChannelCounts[id]) || 0;
+    let badge = btn.querySelector('.pinned-notif-badge');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'pinned-notif-badge';
+        btn.appendChild(badge);
+      }
+      badge.textContent = count > 99 ? '99+' : String(count);
+    } else {
+      if (badge) badge.remove();
+    }
+  });
 }
 
 function renderUnreadDots() {

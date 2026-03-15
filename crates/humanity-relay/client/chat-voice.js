@@ -1602,7 +1602,13 @@ try {
   }
   vrVideoActive = true;
   const btn = document.getElementById('vc-video-btn');
-  if (btn) { btn.classList.add('vc-muted'); btn.textContent = '📹✓'; }
+  if (btn) {
+    btn.classList.add('active');
+    btn.classList.remove('vc-muted');
+    // Show the active camera's label if known, otherwise just "On".
+    const camLabel = localStorage.getItem('humanity-preferred-camera-label') || 'On';
+    btn.textContent = '📹 Camera — ' + camLabel;
+  }
   showLocalVideo(vrVideoStream, 'vr-self');
 } catch (e) {
   addSystemMessage('⚠️ Camera access denied.');
@@ -1621,7 +1627,7 @@ if (vrVideoStream) {
 }
 vrVideoActive = false;
 const btn = document.getElementById('vc-video-btn');
-if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '📹'; }
+if (btn) { btn.classList.remove('active', 'vc-muted'); btn.textContent = '📹 Camera — Off'; }
 removeVideoElement('vr-self');
 updateStudioLayout();
 updateStudioPreviewPanel();
@@ -1647,7 +1653,7 @@ try {
   }
   vrScreenActive = true;
   const btn = document.getElementById('vc-screen-btn');
-  if (btn) { btn.classList.add('vc-muted'); btn.textContent = '🖥️✓'; }
+  if (btn) { btn.classList.add('active'); btn.classList.remove('vc-muted'); btn.textContent = '🖥️ Screen — Active'; }
   showLocalVideo(vrScreenStream, 'vr-screen');
 } catch (e) {
   // User cancelled
@@ -1666,7 +1672,7 @@ if (vrScreenStream) {
 }
 vrScreenActive = false;
 const btn = document.getElementById('vc-screen-btn');
-if (btn) { btn.classList.remove('vc-muted'); btn.textContent = '🖥️'; }
+if (btn) { btn.classList.remove('active', 'vc-muted'); btn.textContent = '🖥️ Screen — Off'; }
 removeVideoElement('vr-screen');
 updateStudioLayout();
 updateStudioPreviewPanel();
@@ -1856,10 +1862,27 @@ localStorage.setItem('humanity-studio-pip-width', String(p));
   } catch (_) {}
 
   window.toggleStreamChatOverlay = function() {
+if (!streamChatOverlayEnabled && !streamChatOverlayChannel) {
+  // First enable: prompt for channel name.
+  const ch = prompt('Enter channel for chat overlay:', 'general');
+  if (!ch) return;
+  streamChatOverlayChannel = ch.trim();
+  localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);
+}
 streamChatOverlayEnabled = !streamChatOverlayEnabled;
 localStorage.setItem('humanity-stream-chat-overlay', streamChatOverlayEnabled ? 'true' : 'false');
 ensureStreamChatOverlay();
 updateStudioPreviewPanel();
+const btn = document.getElementById('vc-chat-overlay-btn');
+if (btn) {
+  if (streamChatOverlayEnabled) {
+    btn.classList.add('active');
+    btn.textContent = '💬 Overlay — #' + (streamChatOverlayChannel || 'general');
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '💬 Overlay — Off';
+  }
+}
   };
 
   window.selectStreamChatChannel = function() {
@@ -1869,6 +1892,8 @@ streamChatOverlayChannel = ch.trim();
 localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);
 ensureStreamChatOverlay();
 updateStudioPreviewPanel();
+const btn = document.getElementById('vc-chat-overlay-btn');
+if (btn && streamChatOverlayEnabled) btn.textContent = '💬 Overlay — #' + streamChatOverlayChannel;
   };
 
   function showLocalVideo(stream, id) {
@@ -2018,6 +2043,7 @@ if (devices.length === 0) {
     opt.textContent = d.label || `Camera ${i + 1}`;
     opt.onclick = async () => {
       setPreferredCamera(d.deviceId);
+      localStorage.setItem('humanity-preferred-camera-label', d.label || `Camera ${i + 1}`);
       selector.classList.remove('open');
       // If video is active, switch to new camera
       if (context === 'dm' && dmVideoActive) {
@@ -2220,7 +2246,7 @@ _origHandleMessage4(msg);
     devices.forEach((d, i) => {
       const opt = document.createElement('option');
       opt.value = d.deviceId;
-      opt.textContent = d.label || `Microphone ${i + 1}`;
+      opt.textContent = '🎙️ ' + (d.label || `Microphone ${i + 1}`);
       if (d.deviceId === preferred) opt.selected = true;
       sel.appendChild(opt);
     });
@@ -2263,7 +2289,7 @@ _origHandleMessage4(msg);
     studioAfkActive = !studioAfkActive;
     if (studioAfkActive) {
       studioAfkStartTime = Date.now();
-      if (btn) { btn.textContent = '🌙 AFK On'; btn.classList.add('vc-muted'); }
+      if (btn) { btn.textContent = '🌙 AFK — On'; btn.classList.add('active'); btn.classList.remove('vc-muted'); }
       if (preview) {
         let ov = preview.querySelector('.studio-afk-overlay');
         if (!ov) {
@@ -2282,7 +2308,7 @@ _origHandleMessage4(msg);
     } else {
       studioAfkStartTime = null;
       if (studioAfkTimer) { clearInterval(studioAfkTimer); studioAfkTimer = null; }
-      if (btn) { btn.textContent = '🌙 AFK Off'; btn.classList.remove('vc-muted'); }
+      if (btn) { btn.textContent = '🌙 AFK — Off'; btn.classList.remove('active', 'vc-muted'); }
       if (preview) { const ov = preview.querySelector('.studio-afk-overlay'); if (ov) ov.remove(); }
     }
   };
