@@ -873,7 +873,7 @@ async function castOwnerVote(taskId, result) {
  * Cast a community test vote (non-determining, but visible to the owner).
  * Re-voting replaces the previous community vote from this browser.
  */
-function castCommunityVote(taskId, result) {
+async function castCommunityVote(taskId, result) {
   const v = loadVotes();
   if (!v[taskId]) v[taskId] = { owner: null, community: [] };
   const already = v[taskId].community.find(x => x.device === '_local');
