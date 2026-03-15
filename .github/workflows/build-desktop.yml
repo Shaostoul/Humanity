@@ -10,14 +10,60 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  # ── Gate: Windows builds first. If this fails, nothing else runs. ──────────
+  build-windows:
+    name: Build (windows-x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: desktop
+        run: npm install
+
+      - name: Build Tauri app (Windows)
+        working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build --target x86_64-pc-windows-msvc
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: humanity-windows-x64
+          path: desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*
+
+      - name: Publish Windows to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: false
+          files: |
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe.sig
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi
+            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi.sig
+
+  # ── Other platforms only run if Windows gate passed ─────────────────────────
+  build-others:
+    name: Build (${{ matrix.label }})
+    needs: build-windows
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            label: windows-x64
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             label: linux-x64
@@ -64,20 +110,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: humanity-${{ matrix.label }}
-          path: |
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+          path: desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*
 
-      - name: Release
+      - name: Publish to Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           draft: false
-          generate_release_notes: true
+          generate_release_notes: false
           files: |
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe.sig
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi.sig
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.tar.gz
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.tar.gz.sig
@@ -85,8 +126,9 @@ jobs:
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage.sig
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
 
+  # ── Generate latest.json for auto-updater ───────────────────────────────────
   publish-update:
-    needs: build
+    needs: [build-windows, build-others]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -105,16 +147,12 @@ jobs:
           NOTES="Release ${GITHUB_REF_NAME}"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Find signature files
-          find artifacts -name "*.sig" -type f | while read f; do echo "$f: $(cat "$f")"; done
-
-          # Build platform entries
           LINUX_SIG=$(find artifacts -name "*.AppImage.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
           LINUX_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts -name "*.AppImage" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
 
           WIN_NSIS_SIG=$(find artifacts -name "*-setup.exe.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
           WIN_NSIS_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts -name "*-setup.exe" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
-          
+
           WIN_MSI_SIG=$(find artifacts -name "*.msi.sig" -type f -exec cat {} \; 2>/dev/null | head -1)
           WIN_MSI_URL="https://github.com/Shaostoul/Humanity/releases/download/${GITHUB_REF_NAME}/$(find artifacts -name "*.msi" -not -name "*.sig" -type f -printf '%f\n' 2>/dev/null | head -1)"
 
@@ -130,29 +168,50 @@ jobs:
             "notes": "${NOTES}",
             "pub_date": "${PUB_DATE}",
             "platforms": {
-              "linux-x86_64": {
-                "signature": "${LINUX_SIG}",
-                "url": "${LINUX_URL}"
-              },
-              "windows-x86_64": {
-                "signature": "${WIN_NSIS_SIG:-${WIN_MSI_SIG}}",
-                "url": "${WIN_NSIS_URL:-${WIN_MSI_URL}}"
-              },
-              "darwin-aarch64": {
-                "signature": "${MACOS_ARM_SIG}",
-                "url": "${MACOS_ARM_URL}"
-              },
-              "darwin-x86_64": {
-                "signature": "${MACOS_X64_SIG}",
-                "url": "${MACOS_X64_URL}"
-              }
+              "linux-x86_64": { "signature": "${LINUX_SIG}", "url": "${LINUX_URL}" },
+              "windows-x86_64": { "signature": "${WIN_NSIS_SIG:-${WIN_MSI_SIG}}", "url": "${WIN_NSIS_URL:-${WIN_MSI_URL}}" },
+              "darwin-aarch64": { "signature": "${MACOS_ARM_SIG}", "url": "${MACOS_ARM_URL}" },
+              "darwin-x86_64": { "signature": "${MACOS_X64_SIG}", "url": "${MACOS_X64_URL}" }
             }
           }
           EOF
-
           cat latest.json
 
       - name: Upload latest.json to release
         uses: softprops/action-gh-release@v2
         with:
           files: latest.json
+
+  # ── Notify #announcements regardless of outcome ──────────────────────────────
+  notify:
+    name: Notify chat
+    needs: [build-windows, build-others]
+    if: always() && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post build result to #announcements
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            WIN="${{ needs.build-windows.result }}"
+            OTHERS="${{ needs.build-others.result }}"
+            TAG="${{ github.ref_name }}"
+            RUN_URL="https://github.com/Shaostoul/Humanity/actions/runs/${{ github.run_id }}"
+
+            if [ "$WIN" = "success" ] && [ "$OTHERS" = "success" ]; then
+              MSG="✅ **Desktop $TAG built** — Windows · Linux · macOS ready. [Release](<https://github.com/Shaostoul/Humanity/releases/tag/$TAG>)"
+            elif [ "$WIN" = "success" ] && [ "$OTHERS" != "success" ]; then
+              MSG="⚠️ **Desktop $TAG** — Windows ✅ built, other platforms failed. [Details](<$RUN_URL>)"
+            else
+              MSG="❌ **Desktop $TAG build failed** — Windows gate failed, no binaries produced. [Details](<$RUN_URL>)"
+            fi
+
+            curl -s -X POST "http://localhost:3210/api/send" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${API_SECRET}" \
+              -d "{\"channel\":\"announcements\",\"content\":\"$MSG\",\"from_name\":\"Deploy Bot\"}" || true
+        env:
+          API_SECRET: ${{ secrets.API_SECRET }}
