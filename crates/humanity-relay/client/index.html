@@ -168,81 +168,82 @@
         </div>
         <!-- Hidden channel-list container used by renderChannelList() -->
         <div id="channel-list" style="display:none;"></div>
-        <!-- My Stream Studio (left panel — private/own controls) -->
+        <!-- Studio — stream preview + device controls + voice channel controls -->
         <div id="stream-studio-panel" class="unified-section collapsed" data-usid="server-studio">
-          <button class="unified-header" onclick="toggleUnifiedSection('server-studio')">My Stream Studio ▸</button>
+          <button class="unified-header" onclick="toggleUnifiedSection('server-studio')">Studio ▸</button>
           <div class="unified-body">
             <div id="stream-studio-preview" class="stream-studio-preview">No active local feed</div>
-            <div class="unified-subblock" data-subid="studio:controls">
-              <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('studio:controls')">
-                <span>Controls ▾</span><span class="unified-subsummary">live</span>
+
+            <!-- Device controls (always visible when studio is open) -->
+            <div class="unified-subblock" data-subid="studio:devices">
+              <button class="unified-subhead-toggle" onclick="toggleUnifiedSubSection('studio:devices')">
+                <span>Devices ▾</span>
               </button>
               <div class="unified-subcontent">
-                <div class="unified-row"><span>Camera</span><button onclick="toggleVoiceRoomVideo()">Toggle</button></div>
-                <div class="unified-row"><span>Screen</span><button onclick="toggleVoiceRoomScreenShare()">Toggle</button></div>
-                <div class="unified-row"><span>Chat Overlay</span><button onclick="toggleStreamChatOverlay()">Toggle</button></div>
-                <div class="unified-row"><span>Chat Channel</span><button onclick="selectStreamChatChannel()">Select</button></div>
-                <div class="unified-row"><span>PIP Size</span><input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)"></div>
-                <div class="unified-row"><span>Preview Volume</span><input type="range" min="0" max="100" value="100" oninput="setVoiceRoomVolume(this.value)"></div>
+                <div class="unified-row">
+                  <span>Mic</span>
+                  <select id="studio-mic-select" onchange="setStudioMic(this.value)"
+                    style="flex:1;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.15rem 0.25rem;cursor:pointer;">
+                    <option value="">Default mic</option>
+                  </select>
+                </div>
+                <div class="unified-row"><span>Camera</span>
+                  <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')"
+                    data-tip-title="Camera" data-tip-desc="Toggle webcam. Right-click to select device.">📹 Toggle</button>
+                </div>
+                <div class="unified-row"><span>Screen</span>
+                  <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()"
+                    data-tip-title="Screen Share" data-tip-desc="Broadcast your screen to the voice channel.">🖥️ Toggle</button>
+                </div>
+                <div class="unified-row"><span>Chat Overlay</span>
+                  <button id="vc-chat-overlay-btn" onclick="toggleStreamChatOverlay()">💬 Toggle</button></div>
+                <div class="unified-row"><span>Chat Channel</span>
+                  <button id="vc-chat-channel-btn" onclick="selectStreamChatChannel()"># Select</button></div>
+                <div class="unified-row"><span>PIP Size</span>
+                  <input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)"></div>
+                <div class="unified-row"><span>Preview Vol</span>
+                  <input type="range" min="0" max="100" value="100" oninput="setVoiceRoomVolume(this.value)"></div>
+                <div class="unified-row"><span>AFK</span>
+                  <button id="studio-afk-btn" onclick="toggleStudioAfk()"
+                    data-tip-title="AFK Overlay" data-tip-desc="Shows an AFK notice on your stream preview so viewers know you stepped away.">🌙 AFK Off</button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        <!-- Voice Control Bar (shown when in a voice channel) -->
-        <div id="voice-control-bar">
-          <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
-          <div class="vc-bar-controls">
-            <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()"
-              data-tip-title="Mute Microphone"
-              data-tip-desc="Silences your mic so others in the channel cannot hear you."
-              data-tip-detail="Toggle: 🎤 Unmuted / 🔇 Muted">🎤 Mute</button>
-            <button id="vc-mode-btn" onclick="toggleVoiceInputMode()"
-              data-tip-title="Input Mode"
-              data-tip-desc="Cycles between Open Mic, Push-to-Talk (PTT), and Voice Activated Detection (VAD)."
-              data-tip-detail="Open: always on · PTT: hold key to transmit · VAD: mic gates on sound">🗣️ Open</button>
-            <button id="vc-ptt-rebind-btn" onclick="startVcPttRebind()"
-              data-tip-title="Rebind PTT Key"
-              data-tip-desc="Click, then press any key to set your Push-to-Talk button."
-              data-tip-detail="Current key shown in the mode button label when PTT is active"
-              style="font-size:0.62rem;padding:0.15rem 0.3rem;opacity:0.7;">⌨️</button>
-            <button id="vc-squelch-btn" onclick="toggleVoiceSquelch()"
-              data-tip-title="Noise Gate"
-              data-tip-desc="Blocks audio below a volume threshold from being transmitted."
-              data-tip-detail="Prevents hiss and ambient background noise from leaking through">🚫 Gate</button>
-            <button id="vc-mic-preset-btn" onclick="cycleMicPreset()"
-              data-tip-title="Mic Preset"
-              data-tip-desc="Cycles your microphone processing profile. Rejoin channel to fully apply capture constraints."
-              data-tip-detail="Clarity → Noise Block → Natural → Clarity">🎚️ Clarity</button>
-            <button id="vc-video-btn" onclick="toggleVoiceRoomVideo()" oncontextmenu="event.preventDefault();showCameraSelector('vr')"
-              data-tip-title="Camera"
-              data-tip-desc="Starts or stops sharing your webcam video with the voice channel."
-              data-tip-detail="Right-click to select a different camera device">📹 Cam</button>
-            <button id="vc-screen-btn" onclick="toggleVoiceRoomScreenShare()"
-              data-tip-title="Screen Share"
-              data-tip-desc="Broadcasts your screen or a chosen window to everyone in the voice channel."
-              data-tip-detail="You choose which monitor or window to share after clicking">🖥️ Screen</button>
-            <button id="vc-chat-overlay-btn" onclick="toggleStreamChatOverlay()"
-              data-tip-title="Chat Overlay"
-              data-tip-desc="Displays live chat messages overlaid on the stream preview."
-              data-tip-detail="Only visible in Studio layout when an active stream is running">💬 Overlay</button>
-            <button id="vc-chat-channel-btn" onclick="selectStreamChatChannel()"
-              data-tip-title="Overlay Chat Channel"
-              data-tip-desc="Choose which channel's messages feed into the stream chat overlay."
-              data-tip-detail="Useful for a dedicated viewer chat channel separate from #general"># Channel</button>
-            <button id="vc-pip-btn" onclick="togglePiP()"
-              data-tip-title="Pin Video (PiP)"
-              data-tip-desc="Pins the selected video feed so it stays visible while you browse other tabs."
-              data-tip-detail="Click again to unpin and return to the default layout">📌 Pin</button>
-            <span class="vc-vol-label">Vol</span>
-            <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100"
-              data-tip-title="Volume"
-              data-tip-desc="Controls how loud incoming voice audio is for you only."
-              data-tip-detail="Range: 0–100% · Soft-limited at 85% to protect hearing"
-              oninput="setVoiceRoomVolume(this.value)">
-            <button class="vc-disconnect" onclick="leaveVoiceRoom()"
-              data-tip-title="Leave Voice Channel"
-              data-tip-desc="Disconnects you from the current voice channel immediately."
-              data-tip-detail="Your mic, camera, and screen share streams stop. Others will see you leave.">🔌 Leave</button>
+
+            <!-- Voice control bar (shown inside Studio when in a voice channel) -->
+            <div id="voice-control-bar">
+              <div class="vc-bar-header" id="vc-bar-channel-name">🔊 Connected</div>
+              <div class="vc-bar-controls">
+                <button id="vc-mute-btn" onclick="toggleVoiceRoomMute()"
+                  data-tip-title="Mute Microphone"
+                  data-tip-desc="Silences your mic so others cannot hear you."
+                  data-tip-detail="Toggle: 🎤 Unmuted / 🔇 Muted">🎤 Mute</button>
+                <button id="vc-mode-btn" onclick="toggleVoiceInputMode()"
+                  data-tip-title="Input Mode"
+                  data-tip-desc="Cycles Open Mic → PTT → VAD."
+                  data-tip-detail="Open: always on · PTT: hold key · VAD: auto-gate">🗣️ Open</button>
+                <button id="vc-ptt-rebind-btn" onclick="startVcPttRebind()"
+                  data-tip-title="Rebind PTT Key"
+                  data-tip-desc="Press any key to set your Push-to-Talk button."
+                  style="font-size:0.62rem;padding:0.15rem 0.3rem;opacity:0.7;">⌨️</button>
+                <button id="vc-squelch-btn" onclick="toggleVoiceSquelch()"
+                  data-tip-title="Noise Gate"
+                  data-tip-desc="Blocks audio below a threshold from transmitting.">🚫 Gate</button>
+                <button id="vc-mic-preset-btn" onclick="cycleMicPreset()"
+                  data-tip-title="Mic Preset"
+                  data-tip-desc="Cycles mic processing: Clarity → Noise Block → Natural.">🎚️ Clarity</button>
+                <button id="vc-pip-btn" onclick="togglePiP()"
+                  data-tip-title="Pin Video (PiP)"
+                  data-tip-desc="Pins the selected video so it stays visible while browsing.">📌 Pin</button>
+                <span class="vc-vol-label">Vol</span>
+                <input type="range" class="vc-volume" id="vc-volume-slider" min="0" max="100" value="100"
+                  data-tip-title="Volume" data-tip-desc="Incoming voice volume for you only."
+                  oninput="setVoiceRoomVolume(this.value)">
+                <button class="vc-disconnect" onclick="leaveVoiceRoom()"
+                  data-tip-title="Leave Voice Channel"
+                  data-tip-desc="Disconnects from the voice channel. Stops mic, camera, screen share.">🔌 Leave</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

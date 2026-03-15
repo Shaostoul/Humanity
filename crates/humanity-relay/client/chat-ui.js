@@ -947,13 +947,34 @@ var federatedServersFetched = false;
     const collapsed = getCollapsedServers();
     const isCollapsed = collapsed.has('Humanity');
     const myRoleCh = (window.myPeerRole || '').toLowerCase();
-    const channelsHtml = channelList.map(ch => {
-      const isActive = ch.id === activeChannel && !activeDmPartner;
-      const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-      const lock = ch.read_only ? ' 🔒' : '';
-      const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
-      return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${cogHtml}${esc(ch.name)}${lock}</div>`;
-    }).join('');
+
+    // Standard channels rendered as icon buttons on the server header row.
+    const PINNED_CHANNELS = {
+      welcome:       { icon: '👋', tip: 'Welcome' },
+      rules:         { icon: '📋', tip: 'Rules' },
+      announcements: { icon: '📢', tip: 'Announcements' },
+    };
+    const pinnedIds = new Set(Object.keys(PINNED_CHANNELS));
+
+    const channelsHtml = channelList
+      .filter(ch => !pinnedIds.has(ch.id))  // hide pinned channels from main list
+      .map(ch => {
+        const isActive = ch.id === activeChannel && !activeDmPartner;
+        const title = ch.description ? ` title="${esc(ch.description)}"` : '';
+        const lock = ch.read_only ? ' 🔒' : '';
+        const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
+        return `<div class="channel-item${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${cogHtml}${esc(ch.name)}${lock}</div>`;
+      }).join('');
+
+    // Build pinned icon buttons — only show if the channel actually exists.
+    const existingPinnedIds = channelList.filter(ch => pinnedIds.has(ch.id)).map(ch => ch.id);
+    const pinnedBtnsHtml = existingPinnedIds.length > 0
+      ? `<div class="server-pinned-btns">${existingPinnedIds.map(id => {
+          const p = PINNED_CHANNELS[id];
+          const isActive = id === activeChannel && !activeDmPartner;
+          return `<button onclick="event.stopPropagation();switchChannel('${esc(id)}')" title="${p.tip}" class="${isActive ? 'active-ch' : ''}">${p.icon}</button>`;
+        }).join('')}</div>`
+      : '';
 
     // Text channel create button (admin/mod only)
     let createChannelBtn = '';
@@ -997,7 +1018,8 @@ var federatedServersFetched = false;
     let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
       <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
-        <span>🟢 🅷 Humanity</span>
+        <span class="srv-name">🟢 🅷 Humanity</span>
+        ${pinnedBtnsHtml}
       </div>
       <div class="server-group-channels">${channelsHtml}${createChannelBtn}${voiceHtml}</div>
     </div>`;

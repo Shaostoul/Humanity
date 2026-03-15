@@ -2174,3 +2174,121 @@ if (msg.type === 'voice_call' && msg.action === 'ring' && document.hidden) {
 }
 _origHandleMessage4(msg);
   };
+
+  // ── Studio: Mic Selection + AFK ──
+
+  let studioAfkActive = false;
+  let studioAfkTimer = null;
+  let studioAfkStartTime = null;
+
+  function getPreferredMic() {
+    return localStorage.getItem('humanity-preferred-mic') || null;
+  }
+  function savePreferredMic(deviceId) {
+    localStorage.setItem('humanity-preferred-mic', deviceId);
+  }
+
+  // Patch getMicConstraints to honour preferred mic device.
+  const _origGetMicConstraints = getMicConstraints;
+  getMicConstraints = function() {
+    const c = _origGetMicConstraints();
+    const preferred = getPreferredMic();
+    if (preferred) c.deviceId = { ideal: preferred };
+    return c;
+  };
+
+  /**
+   * Populates #studio-mic-select with available audio-input devices.
+   * Called on load and whenever the OS device list changes.
+   */
+  window.populateMicDevices = async function() {
+    const sel = document.getElementById('studio-mic-select');
+    if (!sel) return;
+    let devices = [];
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      devices = all.filter(d => d.kind === 'audioinput');
+    } catch (_) { return; }
+    const preferred = getPreferredMic();
+    sel.innerHTML = '';
+    if (devices.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = 'No microphones found';
+      sel.appendChild(opt);
+      return;
+    }
+    devices.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `Microphone ${i + 1}`;
+      if (d.deviceId === preferred) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  };
+
+  /**
+   * Switches the active microphone to the chosen device.
+   * If currently in a voice room, replaces the audio track in all peer connections
+   * without dropping the call.
+   */
+  window.setStudioMic = async function(deviceId) {
+    if (!deviceId) return;
+    savePreferredMic(deviceId);
+    if (window._currentRoomId && window._roomLocalStream) {
+      const oldTrack = window._roomLocalStream.getAudioTracks()[0];
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({ audio: getMicConstraints(), video: false });
+        const newTrack = newStream.getAudioTracks()[0];
+        for (const pc of Object.values(window._roomPeerConnections || {})) {
+          const sender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+          if (sender) await sender.replaceTrack(newTrack);
+        }
+        if (oldTrack) oldTrack.stop();
+        window._roomLocalStream = newStream;
+        // Apply current mute state to new track
+        if (typeof isMuted !== 'undefined') newTrack.enabled = !isMuted;
+      } catch (e) {
+        addSystemMessage('⚠️ Could not switch microphone: ' + e.message);
+      }
+    }
+  };
+
+  /**
+   * Toggles an AFK overlay on the stream preview, showing elapsed away time.
+   * Intended as a courtesy indicator for viewers — press when stepping away.
+   */
+  window.toggleStudioAfk = function() {
+    const btn = document.getElementById('studio-afk-btn');
+    const preview = document.getElementById('stream-studio-preview');
+    studioAfkActive = !studioAfkActive;
+    if (studioAfkActive) {
+      studioAfkStartTime = Date.now();
+      if (btn) { btn.textContent = '🌙 AFK On'; btn.classList.add('vc-muted'); }
+      if (preview) {
+        let ov = preview.querySelector('.studio-afk-overlay');
+        if (!ov) {
+          ov = document.createElement('div');
+          ov.className = 'studio-afk-overlay';
+          preview.appendChild(ov);
+        }
+        ov.textContent = '💤 AFK — 0:00';
+        studioAfkTimer = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - studioAfkStartTime) / 1000);
+          const m = Math.floor(elapsed / 60);
+          const s = String(elapsed % 60).padStart(2, '0');
+          ov.textContent = `💤 AFK — ${m}:${s}`;
+        }, 1000);
+      }
+    } else {
+      studioAfkStartTime = null;
+      if (studioAfkTimer) { clearInterval(studioAfkTimer); studioAfkTimer = null; }
+      if (btn) { btn.textContent = '🌙 AFK Off'; btn.classList.remove('vc-muted'); }
+      if (preview) { const ov = preview.querySelector('.studio-afk-overlay'); if (ov) ov.remove(); }
+    }
+  };
+
+  // Populate mic list on load and whenever OS device list changes.
+  if (navigator.mediaDevices) {
+    window.populateMicDevices();
+    navigator.mediaDevices.addEventListener('devicechange', window.populateMicDevices);
+  }

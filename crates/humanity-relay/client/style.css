@@ -1008,6 +1008,20 @@ header h1 {
   padding: 2px 5px;
   border-radius: 4px;
 }
+.stream-studio-preview .studio-afk-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+  border-radius: 6px;
+  pointer-events: none;
+  letter-spacing: 0.02em;
+}
 .stream-row {
   display: flex;
   align-items: center;
@@ -1880,6 +1894,43 @@ header h1 {
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
+  overflow: hidden; /* clip long server names behind pinned buttons */
+}
+/* Server name text — clips with ellipsis when too long */
+.server-group-header .srv-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+/* Pinned icon buttons for welcome / rules / announcements */
+.server-pinned-btns {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.server-pinned-btns button {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 1px 4px;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.server-pinned-btns button:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+.server-pinned-btns button.active-ch {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .server-group-header:hover { background: var(--bg-hover); }
 .server-group-header .collapse-arrow {

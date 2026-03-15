@@ -329,14 +329,24 @@
     .site-footer .footer-links a:hover { color: #FF8811; }
     /* Toggle is its own fixed element — always visible above all content */
     /* Toggle lives INSIDE .site-footer so it slides with the panel.
-       It sticks 28px above the footer's top edge — always visible. */
+       bottom:100% makes its bottom edge flush with the footer's top edge — no gap. */
+    @keyframes footer-toggle-rgb {
+      0%   { border-color: #f44; box-shadow: 0 -2px 6px rgba(255,68,68,0.25); }
+      16%  { border-color: #f80; box-shadow: 0 -2px 6px rgba(255,136,0,0.25); }
+      33%  { border-color: #ff0; box-shadow: 0 -2px 6px rgba(255,255,0,0.25); }
+      50%  { border-color: #0f4; box-shadow: 0 -2px 6px rgba(0,255,68,0.25); }
+      66%  { border-color: #08f; box-shadow: 0 -2px 6px rgba(0,136,255,0.25); }
+      83%  { border-color: #80f; box-shadow: 0 -2px 6px rgba(136,0,255,0.25); }
+      100% { border-color: #f44; box-shadow: 0 -2px 6px rgba(255,68,68,0.25); }
+    }
     .footer-toggle {
       position: absolute;
-      top: -28px;
+      bottom: 100%; /* flush: toggle bottom = footer top, zero gap */
+      top: auto;
       left: 50%;
       transform: translateX(-50%);
       background: rgba(18, 18, 18, 0.97);
-      border: 1px solid #666;
+      border: 1px solid #f44; /* start of RGB cycle */
       border-bottom: none;
       border-radius: 8px 8px 0 0;
       color: #FF8811;
@@ -345,15 +355,17 @@
       font-size: 0.78rem;
       font-weight: 700;
       line-height: 1;
-      z-index: 1; /* stacking within footer is sufficient */
-      transition: color 0.15s, border-color 0.15s, background 0.15s;
+      z-index: 1;
+      animation: footer-toggle-rgb 10s linear infinite; /* slow pulse when collapsed */
+      transition: color 0.15s, background 0.15s;
       white-space: nowrap;
       letter-spacing: 0.05em;
     }
-    .footer-toggle:hover { color: #fff; border-color: #FF8811; background: rgba(30,20,10,0.98); }
-    /* Give body a little breathing room so the toggle tab never overlaps
-       bottom-of-page content (e.g. logbook word-count bar). */
-    body { padding-bottom: 30px; }
+    /* Speed up RGB when footer is open */
+    .site-footer:not(.collapsed) .footer-toggle {
+      animation-duration: 3s;
+    }
+    .footer-toggle:hover { color: #fff; background: rgba(30,20,10,0.98); }
 
     /* ── Mobile drawer ── */
     #mobile-hub-backdrop {
