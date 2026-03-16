@@ -5,8 +5,7 @@
  * If omitted, active tab is auto-detected from the current URL.
  *
  * Valid active keys: landing, chat, dashboard, profile, home, gear,
- *   tasks, calendar, notes, systems, map, market, web, ops, download,
- *   settings
+ *   tasks, calendar, notes, home, map, market, web, ops, download, settings
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="gear"></script>

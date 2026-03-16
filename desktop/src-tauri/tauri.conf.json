@@ -1,6 +1,6 @@
 {
   "productName": "HumanityOS",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "identifier": "us.united-humanity.app",
   "build": {
     "frontendDist": "../src"

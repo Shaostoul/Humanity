@@ -45,6 +45,10 @@
       border-radius: var(--radius);
       font-size: 0.85rem;
     }
+    .web-search input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
     .web-search input::placeholder { color: var(--text-muted); }
 
     /* ── Category filter pills ── */
@@ -98,23 +102,42 @@
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
       text-decoration: none;
-      display: block;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      position: relative;
     }
     .site-card:hover {
       background: var(--bg-card-hover);
       border-color: var(--accent);
     }
+
+    /* ── Favicon circle ── */
+    .site-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .site-info { flex: 1; min-width: 0; }
     .site-card .site-name {
       font-size: 0.9rem;
       font-weight: 600;
       color: var(--text);
-      margin-bottom: 0.2rem;
+      margin-bottom: 0.15rem;
     }
     .site-card .site-desc {
       font-size: 0.78rem;
       color: var(--text-muted);
       line-height: 1.4;
-      margin-bottom: 0.3rem;
+      margin-bottom: 0.25rem;
     }
     .site-card .site-url {
       font-size: 0.7rem;
@@ -123,9 +146,138 @@
     }
     .site-card:hover .site-url { opacity: 1; }
 
+    /* ── Delete button on custom bookmarks ── */
+    .site-card .bookmark-delete {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      opacity: 0;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .site-card:hover .bookmark-delete { opacity: 1; }
+    .site-card .bookmark-delete:hover { color: #e55; }
+
+    /* ── Floating add button ── */
+    .fab-add {
+      position: fixed;
+      bottom: 2rem;
+      right: 1.5rem;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-size: 1.5rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      z-index: 100;
+      transition: transform 0.15s, box-shadow 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fab-add:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    }
+
+    /* ── Modal overlay ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 8000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal-box {
+      background: var(--bg-card, #1a1a1a);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 420px;
+      margin: 1rem;
+    }
+    .modal-box h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 1rem;
+    }
+    .modal-box label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+      font-weight: 600;
+    }
+    .modal-box input, .modal-box select {
+      width: 100%;
+      padding: 0.45rem 0.6rem;
+      background: var(--bg-input, #111);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
+      box-sizing: border-box;
+    }
+    .modal-box input:focus, .modal-box select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .modal-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      margin-top: 0.5rem;
+    }
+    .modal-actions button {
+      padding: 0.4rem 1rem;
+      border-radius: var(--radius);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: all 0.15s;
+    }
+    .btn-cancel {
+      background: transparent;
+      color: var(--text-muted);
+    }
+    .btn-cancel:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn-save {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-save:hover { opacity: 0.9; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      padding: 2rem;
+      color: var(--text-muted);
+      text-align: center;
+      font-size: 0.85rem;
+    }
+
     @media (max-width: 600px) {
       .site-grid { grid-template-columns: 1fr; }
       #page-app { padding: 0 0.5rem 1.5rem; }
+      .fab-add { bottom: 1.5rem; right: 1rem; }
     }
   </style>
 </head>
@@ -133,10 +285,10 @@
 <script src="/shared/shell.js" data-active="web"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
-  <div class="eli5-simple">Websites to explore! Click any card to visit.</div>
-  <div class="eli5-expert">Curated bookmark directory. In the desktop app (Tauri), sites open in built-in browser tabs with session persistence. On web, they open in new windows. Vault integration planned for storing site credentials securely.</div>
+  <div class="eli5-simple">Websites to explore! Click any card to visit. Use the + button to save your own bookmarks.</div>
+  <div class="eli5-expert">Curated bookmark directory with localStorage persistence (key: hos_bookmarks_v1). In the desktop app (Tauri), sites open in built-in browser tabs. On web, they open in new windows. Custom bookmarks are saved locally and merged with the default set.</div>
 </div>
-<p class="page-hint">Your bookmarked websites — click to visit</p>
+<p class="page-hint">Your bookmarked websites — click to visit, + to add your own</p>
 
 <div id="page-app">
   <div class="platform-note">
@@ -144,69 +296,148 @@
   </div>
 
   <div class="web-search">
-    <input type="text" id="site-search" placeholder="Filter sites..." oninput="filterSites()">
+    <input type="text" id="site-search" placeholder="Search bookmarks..." oninput="filterSites()">
   </div>
 
   <div class="category-filters" id="cat-filters"></div>
   <div id="site-list"></div>
 </div>
 
+<!-- Floating add button -->
+<button class="fab-add" id="fab-add" title="Add bookmark" data-tip="Add Bookmark" data-tip-desc="Save a new website to your bookmarks.">+</button>
+
+<!-- Add bookmark modal -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal-box">
+    <h3>Add Bookmark</h3>
+    <label for="bm-name">Name</label>
+    <input type="text" id="bm-name" placeholder="My Site">
+    <label for="bm-url">URL</label>
+    <input type="url" id="bm-url" placeholder="https://example.com">
+    <label for="bm-desc">Description (optional)</label>
+    <input type="text" id="bm-desc" placeholder="A short description">
+    <label for="bm-cat">Category</label>
+    <select id="bm-cat">
+      <option value="Learning">Learning</option>
+      <option value="Development">Development</option>
+      <option value="Communication">Communication</option>
+      <option value="Science & Space">Science & Space</option>
+      <option value="Tools">Tools</option>
+      <option value="Games">Games</option>
+      <option value="Health">Health</option>
+      <option value="Custom" selected>Custom</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-save" onclick="saveBookmark()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
-/** Curated site directory — each entry: { name, desc, url, category } */
-var SITES = [
-  // Education
-  { name: 'Khan Academy',       desc: 'Free courses in math, science, computing, and more',             url: 'https://www.khanacademy.org',           category: 'Education' },
-  { name: 'Wikipedia',           desc: 'The free encyclopedia anyone can edit',                           url: 'https://www.wikipedia.org',             category: 'Education' },
-  { name: 'MIT OpenCourseWare',  desc: 'Free lecture notes, exams, and videos from MIT',                  url: 'https://ocw.mit.edu',                   category: 'Education' },
-  { name: 'Coursera',            desc: 'Online courses from top universities and companies',              url: 'https://www.coursera.org',              category: 'Education' },
-  { name: 'LibreTexts',          desc: 'Free, open-access textbooks for every subject',                   url: 'https://libretexts.org',                category: 'Education' },
+/** Default curated bookmarks — not editable by the user */
+var DEFAULT_SITES = [
+  // Learning
+  { name: 'Khan Academy',       desc: 'Free courses on everything',                url: 'https://www.khanacademy.org',           category: 'Learning' },
+  { name: 'MIT OpenCourseWare', desc: 'University courses, free',                  url: 'https://ocw.mit.edu',                   category: 'Learning' },
+  { name: 'Wikipedia',          desc: 'The encyclopedia anyone can edit',           url: 'https://www.wikipedia.org',             category: 'Learning' },
+  { name: 'Coursera',           desc: 'Online courses from top universities',       url: 'https://www.coursera.org',              category: 'Learning' },
 
-  // Science
-  { name: 'NASA',                desc: 'Space exploration, missions, and Earth science from NASA',        url: 'https://www.nasa.gov',                  category: 'Science' },
-  { name: 'ArXiv',               desc: 'Open-access preprints in physics, math, CS, and more',           url: 'https://arxiv.org',                     category: 'Science' },
-  { name: 'PubMed',              desc: 'Biomedical literature from MEDLINE and life science journals',    url: 'https://pubmed.ncbi.nlm.nih.gov',       category: 'Science' },
-  { name: 'Nature',              desc: 'Leading international journal of science',                        url: 'https://www.nature.com',                category: 'Science' },
+  // Development
+  { name: 'GitHub',             desc: 'Code hosting and collaboration',             url: 'https://github.com',                    category: 'Development' },
+  { name: 'MDN Web Docs',       desc: 'Web technology reference',                   url: 'https://developer.mozilla.org',         category: 'Development' },
+  { name: 'Stack Overflow',     desc: 'Q&A for developers',                         url: 'https://stackoverflow.com',             category: 'Development' },
+  { name: 'Rust Book',          desc: 'The Rust programming language',              url: 'https://doc.rust-lang.org/book',        category: 'Development' },
 
-  // Technology
-  { name: 'GitHub',              desc: 'Code hosting, collaboration, and open-source projects',           url: 'https://github.com',                    category: 'Technology' },
-  { name: 'MDN Web Docs',        desc: 'Comprehensive reference for HTML, CSS, JavaScript, and Web APIs', url: 'https://developer.mozilla.org',         category: 'Technology' },
-  { name: 'Stack Overflow',      desc: 'Q&A community for programmers and developers',                   url: 'https://stackoverflow.com',             category: 'Technology' },
-  { name: 'Hacker News',         desc: 'Tech and startup news curated by the community',                  url: 'https://news.ycombinator.com',          category: 'Technology' },
+  // Communication
+  { name: 'Discord',            desc: 'Voice, video, and text chat',                url: 'https://discord.com',                   category: 'Communication' },
+  { name: 'Element',            desc: 'Decentralized encrypted chat (Matrix)',       url: 'https://element.io',                    category: 'Communication' },
+  { name: 'Signal',             desc: 'Private messaging',                           url: 'https://signal.org',                    category: 'Communication' },
 
-  // Health
-  { name: 'WHO',                 desc: 'World Health Organization — global health guidance and data',     url: 'https://www.who.int',                   category: 'Health' },
-  { name: 'PubMed Health',       desc: 'Clinical effectiveness research and health reviews',              url: 'https://pubmed.ncbi.nlm.nih.gov',       category: 'Health' },
-  { name: 'NIH',                 desc: 'U.S. National Institutes of Health — medical research and info',  url: 'https://www.nih.gov',                   category: 'Health' },
-
-  // News
-  { name: 'AP News',             desc: 'Fact-based, unbiased reporting from the Associated Press',        url: 'https://apnews.com',                    category: 'News' },
-  { name: 'Reuters',             desc: 'International wire service — business, world, and tech news',     url: 'https://www.reuters.com',               category: 'News' },
-  { name: 'NPR',                 desc: 'National Public Radio — in-depth U.S. and world news',           url: 'https://www.npr.org',                   category: 'News' },
-  { name: 'BBC',                 desc: 'British Broadcasting Corporation — global news and analysis',     url: 'https://www.bbc.com/news',              category: 'News' },
+  // Science & Space
+  { name: 'NASA',               desc: 'Space exploration and science',               url: 'https://www.nasa.gov',                  category: 'Science & Space' },
+  { name: 'arXiv',              desc: 'Open-access research papers',                 url: 'https://arxiv.org',                     category: 'Science & Space' },
+  { name: 'Sci-Hub',            desc: 'Research paper access tool (legal gray area — no link provided)', url: '',                  category: 'Science & Space' },
 
   // Tools
-  { name: 'Wolfram Alpha',       desc: 'Computational knowledge engine — answers factual queries',        url: 'https://www.wolframalpha.com',          category: 'Tools' },
-  { name: 'Internet Archive',    desc: 'Digital library of websites, books, audio, video, and software',  url: 'https://archive.org',                   category: 'Tools' },
-  { name: 'Google Scholar',      desc: 'Search engine for scholarly literature across disciplines',        url: 'https://scholar.google.com',            category: 'Tools' },
+  { name: 'OpenStreetMap',      desc: 'Free editable maps',                          url: 'https://www.openstreetmap.org',         category: 'Tools' },
+  { name: 'Internet Archive',   desc: 'Digital library of the web',                  url: 'https://archive.org',                   category: 'Tools' },
+  { name: 'LibreOffice',        desc: 'Free office suite',                           url: 'https://www.libreoffice.org',           category: 'Tools' },
 
-  // Community
-  { name: 'Reddit',              desc: 'Community-driven discussion forums on every topic',               url: 'https://www.reddit.com',                category: 'Community' },
-  { name: 'Discord',             desc: 'Voice, video, and text chat for communities and friends',         url: 'https://discord.com',                   category: 'Community' },
-  { name: 'Matrix.org',          desc: 'Open standard for decentralised, encrypted communication',        url: 'https://matrix.org',                    category: 'Community' }
+  // Games
+  { name: 'Steam',              desc: 'Game store and community',                    url: 'https://store.steampowered.com',        category: 'Games' },
+  { name: 'GOG',                desc: 'DRM-free games',                              url: 'https://www.gog.com',                   category: 'Games' },
+  { name: 'Itch.io',            desc: 'Indie games marketplace',                     url: 'https://itch.io',                       category: 'Games' },
+
+  // Health
+  { name: 'PubMed',             desc: 'Medical research database',                   url: 'https://pubmed.ncbi.nlm.nih.gov',      category: 'Health' },
+  { name: 'Examine',            desc: 'Supplement and nutrition research',            url: 'https://examine.com',                   category: 'Health' },
 ];
 
+var STORAGE_KEY = 'hos_bookmarks_v1';
 var activeCategory = '';
 
-/** Build category filter pills from SITES data */
-function renderFilters() {
+/** Deterministic color from a string — generates a hue for the favicon circle */
+function stringColor(str) {
+  var hash = 0;
+  for (var i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  var hue = Math.abs(hash) % 360;
+  return 'hsl(' + hue + ', 55%, 40%)';
+}
+
+/** Extract first letter(s) for favicon placeholder */
+function iconLetter(name) {
+  var parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.trim().charAt(0).toUpperCase();
+}
+
+/** Load user bookmarks from localStorage */
+function loadUserBookmarks() {
+  try {
+    var data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (e) { return []; }
+}
+
+/** Save user bookmarks to localStorage */
+function saveUserBookmarks(bookmarks) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+}
+
+/** Merge defaults + user bookmarks into one list */
+function getAllSites() {
+  var user = loadUserBookmarks();
+  // Tag user bookmarks so we can show delete button
+  user.forEach(function(b) { b._custom = true; });
+  return DEFAULT_SITES.concat(user);
+}
+
+/** Collect unique category names preserving order */
+function getCategories(sites) {
   var cats = [];
-  SITES.forEach(function(s) {
+  var categoryOrder = ['Learning', 'Development', 'Communication', 'Science & Space', 'Tools', 'Games', 'Health'];
+  // Add default categories first in order
+  categoryOrder.forEach(function(c) {
+    sites.forEach(function(s) {
+      if (s.category === c && cats.indexOf(c) === -1) cats.push(c);
+    });
+  });
+  // Then add any custom categories
+  sites.forEach(function(s) {
     if (cats.indexOf(s.category) === -1) cats.push(s.category);
   });
+  return cats;
+}
+
+/** Build category filter pills */
+function renderFilters() {
+  var sites = getAllSites();
+  var cats = getCategories(sites);
   var el = document.getElementById('cat-filters');
   var html = '<span class="cat-pill' + (activeCategory === '' ? ' active' : '') + '" onclick="setCategory(\'\')">All</span>';
   cats.forEach(function(c) {
-    html += '<span class="cat-pill' + (activeCategory === c ? ' active' : '') + '" onclick="setCategory(\'' + c + '\')">' + c + '</span>';
+    html += '<span class="cat-pill' + (activeCategory === c ? ' active' : '') + '" onclick="setCategory(\'' + c.replace(/'/g, "\\'") + '\')">' + c + '</span>';
   });
   el.innerHTML = html;
 }
@@ -219,6 +450,7 @@ function setCategory(cat) {
 
 /** Open a site — desktop app uses built-in tab, browser uses new window */
 function openSite(url) {
+  if (!url) return; // Sci-Hub has no URL
   if (typeof window.__TAURI__ !== 'undefined' && typeof openWebviewTab === 'function') {
     openWebviewTab(url, url);
   } else {
@@ -226,41 +458,68 @@ function openSite(url) {
   }
 }
 
+/** Escape HTML to prevent XSS in user-supplied bookmark data */
+function esc(str) {
+  var d = document.createElement('div');
+  d.textContent = str || '';
+  return d.innerHTML;
+}
+
 /** Render site cards, filtered by active category and search text */
 function renderSites() {
   var search = (document.getElementById('site-search').value || '').toLowerCase();
-  var filtered = SITES.filter(function(s) {
+  var allSites = getAllSites();
+  var filtered = allSites.filter(function(s) {
     if (activeCategory && s.category !== activeCategory) return false;
     if (search && s.name.toLowerCase().indexOf(search) === -1 &&
         s.desc.toLowerCase().indexOf(search) === -1 &&
-        s.url.toLowerCase().indexOf(search) === -1) return false;
+        s.url.toLowerCase().indexOf(search) === -1 &&
+        s.category.toLowerCase().indexOf(search) === -1) return false;
     return true;
   });
 
   // Group by category
   var groups = {};
-  var order = [];
+  var cats = getCategories(filtered);
+  cats.forEach(function(c) { groups[c] = []; });
   filtered.forEach(function(s) {
-    if (!groups[s.category]) { groups[s.category] = []; order.push(s.category); }
+    if (!groups[s.category]) { groups[s.category] = []; cats.push(s.category); }
     groups[s.category].push(s);
   });
 
   var html = '';
-  order.forEach(function(cat) {
-    html += '<div class="cat-section"><h2>' + cat + '</h2><div class="site-grid">';
+  cats.forEach(function(cat) {
+    if (!groups[cat] || groups[cat].length === 0) return;
+    html += '<div class="cat-section"><h2>' + esc(cat) + '</h2><div class="site-grid">';
     groups[cat].forEach(function(s) {
-      var domain = s.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-      html += '<a class="site-card" href="' + s.url + '" target="_blank" rel="noopener" onclick="event.preventDefault();openSite(\'' + s.url + '\')">' +
-        '<div class="site-name">' + s.name + '</div>' +
-        '<div class="site-desc">' + s.desc + '</div>' +
-        '<div class="site-url">' + domain + '</div>' +
-        '</a>';
+      var domain = s.url ? s.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '') : '—';
+      var letter = iconLetter(s.name);
+      var color = stringColor(domain || s.name);
+      var hasUrl = !!s.url;
+      var tag = hasUrl ? 'a' : 'div';
+      var hrefAttr = hasUrl ? ' href="' + esc(s.url) + '" target="_blank" rel="noopener"' : '';
+      var clickHandler = hasUrl ? ' onclick="event.preventDefault();openSite(\'' + s.url.replace(/'/g, "\\'") + '\')"' : '';
+
+      html += '<' + tag + ' class="site-card"' + hrefAttr + clickHandler + '>' +
+        '<div class="site-icon" style="background:' + color + '">' + letter + '</div>' +
+        '<div class="site-info">' +
+          '<div class="site-name">' + esc(s.name) + '</div>' +
+          '<div class="site-desc">' + esc(s.desc) + '</div>' +
+          '<div class="site-url">' + esc(domain) + '</div>' +
+        '</div>';
+
+      // Delete button for custom bookmarks
+      if (s._custom) {
+        html += '<button class="bookmark-delete" onclick="event.preventDefault();event.stopPropagation();deleteBookmark(\'' + esc(s.url).replace(/'/g, "\\'") + '\',\'' + esc(s.name).replace(/'/g, "\\'") + '\')" title="Remove bookmark" data-tip="Remove" data-tip-desc="Delete this custom bookmark.">✕</button>';
+      }
+
+      html += '</' + tag + '>';
     });
     html += '</div></div>';
   });
 
   if (!html) {
-    html = '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No sites match your search.</div>';
+    html = '<div class="empty-state">No sites match your search.</div>';
   }
 
   document.getElementById('site-list').innerHTML = html;
@@ -268,9 +527,76 @@ function renderSites() {
 
 function filterSites() { renderSites(); }
 
+/** Delete a user bookmark by URL + name match */
+function deleteBookmark(url, name) {
+  var bookmarks = loadUserBookmarks();
+  bookmarks = bookmarks.filter(function(b) {
+    return !(b.url === url && b.name === name);
+  });
+  saveUserBookmarks(bookmarks);
+  renderFilters();
+  renderSites();
+}
+
+/** Open the add-bookmark modal */
+function openAddModal() {
+  document.getElementById('add-modal').classList.add('open');
+  document.getElementById('bm-name').value = '';
+  document.getElementById('bm-url').value = '';
+  document.getElementById('bm-desc').value = '';
+  document.getElementById('bm-cat').value = 'Custom';
+  setTimeout(function() { document.getElementById('bm-name').focus(); }, 50);
+}
+
+/** Close the add-bookmark modal */
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+
+/** Save a new bookmark from the modal form */
+function saveBookmark() {
+  var name = document.getElementById('bm-name').value.trim();
+  var url  = document.getElementById('bm-url').value.trim();
+  var desc = document.getElementById('bm-desc').value.trim();
+  var cat  = document.getElementById('bm-cat').value;
+
+  if (!name) { document.getElementById('bm-name').focus(); return; }
+  if (!url)  { document.getElementById('bm-url').focus(); return; }
+
+  // Auto-prepend https:// if no protocol
+  if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+  var bookmarks = loadUserBookmarks();
+  bookmarks.push({ name: name, url: url, desc: desc || '', category: cat });
+  saveUserBookmarks(bookmarks);
+
+  closeAddModal();
+  renderFilters();
+  renderSites();
+}
+
+// ── Init ──
 document.addEventListener('DOMContentLoaded', function() {
   renderFilters();
   renderSites();
+});
+
+// FAB click
+document.getElementById('fab-add').addEventListener('click', openAddModal);
+
+// Close modal on backdrop click
+document.getElementById('add-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeAddModal();
+});
+
+// Close modal on Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeAddModal();
+  // Enter in modal saves
+  if (e.key === 'Enter' && document.getElementById('add-modal').classList.contains('open')) {
+    e.preventDefault();
+    saveBookmark();
+  }
 });
 </script>
 </body>
