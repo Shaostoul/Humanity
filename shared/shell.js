@@ -991,7 +991,7 @@
         '<span style="color:#888">Page: </span>' + location.pathname + '<br>' +
         '<span style="color:#888">WS: </span><span style="color:' + (state !== null ? wsColor(state) : '#888') + '">' + (state !== null ? wsLabel(state) : '—') + '</span><br>' +
         '<span style="color:#888">Key: </span>' + keyPrefix() + '<br>' +
-        '<span style="color:#888">SW: </span>humanity-v7';
+        '<span style="color:#888">SW: </span>humanity-v9';
     }
     update();
     setInterval(update, 2000);
