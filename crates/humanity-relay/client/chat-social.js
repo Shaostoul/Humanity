@@ -274,12 +274,11 @@ function openGroup(groupId) {
   activeGroupName = group.name;
   groupUnread[groupId] = 0; // Clear unread on enter
   activeDmPartner = null; // Exit DM view
-  // Update channel header
+  // Update channel header — replace innerHTML fully so leftover DM spans don't linger.
   const header = document.getElementById('channel-header');
   if (header) {
     header.style.display = 'flex';
-    header.querySelector('.ch-name').textContent = '👥 ' + group.name;
-    header.querySelector('.ch-desc').textContent = 'Group • Invite: ' + group.invite_code;
+    header.innerHTML = `<span class="ch-name">👥 ${esc(group.name)}</span><span class="ch-desc">Group · Invite: ${esc(group.invite_code)}</span>`;
   }
   // Clear messages and request group history.
   document.getElementById('messages').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';

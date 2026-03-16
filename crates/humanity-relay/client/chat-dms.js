@@ -54,6 +54,8 @@ function openDmConversation(partnerKey, partnerName) {
     (typeof shortKey === 'function' ? shortKey(partnerKey) : partnerKey.slice(0, 8));
   activeDmPartner = partnerKey;
   activeDmPartnerName = resolvedName;
+  // Clear group context so sendMessage doesn't accidentally route to the active group.
+  if (typeof activeGroupId !== 'undefined') { activeGroupId = null; activeGroupName = ''; }
 
   // Ensure conversation appears in DM list immediately, even before server confirms.
   // (A brand-new conversation won't be in dm_list yet, so we seed it locally.)
