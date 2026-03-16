@@ -157,6 +157,11 @@ async fn main() {
             .put(api::vault_sync_put)
             .delete(api::vault_sync_delete)
         )
+        .route("/api/me/system",
+            get(api::system_profile_get)
+            .put(api::system_profile_put)
+            .delete(api::system_profile_delete)
+        )
         .nest_service("/uploads", tower_http::services::ServeDir::new("data/uploads"))
         .fallback_service(
             tower_http::services::ServeDir::new("client")

@@ -219,10 +219,16 @@
       margin-top: 0.5rem;
       padding: 0 0.1rem;
     }
+
+    /* Time input */
+    .setting-input[type="time"] {
+      color-scheme: dark;
+    }
   </style>
 </head>
 <body>
 <script src="/shared/shell.js" data-active="settings"></script>
+<p class="page-hint">Your settings. Change how things look and work — colors, sounds, notifications, and more. Make it yours.</p>
 <div id="settings-app">
 
   <!-- Sidebar nav -->
@@ -235,6 +241,13 @@
     <div class="s-nav" data-sec="app" onclick="showSection('app')">⚙️ App</div>
     <div class="s-nav" data-sec="account" onclick="showSection('account')">👤 Account</div>
     <div class="s-nav" data-sec="advanced" onclick="showSection('advanced')">🛠 Advanced</div>
+    <h2 style="margin-top:0.5rem">More</h2>
+    <div class="s-nav" data-sec="keybinds" onclick="showSection('keybinds')">⌨️ Shortcuts</div>
+    <div class="s-nav" data-sec="accessibility" onclick="showSection('accessibility')">♿ Accessibility</div>
+    <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')">🎤 Audio &amp; Video</div>
+    <div class="s-nav" data-sec="security" onclick="showSection('security')">🔐 Security</div>
+    <div class="s-nav" data-sec="dnd" onclick="showSection('dnd')">🌙 Do Not Disturb</div>
+    <div class="s-nav" data-sec="storage" onclick="showSection('storage')">💾 Storage</div>
   </nav>
 
   <!-- Settings panels -->
@@ -693,6 +706,356 @@
       <p class="version-tag" id="version-tag">HumanityOS — loading version…</p>
     </section>
 
+    <!-- Keyboard Shortcuts -->
+    <section class="settings-section" id="sec-keybinds">
+      <h1>Keyboard Shortcuts</h1>
+      <p class="section-desc">Customize every keyboard shortcut. Click a key binding and press your new key combo. All shortcuts are saved to your browser.</p>
+      <div id="keybind-groups"></div>
+    </section>
+
+    <!-- Accessibility -->
+    <section class="settings-section" id="sec-accessibility">
+      <h1>Accessibility</h1>
+      <p class="section-desc">Make HumanityOS easier to use for everyone. These settings help with vision, motion, and navigation.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Motion &amp; Animation</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Reduce Motion</strong>
+            <span>Turn off animations and transitions throughout the app</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-reduce-motion" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Disable RGB Effects</strong>
+            <span>Turn off all color-cycling and glow effects</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-no-rgb" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Vision</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>High Contrast</strong>
+            <span>Increase contrast between text and background</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-high-contrast" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Large Cursor Focus</strong>
+            <span>Show a thick visible outline around the focused element</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-focus-ring" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Dyslexia-Friendly Font</strong>
+            <span>Use a font with more distinct letter shapes</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-dyslexia-font" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Screen Reader</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Enhanced ARIA Labels</strong>
+            <span>Add extra descriptive labels for screen readers</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-aria-enhanced" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Audio & Video -->
+    <section class="settings-section" id="sec-audiovideo">
+      <h1>Audio &amp; Video</h1>
+      <p class="section-desc">Choose your camera, microphone, and speakers. Test them here before joining a voice channel.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Microphone</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Input Device</strong>
+            <span>Which microphone to use</span>
+          </div>
+          <select class="setting-select" id="pref-mic-device" onchange="savePref()">
+            <option value="">System Default</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Input Level</strong>
+            <span>Visual meter showing mic volume right now</span>
+          </div>
+          <div style="flex:1;max-width:200px;height:8px;background:#222;border-radius:4px;overflow:hidden;">
+            <div id="mic-level-bar" style="width:0%;height:100%;background:#2a6;transition:width 0.1s;border-radius:4px;"></div>
+          </div>
+          <button onclick="testMic()" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:0.25rem 0.6rem;border-radius:5px;cursor:pointer;font-size:0.8rem;" id="mic-test-btn">Test Mic</button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Input Gain</strong>
+            <span>Boost or reduce your mic volume</span>
+          </div>
+          <input type="range" class="setting-range" id="pref-mic-gain" min="0" max="200" value="100" oninput="savePref()">
+          <span id="mic-gain-label" style="font-size:0.8rem;color:#888;min-width:36px;text-align:right;">100%</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Speaker</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Output Device</strong>
+            <span>Which speaker or headphones to use</span>
+          </div>
+          <select class="setting-select" id="pref-speaker-device" onchange="savePref()">
+            <option value="">System Default</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Output Volume</strong>
+            <span>Master volume for all incoming audio</span>
+          </div>
+          <input type="range" class="setting-range" id="pref-speaker-vol" min="0" max="100" value="100" oninput="savePref()">
+          <span id="speaker-vol-label" style="font-size:0.8rem;color:#888;min-width:36px;text-align:right;">100%</span>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Camera</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Camera Device</strong>
+            <span>Which webcam to use</span>
+          </div>
+          <select class="setting-select" id="pref-camera-device" onchange="savePref()">
+            <option value="">System Default</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Video Quality</strong>
+            <span>Resolution for your camera feed</span>
+          </div>
+          <select class="setting-select" id="pref-video-quality" onchange="savePref()">
+            <option value="360">Low (360p)</option>
+            <option value="480">Medium (480p)</option>
+            <option value="720" selected>High (720p)</option>
+            <option value="1080">Full HD (1080p)</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Camera Preview</strong>
+            <span>Check how you look before going live</span>
+          </div>
+          <button onclick="toggleCameraPreview()" id="cam-preview-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:0.25rem 0.6rem;border-radius:5px;cursor:pointer;font-size:0.8rem;">Preview</button>
+        </div>
+      </div>
+      <video id="settings-cam-preview" autoplay muted playsinline style="display:none;width:100%;max-width:320px;border-radius:8px;margin-top:0.5rem;border:1px solid #333;"></video>
+    </section>
+
+    <!-- Security -->
+    <section class="settings-section" id="sec-security">
+      <h1>Security</h1>
+      <p class="section-desc">Protect your identity and manage your devices. Your Ed25519 key is your passport — keep it safe.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Key Protection</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Passphrase Lock</strong>
+            <span>Encrypt your private key in this browser with a passphrase so no one else can use it</span>
+          </div>
+          <span id="key-protection-status" style="font-size:0.8rem;color:#888;">Checking…</span>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Auto-Lock Timer</strong>
+            <span>Automatically lock your key after being idle</span>
+          </div>
+          <select class="setting-select" id="pref-auto-lock" onchange="savePref()">
+            <option value="0">Never</option>
+            <option value="5">5 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="30" selected>30 minutes</option>
+            <option value="60">1 hour</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Devices</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Manage Linked Devices</strong>
+            <span>See all devices using your identity, label them, or revoke access</span>
+          </div>
+          <a href="/chat" onclick="sessionStorage.setItem('open_device_panel','1')" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">My Devices →</a>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Backup &amp; Recovery</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Backup Identity Key</strong>
+            <span>Export an encrypted backup of your private key that you can restore on another device</span>
+          </div>
+          <a href="/chat" onclick="sessionStorage.setItem('open_backup','1')" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Backup →</a>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Recovery Seed Phrase</strong>
+            <span>12-word phrase that can restore your identity if all devices are lost</span>
+          </div>
+          <a href="/chat" onclick="sessionStorage.setItem('open_seed','1')" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">View Seed →</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Do Not Disturb -->
+    <section class="settings-section" id="sec-dnd">
+      <h1>Do Not Disturb</h1>
+      <p class="section-desc">Silence notifications and hide your online status. Set quiet hours so you aren't interrupted during sleep or focus time.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Presence</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Status Mode</strong>
+            <span>Controls what others see about your availability</span>
+          </div>
+          <select class="setting-select" id="pref-presence" onchange="savePref()">
+            <option value="online">🟢 Online</option>
+            <option value="busy">🔴 Busy</option>
+            <option value="away">🟡 Away</option>
+            <option value="invisible">⚫ Invisible</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Custom Status</strong>
+            <span>A short message shown next to your name</span>
+          </div>
+          <input type="text" class="setting-input" id="pref-status-text" placeholder="e.g. In a meeting" maxlength="60" oninput="savePref()">
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Quiet Hours</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Enable Quiet Hours</strong>
+            <span>Mute all notifications during a scheduled time window</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-quiet-hours" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Start Time</strong>
+          </div>
+          <input type="time" class="setting-input" id="pref-quiet-start" value="22:00" onchange="savePref()" style="min-width:120px;">
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>End Time</strong>
+          </div>
+          <input type="time" class="setting-input" id="pref-quiet-end" value="08:00" onchange="savePref()" style="min-width:120px;">
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Exceptions</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Allow DMs from Friends</strong>
+            <span>Friends can still reach you even during quiet hours</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-dnd-friends" checked onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Allow Mentions</strong>
+            <span>Still notify on @mentions during quiet hours</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-dnd-mentions" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Storage -->
+    <section class="settings-section" id="sec-storage">
+      <h1>Storage</h1>
+      <p class="section-desc">See how much space your data uses on this device. Clear individual modules or manage what gets synced to the server.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Local Storage Usage</div>
+        <div id="storage-breakdown" style="padding:0.5rem 0.9rem;">
+          <p style="font-size:0.8rem;color:#666;">Calculating…</p>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Server Sync</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Vault Sync</strong>
+            <span>Encrypted vault blob backed up to the relay server</span>
+          </div>
+          <span id="vault-sync-status" style="font-size:0.8rem;color:#888;">Unknown</span>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>System Profile Sync</strong>
+            <span>Hardware info backed up to the relay server</span>
+          </div>
+          <span id="system-sync-status" style="font-size:0.8rem;color:#888;">Unknown</span>
+        </div>
+      </div>
+
+      <div class="settings-group danger-row">
+        <div class="settings-group-title" style="color:#e44;">Clear Individual Modules</div>
+        <div class="setting-row danger-row">
+          <div class="setting-label">
+            <strong>Clear Notes</strong>
+            <span>Remove all local encrypted notes</span>
+          </div>
+          <button class="btn-danger" onclick="clearModule('hos_notes_v1','notes')">Clear</button>
+        </div>
+        <div class="setting-row danger-row">
+          <div class="setting-label">
+            <strong>Clear Inventory</strong>
+            <span>Remove all inventory items</span>
+          </div>
+          <button class="btn-danger" onclick="clearModule('hos_inventory_v1','inventory')">Clear</button>
+        </div>
+        <div class="setting-row danger-row">
+          <div class="setting-label">
+            <strong>Clear Logbook</strong>
+            <span>Remove all journal entries</span>
+          </div>
+          <button class="btn-danger" onclick="clearModule('hos_logbook_v1','logbook')">Clear</button>
+        </div>
+        <div class="setting-row danger-row">
+          <div class="setting-label">
+            <strong>Clear Calendar</strong>
+            <span>Remove all calendar events</span>
+          </div>
+          <button class="btn-danger" onclick="clearModule('hos_calendar_v1','calendar')">Clear</button>
+        </div>
+      </div>
+    </section>
+
   </div><!-- /settings-main -->
 </div><!-- /settings-app -->
 
@@ -709,7 +1072,18 @@ const DEFAULTS = {
   'local-only': true, analytics: false,
   'msg-preview': true, 'enter-send': true, timestamps: 'hover', 'msg-group': true, 'relay-url': '',
   language: 'en', 'date-fmt': 'mdy', 'time-fmt': '12h', 'launch-chat': false, autosave: '60',
-  'display-name': '', 'debug-panel': false, 'verbose-log': false
+  'display-name': '', 'debug-panel': false, 'verbose-log': false,
+  // Accessibility
+  'reduce-motion': false, 'no-rgb': false, 'high-contrast': false,
+  'focus-ring': false, 'dyslexia-font': false, 'aria-enhanced': false,
+  // Audio & Video
+  'mic-device': '', 'mic-gain': '100', 'speaker-device': '', 'speaker-vol': '100',
+  'camera-device': '', 'video-quality': '720',
+  // Security
+  'auto-lock': '30',
+  // DND
+  presence: 'online', 'status-text': '', 'quiet-hours': false,
+  'quiet-start': '22:00', 'quiet-end': '08:00', 'dnd-friends': true, 'dnd-mentions': false,
 };
 
 let prefs = Object.assign({}, DEFAULTS);
@@ -884,6 +1258,293 @@ function importData(e) {
   reader.readAsText(file);
 }
 
+// ── Keyboard Shortcuts ──
+const KEYBIND_STORAGE = 'hos_keybinds_v1';
+const KEYBIND_DEFS = [
+  { group: 'Navigation', binds: [
+    { id: 'nav-network',    label: 'Go to Network',    default: '' },
+    { id: 'nav-dashboard',  label: 'Go to Dashboard',  default: '' },
+    { id: 'nav-profile',    label: 'Go to Profile',    default: '' },
+    { id: 'nav-home',       label: 'Go to Home',       default: '' },
+    { id: 'nav-skills',     label: 'Go to Skills',     default: '' },
+    { id: 'nav-inventory',  label: 'Go to Inventory',  default: '' },
+    { id: 'nav-equipment',  label: 'Go to Equipment',  default: '' },
+    { id: 'nav-quests',     label: 'Go to Quests',     default: '' },
+    { id: 'nav-calendar',   label: 'Go to Calendar',   default: '' },
+    { id: 'nav-logbook',    label: 'Go to Logbook',    default: '' },
+    { id: 'nav-notes',      label: 'Go to Notes',      default: '' },
+    { id: 'nav-vault',      label: 'Go to Vault',      default: '' },
+    { id: 'nav-tasks',      label: 'Go to Tasks',      default: '' },
+    { id: 'nav-market',     label: 'Go to Market',     default: '' },
+    { id: 'nav-maps',       label: 'Go to Maps',       default: '' },
+    { id: 'nav-settings',   label: 'Go to Settings',   default: '' },
+  ]},
+  { group: 'Chat', binds: [
+    { id: 'chat-search',     label: 'Open Search',      default: 'Ctrl+K' },
+    { id: 'chat-command',    label: 'Command Palette',   default: 'Ctrl+Shift+P' },
+    { id: 'chat-focus-input',label: 'Focus Chat Input',  default: '' },
+    { id: 'chat-upload',     label: 'Upload File',       default: '' },
+    { id: 'chat-emoji',      label: 'Open Emoji Picker', default: '' },
+  ]},
+  { group: 'Voice', binds: [
+    { id: 'voice-mute',      label: 'Toggle Mute',       default: 'Ctrl+Shift+M' },
+    { id: 'voice-deafen',    label: 'Toggle Deafen',     default: 'Ctrl+Shift+D' },
+    { id: 'voice-ptt',       label: 'Push to Talk',      default: 'KeyV' },
+    { id: 'voice-camera',    label: 'Toggle Camera',     default: '' },
+    { id: 'voice-screen',    label: 'Toggle Screen Share',default: '' },
+    { id: 'voice-leave',     label: 'Leave Voice',       default: '' },
+  ]},
+  { group: 'Media', binds: [
+    { id: 'media-afk',       label: 'Toggle AFK',        default: '' },
+    { id: 'media-brb',       label: 'Toggle BRB',        default: '' },
+    { id: 'media-pip',       label: 'Picture in Picture', default: '' },
+  ]},
+  { group: 'App', binds: [
+    { id: 'app-sidebar',     label: 'Toggle Sidebar',    default: '' },
+    { id: 'app-clear-cache', label: 'Clear Cache',       default: 'Ctrl+Shift+Delete' },
+    { id: 'app-theme',       label: 'Toggle Theme',      default: '' },
+    { id: 'app-fullscreen',  label: 'Toggle Fullscreen', default: 'F11' },
+  ]},
+];
+
+let keybinds = {};
+
+function loadKeybinds() {
+  try { keybinds = JSON.parse(localStorage.getItem(KEYBIND_STORAGE)) || {}; } catch { keybinds = {}; }
+}
+
+function saveKeybinds() {
+  localStorage.setItem(KEYBIND_STORAGE, JSON.stringify(keybinds));
+}
+
+function getKeybind(id, def) { return keybinds[id] !== undefined ? keybinds[id] : def; }
+
+function formatKey(code) {
+  if (!code) return 'Not set';
+  return code.replace(/^Key/, '').replace(/^Digit/, '').replace(/Control/,'Ctrl');
+}
+
+function renderKeybinds() {
+  const container = document.getElementById('keybind-groups');
+  if (!container) return;
+  container.innerHTML = KEYBIND_DEFS.map(g => `
+    <div class="settings-group">
+      <div class="settings-group-title">${g.group}</div>
+      ${g.binds.map(b => {
+        const val = getKeybind(b.id, b.default);
+        return `<div class="setting-row">
+          <div class="setting-label">
+            <strong>${b.label}</strong>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.4rem;">
+            <kbd id="kb-${b.id}" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem 0.7rem;border-radius:5px;font-family:monospace;font-size:0.82rem;min-width:60px;text-align:center;cursor:pointer;"
+              onclick="captureKeybind('${b.id}')">${formatKey(val)}</kbd>
+            <button onclick="clearKeybind('${b.id}')" style="background:transparent;border:1px solid #555;color:#888;padding:0.15rem 0.4rem;border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+}
+
+function captureKeybind(id) {
+  const kbd = document.getElementById('kb-' + id);
+  if (!kbd) return;
+  kbd.textContent = 'Press keys…';
+  kbd.style.borderColor = '#f80';
+  function capture(e) {
+    if (['Escape','Tab'].includes(e.key)) {
+      document.removeEventListener('keydown', capture, true);
+      renderKeybinds();
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
+    document.removeEventListener('keydown', capture, true);
+    let combo = '';
+    if (e.ctrlKey) combo += 'Ctrl+';
+    if (e.altKey) combo += 'Alt+';
+    if (e.shiftKey) combo += 'Shift+';
+    if (e.metaKey) combo += 'Meta+';
+    if (!['Control','Alt','Shift','Meta'].includes(e.key)) combo += e.code;
+    keybinds[id] = combo;
+    saveKeybinds();
+    renderKeybinds();
+  }
+  document.addEventListener('keydown', capture, true);
+}
+
+function clearKeybind(id) {
+  keybinds[id] = '';
+  saveKeybinds();
+  renderKeybinds();
+}
+
+// ── Audio & Video ──
+let micTestStream = null;
+let micTestAnalyser = null;
+let micTestRaf = null;
+
+async function populateDeviceLists() {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(s => s.getTracks().forEach(t => t.stop()));
+  } catch {}
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const micSel = document.getElementById('pref-mic-device');
+    const spkSel = document.getElementById('pref-speaker-device');
+    const camSel = document.getElementById('pref-camera-device');
+    if (micSel) {
+      const mics = devices.filter(d => d.kind === 'audioinput');
+      micSel.innerHTML = '<option value="">System Default</option>' + mics.map(d =>
+        `<option value="${d.deviceId}">${d.label || 'Microphone ' + d.deviceId.slice(0,6)}</option>`
+      ).join('');
+      micSel.value = prefs['mic-device'] || '';
+    }
+    if (spkSel) {
+      const spks = devices.filter(d => d.kind === 'audiooutput');
+      spkSel.innerHTML = '<option value="">System Default</option>' + spks.map(d =>
+        `<option value="${d.deviceId}">${d.label || 'Speaker ' + d.deviceId.slice(0,6)}</option>`
+      ).join('');
+      spkSel.value = prefs['speaker-device'] || '';
+    }
+    if (camSel) {
+      const cams = devices.filter(d => d.kind === 'videoinput');
+      camSel.innerHTML = '<option value="">System Default</option>' + cams.map(d =>
+        `<option value="${d.deviceId}">${d.label || 'Camera ' + d.deviceId.slice(0,6)}</option>`
+      ).join('');
+      camSel.value = prefs['camera-device'] || '';
+    }
+  } catch {}
+}
+
+async function testMic() {
+  const btn = document.getElementById('mic-test-btn');
+  if (micTestStream) {
+    micTestStream.getTracks().forEach(t => t.stop());
+    micTestStream = null;
+    if (micTestRaf) cancelAnimationFrame(micTestRaf);
+    document.getElementById('mic-level-bar').style.width = '0%';
+    if (btn) btn.textContent = 'Test Mic';
+    return;
+  }
+  try {
+    const deviceId = prefs['mic-device'] || undefined;
+    micTestStream = await navigator.mediaDevices.getUserMedia({
+      audio: deviceId ? { deviceId: { exact: deviceId } } : true
+    });
+    const ctx = new AudioContext();
+    const src = ctx.createMediaStreamSource(micTestStream);
+    micTestAnalyser = ctx.createAnalyser();
+    micTestAnalyser.fftSize = 256;
+    src.connect(micTestAnalyser);
+    const data = new Uint8Array(micTestAnalyser.frequencyBinCount);
+    if (btn) btn.textContent = 'Stop Test';
+    function draw() {
+      if (!micTestStream) return;
+      micTestAnalyser.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      document.getElementById('mic-level-bar').style.width = Math.min(100, avg * 1.5) + '%';
+      micTestRaf = requestAnimationFrame(draw);
+    }
+    draw();
+  } catch (e) {
+    alert('Could not access microphone: ' + e.message);
+  }
+}
+
+let camPreviewStream = null;
+async function toggleCameraPreview() {
+  const video = document.getElementById('settings-cam-preview');
+  const btn = document.getElementById('cam-preview-btn');
+  if (camPreviewStream) {
+    camPreviewStream.getTracks().forEach(t => t.stop());
+    camPreviewStream = null;
+    video.style.display = 'none';
+    if (btn) btn.textContent = 'Preview';
+    return;
+  }
+  try {
+    const deviceId = prefs['camera-device'] || undefined;
+    const quality = parseInt(prefs['video-quality'] || '720');
+    camPreviewStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: deviceId ? { exact: deviceId } : undefined, height: { ideal: quality } }
+    });
+    video.srcObject = camPreviewStream;
+    video.style.display = 'block';
+    if (btn) btn.textContent = 'Stop';
+  } catch (e) {
+    alert('Could not access camera: ' + e.message);
+  }
+}
+
+// ── Security ──
+function checkKeyProtection() {
+  const el = document.getElementById('key-protection-status');
+  if (!el) return;
+  const hasProtected = !!localStorage.getItem('hos_key_protected');
+  el.textContent = hasProtected ? '🟢 Protected' : '🔴 Not protected';
+  el.style.color = hasProtected ? '#4a9' : '#e44';
+}
+
+// ── Storage ──
+function calculateStorage() {
+  const container = document.getElementById('storage-breakdown');
+  if (!container) return;
+  const modules = [
+    { key: 'hos_settings_v1', label: 'Settings' },
+    { key: 'hos_identity', label: 'Identity' },
+    { key: 'hos_profile_v1', label: 'Profile' },
+    { key: 'hos_notes_v1', label: 'Notes' },
+    { key: 'hos_inventory_v1', label: 'Inventory' },
+    { key: 'hos_logbook_v1', label: 'Logbook' },
+    { key: 'hos_skills_v1', label: 'Skills' },
+    { key: 'hos_quests_v1', label: 'Quests' },
+    { key: 'hos_calendar_v1', label: 'Calendar' },
+    { key: 'hos_equipment_v1', label: 'Equipment' },
+    { key: 'hos_homes_v2', label: 'Homes' },
+    { key: 'hos_keybinds_v1', label: 'Keybinds' },
+    { key: 'hos_system_profile', label: 'System Profile' },
+    { key: 'hos_dm_recent', label: 'DM History' },
+  ];
+  let totalBytes = 0;
+  const rows = modules.map(m => {
+    const val = localStorage.getItem(m.key);
+    const bytes = val ? new Blob([val]).size : 0;
+    totalBytes += bytes;
+    const sizeStr = bytes < 1024 ? bytes + ' B' : (bytes / 1024).toFixed(1) + ' KB';
+    return `<div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid #181818;font-size:0.82rem;">
+      <span style="color:#aaa">${m.label}</span>
+      <span style="color:#666;font-family:monospace;">${sizeStr}</span>
+    </div>`;
+  });
+  const totalStr = totalBytes < 1024 ? totalBytes + ' B' : (totalBytes / 1024).toFixed(1) + ' KB';
+  rows.push(`<div style="display:flex;justify-content:space-between;padding:0.4rem 0 0;font-size:0.85rem;font-weight:700;">
+    <span style="color:#ddd">Total</span>
+    <span style="color:#2a6;font-family:monospace;">${totalStr}</span>
+  </div>`);
+  container.innerHTML = rows.join('');
+}
+
+function clearModule(key, name) {
+  if (!confirm('Clear all ' + name + ' data? This cannot be undone.')) return;
+  localStorage.removeItem(key);
+  calculateStorage();
+}
+
+// ── Gain/volume label updates ──
+function updateRangeLabels() {
+  const gainEl = document.getElementById('pref-mic-gain');
+  const gainLabel = document.getElementById('mic-gain-label');
+  if (gainEl && gainLabel) gainLabel.textContent = gainEl.value + '%';
+  const volEl = document.getElementById('pref-speaker-vol');
+  const volLabel = document.getElementById('speaker-vol-label');
+  if (volEl && volLabel) volLabel.textContent = volEl.value + '%';
+}
+
+// Patch savePref to also update range labels
+const _origSavePref = savePref;
+savePref = function() { _origSavePref(); updateRangeLabels(); };
+
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
@@ -896,6 +1557,12 @@ document.getElementById('settings-save').textContent = '💾 Save Settings';
 loadPrefs();
 applyPrefs();
 loadVoicePrefs();
+loadKeybinds();
+renderKeybinds();
+populateDeviceLists();
+checkKeyProtection();
+calculateStorage();
+updateRangeLabels();
 </script>
 </body>
 </html>

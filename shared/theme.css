@@ -58,6 +58,18 @@ h2 { font-size: 1.4rem; }
 h3 { font-size: 1.1rem; }
 h4 { font-size: 0.9rem; }
 
+/* Page purpose hints — shown at the top of every page */
+.page-hint {
+  margin: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -722,6 +722,13 @@ impl Storage {
                 public_key TEXT PRIMARY KEY,
                 blob       TEXT NOT NULL,
                 updated_at INTEGER NOT NULL
+            );
+
+            -- System profiles for hardware/OS context (not sensitive, stored as JSON).
+            CREATE TABLE IF NOT EXISTS system_profiles (
+                public_key TEXT PRIMARY KEY,
+                profile    TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
             );"
         )?;
 
@@ -782,5 +789,6 @@ mod reactions;
 mod skill_dna;
 mod social;
 mod streams;
+mod system;
 mod uploads;
 mod vault_sync;

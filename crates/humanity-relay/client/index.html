@@ -128,6 +128,7 @@
             data-tip-detail="Without this, your key is stored in plain text in localStorage — protection adds AES-256-GCM encryption"
             style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔓 Protect Key (localStorage encryption)</button>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
+          <button id="system-info-btn" onclick="openSystemInfoModal()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">💻 System Info</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
             <button onclick="exportContactCard()"
               data-tip-title="Share Contact Card"
@@ -174,6 +175,17 @@
           <div class="unified-body">
             <div id="stream-studio-preview" class="stream-studio-preview">No active local feed</div>
 
+            <!-- Metrics bar — live bitrate, FPS, resolution, viewers, health -->
+            <div id="studio-metrics-bar" class="studio-metrics" style="display:none;">
+              <span title="Bitrate">📡 <span id="studio-m-bitrate">—</span></span>
+              <span title="Frames per second">🎞️ <span id="studio-m-fps">—</span></span>
+              <span title="Resolution">📐 <span id="studio-m-res">—</span></span>
+              <span title="Round-trip time">⏱️ <span id="studio-m-rtt">—</span></span>
+              <span title="Packet loss">📦 <span id="studio-m-loss">—</span></span>
+              <span title="Viewers / Listeners">👥 <span id="studio-m-viewers">0</span></span>
+              <span title="Stream health" id="studio-m-health">🟢</span>
+            </div>
+
             <!-- Device + stream controls — pill layout -->
             <div class="studio-devices">
               <select id="studio-mic-select" class="studio-pill studio-pill-select" onchange="setStudioMic(this.value)">
@@ -200,6 +212,18 @@
               <button id="studio-afk-btn" class="studio-pill"
                 onclick="toggleStudioAfk()"
                 data-tip-title="AFK Overlay" data-tip-desc="Shows an AFK notice on your stream so viewers know you stepped away.">🌙 AFK — Off</button>
+              <button id="studio-brb-btn" class="studio-pill"
+                onclick="toggleStudioBrb()"
+                data-tip-title="BRB Timer" data-tip-desc="Shows a 'Be Right Back' timer on your stream.">⏸️ BRB — Off</button>
+              <div class="studio-pill-range">
+                <span>📡 Bitrate</span>
+                <input type="range" id="studio-bitrate-slider" min="100" max="6000" value="2500" step="100"
+                  oninput="setStudioBitrate(this.value)"
+                  data-tip-title="Max Bitrate (kbps)" data-tip-desc="Limits outgoing video bitrate. Lower = less bandwidth, worse quality.">
+              </div>
+              <button id="studio-scene-btn" class="studio-pill"
+                onclick="openSceneManager()"
+                data-tip-title="Scenes" data-tip-desc="Save and switch between studio presets (mic, bitrate, camera, layout).">🎬 Scenes</button>
             </div>
 
             <!-- Voice control bar (shown inside Studio when in a voice channel) -->
@@ -561,6 +585,31 @@
           data-tip-desc="Displays a QR code your other device can scan to share this identity."
           data-tip-detail="Uses encrypted P2P transfer — your private key is never sent to the server"
           style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Link New Device</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Info Modal -->
+  <div id="system-info-overlay" class="profile-modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="profile-modal" onclick="event.stopPropagation()" style="max-width:460px;">
+      <button class="close-btn" onclick="document.getElementById('system-info-overlay').classList.remove('open')">&#x2715;</button>
+      <h2>💻 System Info</h2>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem">
+        Your computer's info. Helps AI assistants give you better answers.
+      </p>
+      <div id="system-info-detected"></div>
+      <div style="margin-top:0.75rem">
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem">GPU Memory (GB)</label>
+        <input type="text" id="sys-gpu-vram" placeholder="e.g. 12" style="width:100%;padding:0.3rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem;box-sizing:border-box;">
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-top:0.5rem;margin-bottom:0.2rem">Disk Size (GB)</label>
+        <input type="text" id="sys-disk-gb" placeholder="e.g. 1000" style="width:100%;padding:0.3rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem;box-sizing:border-box;">
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-top:0.5rem;margin-bottom:0.2rem">Notes</label>
+        <textarea id="sys-notes" rows="2" placeholder="e.g. dual monitor, streaming PC" style="width:100%;padding:0.3rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem;resize:vertical;box-sizing:border-box;"></textarea>
+      </div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
+        <button onclick="copySystemContext()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">📋 Copy for AI</button>
+        <button onclick="syncSystemProfile()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">☁️ Sync to Server</button>
+        <button onclick="saveSystemOverrides()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;margin-left:auto">Save</button>
       </div>
     </div>
   </div>

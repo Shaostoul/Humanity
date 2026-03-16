@@ -1053,6 +1053,35 @@ header h1 {
   pointer-events: none;
   letter-spacing: 0.02em;
 }
+/* ── Studio Metrics Bar ── */
+.studio-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  padding: 5px 10px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid var(--border);
+  font-family: monospace;
+}
+.studio-metrics span { white-space: nowrap; }
+
+/* BRB overlay */
+.studio-brb-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.7);
+  color: #ff0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  z-index: 3;
+  pointer-events: none;
+}
+
 /* ── Studio Pill Controls ── */
 .studio-devices {
   display: flex;
