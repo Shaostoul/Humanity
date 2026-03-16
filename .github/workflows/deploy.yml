@@ -49,6 +49,14 @@ jobs:
               [ -f "$f" ] && cp "$f" "/var/www/humanity/$(basename "$f")"
             done
 
+            # Sync subdirectory pages (game/, design/, etc.)
+            for dir in game design; do
+              if [ -d "/opt/Humanity/$dir" ]; then
+                mkdir -p "/var/www/humanity/$dir"
+                rsync -a /opt/Humanity/$dir/ /var/www/humanity/$dir/
+              fi
+            done
+
             # Graceful restart
             systemctl restart humanity-relay
             sleep 3
