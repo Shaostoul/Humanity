@@ -2,7 +2,7 @@
 title: HumanityOS — Feature Roadmap
 category: design
 status: living document
-updated: 2026-03-13
+updated: 2026-03-15
 ---
 
 # HumanityOS Feature Roadmap
@@ -130,3 +130,7 @@ Full native app. Lower priority than PWA given Tauri desktop already works.
 - ✅ Desktop app (Tauri, Windows/Mac/Linux)
 - ✅ Task API backend (/api/tasks CRUD + WebSocket broadcast)
 - ✅ Fibonacci-scoped task board (tasks.html)
+- ✅ System Context Awareness — hardware detection, server sync, "Copy for AI" export (v0.4.0)
+- ✅ ELI5 purpose hints on all standalone pages — 5-year-old navigable (v0.4.0)
+- ✅ Settings overhaul — 13 sections: rebindable keyboard shortcuts, accessibility, A/V device preview, security, DND, storage management (v0.4.0)
+- ✅ Feature-complete studio panel — live WebRTC metrics, BRB timer, bitrate control, scene presets (v0.4.0)
