@@ -236,12 +236,329 @@
       .kanban { grid-template-columns: 1fr; }
       .stats { display: none; }
     }
+
+    /* ── Top-level view tabs (Kanban / Quests) ── */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      background: linear-gradient(180deg, #111 0%, #0a0a0a 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1rem;
+      flex-shrink: 0;
+    }
+    .view-tab {
+      padding: 0.55rem 1.2rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      font-family: inherit;
+    }
+    .view-tab:hover { color: #ccc; }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── Quests styles ── */
+    #quests-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #quests-app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+    #quest-sidebar {
+      width: 200px;
+      min-width: 160px;
+      background: #111;
+      border-right: 1px solid #222;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    #quest-sidebar h2 {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.75rem 0.8rem 0.4rem;
+    }
+    .q-cat {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 0.8rem;
+      cursor: pointer;
+      border-radius: 6px;
+      margin: 0 0.4rem 0.15rem;
+      font-size: 0.88rem;
+      color: #aaa;
+      transition: background 0.12s, color 0.12s;
+      border: 1px solid transparent;
+    }
+    .q-cat:hover { background: #1a1a1a; color: #eee; }
+    .q-cat.active {
+      background: #181818;
+      color: #fff;
+      border-color: #2a6;
+    }
+    .q-cat .q-cat-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .q-cat .q-cat-count {
+      margin-left: auto;
+      font-size: 0.72rem;
+      background: #222;
+      color: #888;
+      padding: 1px 5px;
+      border-radius: 10px;
+    }
+    #quest-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #quest-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #1e1e1e;
+      background: #0f0f0f;
+      flex-shrink: 0;
+    }
+    #quest-header h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      flex: 1;
+    }
+    #quest-search {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #e0e0e0;
+      padding: 0.3rem 0.7rem;
+      font-size: 0.85rem;
+      width: 180px;
+      outline: none;
+    }
+    #quest-search:focus { border-color: #2a6; }
+    #add-quest-btn {
+      background: #1a4a2a;
+      border: 1px solid #2a6;
+      color: #4d9;
+      padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.12s;
+    }
+    #add-quest-btn:hover { background: #1f5a32; }
+    #quest-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .quest-card {
+      background: #131313;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 0.7rem 0.85rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .quest-card:hover { border-color: #333; background: #161616; }
+    .quest-card.done { opacity: 0.5; }
+    .quest-card.done .quest-title { text-decoration: line-through; color: #666; }
+    .quest-check {
+      width: 18px; height: 18px;
+      border: 2px solid #444;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+      transition: border-color 0.12s, background 0.12s;
+      cursor: pointer;
+    }
+    .quest-check:hover { border-color: #2a6; }
+    .quest-card.done .quest-check {
+      background: #2a6;
+      border-color: #2a6;
+      color: #fff;
+      font-size: 0.7rem;
+    }
+    .quest-body { flex: 1; min-width: 0; }
+    .quest-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #eee;
+      margin-bottom: 0.2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .quest-desc {
+      font-size: 0.78rem;
+      color: #888;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .quest-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.3rem;
+      flex-wrap: wrap;
+    }
+    .quest-xp {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #f80;
+      background: rgba(255,136,0,0.1);
+      border: 1px solid rgba(255,136,0,0.25);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+    .quest-type-badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge-daily   { color: #4cf; background: rgba(68,204,255,0.1); border: 1px solid rgba(68,204,255,0.25); }
+    .badge-story   { color: #c8f; background: rgba(200,136,255,0.1); border: 1px solid rgba(200,136,255,0.25); }
+    .badge-side    { color: #fa4; background: rgba(255,170,68,0.1); border: 1px solid rgba(255,170,68,0.25); }
+    .badge-personal{ color: #4d9; background: rgba(68,204,136,0.1); border: 1px solid rgba(68,204,136,0.25); }
+    .quest-due {
+      font-size: 0.72rem;
+      color: #666;
+    }
+    .quest-due.overdue { color: #e44; }
+    .quest-delete {
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 0.1rem 0.2rem;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: color 0.12s;
+    }
+    .quest-delete:hover { color: #e44; }
+    .quest-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      gap: 0.75rem;
+      color: #444;
+      text-align: center;
+      padding: 2rem;
+    }
+    .quest-empty-state .empty-icon { font-size: 3rem; }
+    .quest-empty-state p { font-size: 0.9rem; }
+    .quest-modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 8000;
+      align-items: center;
+      justify-content: center;
+    }
+    .quest-modal-backdrop.open { display: flex; }
+    .quest-modal {
+      background: #141414;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      width: min(480px, 95vw);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .quest-modal h2 { font-size: 1.1rem; color: #fff; }
+    .quest-modal label { font-size: 0.8rem; color: #888; display: block; margin-bottom: 0.25rem; }
+    .quest-modal input, .quest-modal textarea, .quest-modal select {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #e0e0e0;
+      padding: 0.45rem 0.7rem;
+      font-size: 0.88rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .quest-modal input:focus, .quest-modal textarea:focus, .quest-modal select:focus { border-color: #2a6; }
+    .quest-modal textarea { resize: vertical; min-height: 70px; }
+    .quest-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .quest-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+    .quest-btn-cancel {
+      background: transparent;
+      border: 1px solid #333;
+      color: #888;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.88rem;
+    }
+    .quest-btn-save {
+      background: #1a4a2a;
+      border: 1px solid #2a6;
+      color: #4d9;
+      padding: 0.4rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+    .quest-btn-cancel:hover { border-color: #555; color: #ccc; }
+    .quest-btn-save:hover { background: #1f5a32; }
   </style>
 </head>
 <body>
 <script src=/shared/shell.js data-active="tasks"></script>
-<p class="page-hint">Your task board. Organize what needs to be done — from personal to-dos to big community projects. Drag tasks between columns as you make progress.</p>
+<p class="page-hint" id="hint-kanban">Your task board. Organize what needs to be done — from personal to-dos to big community projects. Drag tasks between columns as you make progress.</p>
+<p class="page-hint" id="hint-quests" style="display:none">Your quests and missions. Pick challenges to work on, track your progress, and earn recognition when you complete them.</p>
 <div id=page-app>
+
+  <!-- View tabs: Kanban / Quests -->
+  <div class="view-tabs">
+    <button class="view-tab active" data-view="kanban" onclick="switchView('kanban')">Kanban</button>
+    <button class="view-tab" data-view="quests" onclick="switchView('quests')">Quests</button>
+  </div>
+
+  <div id="kanban-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
 
   <!-- Scope selector -->
   <div class="scope-bar">
@@ -285,6 +602,99 @@
     <div class="col" data-status="done">
       <div class="col-header">Done <span class="col-count" id="count-done">0</span></div>
       <div class="col-body" id="col-done"></div>
+    </div>
+  </div>
+  </div><!-- /kanban-content -->
+
+  <!-- Quests content -->
+  <div id="quests-content" style="display:none">
+    <div id="quests-app">
+      <nav id="quest-sidebar">
+        <h2>Categories</h2>
+        <div class="q-cat active" data-filter="all" onclick="quest_setFilter('all')">
+          <span class="q-cat-dot" style="background:#aaa;"></span>
+          All Quests
+          <span class="q-cat-count" id="cnt-all">0</span>
+        </div>
+        <div class="q-cat" data-filter="daily" onclick="quest_setFilter('daily')">
+          <span class="q-cat-dot" style="background:#4cf;"></span>
+          Daily
+          <span class="q-cat-count" id="cnt-daily">0</span>
+        </div>
+        <div class="q-cat" data-filter="story" onclick="quest_setFilter('story')">
+          <span class="q-cat-dot" style="background:#c8f;"></span>
+          Story
+          <span class="q-cat-count" id="cnt-story">0</span>
+        </div>
+        <div class="q-cat" data-filter="side" onclick="quest_setFilter('side')">
+          <span class="q-cat-dot" style="background:#fa4;"></span>
+          Side
+          <span class="q-cat-count" id="cnt-side">0</span>
+        </div>
+        <div class="q-cat" data-filter="personal" onclick="quest_setFilter('personal')">
+          <span class="q-cat-dot" style="background:#4d9;"></span>
+          Personal
+          <span class="q-cat-count" id="cnt-personal">0</span>
+        </div>
+        <div class="q-cat" data-filter="done" onclick="quest_setFilter('done')">
+          <span class="q-cat-dot" style="background:#555;"></span>
+          Completed
+          <span class="q-cat-count" id="cnt-done">0</span>
+        </div>
+      </nav>
+      <div id="quest-main">
+        <div id="quest-header">
+          <h1 id="quest-heading">All Quests</h1>
+          <input id="quest-search" type="text" placeholder="Search quests…" oninput="quest_renderList()">
+          <button id="add-quest-btn" onclick="quest_openModal()">+ Add Quest</button>
+        </div>
+        <div id="quest-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-app -->
+
+<!-- Quest Add/Edit Modal -->
+<div class="quest-modal-backdrop" id="quest-modal">
+  <div class="quest-modal">
+    <h2 id="quest-modal-title">New Quest</h2>
+    <div>
+      <label>Title *</label>
+      <input id="q-title" type="text" placeholder="What needs to be done?">
+    </div>
+    <div>
+      <label>Description</label>
+      <textarea id="q-desc" placeholder="Details, steps, notes…"></textarea>
+    </div>
+    <div class="quest-modal-row">
+      <div>
+        <label>Type</label>
+        <select id="q-type">
+          <option value="personal">Personal</option>
+          <option value="daily">Daily</option>
+          <option value="story">Story</option>
+          <option value="side">Side</option>
+        </select>
+      </div>
+      <div>
+        <label>XP Reward</label>
+        <input id="q-xp" type="number" min="0" step="10" placeholder="e.g. 50" value="25">
+      </div>
+    </div>
+    <div class="quest-modal-row">
+      <div>
+        <label>Due Date (optional)</label>
+        <input id="q-due" type="date">
+      </div>
+      <div>
+        <label>Award XP to Skill (optional)</label>
+        <input id="q-skill" type="text" placeholder="e.g. algebra, cooking, yoga" maxlength="50">
+      </div>
+    </div>
+    <div class="quest-modal-actions">
+      <button class="quest-btn-cancel" onclick="quest_closeModal()">Cancel</button>
+      <button class="quest-btn-save" onclick="quest_saveQuest()">Save Quest</button>
     </div>
   </div>
 </div>
@@ -1050,10 +1460,226 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 /* Escape key */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeDetail(); closeModal(); }
+  if (e.key === 'Escape') { closeDetail(); closeModal(); quest_closeModal(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') quest_saveQuest();
 });
 
 init();
+
+/* ═══════════════════════════════════════════════════════════════
+   View tab switching (Kanban / Quests)
+   ═══════════════════════════════════════════════════════════════ */
+function switchView(view) {
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  document.getElementById('kanban-content').style.display = view === 'kanban' ? 'flex' : 'none';
+  document.getElementById('quests-content').style.display = view === 'quests' ? '' : 'none';
+  document.getElementById('hint-kanban').style.display = view === 'kanban' ? '' : 'none';
+  document.getElementById('hint-quests').style.display = view === 'quests' ? '' : 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Quests — local quest tracker (localStorage hos_quests_v1)
+   All functions prefixed with quest_ to avoid collisions.
+   ═══════════════════════════════════════════════════════════════ */
+const QUEST_STORAGE_KEY = 'hos_quests_v1';
+let quest_list = [];
+let quest_currentFilter = 'all';
+let quest_editingId = null;
+
+function quest_load() {
+  try { quest_list = JSON.parse(localStorage.getItem(QUEST_STORAGE_KEY)) || []; }
+  catch(e) { quest_list = []; }
+}
+function quest_save() {
+  localStorage.setItem(QUEST_STORAGE_KEY, JSON.stringify(quest_list));
+}
+function quest_uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+function quest_esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function quest_setFilter(f) {
+  quest_currentFilter = f;
+  document.querySelectorAll('.q-cat').forEach(el => el.classList.toggle('active', el.dataset.filter === f));
+  const labels = { all:'All Quests', daily:'Daily Quests', story:'Story Quests',
+    side:'Side Quests', personal:'Personal Quests', done:'Completed' };
+  document.getElementById('quest-heading').textContent = labels[f] || 'Quests';
+  quest_renderList();
+}
+
+function quest_renderList() {
+  const search = (document.getElementById('quest-search').value || '').toLowerCase();
+  const list = document.getElementById('quest-list');
+
+  // Update counts
+  const counts = { all:0, daily:0, story:0, side:0, personal:0, done:0 };
+  quest_list.forEach(q => {
+    if (!q.done) { counts.all++; counts[q.type] = (counts[q.type] || 0) + 1; }
+    else counts.done++;
+  });
+  Object.keys(counts).forEach(k => {
+    const el = document.getElementById('cnt-' + k);
+    if (el) el.textContent = counts[k];
+  });
+
+  let visible = quest_list.filter(q => {
+    if (quest_currentFilter === 'done')  return q.done;
+    if (quest_currentFilter !== 'all')   return !q.done && q.type === quest_currentFilter;
+    return !q.done;
+  });
+  if (search) {
+    visible = visible.filter(q =>
+      q.title.toLowerCase().includes(search) ||
+      (q.desc || '').toLowerCase().includes(search)
+    );
+  }
+
+  if (!visible.length) {
+    list.innerHTML = `<div class="quest-empty-state"><div class="empty-icon">📋</div>
+      <p>${search ? 'No quests match your search.' : quest_currentFilter === 'done' ? 'No completed quests yet.' : 'No quests here yet.'}</p>
+      ${!search && quest_currentFilter !== 'done' ? '<button class="quest-btn-save" onclick="quest_openModal()" style="margin-top:0.5rem;">+ Add Your First Quest</button>' : ''}</div>`;
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  list.innerHTML = visible.map(q => {
+    const overdue = q.due && q.due < today && !q.done;
+    const badgeClass = 'badge-' + q.type;
+    return `<div class="quest-card${q.done ? ' done' : ''}" onclick="quest_openModal('${q.id}')">
+      <div class="quest-check" onclick="event.stopPropagation();quest_toggleDone('${q.id}')">${q.done ? '✓' : ''}</div>
+      <div class="quest-body">
+        <div class="quest-title">${quest_esc(q.title)}</div>
+        ${q.desc ? `<div class="quest-desc">${quest_esc(q.desc)}</div>` : ''}
+        <div class="quest-meta">
+          <span class="quest-xp">⭐ ${q.xp || 0} XP</span>
+          <span class="quest-type-badge ${badgeClass}">${q.type}</span>
+          ${q.due ? `<span class="quest-due${overdue ? ' overdue' : ''}">${overdue ? '⚠ ' : ''}${q.due}</span>` : ''}
+        </div>
+      </div>
+      <button class="quest-delete" onclick="event.stopPropagation();quest_deleteQuest('${q.id}')" title="Delete">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function quest_toggleDone(id) {
+  const q = quest_list.find(x => x.id === id);
+  if (!q) return;
+  const wasNotDone = !q.done;
+  q.done = !q.done;
+  q.updatedAt = Date.now();
+  quest_save();
+  quest_renderList();
+  // Award XP to linked skill when a quest is completed (not un-completed)
+  if (wasNotDone && q.skill_id && q.xp > 0) {
+    awardSkillXp(q.skill_id, q.xp);
+  }
+}
+
+/**
+ * Award XP to a skill in hos_skills_v1 when a linked quest is completed.
+ * Applies level-ups automatically using the same XP table as skills.html.
+ */
+function awardSkillXp(skillId, amount) {
+  const XP_PER_LEVEL = [100,150,225,338,507,760,1140,1710,2565,3848];
+  const MAX_LEVEL = 10;
+  try {
+    const data = JSON.parse(localStorage.getItem('hos_skills_v1') || '{}');
+    if (!data[skillId]) data[skillId] = { level: 0, xp: 0 };
+    const s = data[skillId];
+    if (s.level >= MAX_LEVEL) return;
+    s.xp = (s.xp || 0) + amount;
+    let leveled = false;
+    while (s.level < MAX_LEVEL && s.xp >= (XP_PER_LEVEL[s.level] || 100)) {
+      s.xp -= XP_PER_LEVEL[s.level] || 100;
+      s.level++;
+      leveled = true;
+    }
+    localStorage.setItem('hos_skills_v1', JSON.stringify(data));
+    const msg = leveled
+      ? `🎉 Quest complete! +${amount} XP to "${skillId}" → Level ${s.level}!`
+      : `✅ Quest complete! +${amount} XP awarded to "${skillId}"`;
+    quest_showToast(msg, 4000);
+  } catch(e) { console.warn('awardSkillXp error:', e); }
+}
+
+function quest_deleteQuest(id) {
+  quest_list = quest_list.filter(x => x.id !== id);
+  quest_save(); quest_renderList();
+}
+
+function quest_openModal(id) {
+  quest_editingId = id || null;
+  const q = id ? quest_list.find(x => x.id === id) : null;
+  document.getElementById('quest-modal-title').textContent = q ? 'Edit Quest' : 'New Quest';
+  document.getElementById('q-title').value = q ? q.title : '';
+  document.getElementById('q-desc').value  = q ? (q.desc || '') : '';
+  document.getElementById('q-type').value  = q ? q.type : 'personal';
+  document.getElementById('q-xp').value    = q ? (q.xp || 25) : 25;
+  document.getElementById('q-due').value   = q ? (q.due || '') : '';
+  document.getElementById('q-skill').value = q ? (q.skill_id || '') : '';
+  document.getElementById('quest-modal').classList.add('open');
+  setTimeout(() => document.getElementById('q-title').focus(), 50);
+}
+
+function quest_closeModal() {
+  document.getElementById('quest-modal').classList.remove('open');
+  quest_editingId = null;
+}
+
+function quest_saveQuest() {
+  const title = document.getElementById('q-title').value.trim();
+  if (!title) { document.getElementById('q-title').focus(); return; }
+  if (quest_editingId) {
+    const q = quest_list.find(x => x.id === quest_editingId);
+    if (q) {
+      q.title = title;
+      q.desc  = document.getElementById('q-desc').value.trim();
+      q.type  = document.getElementById('q-type').value;
+      q.xp       = parseInt(document.getElementById('q-xp').value) || 0;
+      q.due      = document.getElementById('q-due').value || null;
+      q.skill_id = document.getElementById('q-skill').value.trim().toLowerCase() || null;
+    }
+  } else {
+    quest_list.unshift({
+      id:       quest_uid(),
+      title:    title,
+      desc:     document.getElementById('q-desc').value.trim(),
+      type:     document.getElementById('q-type').value,
+      xp:       parseInt(document.getElementById('q-xp').value) || 0,
+      due:      document.getElementById('q-due').value || null,
+      skill_id: document.getElementById('q-skill').value.trim().toLowerCase() || null,
+      done:     false,
+      created:  new Date().toISOString(),
+      updatedAt: Date.now(),
+    });
+  }
+  quest_save(); quest_closeModal(); quest_renderList();
+}
+
+// Close quest modal on backdrop click
+document.getElementById('quest-modal').addEventListener('click', function(e) {
+  if (e.target === this) quest_closeModal();
+});
+
+function quest_showToast(msg, duration) {
+  let el = document.getElementById('quest-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'quest-toast';
+    el.style.cssText = 'position:fixed;bottom:3rem;left:50%;transform:translateX(-50%);background:#222;border:1px solid #f0a500;color:#e0e0e0;padding:0.6rem 1.2rem;border-radius:8px;font-size:0.82rem;z-index:9999;max-width:340px;text-align:center;transition:opacity .3s;';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => { el.style.opacity = '0'; }, duration || 3000);
+}
+
+// Initialize quests
+quest_load();
+quest_renderList();
 </script>
 </body>
 </html>

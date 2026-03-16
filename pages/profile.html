@@ -218,6 +218,134 @@
       #profile-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; }
       .prof-section-btn { flex: 1; min-width: 120px; }
     }
+
+    /* ── Skills tab styles ── */
+    #tab-skills #skills-app {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 500px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    #tab-skills #domain-sidebar {
+      width: 220px;
+      min-width: 180px;
+      background: var(--bg-card, #111);
+      border-right: 1px solid var(--border, #222);
+      overflow-y: auto;
+      padding: 1rem 0;
+      flex-shrink: 0;
+    }
+    #tab-skills #domain-sidebar h2 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted, #555);
+      padding: 0 1rem 0.5rem;
+    }
+    #tab-skills .domain-item {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 1rem;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    #tab-skills .domain-item:hover { background: var(--bg-hover, #1a1a1a); }
+    #tab-skills .domain-item.active {
+      background: var(--bg-hover, #181818);
+      border-left-color: var(--domain-color);
+    }
+    #tab-skills .domain-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--domain-color); flex-shrink: 0;
+    }
+    #tab-skills .domain-name { flex: 1; font-size: 0.85rem; font-weight: 500; }
+    #tab-skills .domain-avg { font-size: 0.7rem; color: var(--text-muted, #666); min-width: 24px; text-align: right; }
+    #tab-skills .domain-bar-wrap { height: 2px; background: var(--border, #222); border-radius: 1px; margin-top: 2px; }
+    #tab-skills .domain-bar-fill { height: 100%; border-radius: 1px; background: var(--domain-color); transition: width 0.4s; }
+
+    #tab-skills #skill-panel { flex: 1; overflow-y: auto; padding: 1.5rem; }
+    #tab-skills #skill-panel-header {
+      display: flex; align-items: center; gap: 0.8rem;
+      margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border, #222);
+    }
+    #tab-skills #panel-domain-icon { font-size: 2rem; line-height: 1; }
+    #tab-skills #panel-domain-title { font-size: 1.4rem; font-weight: 700; }
+    #tab-skills #panel-domain-desc { font-size: 0.8rem; color: var(--text-muted, #888); margin-top: 0.2rem; }
+    #tab-skills #panel-domain-overall { margin-left: auto; text-align: right; }
+    #tab-skills #panel-domain-overall .big-level { font-size: 2rem; font-weight: 800; color: var(--skill-active-color, #FF8811); line-height: 1; }
+    #tab-skills #panel-domain-overall .big-label { font-size: 0.65rem; color: var(--text-muted, #666); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    #tab-skills .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    #tab-skills .skill-card {
+      background: var(--bg-card, #141414); border: 1px solid var(--border, #222);
+      border-radius: 8px; padding: 1rem; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #tab-skills .skill-card:hover { border-color: var(--border-hover, #333); box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+    #tab-skills .skill-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.6rem; }
+    #tab-skills .skill-name { font-size: 0.95rem; font-weight: 600; }
+    #tab-skills .skill-tags { font-size: 0.65rem; color: var(--text-muted, #666); margin-top: 0.15rem; }
+    #tab-skills .skill-level-badge { font-size: 1.4rem; font-weight: 800; color: var(--skill-active-color, #FF8811); line-height: 1; min-width: 32px; text-align: right; }
+    #tab-skills .skill-level-label { font-size: 0.6rem; color: var(--text-muted, #555); text-align: right; text-transform: uppercase; }
+    #tab-skills .skill-desc { font-size: 0.75rem; color: var(--text-muted, #777); margin-bottom: 0.8rem; line-height: 1.4; }
+
+    #tab-skills .xp-bar-wrap { height: 6px; background: var(--bg-secondary, #1e1e1e); border-radius: 3px; margin-bottom: 0.8rem; position: relative; }
+    #tab-skills .xp-bar-fill { height: 100%; border-radius: 3px; background: var(--skill-active-color, #FF8811); transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
+    #tab-skills .xp-bar-text { position: absolute; right: 0; top: 8px; font-size: 0.6rem; color: var(--text-muted, #555); }
+
+    #tab-skills .level-steps { display: flex; gap: 3px; margin-bottom: 0.9rem; }
+    #tab-skills .level-pip { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-secondary, #1e1e1e); cursor: pointer; transition: background 0.2s; }
+    #tab-skills .level-pip.filled { background: var(--skill-active-color, #FF8811); }
+    #tab-skills .level-pip:hover { opacity: 0.8; }
+
+    #tab-skills .xp-actions { display: flex; gap: 0.4rem; align-items: center; }
+    #tab-skills .xp-btn {
+      background: var(--bg-secondary, #1a1a1a); border: 1px solid var(--border, #2a2a2a);
+      color: var(--text-muted, #aaa); border-radius: 4px; padding: 0.25rem 0.55rem;
+      font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+    }
+    #tab-skills .xp-btn:hover { background: var(--bg-hover, #222); border-color: var(--border-hover, #444); color: var(--text, #fff); }
+    #tab-skills .xp-btn.primary {
+      background: color-mix(in srgb, var(--skill-active-color, #FF8811) 15%, transparent);
+      border-color: color-mix(in srgb, var(--skill-active-color, #FF8811) 40%, transparent);
+      color: var(--skill-active-color, #FF8811);
+    }
+    #tab-skills .xp-btn.primary:hover { background: color-mix(in srgb, var(--skill-active-color, #FF8811) 25%, transparent); }
+    #tab-skills .xp-current { margin-left: auto; font-size: 0.7rem; color: var(--text-muted, #555); }
+
+    @keyframes skill-levelup-flash {
+      0%   { box-shadow: 0 0 0 0 var(--skill-active-color); }
+      50%  { box-shadow: 0 0 0 8px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    #tab-skills .skill-card.levelup { animation: skill-levelup-flash 0.6s ease-out; }
+
+    #skill-toast {
+      position: fixed; bottom: 60px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg-card, #1a1a1a); border: 1px solid var(--border, #333);
+      border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.82rem;
+      color: var(--text, #eee); opacity: 0; pointer-events: none;
+      transition: opacity 0.25s, transform 0.25s; z-index: 9999;
+    }
+    #skill-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    #tab-skills #empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 60%; color: var(--text-muted, #444); gap: 0.5rem;
+    }
+    #tab-skills #empty-state .big { font-size: 3rem; }
+    #tab-skills #empty-state p { font-size: 0.85rem; }
+
+    @media (max-width: 600px) {
+      #tab-skills #domain-sidebar { width: 160px; min-width: 140px; }
+      #tab-skills #skill-panel { padding: 1rem; }
+      #tab-skills .skill-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -245,7 +373,10 @@
         <span class="dot dot-personal"></span>Network Profile
       </button>
       <button class="prof-section-btn" onclick="showTab('interests')" data-tab="interests">
-        <span class="dot dot-personal"></span>Interests & Skills
+        <span class="dot dot-personal"></span>Interests
+      </button>
+      <button class="prof-section-btn" onclick="showTab('skills')" data-tab="skills">
+        <span class="dot dot-personal"></span>Skills
       </button>
 
       <div class="sidebar-divider"></div>
@@ -541,7 +672,7 @@
       <div class="prof-tab" id="tab-interests">
         <div class="section-header personal">
           <div>
-            <h2>🟢 Interests &amp; Skills</h2>
+            <h2>🟢 Interests</h2>
             <p>Shared with friends to help match you with others who have similar interests.</p>
           </div>
         </div>
@@ -569,6 +700,43 @@
             <textarea id="f-looking-for" rows="3" placeholder="e.g. learning Rust, finding a hiking buddy, collaborators for a music project..."></textarea>
           </div>
         </div>
+      </div>
+
+      <!-- ── Skills (Personal) ── -->
+      <div class="prof-tab" id="tab-skills">
+        <div class="section-header personal">
+          <div>
+            <h2>🟢 Skills</h2>
+            <p>Track what you're learning, see how far you've come, and discover new things to get better at.</p>
+          </div>
+        </div>
+        <div id="skills-app">
+          <nav id="domain-sidebar">
+            <h2>Domains</h2>
+            <div id="domain-list"></div>
+          </nav>
+          <main id="skill-panel">
+            <div id="empty-state">
+              <div class="big">🧠</div>
+              <p>Select a domain to view skills</p>
+            </div>
+            <div id="domain-content" style="display:none">
+              <div id="skill-panel-header">
+                <div id="panel-domain-icon"></div>
+                <div>
+                  <div id="panel-domain-title"></div>
+                  <div id="panel-domain-desc"></div>
+                </div>
+                <div id="panel-domain-overall">
+                  <div class="big-level" id="panel-avg-level">0</div>
+                  <div class="big-label">Domain Avg</div>
+                </div>
+              </div>
+              <div class="skill-grid" id="skill-grid"></div>
+            </div>
+          </main>
+        </div>
+        <div id="skill-toast"></div>
       </div>
 
       <!-- ── Social Links (Public) ── -->
@@ -933,6 +1101,422 @@
 
     // ── Init ──
     loadProfile();
+
+    // ═══════════════════════════════════════════════════════
+    // Skills tab — domains, XP, endorsements
+    // ═══════════════════════════════════════════════════════
+
+    var SKILL_DOMAINS = [
+      {
+        id: 'life', icon: '🧬', label: 'Life Sciences', color: '#2ecc71',
+        desc: 'Biology, health, medicine, ecology, and agriculture',
+        skills: [
+          { id: 'health',      name: 'Health & Wellness',  tags: 'anatomy, physiology, first aid',     desc: 'Understanding and maintaining the human body — nutrition basics, first aid, physical wellness habits.' },
+          { id: 'medicine',    name: 'Medicine',            tags: 'diagnosis, pharmacology, surgery',   desc: 'Clinical knowledge: identifying illness, medications, procedures, and patient care.' },
+          { id: 'biology',     name: 'Biology',             tags: 'cells, genetics, evolution',         desc: 'Living systems from cellular biology and genetics to evolution and ecological relationships.' },
+          { id: 'agriculture', name: 'Agriculture',         tags: 'farming, horticulture, soil',        desc: 'Growing food and managing land — soil science, crop cycles, livestock, and permaculture.' },
+          { id: 'ecology',     name: 'Ecology',             tags: 'ecosystems, conservation, climate',  desc: 'Interactions between organisms and environments, biodiversity, and conservation practice.' },
+        ]
+      },
+      {
+        id: 'science', icon: '🔭', label: 'Physical Science', color: '#3498db',
+        desc: 'Physics, chemistry, earth science, and astronomy',
+        skills: [
+          { id: 'physics',    name: 'Physics',        tags: 'mechanics, energy, electromagnetism',  desc: 'Laws governing motion, forces, energy, waves, and electromagnetism — from Newtonian to quantum.' },
+          { id: 'chemistry',  name: 'Chemistry',      tags: 'reactions, materials, thermodynamics', desc: 'Atomic structure, chemical reactions, bonding, and materials science.' },
+          { id: 'earth',      name: 'Earth Science',  tags: 'geology, meteorology, hydrology',      desc: 'Geologic processes, weather systems, oceans, and the dynamic Earth.' },
+          { id: 'astronomy',  name: 'Astronomy',      tags: 'cosmology, astrophysics, navigation',  desc: 'Stars, galaxies, celestial mechanics, cosmology, and observational astronomy.' },
+          { id: 'research',   name: 'Research',       tags: 'scientific method, data, peer review', desc: 'Designing experiments, gathering evidence, statistical analysis, and writing scientific findings.' },
+        ]
+      },
+      {
+        id: 'math', icon: '📐', label: 'Mathematics', color: '#9b59b6',
+        desc: 'From arithmetic to calculus and statistics',
+        skills: [
+          { id: 'arithmetic',  name: 'Arithmetic',    tags: 'numbers, fractions, percentages',     desc: 'Foundational number sense: operations, fractions, ratios, percentages, and mental math.' },
+          { id: 'algebra',     name: 'Algebra',       tags: 'equations, functions, variables',     desc: 'Symbolic reasoning — solving equations, graphing functions, and working with variables.' },
+          { id: 'geometry',    name: 'Geometry',      tags: 'shapes, proofs, trigonometry',        desc: 'Spatial reasoning, coordinate geometry, trigonometry, and geometric proofs.' },
+          { id: 'calculus',    name: 'Calculus',      tags: 'derivatives, integrals, limits',      desc: 'Rates of change and accumulation — differentiation, integration, and their applications.' },
+          { id: 'statistics',  name: 'Statistics',    tags: 'probability, data analysis, models',  desc: 'Probability theory, statistical inference, distributions, and data-driven decision making.' },
+        ]
+      },
+      {
+        id: 'technology', icon: '💻', label: 'Technology', color: '#1abc9c',
+        desc: 'Computing, programming, networks, and AI',
+        skills: [
+          { id: 'computing',     name: 'Computing',      tags: 'OS, hardware, security',           desc: 'How computers work — hardware, operating systems, file systems, and cybersecurity basics.' },
+          { id: 'programming',   name: 'Programming',    tags: 'code, algorithms, data structures', desc: 'Writing software: logic, algorithms, data structures, debugging, and multiple languages.' },
+          { id: 'electronics',   name: 'Electronics',    tags: 'circuits, sensors, microcontrollers', desc: 'Electronic circuits, component reading, microcontrollers (Arduino/Pi), and PCB basics.' },
+          { id: 'networks',      name: 'Networks',       tags: 'TCP/IP, protocols, infrastructure',  desc: 'How data moves: protocols, routing, wireless, and building/maintaining networks.' },
+          { id: 'ai',            name: 'AI & Data',      tags: 'machine learning, models, analytics', desc: 'Foundations of machine learning, neural networks, data pipelines, and AI ethics.' },
+        ]
+      },
+      {
+        id: 'engineering', icon: '⚙️', label: 'Engineering', color: '#e67e22',
+        desc: 'Designing and building systems that work',
+        skills: [
+          { id: 'mechanical',   name: 'Mechanical Eng.',  tags: 'machines, thermodynamics, CAD',    desc: 'Designing mechanical systems: statics, dynamics, thermodynamics, and CAD modeling.' },
+          { id: 'electrical',   name: 'Electrical Eng.',  tags: 'power, control, signals',          desc: 'Power systems, control engineering, signal processing, and electrical design.' },
+          { id: 'civil',        name: 'Civil Eng.',        tags: 'structures, infrastructure, GIS',  desc: 'Bridges, buildings, roads, water systems — load analysis and structural design.' },
+          { id: 'chemical',     name: 'Chemical Eng.',     tags: 'processes, materials, reactions',  desc: 'Industrial chemical processes, reactor design, separation techniques, and safety.' },
+          { id: 'systems',      name: 'Systems Eng.',      tags: 'design, integration, lifecycle',   desc: 'Holistic design thinking — requirements, architecture, integration, and lifecycle management.' },
+        ]
+      },
+      {
+        id: 'trades', icon: '🔨', label: 'Trades & Making', color: '#e74c3c',
+        desc: 'Hands-on crafts, construction, and fabrication',
+        skills: [
+          { id: 'construction', name: 'Construction',    tags: 'framing, masonry, roofing',           desc: 'Building structures from framing and foundations to masonry, roofing, and finishing.' },
+          { id: 'plumbing',     name: 'Plumbing',        tags: 'pipes, fixtures, water systems',      desc: 'Installing and repairing water supply, drainage, and fixture systems.' },
+          { id: 'electrical_t', name: 'Electrical Trade', tags: 'wiring, panels, codes',             desc: 'Residential and commercial wiring, panel work, conduit, and NEC code compliance.' },
+          { id: 'metalwork',    name: 'Metalworking',    tags: 'welding, machining, fabrication',     desc: 'Shaping metal via welding, cutting, turning, milling, and casting.' },
+          { id: 'woodwork',     name: 'Woodworking',     tags: 'joinery, furniture, finishing',       desc: 'Hand tools and power tools for furniture making, joinery, and wood finishing.' },
+          { id: 'textiles',     name: 'Textiles',        tags: 'sewing, knitting, weaving, repair',   desc: 'Fabric arts: sewing garments, knitting, weaving, embroidery, and clothing repair.' },
+        ]
+      },
+      {
+        id: 'arts', icon: '🎨', label: 'Arts & Expression', color: '#e91e8c',
+        desc: 'Visual arts, music, writing, design, and performance',
+        skills: [
+          { id: 'visual_art',  name: 'Visual Art',    tags: 'drawing, painting, sculpture',         desc: 'Drawing, painting, printmaking, and sculpture — form, color, composition, and technique.' },
+          { id: 'music',       name: 'Music',         tags: 'theory, instruments, production',      desc: 'Music theory, playing instruments, ear training, composition, and audio production.' },
+          { id: 'writing',     name: 'Writing',       tags: 'prose, poetry, journalism, storytelling', desc: 'Crafting clear, compelling text — fiction, non-fiction, poetry, and technical writing.' },
+          { id: 'design',      name: 'Design',        tags: 'UX, graphic, typography, branding',    desc: 'Visual communication: graphic design, UI/UX, typography, and branding principles.' },
+          { id: 'photo_video', name: 'Photo & Video', tags: 'composition, lighting, editing',       desc: 'Photography composition, camera settings, lighting, and video production/editing.' },
+          { id: 'performance', name: 'Performance',   tags: 'acting, dance, public speaking',       desc: 'Expressing through the body and voice: acting, dance, comedy, and public speaking.' },
+        ]
+      },
+      {
+        id: 'mind', icon: '🧠', label: 'Mind & Communication', color: '#ff9800',
+        desc: 'Thinking, communicating, leading, and understanding',
+        skills: [
+          { id: 'critical',    name: 'Critical Thinking', tags: 'logic, reasoning, argumentation',   desc: 'Evaluating evidence, identifying fallacies, building sound arguments, and problem solving.' },
+          { id: 'languages',   name: 'Languages',          tags: 'linguistics, foreign language',     desc: 'Learning additional languages, linguistics, translation, and intercultural communication.' },
+          { id: 'teaching',    name: 'Teaching',            tags: 'pedagogy, curriculum, coaching',   desc: 'Designing learning experiences, explaining concepts clearly, and mentoring others.' },
+          { id: 'leadership',  name: 'Leadership',          tags: 'management, strategy, teams',      desc: 'Guiding groups toward goals: decision-making, delegation, conflict resolution, and strategy.' },
+          { id: 'economics',   name: 'Economics',           tags: 'markets, finance, policy',         desc: 'How resources are allocated: micro/macroeconomics, personal finance, and economic policy.' },
+          { id: 'philosophy',  name: 'Philosophy',          tags: 'ethics, epistemology, logic',      desc: 'Big questions about existence, knowledge, values, and ethics — both Western and non-Western.' },
+        ]
+      },
+      {
+        id: 'body', icon: '💪', label: 'Body & Fitness', color: '#4caf50',
+        desc: 'Physical capability, nutrition, and survival',
+        skills: [
+          { id: 'strength',    name: 'Strength',      tags: 'weightlifting, calisthenics, power',    desc: 'Building muscular strength and power through resistance training and progressive overload.' },
+          { id: 'endurance',   name: 'Endurance',     tags: 'cardio, running, cycling, stamina',     desc: 'Cardiovascular fitness — running, cycling, swimming, and sustained effort over time.' },
+          { id: 'agility',     name: 'Agility',       tags: 'flexibility, balance, coordination',    desc: 'Mobility, flexibility, balance, reaction speed, and body coordination.' },
+          { id: 'nutrition',   name: 'Nutrition',     tags: 'macros, diet, cooking',                 desc: 'Food science, macronutrients, meal planning, cooking skills, and dietary strategy.' },
+          { id: 'survival',    name: 'Survival',      tags: 'wilderness, navigation, preparedness',  desc: 'Wilderness skills, navigation, shelter, fire-making, first aid, and emergency preparedness.' },
+        ]
+      },
+    ];
+
+    var SKILL_XP_PER_LEVEL = [100, 150, 225, 338, 507, 760, 1140, 1710, 2565, 3848];
+    var SKILL_MAX_LEVEL = 10;
+    var SKILL_STORAGE_KEY = 'hos_skills_v1';
+
+    var skillData = {};
+    var skillEndorsements = {};
+    var skill_activeDomain = null;
+
+    function skill_loadData() {
+      try {
+        var raw = localStorage.getItem(SKILL_STORAGE_KEY);
+        if (raw) skillData = JSON.parse(raw);
+      } catch (e) { skillData = {}; }
+    }
+
+    function skill_saveData() {
+      localStorage.setItem(SKILL_STORAGE_KEY, JSON.stringify(skillData));
+    }
+
+    function skill_get(id) {
+      if (!skillData[id]) skillData[id] = { level: 0, xp: 0 };
+      return skillData[id];
+    }
+
+    function skill_xpForLevel(level) {
+      if (level >= SKILL_MAX_LEVEL) return Infinity;
+      return SKILL_XP_PER_LEVEL[level] || 100;
+    }
+
+    function skill_addXp(skillId, amount, cardEl) {
+      var s = skill_get(skillId);
+      if (s.level >= SKILL_MAX_LEVEL) { skill_showToast('Max level reached!'); return; }
+      s.xp += amount;
+      var leveled = false;
+      while (s.level < SKILL_MAX_LEVEL && s.xp >= skill_xpForLevel(s.level)) {
+        s.xp -= skill_xpForLevel(s.level);
+        s.level++;
+        leveled = true;
+      }
+      skill_saveData();
+      skill_refreshCard(skillId, cardEl);
+      if (leveled) {
+        cardEl.classList.remove('levelup');
+        void cardEl.offsetWidth;
+        cardEl.classList.add('levelup');
+        skill_showToast('Level up! ' + skill_getById(skillId).name + ' → Lv ' + s.level);
+      }
+      skill_renderSidebar();
+    }
+
+    function skill_setLevel(skillId, level, cardEl) {
+      var s = skill_get(skillId);
+      s.level = Math.max(0, Math.min(SKILL_MAX_LEVEL, level));
+      s.xp = 0;
+      skill_saveData();
+      skill_refreshCard(skillId, cardEl);
+      skill_renderSidebar();
+    }
+
+    function skill_getById(id) {
+      for (var i = 0; i < SKILL_DOMAINS.length; i++) {
+        for (var j = 0; j < SKILL_DOMAINS[i].skills.length; j++) {
+          if (SKILL_DOMAINS[i].skills[j].id === id) return SKILL_DOMAINS[i].skills[j];
+        }
+      }
+      return null;
+    }
+
+    function skill_domainAvg(domain) {
+      var total = 0;
+      for (var i = 0; i < domain.skills.length; i++) total += skill_get(domain.skills[i].id).level;
+      return total / domain.skills.length;
+    }
+
+    function skill_renderSidebar() {
+      var list = document.getElementById('domain-list');
+      if (!list) return;
+      list.innerHTML = SKILL_DOMAINS.map(function(d) {
+        var avg = skill_domainAvg(d);
+        var pct = (avg / SKILL_MAX_LEVEL * 100).toFixed(1);
+        var isActive = skill_activeDomain && skill_activeDomain.id === d.id;
+        return '<div class="domain-item' + (isActive ? ' active' : '') + '" style="--domain-color:' + d.color + '" data-id="' + d.id + '" onclick="skill_selectDomain(\'' + d.id + '\')">' +
+          '<div class="domain-dot"></div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div class="domain-name">' + d.label + '</div>' +
+            '<div class="domain-bar-wrap"><div class="domain-bar-fill" style="width:' + pct + '%"></div></div>' +
+          '</div>' +
+          '<div class="domain-avg">' + avg.toFixed(1) + '</div>' +
+        '</div>';
+      }).join('');
+      if (skill_activeDomain) {
+        var avgEl = document.getElementById('panel-avg-level');
+        if (avgEl) avgEl.textContent = skill_domainAvg(skill_activeDomain).toFixed(1);
+      }
+    }
+
+    function skill_selectDomain(id) {
+      skill_activeDomain = SKILL_DOMAINS.find(function(d) { return d.id === id; });
+      var emptyEl = document.getElementById('empty-state');
+      var contentEl = document.getElementById('domain-content');
+      if (emptyEl) emptyEl.style.display = 'none';
+      if (contentEl) contentEl.style.display = 'block';
+      document.getElementById('tab-skills').style.setProperty('--skill-active-color', skill_activeDomain.color);
+
+      document.getElementById('panel-domain-icon').textContent = skill_activeDomain.icon;
+      document.getElementById('panel-domain-title').textContent = skill_activeDomain.label;
+      document.getElementById('panel-domain-desc').textContent = skill_activeDomain.desc;
+
+      var avg = skill_domainAvg(skill_activeDomain);
+      document.getElementById('panel-avg-level').textContent = avg.toFixed(1);
+
+      skill_renderGrid(skill_activeDomain);
+      skill_renderSidebar();
+      localStorage.setItem('hos_skills_last_domain', id);
+    }
+
+    function skill_renderGrid(domain) {
+      var grid = document.getElementById('skill-grid');
+      if (!grid) return;
+      grid.innerHTML = domain.skills.map(function(sk) { return skill_buildCard(sk, domain.color); }).join('');
+    }
+
+    function skill_buildCard(skill, color) {
+      var s = skill_get(skill.id);
+      var needed = skill_xpForLevel(s.level);
+      var xpPct = s.level >= SKILL_MAX_LEVEL ? 100 : Math.min(100, (s.xp / needed * 100));
+      var pips = '';
+      for (var i = 0; i < SKILL_MAX_LEVEL; i++) {
+        pips += '<div class="level-pip' + (i < s.level ? ' filled' : '') + '" onclick="skill_pipClick(\'' + skill.id + '\', ' + (i+1) + ', this)"></div>';
+      }
+
+      var endorsement = skillEndorsements[skill.id.toLowerCase()];
+      var endorseBadge = endorsement && endorsement.count > 0
+        ? '<span style="font-size:0.7rem;color:#ffd700;margin-top:0.2rem;display:block;" title="Endorsed by ' + (endorsement.last_endorser || 'a peer') + '">🏅 ' + endorsement.count + '</span>'
+        : '';
+
+      return '<div class="skill-card" id="card-' + skill.id + '">' +
+        '<div class="skill-card-header">' +
+          '<div>' +
+            '<div class="skill-name">' + skill.name + '</div>' +
+            '<div class="skill-tags">' + skill.tags + '</div>' +
+          '</div>' +
+          '<div style="text-align:center">' +
+            '<div class="skill-level-badge">' + s.level + '</div>' +
+            '<div class="skill-level-label">Level</div>' +
+            endorseBadge +
+          '</div>' +
+        '</div>' +
+        '<div class="skill-desc">' + skill.desc + '</div>' +
+        '<div class="level-steps">' + pips + '</div>' +
+        '<div class="xp-bar-wrap">' +
+          '<div class="xp-bar-fill" style="width:' + xpPct + '%"></div>' +
+          '<div class="xp-bar-text">' + (s.level >= SKILL_MAX_LEVEL ? 'MAX' : s.xp + '/' + needed + ' XP') + '</div>' +
+        '</div>' +
+        '<div class="xp-actions">' +
+          '<button class="xp-btn" onclick="skill_addXp(\'' + skill.id + '\', 10, document.getElementById(\'card-' + skill.id + '\'))">+10 XP</button>' +
+          '<button class="xp-btn primary" onclick="skill_addXp(\'' + skill.id + '\', 50, document.getElementById(\'card-' + skill.id + '\'))">+50 XP</button>' +
+          '<button class="xp-btn" onclick="skill_addXp(\'' + skill.id + '\', 100, document.getElementById(\'card-' + skill.id + '\'))">+100 XP</button>' +
+          '<span class="xp-current">' + (s.level >= SKILL_MAX_LEVEL ? '✓ Mastered' : 'Total XP: ' + skill_totalXp(skill.id)) + '</span>' +
+          '<button class="xp-btn" style="margin-left:auto;font-size:0.65rem" title="Find community members with this skill" onclick="skill_findUsers(\'' + skill.id + '\', \'' + skill.name.replace(/'/g, "\\'") + '\')">👥 Find</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    function skill_pipClick(skillId, level, pipEl) {
+      var cardEl = document.getElementById('card-' + skillId);
+      var s = skill_get(skillId);
+      var newLevel = s.level === level ? level - 1 : level;
+      skill_setLevel(skillId, newLevel, cardEl);
+    }
+
+    function skill_refreshCard(skillId, cardEl) {
+      var skill = skill_getById(skillId);
+      if (!skill) return;
+      var color = skill_activeDomain ? skill_activeDomain.color : '#FF8811';
+      cardEl.outerHTML = skill_buildCard(skill, color);
+    }
+
+    function skill_totalXp(skillId) {
+      var s = skill_get(skillId);
+      var total = s.xp;
+      for (var i = 0; i < s.level; i++) total += SKILL_XP_PER_LEVEL[i] || 0;
+      return total;
+    }
+
+    var skillToastTimer = null;
+    function skill_showToast(msg) {
+      var t = document.getElementById('skill-toast');
+      if (!t) return;
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(skillToastTimer);
+      skillToastTimer = setTimeout(function() { t.classList.remove('show'); }, 2500);
+    }
+
+    /** Show a modal listing community members who have this skill */
+    function skill_findUsers(skillId, skillName) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+      overlay.innerHTML =
+        '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:#e0e0e0;">' +
+          '<h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:0.25rem">👥 ' + skillName + '</h2>' +
+          '<p style="font-size:0.73rem;color:#666;margin-bottom:1rem">Community members with this skill (from relay database):</p>' +
+          '<div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>' +
+          '<div style="display:flex;justify-content:flex-end;margin-top:1rem;">' +
+            '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:0.4rem 1rem;font-size:0.82rem;cursor:pointer;">Close</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+      var resultsEl = document.getElementById('skill-find-results');
+      fetch('/api/skills/search?skill=' + encodeURIComponent(skillId) + '&min_level=1&limit=20')
+        .then(function(res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+        .then(function(users) {
+          if (!users || users.length === 0) {
+            resultsEl.innerHTML = '<span style="color:#555">No community members found with this skill yet. Be the first to level it up!</span>';
+            return;
+          }
+          var lvColors = ['#555','#888','#aaa','#6ab0f5','#4ec87a','#f0c040','#f0a500','#e57c00','#e53935','#c62828','#9c27b0'];
+          resultsEl.innerHTML = users.map(function(u) {
+            var lv = u.level || 0;
+            var c = lvColors[Math.min(lv, lvColors.length-1)];
+            return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid #1e1e1e;">' +
+              '<div style="width:28px;height:28px;border-radius:50%;background:#222;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:' + c + '">' + lv + '</div>' +
+              '<span style="flex:1;font-weight:600">' + (u.display_name || u.public_key.slice(0,12) + '…') + '</span>' +
+              '<span style="font-size:0.68rem;color:#555">' + (u.reality_xp|0) + ' XP</span>' +
+            '</div>';
+          }).join('');
+        })
+        .catch(function(e) {
+          resultsEl.innerHTML = '<span style="color:#e55">Error: ' + e.message + '</span>';
+        });
+    }
+
+    /** Hook called by app.js when relay sends back endorsement counts */
+    window.onSkillEndorsementsReceived = function(data) {
+      if (!data || !Array.isArray(data.endorsements)) return;
+      skillEndorsements = {};
+      for (var i = 0; i < data.endorsements.length; i++) {
+        var e = data.endorsements[i];
+        skillEndorsements[e.skill_id.toLowerCase()] = { count: e.count, last_endorser: e.last_endorser };
+      }
+      if (skill_activeDomain) skill_renderGrid(skill_activeDomain);
+    };
+
+    /** Request endorsement counts from relay if connected */
+    function skill_loadEndorsements() {
+      if (typeof requestSkillEndorsements === 'function') {
+        requestSkillEndorsements();
+      }
+    }
+
+    // ── Relay sync — push skill levels to server when user is signed in ──
+    (function initSkillRelaySync() {
+      var raw = localStorage.getItem('humanity_key_backup');
+      if (!raw) return;
+      var pub, name;
+      try { var b = JSON.parse(raw); pub = b.publicKeyHex; name = localStorage.getItem('humanity_name') || 'user'; }
+      catch(e) { return; }
+      if (!pub) return;
+
+      var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      var ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+      ws.addEventListener('open', function() {
+        ws.send(JSON.stringify({ type: 'identify', public_key: pub, display_name: name }));
+      });
+
+      ws.addEventListener('message', function(e) {
+        try {
+          var m = JSON.parse(e.data);
+          if (m.type === 'peer_list') {
+            var data = skillData || {};
+            var entries = Object.entries(data);
+            for (var i = 0; i < entries.length; i++) {
+              var sid = entries[i][0], sk = entries[i][1];
+              if (!sk || !sk.level) continue;
+              ws.send(JSON.stringify({
+                type: 'skill_update',
+                skill_id: sid,
+                reality_xp: sk.xp || 0,
+                fantasy_xp: 0,
+                level: sk.level,
+              }));
+            }
+            setTimeout(function() { ws.close(); }, 500);
+          }
+        } catch(err) {}
+      });
+
+      ws.addEventListener('error', function() { ws.close(); });
+    })();
+
+    // ── Skills init ──
+    skill_loadData();
+    skill_renderSidebar();
+
+    // Auto-select last used domain
+    var lastSkillDomain = localStorage.getItem('hos_skills_last_domain');
+    if (lastSkillDomain && SKILL_DOMAINS.find(function(d) { return d.id === lastSkillDomain; })) {
+      skill_selectDomain(lastSkillDomain);
+    }
+
+    // Try loading endorsements after connection delay
+    setTimeout(skill_loadEndorsements, 3000);
   </script>
 </body>
 </html>

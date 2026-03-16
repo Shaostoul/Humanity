@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Inventory — HumanityOS</title>
+  <title>Gear — HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
-
 
     body {
       min-height: 100vh;
@@ -14,11 +13,36 @@
       flex-direction: column;
     }
 
+    /* ── Top-level tab bar ── */
+    #gear-tabs {
+      display: flex;
+      gap: 0;
+      background: #0d0d0d;
+      border-bottom: 1px solid #222;
+      flex-shrink: 0;
+    }
+    .gear-tab {
+      padding: 0.55rem 1.4rem;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #777;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    .gear-tab:hover { color: #bbb; }
+    .gear-tab.active { color: #fff; border-bottom-color: #4d9; }
+
+    /* ═══════════════════════════════════════════
+       INVENTORY TAB STYLES
+       ═══════════════════════════════════════════ */
+
     #inv-app {
       display: flex;
       flex: 1;
       overflow: hidden;
-      height: calc(100vh - 42px);
+      height: calc(100vh - 42px - 38px);
     }
 
     /* ── Left Sidebar ── */
@@ -244,8 +268,8 @@
     }
     .row-act-btn:hover { background: #252525; color: #ccc; }
 
-    /* Empty state */
-    .empty-state {
+    /* Inventory empty state */
+    .inv-empty-state {
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -254,9 +278,9 @@
       color: #444;
       gap: 0.5rem;
     }
-    .empty-state .big { font-size: 3rem; }
-    .empty-state p { font-size: 0.85rem; }
-    .empty-state button {
+    .inv-empty-state .big { font-size: 3rem; }
+    .inv-empty-state p { font-size: 0.85rem; }
+    .inv-empty-state button {
       margin-top: 0.5rem;
       background: #1a1a1a;
       border: 1px solid #333;
@@ -267,9 +291,9 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .empty-state button:hover { background: #222; color: #fff; }
+    .inv-empty-state button:hover { background: #222; color: #fff; }
 
-    /* ── Modal ── */
+    /* ── Inventory Modal ── */
     #item-modal-backdrop {
       display: none;
       position: fixed; inset: 0;
@@ -331,6 +355,230 @@
     .modal-btn.danger { background: #2a1010; border-color: #5a2a2a; color: #e74c3c; }
     .modal-btn.danger:hover { background: #381010; }
 
+    /* ═══════════════════════════════════════════
+       EQUIPMENT TAB STYLES
+       ═══════════════════════════════════════════ */
+
+    #equip-app {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 42px - 38px);
+      overflow: hidden;
+    }
+
+    /* ── Sidebar: categories ── */
+    #equip-sidebar {
+      width: 200px;
+      min-width: 170px;
+      background: #111;
+      border-right: 1px solid #222;
+      overflow-y: auto;
+      padding: 0.5rem 0.4rem;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .equip-group-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.5rem 0.5rem 0.3rem;
+      margin-top: 0.4rem;
+    }
+    .equip-cat {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      color: #aaa;
+      transition: background 0.1s, color 0.1s;
+      border: 1px solid transparent;
+      margin-bottom: 0.1rem;
+    }
+    .equip-cat:hover { background: #1a1a1a; color: #eee; }
+    .equip-cat.active { background: #141414; color: #fff; border-color: #2a6; }
+    .equip-cat .eq-count {
+      margin-left: auto;
+      font-size: 0.7rem;
+      background: #1e1e1e;
+      color: #666;
+      padding: 1px 5px;
+      border-radius: 8px;
+    }
+
+    /* ── Equipment main content ── */
+    #equip-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #equip-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid #1a1a1a;
+      background: #0f0f0f;
+      flex-shrink: 0;
+    }
+    #equip-header h1 { font-size: 1rem; font-weight: 700; color: #fff; flex: 1; }
+    #equip-search {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #e0e0e0;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.84rem;
+      width: 170px;
+      outline: none;
+    }
+    #equip-search:focus { border-color: #2a6; }
+    #add-equip-btn {
+      background: #1a4a2a;
+      border: 1px solid #2a6;
+      color: #4d9;
+      padding: 0.28rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+      transition: background 0.12s;
+    }
+    #add-equip-btn:hover { background: #1f5a32; }
+
+    #equip-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem;
+    }
+
+    /* Loadout grid (for worn/equipped) */
+    .loadout-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.6rem;
+    }
+    .loadout-slot {
+      background: #131313;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 0.7rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      min-height: 90px;
+      cursor: pointer;
+      transition: border-color 0.12s;
+      position: relative;
+    }
+    .loadout-slot:hover { border-color: #333; }
+    .loadout-slot .slot-icon { font-size: 1.6rem; }
+    .loadout-slot .slot-label {
+      font-size: 0.7rem;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .loadout-slot .slot-item {
+      font-size: 0.8rem;
+      color: #ddd;
+      font-weight: 600;
+      text-align: center;
+    }
+    .loadout-slot.empty { border-style: dashed; }
+    .loadout-slot.empty .slot-item { color: #444; font-weight: 400; font-style: italic; }
+
+    /* Equipment list view */
+    .equip-item-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .equip-item {
+      background: #131313;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      cursor: pointer;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .equip-item:hover { border-color: #333; background: #161616; }
+    .equip-item .item-icon { font-size: 1.3rem; width: 28px; text-align: center; flex-shrink: 0; }
+    .equip-item .item-body { flex: 1; min-width: 0; }
+    .equip-item .item-name { font-size: 0.88rem; font-weight: 600; color: #eee; }
+    .equip-item .item-sub  { font-size: 0.76rem; color: #666; margin-top: 2px; }
+    .equip-item .item-cond {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .cond-excellent { color: #4d9; background: rgba(68,204,136,0.1); border: 1px solid rgba(68,204,136,0.25); }
+    .cond-good      { color: #4cf; background: rgba(68,204,255,0.1); border: 1px solid rgba(68,204,255,0.25); }
+    .cond-fair      { color: #fa4; background: rgba(255,170,68,0.1); border: 1px solid rgba(255,170,68,0.25); }
+    .cond-poor      { color: #f64; background: rgba(255,102,68,0.1); border: 1px solid rgba(255,102,68,0.25); }
+    .equip-item-delete {
+      background: none; border: none; color: #333; cursor: pointer;
+      font-size: 0.85rem; padding: 0.1rem; border-radius: 3px;
+      transition: color 0.12s;
+    }
+    .equip-item-delete:hover { color: #e44; }
+
+    /* Equipment empty state */
+    .equip-empty-state {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 3rem; gap: 0.75rem;
+      color: #444; text-align: center;
+    }
+    .equip-empty-state .ei { font-size: 2.5rem; }
+
+    /* Section header */
+    .list-section-header {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 0.5rem 0 0.35rem;
+      margin-bottom: 0.25rem;
+    }
+
+    /* ── Equipment Modal ── */
+    .equip-modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72); z-index: 8000;
+      align-items: center; justify-content: center;
+    }
+    .equip-modal-backdrop.open { display: flex; }
+    .equip-modal {
+      background: #141414; border: 1px solid #2a2a2a;
+      border-radius: 12px; padding: 1.4rem;
+      width: min(440px, 95vw); display: flex; flex-direction: column; gap: 0.85rem;
+    }
+    .equip-modal h2 { font-size: 1.05rem; color: #fff; }
+    .equip-modal label { font-size: 0.79rem; color: #888; display: block; margin-bottom: 0.2rem; }
+    .equip-modal input, .equip-modal select, .equip-modal textarea {
+      width: 100%; background: #1a1a1a; border: 1px solid #333;
+      border-radius: 6px; color: #ddd; padding: 0.4rem 0.65rem;
+      font-size: 0.86rem; font-family: inherit; outline: none;
+    }
+    .equip-modal input:focus, .equip-modal select:focus, .equip-modal textarea:focus { border-color: #2a6; }
+    .equip-modal textarea { resize: vertical; min-height: 60px; }
+    .equip-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+    .equip-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; padding-top: 0.25rem; }
+    .equip-btn-cancel { background: transparent; border: 1px solid #333; color: #888; padding: 0.38rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.86rem; }
+    .equip-btn-save   { background: #1a4a2a; border: 1px solid #2a6; color: #4d9; padding: 0.38rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.86rem; font-weight: 600; }
+    .equip-btn-cancel:hover { border-color: #555; color: #ccc; }
+    .equip-btn-save:hover   { background: #1f5a32; }
+
+    /* ── Shared ── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
@@ -342,7 +590,18 @@
   </style>
 </head>
 <body>
-<script src="/shared/shell.js" data-active="inventory"></script>
+<script src="/shared/shell.js" data-active="gear"></script>
+
+<!-- ── Top-level tab bar ── -->
+<div id="gear-tabs">
+  <div class="gear-tab active" data-tab="inventory" onclick="switchGearTab('inventory')">Inventory</div>
+  <div class="gear-tab" data-tab="equipment" onclick="switchGearTab('equipment')">Equipment</div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     INVENTORY TAB
+     ═══════════════════════════════════════════ -->
+<div id="inventory-content">
 <p class="page-hint">Everything you own, in one place. Add items, sort them into categories, and always know what you have and where it is.</p>
 <div id="inv-app">
   <!-- Sidebar -->
@@ -439,11 +698,50 @@
     <div id="inv-content"></div>
   </div>
 </div>
+</div>
 
-<!-- Add / Edit Modal -->
+<!-- ═══════════════════════════════════════════
+     EQUIPMENT TAB
+     ═══════════════════════════════════════════ -->
+<div id="equipment-content" style="display:none">
+<p class="page-hint">Your equipment and loadout. Keep track of the tools, gear, and items you use every day. Organize them into sets so you're always ready.</p>
+<div id="equip-app">
+
+  <!-- Sidebar -->
+  <nav id="equip-sidebar">
+    <div class="equip-group-label">Worn / Active</div>
+    <div class="equip-cat active" data-cat="loadout" onclick="equip_setCategory('loadout')">🧍 Loadout <span class="eq-count" id="cnt-loadout">0</span></div>
+
+    <div class="equip-group-label">Carried</div>
+    <div class="equip-cat" data-cat="daily"     onclick="equip_setCategory('daily')">🎒 Daily Carry <span class="eq-count" id="cnt-daily">0</span></div>
+    <div class="equip-cat" data-cat="tools"   onclick="equip_setCategory('tools')">🔧 Tools <span class="eq-count" id="cnt-tools">0</span></div>
+    <div class="equip-cat" data-cat="tech"    onclick="equip_setCategory('tech')">💻 Tech / Devices <span class="eq-count" id="cnt-tech">0</span></div>
+
+    <div class="equip-group-label">Workshop</div>
+    <div class="equip-cat" data-cat="power"   onclick="equip_setCategory('power')">⚡ Power Tools <span class="eq-count" id="cnt-power">0</span></div>
+    <div class="equip-cat" data-cat="hand"    onclick="equip_setCategory('hand')">🪛 Hand Tools <span class="eq-count" id="cnt-hand">0</span></div>
+    <div class="equip-cat" data-cat="safety"  onclick="equip_setCategory('safety')">🦺 Safety Gear <span class="eq-count" id="cnt-safety">0</span></div>
+
+    <div class="equip-group-label">Vehicles</div>
+    <div class="equip-cat" data-cat="vehicles" onclick="equip_setCategory('vehicles')">🚗 Vehicles <span class="eq-count" id="cnt-vehicles">0</span></div>
+  </nav>
+
+  <!-- Main panel -->
+  <div id="equip-main">
+    <div id="equip-header">
+      <h1 id="equip-heading">Loadout</h1>
+      <input id="equip-search" type="text" placeholder="Search equipment…" oninput="equip_renderList()">
+      <button id="add-equip-btn" onclick="equip_openModal()">+ Add Item</button>
+    </div>
+    <div id="equip-list"></div>
+  </div>
+</div>
+</div>
+
+<!-- ── Inventory Add / Edit Modal ── -->
 <div id="item-modal-backdrop" onclick="closeModalOnBackdrop(event)">
   <div id="item-modal">
-    <h2 id="modal-title">Add Item</h2>
+    <h2 id="inv-modal-title">Add Item</h2>
     <div class="modal-row">
       <div class="modal-field">
         <label>Name *</label>
@@ -492,23 +790,101 @@
   </div>
 </div>
 
+<!-- ── Equipment Modal ── -->
+<div class="equip-modal-backdrop" id="equip-modal">
+  <div class="equip-modal">
+    <h2 id="equip-modal-title">Add Equipment</h2>
+    <div>
+      <label>Name *</label>
+      <input id="eq-name" type="text" placeholder="Item name">
+    </div>
+    <div class="equip-modal-row">
+      <div>
+        <label>Category</label>
+        <select id="eq-cat">
+          <option value="loadout">Loadout</option>
+          <option value="daily">Daily Carry</option>
+          <option value="tools">Tools</option>
+          <option value="tech">Tech / Devices</option>
+          <option value="power">Power Tools</option>
+          <option value="hand">Hand Tools</option>
+          <option value="safety">Safety Gear</option>
+          <option value="vehicles">Vehicles</option>
+        </select>
+      </div>
+      <div>
+        <label>Condition</label>
+        <select id="eq-cond">
+          <option value="excellent">Excellent</option>
+          <option value="good" selected>Good</option>
+          <option value="fair">Fair</option>
+          <option value="poor">Poor / Needs Repair</option>
+        </select>
+      </div>
+    </div>
+    <div class="equip-modal-row">
+      <div>
+        <label>Icon / Emoji</label>
+        <input id="eq-icon" type="text" placeholder="e.g. 🔧" maxlength="4">
+      </div>
+      <div>
+        <label>Slot (for Loadout)</label>
+        <select id="eq-slot">
+          <option value="">— none —</option>
+          <option value="head">Head</option>
+          <option value="neck">Neck</option>
+          <option value="chest">Chest</option>
+          <option value="back">Back</option>
+          <option value="hands">Hands</option>
+          <option value="waist">Waist</option>
+          <option value="legs">Legs</option>
+          <option value="feet">Feet</option>
+          <option value="ring-l">Ring (L)</option>
+          <option value="ring-r">Ring (R)</option>
+          <option value="main-hand">Main Hand</option>
+          <option value="off-hand">Off Hand</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label>Notes</label>
+      <textarea id="eq-notes" placeholder="Brand, model, serial, purchase info…"></textarea>
+    </div>
+    <div class="equip-modal-actions">
+      <button class="equip-btn-cancel" onclick="equip_closeModal()">Cancel</button>
+      <button class="equip-btn-save" onclick="equip_saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
-// ─────────────────────────────────────────────
-// Storage
-// ─────────────────────────────────────────────
-const STORAGE_KEY = 'hos_inventory_v1';
-let items = []; // [{id, name, qty, category, icon, location, notes}]
-let editingId = null;
+// ═════════════════════════════════════════════
+// TAB SWITCHING
+// ═════════════════════════════════════════════
+let activeGearTab = 'inventory';
+
+function switchGearTab(tab) {
+  activeGearTab = tab;
+  document.querySelectorAll('.gear-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tab));
+  document.getElementById('inventory-content').style.display = tab === 'inventory' ? '' : 'none';
+  document.getElementById('equipment-content').style.display = tab === 'equipment' ? '' : 'none';
+  localStorage.setItem('hos_gear_active_tab', tab);
+}
+
+// ═════════════════════════════════════════════
+// INVENTORY
+// ═════════════════════════════════════════════
+const INV_STORAGE_KEY = 'hos_inventory_v1';
+let invItems = [];
+let invEditingId = null;
 
 function load() {
-  try { items = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch (e) { items = []; }
+  try { invItems = JSON.parse(localStorage.getItem(INV_STORAGE_KEY)) || []; } catch (e) { invItems = []; }
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+function save() { localStorage.setItem(INV_STORAGE_KEY, JSON.stringify(invItems)); }
 function nextId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 
-// ─────────────────────────────────────────────
-// State
-// ─────────────────────────────────────────────
+// ── State ──
 let currentFilter = 'player:worn';
 let currentView = 'grid';
 
@@ -516,17 +892,15 @@ function getFilteredItems() {
   const q = document.getElementById('inv-search').value.toLowerCase().trim();
   let result;
   if (currentFilter === 'fleet:all') {
-    result = items.filter(i => i.category.startsWith('fleet:'));
+    result = invItems.filter(i => i.category.startsWith('fleet:'));
   } else {
-    result = items.filter(i => i.category === currentFilter);
+    result = invItems.filter(i => i.category === currentFilter);
   }
   if (q) result = result.filter(i => i.name.toLowerCase().includes(q) || (i.location||'').toLowerCase().includes(q) || (i.notes||'').toLowerCase().includes(q));
   return result;
 }
 
-// ─────────────────────────────────────────────
-// Sidebar
-// ─────────────────────────────────────────────
+// ── Sidebar ──
 function toggleSection(id) {
   document.getElementById('sec-' + id).classList.toggle('collapsed');
 }
@@ -561,17 +935,15 @@ function updateCounts() {
     const el = document.getElementById('cnt-' + cat);
     if (!el) return;
     if (cat === 'fleet:all') {
-      el.textContent = items.filter(i => i.category.startsWith('fleet:')).length || '';
+      el.textContent = invItems.filter(i => i.category.startsWith('fleet:')).length || '';
     } else {
-      const n = items.filter(i => i.category === cat).length;
+      const n = invItems.filter(i => i.category === cat).length;
       el.textContent = n || '';
     }
   });
 }
 
-// ─────────────────────────────────────────────
-// Render
-// ─────────────────────────────────────────────
+// ── Render ──
 function setView(v) {
   currentView = v;
   document.getElementById('vbtn-grid').classList.toggle('active', v === 'grid');
@@ -584,7 +956,7 @@ function renderItems() {
   const filtered = getFilteredItems();
 
   if (filtered.length === 0) {
-    content.innerHTML = `<div class="empty-state">
+    content.innerHTML = `<div class="inv-empty-state">
       <div class="big">📭</div>
       <p>No items here yet.</p>
       <button onclick="openAddModal()">+ Add your first item</button>
@@ -626,12 +998,10 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ─────────────────────────────────────────────
-// Modal
-// ─────────────────────────────────────────────
+// ── Modal ──
 function openAddModal() {
-  editingId = null;
-  document.getElementById('modal-title').textContent = 'Add Item';
+  invEditingId = null;
+  document.getElementById('inv-modal-title').textContent = 'Add Item';
   document.getElementById('f-name').value = '';
   document.getElementById('f-qty').value = '1';
   document.getElementById('f-category').value = currentFilter.startsWith('fleet:all') ? 'fleet:all' : currentFilter;
@@ -644,10 +1014,10 @@ function openAddModal() {
 }
 
 function openEditModal(id) {
-  const item = items.find(i => i.id === id);
+  const item = invItems.find(i => i.id === id);
   if (!item) return;
-  editingId = id;
-  document.getElementById('modal-title').textContent = 'Edit Item';
+  invEditingId = id;
+  document.getElementById('inv-modal-title').textContent = 'Edit Item';
   document.getElementById('f-name').value = item.name;
   document.getElementById('f-qty').value = item.qty;
   document.getElementById('f-category').value = item.category;
@@ -661,7 +1031,7 @@ function openEditModal(id) {
 
 function closeModal() {
   document.getElementById('item-modal-backdrop').classList.remove('open');
-  editingId = null;
+  invEditingId = null;
 }
 
 function closeModalOnBackdrop(e) {
@@ -679,11 +1049,11 @@ function saveItem() {
     location: document.getElementById('f-location').value.trim(),
     notes: document.getElementById('f-notes').value.trim(),
   };
-  if (editingId) {
-    const idx = items.findIndex(i => i.id === editingId);
-    if (idx >= 0) items[idx] = { ...items[idx], ...data };
+  if (invEditingId) {
+    const idx = invItems.findIndex(i => i.id === invEditingId);
+    if (idx >= 0) invItems[idx] = { ...invItems[idx], ...data };
   } else {
-    items.push({ id: nextId(), ...data });
+    invItems.push({ id: nextId(), ...data });
   }
   save();
   closeModal();
@@ -692,38 +1062,223 @@ function saveItem() {
 }
 
 function deleteItem() {
-  if (!editingId) return;
+  if (!invEditingId) return;
   if (!confirm('Delete this item?')) return;
-  items = items.filter(i => i.id !== editingId);
+  invItems = invItems.filter(i => i.id !== invEditingId);
   save();
   closeModal();
   updateCounts();
   renderItems();
 }
 
-// Keyboard shortcuts
+// ═════════════════════════════════════════════
+// EQUIPMENT (all functions namespaced with equip_)
+// ═════════════════════════════════════════════
+const EQUIP_STORAGE_KEY = 'hos_equipment_v1';
+let equip_items = [];
+let equip_activeCat = 'loadout';
+let equip_editingId = null;
+
+const EQUIP_LOADOUT_SLOTS = [
+  {id:'head',     icon:'🪖', label:'Head'},
+  {id:'neck',     icon:'📿', label:'Neck'},
+  {id:'chest',    icon:'👕', label:'Chest'},
+  {id:'back',     icon:'🎒', label:'Back'},
+  {id:'hands',    icon:'🧤', label:'Hands'},
+  {id:'waist',    icon:'🔗', label:'Waist'},
+  {id:'legs',     icon:'👖', label:'Legs'},
+  {id:'feet',     icon:'👟', label:'Feet'},
+  {id:'ring-l',   icon:'💍', label:'Ring (L)'},
+  {id:'ring-r',   icon:'💍', label:'Ring (R)'},
+  {id:'main-hand',icon:'⚔️', label:'Main Hand'},
+  {id:'off-hand', icon:'🛡️', label:'Off Hand'},
+];
+
+const EQUIP_CAT_LABELS = {
+  loadout:'Loadout', daily:'Daily Carry', tools:'Tools', tech:'Tech / Devices',
+  power:'Power Tools', hand:'Hand Tools', safety:'Safety Gear', vehicles:'Vehicles'
+};
+
+function equip_load() {
+  try { equip_items = JSON.parse(localStorage.getItem(EQUIP_STORAGE_KEY)) || []; }
+  catch(e) { equip_items = []; }
+}
+function equip_save() { localStorage.setItem(EQUIP_STORAGE_KEY, JSON.stringify(equip_items)); }
+function equip_uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function equip_esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function equip_setCategory(cat) {
+  equip_activeCat = cat;
+  document.querySelectorAll('.equip-cat').forEach(el => el.classList.toggle('active', el.dataset.cat === cat));
+  document.getElementById('equip-heading').textContent = EQUIP_CAT_LABELS[cat] || cat;
+  equip_renderList();
+}
+
+function equip_updateCounts() {
+  const cats = Object.keys(EQUIP_CAT_LABELS);
+  cats.forEach(c => {
+    const el = document.getElementById('cnt-' + c);
+    if (el) el.textContent = equip_items.filter(i => i.cat === c).length;
+  });
+}
+
+function equip_renderList() {
+  const search = (document.getElementById('equip-search').value || '').toLowerCase();
+  const list = document.getElementById('equip-list');
+  equip_updateCounts();
+
+  let visible = equip_items.filter(i => i.cat === equip_activeCat);
+  if (search) visible = visible.filter(i =>
+    (i.name||'').toLowerCase().includes(search) ||
+    (i.notes||'').toLowerCase().includes(search)
+  );
+
+  if (equip_activeCat === 'loadout') {
+    // Show body-slot grid
+    const slotMap = {};
+    visible.forEach(i => { if (i.slot) slotMap[i.slot] = i; });
+    list.innerHTML = '<div class="loadout-grid">' +
+      EQUIP_LOADOUT_SLOTS.map(slot => {
+        const item = slotMap[slot.id];
+        return `<div class="loadout-slot${item ? '' : ' empty'}" onclick="${item ? `equip_openModal('${item.id}')` : `equip_openModalSlot('${slot.id}')`}">
+          <div class="slot-icon">${item ? equip_esc(item.icon || slot.icon) : slot.icon}</div>
+          <div class="slot-label">${slot.label}</div>
+          <div class="slot-item">${item ? equip_esc(item.name) : 'Empty'}</div>
+          ${item ? `<div class="item-cond cond-${item.cond}">${item.cond}</div>` : ''}
+        </div>`;
+      }).join('') +
+    '</div>' +
+    (visible.filter(i => !i.slot).length ? `
+      <div class="list-section-header" style="margin-top:1rem;">Unslotted Items</div>
+      <div class="equip-item-list">` + visible.filter(i=>!i.slot).map(i => equip_renderItem(i)).join('') + '</div>' : '');
+    return;
+  }
+
+  if (!visible.length) {
+    list.innerHTML = `<div class="equip-empty-state"><div class="ei">${equip_getCatIcon(equip_activeCat)}</div>
+      <p>No ${EQUIP_CAT_LABELS[equip_activeCat]} items yet.</p>
+      <button class="equip-btn-save" onclick="equip_openModal()" style="margin-top:0.5rem;">+ Add First Item</button></div>`;
+    return;
+  }
+
+  list.innerHTML = '<div class="equip-item-list">' + visible.map(i => equip_renderItem(i)).join('') + '</div>';
+}
+
+function equip_renderItem(i) {
+  const condClass = 'cond-' + (i.cond || 'good');
+  return `<div class="equip-item" onclick="equip_openModal('${i.id}')">
+    <div class="item-icon">${equip_esc(i.icon || '📦')}</div>
+    <div class="item-body">
+      <div class="item-name">${equip_esc(i.name)}</div>
+      ${i.notes ? `<div class="item-sub">${equip_esc(i.notes.slice(0,80))}</div>` : ''}
+    </div>
+    <span class="item-cond ${condClass}">${i.cond || 'good'}</span>
+    <button class="equip-item-delete" onclick="event.stopPropagation();equip_deleteItem('${i.id}')" title="Remove">✕</button>
+  </div>`;
+}
+
+function equip_getCatIcon(cat) {
+  return {loadout:'🧍',daily:'🎒',tools:'🔧',tech:'💻',power:'⚡',hand:'🪛',safety:'🦺',vehicles:'🚗'}[cat] || '📦';
+}
+
+function equip_openModal(id) {
+  equip_editingId = id || null;
+  const item = id ? equip_items.find(x => x.id === id) : null;
+  document.getElementById('equip-modal-title').textContent = item ? 'Edit Item' : 'Add Equipment';
+  document.getElementById('eq-name').value  = item ? item.name : '';
+  document.getElementById('eq-cat').value   = item ? item.cat  : equip_activeCat;
+  document.getElementById('eq-cond').value  = item ? item.cond : 'good';
+  document.getElementById('eq-icon').value  = item ? (item.icon || '') : '';
+  document.getElementById('eq-slot').value  = item ? (item.slot || '') : '';
+  document.getElementById('eq-notes').value = item ? (item.notes || '') : '';
+  document.getElementById('equip-modal').classList.add('open');
+  setTimeout(() => document.getElementById('eq-name').focus(), 50);
+}
+
+function equip_openModalSlot(slotId) {
+  equip_openModal();
+  document.getElementById('eq-slot').value = slotId;
+  document.getElementById('eq-cat').value = 'loadout';
+}
+
+function equip_closeModal() {
+  document.getElementById('equip-modal').classList.remove('open');
+  equip_editingId = null;
+}
+
+function equip_saveItem() {
+  const name = document.getElementById('eq-name').value.trim();
+  if (!name) { document.getElementById('eq-name').focus(); return; }
+  if (equip_editingId) {
+    const i = equip_items.find(x => x.id === equip_editingId);
+    if (i) {
+      i.name = name;
+      i.cat  = document.getElementById('eq-cat').value;
+      i.cond = document.getElementById('eq-cond').value;
+      i.icon = document.getElementById('eq-icon').value.trim();
+      i.slot = document.getElementById('eq-slot').value || null;
+      i.notes = document.getElementById('eq-notes').value.trim();
+    }
+  } else {
+    equip_items.push({
+      id: equip_uid(), name, icon: document.getElementById('eq-icon').value.trim(),
+      cat:  document.getElementById('eq-cat').value,
+      cond: document.getElementById('eq-cond').value,
+      slot: document.getElementById('eq-slot').value || null,
+      notes: document.getElementById('eq-notes').value.trim()
+    });
+  }
+  equip_save(); equip_closeModal(); equip_renderList();
+}
+
+function equip_deleteItem(id) {
+  equip_items = equip_items.filter(x => x.id !== id);
+  equip_save(); equip_renderList();
+}
+
+document.getElementById('equip-modal').addEventListener('click', function(e) { if (e.target === this) equip_closeModal(); });
+
+// ═════════════════════════════════════════════
+// SHARED KEYBOARD SHORTCUTS
+// ═════════════════════════════════════════════
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') saveItem();
-  if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !document.getElementById('item-modal-backdrop').classList.contains('open')) {
+  if (e.key === 'Escape') {
+    closeModal();
+    equip_closeModal();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    if (activeGearTab === 'inventory') saveItem();
+    else equip_saveItem();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'n' &&
+      !document.getElementById('item-modal-backdrop').classList.contains('open') &&
+      !document.getElementById('equip-modal').classList.contains('open')) {
     e.preventDefault();
-    openAddModal();
+    if (activeGearTab === 'inventory') openAddModal();
+    else equip_openModal();
   }
 });
 
-// ─────────────────────────────────────────────
-// Init
-// ─────────────────────────────────────────────
+// ═════════════════════════════════════════════
+// INIT
+// ═════════════════════════════════════════════
 load();
 updateCounts();
 renderItems();
 
-// Restore last filter
+equip_load();
+equip_renderList();
+
+// Restore last inventory filter
 const lastFilter = localStorage.getItem('hos_inv_filter');
 if (lastFilter) {
   const el = document.querySelector(`[data-filter="${lastFilter}"]`);
   if (el) setFilter(lastFilter, el);
 }
+
+// Restore last active gear tab
+const savedGearTab = localStorage.getItem('hos_gear_active_tab');
+if (savedGearTab === 'equipment') switchGearTab('equipment');
 </script>
 </body>
 </html>

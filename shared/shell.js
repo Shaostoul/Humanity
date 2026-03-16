@@ -4,9 +4,9 @@
  * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
  * If omitted, active tab is auto-detected from the current URL.
  *
- * Valid active keys: landing, chat, dashboard, profile, home, skills, inventory, equipment,
- *   quests, calendar, logbook, board, map, market, browse, info, streams, studio, debug, download,
- *   settings, reality, fantasy
+ * Valid active keys: landing, chat, dashboard, profile, home, gear,
+ *   tasks, calendar, notes, board, map, market, browse, debug, download,
+ *   settings
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="inventory"></script>
@@ -31,35 +31,37 @@
     else if (p.startsWith('/chat'))      active = 'chat';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/home'))      active = 'home';
-    else if (p.startsWith('/skills'))    active = 'skills';
-    else if (p.startsWith('/inventory')) active = 'inventory';
-    else if (p.startsWith('/equipment')) active = 'equipment';
-    else if (p.startsWith('/quests'))    active = 'quests';
+    else if (p.startsWith('/inventory')) active = 'gear';
+    else if (p.startsWith('/tasks'))     active = 'tasks';
     else if (p.startsWith('/calendar'))  active = 'calendar';
-    else if (p.startsWith('/logbook'))   active = 'logbook';
+    else if (p.startsWith('/notes'))     active = 'notes';
     else if (p.startsWith('/systems'))   active = 'board';
-    else if (p.startsWith('/board'))     active = 'board';     // backward compat redirect
     else if (p.startsWith('/maps'))      active = 'map';
-    else if (p.startsWith('/map'))       active = 'map';       // backward compat redirect
     else if (p.startsWith('/market'))    active = 'market';
     else if (p.startsWith('/learn'))     active = 'browse';
-    else if (p.startsWith('/browse'))    active = 'browse';    // backward compat redirect
-    else if (p.startsWith('/knowledge')) active = 'info';
-    else if (p.startsWith('/info'))      active = 'info';      // backward compat redirect
-    else if (p.startsWith('/streams'))   active = 'streams';
-    else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/settings'))  active = 'settings';
-    else if (p.startsWith('/tasks'))     active = 'tasks';
     else if (p.startsWith('/ops'))       active = 'debug';
-    else if (p.startsWith('/debug'))     active = 'debug';     // backward compat redirect
     else if (p.startsWith('/download'))  active = 'download';
     else if (p.startsWith('/dashboard')) active = 'dashboard';
-    else if (p.startsWith('/notes'))     active = 'notes';
-    else if (p.startsWith('/vault'))     active = 'vault';
-    // Legacy SPA routes still in the wild
+    // Merged pages → redirect to new parent
+    else if (p.startsWith('/skills'))    active = 'profile';
+    else if (p.startsWith('/equipment')) active = 'gear';
+    else if (p.startsWith('/gear'))      active = 'gear';
+    else if (p.startsWith('/quests'))    active = 'tasks';
+    else if (p.startsWith('/logbook'))   active = 'notes';
+    else if (p.startsWith('/vault'))     active = 'settings';
+    else if (p.startsWith('/knowledge')) active = 'settings';
+    // Legacy backward compat
+    else if (p.startsWith('/board'))     active = 'board';
+    else if (p.startsWith('/map'))       active = 'map';
+    else if (p.startsWith('/browse'))    active = 'browse';
+    else if (p.startsWith('/info'))      active = 'settings';
+    else if (p.startsWith('/debug'))     active = 'debug';
+    else if (p.startsWith('/streams'))   active = 'chat';
+    else if (p.startsWith('/studio'))    active = 'chat';
     else if (p.startsWith('/reality'))   active = 'profile';
-    else if (p.startsWith('/fantasy'))   active = 'skills';
-    else if (p.startsWith('/source'))    active = 'equipment';
+    else if (p.startsWith('/fantasy'))   active = 'profile';
+    else if (p.startsWith('/source'))    active = 'gear';
     else active = '';
   }
 
@@ -426,33 +428,25 @@
       /* Brand */
       '<a href="/" class="brand' + (active === 'landing' ? ' active' : '') + '" data-tip="Home">H</a>' +
 
-      /* Network (always first, most important) */
-      navTab('/chat',      'chat.png',      'Network',   'chat') +
-      navTab('/dashboard', '📊',            'Dashboard', 'dashboard') +
+      /* Core */
+      navTab('/chat',      'network.png',   'Network',   'chat') +
+      navTab('/dashboard', '🎮',            'Games',     'dashboard') +
       '<div class="nav-divider"></div>' +
 
       /* Private — personal pages */
       navTab('/profile',   'profile.png',   'Profile',   'profile') +
       navTab('/home',      'home.png',      'Home',      'home') +
-      navTab('/skills',    'skills.png',    'Skills',    'skills') +
-      navTab('/inventory', 'inventory.png', 'Inventory', 'inventory') +
-      navTab('/equipment', 'components.png','Equipment', 'equipment') +
-      navTab('/quests',    'tasklist.png',  'Quests',    'quests') +
+      navTab('/inventory', 'inventory.png', 'Gear',      'gear') +
+      navTab('/tasks',     'tasklist.png',  'Tasks',     'tasks') +
       navTab('/calendar',  'calendar.png',  'Calendar',  'calendar') +
-      navTab('/logbook',   'logs.png',      'Logbook',   'logbook') +
-      navTab('/notes',     '📝',            'Notes',     'notes') +
-      navTab('/vault',     '🔐',            'Vault',     'vault') +
+      navTab('/notes',     '📝',            'Journal',   'notes') +
       '<div class="nav-divider"></div>' +
 
       /* Public — community pages */
       navTab('/systems',   'systems.png',   'Systems',   'board') +
       navTab('/maps',      'map.png',       'Maps',      'map') +
       navTab('/market',    'market.png',    'Market',    'market') +
-      navTab('/learn',     'website.png',   'Learn',     'browse') +
-      navTab('/knowledge', 'codex.png',     'Knowledge', 'info') +
-      /* Streams + Studio replaced by Studio panel in Network page */
-
-      navTab('/tasks',     '🎯',            'Tasks',     'tasks') +
+      navTab('/learn',     'website.png',   'Web',       'browse') +
 
       /* Spacer pushes utility tabs to the right */
       '<div class="spacer"></div>' +
@@ -485,34 +479,27 @@
   }
 
   mobileDrawer.innerHTML =
-    '<div class="mobile-hub-group"><h4>Network</h4>' +
-      mobileLink('/chat', 'Network Chat') +
+    '<div class="mobile-hub-group"><h4>Core</h4>' +
+      mobileLink('/chat',      'Network') +
+      mobileLink('/dashboard', 'Games') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Private</h4>' +
       mobileLink('/profile',   'Profile') +
       mobileLink('/home',      'Home') +
-      mobileLink('/dashboard', 'Dashboard') +
-      mobileLink('/skills',    'Skills') +
-      mobileLink('/inventory', 'Inventory') +
-      mobileLink('/equipment', 'Equipment') +
-      mobileLink('/quests',    'Quests') +
+      mobileLink('/inventory', 'Gear') +
+      mobileLink('/tasks',     'Tasks') +
       mobileLink('/calendar',  'Calendar') +
-      mobileLink('/logbook',   'Logbook') +
+      mobileLink('/notes',     'Journal') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Public</h4>' +
       mobileLink('/systems',   'Systems') +
       mobileLink('/maps',      'Maps') +
       mobileLink('/market',    'Market') +
-      mobileLink('/learn',     'Learn') +
-      mobileLink('/knowledge', 'Knowledge') +
-    '</div>' +
-    '<div class="mobile-hub-group"><h4>App</h4>' +
-      mobileLink('/vault',    'Vault') +
-      mobileLink('/tasks',    'Tasks') +
+      mobileLink('/learn',     'Web') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Config</h4>' +
       mobileLink('/settings', '⚙️ Settings') +
-      mobileLink('/download', '⬇️ Download App') +
+      mobileLink('/download', '⬇️ Download') +
       mobileLink('/ops',      '🛠️ Ops') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
@@ -561,7 +548,18 @@
     if (l.includes('attach') || l.includes('file')) return 'Adds a file to your message or upload flow.';
     if (l.includes('commands')) return 'Opens command tools and quick actions.';
     if (l.includes('help')) return 'Shows guidance, docs, and available actions.';
-    if (l.includes('network')) return 'Takes you to communication and connection controls.';
+    if (l.includes('network')) return 'Chat, voice, and collaboration hub.';
+    if (l.includes('games')) return 'Play minigames and launch other games.';
+    if (l.includes('profile')) return 'Your identity, skills, and social links.';
+    if (l.includes('gear')) return 'Your inventory and equipment loadouts.';
+    if (l.includes('tasks')) return 'Kanban board, quests, and project planning.';
+    if (l.includes('journal')) return 'Encrypted notes and timestamped log entries.';
+    if (l.includes('web')) return 'Browse curated websites and bookmarks.';
+    if (l.includes('systems')) return 'Game systems and infrastructure overview.';
+    if (l.includes('maps')) return 'Interactive maps from local to galactic scale.';
+    if (l.includes('market')) return 'Buy, sell, and trade with other users.';
+    if (l.includes('calendar')) return 'Events, schedules, and recurring plans.';
+    if (l.includes('home')) return 'Manage your homes, rooms, and property.';
     return 'Tap or click to use this control.';
   }
 

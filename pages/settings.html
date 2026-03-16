@@ -224,6 +224,309 @@
     .setting-input[type="time"] {
       color-scheme: dark;
     }
+
+    /* ── Server Info section (from knowledge.html) ── */
+    #sec-server-info .info-section { margin-bottom:1.5rem; }
+    #sec-server-info .info-section h2 { font-size:1.1rem; color:var(--accent,#2a6); margin-bottom:0.8rem; border-bottom:1px solid #222; padding-bottom:0.4rem; cursor:pointer; user-select:none; }
+    #sec-server-info .info-section h2::after { content:' \25BE'; font-size:0.7rem; opacity:0.5; }
+    #sec-server-info .info-section.collapsed h2::after { content:' \25B8'; }
+    #sec-server-info .info-section.collapsed .info-body { display:none; }
+    #sec-server-info .role-card { background:#141414; border:1px solid #1e1e1e; border-radius:10px; padding:1rem; margin-bottom:0.75rem; }
+    #sec-server-info .role-card h3 { margin:0 0 0.4rem; font-size:0.95rem; }
+    #sec-server-info .role-card .perms { font-size:0.8rem; color:#888; line-height:1.6; }
+    #sec-server-info .role-card .perms .yes { color:#4a8; }
+    #sec-server-info .role-card .perms .no { color:#e55; }
+    #sec-server-info .cmd-group { margin-bottom:1rem; }
+    #sec-server-info .cmd-group h4 { font-size:0.85rem; color:var(--text,#ddd); margin:0.6rem 0 0.3rem; }
+    #sec-server-info .cmd-row { font-size:0.8rem; color:#888; padding:0.15rem 0; }
+    #sec-server-info .cmd-row code { background:rgba(255,255,255,0.06); padding:0.1rem 0.4rem; border-radius:3px; color:var(--accent,#2a6); font-size:0.78rem; }
+    #sec-server-info .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:0.8rem; }
+    #sec-server-info .stat-card { background:#141414; border:1px solid #1e1e1e; border-radius:8px; padding:0.8rem; text-align:center; }
+    #sec-server-info .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent,#2a6); }
+    #sec-server-info .stat-card .stat-label { font-size:0.7rem; color:#888; margin-top:0.2rem; }
+
+    /* ── Vault section (from vault.html) ── */
+    #sec-vault .vault-screen { display: none; }
+    #sec-vault .vault-screen.active { display: flex; }
+
+    #sec-vault .vault-lock-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      flex-direction: column;
+    }
+
+    #sec-vault .lock-card {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 18px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 480px;
+    }
+    #sec-vault .lock-card h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #f0a500;
+      margin-bottom: .35rem;
+    }
+    #sec-vault .lock-card .subtitle {
+      font-size: .82rem;
+      color: #666;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    #sec-vault .eli5-box {
+      background: #0a0a0a;
+      border: 1px solid #1a1a1a;
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.25rem;
+    }
+    #sec-vault .eli5-box p { font-size: .8rem; color: #888; line-height: 1.65; margin: 0; }
+    #sec-vault .eli5-box p + p { margin-top: .5rem; }
+    #sec-vault .eli5-box strong { color: #ccc; }
+
+    #sec-vault .vault-field-group { margin-bottom: .9rem; }
+    #sec-vault .vault-field-group label {
+      display: block; font-size: .7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em; color: #555; margin-bottom: .3rem;
+    }
+    #sec-vault .vault-field-group input {
+      width: 100%;
+      background: #0d0d0d;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: .55rem .8rem;
+      color: var(--text, #e0e0e0);
+      font-size: .88rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+    #sec-vault .vault-field-group input:focus { border-color: #f0a500; }
+
+    #sec-vault .vault-btn-primary {
+      width: 100%;
+      background: #f0a500;
+      color: #000;
+      border: none;
+      border-radius: 9px;
+      padding: .65rem 1.2rem;
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    #sec-vault .vault-btn-primary:hover { opacity: .88; }
+    #sec-vault .vault-btn-primary:disabled { opacity: .45; cursor: default; }
+
+    #sec-vault .vault-screen-msg {
+      font-size: .76rem;
+      min-height: 1.3em;
+      margin-top: .55rem;
+    }
+
+    /* Vault main UI */
+    #vault-sec-main-screen {
+      flex: 1;
+      flex-direction: row;
+      overflow: hidden;
+      min-height: 480px;
+    }
+
+    #vault-sec-sidebar {
+      width: 260px;
+      min-width: 220px;
+      background: #111;
+      border-right: 1px solid #1a1a1a;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    #vault-sec-sidebar-header {
+      padding: .65rem .85rem;
+      border-bottom: 1px solid #1a1a1a;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+    #vault-sec-sidebar-header h2 {
+      font-size: .72rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em; color: #555; flex: 1;
+    }
+
+    #vault-sec-search { padding: .5rem .6rem; border-bottom: 1px solid #1a1a1a; }
+    #vault-sec-search input {
+      width: 100%; background: #0d0d0d; border: 1px solid #1e1e1e;
+      border-radius: 6px; padding: .35rem .65rem; color: #e0e0e0; font-size: .8rem; outline: none;
+    }
+    #vault-sec-search input:focus { border-color: #333; }
+
+    #vault-sec-entry-list { flex: 1; overflow-y: auto; padding: .4rem 0; }
+
+    #sec-vault .entry-item {
+      display: flex; align-items: center; gap: .6rem;
+      padding: .55rem .85rem; cursor: pointer; border-radius: 0; transition: background .1s;
+    }
+    #sec-vault .entry-item:hover { background: #181818; }
+    #sec-vault .entry-item.active { background: #1a1a0a; border-left: 2px solid #f0a500; }
+    #sec-vault .entry-item-icon { font-size: 1.1rem; flex-shrink: 0; }
+    #sec-vault .entry-item-info { overflow: hidden; }
+    #sec-vault .entry-item-title {
+      font-size: .82rem; font-weight: 600; color: #e0e0e0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    #sec-vault .entry-item-type { font-size: .66rem; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+
+    #vault-sec-sidebar-footer {
+      padding: .5rem .85rem; border-top: 1px solid #1a1a1a;
+      display: flex; align-items: center; gap: .5rem;
+    }
+    #vault-sec-sidebar-footer span { font-size: .68rem; color: #444; }
+    #vault-sec-lock-countdown { font-size: .62rem; color: #3a3a3a; flex: 1; text-align: center; }
+    #sec-vault .btn-lock {
+      background: none; border: 1px solid #2a2a2a; color: #555;
+      border-radius: 5px; padding: .25rem .55rem; font-size: .72rem; cursor: pointer;
+    }
+    #sec-vault .btn-lock:hover { border-color: #555; color: #888; }
+
+    #vault-sec-main {
+      flex: 1; overflow-y: auto; padding: 1.5rem 2rem;
+      display: flex; flex-direction: column;
+    }
+
+    #vault-sec-welcome { max-width: 640px; margin: 0 auto; }
+    #vault-sec-welcome h2 { font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: .35rem; }
+    #vault-sec-welcome p { font-size: .83rem; color: #666; line-height: 1.65; margin-bottom: 1.25rem; }
+
+    #sec-vault .quick-add-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: .65rem; margin-bottom: 1.5rem;
+    }
+    #sec-vault .quick-add-btn {
+      background: #111; border: 1px solid #1e1e1e; border-radius: 11px;
+      padding: 1rem; cursor: pointer; text-align: left;
+      transition: border-color .15s, background .15s;
+    }
+    #sec-vault .quick-add-btn:hover { background: #181818; border-color: #2a2a2a; }
+    #sec-vault .quick-add-btn .qa-icon { font-size: 1.4rem; margin-bottom: .35rem; display: block; }
+    #sec-vault .quick-add-btn .qa-title { font-size: .82rem; font-weight: 700; color: #e0e0e0; display: block; }
+    #sec-vault .quick-add-btn .qa-desc { font-size: .72rem; color: #555; margin-top: .15rem; display: block; line-height: 1.4; }
+
+    #sec-vault .eli5-section {
+      background: #111; border: 1px solid #1a1a1a; border-radius: 12px;
+      padding: 1.25rem 1.4rem; margin-bottom: 1rem;
+    }
+    #sec-vault .eli5-section h3 { font-size: .85rem; font-weight: 700; color: #ccc; margin-bottom: .75rem; }
+    #sec-vault .eli5-row { display: flex; gap: .75rem; margin-bottom: .7rem; align-items: flex-start; }
+    #sec-vault .eli5-row:last-child { margin-bottom: 0; }
+    #sec-vault .eli5-row .eli5-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
+    #sec-vault .eli5-row p { font-size: .8rem; color: #777; line-height: 1.55; }
+    #sec-vault .eli5-row strong { color: #aaa; }
+
+    #vault-sec-detail { display: none; max-width: 580px; }
+    #vault-sec-detail.visible { display: block; }
+
+    #vault-sec-detail-header {
+      display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem;
+    }
+    #vault-sec-detail-icon { font-size: 2rem; }
+    #vault-sec-detail-title-block { flex: 1; }
+    #vault-sec-detail-title {
+      font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: .2rem; word-break: break-word;
+    }
+    #vault-sec-detail-type { font-size: .7rem; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+
+    #sec-vault .detail-actions { display: flex; gap: .5rem; flex-shrink: 0; }
+    #sec-vault .btn-detail-edit, #sec-vault .btn-detail-delete {
+      background: none; border: 1px solid #2a2a2a; border-radius: 6px;
+      padding: .3rem .75rem; font-size: .76rem; cursor: pointer;
+    }
+    #sec-vault .btn-detail-edit { color: #aaa; }
+    #sec-vault .btn-detail-edit:hover { border-color: #555; color: #e0e0e0; }
+    #sec-vault .btn-detail-delete { color: #c44; border-color: #3a1515; }
+    #sec-vault .btn-detail-delete:hover { background: #1a0505; }
+
+    #sec-vault .field-display { margin-bottom: 1rem; }
+    #sec-vault .field-display-label {
+      font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: #444; margin-bottom: .3rem;
+    }
+    #sec-vault .field-display-value {
+      background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 8px;
+      padding: .55rem .75rem; font-size: .85rem; color: #e0e0e0;
+      word-break: break-word; white-space: pre-wrap; line-height: 1.5; position: relative;
+    }
+    #sec-vault .field-display-value.secret { color: transparent; text-shadow: 0 0 8px #888; user-select: none; cursor: pointer; }
+    #sec-vault .field-display-value.secret.revealed { color: #e0e0e0; text-shadow: none; user-select: text; }
+
+    #sec-vault .field-copy-row { display: flex; align-items: center; gap: .5rem; margin-top: .35rem; }
+    #sec-vault .btn-copy-field, #sec-vault .btn-reveal {
+      background: none; border: 1px solid #222; border-radius: 5px;
+      padding: .2rem .6rem; font-size: .7rem; color: #666; cursor: pointer;
+    }
+    #sec-vault .btn-copy-field:hover, #sec-vault .btn-reveal:hover { border-color: #444; color: #aaa; }
+    #sec-vault .copy-confirm { font-size: .68rem; color: #4ec87a; }
+
+    /* Vault entry modal */
+    #vault-sec-entry-modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.82); z-index: 800;
+      align-items: center; justify-content: center; padding: 1rem;
+    }
+    #vault-sec-entry-modal-overlay.open { display: flex; }
+    #vault-sec-entry-modal {
+      background: #111; border: 1px solid #222; border-radius: 14px;
+      padding: 1.75rem; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
+    }
+    #vault-sec-entry-modal h3 { font-size: .95rem; font-weight: 700; color: #e0e0e0; margin-bottom: 1.1rem; }
+    #sec-vault .modal-field { margin-bottom: .85rem; }
+    #sec-vault .modal-field label {
+      display: block; font-size: .7rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .05em; color: #555; margin-bottom: .3rem;
+    }
+    #sec-vault .modal-field input, #sec-vault .modal-field textarea, #sec-vault .modal-field select {
+      width: 100%; background: #0d0d0d; border: 1px solid #222; border-radius: 7px;
+      padding: .5rem .7rem; color: #e0e0e0; font-size: .85rem; outline: none; font-family: inherit;
+    }
+    #sec-vault .modal-field input:focus, #sec-vault .modal-field textarea:focus, #sec-vault .modal-field select:focus { border-color: #f0a500; }
+    #sec-vault .modal-field textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+    #vault-sec-modal-msg { font-size: .75rem; min-height: 1.2em; margin-bottom: .5rem; }
+    #sec-vault .modal-actions { display: flex; gap: .65rem; justify-content: flex-end; }
+    #sec-vault .btn-cancel {
+      background: none; border: 1px solid #2a2a2a; color: #666;
+      border-radius: 7px; padding: .45rem 1rem; font-size: .82rem; cursor: pointer;
+    }
+    #sec-vault .btn-save {
+      background: #f0a500; color: #000; border: none; border-radius: 7px;
+      padding: .45rem 1.2rem; font-size: .82rem; font-weight: 700; cursor: pointer;
+    }
+    #sec-vault .btn-save:disabled { opacity: .5; cursor: default; }
+
+    #sec-vault .type-selector {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .4rem; margin-bottom: 1rem;
+    }
+    #sec-vault .type-chip {
+      border: 1px solid #222; border-radius: 7px; padding: .45rem .6rem;
+      display: flex; align-items: center; gap: .4rem; cursor: pointer;
+      font-size: .78rem; color: #888; background: #0d0d0d; transition: border-color .12s;
+    }
+    #sec-vault .type-chip:hover { border-color: #444; color: #ccc; }
+    #sec-vault .type-chip.selected { border-color: #f0a500; color: #f0a500; background: #1a1000; }
+    #sec-vault .type-chip .chip-icon { font-size: 1rem; }
+    #sec-vault .no-entries { padding: 1.5rem .85rem; font-size: .78rem; color: #444; text-align: center; }
+
+    @media (max-width: 600px) {
+      #vault-sec-sidebar { width: 200px; min-width: 160px; }
+      #vault-sec-main { padding: 1rem; }
+    }
+    @media (max-width: 480px) {
+      #vault-sec-sidebar { display: none; }
+      #vault-sec-main-screen { flex-direction: column; }
+      #vault-sec-main { padding: .75rem; }
+    }
   </style>
 </head>
 <body>
@@ -248,6 +551,8 @@
     <div class="s-nav" data-sec="security" onclick="showSection('security')">🔐 Security</div>
     <div class="s-nav" data-sec="dnd" onclick="showSection('dnd')">🌙 Do Not Disturb</div>
     <div class="s-nav" data-sec="storage" onclick="showSection('storage')">💾 Storage</div>
+    <div class="s-nav" data-sec="vault" onclick="showSection('vault')">🔐 Vault</div>
+    <div class="s-nav" data-sec="server-info" onclick="showSection('server-info')">🖥️ Server Info</div>
   </nav>
 
   <!-- Settings panels -->
@@ -1056,8 +1361,439 @@
       </div>
     </section>
 
+    <!-- Server Info (from knowledge.html) -->
+    <section class="settings-section" id="sec-server-info">
+      <h1>Server Info</h1>
+      <p class="section-desc">Live server stats, roles and permissions, rate limits, and chat commands reference.</p>
+
+      <div class="info-section" id="ki-info-server">
+        <h2>🖥️ Server Stats</h2>
+        <div class="info-body">
+          <div class="stat-grid" id="ki-info-stats">
+            <div class="stat-card"><div class="stat-val" id="ki-info-online">—</div><div class="stat-label">Online</div></div>
+            <div class="stat-card"><div class="stat-val" id="ki-info-registered">—</div><div class="stat-label">Registered</div></div>
+            <div class="stat-card"><div class="stat-val" id="ki-info-uptime">—</div><div class="stat-label">Uptime</div></div>
+            <div class="stat-card"><div class="stat-val" id="ki-info-version">—</div><div class="stat-label">Version</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h2>🛡️ Roles &amp; Permissions</h2>
+        <div class="info-body">
+          <div class="role-card">
+            <h3>👤 Unverified</h3>
+            <div class="perms">
+              <span class="yes">✓</span> Chat (rate limited) · Voice · View channels<br>
+              <span class="no">✗</span> Upload files · DM · Create channels · Follow/unfollow
+            </div>
+          </div>
+          <div class="role-card">
+            <h3>✦ Verified</h3>
+            <div class="perms">
+              <span class="yes">✓</span> All above + Upload files · DM friends · Follow/unfollow
+            </div>
+          </div>
+          <div class="role-card">
+            <h3>💎 Donor</h3>
+            <div class="perms">
+              <span class="yes">✓</span> Same as Verified + 💎 badge · Priority support
+            </div>
+          </div>
+          <div class="role-card">
+            <h3>🛡️ Moderator</h3>
+            <div class="perms">
+              <span class="yes">✓</span> All above + DM anyone · Kick/mute/ban · Create/edit channels · Manage reports
+            </div>
+          </div>
+          <div class="role-card">
+            <h3>👑 Admin</h3>
+            <div class="perms">
+              <span class="yes">✓</span> All above + Verify/unverify · Promote/demote · Lockdown · Wipe · Server config
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h2>🤝 Social System</h2>
+        <div class="info-body">
+          <div class="role-card">
+            <h3>Viewers️ Follow</h3>
+            <div class="perms">One-way — shows you care. Use <code>/follow &lt;name&gt;</code>. Right-click a user for quick follow.</div>
+          </div>
+          <div class="role-card">
+            <h3>🤝 Friends (Mutual Follow)</h3>
+            <div class="perms">When both users follow each other, they become friends. This unlocks DMs and shows the 🤝 badge.</div>
+          </div>
+          <div class="role-card">
+            <h3>🚫 Block</h3>
+            <div class="perms">Client-side — hides their messages from your view. Use <code>/block &lt;name&gt;</code>.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h2>⏱️ Rate Limits</h2>
+        <div class="info-body">
+          <div class="role-card">
+            <div class="perms">
+              <strong>Messages:</strong> Fibonacci rate limiting (1,1,2,3,5,8… second delays on rapid posting)<br>
+              <strong>New accounts:</strong> 5s minimum delay for first 10 minutes<br>
+              <strong>Uploads:</strong> 2/minute, 4 image max per user (FIFO — oldest replaced)<br>
+              <strong>API:</strong> 10 req/s general, 5 req/s for read endpoints
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <h2>📜 Commands Reference</h2>
+        <div class="info-body">
+          <div class="cmd-group">
+            <h4>👥 Social</h4>
+            <div class="cmd-row"><code>/follow &lt;name&gt;</code> — Follow a user</div>
+            <div class="cmd-row"><code>/unfollow &lt;name&gt;</code> — Unfollow a user</div>
+            <div class="cmd-row"><code>/block &lt;name&gt;</code> — Block a user</div>
+            <div class="cmd-row"><code>/unblock &lt;name&gt;</code> — Unblock a user</div>
+            <div class="cmd-row"><code>/blocklist</code> — Show blocked users</div>
+          </div>
+          <div class="cmd-group">
+            <h4>💬 DMs &amp; Groups</h4>
+            <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code> — Send a direct message</div>
+            <div class="cmd-row"><code>/dms</code> — List DM conversations</div>
+            <div class="cmd-row"><code>/group-create &lt;name&gt;</code> — Create a group chat</div>
+            <div class="cmd-row"><code>/group-join &lt;code&gt;</code> — Join group by invite code</div>
+            <div class="cmd-row"><code>/group-invite</code> — Copy current group's invite code</div>
+            <div class="cmd-row"><code>/group-leave</code> — Leave current group</div>
+            <div class="cmd-row"><code>/friendcode</code> — Generate a one-time friend code (auto-mutual follow)</div>
+            <div class="cmd-row"><code>/redeem &lt;code&gt;</code> — Redeem a friend code (both users follow each other)</div>
+          </div>
+          <div class="cmd-group">
+            <h4>✏️ Profile</h4>
+            <div class="cmd-row"><code>/bio &lt;text&gt;</code> — Set your bio</div>
+            <div class="cmd-row"><code>/social &lt;platform&gt; &lt;handle&gt;</code> — Set social link</div>
+            <div class="cmd-row"><code>/profile</code> — Edit profile</div>
+            <div class="cmd-row"><code>/name &lt;name&gt;</code> — Change display name</div>
+          </div>
+          <div class="cmd-group">
+            <h4>📌 Pins</h4>
+            <div class="cmd-row"><code>/pin</code> — Pin the last message (mod/admin)</div>
+            <div class="cmd-row"><code>/unpin &lt;N&gt;</code> — Unpin by index (mod/admin)</div>
+            <div class="cmd-row"><code>/mypin</code> — Pin your last message (for yourself)</div>
+            <div class="cmd-row"><code>/unmypin &lt;N&gt;</code> — Unpin your pin by index</div>
+            <div class="cmd-row"><code>/pins</code> — View pins</div>
+          </div>
+          <div class="cmd-group">
+            <h4>📞 Voice</h4>
+            <div class="cmd-row"><code>/call</code> — Start a voice call (or use 📞 button)</div>
+          </div>
+          <div class="cmd-group">
+            <h4>🛡️ Moderation</h4>
+            <div class="cmd-row"><code>/kick &lt;name&gt;</code> — Disconnect a user</div>
+            <div class="cmd-row"><code>/mute &lt;name&gt;</code> — Mute a user</div>
+            <div class="cmd-row"><code>/ban &lt;name&gt;</code> — Ban a user</div>
+            <div class="cmd-row"><code>/report &lt;name&gt; [reason]</code> — Report a user</div>
+          </div>
+          <div class="cmd-group">
+            <h4>👑 Admin</h4>
+            <div class="cmd-row"><code>/verify &lt;name&gt;</code> — Verify a user</div>
+            <div class="cmd-row"><code>/unverify &lt;name&gt;</code> — Remove verified</div>
+            <div class="cmd-row"><code>/mod &lt;name&gt;</code> — Promote to moderator</div>
+            <div class="cmd-row"><code>/unmod &lt;name&gt;</code> — Remove moderator</div>
+            <div class="cmd-row"><code>/donor &lt;name&gt;</code> — Set donor role</div>
+            <div class="cmd-row"><code>/lockdown</code> — Toggle registration lock</div>
+            <div class="cmd-row"><code>/channel-create &lt;name&gt; [desc]</code> — Create channel</div>
+            <div class="cmd-row"><code>/channel-delete &lt;name&gt;</code> — Delete channel</div>
+            <div class="cmd-row"><code>/wipe</code> — Delete all chat history</div>
+          </div>
+          <div class="cmd-group">
+            <h4>🔧 Utility</h4>
+            <div class="cmd-row"><code>/help</code> — Show help</div>
+            <div class="cmd-row"><code>/export</code> — Download identity backup</div>
+            <div class="cmd-row"><code>/link</code> — Link another device</div>
+            <div class="cmd-row"><code>/revoke &lt;key&gt;</code> — Remove a device</div>
+            <div class="cmd-row"><code>/users</code> — List all users</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Vault (from vault.html) -->
+    <section class="settings-section" id="sec-vault">
+      <h1>Vault</h1>
+      <p class="section-desc">Your encrypted local-first secure storage for passwords, seed phrases, and private notes.</p>
+
+      <!-- Setup screen (first time) -->
+      <div id="vault-sec-setup" class="vault-screen vault-lock-screen">
+        <div class="lock-card">
+          <h1>🔐 Create Your Vault</h1>
+          <p class="subtitle">
+            A secure place for passwords, recovery phrases, and private notes —
+            all on your device, all encrypted, none of it visible to anyone but you.
+          </p>
+          <div class="eli5-box">
+            <p>
+              <strong>Think of this like a filing cabinet with a combination lock.</strong>
+              Only you know the combination. Everything inside is scrambled into
+              unreadable gibberish — even if someone got into your computer,
+              they would see nothing useful.
+            </p>
+            <p>
+              We <strong>never</strong> see any of this. It never touches any server.
+              It lives entirely on your device.
+            </p>
+          </div>
+          <div class="eli5-box" style="margin-bottom:1.25rem;border-color:#3a3000;background:#100e00">
+            <p>
+              <strong style="color:#f0a500">⚠ Choose a passphrase you'll remember.</strong>
+              If you forget your vault passphrase, everything inside is gone —
+              there is no "forgot password" because only you hold the key.
+              Make it long and memorable: a phrase or three words you won't forget.
+            </p>
+          </div>
+          <div class="vault-field-group">
+            <label>Vault Passphrase</label>
+            <input type="password" id="vault-sec-setup-pass1" placeholder="Choose a strong passphrase…" autocomplete="new-password">
+          </div>
+          <div class="vault-field-group">
+            <label>Confirm Passphrase</label>
+            <input type="password" id="vault-sec-setup-pass2" placeholder="Type it again…" autocomplete="new-password">
+          </div>
+          <div id="vault-sec-setup-msg" class="vault-screen-msg"></div>
+          <button class="vault-btn-primary" id="vault-sec-setup-btn" onclick="vault_doSetup()">Create Vault</button>
+          <p style="font-size:.7rem;color:#3a3a3a;margin-top:1rem;text-align:center">
+            Your passphrase is never stored or transmitted — only a mathematical lock derived from it.
+          </p>
+        </div>
+      </div>
+
+      <!-- Lock screen -->
+      <div id="vault-sec-lock" class="vault-screen vault-lock-screen">
+        <div class="lock-card">
+          <h1>🔒 Vault Locked</h1>
+          <p class="subtitle">Enter your vault passphrase to open your secure storage.</p>
+          <div class="vault-field-group">
+            <label>Vault Passphrase</label>
+            <input type="password" id="vault-sec-lock-pass" placeholder="Your vault passphrase…" autocomplete="current-password"
+              onkeydown="if(event.key==='Enter') vault_doUnlock()">
+          </div>
+          <div id="vault-sec-lock-msg" class="vault-screen-msg"></div>
+          <button class="vault-btn-primary" id="vault-sec-lock-btn" onclick="vault_doUnlock()">Unlock Vault</button>
+          <p style="font-size:.72rem;color:#3a3a3a;margin-top:1.1rem;line-height:1.5">
+            💡 Don't have a vault yet? <a href="#" onclick="vault_showScreen('setup');return false;" style="color:#f0a500">Create one.</a>
+          </p>
+        </div>
+      </div>
+
+      <!-- Vault unlocked screen -->
+      <div id="vault-sec-main-screen" class="vault-screen">
+        <div id="vault-sec-sidebar">
+          <div id="vault-sec-sidebar-header">
+            <h2>Vault</h2>
+            <button id="vault-sec-cloud-sync-btn" onclick="vault_syncToCloud()" title="Sync encrypted vault to Humanity relay (requires chat identity)"
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">☁ Sync</button>
+            <button onclick="vault_restoreFromCloud()" title="Restore vault from Humanity relay cloud backup"
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">☁⬇</button>
+            <button onclick="vault_export()" title="Download an encrypted backup file of your vault"
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">⬇</button>
+            <button onclick="vault_openImportUI()" title="Restore vault from a backup file"
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">⬆</button>
+            <button onclick="vault_openNewEntryModal()" title="Add a new entry (Ctrl+N)"
+              style="background:#f0a500;color:#000;border:none;border-radius:5px;padding:.25rem .55rem;font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
+          </div>
+          <div id="vault-sec-search">
+            <input type="text" id="vault-sec-search-input" placeholder="Search…" oninput="vault_renderEntryList()">
+          </div>
+          <div id="vault-sec-entry-list"></div>
+          <div id="vault-sec-sidebar-footer">
+            <span id="vault-sec-entry-count">0 entries</span>
+            <span id="vault-sec-lock-countdown"></span>
+            <button class="btn-lock" onclick="vault_lock()" title="Lock the vault now (Ctrl+L)">🔒 Lock</button>
+          </div>
+        </div>
+
+        <div id="vault-sec-main">
+          <!-- Seed phrase nudge banner -->
+          <div id="vault-sec-seed-nudge-banner" style="display:none;align-items:flex-start;gap:.9rem;
+               background:#1a1000;border:1px solid #3a2800;border-radius:11px;
+               padding:1rem 1.1rem;margin-bottom:1.25rem;max-width:640px">
+            <span style="font-size:1.4rem;flex-shrink:0">🌱</span>
+            <div style="flex:1">
+              <div style="font-size:.85rem;font-weight:700;color:#f0a500;margin-bottom:.25rem">Your Humanity identity isn't backed up here yet</div>
+              <div style="font-size:.78rem;color:#888;line-height:1.55;margin-bottom:.7rem">
+                Your chat identity has a 24-word seed phrase — like a master key written in plain English.
+                Save it here and you can always recover your account, even if your device is lost or your browser is wiped.
+              </div>
+              <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+                <a href="/chat" style="background:#f0a500;color:#000;border:none;border-radius:6px;
+                   padding:.35rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none">
+                  Go to Chat → Get Seed Phrase
+                </a>
+                <button onclick="vault_dismissSeedNudge()"
+                  style="background:none;border:1px solid #2a2a2a;color:#555;border-radius:6px;
+                         padding:.35rem .75rem;font-size:.78rem;cursor:pointer">
+                  Don't show again
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Welcome / empty state -->
+          <div id="vault-sec-welcome">
+            <h2>Your vault is unlocked 🔓</h2>
+            <p>
+              Add anything you want to keep private — seed phrases, passwords, secure notes.
+              Everything is encrypted with your passphrase before it's saved.
+              Nothing leaves your device.
+            </p>
+            <div class="quick-add-grid" id="vault-sec-quick-add-grid">
+              <button class="quick-add-btn" onclick="vault_openNewEntryModal('seed_phrase')">
+                <span class="qa-icon">🌱</span>
+                <span class="qa-title">Seed Phrase</span>
+                <span class="qa-desc">Your 24-word Humanity recovery phrase or any BIP39 phrase</span>
+              </button>
+              <button class="quick-add-btn" onclick="vault_openNewEntryModal('password')">
+                <span class="qa-icon">🔑</span>
+                <span class="qa-title">Password</span>
+                <span class="qa-desc">A username and password for any website or service</span>
+              </button>
+              <button class="quick-add-btn" onclick="vault_openNewEntryModal('note')">
+                <span class="qa-icon">📝</span>
+                <span class="qa-title">Secure Note</span>
+                <span class="qa-desc">Anything you want to remember privately</span>
+              </button>
+              <button class="quick-add-btn" onclick="vault_openNewEntryModal('login')">
+                <span class="qa-icon">🔗</span>
+                <span class="qa-title">Login</span>
+                <span class="qa-desc">Website address, username, and password together</span>
+              </button>
+            </div>
+
+            <div class="eli5-section">
+              <h3>📖 How the vault works</h3>
+              <div class="eli5-row">
+                <span class="eli5-icon">🔒</span>
+                <p><strong>Your passphrase = your key.</strong> When you save an entry, it's scrambled using your passphrase. Only someone who knows that passphrase can unscramble it — not us, not your internet provider, not anyone else.</p>
+              </div>
+              <div class="eli5-row">
+                <span class="eli5-icon">📱</span>
+                <p><strong>It stays on your device.</strong> Unlike a cloud password manager, this vault lives in your browser's local storage. It doesn't sync across devices automatically — that's a trade-off for maximum privacy. Export a backup if you want to move it somewhere else.</p>
+              </div>
+              <div class="eli5-row">
+                <span class="eli5-icon">👁️</span>
+                <p><strong>Secret fields are hidden until you click them.</strong> Passwords and seed phrases show as blur by default — tap to reveal. This protects you from someone glancing at your screen.</p>
+              </div>
+              <div class="eli5-row">
+                <span class="eli5-icon">💾</span>
+                <p><strong>Back it up.</strong> If you clear your browser data, you lose your vault. Use <strong>⬇ Export</strong> to download an encrypted copy, or <strong>☁ Sync</strong> to save it to the Humanity relay — then <strong>☁⬇ Restore</strong> on any other device using the same identity.</p>
+              </div>
+              <div class="eli5-row">
+                <span class="eli5-icon">☁</span>
+                <p><strong>Cloud sync is still encrypted.</strong> The relay server never sees your passwords or seed phrases — only scrambled data that only you can unscramble with your vault passphrase. You need a Humanity chat identity to use cloud sync (it signs the request to prove it's really you).</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Entry detail -->
+          <div id="vault-sec-detail">
+            <div id="vault-sec-detail-header">
+              <span id="vault-sec-detail-icon"></span>
+              <div id="vault-sec-detail-title-block">
+                <div id="vault-sec-detail-title"></div>
+                <div id="vault-sec-detail-type"></div>
+              </div>
+              <div class="detail-actions">
+                <button class="btn-detail-edit" onclick="vault_openEditEntryModal()">✏️ Edit</button>
+                <button class="btn-detail-delete" onclick="vault_deleteEntry()">🗑 Delete</button>
+              </div>
+            </div>
+            <div id="vault-sec-detail-fields"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </div><!-- /settings-main -->
 </div><!-- /settings-app -->
+
+<!-- Vault blur overlay -->
+<div id="vault-sec-blur-overlay"
+  style="display:none;position:fixed;inset:0;z-index:900;background:rgba(8,8,8,.97);
+         align-items:center;justify-content:center;flex-direction:column;gap:.6rem;cursor:pointer"
+  onclick="document.getElementById('vault-sec-blur-overlay').style.display='none'">
+  <div style="font-size:2.5rem">🔒</div>
+  <div style="font-size:.95rem;color:#888">Vault hidden while you were away</div>
+  <div style="font-size:.75rem;color:#444">Click to continue — or wait for auto-lock</div>
+</div>
+
+<!-- Vault import modal -->
+<div id="vault-sec-import-overlay"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;
+         align-items:center;justify-content:center;padding:1rem"
+  onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#111;border:1px solid #222;border-radius:14px;padding:1.75rem;width:100%;max-width:460px;color:#e0e0e0">
+    <h3 style="font-size:.95rem;font-weight:700;color:#e0e0e0;margin-bottom:.4rem">⬆ Import Vault Backup</h3>
+    <p style="font-size:.78rem;color:#666;line-height:1.5;margin-bottom:1rem">
+      Select a <code>humanity-vault-backup.json</code> file and enter the passphrase you used when you exported it.
+      Entries will be merged — nothing gets overwritten.
+    </p>
+    <div style="margin-bottom:.8rem">
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.3rem">Backup File</label>
+      <input type="file" id="vault-sec-import-file" accept=".json,application/json"
+        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:.45rem .7rem;color:#e0e0e0;font-size:.82rem;cursor:pointer">
+    </div>
+    <div style="margin-bottom:1rem">
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.3rem">Vault Passphrase</label>
+      <input type="password" id="vault-sec-import-pass" placeholder="The passphrase used when this backup was created…"
+        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:.5rem .7rem;color:#e0e0e0;font-size:.85rem;outline:none">
+    </div>
+    <div id="vault-sec-import-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.75rem"></div>
+    <div style="display:flex;gap:.65rem;justify-content:flex-end">
+      <button onclick="document.getElementById('vault-sec-import-overlay').style.display='none'"
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+      <button id="vault-sec-import-btn" onclick="vault_doImport()"
+        style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import &amp; Merge</button>
+    </div>
+  </div>
+</div>
+
+<!-- Vault entry modal -->
+<div id="vault-sec-entry-modal-overlay" onclick="if(event.target===this) vault_closeEntryModal()">
+  <div id="vault-sec-entry-modal">
+    <h3 id="vault-sec-modal-title">New Entry</h3>
+    <div id="vault-sec-type-selector-row">
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.5rem">Type</div>
+      <div class="type-selector">
+        <div class="type-chip selected" data-type="seed_phrase" onclick="vault_selectEntryType('seed_phrase')">
+          <span class="chip-icon">🌱</span> Seed Phrase
+        </div>
+        <div class="type-chip" data-type="password" onclick="vault_selectEntryType('password')">
+          <span class="chip-icon">🔑</span> Password
+        </div>
+        <div class="type-chip" data-type="note" onclick="vault_selectEntryType('note')">
+          <span class="chip-icon">📝</span> Secure Note
+        </div>
+        <div class="type-chip" data-type="login" onclick="vault_selectEntryType('login')">
+          <span class="chip-icon">🔗</span> Login
+        </div>
+        <div class="type-chip" data-type="custom" onclick="vault_selectEntryType('custom')">
+          <span class="chip-icon">🪙</span> Custom
+        </div>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label>Title</label>
+      <input type="text" id="vault-sec-modal-entry-title" placeholder="e.g. My Humanity Seed Phrase…">
+    </div>
+    <div id="vault-sec-modal-dynamic-fields"></div>
+    <div id="vault-sec-modal-msg"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="vault_closeEntryModal()">Cancel</button>
+      <button class="btn-save" id="vault-sec-modal-save-btn" onclick="vault_saveEntry()">Save</button>
+    </div>
+  </div>
+</div>
 
 <button id="settings-save" onclick="showSaved()">💾 Settings Saved</button>
 
@@ -1548,7 +2284,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.4.4 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.4.5 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Update the button label to just say Save Settings
@@ -1563,6 +2299,775 @@ populateDeviceLists();
 checkKeyProtection();
 calculateStorage();
 updateRangeLabels();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Merge A: Server Info (from knowledge.html) ──
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Collapsible info sections
+document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
+  h2.addEventListener('click', () => {
+    h2.parentElement.classList.toggle('collapsed');
+  });
+});
+
+// Fetch server stats (ki_ prefix to avoid conflicts)
+(async function ki_loadInfoStats() {
+  try {
+    const [statsRes, infoRes] = await Promise.all([
+      fetch('/api/stats').then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch('/api/server-info').then(r => r.ok ? r.json() : null).catch(() => null)
+    ]);
+    if (statsRes) {
+      if (statsRes.online !== undefined) document.getElementById('ki-info-online').textContent = statsRes.online;
+      if (statsRes.registered !== undefined) document.getElementById('ki-info-registered').textContent = statsRes.registered;
+      if (statsRes.uptime) {
+        const s = statsRes.uptime;
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        document.getElementById('ki-info-uptime').textContent = h + 'h ' + m + 'm';
+      }
+    }
+    if (infoRes) {
+      if (infoRes.version) document.getElementById('ki-info-version').textContent = infoRes.version;
+      else if (infoRes.name) document.getElementById('ki-info-version').textContent = infoRes.name;
+    }
+  } catch(e) { console.warn('Server info stats fetch failed:', e); }
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Merge B: Vault (from vault.html) ──
+// All vault functions prefixed with vault_ to avoid conflicts with settings.
+// ══════════════════════════════════════════════════════════════════════════════
+
+(function() {
+  'use strict';
+
+  const VAULT_LS_KEY = 'hos_vault_v1';
+
+  // In-memory state — cleared on lock
+  let vaultKey     = null;
+  let vault        = null;
+  let activeId     = null;
+  let editingId    = null;
+  let selectedType = 'seed_phrase';
+
+  // ── Crypto helpers ──
+
+  const venc = new TextEncoder();
+  const vdec = new TextDecoder();
+
+  function vb64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+  function vunb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+
+  async function vault_deriveKey(passphrase, salt) {
+    const raw = await crypto.subtle.importKey('raw', venc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 600_000 },
+      raw,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  async function vault_encrypt(vaultObj, key, salt) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, venc.encode(JSON.stringify(vaultObj)));
+    return JSON.stringify({ v: 1, salt: vb64(salt), iv: vb64(iv), enc: vb64(ct) });
+  }
+
+  async function vault_decryptBlob(blob, key) {
+    let pt;
+    try {
+      pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: vunb64(blob.iv) }, key, vunb64(blob.enc));
+    } catch {
+      throw new Error('Wrong passphrase or corrupted vault.');
+    }
+    return JSON.parse(vdec.decode(pt));
+  }
+
+  // ── Screen management ──
+
+  function vault_showScreen(name) {
+    document.querySelectorAll('#sec-vault .vault-screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById('vault-sec-' + name);
+    if (el) el.classList.add('active');
+  }
+  window.vault_showScreen = vault_showScreen;
+
+  function vault_determineInitialScreen() {
+    const stored = localStorage.getItem(VAULT_LS_KEY);
+    if (!stored) { vault_showScreen('setup'); return; }
+    vault_showScreen('lock');
+    setTimeout(() => { const lp = document.getElementById('vault-sec-lock-pass'); if (lp) lp.focus(); }, 80);
+  }
+
+  // ── Setup (create vault) ──
+
+  async function vault_doSetup() {
+    const p1  = document.getElementById('vault-sec-setup-pass1').value;
+    const p2  = document.getElementById('vault-sec-setup-pass2').value;
+    const msg = document.getElementById('vault-sec-setup-msg');
+    const btn = document.getElementById('vault-sec-setup-btn');
+
+    if (p1.length < 8) { vault_showMsg(msg, 'Passphrase must be at least 8 characters.', 'red'); return; }
+    if (p1 !== p2)     { vault_showMsg(msg, 'Passphrases do not match.', 'red'); return; }
+
+    btn.disabled = true; btn.textContent = 'Creating…';
+    vault_showMsg(msg, '', '');
+
+    try {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const key  = await vault_deriveKey(p1, salt);
+      vault = { version: 1, entries: [], created_at: Date.now() };
+      const blob = await vault_encrypt(vault, key, salt);
+      localStorage.setItem(VAULT_LS_KEY, blob);
+      vaultKey = key;
+      vault_showUnlocked();
+    } catch(e) {
+      vault_showMsg(msg, 'Error: ' + e.message, 'red');
+      btn.disabled = false; btn.textContent = 'Create Vault';
+    }
+  }
+  window.vault_doSetup = vault_doSetup;
+
+  // ── Unlock ──
+
+  async function vault_doUnlock() {
+    const pass = document.getElementById('vault-sec-lock-pass').value;
+    const msg  = document.getElementById('vault-sec-lock-msg');
+    const btn  = document.getElementById('vault-sec-lock-btn');
+
+    if (!pass) { vault_showMsg(msg, 'Enter your passphrase.', 'red'); return; }
+
+    btn.disabled = true; btn.textContent = 'Unlocking…';
+    vault_showMsg(msg, '', '');
+
+    try {
+      const stored = localStorage.getItem(VAULT_LS_KEY);
+      if (!stored) { vault_showScreen('setup'); return; }
+      const blob = JSON.parse(stored);
+      const salt = vunb64(blob.salt);
+      const key  = await vault_deriveKey(pass, salt);
+      vault      = await vault_decryptBlob(blob, key);
+      vaultKey   = key;
+      document.getElementById('vault-sec-lock-pass').value = '';
+      vault_showUnlocked();
+    } catch(e) {
+      vault_showMsg(msg, e.message, 'red');
+      btn.disabled = false; btn.textContent = 'Unlock Vault';
+    }
+  }
+  window.vault_doUnlock = vault_doUnlock;
+
+  // ── Lock ──
+
+  function vault_lock() {
+    clearTimeout(lockTimer);
+    lockTimer = null; lockAt = null;
+    vaultKey = null;
+    vault    = null;
+    activeId = null;
+    document.getElementById('vault-sec-blur-overlay').style.display = 'none';
+    vault_showScreen('lock');
+    setTimeout(() => {
+      const lp = document.getElementById('vault-sec-lock-pass');
+      if (lp) { lp.value = ''; lp.focus(); }
+    }, 80);
+  }
+  window.vault_lock = vault_lock;
+
+  // ── Show vault (unlocked) ──
+
+  function vault_showUnlocked() {
+    vault_showScreen('main-screen');
+    vault_renderEntryList();
+    vault_showWelcome();
+    vault_resetLockTimer();
+  }
+
+  // ── Persist vault to localStorage ──
+
+  async function vault_persist() {
+    if (!vaultKey || !vault) return;
+    const stored = localStorage.getItem(VAULT_LS_KEY);
+    const blob   = JSON.parse(stored);
+    const salt   = vunb64(blob.salt);
+    const newBlob = await vault_encrypt(vault, vaultKey, salt);
+    localStorage.setItem(VAULT_LS_KEY, newBlob);
+  }
+
+  // ── Entry list ──
+
+  function vault_renderEntryList() {
+    const list  = document.getElementById('vault-sec-entry-list');
+    const query = (document.getElementById('vault-sec-search-input').value || '').toLowerCase();
+    const entries = (vault && vault.entries || [])
+      .filter(e => !query || e.title.toLowerCase().includes(query) || e.type.includes(query));
+
+    const count = document.getElementById('vault-sec-entry-count');
+    if (count) count.textContent = `${vault && vault.entries.length || 0} ${vault && vault.entries.length === 1 ? 'entry' : 'entries'}`;
+
+    if (!entries.length) {
+      if (list) list.innerHTML = `<div class="no-entries">${query ? 'No matches.' : 'No entries yet — click + New to add one.'}</div>`;
+      return;
+    }
+
+    if (list) list.innerHTML = entries.map(e => `
+      <div class="entry-item ${e.id === activeId ? 'active' : ''}" onclick="vault_selectEntry('${e.id}')">
+        <span class="entry-item-icon">${vault_entryIcon(e.type)}</span>
+        <div class="entry-item-info">
+          <div class="entry-item-title">${vault_esc(e.title)}</div>
+          <div class="entry-item-type">${vault_typeLabel(e.type)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+  window.vault_renderEntryList = vault_renderEntryList;
+
+  // ── Entry selection / detail ──
+
+  function vault_selectEntry(id) {
+    activeId = id;
+    vault_renderEntryList();
+    vault_showEntryDetail(id);
+  }
+  window.vault_selectEntry = vault_selectEntry;
+
+  function vault_showWelcome() {
+    activeId = null;
+    const w = document.getElementById('vault-sec-welcome');
+    if (w) w.style.display = '';
+    const d = document.getElementById('vault-sec-detail');
+    if (d) d.classList.remove('visible');
+    const qa = document.getElementById('vault-sec-quick-add-grid');
+    if (qa) qa.style.display = vault && vault.entries.length ? 'none' : '';
+    vault_renderEntryList();
+    vault_checkSeedPhraseBanner();
+  }
+
+  function vault_checkSeedPhraseBanner() {
+    const banner = document.getElementById('vault-sec-seed-nudge-banner');
+    if (!banner) return;
+    if (localStorage.getItem('hos_vault_seed_nudge_dismissed')) { banner.style.display = 'none'; return; }
+    if (!localStorage.getItem('humanity_key')) { banner.style.display = 'none'; return; }
+    const hasSeed = vault && vault.entries.some(e => e.type === 'seed_phrase');
+    if (hasSeed) { banner.style.display = 'none'; return; }
+    banner.style.display = 'flex';
+  }
+
+  function vault_dismissSeedNudge() {
+    localStorage.setItem('hos_vault_seed_nudge_dismissed', '1');
+    const b = document.getElementById('vault-sec-seed-nudge-banner');
+    if (b) b.style.display = 'none';
+  }
+  window.vault_dismissSeedNudge = vault_dismissSeedNudge;
+
+  function vault_showEntryDetail(id) {
+    const entry = vault && vault.entries.find(e => e.id === id);
+    if (!entry) { vault_showWelcome(); return; }
+
+    const w = document.getElementById('vault-sec-welcome');
+    if (w) w.style.display = 'none';
+    const detail = document.getElementById('vault-sec-detail');
+    if (detail) detail.classList.add('visible');
+
+    document.getElementById('vault-sec-detail-icon').textContent  = vault_entryIcon(entry.type);
+    document.getElementById('vault-sec-detail-title').textContent = entry.title;
+    document.getElementById('vault-sec-detail-type').textContent  = vault_typeLabel(entry.type);
+
+    const fieldsEl = document.getElementById('vault-sec-detail-fields');
+    fieldsEl.innerHTML = entry.fields.map((f, i) => {
+      const fid = 'vault-fv-' + i;
+      if (f.secret) {
+        return `
+          <div class="field-display">
+            <div class="field-display-label">${vault_esc(f.label)}</div>
+            <div class="field-display-value secret" id="${fid}" onclick="vault_toggleReveal('${fid}')"
+                 title="Click to reveal">${vault_esc(f.value)}</div>
+            <div class="field-copy-row">
+              <button class="btn-reveal" onclick="vault_toggleReveal('${fid}')">👁 Reveal</button>
+              <button class="btn-copy-field" onclick="vault_copyField('${fid}', '${vault_escAttr(f.value)}', this)">📋 Copy</button>
+              <span class="copy-confirm" id="${fid}-cc"></span>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="field-display">
+          <div class="field-display-label">${vault_esc(f.label)}</div>
+          <div class="field-display-value" id="${fid}">${vault_esc(f.value)}</div>
+          <div class="field-copy-row">
+            <button class="btn-copy-field" onclick="vault_copyField('${fid}', '${vault_escAttr(f.value)}', this)">📋 Copy</button>
+            <span class="copy-confirm" id="${fid}-cc"></span>
+          </div>
+        </div>`;
+    }).join('');
+
+    const ts = new Date(entry.updated_at || entry.created_at);
+    const dateEl = document.createElement('p');
+    dateEl.style.cssText = 'font-size:.66rem;color:#3a3a3a;margin-top:1rem';
+    dateEl.textContent = 'Last updated ' + ts.toLocaleDateString() + ' at ' + ts.toLocaleTimeString();
+    fieldsEl.appendChild(dateEl);
+  }
+
+  function vault_toggleReveal(fid) {
+    const el = document.getElementById(fid);
+    if (!el) return;
+    el.classList.toggle('revealed');
+    const btn = el.nextElementSibling && el.nextElementSibling.querySelector('.btn-reveal');
+    if (btn) btn.textContent = el.classList.contains('revealed') ? '🙈 Hide' : '👁 Reveal';
+  }
+  window.vault_toggleReveal = vault_toggleReveal;
+
+  function vault_copyField(fid, value, btn) {
+    navigator.clipboard.writeText(value).then(() => {
+      const cc   = document.getElementById(fid + '-cc');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+
+      const fieldIndex = parseInt(fid.replace('vault-fv-', ''), 10);
+      const entry = vault && vault.entries.find(e => e.id === activeId);
+      const isSecret = entry && entry.fields[fieldIndex] && entry.fields[fieldIndex].secret;
+
+      if (isSecret) {
+        let remaining = 30;
+        if (cc) cc.textContent = `✓ Copied — clipboard clears in ${remaining}s`;
+        const iv = setInterval(() => {
+          remaining--;
+          if (remaining <= 0) {
+            clearInterval(iv);
+            navigator.clipboard.writeText('').catch(() => {});
+            if (cc) { cc.textContent = '🧹 Clipboard cleared'; setTimeout(() => { cc.textContent = ''; }, 2000); }
+            btn.textContent = orig;
+          } else {
+            if (cc) cc.textContent = `✓ Copied — clipboard clears in ${remaining}s`;
+          }
+        }, 1000);
+      } else {
+        if (cc) { cc.textContent = '✓ Copied'; setTimeout(() => { cc.textContent = ''; }, 2500); }
+        setTimeout(() => { btn.textContent = orig; }, 2500);
+      }
+    }).catch(() => {});
+  }
+  window.vault_copyField = vault_copyField;
+
+  // ── Delete entry ──
+
+  async function vault_deleteEntry() {
+    if (!activeId || !vault) return;
+    const entry = vault.entries.find(e => e.id === activeId);
+    if (!entry) return;
+    if (!confirm(`Delete "${entry.title}"? This cannot be undone.`)) return;
+    vault.entries = vault.entries.filter(e => e.id !== activeId);
+    await vault_persist();
+    activeId = null;
+    vault_renderEntryList();
+    vault_showWelcome();
+  }
+  window.vault_deleteEntry = vault_deleteEntry;
+
+  // ── Entry modal ──
+
+  const VAULT_TYPE_TEMPLATES = {
+    seed_phrase: {
+      label: 'Seed Phrase', icon: '🌱',
+      fields: [
+        { label: 'Seed Phrase (24 words)', key: 'phrase', placeholder: 'word1 word2 … word24', multiline: true, secret: true }
+      ],
+      note: 'These 24 words are your identity master key. Anyone who has them can use your account — guard them carefully.'
+    },
+    password: {
+      label: 'Password', icon: '🔑',
+      fields: [
+        { label: 'Username or Email', key: 'username', placeholder: 'you@example.com', secret: false },
+        { label: 'Password',          key: 'password', placeholder: '••••••••',         secret: true },
+        { label: 'Notes (optional)',  key: 'notes',    placeholder: 'Any extra info…',  multiline: true, secret: false, optional: true }
+      ]
+    },
+    note: {
+      label: 'Secure Note', icon: '📝',
+      fields: [
+        { label: 'Note', key: 'content', placeholder: 'Your private note…', multiline: true, secret: true }
+      ]
+    },
+    login: {
+      label: 'Login', icon: '🔗',
+      fields: [
+        { label: 'Website',  key: 'url',      placeholder: 'https://example.com', secret: false },
+        { label: 'Username', key: 'username', placeholder: 'your username',        secret: false },
+        { label: 'Password', key: 'password', placeholder: '••••••••',             secret: true }
+      ]
+    },
+    custom: {
+      label: 'Custom', icon: '🪙',
+      fields: [
+        { label: 'Field 1', key: 'f1', placeholder: 'Label: value…', multiline: true, secret: false }
+      ],
+      note: 'Use this for anything that doesn\'t fit the other types. You can put any text you like here.'
+    }
+  };
+
+  function vault_selectEntryType(type) {
+    selectedType = type;
+    document.querySelectorAll('#vault-sec-entry-modal .type-chip').forEach(c => c.classList.toggle('selected', c.dataset.type === type));
+    vault_renderModalFields(type);
+  }
+  window.vault_selectEntryType = vault_selectEntryType;
+
+  function vault_renderModalFields(type, existingFields) {
+    const tmpl = VAULT_TYPE_TEMPLATES[type] || VAULT_TYPE_TEMPLATES.custom;
+    const container = document.getElementById('vault-sec-modal-dynamic-fields');
+    let html = '';
+
+    if (tmpl.note) {
+      html += `<div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:7px;padding:.65rem .8rem;margin-bottom:.8rem;font-size:.76rem;color:#666;line-height:1.5">${vault_esc(tmpl.note)}</div>`;
+    }
+
+    tmpl.fields.forEach(f => {
+      const existing = existingFields && existingFields.find(ef => ef.label === f.label);
+      const val = existing ? existing.value : '';
+      const input = f.multiline
+        ? `<textarea id="vault-mf-${f.key}" placeholder="${vault_esc(f.placeholder || '')}" rows="3">${vault_esc(val)}</textarea>`
+        : `<input type="${f.secret ? 'password' : 'text'}" id="vault-mf-${f.key}" placeholder="${vault_esc(f.placeholder || '')}" value="${vault_escAttr(val)}" autocomplete="off">`;
+      html += `<div class="modal-field"><label>${vault_esc(f.label)}</label>${input}</div>`;
+    });
+
+    container.innerHTML = html;
+  }
+
+  function vault_openNewEntryModal(type) {
+    type = type || 'seed_phrase';
+    selectedType  = type;
+    editingId     = null;
+
+    document.getElementById('vault-sec-modal-title').textContent = 'New Entry';
+    document.getElementById('vault-sec-modal-entry-title').value = '';
+    document.getElementById('vault-sec-modal-msg').textContent   = '';
+    document.getElementById('vault-sec-modal-save-btn').disabled = false;
+    document.getElementById('vault-sec-modal-save-btn').textContent = 'Save';
+    document.getElementById('vault-sec-type-selector-row').style.display = '';
+
+    document.querySelectorAll('#vault-sec-entry-modal .type-chip').forEach(c => c.classList.toggle('selected', c.dataset.type === type));
+    vault_renderModalFields(type);
+    document.getElementById('vault-sec-entry-modal-overlay').classList.add('open');
+    document.getElementById('vault-sec-modal-entry-title').focus();
+  }
+  window.vault_openNewEntryModal = vault_openNewEntryModal;
+
+  function vault_openEditEntryModal() {
+    if (!activeId) return;
+    const entry = vault && vault.entries.find(e => e.id === activeId);
+    if (!entry) return;
+
+    editingId    = activeId;
+    selectedType = entry.type;
+
+    document.getElementById('vault-sec-modal-title').textContent = 'Edit Entry';
+    document.getElementById('vault-sec-modal-entry-title').value = entry.title;
+    document.getElementById('vault-sec-modal-msg').textContent   = '';
+    document.getElementById('vault-sec-modal-save-btn').disabled = false;
+    document.getElementById('vault-sec-modal-save-btn').textContent = 'Save';
+    document.getElementById('vault-sec-type-selector-row').style.display = 'none';
+
+    vault_renderModalFields(entry.type, entry.fields);
+
+    const tmpl = VAULT_TYPE_TEMPLATES[entry.type] || VAULT_TYPE_TEMPLATES.custom;
+    tmpl.fields.forEach(f => {
+      const el = document.getElementById('vault-mf-' + f.key);
+      if (el && el.type === 'password') el.type = 'text';
+    });
+
+    document.getElementById('vault-sec-entry-modal-overlay').classList.add('open');
+    document.getElementById('vault-sec-modal-entry-title').focus();
+  }
+  window.vault_openEditEntryModal = vault_openEditEntryModal;
+
+  function vault_closeEntryModal() {
+    document.getElementById('vault-sec-entry-modal-overlay').classList.remove('open');
+    editingId = null;
+  }
+  window.vault_closeEntryModal = vault_closeEntryModal;
+
+  async function vault_saveEntry() {
+    const title = document.getElementById('vault-sec-modal-entry-title').value.trim();
+    const msg   = document.getElementById('vault-sec-modal-msg');
+    const btn   = document.getElementById('vault-sec-modal-save-btn');
+
+    if (!title) { vault_showMsg(msg, 'Please enter a title.', 'red'); return; }
+
+    const tmpl = VAULT_TYPE_TEMPLATES[selectedType] || VAULT_TYPE_TEMPLATES.custom;
+    const fields = tmpl.fields.map(f => ({
+      label:  f.label,
+      value:  (document.getElementById('vault-mf-' + f.key) || {}).value || '',
+      secret: f.secret || false
+    }));
+
+    if (fields.every(f => !f.value.trim())) {
+      vault_showMsg(msg, 'Fill in at least one field.', 'red'); return;
+    }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    vault_showMsg(msg, '', '');
+
+    try {
+      if (editingId) {
+        const idx = vault.entries.findIndex(e => e.id === editingId);
+        if (idx !== -1) {
+          vault.entries[idx] = { ...vault.entries[idx], title, fields, updated_at: Date.now() };
+        }
+      } else {
+        vault.entries.push({
+          id: vault_uid(),
+          type: selectedType,
+          title,
+          fields,
+          created_at: Date.now(),
+          updated_at: Date.now()
+        });
+      }
+
+      await vault_persist();
+      vault_closeEntryModal();
+      vault_renderEntryList();
+
+      const savedId = editingId || vault.entries[vault.entries.length - 1].id;
+      activeId = savedId;
+      vault_renderEntryList();
+      vault_showEntryDetail(savedId);
+    } catch(e) {
+      vault_showMsg(msg, 'Error saving: ' + e.message, 'red');
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  }
+  window.vault_saveEntry = vault_saveEntry;
+
+  // ── Export vault (encrypted) ──
+
+  function vault_export() {
+    const stored = localStorage.getItem(VAULT_LS_KEY);
+    if (!stored) { alert('No vault to export.'); return; }
+    const a = document.createElement('a');
+    a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(stored);
+    a.download = 'humanity-vault-backup.json';
+    a.click();
+  }
+  window.vault_export = vault_export;
+
+  async function vault_importData(file, passphrase) {
+    const text = await file.text();
+    const blob = JSON.parse(text);
+    const salt = vunb64(blob.salt);
+    const key  = await vault_deriveKey(passphrase, salt);
+    const vaultObj = await vault_decryptBlob(blob, key);
+    if (vault) {
+      const existingIds = new Set(vault.entries.map(e => e.id));
+      vaultObj.entries.forEach(e => { if (!existingIds.has(e.id)) vault.entries.push(e); });
+      await vault_persist();
+    } else {
+      vault = vaultObj;
+      vaultKey = key;
+      localStorage.setItem(VAULT_LS_KEY, text);
+    }
+    vault_renderEntryList();
+    vault_showWelcome();
+  }
+
+  // ── Import UI ──
+
+  function vault_openImportUI() {
+    document.getElementById('vault-sec-import-overlay').style.display = 'flex';
+    setTimeout(() => document.getElementById('vault-sec-import-pass').focus(), 80);
+  }
+  window.vault_openImportUI = vault_openImportUI;
+
+  async function vault_doImport() {
+    const fileInput = document.getElementById('vault-sec-import-file');
+    const pass      = document.getElementById('vault-sec-import-pass').value;
+    const msg       = document.getElementById('vault-sec-import-msg');
+    const btn       = document.getElementById('vault-sec-import-btn');
+
+    if (!fileInput.files.length) { msg.innerHTML = '<span style="color:#e55">Select a backup file first.</span>'; return; }
+    if (!pass)                   { msg.innerHTML = '<span style="color:#e55">Enter the passphrase used when this backup was created.</span>'; return; }
+
+    btn.disabled = true; btn.textContent = 'Importing…'; msg.textContent = '';
+
+    try {
+      await vault_importData(fileInput.files[0], pass);
+      msg.innerHTML = '<span style="color:#4ec87a">✓ Imported and merged. Entries are now in your vault.</span>';
+      btn.textContent = 'Done';
+      setTimeout(() => { document.getElementById('vault-sec-import-overlay').style.display = 'none'; }, 2000);
+    } catch(e) {
+      msg.innerHTML = `<span style="color:#e55">⚠ ${e.message} — wrong passphrase?</span>`;
+      btn.disabled = false; btn.textContent = 'Import & Merge';
+    }
+  }
+  window.vault_doImport = vault_doImport;
+
+  // ── Utility ──
+
+  function vault_uid() {
+    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,
+      c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+  }
+
+  function vault_esc(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function vault_escAttr(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function vault_showMsg(el, text, type) {
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = type === 'red' ? '#e55' : type === 'green' ? '#4ec87a' : '#888';
+  }
+
+  function vault_entryIcon(type) {
+    return { seed_phrase: '🌱', password: '🔑', note: '📝', login: '🔗', custom: '🪙' }[type] || '📄';
+  }
+
+  function vault_typeLabel(type) {
+    return { seed_phrase: 'Seed Phrase', password: 'Password', note: 'Secure Note', login: 'Login', custom: 'Custom' }[type] || type;
+  }
+
+  // ── Auto-lock inactivity timer ──
+
+  const VAULT_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+  let lockTimer = null;
+  let lockAt    = null;
+
+  function vault_resetLockTimer() {
+    if (!vault) return;
+    clearTimeout(lockTimer);
+    lockAt    = Date.now() + VAULT_LOCK_TIMEOUT_MS;
+    lockTimer = setTimeout(vault_lock, VAULT_LOCK_TIMEOUT_MS);
+  }
+
+  function vault_updateLockCountdown() {
+    const el = document.getElementById('vault-sec-lock-countdown');
+    if (!el) return;
+    if (!vault || !lockAt) { el.textContent = ''; return; }
+    const rem = Math.max(0, lockAt - Date.now());
+    const m   = Math.floor(rem / 60000);
+    const s   = Math.floor((rem % 60000) / 1000);
+    el.textContent = `Auto-locks in ${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  setInterval(() => { if (vault) vault_updateLockCountdown(); }, 1000);
+
+  ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'].forEach(ev =>
+    document.addEventListener(ev, () => { if (vault) vault_resetLockTimer(); }, { passive: true })
+  );
+
+  // ── Tab-hide blur overlay ──
+
+  document.addEventListener('visibilitychange', () => {
+    const overlay = document.getElementById('vault-sec-blur-overlay');
+    if (!overlay || !vault) return;
+    overlay.style.display = document.visibilityState === 'hidden' ? 'flex' : 'none';
+  });
+
+  // ── Cloud vault sync (relay-backed) ──
+
+  async function vault_signSyncRequest() {
+    const backup = localStorage.getItem('humanity_key_backup');
+    const keyHex = localStorage.getItem('humanity_key');
+    if (!backup || !keyHex) return null;
+    try {
+      const parsed = JSON.parse(backup);
+      let privateKey;
+      if (parsed.jwk) {
+        privateKey = await crypto.subtle.importKey('jwk', parsed.jwk, 'Ed25519', false, ['sign']);
+      } else if (parsed.privateKeyPkcs8) {
+        const pkcs8Buf = Uint8Array.from(atob(parsed.privateKeyPkcs8), c => c.charCodeAt(0));
+        privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', false, ['sign']);
+      } else {
+        console.warn('Vault sync: unrecognised key_backup format');
+        return null;
+      }
+      const ts = Date.now();
+      const payload = `vault_sync\n${ts}`;
+      const sigBuf = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(payload));
+      const sig = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2,'0')).join('');
+      return { key: keyHex, timestamp: ts, sig };
+    } catch(e) { console.warn('Vault sync sign failed:', e); return null; }
+  }
+
+  async function vault_syncToCloud() {
+    const stored = localStorage.getItem(VAULT_LS_KEY);
+    if (!stored) { alert('No vault to sync.'); return; }
+    const auth = await vault_signSyncRequest();
+    if (!auth) { alert('No Humanity identity found — vault sync requires a chat identity to authenticate.'); return; }
+    const btn = document.getElementById('vault-sec-cloud-sync-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+    try {
+      const res = await fetch('/api/vault/sync', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...auth, blob: stored })
+      });
+      if (!res.ok) { const t = await res.text(); throw new Error(t); }
+      if (btn) { btn.textContent = '☁ Synced ✓'; setTimeout(() => { btn.disabled = false; btn.textContent = '☁ Sync'; }, 3000); }
+    } catch(e) {
+      alert('Sync failed: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = '☁ Sync'; }
+    }
+  }
+  window.vault_syncToCloud = vault_syncToCloud;
+
+  async function vault_restoreFromCloud() {
+    const auth = await vault_signSyncRequest();
+    if (!auth) { alert('No Humanity identity found — vault sync requires a chat identity to authenticate.'); return; }
+    if (!confirm('Restore vault from cloud? Any entries not in the cloud backup will be lost unless you export first.')) return;
+    try {
+      const url = `/api/vault/sync?key=${encodeURIComponent(auth.key)}&timestamp=${auth.timestamp}&sig=${encodeURIComponent(auth.sig)}`;
+      const res = await fetch(url);
+      if (res.status === 404) { alert('No cloud backup found for this identity.'); return; }
+      if (!res.ok) { const t = await res.text(); throw new Error(t); }
+      const { blob, updated_at } = await res.json();
+      const date = new Date(updated_at).toLocaleString();
+      if (!confirm(`Found cloud backup from ${date}. Overwrite local vault and reload?`)) return;
+      localStorage.setItem(VAULT_LS_KEY, blob);
+      location.reload();
+    } catch(e) {
+      alert('Restore failed: ' + e.message);
+    }
+  }
+  window.vault_restoreFromCloud = vault_restoreFromCloud;
+
+  // ── Keyboard shortcuts ──
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (document.getElementById('vault-sec-entry-modal-overlay').classList.contains('open')) {
+        vault_closeEntryModal();
+      }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'l' && vault) {
+      e.preventDefault();
+      vault_lock();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n' && vault) {
+      // Only intercept if vault section is active
+      const sec = document.getElementById('sec-vault');
+      if (sec && sec.classList.contains('active')) {
+        e.preventDefault();
+        vault_openNewEntryModal();
+      }
+    }
+  });
+
+  // ── Enter key on setup/lock fields ──
+  const sp1 = document.getElementById('vault-sec-setup-pass1');
+  if (sp1) sp1.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('vault-sec-setup-pass2').focus(); });
+  const sp2 = document.getElementById('vault-sec-setup-pass2');
+  if (sp2) sp2.addEventListener('keydown', e => { if (e.key === 'Enter') vault_doSetup(); });
+
+  // ── Boot vault ──
+  vault_determineInitialScreen();
+})();
 </script>
 </body>
 </html>
