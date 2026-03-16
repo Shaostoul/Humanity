@@ -128,6 +128,7 @@
             data-tip-detail="Without this, your key is stored in plain text in localStorage — protection adds AES-256-GCM encryption"
             style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔓 Protect Key (localStorage encryption)</button>
           <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
+          <button id="system-info-btn" onclick="openSystemInfoModal()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">💻 System Info</button>
           <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
             <button onclick="exportContactCard()"
               data-tip-title="Share Contact Card"
@@ -561,6 +562,31 @@
           data-tip-desc="Displays a QR code your other device can scan to share this identity."
           data-tip-detail="Uses encrypted P2P transfer — your private key is never sent to the server"
           style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Link New Device</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- System Info Modal -->
+  <div id="system-info-overlay" class="profile-modal-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+    <div class="profile-modal" onclick="event.stopPropagation()" style="max-width:460px;">
+      <button class="close-btn" onclick="document.getElementById('system-info-overlay').classList.remove('open')">&#x2715;</button>
+      <h2>💻 System Info</h2>
+      <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.75rem">
+        Your computer's info. Helps AI assistants give you better answers.
+      </p>
+      <div id="system-info-detected"></div>
+      <div style="margin-top:0.75rem">
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.2rem">GPU Memory (GB)</label>
+        <input type="text" id="sys-gpu-vram" placeholder="e.g. 12" style="width:100%;padding:0.3rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem;box-sizing:border-box;">
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-top:0.5rem;margin-bottom:0.2rem">Disk Size (GB)</label>
+        <input type="text" id="sys-disk-gb" placeholder="e.g. 1000" style="width:100%;padding:0.3rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem;box-sizing:border-box;">
+        <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-top:0.5rem;margin-bottom:0.2rem">Notes</label>
+        <textarea id="sys-notes" rows="2" placeholder="e.g. dual monitor, streaming PC" style="width:100%;padding:0.3rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.8rem;resize:vertical;box-sizing:border-box;"></textarea>
+      </div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
+        <button onclick="copySystemContext()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">📋 Copy for AI</button>
+        <button onclick="syncSystemProfile()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">☁️ Sync to Server</button>
+        <button onclick="saveSystemOverrides()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;margin-left:auto">Save</button>
       </div>
     </div>
   </div>

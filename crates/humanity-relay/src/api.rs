@@ -1462,3 +1462,103 @@ pub async fn vault_sync_delete(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
     Ok(Json(serde_json::json!({ "status": "deleted" })))
 }
+
+// ── System Profile API ───────────────────────────────────────────────────────
+// Lets users store their system specs (OS, CPU, GPU, RAM, display) on the relay
+// for cross-device access and AI context injection. Data is plain JSON — not
+// sensitive, so no client-side encryption needed. Auth via Ed25519 signature.
+
+#[derive(Debug, Deserialize)]
+pub struct SystemProfileUpload {
+    /// Ed25519 public key (hex) of the profile owner.
+    pub key: String,
+    /// Unix milliseconds when this request was made (anti-replay).
+    pub timestamp: u64,
+    /// sign("system_profile\n" + timestamp, private_key) — proves ownership.
+    pub sig: String,
+    /// System profile as a JSON string.
+    pub profile: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SystemProfileQuery {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+}
+
+/// PUT /api/me/system — Store or replace the system profile.
+pub async fn system_profile_put(
+    state: State<Arc<RelayState>>,
+    Json(body): Json<SystemProfileUpload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
+    }
+
+    if !verify_ed25519_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    if body.profile.len() > 64 * 1024 {
+        return Err((StatusCode::PAYLOAD_TOO_LARGE, "System profile exceeds 64 KB limit.".into()));
+    }
+
+    state.db.store_system_profile(&body.key, &body.profile)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+
+    Ok(Json(serde_json::json!({ "status": "stored", "updated_at": now_ms })))
+}
+
+/// GET /api/me/system — Download the system profile.
+pub async fn system_profile_get(
+    state: State<Arc<RelayState>>,
+    Query(q): Query<SystemProfileQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+
+    if !verify_ed25519_signature(&q.key, "system_profile", q.timestamp, &q.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    match state.db.get_system_profile(&q.key) {
+        Some((profile, updated_at)) => Ok(Json(serde_json::json!({ "profile": profile, "updated_at": updated_at }))),
+        None => Err((StatusCode::NOT_FOUND, "No system profile found for this key.".into())),
+    }
+}
+
+/// DELETE /api/me/system — Wipe the server-side system profile.
+pub async fn system_profile_delete(
+    state: State<Arc<RelayState>>,
+    Json(body): Json<SystemProfileUpload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+    if !verify_ed25519_signature(&body.key, "system_profile", body.timestamp, &body.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+    state.db.delete_system_profile(&body.key)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+    Ok(Json(serde_json::json!({ "status": "deleted" })))
+}

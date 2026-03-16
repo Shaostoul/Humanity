@@ -1104,3 +1104,165 @@ function rerenderUserList() {
     }
   });
 }
+
+// ── System Info ──────────────────────────────────────────────────────────────
+// Detects hardware/OS via browser APIs, lets users add overrides, and provides
+// a plain-text "Copy for AI" export so AI assistants know the user's machine.
+
+/** Detect system specs using browser APIs. */
+function detectSystemSpecs() {
+  let gpuRenderer = null, gpuVendor = null;
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    if (ext) {
+      gpuRenderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+      gpuVendor = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL);
+    }
+  } catch (_) { /* WebGL unavailable */ }
+  return {
+    os: navigator.platform || 'Unknown',
+    userAgent: navigator.userAgent,
+    cpuCores: navigator.hardwareConcurrency || null,
+    ramGB: navigator.deviceMemory || null,
+    gpuRenderer,
+    gpuVendor,
+    screenWidth: screen.width,
+    screenHeight: screen.height,
+    devicePixelRatio: window.devicePixelRatio,
+    colorDepth: screen.colorDepth,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    language: navigator.language,
+  };
+}
+
+function loadSystemProfile() {
+  try { return JSON.parse(localStorage.getItem('hos_system_profile') || '{}'); }
+  catch { return {}; }
+}
+
+function saveSystemProfile(profile) {
+  localStorage.setItem('hos_system_profile', JSON.stringify(profile));
+}
+
+/** Open the system info modal — detect specs and merge with saved overrides. */
+function openSystemInfoModal() {
+  const detected = detectSystemSpecs();
+  const saved = loadSystemProfile();
+
+  // Render detected specs as read-only rows
+  const container = document.getElementById('system-info-detected');
+  const rows = [
+    ['OS / Platform', detected.os],
+    ['CPU Cores', detected.cpuCores || 'Unknown'],
+    ['RAM (GB)', detected.ramGB || 'Unknown'],
+    ['GPU', detected.gpuRenderer || 'Unknown'],
+    ['GPU Vendor', detected.gpuVendor || 'Unknown'],
+    ['Screen', `${detected.screenWidth} x ${detected.screenHeight} @${detected.devicePixelRatio}x`],
+    ['Color Depth', (detected.colorDepth || '?') + '-bit'],
+    ['Timezone', detected.timezone],
+    ['Language', detected.language],
+  ];
+  container.innerHTML = rows.map(([label, val]) =>
+    `<div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border);font-size:0.8rem;">
+       <span style="color:var(--text-muted)">${esc(label)}</span>
+       <span style="color:var(--text);text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis">${esc(String(val))}</span>
+     </div>`
+  ).join('');
+
+  // Fill override fields from saved profile
+  document.getElementById('sys-gpu-vram').value = saved.gpuVram || '';
+  document.getElementById('sys-disk-gb').value = saved.diskGB || '';
+  document.getElementById('sys-notes').value = saved.notes || '';
+
+  document.getElementById('system-info-overlay').classList.add('open');
+}
+
+/** Save user overrides + detected specs to localStorage. */
+function saveSystemOverrides() {
+  const detected = detectSystemSpecs();
+  const profile = {
+    ...detected,
+    gpuVram: document.getElementById('sys-gpu-vram').value.trim() || null,
+    diskGB: document.getElementById('sys-disk-gb').value.trim() || null,
+    notes: document.getElementById('sys-notes').value.trim() || '',
+  };
+  saveSystemProfile(profile);
+  document.getElementById('system-info-overlay').classList.remove('open');
+  if (typeof addSystemMessage === 'function') addSystemMessage('System profile saved.');
+}
+
+/** Format system specs as plain text and copy to clipboard for AI chats. */
+function copySystemContext() {
+  const saved = loadSystemProfile();
+  const detected = detectSystemSpecs();
+  const p = { ...detected, ...saved };
+
+  const lines = ['My Computer'];
+  if (p.os) lines.push('OS: ' + p.os);
+  if (p.cpuCores) lines.push('CPU Cores: ' + p.cpuCores);
+  if (p.ramGB) lines.push('RAM: ' + p.ramGB + ' GB');
+  if (p.gpuRenderer) lines.push('GPU: ' + p.gpuRenderer);
+  if (p.gpuVram) lines.push('GPU VRAM: ' + p.gpuVram + ' GB');
+  if (p.diskGB) lines.push('Disk: ' + p.diskGB + ' GB');
+  lines.push('Display: ' + p.screenWidth + 'x' + p.screenHeight);
+  if (p.timezone) lines.push('Timezone: ' + p.timezone);
+  if (p.language) lines.push('Language: ' + p.language);
+  if (p.notes) lines.push('Notes: ' + p.notes);
+
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    if (typeof addSystemMessage === 'function') addSystemMessage('System context copied to clipboard.');
+  });
+}
+
+/** Sync system profile to the server using Ed25519 auth (same pattern as vault sync). */
+async function syncSystemProfile() {
+  if (!myIdentity || !myIdentity.canSign) {
+    alert('Cannot sync — no signing key available. Generate or restore a key first.');
+    return;
+  }
+  const saved = loadSystemProfile();
+  if (!Object.keys(saved).length) {
+    alert('No system profile saved yet. Click Save first.');
+    return;
+  }
+  const timestamp = Date.now();
+  const sig = await signMessage(myIdentity.privateKey, 'system_profile', timestamp);
+  if (!sig) { alert('Signing failed.'); return; }
+
+  try {
+    const resp = await fetch('/api/me/system', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        key: myIdentity.publicKeyHex,
+        timestamp,
+        sig,
+        profile: JSON.stringify(saved),
+      }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    if (typeof addSystemMessage === 'function') addSystemMessage('System profile synced to server.');
+  } catch (e) {
+    alert('Sync failed: ' + e.message);
+  }
+}
+
+/** Fetch system profile from the server (for cross-device restore). */
+async function fetchSystemProfile() {
+  if (!myIdentity || !myIdentity.canSign) return null;
+  const timestamp = Date.now();
+  const sig = await signMessage(myIdentity.privateKey, 'system_profile', timestamp);
+  if (!sig) return null;
+  try {
+    const params = new URLSearchParams({
+      key: myIdentity.publicKeyHex,
+      timestamp: String(timestamp),
+      sig,
+    });
+    const resp = await fetch('/api/me/system?' + params);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return JSON.parse(data.profile);
+  } catch { return null; }
+}
