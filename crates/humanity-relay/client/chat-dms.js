@@ -79,8 +79,11 @@ function openDmConversation(partnerKey, partnerName) {
   header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">💬 ${esc(partnerName)}</span>`;
   header.style.display = 'block';
 
-  // Clear messages area.
-  document.getElementById('messages').innerHTML = '';
+  // Clear messages area and set DM context (crimson tint + red stripes).
+  const msgsEl = document.getElementById('messages');
+  msgsEl.innerHTML = '';
+  msgsEl.dataset.ctx = 'dm';
+  if (typeof resetMsgStripe === 'function') resetMsgStripe();
 
   // Enable input.
   const input = document.getElementById('msg-input');
@@ -107,7 +110,8 @@ function closeDmView() {
 /** Add a DM message to the message area. */
 function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const el = document.createElement('div');
-  el.className = 'message dm-message';
+  const stripe = (typeof getStripeClass === 'function') ? getStripeClass(fromKey || author) : '';
+  el.className = 'message dm-message' + (stripe ? ' ' + stripe : '');
   el.dataset.from = fromKey;
   el.dataset.timestamp = timestamp;
 

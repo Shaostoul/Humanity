@@ -24,6 +24,27 @@ let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30000;
 let seenTimestamps = new Set(); // Deduplicate messages
 
+// ── Message stripe state ──
+// Stripes alternate ONLY when the posting author changes, grouping consecutive
+// messages from the same person under one visual block.
+let _lastMsgAuthor = null;
+let _msgStripe = 0; // 0 = stripe-a, 1 = stripe-b
+
+/** Returns 'msg-stripe-a' or 'msg-stripe-b', toggling only when the author changes. */
+function getStripeClass(authorKey) {
+  if (authorKey !== _lastMsgAuthor) {
+    _msgStripe ^= 1;
+    _lastMsgAuthor = authorKey;
+  }
+  return _msgStripe === 0 ? 'msg-stripe-a' : 'msg-stripe-b';
+}
+
+/** Reset stripe on context switch (new channel, DM, or group loaded). */
+function resetMsgStripe() {
+  _lastMsgAuthor = null;
+  _msgStripe = 0;
+}
+
 // Persist name across sessions — auto-login if returning user.
 const savedName = localStorage.getItem('humanity_name');
 if (savedName) {
@@ -1096,7 +1117,8 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   if (author && isBlocked(author)) return;
 
   const el = document.createElement('div');
-  el.className = 'message' + (isFederated ? ' federated-msg' : '');
+  const stripe = getStripeClass(fromKey || author);
+  el.className = 'message ' + stripe + (isFederated ? ' federated-msg' : '');
   el.dataset.from = fromKey;
   el.dataset.timestamp = timestamp;
   if (messageId != null) el.dataset.messageId = messageId;
@@ -1467,7 +1489,10 @@ function switchChannel(channelId) {
 
   activeChannel = channelId;
   localStorage.setItem('humanity_channel', channelId);
-  document.getElementById('messages').innerHTML = '';
+  const msgsEl = document.getElementById('messages');
+  msgsEl.innerHTML = '';
+  msgsEl.dataset.ctx = 'channel';
+  resetMsgStripe();
   seenTimestamps.clear();
   // Clear local reaction state for old channel messages.
   Object.keys(messageReactions).forEach(k => delete messageReactions[k]);

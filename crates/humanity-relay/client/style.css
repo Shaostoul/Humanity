@@ -184,7 +184,38 @@ header h1 {
   overflow-y: auto;
   padding: 0.75rem 1rem;
   scroll-behavior: smooth;
+  transition: background 0.3s ease;
+  /* Default stripe CSS custom properties (channel/navy). Overridden by data-ctx. */
+  --stripe-a: rgba(38, 75, 160, 0.22);
+  --stripe-b: rgba(25, 55, 125, 0.10);
 }
+
+/* ── Chat context background tints ────────────────────────────────── */
+/* Each context gets a very dark version of its theme color so the    */
+/* user immediately knows which chat type they're reading.             */
+#messages[data-ctx="channel"] {
+  background: #080d1a; /* rgb(8,13,26) — navy black */
+  --stripe-a: rgba(38, 75, 160, 0.22);
+  --stripe-b: rgba(25, 55, 125, 0.10);
+}
+#messages[data-ctx="dm"] {
+  background: #16080c; /* rgb(22,8,12) — crimson black */
+  --stripe-a: rgba(160, 38, 58, 0.22);
+  --stripe-b: rgba(125, 25, 45, 0.10);
+}
+#messages[data-ctx="group"] {
+  background: #080f08; /* rgb(8,15,8) — forest black */
+  --stripe-a: rgba(38, 130, 68, 0.22);
+  --stripe-b: rgba(25, 100, 50, 0.10);
+}
+
+/* ── Alternating message stripes (change only when author changes) ── */
+/* Stripe A = "darkest" (first stripe class assigned in a run).        */
+/* Stripe B = "dark" (second). Both reference context-aware vars.      */
+.msg-stripe-a { background: var(--stripe-a) !important; }
+.msg-stripe-b { background: var(--stripe-b) !important; }
+.msg-stripe-a:hover,
+.msg-stripe-b:hover { background: var(--bg-hover) !important; }
 
 .message {
   margin-bottom: 0.35rem;

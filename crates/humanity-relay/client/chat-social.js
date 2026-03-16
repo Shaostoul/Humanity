@@ -280,8 +280,11 @@ function openGroup(groupId) {
     header.style.display = 'flex';
     header.innerHTML = `<span class="ch-name">👥 ${esc(group.name)}</span><span class="ch-desc">Group · Invite: ${esc(group.invite_code)}</span>`;
   }
-  // Clear messages and request group history.
-  document.getElementById('messages').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
+  // Clear messages, set group context (forest-green tint + green stripes), request history.
+  const msgsEl = document.getElementById('messages');
+  msgsEl.dataset.ctx = 'group';
+  if (typeof resetMsgStripe === 'function') resetMsgStripe();
+  msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'group_history_request', group_id: groupId }));
     ws.send(JSON.stringify({ type: 'group_members_request', group_id: groupId }));
@@ -318,7 +321,8 @@ sendMessage = async function() {
 function addMessageToChat(name, content, timestamp, isYou, fromKey) {
   const messagesDiv = document.getElementById('messages');
   const div = document.createElement('div');
-  div.className = 'message';
+  const stripe = (typeof getStripeClass === 'function') ? getStripeClass(fromKey || name) : '';
+  div.className = 'message' + (stripe ? ' ' + stripe : '');
   const time = new Date(timestamp);
   const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   div.innerHTML = `<div class="meta"><span class="author${isYou ? ' you' : ''}">${esc(name)}</span><span class="timestamp">${timeStr}</span></div><div class="body">${esc(content)}</div>`;
