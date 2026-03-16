@@ -4,4 +4,4 @@ title: Bootstrap
 permalink: /reference/bootstrap
 ---
 
-{% include canon/reference/BOOTSTRAP.md %}
+{% include canon/docs/BOOTSTRAP.md %}

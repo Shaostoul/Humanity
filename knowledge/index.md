@@ -1,8 +1,0 @@
-# Knowledge Index
-
-Operational and reference docs.
-
-- [OPERATIONS_RUNBOOK](./OPERATIONS_RUNBOOK.md)
-- [ECOSYSTEM_RELEASE_CHECKLIST](./ECOSYSTEM_RELEASE_CHECKLIST.md)
-- [gardening](./gardening.md)
-- [OPENCLAW_CONFIG_CHANGE_POLICY](./OPENCLAW_CONFIG_CHANGE_POLICY.md)

@@ -4,4 +4,4 @@ title: Agents
 permalink: /reference/agents
 ---
 
-{% include canon/reference/AGENTS.md %}
+{% include canon/docs/AGENTS.md %}

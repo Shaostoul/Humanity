@@ -4,4 +4,4 @@ title: Gardening & Food Systems
 permalink: /knowledge/gardening
 ---
 
-{% include canon/knowledge/gardening.md %}
+{% include canon/docs/knowledge-gardening.md %}

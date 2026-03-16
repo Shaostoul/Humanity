@@ -40,7 +40,10 @@ Static HTML served by nginx from /var/www/humanity/
 | `shared/shell.js` | Nav injection IIFE — loaded first on every page |
 | `shared/settings.js` | Settings panel + gear button (don't call injectGearButton on pages with shell.js) |
 | `desktop/src-tauri/src/main.rs` | Tauri wrapper — loads united-humanity.us |
-| `*.html` (root) | Standalone feature pages — vault, tasks, studio, etc. |
+| `pages/*.html` | Standalone feature pages — vault, tasks, studio, etc. |
+| `docs/` | ALL documentation — design specs, guides, operations, schemas |
+| `accord/` | Humanity Accord governance docs (21 files) |
+| `website/` | Jekyll source for GitHub Pages (.io site) |
 | `Justfile` | Dev command runner — `just --list` for all recipes |
 
 ## Script load order (chat)
@@ -120,8 +123,8 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
    - `desktop/src-tauri/tauri.conf.json` → `"version"`
    - `desktop/src-tauri/Cargo.toml` → `version`
    - `shared/sw.js` → `CACHE_NAME` (bump number)
-   - `settings.html` → version tag text
-   - `ops.html` → debug version text
+   - `pages/settings.html` → version tag text
+   - `pages/ops.html` → debug version text
    - `game/download.html` → fallback version badge + subtitle
 4. Commit the version bump IN the same commit (not separate)
 5. After push: `git tag vX.Y.Z && git push origin vX.Y.Z` (only if Rust changed or desktop release needed)
@@ -166,7 +169,7 @@ uploads        (id, uploader_key, filename, url, size, mime_type, created_at)
 - Deploy `git pull` fails if server has local changes → `just sync` fixes it
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
 
-## Current targets (see design/roadmap.md)
+## Current targets (see docs/roadmap.md)
 
 1. Push notifications (WebPush API)
 2. FTS5 full-text message search (upgrade from LIKE queries)

@@ -4,4 +4,4 @@ title: Operating Contract
 permalink: /reference/operating-contract
 ---
 
-{% include canon/reference/OPERATING_CONTRACT.md %}
+{% include canon/docs/OPERATING_CONTRACT.md %}

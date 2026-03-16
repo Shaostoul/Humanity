@@ -4,4 +4,4 @@ title: Operations Runbook
 permalink: /knowledge/operations
 ---
 
-{% include canon/knowledge/OPERATIONS_RUNBOOK.md %}
+{% include canon/docs/operations/OPERATIONS_RUNBOOK.md %}
