@@ -42,3 +42,4 @@ Thumbs.db
 # Local runtime helpers
 scripts/_restart_notify_watcher.ps1
 memory/gateway-restart-checkpoint.txt
+.claude/worktrees/

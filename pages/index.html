@@ -280,7 +280,12 @@
 </head>
 <body>
   <script src="/shared/shell.js"></script>
+  <script src="/shared/eli5.js"></script>
   <script src="/shared/settings.js"></script>
+  <div class="eli5-block" style="max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px;">
+    <div class="eli5-simple">Welcome to HumanityOS — a free app where everyone works together to end poverty.</div>
+    <div class="eli5-expert">CC0 public domain civilizational OS. Rust/axum backend with SQLite, plain HTML+JS client (no build step). Ed25519 identity, WebSocket real-time messaging, P2P WebRTC voice/video. Self-hostable, federable. Packaged as a sci-fi RPG game framework.</div>
+  </div>
 
   <!-- ── Hero ── -->
   <header class="hero">
@@ -366,21 +371,28 @@
   <section id="pages">
     <div class="container">
       <div class="section-label">The Platform</div>
-      <h2>11 pages, one nav</h2>
+      <h2>18 pages, one nav</h2>
       <p>HumanityOS is a life-management OS. The chat is the foundation — everything else is being built on top of it. Pages marked in green are fully working.</p>
 
       <div class="pages-grid">
-        <a href="/chat"      class="page-link"><span class="status-dot live"></span> Network</a>
-        <a href="/dashboard" class="page-link"><span class="status-dot building"></span> Games</a>
-        <a href="/profile"   class="page-link"><span class="status-dot building"></span> Profile</a>
+        <a href="/chat"      class="page-link"><span class="status-dot live"></span> Network Chat</a>
         <a href="/home"      class="page-link"><span class="status-dot building"></span> Home</a>
-        <a href="/inventory" class="page-link"><span class="status-dot building"></span> Gear</a>
-        <a href="/tasks"     class="page-link"><span class="status-dot live"></span> Tasks</a>
+        <a href="/profile"   class="page-link"><span class="status-dot building"></span> Profile</a>
+        <a href="/skills"    class="page-link"><span class="status-dot building"></span> Skills</a>
+        <a href="/dashboard" class="page-link"><span class="status-dot live"></span> Dashboard</a>
+        <a href="/inventory" class="page-link"><span class="status-dot building"></span> Inventory</a>
+        <a href="/equipment" class="page-link"><span class="status-dot building"></span> Equipment</a>
+        <a href="/quests"    class="page-link"><span class="status-dot building"></span> Quests</a>
         <a href="/calendar"  class="page-link"><span class="status-dot building"></span> Calendar</a>
-        <a href="/notes"     class="page-link"><span class="status-dot live"></span> Journal</a>
+        <a href="/notes"     class="page-link"><span class="status-dot building"></span> Journal</a>
+        <a href="/systems"   class="page-link"><span class="status-dot live"></span> Systems Board</a>
         <a href="/maps"      class="page-link"><span class="status-dot live"></span> Maps</a>
-        <a href="/market"    class="page-link"><span class="status-dot live"></span> Market</a>
-        <a href="/web"       class="page-link"><span class="status-dot live"></span> Web</a>
+        <a href="/market"    class="page-link"><span class="status-dot live"></span> Marketplace</a>
+        <a href="/learn"     class="page-link"><span class="status-dot live"></span> Learn</a>
+        <a href="/knowledge" class="page-link"><span class="status-dot building"></span> Knowledge</a>
+        <a href="/streams"   class="page-link"><span class="status-dot live"></span> Streams</a>
+        <a href="/settings"  class="page-link"><span class="status-dot live"></span> Settings</a>
+        <a href="/ops"       class="page-link"><span class="status-dot live"></span> Ops</a>
       </div>
       <p style="margin-top: 12px; font-size: 0.82rem;">
         <span style="color: #2a6;">●</span> Live &nbsp;

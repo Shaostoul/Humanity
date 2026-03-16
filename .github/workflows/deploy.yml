@@ -47,6 +47,11 @@ jobs:
               /opt/Humanity/assets/ \
               /var/www/humanity/assets/
 
+            # Remove orphaned pages from previous deploys
+            for old in skills equipment quests logbook vault knowledge systems streams studio learn; do
+              rm -f "/var/www/humanity/${old}.html"
+            done
+
             # Copy all standalone pages from pages/ folder
             for f in /opt/Humanity/pages/*.html; do
               [ -f "$f" ] && cp "$f" "/var/www/humanity/$(basename "$f")"

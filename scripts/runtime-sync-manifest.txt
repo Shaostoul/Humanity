@@ -3,6 +3,7 @@
 /opt/Humanity/crates/humanity-relay/client/style.css|/var/www/humanity/chat/style.css
 /opt/Humanity/shared/shell.js|/var/www/humanity/shared/shell.js
 /opt/Humanity/shared/theme.css|/var/www/humanity/shared/theme.css
+/opt/Humanity/shared/eli5.js|/var/www/humanity/shared/eli5.js
 /opt/Humanity/game/index.html|/var/www/humanity/game/index.html
 /opt/Humanity/game/index.html|/var/www/humanity/app.html
 /opt/Humanity/assets/ui/icons/chat.png|/var/www/humanity/assets/ui/icons/chat.png
