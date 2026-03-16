@@ -175,6 +175,17 @@
           <div class="unified-body">
             <div id="stream-studio-preview" class="stream-studio-preview">No active local feed</div>
 
+            <!-- Metrics bar — live bitrate, FPS, resolution, viewers, health -->
+            <div id="studio-metrics-bar" class="studio-metrics" style="display:none;">
+              <span title="Bitrate">📡 <span id="studio-m-bitrate">—</span></span>
+              <span title="Frames per second">🎞️ <span id="studio-m-fps">—</span></span>
+              <span title="Resolution">📐 <span id="studio-m-res">—</span></span>
+              <span title="Round-trip time">⏱️ <span id="studio-m-rtt">—</span></span>
+              <span title="Packet loss">📦 <span id="studio-m-loss">—</span></span>
+              <span title="Viewers / Listeners">👥 <span id="studio-m-viewers">0</span></span>
+              <span title="Stream health" id="studio-m-health">🟢</span>
+            </div>
+
             <!-- Device + stream controls — pill layout -->
             <div class="studio-devices">
               <select id="studio-mic-select" class="studio-pill studio-pill-select" onchange="setStudioMic(this.value)">
@@ -201,6 +212,18 @@
               <button id="studio-afk-btn" class="studio-pill"
                 onclick="toggleStudioAfk()"
                 data-tip-title="AFK Overlay" data-tip-desc="Shows an AFK notice on your stream so viewers know you stepped away.">🌙 AFK — Off</button>
+              <button id="studio-brb-btn" class="studio-pill"
+                onclick="toggleStudioBrb()"
+                data-tip-title="BRB Timer" data-tip-desc="Shows a 'Be Right Back' timer on your stream.">⏸️ BRB — Off</button>
+              <div class="studio-pill-range">
+                <span>📡 Bitrate</span>
+                <input type="range" id="studio-bitrate-slider" min="100" max="6000" value="2500" step="100"
+                  oninput="setStudioBitrate(this.value)"
+                  data-tip-title="Max Bitrate (kbps)" data-tip-desc="Limits outgoing video bitrate. Lower = less bandwidth, worse quality.">
+              </div>
+              <button id="studio-scene-btn" class="studio-pill"
+                onclick="openSceneManager()"
+                data-tip-title="Scenes" data-tip-desc="Save and switch between studio presets (mic, bitrate, camera, layout).">🎬 Scenes</button>
             </div>
 
             <!-- Voice control bar (shown inside Studio when in a voice channel) -->
