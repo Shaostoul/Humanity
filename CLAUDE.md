@@ -106,6 +106,28 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 
 **Multiple `impl Storage` blocks** across `storage/*.rs` — Rust allows this within one crate
 
+## Version SOP (MANDATORY before every push)
+
+**Semver rules:**
+- `0.X.0` → Rust code changed (requires recompile on VPS)
+- `0.X.Y` → Non-Rust changes only (HTML/JS/CSS/docs/config)
+- `1.0.0` → Reserved for fully functional product
+
+**Before pushing, ALWAYS:**
+1. Check current version: `gh release view --repo Shaostoul/Humanity --json tagName`
+2. Bump the patch (Y) for non-Rust changes, minor (X) for Rust changes
+3. Update ALL version strings (they MUST stay in sync):
+   - `desktop/src-tauri/tauri.conf.json` → `"version"`
+   - `desktop/src-tauri/Cargo.toml` → `version`
+   - `shared/sw.js` → `CACHE_NAME` (bump number)
+   - `settings.html` → version tag text
+   - `ops.html` → debug version text
+   - `game/download.html` → fallback version badge + subtitle
+4. Commit the version bump IN the same commit (not separate)
+5. After push: `git tag vX.Y.Z && git push origin vX.Y.Z` (only if Rust changed or desktop release needed)
+
+**Never delete/re-tag** — always increment to next version number.
+
 ## Deploy pipeline
 
 Push to `main` → GitHub Actions → SSH to VPS → `cargo build` → rsync + copy → restart relay
@@ -144,11 +166,11 @@ uploads        (id, uploader_key, filename, url, size, mime_type, created_at)
 - Deploy `git pull` fails if server has local changes → `just sync` fixes it
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
 
-## v0.3.0 targets (see design/roadmap.md)
+## Current targets (see design/roadmap.md)
 
 1. Push notifications (WebPush API)
 2. FTS5 full-text message search (upgrade from LIKE queries)
 3. Server-side user directory endpoint (paginated roster with profiles)
 4. Task assignments + email/push notifications when assigned
-5. Desktop app rebuild with F12 DevTools
+5. Crypto payment layer (see design/economy/crypto_exchange.md)
 6. In-app browser (webview tabs for external URLs — Tauri webview panels)

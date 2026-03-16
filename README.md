@@ -227,7 +227,7 @@ Want verified federation status? Publicly adopt the [Humanity Accord](accord/hum
 **Writers, designers, developers, educators, translators** — or just someone who cares. Show up and ask what needs doing.
 
 **Donate** — Every dollar goes toward development and hosting.
-→ [GitHub Sponsors](https://github.com/sponsors/Shaostoul) · [Ko-fi](https://ko-fi.com/shaostoul) · [Patreon](https://www.patreon.com/c/Shaostoul)
+→ [GitHub Sponsors](https://github.com/sponsors/Shaostoul)
 
 ---
 

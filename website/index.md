@@ -112,8 +112,6 @@ Civilizational cooperation principles without domination as the default.
 ## Support the Mission
 
 - [GitHub Sponsors](https://github.com/sponsors/Shaostoul)
-- [Ko-fi](https://ko-fi.com/shaostoul)
-- [Patreon](https://www.patreon.com/c/Shaostoul)
 
 Every contribution helps with development, hosting, and continuity.
 

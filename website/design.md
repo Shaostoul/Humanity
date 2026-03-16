@@ -265,6 +265,7 @@ Canonical encoding rules, reference implementations, and test vectors.
 Resource modeling and economic systems.
 
 - [World Resources](/Humanity/design/economy/world-resources)
+- [Crypto Exchange & Payment Layer](/Humanity/design/economy/crypto-exchange)
 
 ---
 

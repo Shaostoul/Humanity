@@ -170,8 +170,6 @@ That's what I'm here to do.
 
 ### Support the Mission
 - ❤️ **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
-- ☕ **Ko-fi:** [ko-fi.com/shaostoul](https://ko-fi.com/shaostoul)
-- 🎭 **Patreon:** [patreon.com/Shaostoul](https://www.patreon.com/c/Shaostoul)
 
 ---
 

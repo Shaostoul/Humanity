@@ -68,8 +68,6 @@ This project is built by volunteers, but infrastructure costs money.
 If you believe in the mission and want to help keep it running:
 
 - **GitHub Sponsors:** [github.com/sponsors/Shaostoul](https://github.com/sponsors/Shaostoul)
-- **Ko-fi:** [ko-fi.com/shaostoul](https://ko-fi.com/shaostoul)
-- **Patreon:** [patreon.com/Shaostoul](https://www.patreon.com/c/Shaostoul)
 
 Every dollar goes toward development, hosting, and keeping the team fed while we build.
 
