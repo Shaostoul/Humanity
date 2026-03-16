@@ -43,6 +43,9 @@ jobs:
             rsync -a \
               /opt/Humanity/shared/ \
               /var/www/humanity/shared/
+            rsync -a \
+              /opt/Humanity/assets/ \
+              /var/www/humanity/assets/
 
             # Copy all standalone pages from pages/ folder
             for f in /opt/Humanity/pages/*.html; do

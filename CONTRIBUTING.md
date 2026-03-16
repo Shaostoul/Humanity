@@ -100,7 +100,7 @@ Every page follows the same pattern. Copy an existing simple page (like `logbook
    // Mobile drawer (around line 453):
    mobileLink('/yourpage', 'Your Page') +
    ```
-   Icon files live in `shared/ui-icons/`. Use an emoji string instead of a PNG if no icon exists yet.
+   Icon files live in `assets/ui/icons/`. Use an emoji string instead of a PNG if no icon exists yet.
 
 3. **Add a nginx route** on the server:
    ```nginx

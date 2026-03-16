@@ -54,6 +54,7 @@ sync:
         cargo build --release --bin humanity-relay 2>&1 | tail -4 && \
         rsync -a --delete /opt/Humanity/crates/humanity-relay/client/ /var/www/humanity/chat/ && \
         rsync -a /opt/Humanity/shared/ /var/www/humanity/shared/ && \
+        rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
         for f in /opt/Humanity/*.html; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
         done && \
@@ -73,6 +74,7 @@ sync-web:
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
         rsync -a --delete /opt/Humanity/crates/humanity-relay/client/ /var/www/humanity/chat/ && \
         rsync -a /opt/Humanity/shared/ /var/www/humanity/shared/ && \
+        rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
         for f in /opt/Humanity/*.html; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
         done \

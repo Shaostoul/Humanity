@@ -411,7 +411,7 @@
     var isActive = active === activeKey;
     var cls = 'tab' + (isActive ? ' active' : '');
     var iconHtml = icon.indexOf('.') !== -1
-      ? '<span class="tab-icon"><img src="/shared/ui-icons/' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/shared/ui-icons/warning.png\';"></span>'
+      ? '<span class="tab-icon"><img src="/assets/ui/icons/' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/assets/ui/icons/warning.png\';"></span>'
       : '<span class="tab-icon tab-emoji-icon">' + icon + '</span>';
     return '<a href="' + href + '" class="' + cls + '" data-tip="' + label + '">' +
       iconHtml +
