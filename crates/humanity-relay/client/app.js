@@ -389,6 +389,10 @@ function onIdentityConfirmed() {
 
 // ── History ──
 async function loadHistory() {
+  // Ensure channel context tint on initial load (switchChannel sets this too, but
+  // loadHistory can be called directly before any channel switch).
+  const _mc = document.getElementById('messages');
+  if (_mc && !_mc.dataset.ctx) { _mc.dataset.ctx = 'channel'; }
   try {
     const resp = await fetch(`/api/messages?limit=100&channel=${encodeURIComponent(activeChannel)}`);
     const data = await resp.json();

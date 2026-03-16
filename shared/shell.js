@@ -464,8 +464,7 @@
       navTab('/market',    'market.png',    'Market',    'market') +
       navTab('/learn',     'website.png',   'Learn',     'browse') +
       navTab('/knowledge', 'codex.png',     'Knowledge', 'info') +
-      navTab('/streams',   'audio.png',     'Streams',   'streams') +
-      navTab('/studio',    '🎬',            'Studio',    'studio') +
+      /* Streams + Studio replaced by Studio panel in Network page */
 
       navTab('/tasks',     '🎯',            'Tasks',     'tasks') +
 
@@ -512,8 +511,6 @@
       mobileLink('/market',    'Market') +
       mobileLink('/learn',     'Learn') +
       mobileLink('/knowledge', 'Knowledge') +
-      mobileLink('/streams',   'Streams') +
-      mobileLink('/studio',    'Studio') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>App</h4>' +
       mobileLink('/vault',    'Vault') +

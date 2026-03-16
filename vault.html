@@ -1430,14 +1430,26 @@ document.addEventListener('visibilitychange', () => {
 
 async function signVaultSyncRequest() {
   // We need the identity's private key to sign the API request.
-  // Reads the JWK backup from localStorage and re-imports it.
+  // humanity_key_backup can be in two formats depending on how the key was stored:
+  //   1. { publicKeyHex, privateKeyPkcs8 }  — written by crypto.js (most users)
+  //   2. { publicKeyHex, jwk, rotated }      — written by storeNewRotatedIdentity
   const backup = localStorage.getItem('humanity_key_backup');
   const keyHex = localStorage.getItem('humanity_key');
   if (!backup || !keyHex) return null;
   try {
-    const { jwk } = JSON.parse(backup);
-    if (!jwk) return null;
-    const privateKey = await crypto.subtle.importKey('jwk', jwk, 'Ed25519', false, ['sign']);
+    const parsed = JSON.parse(backup);
+    let privateKey;
+    if (parsed.jwk) {
+      // Format 2: JWK (rotated key path)
+      privateKey = await crypto.subtle.importKey('jwk', parsed.jwk, 'Ed25519', false, ['sign']);
+    } else if (parsed.privateKeyPkcs8) {
+      // Format 1: PKCS#8 base64 (standard crypto.js path)
+      const pkcs8Buf = Uint8Array.from(atob(parsed.privateKeyPkcs8), c => c.charCodeAt(0));
+      privateKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', false, ['sign']);
+    } else {
+      console.warn('Vault sync: unrecognised key_backup format');
+      return null;
+    }
     const ts = Date.now();
     const payload = `vault_sync\n${ts}`;
     const sigBuf = await crypto.subtle.sign('Ed25519', privateKey, new TextEncoder().encode(payload));

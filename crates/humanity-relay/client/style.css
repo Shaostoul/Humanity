@@ -191,22 +191,22 @@ header h1 {
 }
 
 /* ── Chat context background tints ────────────────────────────────── */
-/* Each context gets a very dark version of its theme color so the    */
-/* user immediately knows which chat type they're reading.             */
+/* Each context gets a clearly-tinted background so the user           */
+/* immediately knows which chat type they're reading.                  */
 #messages[data-ctx="channel"] {
-  background: #080d1a; /* rgb(8,13,26) — navy black */
-  --stripe-a: rgba(38, 75, 160, 0.22);
-  --stripe-b: rgba(25, 55, 125, 0.10);
+  background: #0d1e3c; /* rgb(13,30,60) — dark navy */
+  --stripe-a: rgba(40, 90, 180, 0.25);
+  --stripe-b: rgba(30, 65, 140, 0.12);
 }
 #messages[data-ctx="dm"] {
-  background: #16080c; /* rgb(22,8,12) — crimson black */
-  --stripe-a: rgba(160, 38, 58, 0.22);
-  --stripe-b: rgba(125, 25, 45, 0.10);
+  background: #280e16; /* rgb(40,14,22) — dark crimson */
+  --stripe-a: rgba(180, 40, 65, 0.25);
+  --stripe-b: rgba(140, 30, 50, 0.12);
 }
 #messages[data-ctx="group"] {
-  background: #080f08; /* rgb(8,15,8) — forest black */
-  --stripe-a: rgba(38, 130, 68, 0.22);
-  --stripe-b: rgba(25, 100, 50, 0.10);
+  background: #0e2212; /* rgb(14,34,18) — dark forest */
+  --stripe-a: rgba(40, 150, 70, 0.25);
+  --stripe-b: rgba(30, 120, 55, 0.12);
 }
 
 /* ── Alternating message stripes (change only when author changes) ── */

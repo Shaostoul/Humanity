@@ -876,7 +876,7 @@ function openKeyProtectionModal() {
       <div style="font-size:.78rem;color:#888;line-height:1.6;margin-bottom:1.1rem">
         ${wrapped
           ? `<span style="color:#4ec87a;font-weight:600">✅ Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
-          : `<span style="color:#f0a500;font-weight:600">⚠️ Not protected</span> — your private key is in <code style="color:#ccc">localStorage</code> as plaintext. Someone with DevTools access on this device could read it.`
+          : `<span style="color:#f0a500;font-weight:600">⚠️ Not protected</span> — your private key is stored as readable plaintext in your browser's <code style="color:#ccc">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
         }
       </div>
       <div style="margin-bottom:.8rem">
@@ -914,11 +914,17 @@ async function doEnableKeyProtection() {
   btn.disabled = true; btn.textContent = 'Encrypting…'; msg.innerHTML = '';
   try {
     await wrapAndStoreKey(p1);
-    msg.innerHTML = '<span style="color:#4ec87a">✅ Key protected. Plaintext backup is still kept as fallback — click "Remove Protection" to clear it.</span>';
-    btn.textContent = 'Done'; btn.disabled = false;
-    // Update the button label in sidebar
+    // Update sidebar status immediately.
     const protBtn = document.getElementById('key-protect-btn');
     if (protBtn) { protBtn.textContent = '🔒 Protected'; protBtn.style.color = '#4ec87a'; }
+    // Show success briefly then close.
+    msg.innerHTML = '<span style="color:#4ec87a">✅ Key encrypted with your passphrase.</span>';
+    btn.textContent = 'Done ✓'; btn.disabled = false;
+    // Change onclick to close instead of re-running protection.
+    btn.onclick = () => document.getElementById('key-protection-overlay').remove();
+    // Also update the remove-protection button text to be accurate.
+    const removeBtn = document.getElementById('kp-remove-btn');
+    if (removeBtn) removeBtn.title = 'Remove passphrase encryption — key reverts to plaintext in localStorage';
   } catch(e) {
     msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
     btn.disabled = false; btn.textContent = 'Protect Key';
