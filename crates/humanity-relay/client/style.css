@@ -1082,22 +1082,21 @@ header h1 {
   pointer-events: none;
 }
 
-/* ── Studio Pill Controls ── */
+/* ── Studio Controls Grid ── */
 .studio-devices {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
   padding: 4px 4px 2px;
 }
 .studio-pill {
-  width: 100%;
-  padding: 5px 11px;
-  border-radius: 999px;
+  padding: 4px 8px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: rgba(255,255,255,0.04);
   color: var(--text-muted);
-  font-size: 0.7rem;
-  text-align: left;
+  font-size: 0.65rem;
+  text-align: center;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -1115,20 +1114,24 @@ header h1 {
   border-color: var(--accent);
   color: var(--accent);
 }
-/* Select styled as a pill — browser renders the options, so we just override the shell */
+/* Select + mic dropdown spans full width */
 select.studio-pill-select {
   -webkit-appearance: none;
   appearance: none;
+  grid-column: 1 / -1;
+  text-align: left;
+  padding-left: 10px;
 }
 .studio-pill-range {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 3px 11px;
-  font-size: 0.68rem;
+  gap: 6px;
+  padding: 2px 8px;
+  font-size: 0.62rem;
   color: var(--text-muted);
+  grid-column: 1 / -1;
 }
-.studio-pill-range span { flex-shrink: 0; min-width: 32px; }
+.studio-pill-range span { flex-shrink: 0; min-width: 28px; }
 .studio-pill-range input[type=range] { flex: 1; cursor: pointer; accent-color: var(--accent); }
 /* AFK button glows RGB at 2× header speed when active */
 @keyframes studio-afk-rgb {

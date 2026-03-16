@@ -219,25 +219,10 @@
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
-    /* ── Footer theme toggle button ── */
-    .footer-theme-btn {
-      background: none;
-      border: 1px solid #444;
-      border-radius: 5px;
-      color: #888;
-      cursor: pointer;
-      font-size: 0.78rem;
-      padding: 0.15rem 0.45rem;
-      transition: color 0.15s, border-color 0.15s;
-      line-height: 1.5;
-    }
-    .footer-theme-btn:hover { color: #FF8811; border-color: #FF8811; }
     [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
     [data-theme="light"] .hub-nav .tab { color: #555; box-shadow: inset 0 0 0 1px #2a6; }
     [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
     [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
-    [data-theme="light"] .footer-theme-btn { color: #555; border-color: #ccc; }
-    [data-theme="light"] .footer-theme-btn:hover { color: #FF8811; border-color: #FF8811; }
 
     /* ── Divider between nav groups — negative margin cancels the double flex-gap ── */
     .hub-nav .nav-divider {
@@ -325,8 +310,9 @@
       flex-wrap: wrap;
       margin-top: 6px;
     }
-    .site-footer .footer-links a { color: #888; text-decoration: none; font-size: 0.8rem; }
+    .site-footer .footer-links a { color: #888; text-decoration: none; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
     .site-footer .footer-links a:hover { color: #FF8811; }
+    .site-footer .footer-links svg { width: 14px; height: 14px; fill: currentColor; vertical-align: middle; }
     /* Toggle is its own fixed element — always visible above all content */
     /* Toggle lives INSIDE .site-footer so it slides with the panel.
        bottom:100% makes its bottom edge flush with the footer's top edge — no gap. */
@@ -468,6 +454,14 @@
 
       navTab('/tasks',     '🎯',            'Tasks',     'tasks') +
 
+      /* Spacer pushes utility tabs to the right */
+      '<div class="spacer"></div>' +
+
+      /* Utility — right-aligned */
+      navTab('/settings', '⚙️',            'Settings',  'settings') +
+      navTab('/download', '⬇️',            'Download',  'download') +
+      navTab('/ops',      '🛠️',            'Ops',       'debug') +
+
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
     '</nav>' +
@@ -517,10 +511,9 @@
       mobileLink('/tasks',    'Tasks') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Config</h4>' +
-      mobileLink('/ops',      'Ops') +
-      mobileLink('/download', 'Download App') +
-      mobileLink('/settings', 'Settings') +
-      '<a href="#" onclick="hosToggleTheme();return false;" id="mobile-theme-link">🌙 Toggle Theme</a>' +
+      mobileLink('/settings', '⚙️ Settings') +
+      mobileLink('/download', '⬇️ Download App') +
+      mobileLink('/ops',      '🛠️ Ops') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
@@ -763,19 +756,7 @@
     '<div class="footer-content" id="footer-content">' +
       '<span>HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
       '<div class="footer-links">' +
-        '<a href="/">Home</a>' +
-        '<a href="/chat">Chat</a>' +
-        '<a href="https://shaostoul.github.io/Humanity" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'https://shaostoul.github.io/Humanity\',\'Docs\');return false;}">Docs</a>' +
-        '<a href="https://discord.gg/9XxmmeQnWC" target="_blank">Discord</a>' +
-        '<a href="https://youtube.com/@Shaostoul" target="_blank">YouTube</a>' +
-        '<a href="https://x.com/Shaostoul" target="_blank">X</a>' +
-      '</div>' +
-      '<div class="footer-links" style="margin-top:4px;">' +
-        '<a href="/download" onclick="if(typeof openWebviewTab===\'function\'){openWebviewTab(\'/download\',\'Download\');return false;}">⬇ Download App</a>' +
-        '<a href="https://github.com/Shaostoul/Humanity" target="_blank">GitHub</a>' +
-        '<a href="/ops">Ops</a>' +
-        '<a href="/settings">Settings</a>' +
-        '<button class="footer-theme-btn" id="hos-theme-toggle" onclick="hosToggleTheme()" aria-label="Toggle theme">🌙 Theme</button>' +
+        '<a href="https://github.com/Shaostoul/Humanity" target="_blank">' + ghIcon + ' GitHub</a>' +
       '</div>' +
     '</div>';
   document.body.appendChild(footerEl);

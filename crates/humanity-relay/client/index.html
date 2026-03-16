@@ -95,56 +95,49 @@
     <div class="main">
       <div id="sidebar-overlay"></div>
       <div id="sidebar">
-        <h3>Your Identity</h3>
-        <div id="my-identity" style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.75rem; word-break:break-all;">
-          <div id="my-key-display" style="font-family:monospace; font-size:0.6rem;"></div>
-          <div id="my-sign-status" style="margin-top:0.2rem;"></div>
-          <button id="edit-profile-btn" onclick="openEditProfileModal()" style="margin-top:0.4rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">✏️ Edit Profile</button>
-          <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
-            <button onclick="openEncryptedBackupModal()"
-              data-tip-title="Backup Identity"
-              data-tip-desc="Download a passphrase-encrypted backup of your private key."
-              data-tip-detail="Store the file in the cloud or offline — it's useless without the passphrase"
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔐 Backup</button>
-            <button onclick="openRestoreIdentityModal()"
-              data-tip-title="Restore from Backup"
-              data-tip-desc="Restore your identity from a previously downloaded encrypted backup file."
-              data-tip-detail="You will need the passphrase you used when the backup was created"
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Restore</button>
-            <button onclick="openSeedPhraseModal()"
-              data-tip-title="Seed Phrase"
-              data-tip-desc="Shows your 24-word recovery phrase — the master key to your identity."
-              data-tip-detail="Write it on paper and store offline. Anyone with this phrase controls your account."
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🌱 Phrase</button>
-            <button onclick="openRestoreFromMnemonicModal()"
-              data-tip-title="Restore from Seed Phrase"
-              data-tip-desc="Rebuild your identity from your 24-word recovery phrase."
-              data-tip-detail="Use this if you lost your key file but kept the seed phrase"
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔤 Words</button>
+        <div id="my-identity" style="font-size:0.7rem; color:var(--text-muted); margin-bottom:0.5rem; word-break:break-all;">
+          <div style="display:flex;align-items:center;gap:0.35rem;margin-bottom:0.3rem;">
+            <span id="my-sign-status" style="font-size:0.65rem;"></span>
+            <a href="/profile" id="edit-profile-btn" style="font-size:0.7rem;color:var(--accent);text-decoration:none;font-weight:600;"
+              data-tip-title="Profile Page" data-tip-desc="Open your full profile page to edit bio, socials, avatar, and privacy settings.">✏️ Profile</a>
+            <span style="color:var(--border);">·</span>
+            <button onclick="openKeyProtectionModal()" id="key-protect-btn"
+              data-tip-title="Protect Key" data-tip-desc="Encrypt your private key in localStorage with a passphrase."
+              style="background:none;border:none;color:var(--text-muted);padding:0;font-size:0.65rem;cursor:pointer;">🔓</button>
+            <button onclick="openSystemInfoModal()" id="system-info-btn"
+              data-tip-title="System Info" data-tip-desc="View and share your hardware specs."
+              style="background:none;border:none;color:var(--text-muted);padding:0;font-size:0.65rem;cursor:pointer;">💻</button>
+            <button onclick="openDevicePanel()" id="my-devices-btn"
+              data-tip-title="My Devices" data-tip-desc="Manage linked devices for this identity."
+              style="background:none;border:none;color:var(--text-muted);padding:0;font-size:0.65rem;cursor:pointer;">🔑</button>
           </div>
-          <button id="key-protect-btn" onclick="openKeyProtectionModal()"
-            data-tip-title="Protect Key"
-            data-tip-desc="Encrypts your private key stored in the browser with a passphrase."
-            data-tip-detail="Without this, your key is stored in plain text in localStorage — protection adds AES-256-GCM encryption"
-            style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔓 Protect Key (localStorage encryption)</button>
-          <button id="my-devices-btn" onclick="openDevicePanel()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">🔑 My Devices</button>
-          <button id="system-info-btn" onclick="openSystemInfoModal()" style="margin-top:0.25rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;width:100%;">💻 System Info</button>
-          <div style="display:flex;gap:0.25rem;margin-top:0.25rem;">
+          <div id="my-key-display" style="font-family:monospace;font-size:0.55rem;opacity:0.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;cursor:pointer;"
+            data-tip-title="Your Public Key" data-tip-desc="Click to copy your full public key to clipboard."
+            onclick="navigator.clipboard.writeText(this.textContent).then(()=>{this.style.color='var(--accent)';setTimeout(()=>this.style.color='',800)})"></div>
+          <div style="display:flex;gap:0.2rem;margin-top:0.3rem;flex-wrap:wrap;">
+            <button onclick="openEncryptedBackupModal()"
+              data-tip-title="Backup" data-tip-desc="Download encrypted backup of your private key."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">🔐 Backup</button>
+            <button onclick="openRestoreIdentityModal()"
+              data-tip-title="Restore" data-tip-desc="Restore identity from encrypted backup file."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">📥 Restore</button>
+            <button onclick="openSeedPhraseModal()"
+              data-tip-title="Seed Phrase" data-tip-desc="View your 24-word recovery phrase."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">🌱 Seed</button>
+            <button onclick="openRestoreFromMnemonicModal()"
+              data-tip-title="Restore from Seed" data-tip-desc="Rebuild identity from your 24-word phrase."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">🔤 Words</button>
+          </div>
+          <div style="display:flex;gap:0.2rem;margin-top:0.2rem;">
             <button onclick="exportContactCard()"
-              data-tip-title="Share Contact Card"
-              data-tip-desc="Generates a QR code and JSON card others can scan or paste to add you as a P2P contact."
-              data-tip-detail="Card contains your public key and is signed with your identity — valid for 7 days"
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📤 Share Card</button>
+              data-tip-title="Share Card" data-tip-desc="Generate a QR code contact card for others to scan."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;">📤 Share</button>
             <button onclick="showContactCardImportModal()"
-              data-tip-title="Add Contact"
-              data-tip-desc="Paste or scan another user's contact card JSON to add them as a P2P peer."
-              data-tip-detail="Validates their Ed25519 signature before saving — rejects expired or tampered cards"
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">📥 Add Contact</button>
+              data-tip-title="Add Contact" data-tip-desc="Paste or scan a contact card to add a P2P peer."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;">📥 Add</button>
             <button onclick="syncAllPeers()"
-              data-tip-title="Sync with Peers"
-              data-tip-desc="Pushes your latest calendar, homes, todos, and notes to all connected P2P contacts."
-              data-tip-detail="Data is encrypted end-to-end using ECDH — the relay never sees the content"
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.35rem;border-radius:4px;font-size:0.7rem;cursor:pointer;">🔄 Sync</button>
+              data-tip-title="Sync Peers" data-tip-desc="Push data to all connected P2P contacts (E2E encrypted)."
+              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;">🔄 Sync</button>
           </div>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
