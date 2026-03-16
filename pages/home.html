@@ -6,8 +6,6 @@
   <title>Home — HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
-
-
     body {
       min-height: 100vh;
       display: flex;
@@ -26,7 +24,7 @@
       width: 100%;
     }
 
-    /* ── Home switcher tabs ── */
+    /* ── Home switcher tabs (select which home/property) ── */
     .home-tabs {
       display: flex;
       gap: 0.5rem;
@@ -168,12 +166,42 @@
     }
     .home-detail-item .di-icon { font-size: 0.85rem; }
 
-    /* ── Content grid ── */
-    .home-content {
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 1.25rem;
-      align-items: start;
+    /* ── Section tabs (Rooms / Systems / Garden) ── */
+    .section-tabs {
+      display: flex;
+      gap: 0.4rem;
+      border-bottom: 1px solid #1e1e1e;
+      padding-bottom: 0;
+    }
+
+    .section-tab {
+      padding: 0.5rem 1.1rem;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      background: transparent;
+      color: #666;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+      position: relative;
+      bottom: -1px;
+    }
+    .section-tab:hover { color: #aaa; background: #141414; }
+    .section-tab.active {
+      background: #111;
+      color: #fff;
+      border-color: #1e1e1e;
+      border-bottom-color: #111;
+    }
+
+    .section-content {
+      display: none;
+    }
+    .section-content.active {
+      display: block;
     }
 
     /* ── Panel base ── */
@@ -212,6 +240,14 @@
       transition: all 0.12s;
     }
     .panel-add-btn:hover { background: #252525; color: #fff; border-color: #444; }
+
+    /* ── Content grid ── */
+    .home-content {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 1.25rem;
+      align-items: start;
+    }
 
     /* ── Room accordion ── */
     .rooms-list { display: flex; flex-direction: column; }
@@ -353,7 +389,7 @@
     }
     .item-add-btn:hover { border-color: #444; color: #aaa; background: #141414; }
 
-    /* ── Home inventory panel ── */
+    /* ── Inventory panel ── */
     .inv-panel-body {
       padding: 0.75rem 0.9rem;
       min-height: 80px;
@@ -377,6 +413,242 @@
     }
     .home-notes-area:focus { border-color: #444; }
 
+    /* ── Systems section ── */
+    .systems-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .sys-card {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      padding: 1rem;
+      transition: border-color 0.15s;
+    }
+    .sys-card:hover { border-color: #333; }
+
+    .sys-card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .sys-card-icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .sys-card-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #e0e0e0;
+    }
+
+    .sys-card-subtitle {
+      font-size: 0.7rem;
+      color: #666;
+      margin-top: 0.1rem;
+    }
+
+    .sys-meter {
+      height: 6px;
+      background: #1e1e1e;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 0.5rem;
+    }
+
+    .sys-meter-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s ease;
+    }
+
+    .sys-stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      color: #888;
+      padding: 0.2rem 0;
+    }
+
+    .sys-stat-value {
+      font-weight: 700;
+      font-size: 0.78rem;
+    }
+
+    .sys-status-badge {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      margin-top: 0.4rem;
+    }
+
+    .sys-ok     { background: #0d2e14; color: #4caf50; }
+    .sys-warn   { background: #2e2a0d; color: #f4d68a; }
+    .sys-alert  { background: #2e0d0d; color: #e55; }
+
+    /* ── Garden section ── */
+    .garden-wrapper {
+      padding: 1rem;
+    }
+
+    .garden-eli5 {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      font-size: 0.8rem;
+      color: #aaa;
+      line-height: 1.5;
+    }
+
+    .garden-modes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .garden-mode-card {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 10px;
+      padding: 1rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .garden-mode-card .mode-bg {
+      position: absolute;
+      right: -0.5rem;
+      bottom: -0.5rem;
+      font-size: 5rem;
+      opacity: 0.06;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .garden-mode-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .garden-mode-icon { font-size: 1.4rem; }
+
+    .garden-mode-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e0e0e0;
+    }
+
+    .garden-mode-desc {
+      font-size: 0.75rem;
+      color: #888;
+      line-height: 1.5;
+      margin-bottom: 0.6rem;
+    }
+
+    .garden-mode-specs {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .garden-spec {
+      font-size: 0.7rem;
+      color: #666;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .garden-spec-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ── Plant grid ── */
+    .plant-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.6rem;
+    }
+
+    .plant-card {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 0.65rem 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      transition: border-color 0.15s;
+    }
+    .plant-card:hover { border-color: #333; }
+
+    .plant-icon { font-size: 1.4rem; flex-shrink: 0; }
+
+    .plant-info { flex: 1; min-width: 0; }
+
+    .plant-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+
+    .plant-stage {
+      font-size: 0.65rem;
+      color: #888;
+      margin-top: 0.15rem;
+    }
+
+    .plant-harvest {
+      font-size: 0.6rem;
+      color: #4caf50;
+      margin-top: 0.1rem;
+    }
+
+    .plant-progress {
+      height: 4px;
+      background: #1e1e1e;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 0.3rem;
+    }
+
+    .plant-progress-fill {
+      height: 100%;
+      background: #4caf50;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .plant-del {
+      background: none;
+      border: none;
+      color: #333;
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0 0.2rem;
+      transition: color 0.12s;
+    }
+    .plant-del:hover { color: #e74c3c; }
+
     /* ── Empty states ── */
     .empty-msg {
       font-size: 0.75rem;
@@ -393,22 +665,22 @@
     /* ── Responsive ── */
     @media (max-width: 720px) {
       .home-content { grid-template-columns: 1fr; }
+      .garden-modes { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 <script src="/shared/shell.js" data-active="home"></script>
-<p class="page-hint">Your homes and living spaces. Add places you live or visit often. Keep notes, photos, and details about each one.</p>
 <div id="home-app">
 
-  <!-- Home switcher tabs -->
+  <!-- Home switcher tabs (which property) -->
   <div class="home-tabs" id="home-tabs"></div>
 
   <!-- Active home header card -->
   <div class="home-card" id="home-card">
     <div class="home-cover" id="home-cover">
       <span class="home-cover-emoji" id="home-cover-emoji"></span>
-      <button class="home-cover-edit" id="home-cover-edit-btn" onclick="editCoverImage()">📷 Cover</button>
+      <button class="home-cover-edit" id="home-cover-edit-btn" onclick="editCoverImage()">Cover</button>
     </div>
     <div class="home-meta">
       <div class="home-emoji-badge" id="home-emoji-badge"></div>
@@ -423,39 +695,126 @@
     </div>
   </div>
 
-  <!-- Rooms + Inventory -->
-  <div class="home-content">
-
-    <!-- Left: Rooms -->
-    <div class="panel">
-      <div class="panel-header">
-        <h3>🏠 Rooms &amp; Areas</h3>
-        <button class="panel-add-btn" onclick="addRoom()">+ Add Room</button>
-      </div>
-      <div class="rooms-list" id="rooms-list"></div>
-      <div class="empty-msg" id="rooms-empty" style="display:none">No rooms yet. Add your first room above.</div>
-    </div>
-
-    <!-- Right: Home Inventory -->
-    <div class="panel">
-      <div class="panel-header">
-        <h3>📦 Home Inventory</h3>
-        <button class="panel-add-btn" onclick="addHomeItem()">+ Add Item</button>
-      </div>
-      <div class="inv-panel-body" id="home-inv-list"></div>
-    </div>
-
+  <!-- Section tabs: Rooms / Systems / Garden -->
+  <div class="section-tabs" id="section-tabs">
+    <button class="section-tab active" data-section="rooms" onclick="switchSection('rooms')">Rooms</button>
+    <button class="section-tab" data-section="systems" onclick="switchSection('systems')">Systems</button>
+    <button class="section-tab" data-section="garden" onclick="switchSection('garden')">Garden</button>
   </div>
 
-  <!-- Notes / Planning -->
-  <div class="panel">
-    <div class="panel-header">
-      <h3>📝 Notes &amp; Planning</h3>
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- ROOMS SECTION                               -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-content active" id="section-rooms">
+    <div class="home-content" style="margin-top:1rem;">
+      <!-- Left: Rooms -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Rooms &amp; Areas</h3>
+          <button class="panel-add-btn" onclick="addRoom()">+ Add Room</button>
+        </div>
+        <div class="rooms-list" id="rooms-list"></div>
+        <div class="empty-msg" id="rooms-empty" style="display:none">No rooms yet. Add your first room above.</div>
+      </div>
+
+      <!-- Right sidebar -->
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <!-- Home Inventory -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Home Inventory</h3>
+            <button class="panel-add-btn" onclick="addHomeItem()">+ Add Item</button>
+          </div>
+          <div class="inv-panel-body" id="home-inv-list"></div>
+        </div>
+
+        <!-- Notes / Planning -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Notes &amp; Planning</h3>
+          </div>
+          <div class="notes-panel-body">
+            <textarea class="home-notes-area" id="home-notes-area"
+              placeholder="Add notes, plans, wish-list items..."
+              oninput="scheduleNoteSave()"></textarea>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="notes-panel-body">
-      <textarea class="home-notes-area" id="home-notes-area"
-        placeholder="Add notes, plans, wish-list items…"
-        oninput="scheduleNoteSave()"></textarea>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- SYSTEMS SECTION                             -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-content" id="section-systems">
+    <div class="systems-grid" id="systems-grid"></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- GARDEN SECTION                              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section-content" id="section-garden">
+    <div class="garden-wrapper">
+      <div class="garden-eli5">
+        Your garden grows food automatically with an aeroponic tower, or you can plant in soil the old-fashioned way. The tower spirals 50+ plants upward in a single column, purifying air while producing fresh food. The floor is sand-equivalent soil for traditional farming.
+      </div>
+
+      <!-- Two growing modes -->
+      <div class="garden-modes">
+        <!-- Aeroponic Tower -->
+        <div class="garden-mode-card">
+          <span class="mode-bg">&#127793;</span>
+          <div class="garden-mode-header">
+            <span class="garden-mode-icon">&#127981;</span>
+            <div>
+              <div class="garden-mode-title">Aeroponic Tower</div>
+            </div>
+          </div>
+          <div class="garden-mode-desc">
+            A single column-shaped tower in the center of the garden room. Plants spiral up the tower, roots misted with nutrient solution. Fully automated watering, lighting, and nutrient delivery.
+          </div>
+          <div class="garden-mode-specs">
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#4caf50;"></span> 50+ plants per tower</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#4caf50;"></span> 90% less water than soil farming</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#4caf50;"></span> Built-in air purification</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#4caf50;"></span> Automated nutrient delivery</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#4caf50;"></span> Year-round indoor growing</div>
+          </div>
+        </div>
+
+        <!-- Traditional -->
+        <div class="garden-mode-card">
+          <span class="mode-bg">&#127807;</span>
+          <div class="garden-mode-header">
+            <span class="garden-mode-icon">&#127806;</span>
+            <div>
+              <div class="garden-mode-title">Traditional (Soil/Sand)</div>
+            </div>
+          </div>
+          <div class="garden-mode-desc">
+            The garden floor is sand-equivalent soil for hands-on farming. Plant seeds, tend beds, and harvest by hand. No technology required -- just sunlight, water, and patience.
+          </div>
+          <div class="garden-mode-specs">
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#FF8811;"></span> Natural soil-based growing</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#FF8811;"></span> Manual watering and tending</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#FF8811;"></span> Seasonal / climate-dependent</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#FF8811;"></span> Composting and crop rotation</div>
+            <div class="garden-spec"><span class="garden-spec-dot" style="background:#FF8811;"></span> No electricity needed</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plant list -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Growing Now</h3>
+          <button class="panel-add-btn" onclick="addPlant()">+ Add Plant</button>
+        </div>
+        <div style="padding:0.75rem;">
+          <div class="plant-grid" id="plant-grid"></div>
+          <div class="empty-msg" id="plants-empty" style="display:none">No plants yet. Add your first plant above.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -463,7 +822,7 @@
 
 <script>
 // ────────────────────────────────────────────────
-// Data model — localStorage key: hos_homes_v2
+// Data model -- localStorage key: hos_homes_v2
 // ────────────────────────────────────────────────
 
 const HOMES_KEY = 'hos_homes_v2';
@@ -475,7 +834,7 @@ const DEFAULT_HOMES = [
     name: 'Paradise Resort',
     subtitle: 'Mount Rainier National Park, WA 98304, USA',
     type: 'earth',
-    emoji: '🏔️',
+    emoji: '\u{1F3D4}\uFE0F',
     imageUrl: '',
     climate: 'Alpine / Subalpine',
     coords: { lat: 46.7862, lng: -121.7353 },
@@ -484,14 +843,34 @@ const DEFAULT_HOMES = [
       { id: 'r2', name: 'Private Quarters', notes: '', items: [] }
     ],
     inventory: [],
-    notes: ''
+    notes: '',
+    systems: {
+      power:    { level: 86, status: 'ok',   source: 'Solar + Battery' },
+      water:    { level: 91, status: 'ok',   source: 'Rainwater + Well' },
+      air:      { level: 94, status: 'ok',   source: 'HEPA + Garden' },
+      food:     { level: 63, status: 'warn', source: 'Garden + Storage' },
+      waste:    { level: 78, status: 'ok',   source: 'Composting + Recycling' },
+      security: { level: 100,status: 'ok',   source: 'Cameras + Locks' },
+      network:  { level: 97, status: 'ok',   source: 'Mesh WiFi + Starlink' }
+    },
+    garden: {
+      mode: 'aeroponic',
+      plants: [
+        { id: 'p1', name: 'Lettuce', icon: '\u{1F96C}', stage: 'Growing', progress: 65, harvestDate: '2026-04-10', method: 'aeroponic' },
+        { id: 'p2', name: 'Tomatoes', icon: '\u{1F345}', stage: 'Flowering', progress: 45, harvestDate: '2026-05-01', method: 'aeroponic' },
+        { id: 'p3', name: 'Basil', icon: '\u{1F33F}', stage: 'Ready', progress: 100, harvestDate: '2026-03-20', method: 'aeroponic' },
+        { id: 'p4', name: 'Strawberries', icon: '\u{1F353}', stage: 'Fruiting', progress: 80, harvestDate: '2026-04-05', method: 'aeroponic' },
+        { id: 'p5', name: 'Carrots', icon: '\u{1F955}', stage: 'Seedling', progress: 20, harvestDate: '2026-05-15', method: 'soil' },
+        { id: 'p6', name: 'Potatoes', icon: '\u{1F954}', stage: 'Growing', progress: 40, harvestDate: '2026-06-01', method: 'soil' }
+      ]
+    }
   },
   {
     id: 'fleet-quarters',
     name: 'Fleet Quarters',
     subtitle: 'Aboard the Fleet',
     type: 'fleet',
-    emoji: '🚀',
+    emoji: '\u{1F680}',
     imageUrl: '',
     climate: 'Controlled Environment',
     coords: null,
@@ -500,27 +879,69 @@ const DEFAULT_HOMES = [
       { id: 'r2', name: 'Storage Bay', notes: '', items: [] }
     ],
     inventory: [],
-    notes: ''
+    notes: '',
+    systems: {
+      power:    { level: 98, status: 'ok',   source: 'Fusion Reactor' },
+      water:    { level: 95, status: 'ok',   source: 'Recycling Loop' },
+      air:      { level: 99, status: 'ok',   source: 'Life Support' },
+      food:     { level: 72, status: 'ok',   source: 'Hydroponics Bay' },
+      waste:    { level: 88, status: 'ok',   source: 'Matter Recycler' },
+      security: { level: 100,status: 'ok',   source: 'Ship Defense Grid' },
+      network:  { level: 100,status: 'ok',   source: 'Ship Mesh Network' }
+    },
+    garden: { mode: 'aeroponic', plants: [] }
   },
   {
     id: 'silverdale-real',
     name: 'Silverdale Home',
     subtitle: 'Silverdale, Washington 98383, USA',
     type: 'real',
-    emoji: '🏡',
+    emoji: '\u{1F3E1}',
     imageUrl: '',
     climate: 'Oceanic / Maritime',
     coords: { lat: 47.6476, lng: -122.6942 },
     rooms: [],
     inventory: [],
-    notes: 'Planning area — add rooms, wish-list items, and build notes here.'
+    notes: 'Planning area -- add rooms, wish-list items, and build notes here.',
+    systems: {
+      power:    { level: 70, status: 'ok',   source: 'Grid + Solar Panels' },
+      water:    { level: 85, status: 'ok',   source: 'Municipal + Rain Barrel' },
+      air:      { level: 80, status: 'ok',   source: 'HVAC + Window Ventilation' },
+      food:     { level: 40, status: 'warn', source: 'Grocery + Small Garden' },
+      waste:    { level: 60, status: 'warn', source: 'Municipal Waste + Compost' },
+      security: { level: 90, status: 'ok',   source: 'Door Locks + Camera' },
+      network:  { level: 88, status: 'ok',   source: 'Fiber + WiFi Router' }
+    },
+    garden: { mode: 'soil', plants: [] }
   }
 ];
+
+// Systems metadata for rendering
+const SYSTEM_META = {
+  power:    { icon: '\u26A1', label: 'Power',    color: '#9fe69a', desc: 'Electricity generation and storage' },
+  water:    { icon: '\u{1F4A7}', label: 'Water',    color: '#9fd1ff', desc: 'Water supply, filtration, and recycling' },
+  air:      { icon: '\u{1F32C}\uFE0F', label: 'Air Quality', color: '#b8e0ff', desc: 'Ventilation, HVAC, and air purification' },
+  food:     { icon: '\u{1F33E}', label: 'Food',     color: '#f4d68a', desc: 'Food production and storage reserves' },
+  waste:    { icon: '\u267B\uFE0F', label: 'Waste',    color: '#c4e89a', desc: 'Waste processing, composting, and recycling' },
+  security: { icon: '\u{1F512}', label: 'Security', color: '#e0b8ff', desc: 'Physical security and monitoring' },
+  network:  { icon: '\u{1F4F6}', label: 'Network',  color: '#ffc89a', desc: 'Internet, mesh networking, and communication' }
+};
+
+// Plant stage metadata
+const STAGE_ICONS = {
+  'Seedling':  '\u{1F331}',
+  'Growing':   '\u{1F33F}',
+  'Flowering': '\u{1F33C}',
+  'Fruiting':  '\u{1F352}',
+  'Ready':     '\u2705',
+  'Harvested': '\u{1F4E6}'
+};
 
 // ── State ──
 let homes = [];
 let activeHomeId = '';
-let openRooms = new Set(); // room IDs expanded in the accordion
+let activeSection = 'rooms';
+let openRooms = new Set();
 let noteTimer = null;
 
 // ────────────────────────────────────────────────
@@ -533,8 +954,26 @@ function loadHomes() {
     const raw = localStorage.getItem(HOMES_KEY);
     if (raw) {
       homes = JSON.parse(raw);
+      // Migrate: add systems/garden if missing from older data
+      homes.forEach(h => {
+        if (!h.systems) {
+          h.systems = {
+            power:    { level: 50, status: 'warn', source: 'Unknown' },
+            water:    { level: 50, status: 'warn', source: 'Unknown' },
+            air:      { level: 50, status: 'warn', source: 'Unknown' },
+            food:     { level: 50, status: 'warn', source: 'Unknown' },
+            waste:    { level: 50, status: 'warn', source: 'Unknown' },
+            security: { level: 50, status: 'warn', source: 'Unknown' },
+            network:  { level: 50, status: 'warn', source: 'Unknown' }
+          };
+        }
+        if (!h.garden) {
+          h.garden = { mode: 'aeroponic', plants: [] };
+        }
+      });
+      saveHomes();
     } else {
-      homes = JSON.parse(JSON.stringify(DEFAULT_HOMES)); // deep copy
+      homes = JSON.parse(JSON.stringify(DEFAULT_HOMES));
       saveHomes();
     }
   } catch(e) {
@@ -542,9 +981,11 @@ function loadHomes() {
     saveHomes();
   }
 
-  // Restore last active home or default to first
   const savedActive = localStorage.getItem('hos_active_home') || '';
   activeHomeId = homes.find(h => h.id === savedActive) ? savedActive : (homes[0]?.id || '');
+
+  const savedSection = localStorage.getItem('hos_active_section') || 'rooms';
+  if (['rooms','systems','garden'].includes(savedSection)) activeSection = savedSection;
 }
 
 /** Write homes array to localStorage */
@@ -558,10 +999,28 @@ function activeHome() {
 }
 
 // ────────────────────────────────────────────────
-// Navigation — switch active home tab
+// Section tab switching
 // ────────────────────────────────────────────────
 
-/** Switch active home, persist choice, re-render */
+function switchSection(section) {
+  activeSection = section;
+  localStorage.setItem('hos_active_section', section);
+
+  document.querySelectorAll('.section-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.section === section);
+  });
+  document.querySelectorAll('.section-content').forEach(c => {
+    c.classList.toggle('active', c.id === 'section-' + section);
+  });
+
+  if (section === 'systems') renderSystems(activeHome());
+  if (section === 'garden')  renderGarden(activeHome());
+}
+
+// ────────────────────────────────────────────────
+// Home tab switching
+// ────────────────────────────────────────────────
+
 function switchHome(id) {
   activeHomeId = id;
   localStorage.setItem('hos_active_home', id);
@@ -574,7 +1033,6 @@ function switchHome(id) {
 // Rendering
 // ────────────────────────────────────────────────
 
-/** Render the tab strip */
 function renderTabs() {
   const container = document.getElementById('home-tabs');
   container.innerHTML = homes.map(h => `
@@ -586,7 +1044,7 @@ function renderTabs() {
   `).join('');
 }
 
-/** Render the full home view (header + rooms + inventory + notes) */
+/** Render the full home view (header + active section) */
 function renderHome(home) {
   if (!home) return;
 
@@ -608,7 +1066,7 @@ function renderHome(home) {
 
   const editBtn = document.createElement('button');
   editBtn.className = 'home-cover-edit';
-  editBtn.textContent = '📷 Cover';
+  editBtn.textContent = 'Cover';
   editBtn.onclick = editCoverImage;
   cover.appendChild(editBtn);
 
@@ -617,7 +1075,7 @@ function renderHome(home) {
   document.getElementById('home-name').textContent = home.name;
 
   const badge = document.getElementById('home-type-badge');
-  const badgeLabels = { earth: '🌍 Earth', fleet: '🚀 Fleet', real: '🏡 Real World' };
+  const badgeLabels = { earth: 'Earth', fleet: 'Fleet', real: 'Real World' };
   badge.textContent = badgeLabels[home.type] || home.type;
   badge.className = 'home-type-badge badge-' + home.type;
 
@@ -625,26 +1083,151 @@ function renderHome(home) {
 
   const detailRow = document.getElementById('home-detail-row');
   const details = [];
-  if (home.climate)  details.push(`<div class="home-detail-item"><span class="di-icon">🌡️</span>${esc(home.climate)}</div>`);
-  if (home.coords)   details.push(`<div class="home-detail-item"><span class="di-icon">📍</span>${home.coords.lat.toFixed(4)}°N ${Math.abs(home.coords.lng).toFixed(4)}°W</div>`);
-  details.push(`<div class="home-detail-item" id="home-weather"><span class="di-icon">🌤</span><span id="weather-text">—</span></div>`);
+  if (home.climate)  details.push(`<div class="home-detail-item"><span class="di-icon">\u{1F321}\uFE0F</span>${esc(home.climate)}</div>`);
+  if (home.coords)   details.push(`<div class="home-detail-item"><span class="di-icon">\u{1F4CD}</span>${home.coords.lat.toFixed(4)}\u00B0N ${Math.abs(home.coords.lng).toFixed(4)}\u00B0W</div>`);
+  details.push(`<div class="home-detail-item" id="home-weather"><span class="di-icon">\u{1F324}</span><span id="weather-text">\u2014</span></div>`);
   detailRow.innerHTML = details.join('');
 
-  // Fetch live weather from Open-Meteo (free, no key) if coords available.
   if (home.coords) fetchWeather(home.coords.lat, home.coords.lng);
-  else document.getElementById('weather-text') && (document.getElementById('weather-text').textContent = 'No coordinates');
+  else { const wt = document.getElementById('weather-text'); if (wt) wt.textContent = 'No coordinates'; }
 
-  // ── Rooms ──
+  // ── Sections ──
   renderRooms(home);
-
-  // ── Inventory ──
   renderHomeInventory(home);
-
-  // ── Notes ──
   document.getElementById('home-notes-area').value = home.notes || '';
+  renderSystems(home);
+  renderGarden(home);
+
+  // Restore section tab state
+  switchSection(activeSection);
 }
 
-/** Render the rooms accordion for a home */
+// ────────────────────────────────────────────────
+// Systems rendering
+// ────────────────────────────────────────────────
+
+function renderSystems(home) {
+  const grid = document.getElementById('systems-grid');
+  if (!grid || !home) return;
+  const sys = home.systems || {};
+
+  grid.innerHTML = Object.entries(SYSTEM_META).map(([key, meta]) => {
+    const data = sys[key] || { level: 0, status: 'alert', source: 'Unknown' };
+    const statusClass = data.level >= 80 ? 'sys-ok' : data.level >= 50 ? 'sys-warn' : 'sys-alert';
+    const statusLabel = data.level >= 80 ? 'Nominal' : data.level >= 50 ? 'Attention' : 'Critical';
+
+    return `
+      <div class="sys-card">
+        <div class="sys-card-header">
+          <span class="sys-card-icon">${meta.icon}</span>
+          <div>
+            <div class="sys-card-title">${meta.label}</div>
+            <div class="sys-card-subtitle">${meta.desc}</div>
+          </div>
+        </div>
+        <div class="sys-meter">
+          <div class="sys-meter-fill" style="width:${data.level}%;background:${meta.color};"></div>
+        </div>
+        <div class="sys-stat-row">
+          <span>Level</span>
+          <span class="sys-stat-value" style="color:${meta.color}">${data.level}%</span>
+        </div>
+        <div class="sys-stat-row">
+          <span>Source</span>
+          <span style="color:#aaa">${esc(data.source)}</span>
+        </div>
+        <div class="sys-status-badge ${statusClass}">${statusLabel}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ────────────────────────────────────────────────
+// Garden rendering
+// ────────────────────────────────────────────────
+
+function renderGarden(home) {
+  const grid = document.getElementById('plant-grid');
+  const empty = document.getElementById('plants-empty');
+  if (!grid || !home) return;
+
+  const garden = home.garden || { plants: [] };
+  const plants = garden.plants || [];
+
+  if (plants.length === 0) {
+    grid.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  grid.innerHTML = plants.map((p, idx) => {
+    const stageIcon = STAGE_ICONS[p.stage] || '\u{1F331}';
+    const methodLabel = p.method === 'aeroponic' ? 'Tower' : 'Soil';
+    const methodColor = p.method === 'aeroponic' ? '#4caf50' : '#FF8811';
+
+    return `
+      <div class="plant-card">
+        <span class="plant-icon">${p.icon || '\u{1F33F}'}</span>
+        <div class="plant-info">
+          <div class="plant-name">${esc(p.name)}</div>
+          <div class="plant-stage">${stageIcon} ${esc(p.stage)} <span style="color:${methodColor};font-size:0.58rem;margin-left:0.3rem;">${methodLabel}</span></div>
+          ${p.harvestDate ? `<div class="plant-harvest">Harvest: ${esc(p.harvestDate)}</div>` : ''}
+          <div class="plant-progress"><div class="plant-progress-fill" style="width:${p.progress || 0}%"></div></div>
+        </div>
+        <button class="plant-del" onclick="deletePlant(${idx})" title="Remove">\u00D7</button>
+      </div>
+    `;
+  }).join('');
+}
+
+// ────────────────────────────────────────────────
+// Plant CRUD
+// ────────────────────────────────────────────────
+
+function addPlant() {
+  const home = activeHome();
+  if (!home) return;
+  if (!home.garden) home.garden = { mode: 'aeroponic', plants: [] };
+
+  const name = prompt('Plant name:');
+  if (!name || !name.trim()) return;
+
+  const method = prompt('Growing method (aeroponic or soil):', 'aeroponic') || 'aeroponic';
+  const validMethod = method.trim().toLowerCase() === 'soil' ? 'soil' : 'aeroponic';
+
+  const stage = prompt('Growth stage (Seedling, Growing, Flowering, Fruiting, Ready):', 'Seedling') || 'Seedling';
+  const harvestDate = prompt('Expected harvest date (YYYY-MM-DD, or leave blank):', '') || '';
+
+  home.garden.plants.push({
+    id: 'p' + Date.now().toString(36),
+    name: name.trim(),
+    icon: '\u{1F33F}',
+    stage: stage.trim(),
+    progress: stage.trim() === 'Ready' ? 100 : 10,
+    harvestDate: harvestDate.trim(),
+    method: validMethod
+  });
+
+  saveHomes();
+  renderGarden(home);
+}
+
+function deletePlant(idx) {
+  const home = activeHome();
+  if (!home || !home.garden) return;
+  const plant = home.garden.plants[idx];
+  if (!plant) return;
+  if (!confirm(`Remove "${plant.name}" from garden?`)) return;
+  home.garden.plants.splice(idx, 1);
+  saveHomes();
+  renderGarden(home);
+}
+
+// ────────────────────────────────────────────────
+// Rooms rendering
+// ────────────────────────────────────────────────
+
 function renderRooms(home) {
   const list = document.getElementById('rooms-list');
   const empty = document.getElementById('rooms-empty');
@@ -662,17 +1245,17 @@ function renderRooms(home) {
     return `
       <div class="room-item" id="room-${esc(room.id)}">
         <div class="room-header" onclick="toggleRoom('${esc(room.id)}')">
-          <span class="room-toggle${isOpen ? ' open' : ''}">▶</span>
+          <span class="room-toggle${isOpen ? ' open' : ''}">\u25B6</span>
           <span class="room-name">${esc(room.name)}</span>
           ${itemCount > 0 ? `<span class="room-count">${itemCount} item${itemCount !== 1 ? 's' : ''}</span>` : ''}
           <div class="room-actions" onclick="event.stopPropagation()">
-            <button class="room-action-btn" title="Rename room" onclick="renameRoom('${esc(home.id)}','${esc(room.id)}')">✏️</button>
-            <button class="room-action-btn del" title="Delete room" onclick="deleteRoom('${esc(home.id)}','${esc(room.id)}')">🗑️</button>
+            <button class="room-action-btn" title="Rename room" onclick="renameRoom('${esc(home.id)}','${esc(room.id)}')">Edit</button>
+            <button class="room-action-btn del" title="Delete room" onclick="deleteRoom('${esc(home.id)}','${esc(room.id)}')">Del</button>
           </div>
         </div>
         <div class="room-body${isOpen ? ' open' : ''}">
           <textarea class="room-notes-area"
-            placeholder="Room notes…"
+            placeholder="Room notes..."
             data-home="${esc(home.id)}"
             data-room="${esc(room.id)}"
             oninput="scheduleRoomNoteSave(this)"
@@ -689,20 +1272,18 @@ function renderRooms(home) {
   }).join('');
 }
 
-/** Render item rows HTML string for a room or home inventory */
 function renderItemRows(homeId, roomId, items) {
   if (!items || items.length === 0) return '';
   return items.map((item, idx) => `
     <div class="item-row">
-      <span class="item-icon">${item.icon || '📦'}</span>
+      <span class="item-icon">${item.icon || '\u{1F4E6}'}</span>
       <span class="item-name">${esc(item.name)}</span>
-      ${item.qty && item.qty !== '1' ? `<span class="item-qty">×${esc(String(item.qty))}</span>` : ''}
-      <button class="item-del" onclick="deleteItem('${esc(homeId)}','${esc(roomId)}',${idx})" title="Remove">×</button>
+      ${item.qty && item.qty !== '1' ? `<span class="item-qty">\u00D7${esc(String(item.qty))}</span>` : ''}
+      <button class="item-del" onclick="deleteItem('${esc(homeId)}','${esc(roomId)}',${idx})" title="Remove">\u00D7</button>
     </div>
   `).join('');
 }
 
-/** Render home-wide (unassigned) inventory */
 function renderHomeInventory(home) {
   const container = document.getElementById('home-inv-list');
   const items = home.inventory || [];
@@ -776,7 +1357,7 @@ function addRoomItem(homeId, roomId) {
   const name = prompt('Item name:');
   if (!name || !name.trim()) return;
   const qty = prompt('Quantity (leave blank for 1):', '1') || '1';
-  room.items.push({ name: name.trim(), qty: qty.trim() || '1', icon: '📦' });
+  room.items.push({ name: name.trim(), qty: qty.trim() || '1', icon: '\u{1F4E6}' });
   saveHomes();
   openRooms.add(roomId);
   renderRooms(home);
@@ -788,15 +1369,11 @@ function addHomeItem() {
   const name = prompt('Item name:');
   if (!name || !name.trim()) return;
   const qty = prompt('Quantity (leave blank for 1):', '1') || '1';
-  home.inventory.push({ name: name.trim(), qty: qty.trim() || '1', icon: '📦' });
+  home.inventory.push({ name: name.trim(), qty: qty.trim() || '1', icon: '\u{1F4E6}' });
   saveHomes();
   renderHomeInventory(home);
 }
 
-/**
- * Delete an item from a room or from home inventory.
- * roomId '__inv__' means home-level inventory.
- */
 function deleteItem(homeId, roomId, idx) {
   const home = homes.find(h => h.id === homeId);
   if (!home) return;
@@ -817,7 +1394,6 @@ function deleteItem(homeId, roomId, idx) {
 // Notes auto-save (debounced)
 // ────────────────────────────────────────────────
 
-/** Debounced save of the home-level planning notes textarea */
 function scheduleNoteSave() {
   clearTimeout(noteTimer);
   noteTimer = setTimeout(() => {
@@ -828,7 +1404,6 @@ function scheduleNoteSave() {
   }, 450);
 }
 
-/** Debounced save of a room's notes textarea */
 function scheduleRoomNoteSave(el) {
   const homeId = el.dataset.home;
   const roomId = el.dataset.room;
@@ -857,14 +1432,14 @@ const WMO_CODE = {
   95:'Thunderstorm', 96:'T-storm w/hail', 99:'T-storm w/heavy hail',
 };
 const WMO_ICON = {
-  0:'☀️', 1:'🌤', 2:'⛅', 3:'☁️',
-  45:'🌫', 48:'🌫',
-  51:'🌦', 53:'🌧', 55:'🌧',
-  61:'🌧', 63:'🌧', 65:'🌧',
-  71:'🌨', 73:'❄️', 75:'❄️', 77:'❄️',
-  80:'🌦', 81:'🌧', 82:'⛈',
-  85:'🌨', 86:'🌨',
-  95:'⛈', 96:'⛈', 99:'⛈',
+  0:'\u2600\uFE0F', 1:'\u{1F324}', 2:'\u26C5', 3:'\u2601\uFE0F',
+  45:'\u{1F32B}', 48:'\u{1F32B}',
+  51:'\u{1F326}', 53:'\u{1F327}', 55:'\u{1F327}',
+  61:'\u{1F327}', 63:'\u{1F327}', 65:'\u{1F327}',
+  71:'\u{1F328}', 73:'\u2744\uFE0F', 75:'\u2744\uFE0F', 77:'\u2744\uFE0F',
+  80:'\u{1F326}', 81:'\u{1F327}', 82:'\u26C8',
+  85:'\u{1F328}', 86:'\u{1F328}',
+  95:'\u26C8', 96:'\u26C8', 99:'\u26C8',
 };
 
 async function fetchWeather(lat, lng) {
@@ -878,9 +1453,9 @@ async function fetchWeather(lat, lng) {
     const c = data.current;
     if (!c) throw new Error('no data');
     const code = c.weather_code;
-    const icon = WMO_ICON[code] || '🌡️';
+    const icon = WMO_ICON[code] || '\u{1F321}\uFE0F';
     const desc = WMO_CODE[code] || 'Unknown';
-    el.textContent = `${icon} ${Math.round(c.temperature_2m)}°F — ${desc} · 💨 ${Math.round(c.wind_speed_10m)} mph`;
+    el.textContent = `${icon} ${Math.round(c.temperature_2m)}\u00B0F \u2014 ${desc} \u00B7 ${Math.round(c.wind_speed_10m)} mph wind`;
   } catch(e) {
     if (el) el.textContent = 'Weather unavailable';
   }
@@ -894,7 +1469,7 @@ function editCoverImage() {
   const home = activeHome();
   if (!home) return;
   const url = prompt('Cover image URL (leave blank to clear):', home.imageUrl || '');
-  if (url === null) return; // cancelled
+  if (url === null) return;
   home.imageUrl = url.trim();
   saveHomes();
   renderHome(home);

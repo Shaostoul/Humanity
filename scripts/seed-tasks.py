@@ -160,7 +160,7 @@ t("Marketplace — offer and request skills, goods, and time",
   "Listings API exists at /api/listings. Build real UI: post offer, post request, match, exchange. Reputation-gated. market.html stub.",
   "backlog", "medium", ["scope:city","market"])
 t("Learning paths — structured skill progression",
-  "Complete module -> peer-endorsed -> unlock next level. Design detail in design/education_model.md. learn.html stub.",
+  "Complete module -> peer-endorsed -> unlock next level. Design detail in design/education_model.md. web.html has curated sites.",
   "backlog", "medium", ["scope:city","learn","skills"])
 
 print("\n=== BACKLOG: Tier 4 — Reach ===")

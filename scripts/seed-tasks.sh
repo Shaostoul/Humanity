@@ -187,7 +187,7 @@ t "Marketplace — offer and request skills, goods, and time" \
   backlog medium '["scope:city","market"]'
 
 t "Learning paths — structured skill progression" \
-  "Complete a module → get peer-endorsed → unlock next level. Design detail in design/education_model.md. learn.html stub exists." \
+  "Complete a module → get peer-endorsed → unlock next level. Design detail in design/education_model.md. web.html has curated sites." \
   backlog medium '["scope:city","learn","skills"]'
 
 echo ""

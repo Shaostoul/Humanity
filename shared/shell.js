@@ -5,11 +5,11 @@
  * If omitted, active tab is auto-detected from the current URL.
  *
  * Valid active keys: landing, chat, dashboard, profile, home, gear,
- *   tasks, calendar, notes, board, map, market, browse, debug, download,
+ *   tasks, calendar, notes, systems, map, market, web, ops, download,
  *   settings
  *
  * Usage:
- *   <script src="/shared/shell.js" data-active="inventory"></script>
+ *   <script src="/shared/shell.js" data-active="gear"></script>
  */
 (function () {
   if (window.__HOS_SHELL_INIT__) return;
@@ -27,41 +27,22 @@
   let active = scriptTag && scriptTag.getAttribute('data-active');
   if (!active) {
     const p = location.pathname;
-    if (p === '/') active = 'landing';           // root landing page — H brand only, not Home tab
+    if (p === '/') active = 'landing';
     else if (p.startsWith('/chat'))      active = 'chat';
+    else if (p.startsWith('/dashboard')) active = 'dashboard';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
     else if (p.startsWith('/tasks'))     active = 'tasks';
     else if (p.startsWith('/calendar'))  active = 'calendar';
     else if (p.startsWith('/notes'))     active = 'notes';
-    else if (p.startsWith('/systems'))   active = 'board';
+    else if (p.startsWith('/systems'))   active = 'home';
     else if (p.startsWith('/maps'))      active = 'map';
     else if (p.startsWith('/market'))    active = 'market';
-    else if (p.startsWith('/learn'))     active = 'browse';
+    else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
-    else if (p.startsWith('/ops'))       active = 'debug';
+    else if (p.startsWith('/ops'))       active = 'ops';
     else if (p.startsWith('/download'))  active = 'download';
-    else if (p.startsWith('/dashboard')) active = 'dashboard';
-    // Merged pages → redirect to new parent
-    else if (p.startsWith('/skills'))    active = 'profile';
-    else if (p.startsWith('/equipment')) active = 'gear';
-    else if (p.startsWith('/gear'))      active = 'gear';
-    else if (p.startsWith('/quests'))    active = 'tasks';
-    else if (p.startsWith('/logbook'))   active = 'notes';
-    else if (p.startsWith('/vault'))     active = 'settings';
-    else if (p.startsWith('/knowledge')) active = 'settings';
-    // Legacy backward compat
-    else if (p.startsWith('/board'))     active = 'board';
-    else if (p.startsWith('/map'))       active = 'map';
-    else if (p.startsWith('/browse'))    active = 'browse';
-    else if (p.startsWith('/info'))      active = 'settings';
-    else if (p.startsWith('/debug'))     active = 'debug';
-    else if (p.startsWith('/streams'))   active = 'chat';
-    else if (p.startsWith('/studio'))    active = 'chat';
-    else if (p.startsWith('/reality'))   active = 'profile';
-    else if (p.startsWith('/fantasy'))   active = 'profile';
-    else if (p.startsWith('/source'))    active = 'gear';
     else active = '';
   }
 
@@ -443,10 +424,9 @@
       '<div class="nav-divider"></div>' +
 
       /* Public — community pages */
-      navTab('/systems',   'systems.png',   'Systems',   'board') +
       navTab('/maps',      'map.png',       'Maps',      'map') +
       navTab('/market',    'market.png',    'Market',    'market') +
-      navTab('/learn',     'website.png',   'Web',       'browse') +
+      navTab('/web',       'website.png',   'Web',       'web') +
 
       /* Spacer pushes utility tabs to the right */
       '<div class="spacer"></div>' +
@@ -454,7 +434,7 @@
       /* Utility — right-aligned */
       navTab('/settings', '⚙️',            'Settings',  'settings') +
       navTab('/download', '⬇️',            'Download',  'download') +
-      navTab('/ops',      '🛠️',            'Ops',       'debug') +
+      navTab('/ops',      '🛠️',            'Ops',       'ops') +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
@@ -492,10 +472,9 @@
       mobileLink('/notes',     'Journal') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Public</h4>' +
-      mobileLink('/systems',   'Systems') +
       mobileLink('/maps',      'Maps') +
       mobileLink('/market',    'Market') +
-      mobileLink('/learn',     'Web') +
+      mobileLink('/web',       'Web') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Config</h4>' +
       mobileLink('/settings', '⚙️ Settings') +
@@ -680,13 +659,6 @@
     }
   });
 
-  function isLikelyLiveStreamingSession() {
-    var stopBtn = document.getElementById('stream-stop-btn');
-    if (!stopBtn) return false;
-    var display = stopBtn.style && stopBtn.style.display ? stopBtn.style.display : '';
-    return display !== 'none';
-  }
-
   function isInActiveVoiceRoom() {
     return !!(window._currentRoomId && window._roomLocalStream);
   }
@@ -700,8 +672,7 @@
     const href = link.getAttribute('href');
     // Only app.html SPA routes here — standalone HTML pages need real full-page
     // navigation so their data-active attribute fires on load and sets active state.
-    const hubPaths = ['/map', '/board', '/reality', '/fantasy', '/market', '/browse', '/dashboard',
-                      '/streams', '/info', '/source', '/debug'];
+    const hubPaths = ['/maps', '/systems', '/market', '/web', '/dashboard'];
     const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
     const targetIsHub  = hubPaths.some(function(p) { return href === p || href.startsWith(p + '#') || href.startsWith(p + '?'); });
 
@@ -715,18 +686,6 @@
         openWebviewTab(href, title);
       } else {
         if (confirm('You are in a voice channel. Leaving this page will disconnect you. Continue?')) location.href = href;
-      }
-      return;
-    }
-
-    // Streaming continuity guard
-    if (location.pathname === '/streams' && targetIsHub && href !== '/streams' && isLikelyLiveStreamingSession()) {
-      e.preventDefault();
-      var title = (link.getAttribute('data-tip') || href).trim();
-      if (typeof openWebviewTab === 'function') {
-        openWebviewTab(href, title);
-      } else {
-        if (confirm('A live stream appears active. Switching may interrupt it. Continue?')) location.href = href;
       }
       return;
     }

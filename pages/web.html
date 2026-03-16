@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #page-app {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 1rem 2rem;
+    }
+
+    /* ── Platform note ── */
+    .platform-note {
+      margin: 0.75rem 0;
+      padding: 0.6rem 0.8rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      text-align: center;
+    }
+
+    /* ── Search bar ── */
+    .web-search {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+    .web-search input {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+    }
+    .web-search input::placeholder { color: var(--text-muted); }
+
+    /* ── Category filter pills ── */
+    .category-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 1rem;
+    }
+    .cat-pill {
+      padding: 0.25rem 0.7rem;
+      font-size: 0.75rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .cat-pill:hover { border-color: var(--accent); color: var(--text); }
+    .cat-pill.active {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* ── Category sections ── */
+    .cat-section { margin-bottom: 1.5rem; }
+    .cat-section h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.6rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Site cards grid ── */
+    .site-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.6rem;
+    }
+    .site-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+      text-decoration: none;
+      display: block;
+    }
+    .site-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+    }
+    .site-card .site-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+    .site-card .site-desc {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-bottom: 0.3rem;
+    }
+    .site-card .site-url {
+      font-size: 0.7rem;
+      color: var(--accent);
+      opacity: 0.7;
+    }
+    .site-card:hover .site-url { opacity: 1; }
+
+    @media (max-width: 600px) {
+      .site-grid { grid-template-columns: 1fr; }
+      #page-app { padding: 0 0.5rem 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/shell.js" data-active="web"></script>
+<p class="page-hint">Your bookmarked websites — click to visit</p>
+
+<div id="page-app">
+  <div class="platform-note">
+    In the desktop app, these open in a built-in browser tab. On web, they open in a new window.
+  </div>
+
+  <div class="web-search">
+    <input type="text" id="site-search" placeholder="Filter sites..." oninput="filterSites()">
+  </div>
+
+  <div class="category-filters" id="cat-filters"></div>
+  <div id="site-list"></div>
+</div>
+
+<script>
+/** Curated site directory — each entry: { name, desc, url, category } */
+var SITES = [
+  // Education
+  { name: 'Khan Academy',       desc: 'Free courses in math, science, computing, and more',             url: 'https://www.khanacademy.org',           category: 'Education' },
+  { name: 'Wikipedia',           desc: 'The free encyclopedia anyone can edit',                           url: 'https://www.wikipedia.org',             category: 'Education' },
+  { name: 'MIT OpenCourseWare',  desc: 'Free lecture notes, exams, and videos from MIT',                  url: 'https://ocw.mit.edu',                   category: 'Education' },
+  { name: 'Coursera',            desc: 'Online courses from top universities and companies',              url: 'https://www.coursera.org',              category: 'Education' },
+  { name: 'LibreTexts',          desc: 'Free, open-access textbooks for every subject',                   url: 'https://libretexts.org',                category: 'Education' },
+
+  // Science
+  { name: 'NASA',                desc: 'Space exploration, missions, and Earth science from NASA',        url: 'https://www.nasa.gov',                  category: 'Science' },
+  { name: 'ArXiv',               desc: 'Open-access preprints in physics, math, CS, and more',           url: 'https://arxiv.org',                     category: 'Science' },
+  { name: 'PubMed',              desc: 'Biomedical literature from MEDLINE and life science journals',    url: 'https://pubmed.ncbi.nlm.nih.gov',       category: 'Science' },
+  { name: 'Nature',              desc: 'Leading international journal of science',                        url: 'https://www.nature.com',                category: 'Science' },
+
+  // Technology
+  { name: 'GitHub',              desc: 'Code hosting, collaboration, and open-source projects',           url: 'https://github.com',                    category: 'Technology' },
+  { name: 'MDN Web Docs',        desc: 'Comprehensive reference for HTML, CSS, JavaScript, and Web APIs', url: 'https://developer.mozilla.org',         category: 'Technology' },
+  { name: 'Stack Overflow',      desc: 'Q&A community for programmers and developers',                   url: 'https://stackoverflow.com',             category: 'Technology' },
+  { name: 'Hacker News',         desc: 'Tech and startup news curated by the community',                  url: 'https://news.ycombinator.com',          category: 'Technology' },
+
+  // Health
+  { name: 'WHO',                 desc: 'World Health Organization — global health guidance and data',     url: 'https://www.who.int',                   category: 'Health' },
+  { name: 'PubMed Health',       desc: 'Clinical effectiveness research and health reviews',              url: 'https://pubmed.ncbi.nlm.nih.gov',       category: 'Health' },
+  { name: 'NIH',                 desc: 'U.S. National Institutes of Health — medical research and info',  url: 'https://www.nih.gov',                   category: 'Health' },
+
+  // News
+  { name: 'AP News',             desc: 'Fact-based, unbiased reporting from the Associated Press',        url: 'https://apnews.com',                    category: 'News' },
+  { name: 'Reuters',             desc: 'International wire service — business, world, and tech news',     url: 'https://www.reuters.com',               category: 'News' },
+  { name: 'NPR',                 desc: 'National Public Radio — in-depth U.S. and world news',           url: 'https://www.npr.org',                   category: 'News' },
+  { name: 'BBC',                 desc: 'British Broadcasting Corporation — global news and analysis',     url: 'https://www.bbc.com/news',              category: 'News' },
+
+  // Tools
+  { name: 'Wolfram Alpha',       desc: 'Computational knowledge engine — answers factual queries',        url: 'https://www.wolframalpha.com',          category: 'Tools' },
+  { name: 'Internet Archive',    desc: 'Digital library of websites, books, audio, video, and software',  url: 'https://archive.org',                   category: 'Tools' },
+  { name: 'Google Scholar',      desc: 'Search engine for scholarly literature across disciplines',        url: 'https://scholar.google.com',            category: 'Tools' },
+
+  // Community
+  { name: 'Reddit',              desc: 'Community-driven discussion forums on every topic',               url: 'https://www.reddit.com',                category: 'Community' },
+  { name: 'Discord',             desc: 'Voice, video, and text chat for communities and friends',         url: 'https://discord.com',                   category: 'Community' },
+  { name: 'Matrix.org',          desc: 'Open standard for decentralised, encrypted communication',        url: 'https://matrix.org',                    category: 'Community' }
+];
+
+var activeCategory = '';
+
+/** Build category filter pills from SITES data */
+function renderFilters() {
+  var cats = [];
+  SITES.forEach(function(s) {
+    if (cats.indexOf(s.category) === -1) cats.push(s.category);
+  });
+  var el = document.getElementById('cat-filters');
+  var html = '<span class="cat-pill' + (activeCategory === '' ? ' active' : '') + '" onclick="setCategory(\'\')">All</span>';
+  cats.forEach(function(c) {
+    html += '<span class="cat-pill' + (activeCategory === c ? ' active' : '') + '" onclick="setCategory(\'' + c + '\')">' + c + '</span>';
+  });
+  el.innerHTML = html;
+}
+
+function setCategory(cat) {
+  activeCategory = cat;
+  renderFilters();
+  renderSites();
+}
+
+/** Open a site — desktop app uses built-in tab, browser uses new window */
+function openSite(url) {
+  if (typeof window.__TAURI__ !== 'undefined' && typeof openWebviewTab === 'function') {
+    openWebviewTab(url, url);
+  } else {
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+/** Render site cards, filtered by active category and search text */
+function renderSites() {
+  var search = (document.getElementById('site-search').value || '').toLowerCase();
+  var filtered = SITES.filter(function(s) {
+    if (activeCategory && s.category !== activeCategory) return false;
+    if (search && s.name.toLowerCase().indexOf(search) === -1 &&
+        s.desc.toLowerCase().indexOf(search) === -1 &&
+        s.url.toLowerCase().indexOf(search) === -1) return false;
+    return true;
+  });
+
+  // Group by category
+  var groups = {};
+  var order = [];
+  filtered.forEach(function(s) {
+    if (!groups[s.category]) { groups[s.category] = []; order.push(s.category); }
+    groups[s.category].push(s);
+  });
+
+  var html = '';
+  order.forEach(function(cat) {
+    html += '<div class="cat-section"><h2>' + cat + '</h2><div class="site-grid">';
+    groups[cat].forEach(function(s) {
+      var domain = s.url.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      html += '<a class="site-card" href="' + s.url + '" target="_blank" rel="noopener" onclick="event.preventDefault();openSite(\'' + s.url + '\')">' +
+        '<div class="site-name">' + s.name + '</div>' +
+        '<div class="site-desc">' + s.desc + '</div>' +
+        '<div class="site-url">' + domain + '</div>' +
+        '</a>';
+    });
+    html += '</div></div>';
+  });
+
+  if (!html) {
+    html = '<div style="padding:2rem;color:var(--text-muted);text-align:center;">No sites match your search.</div>';
+  }
+
+  document.getElementById('site-list').innerHTML = html;
+}
+
+function filterSites() { renderSites(); }
+
+document.addEventListener('DOMContentLoaded', function() {
+  renderFilters();
+  renderSites();
+});
+</script>
+</body>
+</html>
