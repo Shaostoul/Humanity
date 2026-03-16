@@ -68,7 +68,8 @@ function openDmConversation(partnerKey, partnerName) {
   const row = dmConversations.find(c => c.partner_key === partnerKey);
   if (row) row.unread_count = 0;
   renderDmList();
-  renderChannelList(); // Deselect channels
+  renderChannelList(); // Deselect server channels
+  if (typeof renderGroupList === 'function') renderGroupList(); // Deselect groups
 
   // Hide pin bar in DM view.
   document.getElementById('pin-bar').style.display = 'none';

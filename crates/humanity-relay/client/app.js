@@ -606,6 +606,11 @@ async function handleMessage(msg) {
           window._serverVersion = msg.server_version;
         } else if (window._serverVersion !== msg.server_version) {
           console.log('Server updated, clearing SW cache and reloading…');
+          // Persist voice room so we can auto-rejoin after the reload.
+          if (window._currentRoomId) {
+            sessionStorage.setItem('_rejoin_room', window._currentRoomId);
+            console.log('Saved voice room for rejoin after reload:', window._currentRoomId);
+          }
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(regs => {
               regs.forEach(r => r.unregister());

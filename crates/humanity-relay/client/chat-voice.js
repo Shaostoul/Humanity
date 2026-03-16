@@ -215,6 +215,19 @@ handleMessage = function(msg) {
       }))
     }));
     if (typeof renderServerList === 'function') renderServerList();
+    // Auto-rejoin voice room after a deploy-triggered reload.
+    const rejoinId = sessionStorage.getItem('_rejoin_room');
+    if (rejoinId && !window._currentRoomId) {
+      const target = window._voiceChannels.find(c => String(c.id) === String(rejoinId));
+      if (target) {
+        sessionStorage.removeItem('_rejoin_room');
+        console.log('Auto-rejoining voice room after reload:', rejoinId);
+        setTimeout(() => joinVoiceRoom(rejoinId), 500); // brief delay so WS is fully settled
+      } else {
+        // Room no longer exists — clear the pending rejoin
+        sessionStorage.removeItem('_rejoin_room');
+      }
+    }
     // If we're in a room, connect to any new participants
     if (window._currentRoomId && window._roomLocalStream) {
       const ch = window._voiceChannels.find(c => String(c.id) === String(window._currentRoomId));

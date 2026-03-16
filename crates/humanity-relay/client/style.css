@@ -194,19 +194,19 @@ header h1 {
 /* Each context gets a clearly-tinted background so the user           */
 /* immediately knows which chat type they're reading.                  */
 #messages[data-ctx="channel"] {
-  background: #0d1e3c; /* rgb(13,30,60) — dark navy */
-  --stripe-a: rgba(40, 90, 180, 0.25);
-  --stripe-b: rgba(30, 65, 140, 0.12);
+  background: #132244; /* rgb(19,34,68) — dark navy blue */
+  --stripe-a: rgba(50, 110, 220, 0.28);
+  --stripe-b: rgba(35, 80, 170, 0.13);
 }
 #messages[data-ctx="dm"] {
-  background: #280e16; /* rgb(40,14,22) — dark crimson */
-  --stripe-a: rgba(180, 40, 65, 0.25);
-  --stripe-b: rgba(140, 30, 50, 0.12);
+  background: #3a1020; /* rgb(58,16,32) — dark crimson */
+  --stripe-a: rgba(210, 50, 80, 0.28);
+  --stripe-b: rgba(165, 35, 60, 0.13);
 }
 #messages[data-ctx="group"] {
-  background: #0e2212; /* rgb(14,34,18) — dark forest */
-  --stripe-a: rgba(40, 150, 70, 0.25);
-  --stripe-b: rgba(30, 120, 55, 0.12);
+  background: #133218; /* rgb(19,50,24) — dark forest green */
+  --stripe-a: rgba(50, 180, 85, 0.28);
+  --stripe-b: rgba(35, 140, 65, 0.13);
 }
 
 /* ── Alternating message stripes (change only when author changes) ── */
