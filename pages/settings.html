@@ -598,6 +598,24 @@
       </div>
 
       <div class="settings-group">
+        <div class="settings-group-title">Page Hints</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Simple (💡)</strong>
+            <span>Plain-language explanations on every page</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-show-simple" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Expert (🔬)</strong>
+            <span>Technical details for developers and power users</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-show-expert" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
         <div class="settings-group-title">Typography</div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1836,6 +1854,14 @@ function loadPrefs() {
   } catch(e) {}
 }
 
+function saveEli5Pref() {
+  var s = document.getElementById('pref-show-simple');
+  var e = document.getElementById('pref-show-expert');
+  localStorage.setItem('hos_show_simple', s && s.checked ? '1' : '0');
+  localStorage.setItem('hos_show_expert', e && e.checked ? '1' : '0');
+  if (window.__hos_eli5_update) window.__hos_eli5_update();
+}
+
 function savePref() {
   // Read all inputs
   Object.keys(DEFAULTS).forEach(k => {
@@ -1865,6 +1891,11 @@ function applyPrefs() {
       document.getElementById('pubkey-display').textContent = id.publicKeyHex.slice(0, 16) + '…' + id.publicKeyHex.slice(-8);
     }
   } catch(e) {}
+  // Load ELI5 prefs
+  var es = document.getElementById('pref-show-simple');
+  var ee = document.getElementById('pref-show-expert');
+  if (es) es.checked = localStorage.getItem('hos_show_simple') !== '0';
+  if (ee) ee.checked = localStorage.getItem('hos_show_expert') !== '0';
 }
 
 function showSection(id) {
