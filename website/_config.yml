@@ -4,3 +4,32 @@ url: https://shaostoul.github.io
 baseurl: /Humanity
 
 markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+  - scope:
+      path: "accord"
+    values:
+      layout: doc
+  - scope:
+      path: "design"
+    values:
+      layout: doc
+  - scope:
+      path: "docs"
+    values:
+      layout: doc
+  - scope:
+      path: "knowledge"
+    values:
+      layout: doc
+  - scope:
+      path: "reference"
+    values:
+      layout: doc

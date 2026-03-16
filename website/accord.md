@@ -12,47 +12,56 @@ Human-facing civilizational constraints: dignity, consent, safety, legitimacy, a
 
 ## Foundational Documents
 
-- [The Humanity Accord](/Humanity/accord/charter) — the core charter
-- [Rights and Responsibilities](/Humanity/accord/rights) — what humans are owed and owe
-- [Ethical Principles](/Humanity/accord/ethics) — the moral foundations
+- [The Humanity Accord](/Humanity/accord/charter) -- the core charter
+- [Rights and Responsibilities](/Humanity/accord/rights) -- what humans are owed and owe
+- [Ethical Principles](/Humanity/accord/ethics) -- the moral foundations
+- [Human Needs](/Humanity/accord/human-needs) -- what every person requires
 
 ---
 
 ## Absolute Constraints
 
-- [Absolute Prohibitions](/Humanity/accord/prohibitions) — acts that are never legitimate
-- [Irreversible Actions](/Humanity/accord/irreversible) — governance of permanent consequences
-- [Failure of Legitimacy](/Humanity/accord/legitimacy-failure) — when authority becomes invalid
+- [Absolute Prohibitions](/Humanity/accord/prohibitions) -- acts that are never legitimate
+- [Irreversible Actions](/Humanity/accord/irreversible) -- governance of permanent consequences
+- [Failure of Legitimacy](/Humanity/accord/legitimacy-failure) -- when authority becomes invalid
 
 ---
 
 ## Consent and Safety
 
-- [Consent and Control](/Humanity/accord/consent) — how authority is granted and revoked
-- [Safety and Responsibility](/Humanity/accord/safety) — harm prevention and accountability
-- [Communication and Association](/Humanity/accord/communication) — freedom of expression and assembly
+- [Consent and Control](/Humanity/accord/consent) -- how authority is granted and revoked
+- [Safety and Responsibility](/Humanity/accord/safety) -- harm prevention and accountability
+- [Harm and Responsibility](/Humanity/accord/harm) -- accountability for damage done
+- [User Safety Overview](/Humanity/accord/user-safety) -- protecting people in the system
+- [Communication and Association](/Humanity/accord/communication) -- freedom of expression and assembly
 
 ---
 
 ## Transparency
 
-- [Transparency Guarantees](/Humanity/accord/transparency) — what must be visible
-- [Minimum Transparency Checklist](/Humanity/accord/transparency-checklist) — practical requirements
+- [Transparency Guarantees](/Humanity/accord/transparency) -- what must be visible
+- [Minimum Transparency Checklist](/Humanity/accord/transparency-checklist) -- practical requirements
 
 ---
 
 ## Governance
 
-- [Governance Models](/Humanity/accord/governance) — coordination without domination
-- [Conflict Resolution](/Humanity/accord/conflict) — handling disputes
+- [Governance Models](/Humanity/accord/governance) -- coordination without domination
+- [Conflict Resolution](/Humanity/accord/conflict) -- handling disputes
+
+---
+
+## Education
+
+- [Curriculum](/Humanity/accord/curriculum) -- what people need to learn
 
 ---
 
 ## Reference
 
-- [Glossary](/Humanity/accord/glossary) — key terms defined
-- [Knowledge Sources](/Humanity/accord/knowledge-sources) — foundations of understanding
-- [Scope Boundaries](/Humanity/accord/scope-boundaries) — what the Accord covers and doesn't
+- [Glossary](/Humanity/accord/glossary) -- key terms defined
+- [Knowledge Sources](/Humanity/accord/knowledge-sources) -- foundations of understanding
+- [Scope Boundaries](/Humanity/accord/scope-boundaries) -- what the Accord covers and doesn't
 
 ---
 

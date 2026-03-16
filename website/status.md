@@ -5,7 +5,7 @@ title: Status
 
 # Project Status
 
-**Last updated:** February 2026
+**Last updated:** March 2026 · v0.4.1
 
 ---
 
@@ -96,6 +96,7 @@ The chat and hub are **operational and in daily use** at [united-humanity.us/cha
 
 ## Recent Milestones
 
+- **Mar 2026** — v0.4.1: Download page with module management, settings overhaul, studio panel, system context awareness, desktop auto-updater fix
 - **Feb 2026** — Persistent voice channels, garden tracker, fantasy tab, streams tab
 - **Jan 2026** — Marketplace, universal catalog, project board, inventory system
 - **Late 2025** — Voice chat (WebRTC P2P), follow/friend system, groups, user profiles

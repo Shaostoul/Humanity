@@ -30,9 +30,15 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf website/_includes/canon
-          mkdir -p website/_includes/canon
+          mkdir -p website/_includes/canon/reference
           rsync -a --delete accord/ website/_includes/canon/accord/
           rsync -a --delete design/ website/_includes/canon/design/
+          rsync -a --delete docs/ website/_includes/canon/docs/
+          rsync -a --delete knowledge/ website/_includes/canon/knowledge/
+          # Copy select root .md files as reference docs
+          for f in SELF-HOSTING.md SECURITY_AUDIT.md ONBOARDING.md CONTRIBUTING.md BOOTSTRAP.md OPERATING_CONTRACT.md AGENTS.md TOOLS.md SOUL.md README.md; do
+            [ -f "$f" ] && cp "$f" website/_includes/canon/reference/
+          done
 
       # Hard fail early if the expected include targets are missing.
       - name: Verify canon mirror
@@ -40,7 +46,10 @@ jobs:
         run: |
           set -euo pipefail
           test -f website/_includes/canon/accord/humanity_accord.md
-          test -f website/_includes/canon/design/core/asset_rules.md
+          test -f website/_includes/canon/design/core/architecture.md
+          test -f website/_includes/canon/docs/00-START-HERE.md
+          test -f website/_includes/canon/knowledge/gardening.md
+          test -f website/_includes/canon/reference/README.md
 
 
       # Debug dump: if the build fails, you can see what Jekyll actually had.
