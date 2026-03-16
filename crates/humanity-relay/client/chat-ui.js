@@ -969,7 +969,7 @@ var federatedServersFetched = false;
     const channelsHtml = channelList
       .filter(ch => !pinnedIds.has(ch.id))  // hide pinned channels from main list
       .map(ch => {
-        const isActive = ch.id === activeChannel && !activeDmPartner;
+        const isActive = ch.id === activeChannel && !activeDmPartner && !activeGroupId;
         const title = ch.description ? ` title="${esc(ch.description)}"` : '';
         const lock = ch.read_only ? ' 🔒' : '';
         const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
@@ -981,7 +981,7 @@ var federatedServersFetched = false;
     const pinnedBtnsHtml = existingPinnedIds.length > 0
       ? `<div class="server-pinned-btns">${existingPinnedIds.map(id => {
           const p = PINNED_CHANNELS[id];
-          const isActive = id === activeChannel && !activeDmPartner;
+          const isActive = id === activeChannel && !activeDmPartner && !activeGroupId;
           const count = (window.unreadChannelCounts && window.unreadChannelCounts[id]) || 0;
           const badge = count > 0 ? `<span class="pinned-notif-badge">${count > 99 ? '99+' : count}</span>` : '';
           return `<button onclick="event.stopPropagation();switchChannel('${esc(id)}')" title="${p.tip}" class="${isActive ? 'active-ch' : ''}" data-pinned-id="${esc(id)}">${p.icon}${badge}</button>`;

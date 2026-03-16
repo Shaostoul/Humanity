@@ -1506,6 +1506,7 @@ function switchChannel(channelId) {
   // Clear local reaction state for old channel messages.
   Object.keys(messageReactions).forEach(k => delete messageReactions[k]);
   renderChannelList();
+  if (typeof renderGroupList === 'function') renderGroupList(); // Deselect active group
   updateChannelHeader();
   updateInputForChannel();
   // Load pins for the new channel.

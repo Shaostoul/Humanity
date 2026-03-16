@@ -273,7 +273,9 @@ function openGroup(groupId) {
   activeGroupId = groupId;
   activeGroupName = group.name;
   groupUnread[groupId] = 0; // Clear unread on enter
-  activeDmPartner = null; // Exit DM view
+  activeDmPartner = null; // Exit DM view — also deselect server channel + DM highlights
+  renderChannelList();
+  if (typeof renderDmList === 'function') renderDmList();
   // Update channel header — replace innerHTML fully so leftover DM spans don't linger.
   const header = document.getElementById('channel-header');
   if (header) {
