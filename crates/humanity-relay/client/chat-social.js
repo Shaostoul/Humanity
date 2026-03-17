@@ -131,19 +131,19 @@ function updateFriendIndicators() {
     if (isFriend(key)) {
       const badge = document.createElement('span');
       badge.className = 'follow-indicator';
-      badge.textContent = ' 🤝';
+      badge.innerHTML = ' ' + hosIcon('users', 14);
       badge.title = 'Friend (mutual follow)';
       el.querySelector('.peer-name')?.appendChild(badge) || el.appendChild(badge);
     } else if (isFollowing(key)) {
       const badge = document.createElement('span');
       badge.className = 'follow-indicator';
-      badge.textContent = ' 👁️';
+      badge.innerHTML = ' ' + hosIcon('eye', 14);
       badge.title = 'Following';
       el.querySelector('.peer-name')?.appendChild(badge) || el.appendChild(badge);
     } else if (myFollowers.has(key)) {
       const badge = document.createElement('span');
       badge.className = 'follow-indicator';
-      badge.textContent = ' 👁️‍🗨️';
+      badge.innerHTML = ' ' + hosIcon('eye', 14);
       badge.title = 'Follows you';
       el.querySelector('.peer-name')?.appendChild(badge) || el.appendChild(badge);
     }
@@ -176,7 +176,7 @@ function addFollowContextMenu() {
       const following = myFollowing.has(key);
       const item = document.createElement('div');
       item.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
-      item.textContent = following ? '❌ Unfollow' : '👁️ Follow';
+      item.innerHTML = following ? hosIcon('close', 14) + ' Unfollow' : hosIcon('eye', 14) + ' Follow';
       item.onmouseenter = () => { item.style.background = 'var(--bg-hover)'; };
       item.onmouseleave = () => { item.style.background = ''; };
       item.onclick = () => {
@@ -208,7 +208,7 @@ function renderGroupList() {
     const unread = groupUnread[g.id] || 0;
     const badge = unread > 0 ? `<span style="background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:auto;">${unread}</span>` : `<span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>`;
     html += `<div class="channel-item${isActive ? ' active' : ''}" data-group-id="${g.id}" style="cursor:pointer;">
-      <span style="opacity:0.6">👥 </span>${esc(g.name)}
+      <span style="opacity:0.6">${hosIcon('users', 16)} </span>${esc(g.name)}
       ${badge}
     </div>`;
   }
@@ -232,14 +232,14 @@ function renderGroupList() {
       menu.style.left = e.clientX + 'px';
       menu.style.top = e.clientY + 'px';
       const items = [
-        { label: '📋 Copy Invite Code', action: () => { navigator.clipboard.writeText(group.invite_code).then(() => addSystemMessage('Invite code copied: ' + group.invite_code)); }},
+        { label: hosIcon('copy', 14) + ' Copy Invite Code', html: true, action: () => { navigator.clipboard.writeText(group.invite_code).then(() => addSystemMessage('Invite code copied: ' + group.invite_code)); }},
         { label: '👤 Invite User', action: () => { const name = prompt('Share this invite code with a user:\\n' + group.invite_code + '\\n\\nOr enter a username to tell them:'); if (name && name.trim()) { addSystemMessage('Share this invite code with ' + name.trim() + ': ' + group.invite_code); } }},
         { label: '🚪 Leave Group', action: () => { if (confirm('Leave group "' + group.name + '"?') && ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'group_leave', group_id: gid })); if (activeGroupId === gid) { activeGroupId = null; activeGroupName = ''; } } }},
       ];
       items.forEach(it => {
         const div = document.createElement('div');
         div.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:0.82rem;color:var(--text);';
-        div.textContent = it.label;
+        if (it.html) div.innerHTML = it.label; else div.textContent = it.label;
         div.onmouseenter = () => { div.style.background = 'var(--bg-hover)'; };
         div.onmouseleave = () => { div.style.background = ''; };
         div.onclick = (ev) => { ev.stopPropagation(); menu.remove(); it.action(); };
@@ -280,7 +280,7 @@ function openGroup(groupId) {
   const header = document.getElementById('channel-header');
   if (header) {
     header.style.display = 'flex';
-    header.innerHTML = `<span class="ch-name">👥 ${esc(group.name)}</span><span class="ch-desc">Group · Invite: ${esc(group.invite_code)}</span>`;
+    header.innerHTML = `<span class="ch-name">${hosIcon('users', 16)} ${esc(group.name)}</span><span class="ch-desc">Group · Invite: ${esc(group.invite_code)}</span>`;
   }
   // Clear messages, set group context (forest-green tint + green stripes), request history.
   const msgsEl = document.getElementById('messages');

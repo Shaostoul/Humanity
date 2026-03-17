@@ -615,7 +615,7 @@
     <div class="inv-section" id="sec-player" style="--section-color:#e74c3c">
       <div class="inv-section-header" onclick="toggleSection('player')">
         <div class="dot" style="background:#e74c3c"></div>
-        <span class="label" style="color:#e74c3c">🔴 Player</span>
+        <span class="label" style="color:#e74c3c"><span data-icon="dot-red" data-size="12"></span> Player</span>
         <span class="chevron">▾</span>
       </div>
       <div class="inv-section-items">
@@ -642,16 +642,16 @@
     <div class="inv-section" id="sec-home" style="--section-color:#2ecc71">
       <div class="inv-section-header" onclick="toggleSection('home')">
         <div class="dot" style="background:#2ecc71"></div>
-        <span class="label" style="color:#2ecc71">🟢 Home</span>
+        <span class="label" style="color:#2ecc71"><span data-icon="dot-green" data-size="12"></span> Home</span>
         <span class="chevron">▾</span>
       </div>
       <div class="inv-section-items">
         <div class="inv-cat" data-filter="home:rooms" onclick="setFilter('home:rooms', this)">
-          <span class="cat-icon">🏠</span> Rooms / Areas
+          <span class="cat-icon" data-icon="home" data-size="16"></span> Rooms / Areas
           <span class="cat-count" id="cnt-home:rooms">0</span>
         </div>
         <div class="inv-cat" data-filter="home:storage" onclick="setFilter('home:storage', this)">
-          <span class="cat-icon">📦</span> Storage
+          <span class="cat-icon" data-icon="box" data-size="16"></span> Storage
           <span class="cat-count" id="cnt-home:storage">0</span>
         </div>
         <div class="inv-cat" data-filter="home:workshop" onclick="setFilter('home:workshop', this)">
@@ -669,7 +669,7 @@
     <div class="inv-section" id="sec-fleet" style="--section-color:#3498db">
       <div class="inv-section-header" onclick="toggleSection('fleet')">
         <div class="dot" style="background:#3498db"></div>
-        <span class="label" style="color:#3498db">🔵 Fleet</span>
+        <span class="label" style="color:#3498db"><span data-icon="dot-blue" data-size="12"></span> Fleet</span>
         <span class="chevron">▾</span>
       </div>
       <div class="inv-section-items">
@@ -678,7 +678,7 @@
           <span class="cat-count" id="cnt-fleet:all">0</span>
         </div>
         <div class="inv-cat" data-filter="fleet:blueprints" onclick="setFilter('fleet:blueprints', this)">
-          <span class="cat-icon">📐</span> Blueprints
+          <span class="cat-icon" data-icon="blueprint" data-size="16"></span> Blueprints
           <span class="cat-count" id="cnt-fleet:blueprints">0</span>
         </div>
         <div class="inv-cat" data-filter="fleet:resources" onclick="setFilter('fleet:resources', this)">
@@ -696,7 +696,7 @@
       <input id="inv-search" type="search" placeholder="Search items…" oninput="renderItems()">
       <div id="inv-view-toggle">
         <button class="view-btn active" id="vbtn-grid" onclick="setView('grid')">⊞</button>
-        <button class="view-btn" id="vbtn-list" onclick="setView('list')">☰</button>
+        <button class="view-btn" id="vbtn-list" onclick="setView('list')"><span data-icon="menu" data-size="16"></span></button>
       </div>
       <button id="add-item-btn" onclick="openAddModal()">+ Add Item</button>
     </div>
@@ -761,17 +761,17 @@
       <div class="modal-field">
         <label>Category</label>
         <select id="f-category">
-          <option value="player:worn">🔴 Worn / Equipped</option>
-          <option value="player:backpack">🔴 Backpack</option>
-          <option value="player:hotbar">🔴 Hotbar</option>
-          <option value="player:vehicle">🔴 Player Vehicle</option>
-          <option value="home:rooms">🟢 Home Room/Area</option>
-          <option value="home:storage">🟢 Home Storage</option>
-          <option value="home:workshop">🟢 Workshop</option>
-          <option value="home:vehicle">🟢 Home Vehicle</option>
-          <option value="fleet:all">🔵 Fleet General</option>
-          <option value="fleet:blueprints">🔵 Blueprint</option>
-          <option value="fleet:resources">🔵 Resource</option>
+          <option value="player:worn">● Worn / Equipped</option>
+          <option value="player:backpack">● Backpack</option>
+          <option value="player:hotbar">● Hotbar</option>
+          <option value="player:vehicle">● Player Vehicle</option>
+          <option value="home:rooms">● Home Room/Area</option>
+          <option value="home:storage">● Home Storage</option>
+          <option value="home:workshop">● Workshop</option>
+          <option value="home:vehicle">● Home Vehicle</option>
+          <option value="fleet:all">● Fleet General</option>
+          <option value="fleet:blueprints">● Blueprint</option>
+          <option value="fleet:resources">● Resource</option>
         </select>
       </div>
       <div class="modal-field">
@@ -920,15 +920,15 @@ function setFilter(filter, el) {
     'player:backpack': '🎒 Backpack',
     'player:hotbar':   '⚡ Hotbar',
     'player:vehicle':  '🚗 Player Vehicles',
-    'home:rooms':      '🏠 Rooms / Areas',
-    'home:storage':    '📦 Home Storage',
+    'home:rooms':      hosIcon('home', 16) + ' Rooms / Areas',
+    'home:storage':    hosIcon('box', 16) + ' Home Storage',
     'home:workshop':   '🔧 Workshop',
     'home:vehicle':    '🚙 Home Vehicles',
     'fleet:all':       '📋 All Fleet Items',
-    'fleet:blueprints':'📐 Blueprints',
+    'fleet:blueprints':hosIcon('blueprint', 16) + ' Blueprints',
     'fleet:resources': '⛏️ Resources',
   };
-  document.getElementById('topbar-title').textContent = labels[filter] || filter;
+  document.getElementById('topbar-title').innerHTML = labels[filter] || filter;
   renderItems();
 }
 
@@ -977,7 +977,7 @@ function renderItems() {
 }
 
 function buildItemCard(item) {
-  const icon = item.icon || '📦';
+  const icon = item.icon || hosIcon('box', 24);
   return `<div class="item-card" onclick="openEditModal('${item.id}')">
     <div class="item-img">${icon}</div>
     <div class="item-name">${esc(item.name)}</div>
@@ -987,7 +987,7 @@ function buildItemCard(item) {
 }
 
 function buildItemRow(item) {
-  const icon = item.icon || '📦';
+  const icon = item.icon || hosIcon('box', 16);
   return `<div class="item-row" onclick="openEditModal('${item.id}')">
     <span class="row-icon">${icon}</span>
     <span class="row-name">${esc(item.name)}</span>
@@ -1050,7 +1050,7 @@ function saveItem() {
     name,
     qty: Math.max(1, parseInt(document.getElementById('f-qty').value) || 1),
     category: document.getElementById('f-category').value,
-    icon: document.getElementById('f-icon').value.trim() || '📦',
+    icon: document.getElementById('f-icon').value.trim() || hosIcon('box', 20),
     location: document.getElementById('f-location').value.trim(),
     notes: document.getElementById('f-notes').value.trim(),
   };
@@ -1172,7 +1172,7 @@ function equip_renderList() {
 function equip_renderItem(i) {
   const condClass = 'cond-' + (i.cond || 'good');
   return `<div class="equip-item" onclick="equip_openModal('${i.id}')">
-    <div class="item-icon">${equip_esc(i.icon || '📦')}</div>
+    <div class="item-icon">${i.icon || hosIcon('box', 20)}</div>
     <div class="item-body">
       <div class="item-name">${equip_esc(i.name)}</div>
       ${i.notes ? `<div class="item-sub">${equip_esc(i.notes.slice(0,80))}</div>` : ''}
@@ -1183,7 +1183,7 @@ function equip_renderItem(i) {
 }
 
 function equip_getCatIcon(cat) {
-  return {loadout:'🧍',daily:'🎒',tools:'🔧',tech:'💻',power:'⚡',hand:'🪛',safety:'🦺',vehicles:'🚗'}[cat] || '📦';
+  return {loadout:'🧍',daily:'🎒',tools:'🔧',tech:'💻',power:'⚡',hand:'🪛',safety:'🦺',vehicles:'🚗'}[cat] || hosIcon('box', 16);
 }
 
 function equip_openModal(id) {

@@ -120,7 +120,7 @@ function showContactCardExportModal(cardJson) {
     modal.className = 'overlay-modal';
     modal.innerHTML = `
       <div class="overlay-content" style="max-width:480px;">
-        <h3>📤 Share Your Contact Card</h3>
+        <h3>${hosIcon('save', 14)} Share Your Contact Card</h3>
         <p style="font-size:0.8rem;color:var(--text-muted);">
           Give this card to someone so they can add you as a contact.
           It expires in 7 days.
@@ -130,9 +130,9 @@ function showContactCardExportModal(cardJson) {
           style="width:100%;height:120px;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.4rem;resize:none;"></textarea>
         <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
           <button id="p2p-copy-btn"
-            onclick="(function(btn){navigator.clipboard.writeText(document.getElementById('p2p-card-json').value).then(function(){btn.textContent='✅ Copied!';btn.style.background='#1a5c2a';setTimeout(function(){btn.textContent='📋 Copy JSON';btn.style.background='';},2000);}).catch(function(){btn.textContent='❌ Failed';setTimeout(function(){btn.textContent='📋 Copy JSON';},2000);})})(this)"
+            onclick="(function(btn){navigator.clipboard.writeText(document.getElementById('p2p-card-json').value).then(function(){btn.innerHTML=hosIcon('check',14)+' Copied!';btn.style.background='#1a5c2a';setTimeout(function(){btn.innerHTML=hosIcon('copy',14)+' Copy JSON';btn.style.background='';},2000);}).catch(function(){btn.innerHTML=hosIcon('close',14)+' Failed';setTimeout(function(){btn.innerHTML=hosIcon('copy',14)+' Copy JSON';},2000);})})(this)"
             style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.4rem;cursor:pointer;">
-            📋 Copy JSON
+            ${hosIcon('copy', 14)} Copy JSON
           </button>
           <button onclick="var m=document.getElementById('p2p-export-modal');if(m)m.classList.remove('open');"
             style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.4rem;cursor:pointer;">
@@ -196,7 +196,7 @@ function showContactCardImportModal() {
     modal.className = 'overlay-modal';
     modal.innerHTML = `
       <div class="overlay-content" style="max-width:480px;">
-        <h3>📥 Add Contact</h3>
+        <h3>${hosIcon('save', 14)} Add Contact</h3>
         <p style="font-size:0.8rem;color:var(--text-muted);">
           Paste a contact card JSON from another user.
         </p>
@@ -205,7 +205,7 @@ function showContactCardImportModal() {
         <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
           <button onclick="importContactCardFromModal()"
             style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.4rem;cursor:pointer;">
-            ✅ Add Contact
+            ${hosIcon('check', 14)} Add Contact
           </button>
           <button onclick="document.getElementById('p2p-import-modal').classList.remove('open')"
             style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.4rem;cursor:pointer;">

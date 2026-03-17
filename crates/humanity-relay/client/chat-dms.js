@@ -77,7 +77,7 @@ function openDmConversation(partnerKey, partnerName) {
 
   // Update channel header.
   const header = document.getElementById('channel-header');
-  header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">💬 ${esc(partnerName)}</span>`;
+  header.innerHTML = `<span class="ch-name" style="cursor:pointer;" onclick="closeDmView()">← Back</span> <span class="ch-name">${hosIcon('chat', 16)} ${esc(partnerName)}</span>`;
   header.style.display = 'block';
 
   // Clear messages area and set DM context (crimson tint + red stripes).
@@ -122,7 +122,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const isBotMsg2 = fromKey && fromKey.startsWith('bot_');
   const identiconSrc = (!isBotMsg2 && fromKey) ? generateIdenticon(fromKey, 20) : '';
   const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:18px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
-  const e2eeBadge = isEncrypted ? '<span title="End-to-end encrypted" style="font-size:0.65rem;opacity:0.6;margin-left:0.3rem;">🔒</span>' : '';
+  const e2eeBadge = isEncrypted ? '<span title="End-to-end encrypted" style="font-size:0.65rem;opacity:0.6;margin-left:0.3rem;">' + hosIcon('lock', 14) + '</span>' : '';
 
   el.innerHTML = `
     <div class="meta">

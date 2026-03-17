@@ -33,7 +33,7 @@ function togglePrivacyField(field) {
   editPrivacyMap[field] = isPrivate ? 'public' : 'private';
   const btn = document.getElementById('privacy-' + field);
   if (btn) {
-    btn.textContent = editPrivacyMap[field] === 'private' ? '🔒' : '🌐';
+    btn.innerHTML = editPrivacyMap[field] === 'private' ? hosIcon('lock', 14) : '🌐';
     btn.classList.toggle('is-private', editPrivacyMap[field] === 'private');
     btn.title = editPrivacyMap[field] === 'private' ? 'Visible to friends only — click to make public' : 'Visible to everyone — click to make private';
   }
@@ -70,7 +70,7 @@ function openEditProfileModal() {
     const isPrivate = editPrivacyMap[field] === 'private';
     const btn = document.getElementById('privacy-' + field);
     if (btn) {
-      btn.textContent = isPrivate ? '🔒' : '🌐';
+      btn.innerHTML = isPrivate ? hosIcon('lock', 14) : '🌐';
       btn.classList.toggle('is-private', isPrivate);
     }
   }
@@ -353,11 +353,11 @@ function showViewProfileCard(name, publicKey, profile) {
     const following = isFollowing(publicKey);
     const followsYou = myFollowers.has(publicKey);
     let statusText = '';
-    if (friend) statusText = '🤝 Friends (mutual follow)';
-    else if (following && followsYou) statusText = '🤝 Friends';
-    else if (following) statusText = '👁️ You follow this user';
-    else if (followsYou) statusText = '👁️‍🗨️ Follows you';
-    const btnLabel = following ? '❌ Unfollow' : '👁️ Follow';
+    if (friend) statusText = hosIcon('users', 14) + ' Friends (mutual follow)';
+    else if (following && followsYou) statusText = hosIcon('users', 14) + ' Friends';
+    else if (following) statusText = hosIcon('eye', 14) + ' You follow this user';
+    else if (followsYou) statusText = hosIcon('eye', 14) + ' Follows you';
+    const btnLabel = following ? hosIcon('close', 14) + ' Unfollow' : hosIcon('eye', 14) + ' Follow';
     html += '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);">';
     if (statusText) html += '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">' + statusText + '</div>';
     html += '<div style="display:flex;gap:0.4rem;flex-wrap:wrap">';
@@ -542,19 +542,19 @@ async function openSeedPhraseModal() {
             <p style="font-size:.72rem;color:#555;margin:0">Offline. Can't be hacked. Fireproof box or safe.</p>
           </div>
           <div style="display:flex;align-items:center;gap:.5rem">
-            <button id="sp-copy-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy</button>
+            <button id="sp-copy-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">${hosIcon('copy', 14)} Copy</button>
             <span id="sp-copy-msg" style="font-size:.68rem;color:#4ec87a"></span>
           </div>
         </div>
 
         <!-- Encrypted file -->
         <div style="background:#0f0f0f;border:1px solid #222;border-radius:8px;padding:.7rem .9rem">
-          <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">💾 Encrypted file — store in cloud</p>
+          <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">${hosIcon('save', 14)} Encrypted file — store in cloud</p>
           <p style="font-size:.72rem;color:#555;margin:0 0 .5rem">Lock the words with a passphrase → download a tiny file → store in Google Drive, Dropbox, etc. Useless without the passphrase, so keep them separate.</p>
           <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
             <input id="sp-enc-pass" type="password" placeholder="Choose a passphrase (8+ chars)…" autocomplete="new-password"
               style="flex:1;min-width:150px;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.3rem .6rem;color:#e0e0e0;font-size:.76rem;outline:none">
-            <button id="sp-enc-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer;white-space:nowrap">💾 Download</button>
+            <button id="sp-enc-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer;white-space:nowrap">${hosIcon('save', 14)} Download</button>
           </div>
           <span id="sp-enc-msg" style="font-size:.7rem;color:#4ec87a;display:block;margin-top:.3rem;min-height:1em"></span>
         </div>
@@ -566,7 +566,7 @@ async function openSeedPhraseModal() {
             <p style="font-size:.72rem;color:#555;margin:0">Copy → paste into <strong style="color:#777">Bitwarden</strong> or <strong style="color:#777">1Password</strong> as a Secure Note. Syncs everywhere.</p>
           </div>
           <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">
-            <button id="sp-pm-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy</button>
+            <button id="sp-pm-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">${hosIcon('copy', 14)} Copy</button>
             <span id="sp-pm-msg" style="font-size:.68rem;color:#4ec87a"></span>
           </div>
         </div>
@@ -612,7 +612,7 @@ async function openSeedPhraseModal() {
       encBtn.textContent = 'Downloaded!';
     } catch(e) {
       encMsg.innerHTML = `<span style="color:#e55">${e.message}</span>`;
-      encBtn.disabled = false; encBtn.textContent = '💾 Download';
+      encBtn.disabled = false; encBtn.innerHTML = hosIcon('save', 14) + ' Download';
     }
   });
 }
@@ -646,7 +646,7 @@ function openRestoreFromMnemonicModal() {
 
       <!-- Tab: decrypt encrypted file -->
       <div style="border:1px solid #2a2a2a;border-radius:9px;padding:.9rem 1rem;margin-bottom:.9rem">
-        <p style="font-size:.82rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">💾 Restore from encrypted phrase file</p>
+        <p style="font-size:.82rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">${hosIcon('save', 14)} Restore from encrypted phrase file</p>
         <p style="font-size:.72rem;color:#555;margin:0 0 .5rem">If you saved a <code>humanity-phrase-backup.json</code> earlier, upload it here with the passphrase you chose.</p>
         <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
           <input id="rm-file" type="file" accept=".json,application/json"
@@ -916,7 +916,7 @@ async function doEnableKeyProtection() {
     await wrapAndStoreKey(p1);
     // Update sidebar status immediately.
     const protBtn = document.getElementById('key-protect-btn');
-    if (protBtn) { protBtn.textContent = '🔒 Protected'; protBtn.style.color = '#4ec87a'; }
+    if (protBtn) { protBtn.innerHTML = hosIcon('lock', 14) + ' Protected'; protBtn.style.color = '#4ec87a'; }
     // Show success briefly then close.
     msg.innerHTML = '<span style="color:#4ec87a">✅ Key encrypted with your passphrase.</span>';
     btn.textContent = 'Done ✓'; btn.disabled = false;
@@ -939,7 +939,7 @@ function doRemoveKeyProtection() {
     const msg = document.getElementById('kp-msg');
     if (msg) msg.innerHTML = '<span style="color:#f0a500">⚠️ Protection removed. Key is now stored in plaintext.</span>';
     const protBtn = document.getElementById('key-protect-btn');
-    if (protBtn) { protBtn.textContent = '🔓 Protect Key'; protBtn.style.color = ''; }
+    if (protBtn) { protBtn.innerHTML = hosIcon('unlock', 14) + ' Protect Key'; protBtn.style.color = ''; }
   } catch(e) {}
 }
 
@@ -1091,7 +1091,7 @@ function rerenderUserList() {
     if (blocked && !indicator) {
       const span = document.createElement('span');
       span.className = 'block-indicator';
-      span.textContent = ' 🚫';
+      span.innerHTML = ' ' + hosIcon('block', 14);
       span.title = 'Blocked';
       span.style.fontSize = '0.65rem';
       el.appendChild(span);

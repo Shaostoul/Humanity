@@ -390,7 +390,7 @@ function loadImage(placeholder, url) {
     // Collapse back to placeholder.
     const newPlaceholder = document.createElement('span');
     newPlaceholder.className = 'img-placeholder';
-    newPlaceholder.textContent = '🖼️ Image (click to load)';
+    newPlaceholder.innerHTML = hosIcon('image', 14) + ' Image (click to load)';
     newPlaceholder.onclick = () => loadImage(newPlaceholder, url);
     img.replaceWith(newPlaceholder);
     if (window.twemoji) twemoji.parse(newPlaceholder);
@@ -619,14 +619,14 @@ function updateThreadBadge(parentFrom, parentTimestamp) {
     const text = badge.textContent;
     const match = text.match(/(\d+)/);
     const count = match ? parseInt(match[1]) + 1 : 1;
-    badge.textContent = `💬 ${count} ${count === 1 ? 'reply' : 'replies'}`;
+    badge.innerHTML = `${hosIcon('chat', 16)} ${count} ${count === 1 ? 'reply' : 'replies'}`;
   } else {
     // Create new badge.
     badge = document.createElement('div');
     badge.className = 'thread-badge';
     badge.dataset.threadFrom = parentFrom;
     badge.dataset.threadTs = parentTimestamp;
-    badge.textContent = '💬 1 reply';
+    badge.innerHTML = hosIcon('chat', 16) + ' 1 reply';
     badge.addEventListener('click', (e) => {
       e.stopPropagation();
       // Find parent message content.
