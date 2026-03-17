@@ -155,7 +155,7 @@
     <div class="dl-hero">
       <h1>Download <em>Humanity</em></h1>
       <p>Your launcher for the civilization operating system. Download once — modules extend it with games, tools, and integrations.</p>
-      <span class="version-badge" id="version-badge">🏷️ Desktop: v0.4.11 · Web: always latest</span>
+      <span class="version-badge" id="version-badge">🏷️ Desktop: v0.4.12 · Web: always latest</span>
     </div>
 
     <!-- Auto-detected platform -->
@@ -503,7 +503,7 @@ npx tauri build</code></pre>
       if (['windows', 'macos', 'linux'].includes(os)) {
         btn.textContent = '⬇ Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
-        sub.textContent = 'Downloads from GitHub Releases · v0.4.11';
+        sub.textContent = 'Downloads from GitHub Releases · v0.4.12';
       } else if (['android', 'ios'].includes(os)) {
         btn.textContent = '📱 Install as PWA';
         btn.href = '/chat';
@@ -525,8 +525,8 @@ npx tauri build</code></pre>
           var v = d.tag_name.replace(/^v/, '');
           document.getElementById('version-badge').textContent = '🏷️ Desktop: v' + v + ' · Web: always latest';
           var sub = document.getElementById('detected-sub');
-          if (sub && sub.textContent.includes('v0.4.11')) {
-            sub.textContent = sub.textContent.replace('v0.4.11', 'v' + v);
+          if (sub && sub.textContent.includes('v0.4.12')) {
+            sub.textContent = sub.textContent.replace('v0.4.12', 'v' + v);
           }
         }
       })

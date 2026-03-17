@@ -114,20 +114,7 @@
           <div id="my-key-display" style="font-family:monospace;font-size:0.55rem;opacity:0.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;cursor:pointer;"
             data-tip-title="Your Public Key" data-tip-desc="Click to copy your full public key to clipboard."
             onclick="navigator.clipboard.writeText(this.textContent).then(()=>{this.style.color='var(--accent)';setTimeout(()=>this.style.color='',800)})"></div>
-          <div style="display:flex;gap:0.2rem;margin-top:0.3rem;flex-wrap:wrap;">
-            <button onclick="openEncryptedBackupModal()"
-              data-tip-title="Backup" data-tip-desc="Download encrypted backup of your private key."
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">🔐 Backup</button>
-            <button onclick="openRestoreIdentityModal()"
-              data-tip-title="Restore" data-tip-desc="Restore identity from encrypted backup file."
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">📥 Restore</button>
-            <button onclick="openSeedPhraseModal()"
-              data-tip-title="Seed Phrase" data-tip-desc="View your 24-word recovery phrase."
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">🌱 Seed</button>
-            <button onclick="openRestoreFromMnemonicModal()"
-              data-tip-title="Restore from Seed" data-tip-desc="Rebuild identity from your 24-word phrase."
-              style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;min-width:0;">🔤 Words</button>
-          </div>
+          <!-- Security buttons moved to Settings → Security to prevent accidental exposure during streams -->
           <div style="display:flex;gap:0.2rem;margin-top:0.2rem;">
             <button onclick="exportContactCard()"
               data-tip-title="Share Card" data-tip-desc="Generate a QR code contact card for others to scan."
