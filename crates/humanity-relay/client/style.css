@@ -106,7 +106,7 @@ header h1 {
   left: -9px;
   width: 20px;
   height: 20px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--bg-secondary);
   color: var(--text-muted);
@@ -125,7 +125,7 @@ header h1 {
   font-size: 0.82rem;
   padding: 0.3rem 0.5rem;
   color: var(--text-muted);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .channel-item:hover { background: var(--bg-hover); color: var(--text); }
@@ -156,7 +156,7 @@ header h1 {
   font-size: 0.8rem;
   padding: 0.3rem 0.4rem;
   color: var(--text);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .peer:hover { background: var(--bg-hover); }
@@ -220,7 +220,7 @@ header h1 {
   line-height: 1.4;
   padding: 0.45rem 0.6rem;
   background: rgba(255,255,255,0.02);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .message .meta {
@@ -241,7 +241,7 @@ header h1 {
 .identicon {
   width: 18px;
   height: 18px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   vertical-align: middle;
   margin-right: 0.1rem;
 }
@@ -260,7 +260,7 @@ header h1 {
   gap: 0.2rem;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 0.05rem 0.4rem;
   font-size: 0.75rem;
   cursor: pointer;
@@ -275,7 +275,7 @@ header h1 {
   color: var(--success);
   background: rgba(68,170,153,0.15);
   padding: 0 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
 }
 
@@ -290,7 +290,7 @@ header h1 {
   margin-left: 1.6rem;
   padding: 0.35rem 0.55rem;
   background: rgba(255,255,255,0.025);
-  border-radius: 6px;
+  border-radius: var(--radius);
   word-wrap: break-word;
   white-space: pre-wrap;
 }
@@ -308,7 +308,7 @@ header h1 {
 /* Ephemeral notices — color-coded, auto-dismiss */
 .notice {
   padding: 0.4rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 0.8rem;
   margin-bottom: 0.3rem;
   display: flex;
@@ -378,7 +378,7 @@ header h1 {
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.55rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 0.9rem;
   outline: none;
   font-family: inherit;
@@ -396,7 +396,7 @@ header h1 {
   color: #fff;
   border: none;
   padding: 0.55rem 1rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 0.85rem;
   cursor: pointer;
   font-weight: 600;
@@ -442,7 +442,7 @@ header h1 {
   overflow-y: auto;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
   padding: 0.5rem 0;
   opacity: 0;
@@ -513,7 +513,7 @@ header h1 {
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.6rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 1rem;
   width: 340px;
   max-width: 90vw;
@@ -528,7 +528,7 @@ header h1 {
   color: #fff;
   border: none;
   padding: 0.6rem 2rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 1rem;
   cursor: pointer;
   font-weight: 600;
@@ -545,7 +545,7 @@ header h1 {
 #chat-screen { display: none; flex: 1; min-height: 0; flex-direction: column; }
 
 /* ── Message hover actions ── */
-.message { position: relative; cursor: pointer; border-radius: 4px; padding: 0.3rem 0.4rem; }
+.message { position: relative; cursor: pointer; border-radius: var(--radius-sm); padding: 0.3rem 0.4rem; }
 .message:hover { background: var(--bg-hover); }
 .message .msg-actions {
   display: none;
@@ -561,7 +561,7 @@ header h1 {
   color: var(--text-muted);
   font-size: 0.65rem;
   padding: 0.15rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .msg-actions button:hover { color: var(--text); border-color: var(--accent); }
@@ -594,7 +594,7 @@ header h1 {
   gap: 0.4rem;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.3rem 0.6rem;
   cursor: pointer;
   font-size: 0.8rem;
@@ -605,7 +605,7 @@ header h1 {
 .body .img-loaded {
   max-width: 400px;
   max-height: 300px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin: 0.2rem 0;
   cursor: pointer;
 }
@@ -732,7 +732,7 @@ header h1 {
 #thread-panel-messages .thread-msg {
   margin-bottom: 0.75rem;
   padding: 0.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg-secondary);
 }
 #thread-panel-messages .thread-msg .thread-msg-author {
@@ -763,7 +763,7 @@ header h1 {
   flex: 1;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text);
   padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
@@ -774,7 +774,7 @@ header h1 {
 #thread-panel-input button {
   background: var(--accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: #fff;
   padding: 0.4rem 0.8rem;
   cursor: pointer;
@@ -794,7 +794,7 @@ header h1 {
 .body code {
   background: var(--bg-hover);
   padding: 0.1rem 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 0.85em;
   font-family: monospace;
 }
@@ -969,7 +969,7 @@ header h1 {
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.08rem 0.4rem;
   cursor: pointer;
   font-size: 0.68rem;
@@ -977,7 +977,7 @@ header h1 {
 .unified-stream-preview {
   margin: 0.2rem 0 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.15rem;
   background: #000;
 }
@@ -995,7 +995,7 @@ header h1 {
   max-height: 220px;
   background: #000;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   overflow: hidden;
   margin-bottom: 0.35rem;
 }
@@ -1025,7 +1025,7 @@ header h1 {
   color: #fff;
   background: rgba(0,0,0,0.6);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 .stream-studio-preview .studio-chat-overlay {
   position: absolute;
@@ -1037,7 +1037,7 @@ header h1 {
   background: rgba(8,8,10,0.62);
   border: 1px solid rgba(120,130,150,0.35);
   padding: 2px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .stream-studio-preview .studio-afk-overlay {
   position: absolute;
@@ -1049,7 +1049,7 @@ header h1 {
   font-weight: 600;
   color: #fff;
   background: rgba(0,0,0,0.6);
-  border-radius: 6px;
+  border-radius: var(--radius);
   pointer-events: none;
   letter-spacing: 0.02em;
 }
@@ -1091,7 +1091,7 @@ header h1 {
 }
 .studio-pill {
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
   background: rgba(255,255,255,0.04);
   color: var(--text-muted);
@@ -1160,7 +1160,7 @@ select.studio-pill-select {
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.1rem 0.45rem;
   cursor: pointer;
   font-size: 0.72rem;
@@ -1211,7 +1211,7 @@ select.studio-pill-select {
 #help-modal {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   max-width: 520px;
   width: 90%;
   max-height: 80vh;
@@ -1244,7 +1244,7 @@ select.studio-pill-select {
 #help-modal .cmd code {
   background: var(--bg-hover);
   padding: 0.1rem 0.35rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--accent);
   font-family: monospace;
   font-size: 0.78rem;
@@ -1268,7 +1268,7 @@ select.studio-pill-select {
   position: fixed;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   min-width: 150px;
   z-index: 200;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
@@ -1418,7 +1418,7 @@ select.studio-pill-select {
     width: 95%;
     max-width: none;
     max-height: 90vh;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
   }
 
   /* Help modal: full-width, scrollable */
@@ -1426,7 +1426,7 @@ select.studio-pill-select {
     width: 95%;
     max-width: none;
     max-height: 85vh;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
   }
 
   /* Image placeholders: easier to tap */
@@ -1521,7 +1521,7 @@ select.studio-pill-select {
     bottom: 72px;
     max-width: calc(100vw - 16px);
     max-height: 48vh;
-    border-radius: 10px;
+    border-radius: var(--radius-lg);
   }
   #video-panel .video-wrapper,
   #video-panel video {
@@ -1555,7 +1555,7 @@ select.studio-pill-select {
 .profile-modal {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   max-width: 480px;
   width: 90%;
   max-height: 85vh;
@@ -1585,7 +1585,7 @@ select.studio-pill-select {
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.45rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-family: inherit;
   outline: none;
@@ -1616,7 +1616,7 @@ select.studio-pill-select {
   color: #fff;
   border: none;
   padding: 0.45rem 1.2rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   cursor: pointer;
   font-weight: 600;
@@ -1628,7 +1628,7 @@ select.studio-pill-select {
   color: var(--text-muted);
   border: 1px solid var(--border);
   padding: 0.45rem 1.2rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   cursor: pointer;
 }
@@ -1659,7 +1659,7 @@ select.studio-pill-select {
 .privacy-toggle {
   background: none;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   font-size: 0.85rem;
@@ -1677,7 +1677,7 @@ select.studio-pill-select {
   width: 100%;
   height: 80px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--radius);
   margin-bottom: -36px; /* let avatar overlap the banner */
   display: block;
 }
@@ -1710,7 +1710,7 @@ select.studio-pill-select {
 .profile-card-header .identicon-large {
   width: 64px;
   height: 64px;
-  border-radius: 6px;
+  border-radius: var(--radius);
 }
 .profile-card-header .profile-name {
   font-size: 1.1rem;
@@ -1781,7 +1781,7 @@ select.studio-pill-select {
   border: 1px solid var(--accent);
   color: var(--text);
   padding: 0.4rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-family: inherit;
   resize: vertical;
@@ -1796,7 +1796,7 @@ select.studio-pill-select {
 .edit-area .edit-buttons button {
   font-size: 0.72rem;
   padding: 0.2rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   border: 1px solid var(--border);
 }
@@ -1841,7 +1841,7 @@ select.studio-pill-select {
 .pin-card {
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.4rem 0.6rem;
   margin-bottom: 0.35rem;
   font-size: 0.8rem;
@@ -1887,7 +1887,7 @@ select.studio-pill-select {
   cursor: pointer;
   font-size: 0.7rem;
   padding: 0 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 .pin-card .pin-unpin:hover { color: var(--error, #e55); background: rgba(255,255,255,0.05); }
 .pin-section-header {
@@ -1907,7 +1907,7 @@ select.studio-pill-select {
   background: rgba(224,112,32,0.15);
   color: var(--accent);
   padding: 0 0.2rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 .mention-me {
   background: rgba(224,112,32,0.3);
@@ -1924,7 +1924,7 @@ select.studio-pill-select {
 }
 .dm-item {
   padding: 0.35rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.78rem;
   display: flex;
@@ -1974,7 +1974,7 @@ select.studio-pill-select {
   gap: 2px;
   margin-bottom: 0.5rem;
   background: var(--bg);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 2px;
 }
 .sidebar-tab {
@@ -1986,7 +1986,7 @@ select.studio-pill-select {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   color: var(--text-muted);
   background: transparent;
@@ -2017,7 +2017,7 @@ select.studio-pill-select {
   font-weight: 600;
   color: var(--text);
   padding: 0.3rem 0.4rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   user-select: none;
   overflow: hidden; /* clip long server names behind pinned buttons */
@@ -2044,7 +2044,7 @@ select.studio-pill-select {
   background: none;
   border: none;
   box-shadow: inset 0 0 0 1px #2a6;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   width: 22px;
@@ -2080,7 +2080,7 @@ select.studio-pill-select {
   font-weight: 800;
   min-width: 12px;
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2139,7 +2139,7 @@ select.studio-pill-select {
 #call-bar .call-actions button {
   border: none;
   padding: 0.35rem 0.7rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.78rem;
   cursor: pointer;
   font-weight: 600;
@@ -2170,7 +2170,7 @@ select.studio-pill-select {
 #incoming-call-box {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 1.5rem 2rem;
   text-align: center;
   min-width: 280px;
@@ -2200,7 +2200,7 @@ select.studio-pill-select {
 #incoming-call-box .call-btns button {
   border: none;
   padding: 0.6rem 1.5rem;
-  border-radius: 8px;
+  border-radius: var(--radius);
   font-size: 0.9rem;
   cursor: pointer;
   font-weight: 600;
@@ -2216,7 +2216,7 @@ select.studio-pill-select {
   cursor: pointer;
   font-size: 0.75rem;
   padding: 0.1rem 0.25rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   opacity: 0.5;
   transition: opacity 0.15s;
 }
@@ -2240,7 +2240,7 @@ select.studio-pill-select {
   background: #1a1a1a;
   color: #e0e0e0;
   padding: 0.6rem 0.8rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.82rem;
   line-height: 1.45;
@@ -2266,7 +2266,7 @@ select.studio-pill-select {
   color: #aaa;
   font-size: 0.65rem;
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s;
@@ -2295,7 +2295,7 @@ select.studio-pill-select {
 .link-preview {
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.4rem 0.6rem;
   margin: 0.3rem 0 0.3rem 1.6rem;
   font-size: 0.82rem;
@@ -2312,7 +2312,7 @@ select.studio-pill-select {
 .link-preview .lp-title a { color: var(--accent); text-decoration: none; }
 .link-preview .lp-title a:hover { text-decoration: underline; }
 .link-preview .lp-desc { color: var(--text-muted); font-size: 0.78rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.link-preview .lp-thumb { width: 80px; height: 60px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+.link-preview .lp-thumb { width: 80px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); flex-shrink: 0; }
 
 /* ── File Cards (documents, archives) ── */
 .file-card {
@@ -2321,7 +2321,7 @@ select.studio-pill-select {
   gap: 0.5rem;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.4rem 0.7rem;
   margin: 0.2rem 0;
   font-size: 0.82rem;
@@ -2336,7 +2336,7 @@ select.studio-pill-select {
 
 /* ── Inline audio/video ── */
 .body audio { max-width: 100%; margin: 0.2rem 0; }
-.body video { max-width: 400px; max-height: 300px; border-radius: 4px; margin: 0.2rem 0; }
+.body video { max-width: 400px; max-height: 300px; border-radius: var(--radius-sm); margin: 0.2rem 0; }
 
 /* ── Upload attachment button ── */
 #attach-btn {
@@ -2344,7 +2344,7 @@ select.studio-pill-select {
   border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 0.55rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 1rem;
   cursor: pointer;
   flex-shrink: 0;
@@ -2374,7 +2374,7 @@ select.studio-pill-select {
 
 /* ── Todo Channel Sections ── */
 .todo-section {
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.6rem 0.8rem;
   margin: 0.3rem 0;
 }
@@ -2433,7 +2433,7 @@ select.studio-pill-select {
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.4rem 0.6rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   outline: none;
   font-family: inherit;
@@ -2504,7 +2504,7 @@ select.studio-pill-select {
 }
 .voice-room-item {
   padding: 0.35rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.78rem;
   margin-bottom: 0.2rem;
@@ -2530,7 +2530,7 @@ select.studio-pill-select {
   display: none;
   background: linear-gradient(135deg, #1a3a2a, #1a2a3a);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.5rem;
   margin-top: 0.5rem;
   font-size: 0.75rem;
@@ -2556,7 +2556,7 @@ select.studio-pill-select {
   background: var(--bg-input);
   color: var(--text);
   padding: 0.22rem 0.44rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.7rem;
   cursor: pointer;
   white-space: nowrap;
@@ -2595,7 +2595,7 @@ select.studio-pill-select {
   top: 100%;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   min-width: 130px;
   z-index: 200;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
@@ -2619,7 +2619,7 @@ select.studio-pill-select {
   border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 0.3rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.72rem;
   cursor: pointer;
   width: 100%;
@@ -2631,7 +2631,7 @@ select.studio-pill-select {
   color: #fff;
   border: none;
   padding: 0.2rem 0.5rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 0.68rem;
   cursor: pointer;
   margin-top: 0.2rem;
@@ -2646,7 +2646,7 @@ select.studio-pill-select {
   z-index: 1000;
   display: none;
   background: #111;
-  border-radius: 8px;
+  border-radius: var(--radius);
   overflow: hidden;
   max-width: 80vw;
   max-height: 70vh;
@@ -2673,7 +2673,7 @@ select.studio-pill-select {
   width: 200px;
   height: 150px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: #000;
 }
 #video-panel .video-label {
@@ -2695,7 +2695,7 @@ select.studio-pill-select {
   color: #fff;
   font-size: 0.7rem;
   padding: 2px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s;
@@ -2793,7 +2793,7 @@ select.studio-pill-select {
   transform: translateX(-50%);
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.3rem 0;
   min-width: 200px;
   z-index: 310;
@@ -2837,7 +2837,7 @@ select.studio-pill-select {
 .delete-confirm {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.5rem 0.75rem;
   font-size: 0.8rem;
   display: inline-flex;
@@ -2847,7 +2847,7 @@ select.studio-pill-select {
 }
 .delete-confirm button {
   padding: 0.2rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   cursor: pointer;
   border: 1px solid var(--border);
@@ -2888,7 +2888,7 @@ select.studio-pill-select {
   position: fixed;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.75rem;
   z-index: 200;
   min-width: 220px;
@@ -2905,7 +2905,7 @@ select.studio-pill-select {
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.4rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.8rem;
   color: var(--text);
@@ -2919,7 +2919,7 @@ select.studio-pill-select {
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.35rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.78rem;
   outline: none;
   margin-top: 0.4rem;
@@ -2931,7 +2931,7 @@ select.studio-pill-select {
   border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.7rem;
   cursor: pointer;
   margin-top: 0.3rem;
@@ -2947,7 +2947,7 @@ select.studio-pill-select {
   font-size: 0.7rem;
   font-weight: 600;
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   margin-right: 4px;
   vertical-align: middle;
 }

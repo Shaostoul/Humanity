@@ -8,6 +8,7 @@
   const DEFAULTS = {
     accent: '#FF8811',
     fontSize: 'medium',
+    fontSizePx: 16,
     theme: 'dark',
     soundEnabled: true,
     timestampMode: 'relative',
@@ -105,9 +106,14 @@
     doc.style.setProperty('--accent-hover', darken(accent, 0.15));
     doc.style.setProperty('--accent-dim', `rgba(${r},${g},${b},0.15)`);
 
-    // Font size
-    const fs = FONT_SIZES.find(f => f.value === settings.fontSize) || FONT_SIZES[1];
-    doc.style.setProperty('font-size', fs.size);
+    // Font size — prefer pixel slider value, fall back to named size
+    if (settings.fontSizePx) {
+      doc.style.setProperty('--font-size-base', settings.fontSizePx + 'px');
+      doc.style.setProperty('font-size', settings.fontSizePx + 'px');
+    } else {
+      const fs = FONT_SIZES.find(f => f.value === settings.fontSize) || FONT_SIZES[1];
+      doc.style.setProperty('font-size', fs.size);
+    }
 
     // Theme
     const theme = THEMES[settings.theme] || THEMES.dark;
@@ -122,8 +128,11 @@
     const is = settings.iconSize || DEFAULTS.iconSize;
     doc.style.setProperty('--icon-size', is + 'px');
 
-    // Border radius
-    doc.style.setProperty('--radius', (settings.borderRadius ?? DEFAULTS.borderRadius) + 'px');
+    // Border radius — scale sm/lg proportionally
+    const br = settings.borderRadius ?? DEFAULTS.borderRadius;
+    doc.style.setProperty('--radius', br + 'px');
+    doc.style.setProperty('--radius-sm', Math.max(1, Math.round(br * 0.5)) + 'px');
+    doc.style.setProperty('--radius-lg', Math.round(br * 1.5) + 'px');
 
     // Semantic color overrides
     if (settings.successColor) doc.style.setProperty('--success', settings.successColor);

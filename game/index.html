@@ -55,7 +55,7 @@
   .panel {
    background: var(--bg-card);
    border: 1px solid var(--border);
-   border-radius: 12px;
+   border-radius: var(--radius-lg);
    padding: 1.5rem;
    margin-bottom: 1.5rem;
   }
@@ -118,7 +118,7 @@
    color: var(--text);
    background: var(--bg-panel);
    border: none;
-   border-radius: 8px;
+   border-radius: var(--radius);
    cursor: pointer;
    transition: box-shadow 0.15s ease;
    position: relative;
@@ -323,7 +323,7 @@
    align-items: center;
    gap: 0.5rem;
    padding: 0.35rem 0.4rem;
-   border-radius: 4px;
+   border-radius: var(--radius-sm);
    font-size: 0.85rem;
   }
   .todo-item:hover { background: var(--bg-hover); }
@@ -333,7 +333,7 @@
   .todo-text { flex: 1; color: var(--text); }
   .todo-delete {
    background: none; border: none; color: var(--text-muted); cursor: pointer;
-   font-size: 0.75rem; padding: 0.1rem 0.3rem; border-radius: 3px; opacity: 0;
+   font-size: 0.75rem; padding: 0.1rem 0.3rem; border-radius: var(--radius-sm); opacity: 0;
   }
   .todo-item:hover .todo-delete { opacity: 1; }
   .todo-delete:hover { color: var(--danger, #c44); }
@@ -344,7 +344,7 @@
    align-items: center;
    gap: 0.4rem;
    padding: 0.35rem 0.5rem;
-   border-radius: 4px;
+   border-radius: var(--radius-sm);
    font-size: 0.82rem;
    cursor: pointer;
    color: var(--text-muted);
@@ -372,11 +372,11 @@
   }
   .catalog-search-bar input {
    flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
-   padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.9rem; outline: none; font-family: inherit;
+   padding: 0.6rem 1rem; border-radius: var(--radius); font-size: 0.9rem; outline: none; font-family: inherit;
   }
   .catalog-search-bar input:focus { border-color: var(--accent); }
   .catalog-search-results {
-   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: 8px;
+   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: var(--radius);
    margin-bottom: 1rem; max-height: 300px; overflow-y: auto;
   }
   .catalog-search-results:empty { display: none; }
@@ -387,7 +387,7 @@
   .catalog-result-item:last-child { border-bottom: none; }
   .catalog-result-item:hover { background: var(--bg-hover, rgba(255,255,255,0.03)); }
   .catalog-result-badge {
-   font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 3px;
+   font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: var(--radius-sm);
    text-transform: uppercase; flex-shrink: 0;
   }
 
@@ -395,7 +395,7 @@
   .ref-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem; }
   .ref-card {
    display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem;
-   background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
    text-decoration: none; color: var(--text); font-size: 0.78rem; transition: border-color 0.15s;
   }
   .ref-card:hover { border-color: var(--accent); }
@@ -406,7 +406,7 @@
   /* Element Cards */
   .element-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 0.4rem; }
   .element-card {
-   background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
    padding: 0.4rem; text-align: center; cursor: pointer; transition: border-color 0.15s, transform 0.1s;
    position: relative;
   }
@@ -424,25 +424,25 @@
 
   /* Element Detail */
   .element-detail {
-   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: 10px;
+   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: var(--radius-lg);
    padding: 1.2rem; margin-bottom: 1rem; animation: fadeIn 0.15s ease;
   }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
   .element-detail h3 { margin: 0 0 0.6rem; font-size: 1.1rem; }
   .element-detail .el-props { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.4rem; margin: 0.6rem 0; }
-  .element-detail .el-prop { background: var(--bg-input); border-radius: 4px; padding: 0.3rem 0.5rem; font-size: 0.78rem; }
+  .element-detail .el-prop { background: var(--bg-input); border-radius: var(--radius-sm); padding: 0.3rem 0.5rem; font-size: 0.78rem; }
   .element-detail .el-prop dt { color: var(--text-muted); font-size: 0.65rem; text-transform: uppercase; }
   .element-detail .el-prop dd { color: var(--text); font-weight: 600; margin: 0; }
 
   /* Materials */
   .material-card {
-   background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
    padding: 0.7rem; cursor: pointer; transition: border-color 0.15s;
   }
   .material-card:hover { border-color: var(--accent); }
   .material-type-badge {
    display: inline-block; font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem;
-   border-radius: 3px; text-transform: uppercase;
+   border-radius: var(--radius-sm); text-transform: uppercase;
   }
   .mat-raw { background: rgba(139,195,74,0.2); color: #8bc34a; }
   .mat-processed { background: rgba(66,165,245,0.2); color: #42a5f5; }
@@ -455,16 +455,16 @@
 
   /* Inventory */
   .inv-privacy-banner {
-   background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3); border-radius: 8px;
+   background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.3); border-radius: var(--radius);
    padding: 0.5rem 0.8rem; font-size: 0.78rem; color: #4caf50; text-align: center; margin-bottom: 0.8rem;
   }
   .inv-toolbar { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.8rem; align-items: center; }
   .inv-toolbar select, .inv-toolbar input {
    background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
-   padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.8rem; font-family: inherit; outline: none;
+   padding: 0.35rem 0.6rem; border-radius: var(--radius); font-size: 0.8rem; font-family: inherit; outline: none;
   }
   .inv-item {
-   background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px;
+   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
    padding: 0.6rem; transition: border-color 0.15s;
   }
   .inv-item:hover { border-color: var(--accent); }
@@ -476,7 +476,7 @@
   }
   .catalog-modal-overlay.open { display: flex; }
   .catalog-modal {
-   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: 12px;
+   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: var(--radius-lg);
    padding: 1.5rem; max-width: 550px; width: 92%; max-height: 85vh; overflow-y: auto; position: relative;
   }
   .catalog-modal .modal-close {
@@ -486,20 +486,20 @@
   .catalog-modal label { font-size: 0.75rem; color: var(--text-muted); display: block; margin: 0.4rem 0 0.15rem; }
   .catalog-modal input, .catalog-modal select, .catalog-modal textarea {
    width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
-   padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.82rem; outline: none; font-family: inherit;
+   padding: 0.4rem 0.6rem; border-radius: var(--radius); font-size: 0.82rem; outline: none; font-family: inherit;
    box-sizing: border-box;
   }
   .catalog-modal textarea { resize: vertical; }
   .catalog-modal .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
   .catalog-modal .modal-actions button {
-   flex: 1; padding: 0.5rem; border: none; border-radius: 6px; font-size: 0.85rem;
+   flex: 1; padding: 0.5rem; border: none; border-radius: var(--radius); font-size: 0.85rem;
    font-weight: 600; cursor: pointer; font-family: inherit;
   }
 
   .filter-pills { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
   .filter-pill {
    background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted);
-   padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
+   padding: 0.2rem 0.6rem; border-radius: var(--radius-lg); font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
   }
   .filter-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   .filter-pill:hover { border-color: var(--accent); }

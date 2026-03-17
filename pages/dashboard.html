@@ -30,7 +30,7 @@
       padding: 2.5rem 1rem 1.5rem;
       background: linear-gradient(135deg, rgba(255,136,17,0.08) 0%, rgba(100,60,200,0.08) 100%);
       border: 1px solid var(--border, #1e1e1e);
-      border-radius: 12px;
+      border-radius: var(--radius-lg);
     }
 
     .hero-icon {
@@ -73,7 +73,7 @@
     .game-card {
       background: var(--bg-secondary, #111);
       border: 1px solid var(--border, #1e1e1e);
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       padding: 1.1rem;
       display: flex;
       flex-direction: column;
@@ -115,7 +115,7 @@
       background: rgba(255,136,17,0.15);
       color: #FF8811;
       padding: 0.15rem 0.45rem;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       white-space: nowrap;
     }
 
@@ -139,7 +139,7 @@
     .other-games {
       background: var(--bg-secondary, #111);
       border: 1px solid var(--border, #1e1e1e);
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       padding: 1.1rem 1.25rem;
     }
 
@@ -153,7 +153,7 @@
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: var(--radius-sm); }
 
     @media (max-width: 600px) {
       .game-grid { grid-template-columns: 1fr; }

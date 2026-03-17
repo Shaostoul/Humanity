@@ -37,7 +37,7 @@
     .nav-btn {
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #aaa;
       padding: 0.3rem 0.7rem;
       font-size: 0.82rem;
@@ -58,7 +58,7 @@
     .view-tab {
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #888;
       padding: 0.28rem 0.7rem;
       font-size: 0.78rem;
@@ -72,7 +72,7 @@
       background: #1a3a1a;
       border: 1px solid #2a5a2a;
       color: #4caf50;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       padding: 0.3rem 0.8rem;
       font-size: 0.8rem;
       cursor: pointer;
@@ -160,7 +160,7 @@
     .event-chip {
       font-size: 0.62rem;
       padding: 1px 4px;
-      border-radius: 3px;
+      border-radius: var(--radius-sm);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -233,7 +233,7 @@
       position: absolute;
       left: 2px;
       right: 2px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       padding: 2px 5px;
       font-size: 0.68rem;
       color: #fff;
@@ -281,7 +281,7 @@
       position: absolute;
       left: 4px;
       right: 4px;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       padding: 3px 7px;
       font-size: 0.75rem;
       color: #fff;
@@ -324,7 +324,7 @@
     #ev-modal {
       background: #141414;
       border: 1px solid #2a2a2a;
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       width: 420px;
       max-width: 95vw;
       padding: 1.5rem;
@@ -337,7 +337,7 @@
       width: 100%;
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #e0e0e0;
       font-size: 0.82rem;
       padding: 0.4rem 0.6rem;
@@ -363,7 +363,7 @@
     .ev-btn {
       background: #1e1e1e;
       border: 1px solid #2a2a2a;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #aaa;
       padding: 0.38rem 1rem;
       font-size: 0.82rem;
@@ -378,7 +378,7 @@
 
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: var(--radius-sm); }
 
     @media (max-width: 600px) {
       .week-header { grid-template-columns: 36px repeat(7, 1fr); }

@@ -18,7 +18,12 @@
   --success: #4a9;
   --danger: #c44;
   --warning: #ca3;
+  --radius-sm: 4px;
   --radius: 8px;
+  --radius-lg: 12px;
+  --font-size-base: 16px;
+  --icon-size: 20px;
+  --icon-weight: 3;
 }
 
 /* ── Light theme — toggled by adding data-theme="light" to <html> ── */
@@ -66,12 +71,12 @@ h4 { font-size: 0.9rem; }
   color: var(--text-muted);
   background: var(--bg-secondary);
   border-left: 3px solid var(--accent);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   line-height: 1.5;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-sm); }
 ::-webkit-scrollbar-thumb:hover { background: #555; }

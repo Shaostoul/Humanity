@@ -102,7 +102,7 @@ header h1 {
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.6rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 1rem;
   width: 340px;
   max-width: 90vw;
@@ -117,7 +117,7 @@ header h1 {
   color: #fff;
   border: none;
   padding: 0.6rem 2rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 1rem;
   cursor: pointer;
   font-weight: 600;
@@ -190,7 +190,7 @@ header h1 {
   font-size: 0.7rem;
   font-weight: 600;
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   margin-right: 4px;
   vertical-align: middle;
 }

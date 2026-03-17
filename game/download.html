@@ -39,7 +39,7 @@
 
     .btn {
       display: inline-flex; align-items: center; gap: 8px;
-      padding: 12px 28px; border-radius: 8px; font-size: 1rem;
+      padding: 12px 28px; border-radius: var(--radius); font-size: 1rem;
       font-weight: 700; border: none; cursor: pointer;
       text-decoration: none; transition: all 0.2s;
     }
@@ -87,16 +87,16 @@
     .module-card .mod-status {
       display: inline-flex; align-items: center; gap: 4px;
       font-size: 0.72rem; font-weight: 600; padding: 4px 12px;
-      border-radius: 4px; cursor: default;
+      border-radius: var(--radius-sm); cursor: default;
     }
     .mod-status.installed { background: rgba(42,102,68,0.2); color: var(--success, #2a6); }
-    .mod-status.available { background: var(--accent); color: #000; cursor: pointer; border: none; border-radius: 6px; }
+    .mod-status.available { background: var(--accent); color: #000; cursor: pointer; border: none; border-radius: var(--radius); }
     .mod-status.available:hover { background: var(--accent-hover); }
     .mod-status.planned { background: var(--bg-card-hover); color: var(--text-muted); }
     .module-card .mod-badge {
       position: absolute; top: 10px; right: 10px;
       font-size: 0.6rem; font-weight: 600; padding: 2px 8px;
-      border-radius: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+      border-radius: var(--radius-lg); text-transform: uppercase; letter-spacing: 0.05em;
     }
     .mod-badge.core { background: rgba(255,136,17,0.15); color: var(--accent); }
     .mod-badge.game { background: rgba(68,136,255,0.15); color: #48f; }
@@ -122,7 +122,7 @@
     .platform-card .detail { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
     .platform-card .card-btn {
       display: inline-flex; align-items: center; gap: 5px;
-      padding: 6px 14px; border-radius: 6px; font-size: 0.78rem;
+      padding: 6px 14px; border-radius: var(--radius); font-size: 0.78rem;
       font-weight: 600; text-decoration: none; transition: all 0.2s;
       background: var(--accent); color: #000;
     }
@@ -139,8 +139,8 @@
     .info-panel ul { padding-left: 1.4rem; }
     .info-panel a { color: var(--accent); text-decoration: none; }
     .info-panel a:hover { text-decoration: underline; }
-    .info-panel code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
-    .info-panel pre { background: var(--bg); padding: 10px 14px; border-radius: 6px; font-size: 0.78rem; overflow-x: auto; margin-top: 6px; }
+    .info-panel code { background: var(--bg); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.78rem; }
+    .info-panel pre { background: var(--bg); padding: 10px 14px; border-radius: var(--radius); font-size: 0.78rem; overflow-x: auto; margin-top: 6px; }
 
     /* Open source banner */
     .oss-banner {

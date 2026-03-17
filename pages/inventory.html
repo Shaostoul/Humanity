@@ -130,7 +130,7 @@
     #inv-search {
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #e0e0e0;
       font-size: 0.8rem;
       padding: 0.3rem 0.7rem;
@@ -144,7 +144,7 @@
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
       color: #666;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       padding: 0.28rem 0.55rem;
       font-size: 0.8rem;
       cursor: pointer;
@@ -156,7 +156,7 @@
       background: #1a3a1a;
       border: 1px solid #2a5a2a;
       color: #4caf50;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       padding: 0.3rem 0.8rem;
       font-size: 0.8rem;
       cursor: pointer;
@@ -188,7 +188,7 @@
     .item-card {
       background: #141414;
       border: 1px solid #222;
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 0.75rem;
       cursor: pointer;
       transition: border-color 0.15s, background 0.15s;
@@ -200,7 +200,7 @@
       width: 100%;
       aspect-ratio: 1;
       object-fit: cover;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       background: #1e1e1e;
       margin-bottom: 0.5rem;
       display: flex;
@@ -230,7 +230,7 @@
       right: 6px;
       background: rgba(0,0,0,0.7);
       border: 1px solid #333;
-      border-radius: 3px;
+      border-radius: var(--radius-sm);
       padding: 1px 5px;
       font-size: 0.65rem;
       color: #aaa;
@@ -244,7 +244,7 @@
       gap: 0.75rem;
       background: #141414;
       border: 1px solid #1e1e1e;
-      border-radius: 6px;
+      border-radius: var(--radius);
       padding: 0.5rem 0.75rem;
       cursor: pointer;
       transition: background 0.12s, border-color 0.12s;
@@ -259,7 +259,7 @@
     .row-act-btn {
       background: #1e1e1e;
       border: 1px solid #2a2a2a;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       color: #888;
       font-size: 0.65rem;
       padding: 0.15rem 0.4rem;
@@ -284,7 +284,7 @@
       margin-top: 0.5rem;
       background: #1a1a1a;
       border: 1px solid #333;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #aaa;
       padding: 0.4rem 1rem;
       font-size: 0.8rem;
@@ -307,7 +307,7 @@
     #item-modal {
       background: #141414;
       border: 1px solid #2a2a2a;
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       width: 460px;
       max-width: 95vw;
       padding: 1.5rem;
@@ -321,7 +321,7 @@
       width: 100%;
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #e0e0e0;
       font-size: 0.82rem;
       padding: 0.4rem 0.6rem;
@@ -338,7 +338,7 @@
     .modal-btn {
       background: #1e1e1e;
       border: 1px solid #2a2a2a;
-      border-radius: 5px;
+      border-radius: var(--radius-sm);
       color: #aaa;
       padding: 0.4rem 1rem;
       font-size: 0.82rem;
@@ -393,7 +393,7 @@
       gap: 0.5rem;
       padding: 0.5rem 0.6rem;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: var(--radius);
       font-size: 0.86rem;
       color: #aaa;
       transition: background 0.1s, color 0.1s;
@@ -408,7 +408,7 @@
       background: #1e1e1e;
       color: #666;
       padding: 1px 5px;
-      border-radius: 8px;
+      border-radius: var(--radius);
     }
 
     /* ── Equipment main content ── */
@@ -431,7 +431,7 @@
     #equip-search {
       background: #1a1a1a;
       border: 1px solid #333;
-      border-radius: 6px;
+      border-radius: var(--radius);
       color: #e0e0e0;
       padding: 0.28rem 0.65rem;
       font-size: 0.84rem;
@@ -444,7 +444,7 @@
       border: 1px solid #2a6;
       color: #4d9;
       padding: 0.28rem 0.7rem;
-      border-radius: 6px;
+      border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.84rem;
       font-weight: 600;
@@ -467,7 +467,7 @@
     .loadout-slot {
       background: #131313;
       border: 1px solid #222;
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 0.7rem;
       display: flex;
       flex-direction: column;
@@ -500,7 +500,7 @@
     .equip-item {
       background: #131313;
       border: 1px solid #222;
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 0.65rem 0.85rem;
       display: flex;
       align-items: center;
@@ -517,7 +517,7 @@
       font-size: 0.72rem;
       font-weight: 600;
       padding: 2px 6px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       flex-shrink: 0;
     }
     .cond-excellent { color: #4d9; background: rgba(68,204,136,0.1); border: 1px solid rgba(68,204,136,0.25); }
@@ -526,7 +526,7 @@
     .cond-poor      { color: #f64; background: rgba(255,102,68,0.1); border: 1px solid rgba(255,102,68,0.25); }
     .equip-item-delete {
       background: none; border: none; color: #333; cursor: pointer;
-      font-size: 0.85rem; padding: 0.1rem; border-radius: 3px;
+      font-size: 0.85rem; padding: 0.1rem; border-radius: var(--radius-sm);
       transition: color 0.12s;
     }
     .equip-item-delete:hover { color: #e44; }
@@ -559,29 +559,29 @@
     .equip-modal-backdrop.open { display: flex; }
     .equip-modal {
       background: #141414; border: 1px solid #2a2a2a;
-      border-radius: 12px; padding: 1.4rem;
+      border-radius: var(--radius-lg); padding: 1.4rem;
       width: min(440px, 95vw); display: flex; flex-direction: column; gap: 0.85rem;
     }
     .equip-modal h2 { font-size: 1.05rem; color: #fff; }
     .equip-modal label { font-size: 0.79rem; color: #888; display: block; margin-bottom: 0.2rem; }
     .equip-modal input, .equip-modal select, .equip-modal textarea {
       width: 100%; background: #1a1a1a; border: 1px solid #333;
-      border-radius: 6px; color: #ddd; padding: 0.4rem 0.65rem;
+      border-radius: var(--radius); color: #ddd; padding: 0.4rem 0.65rem;
       font-size: 0.86rem; font-family: inherit; outline: none;
     }
     .equip-modal input:focus, .equip-modal select:focus, .equip-modal textarea:focus { border-color: #2a6; }
     .equip-modal textarea { resize: vertical; min-height: 60px; }
     .equip-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
     .equip-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; padding-top: 0.25rem; }
-    .equip-btn-cancel { background: transparent; border: 1px solid #333; color: #888; padding: 0.38rem 0.9rem; border-radius: 6px; cursor: pointer; font-size: 0.86rem; }
-    .equip-btn-save   { background: #1a4a2a; border: 1px solid #2a6; color: #4d9; padding: 0.38rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.86rem; font-weight: 600; }
+    .equip-btn-cancel { background: transparent; border: 1px solid #333; color: #888; padding: 0.38rem 0.9rem; border-radius: var(--radius); cursor: pointer; font-size: 0.86rem; }
+    .equip-btn-save   { background: #1a4a2a; border: 1px solid #2a6; color: #4d9; padding: 0.38rem 1.1rem; border-radius: var(--radius); cursor: pointer; font-size: 0.86rem; font-weight: 600; }
     .equip-btn-cancel:hover { border-color: #555; color: #ccc; }
     .equip-btn-save:hover   { background: #1f5a32; }
 
     /* ── Shared ── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: var(--radius-sm); }
 
     @media (max-width: 600px) {
       #inv-sidebar { width: 160px; min-width: 130px; }

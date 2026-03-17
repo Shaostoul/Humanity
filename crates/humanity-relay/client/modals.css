@@ -15,7 +15,7 @@
 #help-modal {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   max-width: 520px;
   width: 90%;
   max-height: 80vh;
@@ -48,7 +48,7 @@
 #help-modal .cmd code {
   background: var(--bg-hover);
   padding: 0.1rem 0.35rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--accent);
   font-family: monospace;
   font-size: 0.78rem;
@@ -72,7 +72,7 @@
   position: fixed;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   min-width: 150px;
   z-index: 200;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
@@ -108,7 +108,7 @@
 .profile-modal {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   max-width: 480px;
   width: 90%;
   max-height: 85vh;
@@ -138,7 +138,7 @@
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.45rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-family: inherit;
   outline: none;
@@ -169,7 +169,7 @@
   color: #fff;
   border: none;
   padding: 0.45rem 1.2rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   cursor: pointer;
   font-weight: 600;
@@ -181,7 +181,7 @@
   color: var(--text-muted);
   border: 1px solid var(--border);
   padding: 0.45rem 1.2rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   cursor: pointer;
 }
@@ -212,7 +212,7 @@
 .privacy-toggle {
   background: none;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   font-size: 0.85rem;
@@ -230,7 +230,7 @@
   width: 100%;
   height: 80px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--radius);
   margin-bottom: -36px; /* let avatar overlap the banner */
   display: block;
 }
@@ -263,7 +263,7 @@
 .profile-card-header .identicon-large {
   width: 64px;
   height: 64px;
-  border-radius: 6px;
+  border-radius: var(--radius);
 }
 .profile-card-header .profile-name {
   font-size: 1.1rem;
@@ -343,7 +343,7 @@
 .pin-card {
   background: rgba(255,255,255,0.03);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.4rem 0.6rem;
   margin-bottom: 0.35rem;
   font-size: 0.8rem;
@@ -389,7 +389,7 @@
   cursor: pointer;
   font-size: 0.7rem;
   padding: 0 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 .pin-card .pin-unpin:hover { color: var(--error, #e55); background: rgba(255,255,255,0.05); }
 .pin-section-header {
@@ -439,7 +439,7 @@
 #thread-panel-messages .thread-msg {
   margin-bottom: 0.75rem;
   padding: 0.5rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   background: var(--bg-secondary);
 }
 #thread-panel-messages .thread-msg .thread-msg-author {
@@ -470,7 +470,7 @@
   flex: 1;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: var(--text);
   padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
@@ -481,7 +481,7 @@
 #thread-panel-input button {
   background: var(--accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius);
   color: #fff;
   padding: 0.4rem 0.8rem;
   cursor: pointer;
@@ -502,7 +502,7 @@
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.4rem 0.6rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   outline: none;
   font-family: inherit;
@@ -560,7 +560,7 @@
   position: fixed;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.75rem;
   z-index: 200;
   min-width: 220px;
@@ -577,7 +577,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 0.4rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.8rem;
   color: var(--text);
@@ -591,7 +591,7 @@
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0.35rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.78rem;
   outline: none;
   margin-top: 0.4rem;
@@ -603,7 +603,7 @@
   border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.7rem;
   cursor: pointer;
   margin-top: 0.3rem;
@@ -618,7 +618,7 @@
     width: 95%;
     max-width: none;
     max-height: 90vh;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
   }
 
   /* Help modal: full-width, scrollable */
@@ -626,7 +626,7 @@
     width: 95%;
     max-width: none;
     max-height: 85vh;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
   }
 
   /* Login page adjustments */

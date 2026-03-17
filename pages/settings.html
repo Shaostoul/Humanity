@@ -44,7 +44,7 @@
       gap: 0.5rem;
       padding: 0.5rem 0.6rem;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: var(--radius);
       font-size: 0.86rem;
       color: #aaa;
       transition: background 0.1s, color 0.1s;
@@ -81,7 +81,7 @@
     .settings-group {
       background: #111;
       border: 1px solid #1e1e1e;
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       margin-bottom: 1rem;
       overflow: hidden;
     }
@@ -141,7 +141,7 @@
     .setting-select {
       background: #1a1a1a;
       border: 1px solid #333;
-      border-radius: 6px;
+      border-radius: var(--radius);
       color: #ddd;
       padding: 0.3rem 0.6rem;
       font-size: 0.84rem;
@@ -157,7 +157,7 @@
       width: 36px;
       height: 28px;
       border: 1px solid #333;
-      border-radius: 6px;
+      border-radius: var(--radius);
       cursor: pointer;
       background: none;
       padding: 2px;
@@ -170,7 +170,7 @@
     .setting-input {
       background: #1a1a1a;
       border: 1px solid #333;
-      border-radius: 6px;
+      border-radius: var(--radius);
       color: #ddd;
       padding: 0.3rem 0.6rem;
       font-size: 0.84rem;
@@ -189,7 +189,7 @@
       border: 1px solid #2a6;
       color: #4d9;
       padding: 0.55rem 1.4rem;
-      border-radius: 8px;
+      border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.92rem;
       font-weight: 700;
@@ -206,7 +206,7 @@
       border: 1px solid #e44;
       color: #e44;
       padding: 0.3rem 0.75rem;
-      border-radius: 6px;
+      border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.84rem;
       transition: background 0.12s;
@@ -219,7 +219,7 @@
       border: 1px solid #333;
       color: #888;
       padding: 2px 8px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.72rem;
       transition: color 0.1s, border-color 0.1s;
@@ -293,7 +293,7 @@
     #sec-vault .eli5-box {
       background: #0a0a0a;
       border: 1px solid #1a1a1a;
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       padding: 1rem 1.1rem;
       margin-bottom: 1.25rem;
     }
@@ -310,7 +310,7 @@
       width: 100%;
       background: #0d0d0d;
       border: 1px solid #222;
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: .55rem .8rem;
       color: var(--text, #e0e0e0);
       font-size: .88rem;
@@ -324,7 +324,7 @@
       background: #f0a500;
       color: #000;
       border: none;
-      border-radius: 9px;
+      border-radius: var(--radius);
       padding: .65rem 1.2rem;
       font-size: .9rem;
       font-weight: 700;
@@ -373,7 +373,7 @@
     #vault-sec-search { padding: .5rem .6rem; border-bottom: 1px solid #1a1a1a; }
     #vault-sec-search input {
       width: 100%; background: #0d0d0d; border: 1px solid #1e1e1e;
-      border-radius: 6px; padding: .35rem .65rem; color: #e0e0e0; font-size: .8rem; outline: none;
+      border-radius: var(--radius); padding: .35rem .65rem; color: #e0e0e0; font-size: .8rem; outline: none;
     }
     #vault-sec-search input:focus { border-color: #333; }
 
@@ -401,7 +401,7 @@
     #vault-sec-lock-countdown { font-size: .62rem; color: #3a3a3a; flex: 1; text-align: center; }
     #sec-vault .btn-lock {
       background: none; border: 1px solid #2a2a2a; color: #555;
-      border-radius: 5px; padding: .25rem .55rem; font-size: .72rem; cursor: pointer;
+      border-radius: var(--radius-sm); padding: .25rem .55rem; font-size: .72rem; cursor: pointer;
     }
     #sec-vault .btn-lock:hover { border-color: #555; color: #888; }
 
@@ -419,7 +419,7 @@
       gap: .65rem; margin-bottom: 1.5rem;
     }
     #sec-vault .quick-add-btn {
-      background: #111; border: 1px solid #1e1e1e; border-radius: 11px;
+      background: #111; border: 1px solid #1e1e1e; border-radius: var(--radius-lg);
       padding: 1rem; cursor: pointer; text-align: left;
       transition: border-color .15s, background .15s;
     }
@@ -429,7 +429,7 @@
     #sec-vault .quick-add-btn .qa-desc { font-size: .72rem; color: #555; margin-top: .15rem; display: block; line-height: 1.4; }
 
     #sec-vault .eli5-section {
-      background: #111; border: 1px solid #1a1a1a; border-radius: 12px;
+      background: #111; border: 1px solid #1a1a1a; border-radius: var(--radius-lg);
       padding: 1.25rem 1.4rem; margin-bottom: 1rem;
     }
     #sec-vault .eli5-section h3 { font-size: .85rem; font-weight: 700; color: #ccc; margin-bottom: .75rem; }
@@ -454,7 +454,7 @@
 
     #sec-vault .detail-actions { display: flex; gap: .5rem; flex-shrink: 0; }
     #sec-vault .btn-detail-edit, #sec-vault .btn-detail-delete {
-      background: none; border: 1px solid #2a2a2a; border-radius: 6px;
+      background: none; border: 1px solid #2a2a2a; border-radius: var(--radius);
       padding: .3rem .75rem; font-size: .76rem; cursor: pointer;
     }
     #sec-vault .btn-detail-edit { color: #aaa; }
@@ -468,7 +468,7 @@
       letter-spacing: .06em; color: #444; margin-bottom: .3rem;
     }
     #sec-vault .field-display-value {
-      background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 8px;
+      background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: var(--radius);
       padding: .55rem .75rem; font-size: .85rem; color: #e0e0e0;
       word-break: break-word; white-space: pre-wrap; line-height: 1.5; position: relative;
     }
@@ -477,7 +477,7 @@
 
     #sec-vault .field-copy-row { display: flex; align-items: center; gap: .5rem; margin-top: .35rem; }
     #sec-vault .btn-copy-field, #sec-vault .btn-reveal {
-      background: none; border: 1px solid #222; border-radius: 5px;
+      background: none; border: 1px solid #222; border-radius: var(--radius-sm);
       padding: .2rem .6rem; font-size: .7rem; color: #666; cursor: pointer;
     }
     #sec-vault .btn-copy-field:hover, #sec-vault .btn-reveal:hover { border-color: #444; color: #aaa; }
@@ -501,7 +501,7 @@
       text-transform: uppercase; letter-spacing: .05em; color: #555; margin-bottom: .3rem;
     }
     #sec-vault .modal-field input, #sec-vault .modal-field textarea, #sec-vault .modal-field select {
-      width: 100%; background: #0d0d0d; border: 1px solid #222; border-radius: 7px;
+      width: 100%; background: #0d0d0d; border: 1px solid #222; border-radius: var(--radius);
       padding: .5rem .7rem; color: #e0e0e0; font-size: .85rem; outline: none; font-family: inherit;
     }
     #sec-vault .modal-field input:focus, #sec-vault .modal-field textarea:focus, #sec-vault .modal-field select:focus { border-color: #f0a500; }
@@ -510,10 +510,10 @@
     #sec-vault .modal-actions { display: flex; gap: .65rem; justify-content: flex-end; }
     #sec-vault .btn-cancel {
       background: none; border: 1px solid #2a2a2a; color: #666;
-      border-radius: 7px; padding: .45rem 1rem; font-size: .82rem; cursor: pointer;
+      border-radius: var(--radius); padding: .45rem 1rem; font-size: .82rem; cursor: pointer;
     }
     #sec-vault .btn-save {
-      background: #f0a500; color: #000; border: none; border-radius: 7px;
+      background: #f0a500; color: #000; border: none; border-radius: var(--radius);
       padding: .45rem 1.2rem; font-size: .82rem; font-weight: 700; cursor: pointer;
     }
     #sec-vault .btn-save:disabled { opacity: .5; cursor: default; }
@@ -522,7 +522,7 @@
       display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .4rem; margin-bottom: 1rem;
     }
     #sec-vault .type-chip {
-      border: 1px solid #222; border-radius: 7px; padding: .45rem .6rem;
+      border: 1px solid #222; border-radius: var(--radius); padding: .45rem .6rem;
       display: flex; align-items: center; gap: .4rem; cursor: pointer;
       font-size: .78rem; color: #888; background: #0d0d0d; transition: border-color .12s;
     }
@@ -703,14 +703,14 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Font Size</strong>
-            <span>Base text size across the app</span>
+            <span>Base text size across the app (10–55px)</span>
           </div>
-          <select class="setting-select" id="pref-font-size" onchange="savePref()">
-            <option value="small">Small (13px)</option>
-            <option value="medium" selected>Medium (15px)</option>
-            <option value="large">Large (17px)</option>
-            <option value="xl">Extra Large (19px)</option>
-          </select>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-font-size-slider" min="10" max="55" step="1" value="16"
+              style="width:160px;accent-color:var(--accent)"
+              oninput="applyCustomizerLive()">
+            <span id="font-size-val" style="font-weight:700;min-width:36px;color:var(--accent)">16px</span>
+          </div>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -2084,6 +2084,12 @@ function applyPrefs() {
       isSlider.value = is;
       document.getElementById('icon-size-val').textContent = is + 'px';
     }
+    var fsSlider = document.getElementById('pref-font-size-slider');
+    if (fsSlider) {
+      var fs = cs.fontSizePx || 16;
+      fsSlider.value = fs;
+      document.getElementById('font-size-val').textContent = fs + 'px';
+    }
     var brSlider = document.getElementById('pref-border-radius');
     if (brSlider) {
       var br = cs.borderRadius !== undefined ? cs.borderRadius : 8;
@@ -2119,10 +2125,17 @@ function applyCustomizerLive() {
   var is = parseInt(document.getElementById('pref-icon-size').value);
   document.getElementById('icon-size-val').textContent = is + 'px';
   doc.style.setProperty('--icon-size', is + 'px');
-  // Border radius
+  // Font size
+  var fs = parseInt(document.getElementById('pref-font-size-slider').value);
+  document.getElementById('font-size-val').textContent = fs + 'px';
+  doc.style.setProperty('--font-size-base', fs + 'px');
+  doc.style.setProperty('font-size', fs + 'px');
+  // Border radius — update all scale levels proportionally
   var br = parseInt(document.getElementById('pref-border-radius').value);
   document.getElementById('border-radius-val').textContent = br + 'px';
   doc.style.setProperty('--radius', br + 'px');
+  doc.style.setProperty('--radius-sm', Math.max(1, Math.round(br * 0.5)) + 'px');
+  doc.style.setProperty('--radius-lg', Math.round(br * 1.5) + 'px');
   // Semantic colors
   var sc = document.getElementById('pref-success-color').value;
   var dc = document.getElementById('pref-danger-color').value;
@@ -2140,6 +2153,7 @@ function saveCustomizer() {
     var s = JSON.parse(localStorage.getItem('humanity_settings') || '{}');
     s.iconWeight = parseFloat(document.getElementById('pref-icon-weight').value);
     s.iconSize = parseInt(document.getElementById('pref-icon-size').value);
+    s.fontSizePx = parseInt(document.getElementById('pref-font-size-slider').value);
     s.borderRadius = parseInt(document.getElementById('pref-border-radius').value);
     s.successColor = document.getElementById('pref-success-color').value;
     s.dangerColor = document.getElementById('pref-danger-color').value;
@@ -2156,6 +2170,7 @@ function resetColor(id, defaultVal) {
 function resetThemeDefaults() {
   document.getElementById('pref-icon-weight').value = 3;
   document.getElementById('pref-icon-size').value = 20;
+  document.getElementById('pref-font-size-slider').value = 16;
   document.getElementById('pref-border-radius').value = 8;
   document.getElementById('pref-success-color').value = '#44aa99';
   document.getElementById('pref-danger-color').value = '#cc4444';

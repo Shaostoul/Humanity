@@ -5,7 +5,7 @@
   line-height: 1.4;
   padding: 0.45rem 0.6rem;
   background: rgba(255,255,255,0.02);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .message .meta {
@@ -26,7 +26,7 @@
 .identicon {
   width: 18px;
   height: 18px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   vertical-align: middle;
   margin-right: 0.1rem;
 }
@@ -45,7 +45,7 @@
   gap: 0.2rem;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 0.05rem 0.4rem;
   font-size: 0.75rem;
   cursor: pointer;
@@ -60,7 +60,7 @@
   color: var(--success);
   background: rgba(68,170,153,0.15);
   padding: 0 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
 }
 /* Signature present but not yet verified (history loaded before crypto ready) */
@@ -86,7 +86,7 @@
   margin-left: 1.6rem;
   padding: 0.35rem 0.55rem;
   background: rgba(255,255,255,0.025);
-  border-radius: 6px;
+  border-radius: var(--radius);
   word-wrap: break-word;
   white-space: pre-wrap;
 }
@@ -104,7 +104,7 @@
 /* Ephemeral notices — color-coded, auto-dismiss */
 .notice {
   padding: 0.4rem 0.75rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-size: 0.8rem;
   margin-bottom: 0.3rem;
   display: flex;
@@ -158,7 +158,7 @@
 }
 
 /* ── Message hover actions ── */
-.message { position: relative; cursor: pointer; border-radius: 4px; padding: 0.3rem 0.4rem; }
+.message { position: relative; cursor: pointer; border-radius: var(--radius-sm); padding: 0.3rem 0.4rem; }
 .message:hover { background: var(--bg-hover); }
 .message .msg-actions {
   display: none;
@@ -174,7 +174,7 @@
   color: var(--text-muted);
   font-size: 0.65rem;
   padding: 0.15rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 .msg-actions button:hover { color: var(--text); border-color: var(--accent); }
@@ -207,7 +207,7 @@
   gap: 0.4rem;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.3rem 0.6rem;
   cursor: pointer;
   font-size: 0.8rem;
@@ -218,7 +218,7 @@
 .body .img-loaded {
   max-width: 400px;
   max-height: 300px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   margin: 0.2rem 0;
   cursor: pointer;
 }
@@ -281,7 +281,7 @@
 .body code {
   background: var(--bg-hover);
   padding: 0.1rem 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-size: 0.85em;
   font-family: monospace;
 }
@@ -306,7 +306,7 @@
   border: 1px solid var(--accent);
   color: var(--text);
   padding: 0.4rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   font-family: inherit;
   resize: vertical;
@@ -321,7 +321,7 @@
 .edit-area .edit-buttons button {
   font-size: 0.72rem;
   padding: 0.2rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   border: 1px solid var(--border);
 }
@@ -352,7 +352,7 @@
   background: #1a1a1a;
   color: #e0e0e0;
   padding: 0.6rem 0.8rem;
-  border-radius: 6px;
+  border-radius: var(--radius);
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.82rem;
   line-height: 1.45;
@@ -378,7 +378,7 @@
   color: #aaa;
   font-size: 0.65rem;
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s;
@@ -407,7 +407,7 @@
 .link-preview {
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.4rem 0.6rem;
   margin: 0.3rem 0 0.3rem 1.6rem;
   font-size: 0.82rem;
@@ -424,7 +424,7 @@
 .link-preview .lp-title a { color: var(--accent); text-decoration: none; }
 .link-preview .lp-title a:hover { text-decoration: underline; }
 .link-preview .lp-desc { color: var(--text-muted); font-size: 0.78rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.link-preview .lp-thumb { width: 80px; height: 60px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+.link-preview .lp-thumb { width: 80px; height: 60px; object-fit: cover; border-radius: var(--radius-sm); flex-shrink: 0; }
 
 /* ── File Cards (documents, archives) ── */
 .file-card {
@@ -433,7 +433,7 @@
   gap: 0.5rem;
   background: var(--bg-hover);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.4rem 0.7rem;
   margin: 0.2rem 0;
   font-size: 0.82rem;
@@ -448,11 +448,11 @@
 
 /* ── Inline audio/video ── */
 .body audio { max-width: 100%; margin: 0.2rem 0; }
-.body video { max-width: 400px; max-height: 300px; border-radius: 4px; margin: 0.2rem 0; }
+.body video { max-width: 400px; max-height: 300px; border-radius: var(--radius-sm); margin: 0.2rem 0; }
 
 /* ── Todo Channel Sections ── */
 .todo-section {
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 0.6rem 0.8rem;
   margin: 0.3rem 0;
 }
@@ -511,7 +511,7 @@
 .delete-confirm {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius);
   padding: 0.5rem 0.75rem;
   font-size: 0.8rem;
   display: inline-flex;
@@ -521,7 +521,7 @@
 }
 .delete-confirm button {
   padding: 0.2rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   font-size: 0.75rem;
   cursor: pointer;
   border: 1px solid var(--border);

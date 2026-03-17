@@ -33,7 +33,7 @@
       gap: 0.5rem;
       padding: 0.5rem 0.75rem;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       background: var(--bg-card);
       color: var(--text);
       font-size: 0.85rem;
@@ -86,7 +86,7 @@
       align-items: center;
       gap: 0.75rem;
       padding: 0.75rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--radius);
       margin-bottom: 0.25rem;
     }
     .section-header.private  { background: rgba(204,68,68,0.12); border: 1px solid rgba(204,68,68,0.3); }
@@ -99,7 +99,7 @@
     .prof-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
       padding: 1rem;
     }
     .prof-card h3 {
@@ -133,7 +133,7 @@
     .field-group textarea {
       background: var(--bg-input);
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius);
       color: var(--text);
       font-family: inherit;
       font-size: 0.85rem;
@@ -163,7 +163,7 @@
       flex: 1;
       background: var(--bg-input);
       border: 1px solid rgba(68,136,255,0.4);
-      border-radius: 6px;
+      border-radius: var(--radius);
       color: var(--text);
       font-size: 0.85rem;
       padding: 0.35rem 0.5rem;
@@ -175,7 +175,7 @@
     .stream-platform {
       background: var(--bg-secondary);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 0.75rem;
       margin-bottom: 0.5rem;
     }
@@ -190,7 +190,7 @@
       background: var(--accent);
       color: #fff;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius);
       padding: 0.5rem 1.25rem;
       font-size: 0.85rem;
       font-weight: 600;
@@ -226,7 +226,7 @@
       overflow: hidden;
       min-height: 500px;
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: var(--radius-lg);
     }
 
     #tab-skills #domain-sidebar {
@@ -283,7 +283,7 @@
     #tab-skills .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
     #tab-skills .skill-card {
       background: var(--bg-card, #141414); border: 1px solid var(--border, #222);
-      border-radius: 8px; padding: 1rem; transition: border-color 0.2s, box-shadow 0.2s;
+      border-radius: var(--radius); padding: 1rem; transition: border-color 0.2s, box-shadow 0.2s;
     }
     #tab-skills .skill-card:hover { border-color: var(--border-hover, #333); box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
     #tab-skills .skill-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.6rem; }
@@ -293,8 +293,8 @@
     #tab-skills .skill-level-label { font-size: 0.6rem; color: var(--text-muted, #555); text-align: right; text-transform: uppercase; }
     #tab-skills .skill-desc { font-size: 0.75rem; color: var(--text-muted, #777); margin-bottom: 0.8rem; line-height: 1.4; }
 
-    #tab-skills .xp-bar-wrap { height: 6px; background: var(--bg-secondary, #1e1e1e); border-radius: 3px; margin-bottom: 0.8rem; position: relative; }
-    #tab-skills .xp-bar-fill { height: 100%; border-radius: 3px; background: var(--skill-active-color, #FF8811); transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
+    #tab-skills .xp-bar-wrap { height: 6px; background: var(--bg-secondary, #1e1e1e); border-radius: var(--radius-sm); margin-bottom: 0.8rem; position: relative; }
+    #tab-skills .xp-bar-fill { height: 100%; border-radius: var(--radius-sm); background: var(--skill-active-color, #FF8811); transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
     #tab-skills .xp-bar-text { position: absolute; right: 0; top: 8px; font-size: 0.6rem; color: var(--text-muted, #555); }
 
     #tab-skills .level-steps { display: flex; gap: 3px; margin-bottom: 0.9rem; }
@@ -305,7 +305,7 @@
     #tab-skills .xp-actions { display: flex; gap: 0.4rem; align-items: center; }
     #tab-skills .xp-btn {
       background: var(--bg-secondary, #1a1a1a); border: 1px solid var(--border, #2a2a2a);
-      color: var(--text-muted, #aaa); border-radius: 4px; padding: 0.25rem 0.55rem;
+      color: var(--text-muted, #aaa); border-radius: var(--radius-sm); padding: 0.25rem 0.55rem;
       font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
     }
     #tab-skills .xp-btn:hover { background: var(--bg-hover, #222); border-color: var(--border-hover, #444); color: var(--text, #fff); }
@@ -328,7 +328,7 @@
       position: fixed; bottom: 60px; left: 50%;
       transform: translateX(-50%) translateY(20px);
       background: var(--bg-card, #1a1a1a); border: 1px solid var(--border, #333);
-      border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.82rem;
+      border-radius: var(--radius); padding: 0.5rem 1rem; font-size: 0.82rem;
       color: var(--text, #eee); opacity: 0; pointer-events: none;
       transition: opacity 0.25s, transform 0.25s; z-index: 9999;
     }

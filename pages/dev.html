@@ -30,7 +30,7 @@
     .icon-controls label { font-size: 0.82rem; font-weight: 600; }
     .icon-controls input[type="range"] { width: 200px; accent-color: var(--accent); }
     .icon-controls .val { font-size: 0.82rem; color: var(--accent); font-weight: 700; min-width: 32px; }
-    .icon-controls select { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 0.82rem; }
+    .icon-controls select { background: var(--bg-input); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 8px; font-size: 0.82rem; }
 
     .icon-row {
       display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
@@ -59,7 +59,7 @@
     }
     .demo-btn {
       display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 18px; border-radius: 6px; font-size: 0.82rem;
+      padding: 8px 18px; border-radius: var(--radius); font-size: 0.82rem;
       font-weight: 600; border: 1px solid var(--border); cursor: pointer;
       background: var(--bg-card); color: var(--text); transition: all 0.2s;
     }
@@ -83,7 +83,7 @@
     .badge {
       display: inline-flex; align-items: center; gap: 4px;
       font-size: 0.72rem; font-weight: 600; padding: 4px 12px;
-      border-radius: 4px; cursor: default;
+      border-radius: var(--radius-sm); cursor: default;
     }
     .badge.core { background: rgba(255,136,17,0.15); color: var(--accent); }
     .badge.game { background: rgba(68,136,255,0.15); color: #48f; }

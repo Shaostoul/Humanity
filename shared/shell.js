@@ -104,7 +104,7 @@
       color: #FF8811;
       width: 32px;
       height: 28px;
-      border-radius: 6px;
+      border-radius: var(--radius);
       box-shadow: inset 0 0 0 1px #2a6;
       text-decoration: none;
       display: flex;
@@ -134,7 +134,7 @@
       padding: 0;
       color: #888;
       cursor: pointer;
-      border-radius: 6px;
+      border-radius: var(--radius);
       user-select: none;
       text-decoration: none;
       flex-shrink: 0;
@@ -150,12 +150,14 @@
     }
     .hub-nav .tab .tab-icon img,
     .hub-nav .tab .tab-icon svg {
-      width: 15px;
-      height: 15px;
+      width: var(--icon-size, 20px);
+      height: var(--icon-size, 20px);
+      max-width: 24px;
+      max-height: 24px;
       object-fit: contain;
       display: block;
       opacity: 0.65;
-      transition: opacity 0.1s;
+      transition: opacity 0.1s, width 0.15s, height 0.15s;
     }
 
     /* Label hidden on inactive tabs — only visible when active */
@@ -185,7 +187,7 @@
       background: rgba(8,8,10,0.97);
       color: #ddd;
       border: 1px solid #3a3a3a;
-      border-radius: 6px;
+      border-radius: var(--radius);
       padding: 0.22rem 0.55rem;
       font-size: 0.7rem;
       font-weight: 600;
@@ -243,7 +245,7 @@
       border: 1px solid #2a6;
       color: #ddd;
       padding: 0.24rem 0.55rem;
-      border-radius: 6px;
+      border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.82rem;
       line-height: 1;
@@ -333,7 +335,7 @@
       background: rgba(18, 18, 18, 0.97);
       border: 1px solid #f44; /* start of RGB cycle */
       border-bottom: none;
-      border-radius: 8px 8px 0 0;
+      border-radius: var(--radius) 8px 0 0;
       color: #FF8811;
       cursor: pointer;
       padding: 5px 28px;
@@ -386,7 +388,7 @@
       color: #fff;
       background: rgba(255,255,255,0.06);
       animation: channeling 3s linear infinite;
-      border-radius: 6px;
+      border-radius: var(--radius);
       margin: 0.15rem;
     }
 
