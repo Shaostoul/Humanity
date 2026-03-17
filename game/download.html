@@ -31,7 +31,8 @@
       border-radius: var(--radius); padding: 28px; text-align: center;
       margin-bottom: 40px; box-shadow: 0 0 30px rgba(255, 136, 17, 0.08);
     }
-    .detected-card .platform-icon { font-size: 2.5rem; margin-bottom: 6px; }
+    .detected-card .platform-icon { margin-bottom: 6px; }
+    .detected-card .platform-icon svg { width: 48px; height: 48px; }
     .detected-card .platform-name { font-size: 1.1rem; font-weight: 700; margin-bottom: 2px; }
     .detected-card .platform-detail { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 16px; }
     .detected-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 8px; }
@@ -46,6 +47,14 @@
     .btn-primary:hover { background: var(--accent-hover); color: #000; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,136,17,0.2); }
     .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); font-size: 0.85rem; padding: 8px 18px; }
     .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Inline SVG icons */
+    .ico { display: inline-block; vertical-align: middle; }
+    .ico svg {
+      stroke: currentColor; fill: none;
+      stroke-linecap: round; stroke-linejoin: round;
+      stroke-width: 3;
+    }
 
     /* Section headings */
     .section-label {
@@ -70,7 +79,8 @@
     .module-card:hover { border-color: rgba(255,136,17,0.4); background: var(--bg-card-hover); }
     .module-card.installed { border-color: var(--success, #2a6); }
     .module-card .mod-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-    .module-card .mod-icon { font-size: 1.6rem; flex-shrink: 0; }
+    .module-card .mod-icon { flex-shrink: 0; color: var(--text); }
+    .module-card .mod-icon svg { width: 28px; height: 28px; }
     .module-card .mod-title { font-weight: 700; font-size: 0.95rem; }
     .module-card .mod-size { font-size: 0.7rem; color: var(--text-muted); }
     .module-card .mod-desc { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
@@ -105,7 +115,8 @@
     }
     .platform-card:hover { border-color: rgba(255,136,17,0.4); background: var(--bg-card-hover); }
     .platform-card.detected { border-color: var(--accent); border-width: 2px; }
-    .platform-card .icon { font-size: 1.8rem; margin-bottom: 8px; }
+    .platform-card .icon { margin-bottom: 8px; color: var(--text); }
+    .platform-card .icon svg { width: 32px; height: 32px; }
     .platform-card .name { font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; }
     .platform-card .arch { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; }
     .platform-card .detail { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
@@ -155,15 +166,15 @@
     <div class="dl-hero">
       <h1>Download <em>Humanity</em></h1>
       <p>Your launcher for the civilization operating system. Download once — modules extend it with games, tools, and integrations.</p>
-      <span class="version-badge" id="version-badge">🏷️ Desktop: v0.5.0 · Web: always latest</span>
+      <span class="version-badge" id="version-badge">Desktop: v0.5.0 · Web: always latest</span>
     </div>
 
     <!-- Auto-detected platform -->
     <div class="detected-card" id="detected-card">
-      <div class="platform-icon" id="detected-icon">🔍</div>
-      <div class="platform-name" id="detected-name">Detecting your device…</div>
+      <div class="platform-icon" id="detected-icon"></div>
+      <div class="platform-name" id="detected-name">Detecting your device...</div>
       <div class="platform-detail" id="detected-detail"></div>
-      <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="btn btn-primary" id="detected-download" target="_blank">⬇ Download Launcher</a>
+      <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="btn btn-primary" id="detected-download" target="_blank">Download Launcher</a>
       <div class="detected-sub" id="detected-sub">Downloads from GitHub Releases</div>
     </div>
 
@@ -179,7 +190,7 @@
       <div class="module-card installed">
         <span class="mod-badge core">Core</span>
         <div class="mod-header">
-          <span class="mod-icon">💬</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><path d="M6,6 H36 V30 H18 L12,36 V30 H6 Z"/><line x1="12" y1="14" x2="30" y2="14"/><line x1="12" y1="22" x2="24" y2="22"/><path d="M36,14 H42 V36 H36 V42 L30,36 H24"/></svg></span>
           <div>
             <div class="mod-title">Network</div>
             <div class="mod-size">Included · ~2 MB</div>
@@ -192,7 +203,7 @@
       <div class="module-card installed">
         <span class="mod-badge core">Core</span>
         <div class="mod-header">
-          <span class="mod-icon">📊</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><rect x="6" y="26" width="8" height="16" rx="1"/><rect x="20" y="16" width="8" height="26" rx="1"/><rect x="34" y="8" width="8" height="34" rx="1"/><line x1="4" y1="44" x2="44" y2="44"/></svg></span>
           <div>
             <div class="mod-title">Dashboard</div>
             <div class="mod-size">Included · ~0.5 MB</div>
@@ -205,7 +216,7 @@
       <div class="module-card installed">
         <span class="mod-badge core">Core</span>
         <div class="mod-header">
-          <span class="mod-icon">🗺️</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><polygon points="4,8 16,14 32,8 44,14 44,40 32,34 16,40 4,34"/><line x1="16" y1="14" x2="16" y2="40"/><line x1="32" y1="8" x2="32" y2="34"/><circle cx="32" cy="18" r="2" fill="currentColor" stroke="none"/></svg></span>
           <div>
             <div class="mod-title">Maps & Navigation</div>
             <div class="mod-size">Included · ~1 MB</div>
@@ -218,7 +229,7 @@
       <div class="module-card installed">
         <span class="mod-badge core">Core</span>
         <div class="mod-header">
-          <span class="mod-icon">🏪</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><rect x="6" y="20" width="36" height="24" rx="2"/><polyline points="6,20 6,10 42,10 42,20"/><path d="M6,10 Q14,18 22,10 Q30,18 38,10 Q42,14 42,20" fill="none"/><rect x="18" y="30" width="12" height="14" rx="1"/></svg></span>
           <div>
             <div class="mod-title">Marketplace</div>
             <div class="mod-size">Included · ~0.5 MB</div>
@@ -228,110 +239,110 @@
         <span class="mod-status installed">✓ Installed</span>
       </div>
 
-      <!-- Game module — the big one -->
+      <!-- Game modules -->
       <div class="module-card">
         <span class="mod-badge game">Game</span>
         <div class="mod-header">
-          <span class="mod-icon">🎮</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><path d="M10,16 A8,8 0 0 0 6,30 A6,6 0 0 0 14,34 L18,26 H30 L34,34 A6,6 0 0 0 42,30 A8,8 0 0 0 38,16 Z" fill="none"/><line x1="15" y1="22" x2="15" y2="28"/><line x1="12" y1="25" x2="18" y2="25"/><circle cx="31" cy="22" r="1.5"/><circle cx="35" cy="26" r="1.5"/></svg></span>
           <div>
             <div class="mod-title">Humanity: The Game</div>
             <div class="mod-size">~500 MB – 2 GB</div>
           </div>
         </div>
         <div class="mod-desc">Sci-fi fantasy RPG built into the OS. First/third-person exploration, quests, crafting, and civilization building. Your actions shape the real world.</div>
-        <button class="mod-status planned" disabled>🚧 Coming Soon</button>
+        <button class="mod-status planned" disabled>Coming Soon</button>
       </div>
 
       <div class="module-card">
         <span class="mod-badge game">Game</span>
         <div class="mod-header">
-          <span class="mod-icon">🏗️</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><rect x="10" y="6" width="18" height="10" rx="2"/><line x1="24" y1="16" x2="24" y2="42"/><line x1="18" y1="42" x2="30" y2="42"/></svg></span>
           <div>
             <div class="mod-title">World Builder</div>
             <div class="mod-size">~200 MB</div>
           </div>
         </div>
         <div class="mod-desc">Create worlds, design quests, build structures. Publish to the community for others to explore. Modding toolkit included.</div>
-        <button class="mod-status planned" disabled>🚧 Coming Soon</button>
+        <button class="mod-status planned" disabled>Coming Soon</button>
       </div>
 
       <!-- Integration modules -->
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
-          <span class="mod-icon">🟦</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><path d="M14,30 Q14,20 24,20 Q34,20 34,14 Q34,8 24,8" fill="none"/><circle cx="24" cy="20" r="3"/><line x1="14" y1="30" x2="14" y2="38"/></svg></span>
           <div>
             <div class="mod-title">Steam Library</div>
             <div class="mod-size">~5 MB</div>
           </div>
         </div>
         <div class="mod-desc">Browse and launch your Steam games from within HumanityOS. Syncs library, playtime, and achievements.</div>
-        <button class="mod-status planned" disabled>🚧 Planned</button>
+        <button class="mod-status planned" disabled>Planned</button>
       </div>
 
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
-          <span class="mod-icon">🟣</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><polyline points="30,14 18,14 18,34 30,34"/><line x1="18" y1="24" x2="28" y2="24"/></svg></span>
           <div>
             <div class="mod-title">Epic Games</div>
             <div class="mod-size">~5 MB</div>
           </div>
         </div>
         <div class="mod-desc">Access your Epic Games library. Launch games, track playtime, see friends.</div>
-        <button class="mod-status planned" disabled>🚧 Planned</button>
+        <button class="mod-status planned" disabled>Planned</button>
       </div>
 
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
-          <span class="mod-icon">🎮</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><path d="M16,28 Q16,18 24,14 Q32,18 32,24 Q32,28 24,28 H16" fill="none"/><line x1="24" y1="14" x2="24" y2="36"/></svg></span>
           <div>
             <div class="mod-title">PlayStation Link</div>
             <div class="mod-size">~5 MB</div>
           </div>
         </div>
         <div class="mod-desc">Connect your PSN account to see friends, trophies, and remote play status.</div>
-        <button class="mod-status planned" disabled>🚧 Planned</button>
+        <button class="mod-status planned" disabled>Planned</button>
       </div>
 
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
-          <span class="mod-icon">🟢</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><line x1="14" y1="14" x2="34" y2="34"/><line x1="34" y1="14" x2="14" y2="34"/></svg></span>
           <div>
             <div class="mod-title">Xbox / Game Pass</div>
             <div class="mod-size">~5 MB</div>
           </div>
         </div>
         <div class="mod-desc">Xbox and Game Pass library integration. Launch games, see friends and achievements.</div>
-        <button class="mod-status planned" disabled>🚧 Planned</button>
+        <button class="mod-status planned" disabled>Planned</button>
       </div>
 
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
-          <span class="mod-icon">🎲</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><path d="M28,8 A14,14 0 1 1 14,28" fill="none"/><circle cx="24" cy="24" r="5"/></svg></span>
           <div>
             <div class="mod-title">GOG Galaxy</div>
             <div class="mod-size">~5 MB</div>
           </div>
         </div>
         <div class="mod-desc">DRM-free game library from GOG. Browse, launch, and track your collection.</div>
-        <button class="mod-status planned" disabled>🚧 Planned</button>
+        <button class="mod-status planned" disabled>Planned</button>
       </div>
 
       <div class="module-card">
         <span class="mod-badge integration">Integration</span>
         <div class="mod-header">
-          <span class="mod-icon">🔧</span>
+          <span class="mod-icon ico"><svg viewBox="0 0 48 48"><path d="M6,18 H16 Q16,12 20,12 Q24,12 24,18 H36 V28 Q30,28 30,32 Q30,36 36,36 V44 H6 Z" fill="none"/><path d="M36,18 V8 H18 Q18,12 14,12 Q12,12 12,8" fill="none"/></svg></span>
           <div>
             <div class="mod-title">Community Modules</div>
             <div class="mod-size">Varies</div>
           </div>
         </div>
         <div class="mod-desc">Browse and install modules created by the community. Tools, games, integrations — all open source and verifiable.</div>
-        <button class="mod-status planned" disabled>🚧 Planned</button>
+        <button class="mod-status planned" disabled>Planned</button>
       </div>
     </div>
 
@@ -344,53 +355,53 @@
 
     <div class="platform-grid">
       <div class="platform-card" id="card-windows">
-        <div class="icon">🪟</div>
+        <div class="icon ico"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="28" rx="2"/><line x1="24" y1="34" x2="24" y2="42"/><line x1="14" y1="42" x2="34" y2="42"/></svg></div>
         <div class="name">Windows</div>
         <div class="arch">x64 · .exe installer</div>
         <div class="detail">Windows 10+ — no store required. SmartScreen warning is normal (see below).</div>
-        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download</a>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">Download</a>
       </div>
       <div class="platform-card" id="card-macos-arm">
-        <div class="icon">🍎</div>
+        <div class="icon ico"><svg viewBox="0 0 48 48"><rect x="10" y="4" width="28" height="36" rx="2"/><path d="M4,40 H44 A0,0 0 0 1 44,40 L40,44 H8 L4,40 Z"/></svg></div>
         <div class="name">macOS (Apple Silicon)</div>
         <div class="arch">M1/M2/M3/M4 · .dmg</div>
         <div class="detail">macOS 12+ — drag to Applications.</div>
-        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download</a>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">Download</a>
       </div>
       <div class="platform-card" id="card-macos-intel">
-        <div class="icon">🍎</div>
+        <div class="icon ico"><svg viewBox="0 0 48 48"><rect x="10" y="4" width="28" height="36" rx="2"/><path d="M4,40 H44 A0,0 0 0 1 44,40 L40,44 H8 L4,40 Z"/></svg></div>
         <div class="name">macOS (Intel)</div>
         <div class="arch">x64 · .dmg</div>
         <div class="detail">macOS 12+ — drag to Applications.</div>
-        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download</a>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">Download</a>
       </div>
       <div class="platform-card" id="card-linux">
-        <div class="icon">🐧</div>
+        <div class="icon ico"><svg viewBox="0 0 48 48"><ellipse cx="24" cy="28" rx="12" ry="14"/><ellipse cx="24" cy="16" rx="8" ry="9"/><circle cx="21" cy="15" r="1.5" fill="currentColor" stroke="none"/><circle cx="27" cy="15" r="1.5" fill="currentColor" stroke="none"/><path d="M22,19 L24,21 L26,19" fill="none"/><path d="M12,22 Q6,30 8,40" fill="none"/><path d="M36,22 Q42,30 40,40" fill="none"/></svg></div>
         <div class="name">Linux</div>
         <div class="arch">x64 · .AppImage / .deb</div>
         <div class="detail">AppImage is universal; .deb for Debian/Ubuntu.</div>
-        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">⬇ Download</a>
+        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="card-btn" target="_blank">Download</a>
       </div>
       <div class="platform-card" id="card-android">
-        <div class="icon">🤖</div>
+        <div class="icon ico"><svg viewBox="0 0 48 48"><rect x="10" y="16" width="28" height="22" rx="3"/><line x1="18" y1="16" x2="16" y2="8"/><line x1="30" y1="16" x2="32" y2="8"/><circle cx="18" cy="26" r="2.5"/><circle cx="30" cy="26" r="2.5"/><line x1="18" y1="34" x2="30" y2="34"/></svg></div>
         <div class="name">Android</div>
         <div class="arch">PWA · any browser</div>
         <div class="detail">Install as PWA from Chrome. Native APK planned.</div>
-        <span class="card-btn planned">📱 PWA Available</span>
+        <span class="card-btn planned">PWA Available</span>
       </div>
       <div class="platform-card" id="card-ios">
-        <div class="icon">📱</div>
+        <div class="icon ico"><svg viewBox="0 0 48 48"><rect x="14" y="4" width="20" height="40" rx="3"/><line x1="20" y1="38" x2="28" y2="38"/></svg></div>
         <div class="name">iOS / iPadOS</div>
         <div class="arch">PWA · Safari</div>
         <div class="detail">Install as PWA from Safari → Share → Add to Home Screen.</div>
-        <span class="card-btn planned">📱 PWA Available</span>
+        <span class="card-btn planned">PWA Available</span>
       </div>
       <div class="platform-card" id="card-web">
-        <div class="icon">🌐</div>
+        <div class="icon ico"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><ellipse cx="24" cy="24" rx="8" ry="20"/><line x1="4" y1="24" x2="44" y2="24"/><path d="M8,14 Q24,18 40,14" fill="none"/><path d="M8,34 Q24,30 40,34" fill="none"/></svg></div>
         <div class="name">Web</div>
         <div class="arch">Any modern browser</div>
         <div class="detail">No download needed. Full access to all core features.</div>
-        <a href="/" class="card-btn">🚀 Open Humanity</a>
+        <a href="/" class="card-btn">Open Humanity</a>
       </div>
     </div>
 
@@ -398,7 +409,7 @@
     <!-- INFO PANELS                                                        -->
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <div class="info-panel">
-      <h3>⚠️ Windows SmartScreen Warning</h3>
+      <h3>Windows SmartScreen Warning</h3>
       <p>Windows may show "Windows protected your PC" — this is normal for open-source software without a paid code signing certificate ($300+/year).</p>
       <ul>
         <li>Click <strong>"More info"</strong> → <strong>"Run anyway"</strong></li>
@@ -407,17 +418,17 @@
     </div>
 
     <div class="info-panel">
-      <h3>📱 Install as PWA (No App Store)</h3>
+      <h3>Install as PWA (No App Store)</h3>
       <p>Works like a native app — homescreen icon, no browser chrome, push notifications.</p>
       <ul>
-        <li><strong>iOS Safari:</strong> Open <a href="https://united-humanity.us">united-humanity.us</a> → Share (□↑) → "Add to Home Screen"</li>
-        <li><strong>Android Chrome:</strong> Open <a href="https://united-humanity.us">united-humanity.us</a> → Menu (⋮) → "Install app"</li>
-        <li><strong>Desktop Chrome/Edge:</strong> Look for the install icon (⊕) in the address bar</li>
+        <li><strong>iOS Safari:</strong> Open <a href="https://united-humanity.us">united-humanity.us</a> → Share → "Add to Home Screen"</li>
+        <li><strong>Android Chrome:</strong> Open <a href="https://united-humanity.us">united-humanity.us</a> → Menu → "Install app"</li>
+        <li><strong>Desktop Chrome/Edge:</strong> Look for the install icon in the address bar</li>
       </ul>
     </div>
 
     <div class="info-panel">
-      <h3>🔓 Why direct downloads?</h3>
+      <h3>Why direct downloads?</h3>
       <p>App stores charge fees, impose restrictions, and can remove apps. We distribute from GitHub so:</p>
       <ul>
         <li>No 30% tax on donations</li>
@@ -428,7 +439,7 @@
     </div>
 
     <div class="info-panel">
-      <h3>🛠️ Build from source</h3>
+      <h3>Build from source</h3>
       <p>Everything is public domain (CC0). Clone, build, verify:</p>
       <pre><code>git clone https://github.com/Shaostoul/Humanity.git
 cd Humanity/desktop
@@ -438,58 +449,68 @@ npx tauri build</code></pre>
 
     <div class="oss-banner">
       <p>Humanity is <strong>public domain</strong> (CC0 1.0). No permission needed. This belongs to everyone.</p>
-      <a href="https://github.com/Shaostoul/Humanity" target="_blank">📦 View on GitHub →</a>
+      <a href="https://github.com/Shaostoul/Humanity" target="_blank">View on GitHub →</a>
     </div>
   </div>
 
   <script>
+    // ── SVG icon templates (viewBox 0 0 48 48, stroke-width inherited from CSS) ──
+    var PLATFORM_SVGS = {
+      windows: '<svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="28" rx="2"/><line x1="24" y1="34" x2="24" y2="42"/><line x1="14" y1="42" x2="34" y2="42"/></svg>',
+      macos: '<svg viewBox="0 0 48 48"><rect x="10" y="4" width="28" height="36" rx="2"/><path d="M4,40 H44 A0,0 0 0 1 44,40 L40,44 H8 L4,40 Z"/></svg>',
+      linux: '<svg viewBox="0 0 48 48"><ellipse cx="24" cy="28" rx="12" ry="14"/><ellipse cx="24" cy="16" rx="8" ry="9"/><circle cx="21" cy="15" r="1.5" fill="currentColor" stroke="none"/><circle cx="27" cy="15" r="1.5" fill="currentColor" stroke="none"/><path d="M22,19 L24,21 L26,19" fill="none"/><path d="M12,22 Q6,30 8,40" fill="none"/><path d="M36,22 Q42,30 40,40" fill="none"/></svg>',
+      android: '<svg viewBox="0 0 48 48"><rect x="10" y="16" width="28" height="22" rx="3"/><line x1="18" y1="16" x2="16" y2="8"/><line x1="30" y1="16" x2="32" y2="8"/><circle cx="18" cy="26" r="2.5"/><circle cx="30" cy="26" r="2.5"/><line x1="18" y1="34" x2="30" y2="34"/></svg>',
+      ios: '<svg viewBox="0 0 48 48"><rect x="14" y="4" width="20" height="40" rx="3"/><line x1="20" y1="38" x2="28" y2="38"/></svg>',
+      web: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20"/><ellipse cx="24" cy="24" rx="8" ry="20"/><line x1="4" y1="24" x2="44" y2="24"/><path d="M8,14 Q24,18 40,14" fill="none"/><path d="M8,34 Q24,30 40,34" fill="none"/></svg>',
+    };
+
     // ── Platform Detection ──
     function detectPlatform() {
       var ua = navigator.userAgent || '';
       var uaData = navigator.userAgentData;
-      var os = 'unknown', arch = '', icon = '🌐', cardId = 'card-web';
+      var os = 'unknown', arch = '', svgKey = 'web', cardId = 'card-web';
 
       if (uaData) {
         var p = (uaData.platform || '').toLowerCase();
-        if (p === 'windows') { os = 'windows'; icon = '🪟'; cardId = 'card-windows'; }
-        else if (p === 'macos') { os = 'macos'; icon = '🍎'; cardId = 'card-macos-arm'; }
-        else if (p === 'linux') { os = 'linux'; icon = '🐧'; cardId = 'card-linux'; }
-        else if (p === 'android') { os = 'android'; icon = '🤖'; cardId = 'card-android'; }
-        else if (p === 'ios') { os = 'ios'; icon = '📱'; cardId = 'card-ios'; }
+        if (p === 'windows') { os = 'windows'; svgKey = 'windows'; cardId = 'card-windows'; }
+        else if (p === 'macos') { os = 'macos'; svgKey = 'macos'; cardId = 'card-macos-arm'; }
+        else if (p === 'linux') { os = 'linux'; svgKey = 'linux'; cardId = 'card-linux'; }
+        else if (p === 'android') { os = 'android'; svgKey = 'android'; cardId = 'card-android'; }
+        else if (p === 'ios') { os = 'ios'; svgKey = 'ios'; cardId = 'card-ios'; }
 
         if (uaData.getHighEntropyValues) {
           uaData.getHighEntropyValues(['architecture', 'bitness'])
             .then(function(h) {
               arch = h.architecture || '';
               if (os === 'macos') cardId = (arch === 'arm' || arch === 'arm64') ? 'card-macos-arm' : 'card-macos-intel';
-              updateUI(os, arch, icon, cardId);
+              updateUI(os, arch, svgKey, cardId);
             })
-            .catch(function() { updateUI(os, arch, icon, cardId); });
+            .catch(function() { updateUI(os, arch, svgKey, cardId); });
           return;
         }
       }
 
-      if (/Windows/.test(ua)) { os = 'windows'; icon = '🪟'; cardId = 'card-windows'; }
+      if (/Windows/.test(ua)) { os = 'windows'; svgKey = 'windows'; cardId = 'card-windows'; }
       else if (/Macintosh/.test(ua)) {
-        os = 'macos'; icon = '🍎';
+        os = 'macos'; svgKey = 'macos';
         cardId = /ARM64|arm64/.test(ua) ? 'card-macos-arm' : (/Intel/.test(ua) ? 'card-macos-intel' : 'card-macos-arm');
       }
-      else if (/Android/.test(ua)) { os = 'android'; icon = '🤖'; cardId = 'card-android'; }
-      else if (/iPhone|iPad|iPod/.test(ua)) { os = 'ios'; icon = '📱'; cardId = 'card-ios'; }
-      else if (/Linux/.test(ua)) { os = 'linux'; icon = '🐧'; cardId = 'card-linux'; }
+      else if (/Android/.test(ua)) { os = 'android'; svgKey = 'android'; cardId = 'card-android'; }
+      else if (/iPhone|iPad|iPod/.test(ua)) { os = 'ios'; svgKey = 'ios'; cardId = 'card-ios'; }
+      else if (/Linux/.test(ua)) { os = 'linux'; svgKey = 'linux'; cardId = 'card-linux'; }
 
       if (/arm64|aarch64/i.test(ua)) arch = 'arm64';
       else if (/x86_64|x64|Win64|WOW64|amd64/i.test(ua) || /Intel Mac/.test(ua)) arch = 'x64';
 
-      updateUI(os, arch, icon, cardId);
+      updateUI(os, arch, svgKey, cardId);
     }
 
-    function updateUI(os, arch, icon, cardId) {
+    function updateUI(os, arch, svgKey, cardId) {
       var names = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android', ios: 'iOS', unknown: 'your device' };
       var archLabel = arch === 'arm64' || arch === 'arm' ? 'ARM64' : arch === 'x64' ? 'x64' : '';
       var detail = (names[os] || 'Unknown') + (archLabel ? ' · ' + archLabel : '');
 
-      document.getElementById('detected-icon').textContent = icon;
+      document.getElementById('detected-icon').innerHTML = PLATFORM_SVGS[svgKey] || PLATFORM_SVGS.web;
       document.getElementById('detected-name').textContent = 'Detected: ' + (names[os] || 'Unknown');
       document.getElementById('detected-detail').textContent = detail;
 
@@ -501,15 +522,15 @@ npx tauri build</code></pre>
       var sub = document.getElementById('detected-sub');
 
       if (['windows', 'macos', 'linux'].includes(os)) {
-        btn.textContent = '⬇ Download for ' + names[os];
+        btn.textContent = 'Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
         sub.textContent = 'Downloads from GitHub Releases · v0.5.0';
       } else if (['android', 'ios'].includes(os)) {
-        btn.textContent = '📱 Install as PWA';
+        btn.textContent = 'Install as PWA';
         btn.href = '/chat';
         sub.textContent = 'Open in browser, then install to homescreen';
       } else {
-        btn.textContent = '🌐 Open Web App';
+        btn.textContent = 'Open Web App';
         btn.href = '/chat';
         sub.textContent = 'Works in any modern browser — no download needed';
       }
@@ -523,7 +544,7 @@ npx tauri build</code></pre>
       .then(function(d) {
         if (d && d.tag_name) {
           var v = d.tag_name.replace(/^v/, '');
-          document.getElementById('version-badge').textContent = '🏷️ Desktop: v' + v + ' · Web: always latest';
+          document.getElementById('version-badge').textContent = 'Desktop: v' + v + ' · Web: always latest';
           var sub = document.getElementById('detected-sub');
           if (sub && sub.textContent.includes('v0.5.0')) {
             sub.textContent = sub.textContent.replace('v0.5.0', 'v' + v);

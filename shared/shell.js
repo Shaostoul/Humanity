@@ -419,7 +419,7 @@
 
       /* Core */
       navTab('/chat',      'network.png',   'Network',   'chat') +
-      navTab('/dashboard', '🎮',            'Games',     'dashboard') +
+      navTab('/dashboard', 'games.png',      'Games',     'dashboard') +
       '<div class="nav-divider"></div>' +
 
       /* Private — personal pages */
@@ -428,7 +428,7 @@
       navTab('/inventory', 'inventory.png', 'Gear',      'gear') +
       navTab('/tasks',     'tasklist.png',  'Tasks',     'tasks') +
       navTab('/calendar',  'calendar.png',  'Calendar',  'calendar') +
-      navTab('/notes',     '📝',            'Journal',   'notes') +
+      navTab('/notes',     'journal.png',   'Journal',   'notes') +
       '<div class="nav-divider"></div>' +
 
       /* Public — community pages */
@@ -440,9 +440,9 @@
       '<div class="spacer"></div>' +
 
       /* Utility — right-aligned */
-      navTab('/settings', '⚙️',            'Settings',  'settings') +
+      navTab('/settings', 'settings.png',  'Settings',  'settings') +
       navTab('/download', 'download.png',  'Download',  'download') +
-      navTab('/ops',      '🛠️',            'Ops',       'ops') +
+      navTab('/ops',      'ops.png',       'Ops',       'ops') +
       navTab('/dev',      'dev.png',       'Dev',       'dev') +
 
       /* Mobile hamburger — only visible on small screens */
@@ -486,9 +486,9 @@
       mobileLink('/web',       'Web') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Config</h4>' +
-      mobileLink('/settings', '⚙️ Settings') +
-      mobileLink('/download', '⬇ Download') +
-      mobileLink('/ops',      '🛠️ Ops') +
+      mobileLink('/settings', 'Settings') +
+      mobileLink('/download', 'Download') +
+      mobileLink('/ops',      'Ops') +
       mobileLink('/dev',      '</> Dev') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
