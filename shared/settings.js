@@ -16,7 +16,8 @@
     iconWeight: 3,
     iconSize: 20,
     borderRadius: 8,
-    uiSpacing: 100,
+    contentWidth: 0,
+    lineHeight: 1.6,
     // Color overrides (empty string = use theme default)
     successColor: '',
     dangerColor: '',
@@ -135,9 +136,17 @@
     doc.style.setProperty('--radius-sm', Math.max(1, Math.round(br * 0.5)) + 'px');
     doc.style.setProperty('--radius-lg', Math.round(br * 1.5) + 'px');
 
-    // UI spacing multiplier
-    const sp = (settings.uiSpacing || 100) / 100;
-    doc.style.setProperty('--ui-spacing', sp.toFixed(2));
+    // Content width
+    const cw = settings.contentWidth || 0;
+    doc.style.setProperty('--content-width', cw === 0 ? 'none' : cw + 'px');
+
+    // Line height
+    const lh = settings.lineHeight || 1.6;
+    doc.style.setProperty('line-height', lh);
+
+    // Compact mode
+    if (settings.compact) doc.setAttribute('data-compact', '');
+    else doc.removeAttribute('data-compact');
 
     // Semantic color overrides
     if (settings.successColor) doc.style.setProperty('--success', settings.successColor);

@@ -24,7 +24,7 @@
   --font-size-base: 16px;
   --icon-size: 20px;
   --icon-weight: 3;
-  --ui-spacing: 1;
+  --content-width: none;
 }
 
 /* ── Light theme — toggled by adding data-theme="light" to <html> ── */
@@ -64,6 +64,11 @@ h2 { font-size: 1.4rem; }
 h3 { font-size: 1.1rem; }
 h4 { font-size: 0.9rem; }
 
+/* ── Content Width — constrains main page content ── */
+.page-content, #settings-main, #messages, main {
+  max-width: var(--content-width, none);
+}
+
 /* Page purpose hints — shown at the top of every page */
 .page-hint {
   margin: 0.5rem 1rem;
@@ -76,11 +81,16 @@ h4 { font-size: 0.9rem; }
   line-height: 1.5;
 }
 
-/* ── UI Spacing — multiplied by --ui-spacing (default 1) ── */
-.page-hint {
-  padding: calc(0.5rem * var(--ui-spacing)) calc(0.75rem * var(--ui-spacing));
-  margin: calc(0.5rem * var(--ui-spacing)) calc(1rem * var(--ui-spacing));
-}
+/* ── Compact Mode — reduces padding/gaps when [data-compact] is on html ── */
+[data-compact] .page-hint { padding: 0.25rem 0.5rem; margin: 0.25rem 0.5rem; }
+[data-compact] .message { padding: 0.15rem 0.3rem; }
+[data-compact] .channel-item { padding: 0.15rem 0.4rem; }
+[data-compact] .setting-row { padding: 0.4rem 0.6rem; }
+[data-compact] .settings-group { margin-bottom: 0.5rem; }
+[data-compact] #sidebar { padding: 0.4rem; }
+[data-compact] #messages { padding: 0.4rem 0.6rem; }
+[data-compact] h1 { font-size: 1.3rem; }
+[data-compact] h2 { font-size: 1.1rem; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }

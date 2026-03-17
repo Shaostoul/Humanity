@@ -718,7 +718,7 @@
             <strong>Compact Mode</strong>
             <span>Reduce padding and spacing for more content</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-compact" onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-compact" onchange="applyCustomizerLive()"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -738,14 +738,26 @@
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>UI Spacing</strong>
-            <span>Padding and margins around elements (50% = default)</span>
+            <strong>Content Width</strong>
+            <span>Max width of page content (0 = full width)</span>
           </div>
           <div style="display:flex;align-items:center;gap:10px">
-            <input type="range" id="pref-ui-spacing" min="25" max="200" step="5" value="100"
+            <input type="range" id="pref-content-width" min="0" max="1600" step="50" value="0"
               style="width:160px;accent-color:var(--accent)"
               oninput="applyCustomizerLive()">
-            <span id="ui-spacing-val" style="font-weight:700;min-width:40px;color:var(--accent)">100%</span>
+            <span id="content-width-val" style="font-weight:700;min-width:50px;color:var(--accent)">Full</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Line Height</strong>
+            <span>Spacing between lines of text (1.0–2.5)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-line-height" min="1.0" max="2.5" step="0.1" value="1.6"
+              style="width:160px;accent-color:var(--accent)"
+              oninput="applyCustomizerLive()">
+            <span id="line-height-val" style="font-weight:700;min-width:30px;color:var(--accent)">1.6</span>
           </div>
         </div>
       </div>
@@ -775,14 +787,14 @@
             <strong>Show Simple Explanations</strong>
             <span>Plain-language descriptions on every page</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-simple" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-show-simple" checked onchange="saveEli5Pref()"><span class="toggle-track"></span></label>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Show Expert Details</strong>
             <span>Technical info for developers and power users</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-expert" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-show-expert" checked onchange="saveEli5Pref()"><span class="toggle-track"></span></label>
         </div>
       </div>
 
@@ -2102,12 +2114,20 @@ function applyPrefs() {
       brSlider.value = br;
       document.getElementById('border-radius-val').textContent = br + 'px';
     }
-    var spSlider = document.getElementById('pref-ui-spacing');
-    if (spSlider) {
-      var sp = cs.uiSpacing || 100;
-      spSlider.value = sp;
-      document.getElementById('ui-spacing-val').textContent = sp + '%';
+    var cwSlider = document.getElementById('pref-content-width');
+    if (cwSlider) {
+      var cw = cs.contentWidth || 0;
+      cwSlider.value = cw;
+      document.getElementById('content-width-val').textContent = cw === 0 ? 'Full' : cw + 'px';
     }
+    var lhSlider = document.getElementById('pref-line-height');
+    if (lhSlider) {
+      var lh = cs.lineHeight || 1.6;
+      lhSlider.value = lh;
+      document.getElementById('line-height-val').textContent = parseFloat(lh).toFixed(1);
+    }
+    var compactCb = document.getElementById('pref-compact');
+    if (compactCb && cs.compact !== undefined) compactCb.checked = cs.compact;
     if (cs.successColor) document.getElementById('pref-success-color').value = cs.successColor;
     if (cs.dangerColor) document.getElementById('pref-danger-color').value = cs.dangerColor;
     if (cs.warningColor) document.getElementById('pref-warning-color').value = cs.warningColor;
@@ -2148,10 +2168,18 @@ function applyCustomizerLive() {
   doc.style.setProperty('--radius', br + 'px');
   doc.style.setProperty('--radius-sm', Math.max(1, Math.round(br * 0.5)) + 'px');
   doc.style.setProperty('--radius-lg', Math.round(br * 1.5) + 'px');
-  // UI spacing
-  var sp = parseInt(document.getElementById('pref-ui-spacing').value);
-  document.getElementById('ui-spacing-val').textContent = sp + '%';
-  doc.style.setProperty('--ui-spacing', (sp / 100).toFixed(2));
+  // Content width
+  var cw = parseInt(document.getElementById('pref-content-width').value);
+  document.getElementById('content-width-val').textContent = cw === 0 ? 'Full' : cw + 'px';
+  doc.style.setProperty('--content-width', cw === 0 ? 'none' : cw + 'px');
+  // Line height
+  var lh = parseFloat(document.getElementById('pref-line-height').value);
+  document.getElementById('line-height-val').textContent = lh.toFixed(1);
+  doc.style.setProperty('line-height', lh);
+  // Compact mode
+  var compact = document.getElementById('pref-compact').checked;
+  if (compact) doc.setAttribute('data-compact', '');
+  else doc.removeAttribute('data-compact');
   // Semantic colors
   var sc = document.getElementById('pref-success-color').value;
   var dc = document.getElementById('pref-danger-color').value;
@@ -2171,7 +2199,9 @@ function saveCustomizer() {
     s.iconSize = parseInt(document.getElementById('pref-icon-size').value);
     s.fontSizePx = parseInt(document.getElementById('pref-font-size-slider').value);
     s.borderRadius = parseInt(document.getElementById('pref-border-radius').value);
-    s.uiSpacing = parseInt(document.getElementById('pref-ui-spacing').value);
+    s.contentWidth = parseInt(document.getElementById('pref-content-width').value);
+    s.lineHeight = parseFloat(document.getElementById('pref-line-height').value);
+    s.compact = document.getElementById('pref-compact').checked;
     s.successColor = document.getElementById('pref-success-color').value;
     s.dangerColor = document.getElementById('pref-danger-color').value;
     s.warningColor = document.getElementById('pref-warning-color').value;
@@ -2189,7 +2219,8 @@ function resetThemeDefaults() {
   document.getElementById('pref-icon-size').value = 20;
   document.getElementById('pref-font-size-slider').value = 16;
   document.getElementById('pref-border-radius').value = 8;
-  document.getElementById('pref-ui-spacing').value = 100;
+  document.getElementById('pref-content-width').value = 0;
+  document.getElementById('pref-line-height').value = 1.6;
   document.getElementById('pref-success-color').value = '#44aa99';
   document.getElementById('pref-danger-color').value = '#cc4444';
   document.getElementById('pref-warning-color').value = '#ccaa33';
