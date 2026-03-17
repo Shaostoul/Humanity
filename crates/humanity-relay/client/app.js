@@ -1798,7 +1798,7 @@ function formatTodoMessage(text) {
     const sectionContent = text.substring(m.end, nextStart).trim();
     const cssClass = 'todo-' + m.type.toLowerCase();
     const label = m.type.charAt(0) + m.type.slice(1).toLowerCase();
-    const icon = m.type === 'ACTIVE' ? '🔵' : m.type === 'COMPLETED' ? '✅' : '🔴';
+    const icon = m.type === 'ACTIVE' ? '🔵' : m.type === 'COMPLETED' ? hosIcon('check', 14) : hosIcon('dot-red', 10);
     parts.push(
       '<details class="todo-section ' + cssClass + '" open>' +
         '<summary>' + icon + ' ' + esc(label) + '</summary>' +

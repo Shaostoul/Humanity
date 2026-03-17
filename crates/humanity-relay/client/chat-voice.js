@@ -2534,7 +2534,7 @@ _origHandleMessage4(msg);
       overlay.id = 'scene-manager-overlay';
       overlay.className = 'profile-modal-overlay';
       overlay.onclick = function(e) { if (e.target === overlay) overlay.classList.remove('open'); };
-      overlay.innerHTML = '<div class="profile-modal" onclick="event.stopPropagation()" style="max-width:380px;"><button class="close-btn" onclick="document.getElementById(\'scene-manager-overlay\').classList.remove(\'open\')">✕</button><h2>🎬 Studio Scenes</h2><div id="scene-manager-body"></div></div>';
+      overlay.innerHTML = '<div class="profile-modal" onclick="event.stopPropagation()" style="max-width:380px;"><button class="close-btn" onclick="document.getElementById(\'scene-manager-overlay\').classList.remove(\'open\')">✕</button><h2>' + hosIcon('film', 16) + ' Studio Scenes</h2><div id="scene-manager-body"></div></div>';
       document.body.appendChild(overlay);
     }
     document.getElementById('scene-manager-body').innerHTML = html;

@@ -16,9 +16,18 @@
 
   // ── Load shared icon system ──
   if (!window.hosIcon) {
-    var iconsScript = document.createElement('script');
-    iconsScript.src = '/shared/icons.js';
-    document.head.appendChild(iconsScript);
+    // Synchronous load so hosIcon() is available for nav tab rendering
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/shared/icons.js', false);
+      xhr.send();
+      if (xhr.status === 200) { var s = document.createElement('script'); s.textContent = xhr.responseText; document.head.appendChild(s); }
+    } catch(e) {
+      // Fallback: async load (icons may render on next repaint)
+      var iconsScript = document.createElement('script');
+      iconsScript.src = '/shared/icons.js';
+      document.head.appendChild(iconsScript);
+    }
   }
 
   // If prior shell artifacts somehow exist, remove them before injecting once.
@@ -139,23 +148,14 @@
       justify-content: center;
       flex-shrink: 0;
     }
-    .hub-nav .tab .tab-icon img {
+    .hub-nav .tab .tab-icon img,
+    .hub-nav .tab .tab-icon svg {
       width: 15px;
       height: 15px;
       object-fit: contain;
       display: block;
       opacity: 0.65;
       transition: opacity 0.1s;
-    }
-    /* Emoji icons (tabs without a PNG file) */
-    .hub-nav .tab .tab-emoji-icon {
-      font-size: 0.88rem;
-      line-height: 1;
-      opacity: 0.65;
-      transition: opacity 0.1s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
 
     /* Label hidden on inactive tabs — only visible when active */
@@ -173,8 +173,8 @@
       box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
       color: #e0e0e0;
     }
-    .hub-nav .tab:not(.active):hover .tab-icon img { opacity: 1; }
-    .hub-nav .tab:not(.active):hover .tab-emoji-icon { opacity: 1; }
+    .hub-nav .tab:not(.active):hover .tab-icon img,
+    .hub-nav .tab:not(.active):hover .tab-icon svg { opacity: 1; }
     .hub-nav .tab:not(.active):hover::after {
       content: attr(data-tip);
       position: absolute;
@@ -204,8 +204,8 @@
       animation: channeling 3s linear infinite;
     }
     .hub-nav .tab.active .tab-label { display: inline; }
-    .hub-nav .tab.active .tab-icon img { opacity: 1; }
-    .hub-nav .tab.active .tab-emoji-icon { opacity: 1; }
+    .hub-nav .tab.active .tab-icon img,
+    .hub-nav .tab.active .tab-icon svg { opacity: 1; }
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
@@ -213,7 +213,8 @@
     .hub-nav .tab.tab-update-ready {
       animation: channeling 3s linear infinite;
     }
-    .hub-nav .tab.tab-update-ready .tab-icon img {
+    .hub-nav .tab.tab-update-ready .tab-icon img,
+    .hub-nav .tab.tab-update-ready .tab-icon svg {
       opacity: 1;
     }
 
@@ -403,14 +404,11 @@
   document.head.appendChild(style);
 
   // Helper: build a nav tab anchor.
-  // icon can be a PNG filename (e.g. 'chat.png') or an emoji/short string (e.g. '📊').
-  // PNG filenames are rendered as <img>; anything without a '.' is rendered as a text span.
+  // icon is a hosIcon name (e.g. 'network') rendered as inline SVG.
   function navTab(href, icon, label, activeKey) {
     var isActive = active === activeKey;
     var cls = 'tab' + (isActive ? ' active' : '');
-    var iconHtml = icon.indexOf('.') !== -1
-      ? '<span class="tab-icon"><img src="/assets/ui/icons/' + icon + '" alt="" onerror="this.onerror=null;this.src=\'/assets/ui/icons/warning.png\';"></span>'
-      : '<span class="tab-icon tab-emoji-icon">' + icon + '</span>';
+    var iconHtml = '<span class="tab-icon">' + (window.hosIcon ? hosIcon(icon, 15) : '') + '</span>';
     return '<a href="' + href + '" class="' + cls + '" data-tip="' + label + '">' +
       iconHtml +
       '<span class="tab-label">' + label + '</span>' +
@@ -425,35 +423,35 @@
       '<a href="/" class="brand' + (active === 'landing' ? ' active' : '') + '" data-tip="Home">H</a>' +
 
       /* Core */
-      navTab('/chat',      'network.png',   'Network',   'chat') +
-      navTab('/dashboard', 'games.png',      'Games',     'dashboard') +
+      navTab('/chat',      'network',   'Network',   'chat') +
+      navTab('/dashboard', 'games',     'Games',     'dashboard') +
       '<div class="nav-divider"></div>' +
 
       /* Private — personal pages */
-      navTab('/profile',   'profile.png',   'Profile',   'profile') +
-      navTab('/home',      'home.png',      'Home',      'home') +
-      navTab('/inventory', 'inventory.png', 'Gear',      'gear') +
-      navTab('/tasks',     'tasklist.png',  'Tasks',     'tasks') +
-      navTab('/calendar',  'calendar.png',  'Calendar',  'calendar') +
-      navTab('/notes',     'journal.png',   'Journal',   'notes') +
+      navTab('/profile',   'profile',   'Profile',   'profile') +
+      navTab('/home',      'home',      'Home',      'home') +
+      navTab('/inventory', 'inventory', 'Gear',      'gear') +
+      navTab('/tasks',     'tasklist',  'Tasks',     'tasks') +
+      navTab('/calendar',  'calendar',  'Calendar',  'calendar') +
+      navTab('/notes',     'journal',   'Journal',   'notes') +
       '<div class="nav-divider"></div>' +
 
       /* Public — community pages */
-      navTab('/maps',      'map.png',       'Maps',      'map') +
-      navTab('/market',    'market.png',    'Market',    'market') +
-      navTab('/web',       'website.png',   'Web',       'web') +
+      navTab('/maps',      'map',       'Maps',      'map') +
+      navTab('/market',    'market',    'Market',    'market') +
+      navTab('/web',       'website',   'Web',       'web') +
 
       /* Spacer pushes utility tabs to the right */
       '<div class="spacer"></div>' +
 
       /* Utility — right-aligned */
-      navTab('/settings', 'settings.png',  'Settings',  'settings') +
-      navTab('/download', 'download.png',  'Download',  'download') +
-      navTab('/ops',      'ops.png',       'Ops',       'ops') +
-      navTab('/dev',      'dev.png',       'Dev',       'dev') +
+      navTab('/settings', 'settings',  'Settings',  'settings') +
+      navTab('/download', 'download',  'Download',  'download') +
+      navTab('/ops',      'ops',       'Ops',       'ops') +
+      navTab('/dev',      'dev',       'Dev',       'dev') +
 
       /* Mobile hamburger — only visible on small screens */
-      '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
+      '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';

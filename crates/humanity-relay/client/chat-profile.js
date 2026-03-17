@@ -875,7 +875,7 @@ function openKeyProtectionModal() {
       <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">${hosIcon('lock', 14)} Key Protection</h2>
       <div style="font-size:.78rem;color:#888;line-height:1.6;margin-bottom:1.1rem">
         ${wrapped
-          ? `<span style="color:#4ec87a;font-weight:600">✅ Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
+          ? `<span style="color:#4ec87a;font-weight:600">${hosIcon('check', 14)} Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
           : `<span style="color:#f0a500;font-weight:600">⚠️ Not protected</span> — your private key is stored as readable plaintext in your browser's <code style="color:#ccc">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
         }
       </div>
@@ -918,7 +918,7 @@ async function doEnableKeyProtection() {
     const protBtn = document.getElementById('key-protect-btn');
     if (protBtn) { protBtn.innerHTML = hosIcon('lock', 14) + ' Protected'; protBtn.style.color = '#4ec87a'; }
     // Show success briefly then close.
-    msg.innerHTML = '<span style="color:#4ec87a">✅ Key encrypted with your passphrase.</span>';
+    msg.innerHTML = '<span style="color:#4ec87a">' + hosIcon('check', 14) + ' Key encrypted with your passphrase.</span>';
     btn.textContent = 'Done ✓'; btn.disabled = false;
     // Change onclick to close instead of re-running protection.
     btn.onclick = () => document.getElementById('key-protection-overlay').remove();
