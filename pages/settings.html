@@ -760,6 +760,18 @@
             <span id="line-height-val" style="font-weight:700;min-width:30px;color:var(--accent)">1.6</span>
           </div>
         </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>UI Spacing</strong>
+            <span>Scale all padding, margins, and gaps (50%–200%)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-spacing-scale" min="50" max="200" step="5" value="100"
+              style="width:160px;accent-color:var(--accent)"
+              oninput="applyCustomizerLive()">
+            <span id="spacing-scale-val" style="font-weight:700;min-width:40px;color:var(--accent)">100%</span>
+          </div>
+        </div>
       </div>
 
       <div class="settings-group">
@@ -798,7 +810,7 @@
         </div>
       </div>
 
-      <div style="text-align:right;margin-top:var(--space-md)">
+      <div style="margin-top:var(--space-md)">
         <button class="btn-danger" onclick="resetThemeDefaults()" style="font-size:0.78rem;padding:var(--space-sm) var(--space-xl)">Reset All to Defaults</button>
       </div>
     </section>
@@ -2062,6 +2074,15 @@ function savePref() {
     else prefs[k] = el.value;
   });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  // Sync accent + theme to shared settings store so every page picks them up
+  try {
+    var shared = JSON.parse(localStorage.getItem('humanity_settings') || '{}');
+    var accentEl = document.getElementById('pref-accent');
+    var themeEl = document.getElementById('pref-theme');
+    if (accentEl) shared.accent = accentEl.value;
+    if (themeEl) shared.theme = themeEl.value;
+    localStorage.setItem('humanity_settings', JSON.stringify(shared));
+  } catch(e) {}
   // Reflect debug-panel toggle: remove instantly; enable after brief delay (shell.js needs reload to inject)
   const dbgExisting = document.getElementById('hos-debug-overlay');
   if (!prefs['debug-panel'] && dbgExisting) dbgExisting.remove();
@@ -2087,47 +2108,58 @@ function applyPrefs() {
   var ee = document.getElementById('pref-show-expert');
   if (es) es.checked = localStorage.getItem('hos_show_simple') !== '0';
   if (ee) ee.checked = localStorage.getItem('hos_show_expert') !== '0';
-  // Load customizer values from shared settings store
+  // Load customizer values from shared settings store (single source of truth)
   try {
     var cs = JSON.parse(localStorage.getItem('humanity_settings') || '{}');
+    // Sync accent/theme from shared store → settings page inputs
+    var accentInput = document.getElementById('pref-accent');
+    if (accentInput && cs.accent) accentInput.value = cs.accent;
+    var themeInput = document.getElementById('pref-theme');
+    if (themeInput && cs.theme) themeInput.value = cs.theme;
     var iwSlider = document.getElementById('pref-icon-weight');
     if (iwSlider) {
-      var iw = cs.iconWeight || (window.hosGetIconWeight ? hosGetIconWeight() : 3);
+      var iw = cs.iconWeight != null ? cs.iconWeight : (window.hosGetIconWeight ? hosGetIconWeight() : 3);
       iwSlider.value = iw;
       document.getElementById('icon-weight-val').textContent = iw;
     }
     var isSlider = document.getElementById('pref-icon-size');
     if (isSlider) {
-      var is = cs.iconSize || 20;
+      var is = cs.iconSize != null ? cs.iconSize : 20;
       isSlider.value = is;
       document.getElementById('icon-size-val').textContent = is + 'px';
     }
     var fsSlider = document.getElementById('pref-font-size-slider');
     if (fsSlider) {
-      var fs = cs.fontSizePx || 16;
+      var fs = cs.fontSizePx != null ? cs.fontSizePx : 16;
       fsSlider.value = fs;
       document.getElementById('font-size-val').textContent = fs + 'px';
     }
     var brSlider = document.getElementById('pref-border-radius');
     if (brSlider) {
-      var br = cs.borderRadius !== undefined ? cs.borderRadius : 8;
+      var br = cs.borderRadius != null ? cs.borderRadius : 8;
       brSlider.value = br;
       document.getElementById('border-radius-val').textContent = br + 'px';
     }
     var cwSlider = document.getElementById('pref-content-width');
     if (cwSlider) {
-      var cw = cs.contentWidth || 0;
+      var cw = cs.contentWidth != null ? cs.contentWidth : 0;
       cwSlider.value = cw;
       document.getElementById('content-width-val').textContent = cw === 0 ? 'Full' : cw + 'px';
     }
     var lhSlider = document.getElementById('pref-line-height');
     if (lhSlider) {
-      var lh = cs.lineHeight || 1.6;
+      var lh = cs.lineHeight != null ? cs.lineHeight : 1.6;
       lhSlider.value = lh;
       document.getElementById('line-height-val').textContent = parseFloat(lh).toFixed(1);
     }
     var compactCb = document.getElementById('pref-compact');
-    if (compactCb && cs.compact !== undefined) compactCb.checked = cs.compact;
+    if (compactCb) compactCb.checked = !!cs.compact;
+    var ssSlider = document.getElementById('pref-spacing-scale');
+    if (ssSlider) {
+      var ss = cs.spacingScale != null ? cs.spacingScale : 100;
+      ssSlider.value = ss;
+      document.getElementById('spacing-scale-val').textContent = ss + '%';
+    }
     if (cs.successColor) document.getElementById('pref-success-color').value = cs.successColor;
     if (cs.dangerColor) document.getElementById('pref-danger-color').value = cs.dangerColor;
     if (cs.warningColor) document.getElementById('pref-warning-color').value = cs.warningColor;
@@ -2152,6 +2184,7 @@ function applyCustomizerLive() {
   // Icon weight
   var iw = parseFloat(document.getElementById('pref-icon-weight').value);
   document.getElementById('icon-weight-val').textContent = iw;
+  doc.style.setProperty('--icon-weight', iw);
   if (window.hosSetIconWeight) window.hosSetIconWeight(iw);
   // Icon size
   var is = parseInt(document.getElementById('pref-icon-size').value);
@@ -2175,7 +2208,19 @@ function applyCustomizerLive() {
   // Line height
   var lh = parseFloat(document.getElementById('pref-line-height').value);
   document.getElementById('line-height-val').textContent = lh.toFixed(1);
+  doc.style.setProperty('--line-height', lh);
   doc.style.setProperty('line-height', lh);
+  // UI Spacing scale
+  var ss = parseInt(document.getElementById('pref-spacing-scale').value);
+  document.getElementById('spacing-scale-val').textContent = ss + '%';
+  var scale = ss / 100;
+  doc.style.setProperty('--space-xs', (0.15 * scale).toFixed(3) + 'rem');
+  doc.style.setProperty('--space-sm', (0.3 * scale).toFixed(3) + 'rem');
+  doc.style.setProperty('--space-md', (0.5 * scale).toFixed(3) + 'rem');
+  doc.style.setProperty('--space-lg', (0.75 * scale).toFixed(3) + 'rem');
+  doc.style.setProperty('--space-xl', (1.0 * scale).toFixed(3) + 'rem');
+  doc.style.setProperty('--space-2xl', (1.5 * scale).toFixed(3) + 'rem');
+  doc.style.setProperty('--space-3xl', (2.0 * scale).toFixed(3) + 'rem');
   // Compact mode
   var compact = document.getElementById('pref-compact').checked;
   if (compact) doc.setAttribute('data-compact', '');
@@ -2202,6 +2247,7 @@ function saveCustomizer() {
     s.contentWidth = parseInt(document.getElementById('pref-content-width').value);
     s.lineHeight = parseFloat(document.getElementById('pref-line-height').value);
     s.compact = document.getElementById('pref-compact').checked;
+    s.spacingScale = parseInt(document.getElementById('pref-spacing-scale').value);
     s.successColor = document.getElementById('pref-success-color').value;
     s.dangerColor = document.getElementById('pref-danger-color').value;
     s.warningColor = document.getElementById('pref-warning-color').value;
@@ -2221,6 +2267,7 @@ function resetThemeDefaults() {
   document.getElementById('pref-border-radius').value = 8;
   document.getElementById('pref-content-width').value = 0;
   document.getElementById('pref-line-height').value = 1.6;
+  document.getElementById('pref-spacing-scale').value = 100;
   document.getElementById('pref-success-color').value = '#44aa99';
   document.getElementById('pref-danger-color').value = '#cc4444';
   document.getElementById('pref-warning-color').value = '#ccaa33';

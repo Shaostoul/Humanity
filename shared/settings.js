@@ -18,6 +18,7 @@
     borderRadius: 8,
     contentWidth: 0,
     lineHeight: 1.6,
+    spacingScale: 100,
     // Color overrides (empty string = use theme default)
     successColor: '',
     dangerColor: '',
@@ -122,12 +123,12 @@
     Object.entries(theme).forEach(([k, v]) => doc.style.setProperty(k, v));
 
     // Icon weight + size
-    const iw = settings.iconWeight || DEFAULTS.iconWeight;
+    const iw = settings.iconWeight ?? DEFAULTS.iconWeight;
     doc.style.setProperty('--icon-weight', iw);
     localStorage.setItem('hos_icon_weight', iw);
     if (window.hosSetIconWeight) window.hosSetIconWeight(iw);
 
-    const is = settings.iconSize || DEFAULTS.iconSize;
+    const is = settings.iconSize ?? DEFAULTS.iconSize;
     doc.style.setProperty('--icon-size', is + 'px');
 
     // Border radius — scale sm/lg proportionally
@@ -137,12 +138,26 @@
     doc.style.setProperty('--radius-lg', Math.round(br * 1.5) + 'px');
 
     // Content width
-    const cw = settings.contentWidth || 0;
+    const cw = settings.contentWidth ?? 0;
     doc.style.setProperty('--content-width', cw === 0 ? 'none' : cw + 'px');
 
     // Line height
-    const lh = settings.lineHeight || 1.6;
+    const lh = settings.lineHeight ?? DEFAULTS.lineHeight;
+    doc.style.setProperty('--line-height', lh);
     doc.style.setProperty('line-height', lh);
+
+    // UI Spacing scale — multiply base spacing values
+    const ss = settings.spacingScale ?? 100;
+    if (ss !== 100) {
+      const scale = ss / 100;
+      doc.style.setProperty('--space-xs', (0.15 * scale).toFixed(3) + 'rem');
+      doc.style.setProperty('--space-sm', (0.3 * scale).toFixed(3) + 'rem');
+      doc.style.setProperty('--space-md', (0.5 * scale).toFixed(3) + 'rem');
+      doc.style.setProperty('--space-lg', (0.75 * scale).toFixed(3) + 'rem');
+      doc.style.setProperty('--space-xl', (1.0 * scale).toFixed(3) + 'rem');
+      doc.style.setProperty('--space-2xl', (1.5 * scale).toFixed(3) + 'rem');
+      doc.style.setProperty('--space-3xl', (2.0 * scale).toFixed(3) + 'rem');
+    }
 
     // Compact mode
     if (settings.compact) doc.setAttribute('data-compact', '');
