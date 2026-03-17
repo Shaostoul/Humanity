@@ -128,10 +128,11 @@
     size = size || 20;
     var pathData = PATHS[name];
     if (!pathData) return '<span style="display:inline-block;width:' + size + 'px;height:' + size + 'px"></span>';
-    var style = 'stroke:' + (colorOverride || 'currentColor') +
-      ';fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-width:var(--icon-weight,' + weight + ')';
+    var col = colorOverride || 'currentColor';
     return '<svg viewBox="0 0 48 48" width="' + size + '" height="' + size +
-      '" style="' + style + ';display:inline-block;vertical-align:middle">' + pathData + '</svg>';
+      '" style="display:inline-block;vertical-align:middle">' +
+      '<g stroke="' + col + '" fill="none" stroke-linecap="round" stroke-linejoin="round" ' +
+      'style="stroke-width:var(--icon-weight,' + weight + ')">' + pathData + '</g></svg>';
   };
 
   // ── Expose weight setter for settings page ──
