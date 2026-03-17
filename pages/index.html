@@ -297,9 +297,9 @@
         No accounts. No tracking. Public domain.
       </p>
       <div class="hero-ctas">
-        <a href="/chat" class="btn btn-primary">💬 Open the Chat</a>
-        <a href="/download" class="btn btn-secondary">⬇ Download the App</a>
-        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener">📦 View on GitHub</a>
+        <a href="/chat" class="btn btn-primary"><span class="pg-ico" data-icon="chat" data-size="20"></span> Open the Chat</a>
+        <a href="/download" class="btn btn-secondary"><span class="pg-ico" data-icon="download" data-size="20"></span> Download the App</a>
+        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="20"></span> View on GitHub</a>
       </div>
     </div>
   </header>
@@ -409,7 +409,7 @@
       <h2>What makes it different</h2>
       <div class="diff-grid">
         <div class="diff-item">
-          <div class="diff-icon">🔑</div>
+          <div class="diff-icon"><span class="pg-ico" data-icon="key" data-size="28"></span></div>
           <h4>You own your identity</h4>
           <p>Your identity is a cryptographic keypair stored in your browser. No server can take it away. Move to any server and take your keys with you.</p>
         </div>
@@ -434,7 +434,7 @@
           <p>Project boards, marketplace, asset library, skill tracking, maps, inventory. The full life-management OS, not just a chat app.</p>
         </div>
         <div class="diff-item">
-          <div class="diff-icon">🎮</div>
+          <div class="diff-icon"><span class="pg-ico" data-icon="games" data-size="28"></span></div>
           <h4>A game that teaches</h4>
           <p>Project Universe is a free game teaching practical skills — homesteading, agriculture, building, health. Your game progress reflects real capability.</p>
         </div>
@@ -499,5 +499,10 @@
       </div>
     </div>
   </section>
+  <script>
+  document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+    if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+  });
+  </script>
 </body>
 </html>

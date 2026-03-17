@@ -256,7 +256,7 @@
   .sd-tile .sd-bar { height:3px; background:rgba(255,255,255,0.08); border-radius:2px; margin-top:0.25rem; overflow:hidden; }
   .sd-tile .sd-bar-fill { height:100%; border-radius:2px; transition:width 0.3s; }
   .sd-tile.locked { opacity:0.5; }
-  .sd-tile.locked::after { content:'🔒'; position:absolute; top:0.25rem; right:0.25rem; font-size:0.6rem; }
+  .sd-tile.locked::after { content:''; position:absolute; top:0.25rem; right:0.25rem; width:12px; height:12px; background:currentColor; -webkit-mask:url("data:image/svg+xml,%3Csvg viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='22' width='28' height='22' rx='3' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M16,22 V14 A8,8 0 0 1 32,14 V22' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Ccircle cx='24' cy='33' r='3' fill='%23fff'/%3E%3C/svg%3E") center/contain no-repeat; mask:url("data:image/svg+xml,%3Csvg viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='22' width='28' height='22' rx='3' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M16,22 V14 A8,8 0 0 1 32,14 V22' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Ccircle cx='24' cy='33' r='3' fill='%23fff'/%3E%3C/svg%3E") center/contain no-repeat; }
   .sd-stats { margin-top:0.8rem; padding:0.6rem; background:rgba(255,255,255,0.03); border-radius:8px; font-size:0.78rem; color:var(--text-muted); }
   .sd-stats div { margin:0.15rem 0; }
   .sd-stats span { color:var(--text); font-weight:600; }
@@ -538,7 +538,7 @@
   <!-- Mode bar -->
   <div id="map-modes" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap;">
    <span style="font-size:0.8rem;color:var(--text-muted);">🧘 Astral Projection:</span>
-   <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;">🌍 Surface</button>
+   <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;"><span class="pg-ico" data-icon="globe" data-size="14"></span> Surface</button>
    <button onclick="mapSetView('system')" class="map-mode-btn" data-mode="system" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">☀️ Solar System</button>
    <button onclick="mapSetView('sector')" class="map-mode-btn" data-mode="sector" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">⭐ Stellar Neighborhood</button>
    <button onclick="mapSetView('galaxy')" class="map-mode-btn" data-mode="galaxy" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">🌌 Galaxy</button>
@@ -554,8 +554,8 @@
     <div id="map-overlay-controls" style="position:absolute;top:0.5rem;right:0.5rem;display:flex;flex-direction:column;gap:0.3rem;z-index:10;">
      <button onclick="mapZoomIn()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">+</button>
      <button onclick="mapZoomOut()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">−</button>
-     <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Go to home location">🏠</button>
-     <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="My location (GPS)">📍</button>
+     <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Go to home location"><span class="pg-ico" data-icon="home" data-size="18"></span></button>
+     <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="My location (GPS)"><span class="pg-ico" data-icon="mappin" data-size="18"></span></button>
      <button onclick="mapToggleWeather()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle weather overlay">🌤️</button>
      <button onclick="mapToggleGrid()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle icosphere grid">📐</button>
     </div>
@@ -805,7 +805,7 @@
  
  <!-- Quests Tab -->
  <div id="tab-quests" class="tab-content" style="padding:1rem;overflow-y:auto;">
-  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;">🗺️ Quests</h2>
+  <h2 style="margin:0 0 0.6rem;color:var(--accent);font-size:1.05rem;"><span class="pg-ico" data-icon="map" data-size="18"></span> Quests</h2>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem;margin-bottom:0.7rem;">
    <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Daily</strong><div id="q-count-daily" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
    <div style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;"><strong>Weekly</strong><div id="q-count-weekly" style="color:var(--text-muted);font-size:0.8rem;">0 active</div></div>
@@ -892,7 +892,7 @@
 
   <!-- ── Notes ── -->
   <div class="panel reality-card" id="reality-notes">
-   <h2 class="reality-card-header" onclick="toggleRealityCard('notes')">📝 Notes <span class="collapse-icon" id="notes-collapse">▼</span></h2>
+   <h2 class="reality-card-header" onclick="toggleRealityCard('notes')"><span class="pg-ico" data-icon="edit" data-size="18"></span> Notes <span class="collapse-icon" id="notes-collapse">▼</span></h2>
    <div class="reality-card-body" id="notes-body">
     <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
      <button onclick="addNote()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">+ New Note</button>
@@ -1076,7 +1076,7 @@
 
   <!-- ── World Dashboard ── -->
   <div class="panel reality-card" id="reality-worlddash">
-   <h2 class="reality-card-header" onclick="toggleRealityCard('worlddash')">🌍 World Dashboard <span class="collapse-icon" id="worlddash-collapse">▼</span></h2>
+   <h2 class="reality-card-header" onclick="toggleRealityCard('worlddash')"><span class="pg-ico" data-icon="globe" data-size="18"></span> World Dashboard <span class="collapse-icon" id="worlddash-collapse">▼</span></h2>
    <div class="reality-card-body" id="worlddash-body">
     <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">Humanity's aggregate resource status — real data from USGS 2024, World Bank, FAO.</div>
     <div id="world-dash-content" style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
@@ -1154,7 +1154,7 @@
   <div class="panel reality-card" id="reality-inventory">
    <h2 class="reality-card-header" onclick="toggleRealityCard('inventory')">📦 Personal Inventory <span class="collapse-icon" id="inventory-collapse">▼</span></h2>
    <div class="reality-card-body" id="inventory-body">
-    <div class="inv-privacy-banner">🔒 Private — stored only on this device, never uploaded</div>
+    <div class="inv-privacy-banner"><span class="pg-ico" data-icon="lock" data-size="14"></span> Private — stored only on this device, never uploaded</div>
     <div class="inv-toolbar">
      <button onclick="openInventoryModal()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">+ Add Item</button>
      <select id="inv-category-filter" onchange="renderInventory()" style="min-width:100px;">
@@ -1229,7 +1229,7 @@
     <!-- Category pills -->
     <div style="display:flex;gap:0.3rem;margin-bottom:0.8rem;flex-wrap:wrap;">
      <span class="filter-pill active" onclick="setAssetCategory('')" id="asset-cat-all" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">All</span>
-     <span class="filter-pill" onclick="setAssetCategory('image')" id="asset-cat-image" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🖼️ Images</span>
+     <span class="filter-pill" onclick="setAssetCategory('image')" id="asset-cat-image" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;"><span class="pg-ico" data-icon="image" data-size="14"></span> Images</span>
      <span class="filter-pill" onclick="setAssetCategory('3d_model')" id="asset-cat-3d_model" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🧊 3D Models</span>
      <span class="filter-pill" onclick="setAssetCategory('audio')" id="asset-cat-audio" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">🎵 Audio</span>
      <span class="filter-pill" onclick="setAssetCategory('document')" id="asset-cat-document" style="cursor:pointer;font-size:0.75rem;padding:0.2rem 0.6rem;">📄 Documents</span>
@@ -1283,7 +1283,7 @@
 
    <!-- ── World Map ── -->
    <div class="panel reality-card" id="fantasy-worldmap" style="border-color:rgba(120,80,200,0.2);">
-    <h2 class="reality-card-header" onclick="toggleFantasyCard('worldmap')" style="color:var(--fantasy-accent,#9966ff);">🗺️ World Map <span class="collapse-icon" id="worldmap-collapse">▼</span></h2>
+    <h2 class="reality-card-header" onclick="toggleFantasyCard('worldmap')" style="color:var(--fantasy-accent,#9966ff);"><span class="pg-ico" data-icon="map" data-size="18"></span> World Map <span class="collapse-icon" id="worldmap-collapse">▼</span></h2>
     <div class="reality-card-body" id="worldmap-body">
      <canvas id="world-map-canvas" width="560" height="280" style="width:100%;border-radius:8px;background:#0a0a1a;cursor:crosshair;"></canvas>
      <p style="text-align:center;margin-top:0.6rem;color:var(--fantasy-accent,#9966ff);font-style:italic;font-size:0.85rem;">
@@ -1380,7 +1380,7 @@
     <!-- Nearby stars (shown in system view) -->
     <div id="cel-nearby" style="margin-top:0.5rem;font-size:0.75rem;color:var(--text-muted);"></div>
     <p style="text-align:center;margin-top:0.6rem;font-size:0.7rem;color:var(--text-muted);">Click stars/planets to inspect · Scroll to zoom · Drag to pan · Double-click to enter system</p>
-    <p style="text-align:center;margin-top:0.3rem;font-size:0.75rem;color:#6cc;">🧘 For the full astral projection experience with Earth maps, weather, and GPS — open the <a href="/map" onclick="if(typeof switchTab==='function'){switchTab('map');return false;}" style="color:var(--accent);text-decoration:underline;cursor:pointer;">🗺️ Map tab</a></p>
+    <p style="text-align:center;margin-top:0.3rem;font-size:0.75rem;color:#6cc;">🧘 For the full astral projection experience with Earth maps, weather, and GPS — open the <a href="/map" onclick="if(typeof switchTab==='function'){switchTab('map');return false;}" style="color:var(--accent);text-decoration:underline;cursor:pointer;"><span class="pg-ico" data-icon="map" data-size="14"></span> Map tab</a></p>
    </div>
   </div>
 
@@ -1832,7 +1832,7 @@
    <h2>🛡️ Roles & Permissions</h2>
    <div class="info-body">
     <div class="role-card">
-     <h3>👤 Unverified</h3>
+     <h3><span class="pg-ico" data-icon="user" data-size="16"></span> Unverified</h3>
      <div class="perms">
       <span class="yes">✓</span> Chat (rate limited) · Voice · View channels<br>
       <span class="no">✗</span> Upload files · DM · Create channels · Follow/unfollow
@@ -1912,7 +1912,7 @@
      <div class="cmd-row"><code>/blocklist</code> — Show blocked users</div>
     </div>
     <div class="cmd-group">
-     <h4>💬 DMs & Groups</h4>
+     <h4><span class="pg-ico" data-icon="chat" data-size="16"></span> DMs & Groups</h4>
      <div class="cmd-row"><code>/dm &lt;name&gt; &lt;msg&gt;</code> — Send a direct message</div>
      <div class="cmd-row"><code>/dms</code> — List DM conversations</div>
      <div class="cmd-row"><code>/group-create &lt;name&gt;</code> — Create a group chat</div>
@@ -2005,7 +2005,7 @@
 
   <!-- Open Source -->
   <div class="info-section">
-   <h2>🔓 Open Source</h2>
+   <h2><span class="pg-ico" data-icon="unlock" data-size="18"></span> Open Source</h2>
    <div class="info-body">
     <div class="src-card">
      <div class="big-statement">Humanity is 100% open source and public domain (CC0-1.0)</div>
@@ -2025,7 +2025,7 @@
     <div class="src-card">
      <div class="big-statement" style="font-size:1rem;">Wholesomely aiding humanity's betterment</div>
      <ul>
-      <li>🔒 <strong>Privacy first</strong> — No tracking, no accounts. Your identity is your keys.</li>
+      <li><span class="pg-ico" data-icon="lock" data-size="14"></span> <strong>Privacy first</strong> — No tracking, no accounts. Your identity is your keys.</li>
       <li>🗣️ <strong>Free speech</strong> — No censorship. Line drawn at genuine threats and predatory harassment.</li>
       <li>🔞 <strong>18+ community</strong> — Mature, responsible communication.</li>
       <li>💛 <strong>Unconditional love</strong> — For all life.</li>
@@ -2247,8 +2247,8 @@
   <!-- Sub-navigation -->
   <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
    <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏪 Marketplace</button>
-   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏬 Stores</button>
-   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">📋 My Listings</button>
+   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;"><span class="pg-ico" data-icon="storefront" data-size="16"></span> Stores</button>
+   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;"><span class="pg-ico" data-icon="tasklist" data-size="16"></span> My Listings</button>
    <span style="flex:1;"></span>
    <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:none;">+ Create Listing</button>
   </div>
@@ -2431,6 +2431,11 @@
 <script src="/game/js/streams.js"></script>
 <script src="/game/js/browse.js"></script>
 <script src="/game/js/map.js"></script>
+<script>
+document.querySelectorAll('.pg-ico').forEach(function(el) {
+  el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+});
+</script>
 </body>
 </html>
 

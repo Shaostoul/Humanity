@@ -33,9 +33,9 @@
 <div id=page-app><div id="tab-market" class="tab-content" style="padding:1rem;overflow-y:auto;">
   <!-- Sub-navigation -->
   <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
-   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏪 Marketplace</button>
-   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">🏬 Stores</button>
-   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;">📋 My Listings</button>
+   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.3rem;"><span data-icon="market" data-size="16"></span> Marketplace</button>
+   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.3rem;"><span data-icon="storefront" data-size="16"></span> Stores</button>
+   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.3rem;"><span data-icon="tasklist" data-size="16"></span> My Listings</button>
    <span style="flex:1;"></span>
    <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:none;">+ Create Listing</button>
   </div>
@@ -261,7 +261,7 @@ function showListingDetail(id) {
   const isMine = l.seller_key === marketMyKey;
   const catColor = CATEGORY_COLORS[l.category] || '#888';
   content.innerHTML =
-    '<button onclick="closeListingDetail()" style="float:right;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">✕</button>' +
+    '<button onclick="closeListingDetail()" style="float:right;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">' + hosIcon('close', 14) + '</button>' +
     '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.05rem;">' + escHtml(l.title) + '</h3>' +
     '<div style="font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:0.5rem;">' + escHtml(l.price || 'Contact for price') + '</div>' +
     '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.7rem;">' +
@@ -271,11 +271,11 @@ function showListingDetail(id) {
     (l.description ? '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.7rem;white-space:pre-wrap;line-height:1.5;">' + escHtml(l.description) + '</div>' : '') +
     '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.3rem;">Seller: <strong style="color:var(--text);">' + escHtml(l.seller_name || 'Anonymous') + '</strong></div>' +
     (l.payment_methods ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">Payment: ' + escHtml(l.payment_methods) + '</div>' : '') +
-    (l.location ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">📍 ' + escHtml(l.location) + '</div>' : '') +
+    (l.location ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.25rem;">' + hosIcon('mappin', 14) + ' ' + escHtml(l.location) + '</div>' : '') +
     (isMine ? '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">' +
-      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-size:0.8rem;">✏️ Edit</button>' +
-      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--success);cursor:pointer;font-size:0.8rem;">✅ Mark Sold</button>' +
-      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid rgba(229,85,85,0.4);border-radius:6px;color:var(--error);cursor:pointer;font-size:0.8rem;">🗑️ Delete</button>' +
+      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:0.25rem;">' + hosIcon('edit', 14) + ' Edit</button>' +
+      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--success);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:0.25rem;">' + hosIcon('check', 14) + ' Mark Sold</button>' +
+      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid rgba(229,85,85,0.4);border-radius:6px;color:var(--error);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:0.25rem;">' + hosIcon('trash', 14) + ' Delete</button>' +
     '</div>' : '');
   modal.style.display = '';
 }
@@ -376,9 +376,9 @@ function streamHandleMessage(msg) { /* WebRTC streaming not yet implemented in m
    const isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
    const actions = (isMine || showActions) ? `
     <div style="display:flex;gap:0.3rem;margin-top:0.5rem;">
-     ${isMine?`<button onclick="editListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">✏️ Edit</button>`:''}
-     ${isMine?`<button onclick="markListingSold('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--success);cursor:pointer;font-size:0.7rem;">✅ Sold</button>`:''}
-     ${(isMine||isAdmin)?`<button onclick="deleteListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--error);cursor:pointer;font-size:0.7rem;">🗑️ Delete</button>`:''}
+     ${isMine?`<button onclick="editListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:0.2rem;">${hosIcon('edit', 14)} Edit</button>`:''}
+     ${isMine?`<button onclick="markListingSold('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--success);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:0.2rem;">${hosIcon('check', 14)} Sold</button>`:''}
+     ${(isMine||isAdmin)?`<button onclick="deleteListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--error);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:0.2rem;">${hosIcon('trash', 14)} Delete</button>`:''}
     </div>` : '';
    const statusBadge = l.status === 'sold' ? '<span style="background:#4a8;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">SOLD</span>' :
              l.status === 'withdrawn' ? '<span style="background:#888;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">WITHDRAWN</span>' : '';
@@ -395,7 +395,7 @@ function streamHandleMessage(msg) { /* WebRTC streaming not yet implemented in m
        ${l.condition && l.condition !== 'N/A' ? `<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;">${escHtml(l.condition)}</span>` : ''}
       </div>
       <div style="font-size:0.72rem;color:var(--text-muted);">by ${escHtml(l.seller_name || 'Anonymous')}</div>
-      ${l.location ? `<div style="font-size:0.68rem;color:var(--text-muted);">📍 ${escHtml(l.location)}</div>` : ''}
+      ${l.location ? `<div style="font-size:0.68rem;color:var(--text-muted);display:flex;align-items:center;gap:0.2rem;">${hosIcon('mappin', 14)} ${escHtml(l.location)}</div>` : ''}
       ${actions}
      </div>
     </div>`;

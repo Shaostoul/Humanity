@@ -542,7 +542,7 @@
     </div>
     <div id="note-list"></div>
     <div id="sidebar-footer">
-      <span class="lock-status">🔒</span>
+      <span class="lock-status"><span class="pg-ico" data-icon="lock" data-size="14"></span></span>
       <span id="lock-label">Encrypted locally</span>
     </div>
   </div>
@@ -552,7 +552,7 @@
     <!-- Unlock overlay (shown when opening an encrypted note) -->
     <div id="unlock-overlay">
       <div id="unlock-box">
-        <h3>🔒 Encrypted Note</h3>
+        <h3><span class="pg-ico" data-icon="lock" data-size="16"></span> Encrypted Note</h3>
         <p>Enter your note passphrase to read this note.</p>
         <input id="unlock-pass" type="password" placeholder="Passphrase…" autocomplete="current-password"
                onkeydown="if(event.key==='Enter')doUnlock()">
@@ -564,8 +564,8 @@
     <!-- Toolbar (shown when a note is selected) -->
     <div id="note-toolbar" style="display:none">
       <input type="text" id="note-title-input" placeholder="Note title…" oninput="scheduleAutoSave()">
-      <button class="toolbar-btn" id="btn-encrypt-toggle" onclick="toggleEncrypt()" title="Toggle per-note encryption">🔓 Plain</button>
-      <button class="toolbar-btn danger" onclick="deleteActiveNote()" title="Delete note">🗑</button>
+      <button class="toolbar-btn" id="btn-encrypt-toggle" onclick="toggleEncrypt()" title="Toggle per-note encryption"><span class="pg-ico" data-icon="unlock" data-size="14"></span> Plain</button>
+      <button class="toolbar-btn danger" onclick="deleteActiveNote()" title="Delete note"><span class="pg-ico" data-icon="trash" data-size="14"></span></button>
     </div>
 
     <!-- Body -->
@@ -579,7 +579,7 @@
 
     <!-- Empty state -->
     <div id="empty-state">
-      <div class="big">📝</div>
+      <div class="big"><span class="pg-ico" data-icon="edit" data-size="48"></span></div>
       <p>Select a note or create one.</p>
       <p style="font-size:.75rem">Notes are stored locally, encrypted with AES-256-GCM.</p>
     </div>
@@ -593,7 +593,7 @@
   <!-- Sidebar -->
   <nav id="log-sidebar">
     <div id="log-sidebar-header">
-      <h2>📔 Log</h2>
+      <h2><span class="pg-ico" data-icon="edit" data-size="16"></span> Log</h2>
       <input id="log-search" type="text" placeholder="Search entries…" oninput="log_renderSidebar()">
       <button id="new-entry-btn" onclick="log_newEntry()">+ New Entry</button>
     </div>
@@ -606,11 +606,11 @@
       <input id="log-entry-title-input" type="text" placeholder="Entry title…" oninput="log_onTitleInput()" style="display:none;">
       <span id="log-date-display"></span>
       <input id="log-tag-input" type="text" placeholder="Tags (comma-separated)" oninput="log_onTagInput()" style="display:none;">
-      <button id="log-delete-btn" onclick="log_deleteCurrentEntry()" style="display:none;">🗑 Delete</button>
+      <button id="log-delete-btn" onclick="log_deleteCurrentEntry()" style="display:none;"><span class="pg-ico" data-icon="trash" data-size="14"></span> Delete</button>
       <span id="log-save-indicator">✓ Saved</span>
     </div>
     <div id="log-empty">
-      <div class="empty-icon">📔</div>
+      <div class="empty-icon"><span class="pg-ico" data-icon="edit" data-size="48"></span></div>
       <p>Your personal log.<br>Record thoughts, discoveries, and daily reflections.</p>
       <button class="btn-new" onclick="log_newEntry()"
         style="background:#1a4a2a;border:1px solid #2a6;color:#4d9;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.88rem;font-weight:600;margin-top:0.5rem;">
@@ -725,7 +725,7 @@ function renderList() {
 
   list.innerHTML = filtered.map(n => {
     const title = n.title || 'Untitled';
-    const preview = n.encrypted ? '🔒 encrypted' : (n.content || '').slice(0, 60).replace(/\n/g, ' ');
+    const preview = n.encrypted ? (typeof hosIcon==='function'?hosIcon('lock',12):'') + ' encrypted' : (n.content || '').slice(0, 60).replace(/\n/g, ' ');
     const date = new Date(n.updatedAt).toLocaleDateString();
     return `<div class="note-item${n.id === activeId ? ' active' : ''}" onclick="openNote('${n.id}')">
       <div class="note-item-title">${esc(title)}</div>
@@ -785,7 +785,7 @@ function openNote(id) {
     showNotePanel(true);
     document.getElementById('note-title-input').value = note.title || '';
     document.getElementById('note-content').value = '';
-    document.getElementById('note-content').placeholder = '🔒 Enter passphrase to view…';
+    document.getElementById('note-content').placeholder = 'Enter passphrase to view…';
     document.getElementById('note-content').readOnly = true;
     setTimeout(() => document.getElementById('unlock-pass').focus(), 100);
   } else {
@@ -798,7 +798,7 @@ function openNote(id) {
     document.getElementById('note-content').placeholder = 'Start writing…';
     document.getElementById('note-content').readOnly = false;
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.textContent = note.encrypted ? '🔒 Encrypted' : '🔓 Plain';
+    encBtn.innerHTML = note.encrypted ? (typeof hosIcon==='function'?hosIcon('lock',14):'') + ' Encrypted' : (typeof hosIcon==='function'?hosIcon('unlock',14):'') + ' Plain';
     encBtn.classList.toggle('encrypt-on', note.encrypted);
     updateWordCount();
     setStatus('');
@@ -822,7 +822,7 @@ async function doUnlock() {
     document.getElementById('note-content').placeholder = 'Start writing…';
     document.getElementById('note-content').readOnly = false;
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.textContent = '🔒 Encrypted';
+    encBtn.innerHTML = (typeof hosIcon==='function'?hosIcon('lock',14):'') + ' Encrypted';
     encBtn.classList.add('encrypt-on');
     updateWordCount();
     setStatus('');
@@ -871,7 +871,7 @@ function toggleEncrypt() {
     note.encrypted = true;
     note._unlockPassphrase = pass;
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.textContent = '🔒 Encrypted';
+    encBtn.innerHTML = (typeof hosIcon==='function'?hosIcon('lock',14):'') + ' Encrypted';
     encBtn.classList.add('encrypt-on');
     scheduleAutoSave(); // triggers aesEncrypt on the content
     setStatus('Note will be encrypted on next save.');
@@ -884,7 +884,7 @@ function toggleEncrypt() {
     note.updatedAt = Date.now();
     saveNotes();
     const encBtn = document.getElementById('btn-encrypt-toggle');
-    encBtn.textContent = '🔓 Plain';
+    encBtn.innerHTML = (typeof hosIcon==='function'?hosIcon('unlock',14):'') + ' Plain';
     encBtn.classList.remove('encrypt-on');
     renderList();
     setStatus('Encryption removed.');
@@ -1111,6 +1111,11 @@ document.addEventListener('keydown', function(e) {
 log_load();
 log_renderSidebar();
 if (log_entries.length) log_openEntry(log_entries[0].id);
+
+// ── Replace data-icon placeholders with SVG icons ──
+document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+  if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+});
 </script>
 </body>
 </html>

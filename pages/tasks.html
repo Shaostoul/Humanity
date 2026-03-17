@@ -724,7 +724,7 @@
       <div class="detail-meta" id="detail-meta"></div>
       <div id="detail-test-panel"></div>
       <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:0.8rem">
-        <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:0.5rem">💬 Comments</div>
+        <div style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:0.5rem"><span class="pg-ico" data-icon="chat" data-size="14"></span> Comments</div>
         <div id="detail-comments"></div>
         <div style="display:flex;gap:0.4rem;margin-top:0.5rem">
           <input id="comment-input" type="text" placeholder="Add a comment…" maxlength="2000" style="flex:1;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:0.35rem 0.6rem;font-size:0.8rem;font-family:inherit" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitComment(openDetailId)}">
@@ -1117,10 +1117,10 @@ function openDetail(id) {
 
   // Status action buttons — clicking moves the task to that status.
   const statusSteps = [
-    { key: 'backlog',     label: '📋 Backlog' },
-    { key: 'in_progress', label: '⚙️ In Progress' },
-    { key: 'testing',     label: '🧪 Testing' },
-    { key: 'done',        label: '✅ Done' },
+    { key: 'backlog',     label: (typeof hosIcon==='function'?hosIcon('tasklist',14):'')+' Backlog' },
+    { key: 'in_progress', label: (typeof hosIcon==='function'?hosIcon('settings',14):'')+' In Progress' },
+    { key: 'testing',     label: (typeof hosIcon==='function'?hosIcon('search',14):'')+' Testing' },
+    { key: 'done',        label: (typeof hosIcon==='function'?hosIcon('check',14):'')+' Done' },
   ];
   document.getElementById('detail-status-btns').innerHTML =
     statusSteps.map(s =>
@@ -1542,7 +1542,7 @@ function quest_renderList() {
   }
 
   if (!visible.length) {
-    list.innerHTML = `<div class="quest-empty-state"><div class="empty-icon">📋</div>
+    list.innerHTML = `<div class="quest-empty-state"><div class="empty-icon">${typeof hosIcon==='function'?hosIcon('tasklist',48):''}</div>
       <p>${search ? 'No quests match your search.' : quest_currentFilter === 'done' ? 'No completed quests yet.' : 'No quests here yet.'}</p>
       ${!search && quest_currentFilter !== 'done' ? '<button class="quest-btn-save" onclick="quest_openModal()" style="margin-top:0.5rem;">+ Add Your First Quest</button>' : ''}</div>`;
     return;
@@ -1685,6 +1685,9 @@ function quest_showToast(msg, duration) {
 // Initialize quests
 quest_load();
 quest_renderList();
+document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+  if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+});
 </script>
 </body>
 </html>

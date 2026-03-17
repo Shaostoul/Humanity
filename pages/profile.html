@@ -361,7 +361,7 @@
     <div id="profile-sidebar">
       <div class="sidebar-label">My Profile</div>
 
-      <div class="sidebar-label" style="color:#c44;">🔴 Private</div>
+      <div class="sidebar-label" style="color:#c44;"><span data-icon="dot-red" data-size="12"></span> Private</div>
       <button class="prof-section-btn active" onclick="showTab('body')" data-tab="body">
         <span class="dot dot-private"></span>Body & Measurements
       </button>
@@ -373,7 +373,7 @@
       </button>
 
       <div class="sidebar-divider"></div>
-      <div class="sidebar-label" style="color:#4a9;">🟢 Personal</div>
+      <div class="sidebar-label" style="color:#4a9;"><span data-icon="dot-green" data-size="12"></span> Personal</div>
       <button class="prof-section-btn" onclick="showTab('profile')" data-tab="profile">
         <span class="dot dot-personal"></span>Network Profile
       </button>
@@ -394,7 +394,7 @@
       </button>
 
       <div class="sidebar-divider"></div>
-      <button class="save-btn" onclick="saveAll()" style="width:100%;margin-top:0.25rem;">💾 Save All</button>
+      <button class="save-btn" onclick="saveAll()" style="width:100%;margin-top:0.25rem;"><span data-icon="save" data-size="16"></span> Save All</button>
       <div id="save-status"></div>
     </div>
 
@@ -405,7 +405,7 @@
       <div class="prof-tab active" id="tab-body">
         <div class="section-header private">
           <div>
-            <h2>🔴 Body &amp; Measurements</h2>
+            <h2><span data-icon="dot-red" data-size="16"></span> Body &amp; Measurements</h2>
             <p>Stored locally only — never transmitted without your explicit consent.</p>
           </div>
         </div>
@@ -522,7 +522,7 @@
               <input type="text" id="f-pants-size" placeholder="e.g. 32×30">
             </div>
           </div>
-          <p class="privacy-note">🔒 These measurements are stored only on your device and never shared without your consent.</p>
+          <p class="privacy-note"><span data-icon="lock" data-size="14"></span> These measurements are stored only on your device and never shared without your consent.</p>
         </div>
       </div>
 
@@ -530,7 +530,7 @@
       <div class="prof-tab" id="tab-identity">
         <div class="section-header private">
           <div>
-            <h2>🔴 Identity</h2>
+            <h2><span data-icon="dot-red" data-size="16"></span> Identity</h2>
             <p>Real-world identity details stored only on your device.</p>
           </div>
         </div>
@@ -581,7 +581,7 @@
               <input type="tel" id="f-emergency-phone" placeholder="+1 555-000-0000">
             </div>
           </div>
-          <p class="privacy-note">🔒 Emergency contact is never transmitted or shared.</p>
+          <p class="privacy-note"><span data-icon="lock" data-size="14"></span> Emergency contact is never transmitted or shared.</p>
         </div>
 
         <div class="prof-card">
@@ -601,7 +601,7 @@
       <div class="prof-tab" id="tab-notes">
         <div class="section-header private">
           <div>
-            <h2>🔴 Private Notes</h2>
+            <h2><span data-icon="dot-red" data-size="16"></span> Private Notes</h2>
             <p>Freeform notes stored locally. Never transmitted.</p>
           </div>
         </div>
@@ -617,7 +617,7 @@
       <div class="prof-tab" id="tab-profile">
         <div class="section-header personal">
           <div>
-            <h2>🟢 Network Profile</h2>
+            <h2><span data-icon="dot-green" data-size="16"></span> Network Profile</h2>
             <p>Visible to people you follow and who follow you back (friends).</p>
           </div>
         </div>
@@ -660,7 +660,7 @@
               <input type="url" id="f-banner-url" placeholder="https://...">
             </div>
           </div>
-          <p class="privacy-note" style="margin-top:0.5rem;">🟢 Avatar and banner are shared with friends and visible on your public profile card.</p>
+          <p class="privacy-note" style="margin-top:0.5rem;"><span data-icon="dot-green" data-size="14"></span> Avatar and banner are shared with friends and visible on your public profile card.</p>
         </div>
 
         <div class="prof-card" id="sync-card">
@@ -677,7 +677,7 @@
       <div class="prof-tab" id="tab-interests">
         <div class="section-header personal">
           <div>
-            <h2>🟢 Interests</h2>
+            <h2><span data-icon="dot-green" data-size="16"></span> Interests</h2>
             <p>Shared with friends to help match you with others who have similar interests.</p>
           </div>
         </div>
@@ -711,7 +711,7 @@
       <div class="prof-tab" id="tab-skills">
         <div class="section-header personal">
           <div>
-            <h2>🟢 Skills</h2>
+            <h2><span data-icon="dot-green" data-size="16"></span> Skills</h2>
             <p>Track what you're learning, see how far you've come, and discover new things to get better at.</p>
           </div>
         </div>
@@ -938,7 +938,7 @@
           </div>
 
           <div style="margin-top:0.75rem;">
-            <button class="save-btn" onclick="copyObsConfig()">📋 Copy OBS Multistream Config</button>
+            <button class="save-btn" onclick="copyObsConfig()"><span data-icon="copy" data-size="16"></span> Copy OBS Multistream Config</button>
             <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem;">
               Copies config for all enabled platforms. Paste into the
               <a href="https://obsproject.com/forum/resources/obs-multi-rtmp.964/" target="_blank">obs-multi-rtmp</a> plugin
@@ -1157,7 +1157,7 @@
         ]
       },
       {
-        id: 'engineering', icon: '⚙️', label: 'Engineering', color: '#e67e22',
+        id: 'engineering', icon: hosIcon('settings', 16), label: 'Engineering', color: '#e67e22',
         desc: 'Designing and building systems that work',
         skills: [
           { id: 'mechanical',   name: 'Mechanical Eng.',  tags: 'machines, thermodynamics, CAD',    desc: 'Designing mechanical systems: statics, dynamics, thermodynamics, and CAD modeling.' },
@@ -1375,7 +1375,7 @@
           '<button class="xp-btn primary" onclick="skill_addXp(\'' + skill.id + '\', 50, document.getElementById(\'card-' + skill.id + '\'))">+50 XP</button>' +
           '<button class="xp-btn" onclick="skill_addXp(\'' + skill.id + '\', 100, document.getElementById(\'card-' + skill.id + '\'))">+100 XP</button>' +
           '<span class="xp-current">' + (s.level >= SKILL_MAX_LEVEL ? '✓ Mastered' : 'Total XP: ' + skill_totalXp(skill.id)) + '</span>' +
-          '<button class="xp-btn" style="margin-left:auto;font-size:0.65rem" title="Find community members with this skill" onclick="skill_findUsers(\'' + skill.id + '\', \'' + skill.name.replace(/'/g, "\\'") + '\')">👥 Find</button>' +
+          '<button class="xp-btn" style="margin-left:auto;font-size:0.65rem" title="Find community members with this skill" onclick="skill_findUsers(\'' + skill.id + '\', \'' + skill.name.replace(/'/g, "\\'") + '\')">' + hosIcon('users', 14) + ' Find</button>' +
         '</div>' +
       '</div>';
     }
@@ -1417,7 +1417,7 @@
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;';
       overlay.innerHTML =
         '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:#e0e0e0;">' +
-          '<h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:0.25rem">👥 ' + skillName + '</h2>' +
+          '<h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:0.25rem">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +
           '<p style="font-size:0.73rem;color:#666;margin-bottom:1rem">Community members with this skill (from relay database):</p>' +
           '<div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>' +
           '<div style="display:flex;justify-content:flex-end;margin-top:1rem;">' +

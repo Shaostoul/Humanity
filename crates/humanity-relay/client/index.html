@@ -40,13 +40,13 @@
 
   <!-- Login Screen -->
   <div id="login-screen">
-    <h1>🌍 HumanityOS Network</h1>
+    <h1><span class="pg-ico" data-icon="globe" data-size="24"></span> HumanityOS Network</h1>
     <p>A cooperative communication platform.<br>No accounts. No tracking. Just people.</p>
     <input type="text" id="name-input" placeholder="Choose a name" autofocus>
     <input type="text" id="link-code-input" placeholder="Link code (optional)" style="margin-top:0.5rem; display:block;">
     <input type="text" id="invite-code-input" placeholder="Invite code (optional)" style="margin-top:0.5rem; display:block;">
     <button onclick="connect()">Enter</button>
-    <button onclick="document.getElementById('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;margin-top:0.3rem;">📥 Import Identity Backup</button>
+    <button onclick="document.getElementById('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;margin-top:0.3rem;"><span class="pg-ico" data-icon="download" data-size="16"></span> Import Identity Backup</button>
     <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="handleImportFile(event)">
     <p class="subtitle" id="login-error" style="color:#e74c3c; display:none;"></p>
     <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>
@@ -61,7 +61,7 @@
     <header>
       <div class="header-left">
         <button id="hamburger" onclick="toggleSidebar('sidebar')">☰</button>
-        <h1>🌍 HumanityOS</h1>
+        <h1><span class="pg-ico" data-icon="globe" data-size="20"></span> HumanityOS</h1>
         <span id="stats"></span>
       </div>
       <div style="display:flex;align-items:center;gap:0.5rem;">
@@ -78,7 +78,7 @@
         <button id="people-toggle" onclick="toggleSidebar('right-sidebar')"
           data-tip-title="People & Streams"
           data-tip-desc="Opens the sidebar showing online members, voice participants, and streaming controls."
-          data-tip-detail="Shows STREAMING, VOIP, ONLINE, and OFFLINE presence sections">👤</button>
+          data-tip-detail="Shows STREAMING, VOIP, ONLINE, and OFFLINE presence sections"><span class="pg-ico" data-icon="users" data-size="16"></span></button>
         <div id="status" class="disconnected"><span class="dot"></span><span id="status-text">Disconnected</span></div>
       </div>
       <div id="sound-menu" style="display:none;position:absolute;top:3rem;right:5rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:0.6rem;z-index:200;min-width:200px;box-shadow:0 4px 12px rgba(0,0,0,0.3);">
@@ -103,7 +103,7 @@
             <span style="color:var(--border);">·</span>
             <button onclick="openKeyProtectionModal()" id="key-protect-btn"
               data-tip-title="Protect Key" data-tip-desc="Encrypt your private key in localStorage with a passphrase."
-              style="background:none;border:none;color:var(--text-muted);padding:0;font-size:0.65rem;cursor:pointer;">🔓</button>
+              style="background:none;border:none;color:var(--text-muted);padding:0;font-size:0.65rem;cursor:pointer;"><span class="pg-ico" data-icon="unlock" data-size="16"></span></button>
             <button onclick="openSystemInfoModal()" id="system-info-btn"
               data-tip-title="System Info" data-tip-desc="View and share your hardware specs."
               style="background:none;border:none;color:var(--text-muted);padding:0;font-size:0.65rem;cursor:pointer;">💻</button>
@@ -128,9 +128,9 @@
           </div>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
-          <button class="sidebar-tab active" data-tab="servers">🏠 Servers</button>
-          <button class="sidebar-tab" data-tab="groups">👥 Groups</button>
-          <button class="sidebar-tab" data-tab="dms">💬 DMs</button>
+          <button class="sidebar-tab active" data-tab="servers"><span class="pg-ico" data-icon="home" data-size="16"></span> Servers</button>
+          <button class="sidebar-tab" data-tab="groups"><span class="pg-ico" data-icon="users" data-size="16"></span> Groups</button>
+          <button class="sidebar-tab" data-tab="dms"><span class="pg-ico" data-icon="chat" data-size="16"></span> DMs</button>
         </div>
         <div id="tab-servers" class="sidebar-tab-content active">
           <div id="server-list"></div>
@@ -180,7 +180,7 @@
                 data-tip-title="Screen Share" data-tip-desc="Broadcast your screen to the voice channel.">🖥️ Screen — Off</button>
               <button id="vc-chat-overlay-btn" class="studio-pill"
                 onclick="toggleStreamChatOverlay()"
-                data-tip-title="Chat Overlay" data-tip-desc="Toggle live chat overlay. Click again to change channel.">💬 Overlay — Off</button>
+                data-tip-title="Chat Overlay" data-tip-desc="Toggle live chat overlay. Click again to change channel."><span class="pg-ico" data-icon="chat" data-size="16"></span> Overlay — Off</button>
               <div class="studio-pill-range">
                 <span>⊞ PIP</span>
                 <input type="range" id="studio-pip-size" min="20" max="60" value="34" oninput="setStudioPipSize(this.value)">
@@ -249,7 +249,7 @@
         <button class="resizer-lock" id="left-lock-btn" onclick="togglePanelLock('left')"
           data-tip-title="Lock Panel Width"
           data-tip-desc="Locks the sidebar at its current size so dragging doesn't resize it."
-          data-tip-detail="Toggle: 🔓 Unlocked (resizable) / 🔒 Locked (fixed)">🔓</button>
+          data-tip-detail="Toggle: 🔓 Unlocked (resizable) / 🔒 Locked (fixed)"><span class="pg-ico" data-icon="unlock" data-size="16"></span></button>
       </div>
       <div id="chat-area">
         <div id="search-bar" style="position:relative;">
@@ -313,7 +313,7 @@
           <button id="attach-btn" onclick="document.getElementById('file-upload-input').click()"
             data-tip-title="Attach File"
             data-tip-desc="Upload an image or file to share in this channel."
-            data-tip-detail="Supports images, video, audio, PDF, text, JSON, ZIP (max 50 MB)">📎</button>
+            data-tip-detail="Supports images, video, audio, PDF, text, JSON, ZIP (max 50 MB)"><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
           <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()"
@@ -335,7 +335,7 @@
         <button class="resizer-lock" id="right-lock-btn" onclick="togglePanelLock('right')"
           data-tip-title="Lock Panel Width"
           data-tip-desc="Locks the right sidebar at its current size."
-          data-tip-detail="Toggle: 🔓 Unlocked (resizable) / 🔒 Locked (fixed)">🔓</button>
+          data-tip-detail="Toggle: 🔓 Unlocked (resizable) / 🔒 Locked (fixed)"><span class="pg-ico" data-icon="unlock" data-size="16"></span></button>
       </div>
       <div id="right-sidebar">
         <h3>People & Streams</h3>
@@ -639,6 +639,16 @@
   <!-- qrcode-generator (public domain, ~18 KB) — used by chat-p2p.js for contact card QR codes -->
   <script src="/shared/qrcode.js?v=4" onerror="console.warn('qrcode.js not found — QR codes will be unavailable')"></script>
   <script src="/chat/chat-p2p.js?v=4"></script>
+
+  <!-- Populate pg-ico spans once icons.js is loaded (shell.js loads it dynamically) -->
+  <script>
+  (function populateIcons() {
+    if (typeof hosIcon !== 'function') { setTimeout(populateIcons, 50); return; }
+    document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+      el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+    });
+  })();
+  </script>
 
 </body>
 </html>

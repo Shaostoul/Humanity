@@ -227,7 +227,7 @@
 
     <div class="game-card">
       <div class="game-card-top">
-        <span class="game-card-icon">🗺️</span>
+        <span class="game-card-icon"><span class="pg-ico" data-icon="map" data-size="28"></span></span>
         <span class="game-card-title">Navigation Challenge</span>
         <span class="badge-soon">Coming Soon</span>
       </div>
@@ -254,5 +254,10 @@
   </div>
 
 </div>
+<script>
+document.querySelectorAll('.pg-ico').forEach(function(el) {
+  el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+});
+</script>
 </body>
 </html>

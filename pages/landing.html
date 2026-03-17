@@ -396,14 +396,14 @@
       <div class="feature-grid">
         <!-- Core -->
         <a href="/chat" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/network.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="network" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Network</div>
             <div class="ft-desc">Chat, voice, video, streaming</div>
           </div>
         </a>
         <a href="/dashboard" class="feature-tile">
-          <span class="ft-icon">🎮</span>
+          <span class="ft-icon pg-ico" data-icon="games" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Games</div>
             <div class="ft-desc">Minigames and game launcher</div>
@@ -412,42 +412,42 @@
 
         <!-- Private -->
         <a href="/profile" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/profile.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="profile" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Profile</div>
             <div class="ft-desc">Identity, skills, social links</div>
           </div>
         </a>
         <a href="/home" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/home.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="home" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Home</div>
             <div class="ft-desc">Rooms, property, base management</div>
           </div>
         </a>
         <a href="/inventory" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/inventory.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="inventory" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Gear</div>
             <div class="ft-desc">Inventory and equipment</div>
           </div>
         </a>
         <a href="/tasks" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/tasklist.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="tasklist" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Tasks</div>
             <div class="ft-desc">Kanban boards and quests</div>
           </div>
         </a>
         <a href="/calendar" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/calendar.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="calendar" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Calendar</div>
             <div class="ft-desc">Events and schedules</div>
           </div>
         </a>
         <a href="/notes" class="feature-tile">
-          <span class="ft-icon">📝</span>
+          <span class="ft-icon pg-ico" data-icon="journal" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Journal</div>
             <div class="ft-desc">Encrypted notes and logs</div>
@@ -456,21 +456,21 @@
 
         <!-- Public -->
         <a href="/maps" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/map.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="map" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Maps</div>
             <div class="ft-desc">Local to galactic scale</div>
           </div>
         </a>
         <a href="/market" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/market.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="market" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Market</div>
             <div class="ft-desc">Buy, sell, and trade</div>
           </div>
         </a>
         <a href="/web" class="feature-tile">
-          <span class="ft-icon"><img src="/assets/ui/icons/website.png" alt=""></span>
+          <span class="ft-icon pg-ico" data-icon="website" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Web</div>
             <div class="ft-desc">Curated sites and bookmarks</div>
@@ -479,7 +479,7 @@
 
         <!-- Utility -->
         <a href="/settings" class="feature-tile">
-          <span class="ft-icon">⚙️</span>
+          <span class="ft-icon pg-ico" data-icon="settings" data-size="24"></span>
           <div class="ft-info">
             <div class="ft-name">Settings</div>
             <div class="ft-desc">Preferences and appearance</div>
@@ -547,5 +547,10 @@
     </div>
   </section>
 
+<script>
+document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+  if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+});
+</script>
 </body>
 </html>

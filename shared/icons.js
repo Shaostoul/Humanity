@@ -42,6 +42,7 @@
     map: '<polygon points="4,8 16,14 32,8 44,14 44,40 32,34 16,40 4,34"/><line x1="16" y1="14" x2="16" y2="40"/><line x1="32" y1="8" x2="32" y2="34"/>',
     mappin: '<path d="M24,42 C18,34 8,26 8,18 A16,16 0 0 1 40,18 C40,26 30,34 24,42 Z" fill="none"/><circle cx="24" cy="18" r="6"/>',
     market: '<rect x="6" y="22" width="36" height="22" rx="1"/><polyline points="6,22 6,12 42,12 42,22"/><path d="M6,12 Q14,20 22,12 Q30,20 38,12 Q42,16 42,22" fill="none"/><rect x="18" y="30" width="12" height="14" rx="1"/>',
+    storefront: '<rect x="4" y="22" width="40" height="22" rx="1"/><polyline points="4,22 4,10 44,10 44,22"/><path d="M4,10 Q12,20 20,10 Q28,20 36,10 Q44,20 44,22" fill="none"/><rect x="16" y="30" width="16" height="14" rx="1"/><line x1="24" y1="30" x2="24" y2="44"/>',
     website: '<circle cx="24" cy="20" r="16"/><ellipse cx="24" cy="20" rx="7" ry="16"/><line x1="8" y1="20" x2="40" y2="20"/><path d="M10,12 Q24,16 38,12" fill="none"/><path d="M10,28 Q24,24 38,28" fill="none"/><line x1="24" y1="36" x2="24" y2="42"/><line x1="16" y1="42" x2="32" y2="42"/>',
     download: '<line x1="24" y1="6" x2="24" y2="30"/><polyline points="16,22 24,30 32,22"/><polyline points="8,36 8,42 40,42 40,36"/>',
     dev: '<polyline points="18,10 6,24 18,38"/><polyline points="30,10 42,24 30,38"/><line x1="28" y1="6" x2="20" y2="42"/>',

@@ -50,9 +50,9 @@ button {
 <!-- Mode bar -->
   <div id="map-modes" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap;">
    <span style="font-size:0.8rem;color:var(--text-muted);">🧘 Astral Projection:</span>
-   <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;">🌍 Surface</button>
+   <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;"><span class="pg-ico" data-icon="globe" data-size="14"></span> Surface</button>
    <button onclick="mapSetView('system')" class="map-mode-btn" data-mode="system" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">☀️ Solar System</button>
-   <button onclick="mapSetView('sector')" class="map-mode-btn" data-mode="sector" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">⭐ Stellar Neighborhood</button>
+   <button onclick="mapSetView('sector')" class="map-mode-btn" data-mode="sector" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;"><span class="pg-ico" data-icon="star" data-size="14"></span> Stellar Neighborhood</button>
    <button onclick="mapSetView('galaxy')" class="map-mode-btn" data-mode="galaxy" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">🌌 Galaxy</button>
    <button onclick="mapSetView('skyview')" class="map-mode-btn" data-mode="skyview" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(180,140,255,0.3);color:#b48cff;border-radius:4px;cursor:pointer;">🔭 Sky View</button>
    <span style="flex:1;"></span>
@@ -66,11 +66,11 @@ button {
     <div id="map-overlay-controls" style="position:absolute;top:0.5rem;right:0.5rem;display:flex;flex-direction:column;gap:0.3rem;z-index:10;">
      <button onclick="mapZoomIn()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">+</button>
      <button onclick="mapZoomOut()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">−</button>
-     <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Go to home location">🏠</button>
-     <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="My location (GPS)">📍</button>
-     <button onclick="mapToggleWeather()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle weather overlay">🌤️</button>
-     <button onclick="mapToggleGrid()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Toggle icosphere grid">📐</button>
-     <button id="draw-polygon-btn" onclick="mapToggleDrawMode()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;" title="Draw polygon / zone">✏️</button>
+     <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Go to home location"><span class="pg-ico" data-icon="home" data-size="18"></span></button>
+     <button onclick="mapLocateMe()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="My location (GPS)"><span class="pg-ico" data-icon="mappin" data-size="18"></span></button>
+     <button onclick="mapToggleWeather()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Toggle weather overlay"><span class="pg-ico" data-icon="weather" data-size="18"></span></button>
+     <button onclick="mapToggleGrid()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Toggle icosphere grid"><span class="pg-ico" data-icon="grid" data-size="18"></span></button>
+     <button id="draw-polygon-btn" onclick="mapToggleDrawMode()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Draw polygon / zone"><span class="pg-ico" data-icon="edit" data-size="18"></span></button>
     </div>
     <!-- Search bar overlay -->
     <div style="position:absolute;top:0.5rem;left:0.5rem;right:3.5rem;z-index:10;">
@@ -259,11 +259,11 @@ function updateSidebar() {
   if (mapSelectedLocation) {
     const { lat, lng, name } = mapSelectedLocation;
     html += `<div style="margin-bottom:0.8rem">
-      <div style="font-size:0.9rem;font-weight:600;margin-bottom:0.3rem">${name ? `📍 ${name}` : '📍 Selected Location'}</div>
+      <div style="font-size:0.9rem;font-weight:600;margin-bottom:0.3rem">${name ? `${hosIcon('mappin',14)} ${name}` : `${hosIcon('mappin',14)} Selected Location`}</div>
       <div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
       <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
-        <button onclick="setHomeHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">🏠 Set Home</button>
-        <button onclick="addPinHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:#f0c040;cursor:pointer;">📌 Add Pin</button>
+        <button onclick="setHomeHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">${hosIcon('home',12)} Set Home</button>
+        <button onclick="addPinHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:#f0c040;cursor:pointer;">${hosIcon('pin',12)} Add Pin</button>
       </div>
     </div><hr style="border-color:var(--border);margin-bottom:0.8rem">`;
   }
@@ -272,7 +272,7 @@ function updateSidebar() {
   const home = loadHome();
   if (home) {
     html += `<div style="margin-bottom:0.8rem">
-      <div style="font-size:0.8rem;font-weight:600;color:var(--accent)">🏠 Home</div>
+      <div style="font-size:0.8rem;font-weight:600;color:var(--accent)">${hosIcon('home',14)} Home</div>
       <div style="font-size:0.75rem;color:var(--text-muted)">${home.name || 'Home'}</div>
       <div style="font-size:0.72rem;color:var(--text-muted);font-family:monospace">${home.lat.toFixed(4)}, ${home.lng.toFixed(4)}</div>
       <button onclick="mapGoHome()" style="font-size:0.72rem;padding:2px 7px;margin-top:0.3rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">Go Here</button>
@@ -282,7 +282,7 @@ function updateSidebar() {
   // Pins
   const pins = loadPins();
   if (pins.length > 0) {
-    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#f0c040;margin-bottom:0.4rem">📌 Pins</div>`;
+    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#f0c040;margin-bottom:0.4rem">${hosIcon('pin',14)} Pins</div>`;
     for (let i = 0; i < pins.length; i++) {
       const p = pins[i];
       html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;font-size:0.75rem">
@@ -296,7 +296,7 @@ function updateSidebar() {
   // Polygons
   const polys = loadPolygons();
   if (polys.length > 0) {
-    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#ff8811;margin-bottom:0.4rem">✏️ Zones</div>`;
+    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#ff8811;margin-bottom:0.4rem">${hosIcon('edit',14)} Zones</div>`;
     for (const poly of polys) {
       html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;font-size:0.75rem">
         <span style="color:var(--text)">${poly.label || 'Zone'} <span style="color:var(--text-muted)">(${poly.points.length} pts)</span></span>
@@ -1253,6 +1253,23 @@ window.deleteMapPolygon = function(id) {
   mapRender();
   updateSidebar();
 };
+
+/* Populate static pg-ico spans with hosIcon SVGs once icons.js is loaded */
+(function populatePageIcons() {
+  function fill() {
+    document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+      const name = el.dataset.icon;
+      const size = parseInt(el.dataset.size, 10) || 16;
+      if (typeof hosIcon === 'function') el.innerHTML = hosIcon(name, size);
+    });
+  }
+  if (typeof hosIcon === 'function') { fill(); return; }
+  // icons.js loads async via shell.js — poll briefly until available
+  let tries = 0;
+  const iv = setInterval(function() {
+    if (typeof hosIcon === 'function' || ++tries > 50) { clearInterval(iv); fill(); }
+  }, 60);
+})();
 
 </script>
 </body>
