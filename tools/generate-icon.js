@@ -71,6 +71,18 @@ const BUILTIN_ICONS = {
       <polyline points="256,48 256,112 320,112" />
     `;
   },
+
+  // Dev: code brackets </>
+  dev: () => {
+    return `
+      <!-- Left bracket < -->
+      <polyline points="200,140 100,256 200,372" />
+      <!-- Right bracket > -->
+      <polyline points="312,140 412,256 312,372" />
+      <!-- Slash / -->
+      <line x1="290" y1="100" x2="222" y2="412" />
+    `;
+  },
 };
 
 // ── SVG wrapper ──────────────────────────────────────────────────────────────

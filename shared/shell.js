@@ -5,7 +5,7 @@
  * If omitted, active tab is auto-detected from the current URL.
  *
  * Valid active keys: landing, chat, dashboard, profile, home, gear,
- *   tasks, calendar, notes, home, map, market, web, ops, download, settings
+ *   tasks, calendar, notes, home, map, market, web, ops, download, dev, settings
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="gear"></script>
@@ -42,6 +42,7 @@
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops'))       active = 'ops';
     else if (p.startsWith('/download'))  active = 'download';
+    else if (p.startsWith('/dev'))       active = 'dev';
     else active = '';
   }
 
@@ -442,6 +443,7 @@
       navTab('/settings', '⚙️',            'Settings',  'settings') +
       navTab('/download', 'download.png',  'Download',  'download') +
       navTab('/ops',      '🛠️',            'Ops',       'ops') +
+      navTab('/dev',      'dev.png',       'Dev',       'dev') +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">☰</button>' +
@@ -487,6 +489,7 @@
       mobileLink('/settings', '⚙️ Settings') +
       mobileLink('/download', '⬇ Download') +
       mobileLink('/ops',      '🛠️ Ops') +
+      mobileLink('/dev',      '</> Dev') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
