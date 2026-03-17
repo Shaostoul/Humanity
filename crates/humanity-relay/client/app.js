@@ -328,7 +328,7 @@ function onIdentityConfirmed() {
   const kpBtn = document.getElementById('key-protect-btn');
   if (kpBtn && typeof isKeyWrapped === 'function') {
     if (isKeyWrapped()) {
-      kpBtn.textContent = '🔒 Key Protected';
+      kpBtn.innerHTML = hosIcon('lock', 14) + ' Key Protected';
       kpBtn.style.color = 'var(--success)';
     }
   }
@@ -815,9 +815,9 @@ async function handleMessage(msg) {
         const e2eeNotice = document.createElement('div');
         e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:0.3rem;color:var(--text-muted);';
         if (partnerEcdh && myEcdhKeyPair) {
-          e2eeNotice.innerHTML = '🔒 Messages are end-to-end encrypted';
+          e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted';
         } else {
-          e2eeNotice.innerHTML = '🔓 Messages are <b>not</b> encrypted — the other party does not support E2EE';
+          e2eeNotice.innerHTML = hosIcon('unlock', 14) + ' Messages are <b>not</b> encrypted — the other party does not support E2EE';
         }
         document.getElementById('messages').appendChild(e2eeNotice);
         if (msgs.length > 0) {
@@ -1176,7 +1176,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
     actions += '<button class="edit-btn" title="Edit">✏️</button>';
   }
   if (isStaff) {
-    actions += '<button class="pin-btn" title="Pin (server)">📌</button>';
+    actions += '<button class="pin-btn" title="Pin (server)">' + hosIcon('pin', 14) + '</button>';
   }
   actions += '<button class="mypin-btn" title="Pin for me">⭐</button>';
   if (isMe) {
@@ -1218,7 +1218,7 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
   // Thread count badge HTML.
   let threadBadgeHtml = '';
   if (threadCount && threadCount > 0) {
-    threadBadgeHtml = `<div class="thread-badge" data-thread-from="${esc(fromKey)}" data-thread-ts="${timestamp}">💬 ${threadCount} ${threadCount === 1 ? 'reply' : 'replies'}</div>`;
+    threadBadgeHtml = `<div class="thread-badge" data-thread-from="${esc(fromKey)}" data-thread-ts="${timestamp}">${hosIcon('chat', 16)} ${threadCount} ${threadCount === 1 ? 'reply' : 'replies'}</div>`;
   }
 
   el.innerHTML = `
@@ -1457,7 +1457,7 @@ function updateUserList(users) {
     const escapedKey = esc(u.public_key);
     const deviceCount = (!isBot && u.key_count > 1) ? ` <span style="font-size:0.6rem;color:var(--text-muted)">(${u.key_count} devices)</span>` : '';
     const blocked = isBlocked(u.name);
-    const blockIndicator = blocked ? ' <span class="block-indicator" title="Blocked" style="font-size:0.65rem;">🚫</span>' : '';
+    const blockIndicator = blocked ? ' <span class="block-indicator" title="Blocked" style="font-size:0.65rem;">' + hosIcon('block', 14) + '</span>' : '';
     const dimStyle = u.online ? (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : '') : (blocked ? ' style="opacity:0.5;text-decoration:line-through"' : ' style="opacity:0.5"');
     const botClass = isBot ? ' is-bot' : '';
     return `<div class="peer${isMe ? ' is-you' : ''}${botClass}" data-username="${escapedName}" data-pubkey="${escapedKey}"${dimStyle}>
@@ -1489,7 +1489,7 @@ function renderChannelList() {
   list.innerHTML = channelList.map(ch => {
     const isActive = ch.id === activeChannel && !activeDmPartner;
     const title = ch.description ? ` title="${esc(ch.description)}"` : '';
-    const lock = ch.read_only ? ' 🔒' : '';
+    const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
     const fedIcon = ch.federated ? '<span class="fed-icon" title="Federated">🌐</span>' : '';
     return `<div class="channel-item${isActive ? ' active' : ''}"${title} onclick="switchChannel('${esc(ch.id)}')">${esc(ch.name)}${lock}${fedIcon}</div>`;
   }).join('');
@@ -1555,7 +1555,7 @@ function updateChannelHeader() {
   const header = document.getElementById('channel-header');
   const ch = channelList.find(c => c.id === activeChannel);
   if (ch) {
-    const lock = ch.read_only ? ' 🔒' : '';
+    const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';
     header.innerHTML = `<span class="ch-name"># ${esc(ch.name)}${lock}</span>${ch.description ? `<span class="ch-desc">— ${esc(ch.description)}</span>` : ''}`;
     header.style.display = 'block';
     if (window.twemoji) twemoji.parse(header);
@@ -1579,15 +1579,15 @@ function updateRulesBanner() {
   banner.style.display = 'flex';
   const agreed = localStorage.getItem('humanity_rules_agreed');
   if (agreed === 'true') {
-    banner.innerHTML = '<span style="color:#4a8;font-size:0.85rem;">✅ You have agreed to the community rules.</span>' +
-      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">❌ Withdraw</button>';
+    banner.innerHTML = '<span style="color:#4a8;font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' +
+      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
   } else if (agreed === 'false') {
-    banner.innerHTML = '<span style="color:#e55;font-size:0.85rem;">❌ You have not agreed to the rules.</span>' +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid #4a8;color:#4a8;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">✅ I Agree</button>';
+    banner.innerHTML = '<span style="color:#e55;font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>' +
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid #4a8;color:#4a8;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
   } else {
     banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the Community Guidelines?</span>' +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:0.35rem 1.2rem;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">✅ I Agree</button>' +
-      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.35rem 1rem;border-radius:6px;cursor:pointer;font-size:0.85rem;">❌ Disagree</button>';
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:0.35rem 1.2rem;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
+      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.35rem 1rem;border-radius:6px;cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
   }
 }
 
@@ -1675,7 +1675,7 @@ function formatBody(text) {
   // Image URLs → collapsed image placeholders.
   safe = safe.replace(
     /((?:https?:\/\/[^\s<]+|\/uploads\/[^\s<]+)\.(?:png|jpe?g|gif|webp)(?:\?[^\s<]*)?)/gi,
-    '<span class="img-placeholder" data-img-url="$1">🖼️ Image (click to load)</span>'
+    '<span class="img-placeholder" data-img-url="$1">' + hosIcon('image', 14) + ' Image (click to load)</span>'
   );
 
   // Other URLs → clickable links.
@@ -1762,7 +1762,7 @@ function formatBody(text) {
     if (!block) return match;
     const escapedCode = esc(block.code);
     const langLabel = block.lang ? `<span class="code-lang">${esc(block.lang)}</span>` : '';
-    return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.textContent='✓ Copied';setTimeout(()=>this.textContent='📋 Copy',1500)">📋 Copy</button><pre><code>${escapedCode}</code></pre></div>`;
+    return `<div class="code-block-wrapper">${langLabel}<button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.innerHTML='✓ Copied';setTimeout(()=>this.innerHTML=hosIcon('copy',14)+' Copy',1500)">${hosIcon('copy', 14)} Copy</button><pre><code>${escapedCode}</code></pre></div>`;
   });
 
   return safe;

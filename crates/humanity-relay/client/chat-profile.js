@@ -318,7 +318,7 @@ function showViewProfileCard(name, publicKey, profile) {
         }
       }
       if (socials.discord) {
-        html += '<div class="social-item"><span class="social-label">💬 Discord</span> ' + esc(socials.discord) + '</div>';
+        html += '<div class="social-item"><span class="social-label">' + hosIcon('chat', 16) + ' Discord</span> ' + esc(socials.discord) + '</div>';
       }
       if (socials.twitter) {
         const handle = socials.twitter.replace(/^@/, '');
@@ -741,7 +741,7 @@ function openEncryptedBackupModal() {
   `;
   overlay.innerHTML = `
     <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">🔑 Encrypted Identity Backup</h2>
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">${hosIcon('lock', 14)} Encrypted Identity Backup</h2>
       <p style="font-size:.82rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
         Choose a passphrase to protect your backup. Anyone with the file AND passphrase can use your identity —
         so keep them <strong style="color:#e0e0e0">separate</strong> (file in cloud, passphrase memorised or in password manager).
@@ -806,7 +806,7 @@ function openRestoreIdentityModal() {
   `;
   overlay.innerHTML = `
     <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">📥 Restore Identity</h2>
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">${hosIcon('save', 14)} Restore Identity</h2>
       <p style="font-size:.82rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
         Upload your identity backup file. If it was encrypted, enter the passphrase you used when creating it.
         <strong style="color:#e55">This will replace your current identity.</strong>
@@ -872,7 +872,7 @@ function openKeyProtectionModal() {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;';
   overlay.innerHTML = `
     <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:500px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">🔒 Key Protection</h2>
+      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">${hosIcon('lock', 14)} Key Protection</h2>
       <div style="font-size:.78rem;color:#888;line-height:1.6;margin-bottom:1.1rem">
         ${wrapped
           ? `<span style="color:#4ec87a;font-weight:600">✅ Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`

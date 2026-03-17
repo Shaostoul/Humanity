@@ -351,7 +351,7 @@ async function handleVoiceRoomSignal(msg) {
     vcMuted = !vcMuted;
     applyTxGate();
     const btn = document.getElementById('vc-mute-btn');
-    btn.textContent = vcMuted ? '🔇' : '🎤';
+    btn.innerHTML = vcMuted ? hosIcon('mic', 16) : hosIcon('mic', 16);
     btn.classList.toggle('vc-muted', vcMuted);
     btn.title = vcMuted ? 'Unmute' : 'Mute';
   };
@@ -395,7 +395,7 @@ async function handleVoiceRoomSignal(msg) {
           detail: `Best for: quiet rooms, casual chat · Next: PTT [${pttKeyLabel()}]`
         },
         ptt: {
-          label: `🎙️ PTT [${pttKeyLabel()}]`,
+          label: hosIcon('mic', 14) + ` PTT [${pttKeyLabel()}]`,
           desc: `Push-to-Talk — hold ${pttKeyLabel()} to transmit. Mic is silent when the key is released.`,
           detail: 'Best for: noisy rooms, background audio, gaming · Next: VAD'
         },
@@ -406,14 +406,14 @@ async function handleVoiceRoomSignal(msg) {
         }
       };
       const mi = MODE_INFO[vcInputMode] || MODE_INFO.open;
-      modeBtn.textContent = mi.label;
-      modeBtn.setAttribute('data-tip-title', 'Input Mode — ' + mi.label.replace(/[🗣️🎙️]\s*/, ''));
+      modeBtn.innerHTML = mi.label;
+      modeBtn.setAttribute('data-tip-title', 'Input Mode — ' + mi.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace(/[🗣️🎙️]\s*/, ''));
       modeBtn.setAttribute('data-tip-desc', mi.desc);
       modeBtn.setAttribute('data-tip-detail', mi.detail);
     }
     if (sqBtn) {
       const gateOn = vcSquelch;
-      sqBtn.textContent = gateOn ? '🚫 Gate On' : '🚫 Gate Off';
+      sqBtn.innerHTML = gateOn ? hosIcon('block', 14) + ' Gate On' : hosIcon('block', 14) + ' Gate Off';
       sqBtn.setAttribute('data-tip-title', gateOn ? 'Noise Gate — On' : 'Noise Gate — Off');
       sqBtn.setAttribute('data-tip-desc', gateOn
         ? 'Gate is active — audio below the volume threshold is muted before it reaches others.'
@@ -440,8 +440,8 @@ async function handleVoiceRoomSignal(msg) {
         }
       };
       const info = PRESET_INFO[p] || PRESET_INFO.clarity;
-      presetBtn.textContent = info.label;
-      presetBtn.setAttribute('data-tip-title', 'Mic Preset — ' + info.label.replace('🎚️ ', ''));
+      presetBtn.innerHTML = info.label;
+      presetBtn.setAttribute('data-tip-title', 'Mic Preset — ' + info.label.replace(/<svg[^>]*>.*?<\/svg>\s*/g, '').replace('🎚️ ', ''));
       presetBtn.setAttribute('data-tip-desc', info.desc);
       presetBtn.setAttribute('data-tip-detail', info.detail);
     }
@@ -510,7 +510,7 @@ async function handleVoiceRoomSignal(msg) {
     if (window._currentRoomId && window._roomLocalStream) {
       const ch = (window._voiceChannels || []).find(c => String(c.id) === String(window._currentRoomId));
       const name = ch ? ch.name : 'Unknown';
-      document.getElementById('vc-bar-channel-name').textContent = '🔊 Connected to: ' + name;
+      document.getElementById('vc-bar-channel-name').innerHTML = hosIcon('speaker', 16) + ' Connected to: ' + name;
       bar.classList.add('active');
     } else {
       bar.classList.remove('active');
@@ -587,7 +587,7 @@ async function handleVoiceRoomSignal(msg) {
       vcPttDown = false;
       vcSpeaking = false;
       const btn = document.getElementById('vc-mute-btn');
-      if (btn) { btn.textContent = '🎤'; btn.classList.remove('vc-muted'); }
+      if (btn) { btn.innerHTML = hosIcon('mic', 16); btn.classList.remove('vc-muted'); }
       refreshVoiceButtons();
       applyTxGate();
     }
@@ -785,7 +785,7 @@ function startCall(targetKey, targetName) {
   }));
 
   // Show ringing status
-  document.getElementById('ringing-status').textContent = `📞 Calling ${esc(targetName)}…`;
+  document.getElementById('ringing-status').innerHTML = `${hosIcon('phone-call', 16)} Calling ${esc(targetName)}…`;
   document.getElementById('ringing-status').classList.add('active');
 
   // Auto-cancel after 30s
@@ -868,7 +868,7 @@ function resetCallState() {
   document.getElementById('incoming-call-overlay').classList.remove('open');
   const muteBtn = document.getElementById('mute-btn');
   muteBtn.classList.remove('muted');
-  muteBtn.textContent = '🎤 Mute';
+  muteBtn.innerHTML = hosIcon('mic', 16) + ' Mute';
 }
 
 function showCallBar() {
@@ -893,7 +893,7 @@ function toggleMute() {
   localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
   const btn = document.getElementById('mute-btn');
   btn.classList.toggle('muted', isMuted);
-  btn.textContent = isMuted ? '🔇 Unmute' : '🎤 Mute';
+  btn.innerHTML = isMuted ? hosIcon('mic', 16) + ' Unmute' : hosIcon('mic', 16) + ' Mute';
 }
 
 async function setupPeerConnection(isCaller) {
@@ -1221,13 +1221,13 @@ function renderUnifiedRightSidebar() {
       : '<span class="status-dot offline" title="Offline"></span>';
     let badges = '';
     if (showCall) {
-      badges += `<button class="ulist-icon" onclick="openDmConversation('${esc(pk)}','${esc(name)}')" title="Message ${esc(name)}">💬</button>`;
+      badges += `<button class="ulist-icon" onclick="openDmConversation('${esc(pk)}','${esc(name)}')" title="Message ${esc(name)}">${hosIcon('chat', 16)}</button>`;
     }
     if (voiceMap.has(pk)) {
       const vcId = voiceMap.get(pk);
       const vc = (window._voiceChannels || []).find(c => String(c.id) === String(vcId));
       const vcName = vc ? esc(vc.name) : 'Voice';
-      badges += `<button class="ulist-icon" onclick="joinVoiceRoom(${vcId})" title="Join ${vcName}">🎤</button>`;
+      badges += `<button class="ulist-icon" onclick="joinVoiceRoom(${vcId})" title="Join ${vcName}">${hosIcon('mic', 16)}</button>`;
     }
     if (streamMap.has(pk)) {
       const sid = streamMap.get(pk);
@@ -1318,7 +1318,7 @@ function renderPresenceSidebarForActiveContext() {
     }
     const rows = friendRows.map(u => {
       const online = !!u.online;
-      const dot = online ? '🟢' : '⚫';
+      const dot = online ? hosIcon('dot-green', 10) : '⚫';
       const name = esc(u.name || shortKey(u.public_key));
       const dmConv = (dmConversations || []).find(c => c.partner_key === u.public_key);
       const unread = dmConv && dmConv.unread_count ? ` <span style="color:var(--accent);font-size:0.68rem;">(${dmConv.unread_count})</span>` : '';
@@ -1348,7 +1348,7 @@ function renderPresenceSidebarForActiveContext() {
     const rows = members.map(m => {
       const u = byKey.get(m.key);
       const online = !!(u && u.online);
-      const dot = online ? '🟢' : '⚫';
+      const dot = online ? hosIcon('dot-green', 10) : '⚫';
       const name = esc((u && u.name) ? u.name : shortKey(m.key));
       const role = m.role ? ` <span style="font-size:0.64rem;color:var(--text-muted);">(${esc(m.role)})</span>` : '';
       return `<div class="peer" data-pubkey="${esc(m.key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${role}</div>`;
@@ -1372,7 +1372,7 @@ function addCallButtonsToPeerList() {
     if (el.querySelector('.call-btn')) return;
     const btn = document.createElement('button');
     btn.className = 'call-btn';
-    btn.textContent = '📞';
+    btn.innerHTML = hosIcon('phone-call', 16);
     btn.title = `Call ${name}`;
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -1480,7 +1480,7 @@ try {
   }
   dmVideoActive = true;
   document.getElementById('video-btn').classList.add('active');
-  document.getElementById('video-btn').textContent = '📹 On';
+  document.getElementById('video-btn').innerHTML = hosIcon('video', 16) + ' On';
   showLocalVideo(dmVideoStream, 'dm-self');
 } catch (e) {
   addSystemMessage('⚠️ Camera access denied.');
@@ -1499,7 +1499,7 @@ if (peerConnection) {
 }
 dmVideoActive = false;
 document.getElementById('video-btn').classList.remove('active');
-document.getElementById('video-btn').textContent = '📹 Video';
+document.getElementById('video-btn').innerHTML = hosIcon('video', 16) + ' Video';
 removeVideoElement('dm-self');
 updateVideoPanel();
   }
@@ -1528,7 +1528,7 @@ try {
   }
   dmScreenActive = true;
   document.getElementById('screen-btn').classList.add('active');
-  document.getElementById('screen-btn').textContent = '🖥️ On';
+  document.getElementById('screen-btn').innerHTML = hosIcon('monitor', 16) + ' On';
   showLocalVideo(dmScreenStream, 'dm-screen');
 } catch (e) {
   // User cancelled the screen share picker
@@ -1546,7 +1546,7 @@ if (peerConnection) {
 }
 dmScreenActive = false;
 const btn = document.getElementById('screen-btn');
-if (btn) { btn.classList.remove('active'); btn.textContent = '🖥️ Screen'; }
+if (btn) { btn.classList.remove('active'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen'; }
 removeVideoElement('dm-screen');
 updateVideoPanel();
   }
@@ -1567,9 +1567,9 @@ _origCleanupCall();
   resetCallState = function() {
 _origResetCallState();
 const vb = document.getElementById('video-btn');
-if (vb) { vb.classList.remove('active'); vb.textContent = '📹 Video'; }
+if (vb) { vb.classList.remove('active'); vb.innerHTML = hosIcon('video', 16) + ' Video'; }
 const sb = document.getElementById('screen-btn');
-if (sb) { sb.classList.remove('active'); sb.textContent = '🖥️ Screen'; }
+if (sb) { sb.classList.remove('active'); sb.innerHTML = hosIcon('monitor', 16) + ' Screen'; }
   };
 
   // Patch peerConnection.ontrack to handle video tracks
@@ -1620,7 +1620,7 @@ try {
     btn.classList.remove('vc-muted');
     // Show the active camera's label if known, otherwise just "On".
     const camLabel = localStorage.getItem('humanity-preferred-camera-label') || 'On';
-    btn.textContent = '📹 Camera — ' + camLabel;
+    btn.innerHTML = hosIcon('video', 16) + ' Camera — ' + camLabel;
   }
   showLocalVideo(vrVideoStream, 'vr-self');
 } catch (e) {
@@ -1640,7 +1640,7 @@ if (vrVideoStream) {
 }
 vrVideoActive = false;
 const btn = document.getElementById('vc-video-btn');
-if (btn) { btn.classList.remove('active', 'vc-muted'); btn.textContent = '📹 Camera — Off'; }
+if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('video', 16) + ' Camera — Off'; }
 removeVideoElement('vr-self');
 updateStudioLayout();
 updateStudioPreviewPanel();
@@ -1666,7 +1666,7 @@ try {
   }
   vrScreenActive = true;
   const btn = document.getElementById('vc-screen-btn');
-  if (btn) { btn.classList.add('active'); btn.classList.remove('vc-muted'); btn.textContent = '🖥️ Screen — Active'; }
+  if (btn) { btn.classList.add('active'); btn.classList.remove('vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen — Active'; }
   showLocalVideo(vrScreenStream, 'vr-screen');
 } catch (e) {
   // User cancelled
@@ -1685,7 +1685,7 @@ if (vrScreenStream) {
 }
 vrScreenActive = false;
 const btn = document.getElementById('vc-screen-btn');
-if (btn) { btn.classList.remove('active', 'vc-muted'); btn.textContent = '🖥️ Screen — Off'; }
+if (btn) { btn.classList.remove('active', 'vc-muted'); btn.innerHTML = hosIcon('monitor', 16) + ' Screen — Off'; }
 removeVideoElement('vr-screen');
 updateStudioLayout();
 updateStudioPreviewPanel();
@@ -1890,10 +1890,10 @@ const btn = document.getElementById('vc-chat-overlay-btn');
 if (btn) {
   if (streamChatOverlayEnabled) {
     btn.classList.add('active');
-    btn.textContent = '💬 Overlay — #' + (streamChatOverlayChannel || 'general');
+    btn.innerHTML = hosIcon('chat', 16) + ' Overlay — #' + (streamChatOverlayChannel || 'general');
   } else {
     btn.classList.remove('active');
-    btn.textContent = '💬 Overlay — Off';
+    btn.innerHTML = hosIcon('chat', 16) + ' Overlay — Off';
   }
 }
   };
@@ -1906,7 +1906,7 @@ localStorage.setItem('humanity-stream-chat-channel', streamChatOverlayChannel);
 ensureStreamChatOverlay();
 updateStudioPreviewPanel();
 const btn = document.getElementById('vc-chat-overlay-btn');
-if (btn && streamChatOverlayEnabled) btn.textContent = '💬 Overlay — #' + streamChatOverlayChannel;
+if (btn && streamChatOverlayEnabled) btn.innerHTML = hosIcon('chat', 16) + ' Overlay — #' + streamChatOverlayChannel;
   };
 
   function showLocalVideo(stream, id) {
@@ -1955,11 +1955,11 @@ label.className = 'video-label';
 label.textContent = name;
 const pipBtn = document.createElement('button');
 pipBtn.className = 'video-pip-btn';
-pipBtn.textContent = '📌';
+pipBtn.innerHTML = hosIcon('pin', 14);
 pipBtn.title = 'Pin/Unpin stream';
 pipBtn.onclick = () => {
   wrapper.classList.toggle('pinned-inapp');
-  pipBtn.textContent = wrapper.classList.contains('pinned-inapp') ? '🗗' : '📌';
+  pipBtn.innerHTML = wrapper.classList.contains('pinned-inapp') ? '🗗' : hosIcon('pin', 14);
 };
 wrapper.appendChild(video);
 wrapper.appendChild(label);
