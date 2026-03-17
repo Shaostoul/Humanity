@@ -662,22 +662,16 @@
     return !!(window._currentRoomId && window._roomLocalStream);
   }
 
-  // ── SPA Navigation for Hub Tabs ──
+  // ── Voice Room Navigation Guard ──
+  // Navigating away from /chat while in a voice channel would destroy WebSocket
+  // and WebRTC connections. Warn the user or open in a webview tab instead.
   document.querySelector('.hub-nav').addEventListener('click', function(e) {
     if (e.target.closest('.mobile-menu-btn')) return;
 
     const link = e.target.closest('a[href]');
     if (!link) return;
     const href = link.getAttribute('href');
-    // Only app.html SPA routes here — standalone HTML pages need real full-page
-    // navigation so their data-active attribute fires on load and sets active state.
-    const hubPaths = ['/maps', '/systems', '/market', '/web', '/dashboard'];
-    const currentIsHub = hubPaths.some(function(p) { return location.pathname === p; });
-    const targetIsHub  = hubPaths.some(function(p) { return href === p || href.startsWith(p + '#') || href.startsWith(p + '?'); });
 
-    // Voice room continuity guard — navigating away from /chat while in a voice
-    // channel would destroy the WebSocket and WebRTC connections. Open the target
-    // page in a background webview tab instead so /chat stays alive.
     if (location.pathname === '/chat' && isInActiveVoiceRoom() && href !== '/chat') {
       e.preventDefault();
       var title = (link.getAttribute('data-tip-title') || link.textContent || href).trim();
@@ -686,16 +680,9 @@
       } else {
         if (confirm('You are in a voice channel. Leaving this page will disconnect you. Continue?')) location.href = href;
       }
-      return;
     }
-
-    if (currentIsHub && targetIsHub && href.split('#')[0] !== location.pathname) {
-      e.preventDefault();
-      history.pushState({}, '', href);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-      document.querySelectorAll('.hub-nav a.tab').forEach(function(a) { a.classList.remove('active'); });
-      link.classList.add('active');
-    }
+    // All other nav clicks: let the browser do a normal full-page navigation.
+    // Every page is a standalone HTML file — no SPA routing needed.
   });
 
   // ── Inject Footer ──
