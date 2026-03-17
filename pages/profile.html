@@ -8,14 +8,14 @@
   <style>
     /* ── Layout ── */
     /* shell.js nav is position:sticky so no padding-top needed on body */
-    body { padding-top: 0; padding-bottom: 2rem; }
+    body { padding-top: 0; padding-bottom: var(--space-3xl); }
     #profile-app {
       display: flex;
       height: calc(100vh - 42px); /* nav 40px + separator 1px + 1px gap */
       max-width: 1400px;
       margin: 0 auto;
-      padding: 1rem;
-      gap: 1rem;
+      padding: var(--space-xl);
+      gap: var(--space-xl);
     }
 
     /* ── Left Sidebar ── */
@@ -25,13 +25,13 @@
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
+      gap: var(--space-sm);
     }
     .prof-section-btn {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 0.75rem;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       background: var(--bg-card);
@@ -54,20 +54,20 @@
     .sidebar-divider {
       height: 1px;
       background: var(--border);
-      margin: 0.4rem 0;
+      margin: var(--space-md) 0;
     }
     .sidebar-label {
       font-size: 0.65rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-muted);
-      padding: 0.2rem 0.5rem;
+      padding: var(--space-xs) var(--space-md);
     }
     #save-status {
       font-size: 0.75rem;
       color: var(--text-muted);
       text-align: center;
-      padding: 0.35rem;
+      padding: var(--space-sm);
     }
     #save-status.saved { color: #4a9; }
 
@@ -77,17 +77,17 @@
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 1rem;
+      gap: var(--space-xl);
     }
 
     /* ── Section Header ── */
     .section-header {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem 1rem;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
       border-radius: var(--radius);
-      margin-bottom: 0.25rem;
+      margin-bottom: var(--space-sm);
     }
     .section-header.private  { background: rgba(204,68,68,0.12); border: 1px solid rgba(204,68,68,0.3); }
     .section-header.personal { background: rgba(68,170,136,0.12); border: 1px solid rgba(68,170,136,0.3); }
@@ -100,27 +100,27 @@
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 1rem;
+      padding: var(--space-xl);
     }
     .prof-card h3 {
       font-size: 0.85rem;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      margin-bottom: 0.75rem;
+      margin-bottom: var(--space-lg);
     }
 
     /* ── Form Grid ── */
     .field-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 0.6rem;
+      gap: var(--space-lg);
     }
     .field-grid.two-col { grid-template-columns: 1fr 1fr; }
     .field-group {
       display: flex;
       flex-direction: column;
-      gap: 0.2rem;
+      gap: var(--space-xs);
     }
     .field-group label {
       font-size: 0.72rem;
@@ -137,7 +137,7 @@
       color: var(--text);
       font-family: inherit;
       font-size: 0.85rem;
-      padding: 0.35rem 0.5rem;
+      padding: var(--space-sm) var(--space-md);
       outline: none;
       width: 100%;
       transition: border-color 0.15s;
@@ -155,8 +155,8 @@
     .social-row {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.4rem;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
     }
     .social-icon { width: 20px; text-align: center; font-size: 1rem; flex-shrink: 0; }
     .social-row input {
@@ -166,7 +166,7 @@
       border-radius: var(--radius);
       color: var(--text);
       font-size: 0.85rem;
-      padding: 0.35rem 0.5rem;
+      padding: var(--space-sm) var(--space-md);
       outline: none;
     }
     .social-row input:focus { border-color: #48f; }
@@ -176,12 +176,12 @@
       background: var(--bg-secondary);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 0.75rem;
-      margin-bottom: 0.5rem;
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
     }
     .stream-platform h4 {
       font-size: 0.8rem;
-      margin-bottom: 0.5rem;
+      margin-bottom: var(--space-md);
       color: var(--text);
     }
 
@@ -191,7 +191,7 @@
       color: #fff;
       border: none;
       border-radius: var(--radius);
-      padding: 0.5rem 1.25rem;
+      padding: var(--space-md) var(--space-2xl);
       font-size: 0.85rem;
       font-weight: 600;
       cursor: pointer;
@@ -205,8 +205,8 @@
       color: var(--text-muted);
       display: flex;
       align-items: center;
-      gap: 0.3rem;
-      margin-top: 0.25rem;
+      gap: var(--space-sm);
+      margin-top: var(--space-sm);
     }
 
     /* ── Hidden sections ── */
@@ -235,7 +235,7 @@
       background: var(--bg-card, #111);
       border-right: 1px solid var(--border, #222);
       overflow-y: auto;
-      padding: 1rem 0;
+      padding: var(--space-xl) 0;
       flex-shrink: 0;
     }
     #tab-skills #domain-sidebar h2 {
@@ -243,13 +243,13 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-muted, #555);
-      padding: 0 1rem 0.5rem;
+      padding: 0 var(--space-xl) var(--space-md);
     }
     #tab-skills .domain-item {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
-      padding: 0.55rem 1rem;
+      gap: var(--space-lg);
+      padding: var(--space-md) var(--space-xl);
       cursor: pointer;
       border-left: 3px solid transparent;
       transition: background 0.15s, border-color 0.15s;
@@ -268,44 +268,44 @@
     #tab-skills .domain-bar-wrap { height: 2px; background: var(--border, #222); border-radius: 1px; margin-top: 2px; }
     #tab-skills .domain-bar-fill { height: 100%; border-radius: 1px; background: var(--domain-color); transition: width 0.4s; }
 
-    #tab-skills #skill-panel { flex: 1; overflow-y: auto; padding: 1.5rem; }
+    #tab-skills #skill-panel { flex: 1; overflow-y: auto; padding: var(--space-2xl); }
     #tab-skills #skill-panel-header {
-      display: flex; align-items: center; gap: 0.8rem;
-      margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border, #222);
+      display: flex; align-items: center; gap: var(--space-xl);
+      margin-bottom: var(--space-2xl); padding-bottom: var(--space-xl); border-bottom: 1px solid var(--border, #222);
     }
     #tab-skills #panel-domain-icon { font-size: 2rem; line-height: 1; }
     #tab-skills #panel-domain-title { font-size: 1.4rem; font-weight: 700; }
-    #tab-skills #panel-domain-desc { font-size: 0.8rem; color: var(--text-muted, #888); margin-top: 0.2rem; }
+    #tab-skills #panel-domain-desc { font-size: 0.8rem; color: var(--text-muted, #888); margin-top: var(--space-xs); }
     #tab-skills #panel-domain-overall { margin-left: auto; text-align: right; }
     #tab-skills #panel-domain-overall .big-level { font-size: 2rem; font-weight: 800; color: var(--skill-active-color, #FF8811); line-height: 1; }
     #tab-skills #panel-domain-overall .big-label { font-size: 0.65rem; color: var(--text-muted, #666); text-transform: uppercase; letter-spacing: 0.06em; }
 
-    #tab-skills .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+    #tab-skills .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-xl); }
     #tab-skills .skill-card {
       background: var(--bg-card, #141414); border: 1px solid var(--border, #222);
-      border-radius: var(--radius); padding: 1rem; transition: border-color 0.2s, box-shadow 0.2s;
+      border-radius: var(--radius); padding: var(--space-xl); transition: border-color 0.2s, box-shadow 0.2s;
     }
     #tab-skills .skill-card:hover { border-color: var(--border-hover, #333); box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
-    #tab-skills .skill-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.6rem; }
+    #tab-skills .skill-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-lg); }
     #tab-skills .skill-name { font-size: 0.95rem; font-weight: 600; }
-    #tab-skills .skill-tags { font-size: 0.65rem; color: var(--text-muted, #666); margin-top: 0.15rem; }
+    #tab-skills .skill-tags { font-size: 0.65rem; color: var(--text-muted, #666); margin-top: var(--space-xs); }
     #tab-skills .skill-level-badge { font-size: 1.4rem; font-weight: 800; color: var(--skill-active-color, #FF8811); line-height: 1; min-width: 32px; text-align: right; }
     #tab-skills .skill-level-label { font-size: 0.6rem; color: var(--text-muted, #555); text-align: right; text-transform: uppercase; }
-    #tab-skills .skill-desc { font-size: 0.75rem; color: var(--text-muted, #777); margin-bottom: 0.8rem; line-height: 1.4; }
+    #tab-skills .skill-desc { font-size: 0.75rem; color: var(--text-muted, #777); margin-bottom: var(--space-xl); line-height: 1.4; }
 
-    #tab-skills .xp-bar-wrap { height: 6px; background: var(--bg-secondary, #1e1e1e); border-radius: var(--radius-sm); margin-bottom: 0.8rem; position: relative; }
+    #tab-skills .xp-bar-wrap { height: 6px; background: var(--bg-secondary, #1e1e1e); border-radius: var(--radius-sm); margin-bottom: var(--space-xl); position: relative; }
     #tab-skills .xp-bar-fill { height: 100%; border-radius: var(--radius-sm); background: var(--skill-active-color, #FF8811); transition: width 0.5s cubic-bezier(0.4,0,0.2,1); }
     #tab-skills .xp-bar-text { position: absolute; right: 0; top: 8px; font-size: 0.6rem; color: var(--text-muted, #555); }
 
-    #tab-skills .level-steps { display: flex; gap: 3px; margin-bottom: 0.9rem; }
+    #tab-skills .level-steps { display: flex; gap: 3px; margin-bottom: var(--space-xl); }
     #tab-skills .level-pip { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-secondary, #1e1e1e); cursor: pointer; transition: background 0.2s; }
     #tab-skills .level-pip.filled { background: var(--skill-active-color, #FF8811); }
     #tab-skills .level-pip:hover { opacity: 0.8; }
 
-    #tab-skills .xp-actions { display: flex; gap: 0.4rem; align-items: center; }
+    #tab-skills .xp-actions { display: flex; gap: var(--space-md); align-items: center; }
     #tab-skills .xp-btn {
       background: var(--bg-secondary, #1a1a1a); border: 1px solid var(--border, #2a2a2a);
-      color: var(--text-muted, #aaa); border-radius: var(--radius-sm); padding: 0.25rem 0.55rem;
+      color: var(--text-muted, #aaa); border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md);
       font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
     }
     #tab-skills .xp-btn:hover { background: var(--bg-hover, #222); border-color: var(--border-hover, #444); color: var(--text, #fff); }
@@ -328,7 +328,7 @@
       position: fixed; bottom: 60px; left: 50%;
       transform: translateX(-50%) translateY(20px);
       background: var(--bg-card, #1a1a1a); border: 1px solid var(--border, #333);
-      border-radius: var(--radius); padding: 0.5rem 1rem; font-size: 0.82rem;
+      border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: 0.82rem;
       color: var(--text, #eee); opacity: 0; pointer-events: none;
       transition: opacity 0.25s, transform 0.25s; z-index: 9999;
     }
@@ -336,14 +336,14 @@
 
     #tab-skills #empty-state {
       display: flex; flex-direction: column; align-items: center;
-      justify-content: center; height: 60%; color: var(--text-muted, #444); gap: 0.5rem;
+      justify-content: center; height: 60%; color: var(--text-muted, #444); gap: var(--space-md);
     }
     #tab-skills #empty-state .big { font-size: 3rem; }
     #tab-skills #empty-state p { font-size: 0.85rem; }
 
     @media (max-width: 600px) {
       #tab-skills #domain-sidebar { width: 160px; min-width: 140px; }
-      #tab-skills #skill-panel { padding: 1rem; }
+      #tab-skills #skill-panel { padding: var(--space-xl); }
       #tab-skills .skill-grid { grid-template-columns: 1fr; }
     }
   </style>
@@ -394,7 +394,7 @@
       </button>
 
       <div class="sidebar-divider"></div>
-      <button class="save-btn" onclick="saveAll()" style="width:100%;margin-top:0.25rem;"><span data-icon="save" data-size="16"></span> Save All</button>
+      <button class="save-btn" onclick="saveAll()" style="width:100%;margin-top:var(--space-sm);"><span data-icon="save" data-size="16"></span> Save All</button>
       <div id="save-status"></div>
     </div>
 
@@ -590,7 +590,7 @@
             <label>Allergies</label>
             <textarea id="f-allergies" rows="2" placeholder="Food, medication, environmental..."></textarea>
           </div>
-          <div class="field-group private-field" style="margin-top:0.5rem;">
+          <div class="field-group private-field" style="margin-top:var(--space-md);">
             <label>Medications / Conditions</label>
             <textarea id="f-medical" rows="3" placeholder="Personal notes only — never transmitted"></textarea>
           </div>
@@ -660,16 +660,16 @@
               <input type="url" id="f-banner-url" placeholder="https://...">
             </div>
           </div>
-          <p class="privacy-note" style="margin-top:0.5rem;"><span data-icon="dot-green" data-size="14"></span> Avatar and banner are shared with friends and visible on your public profile card.</p>
+          <p class="privacy-note" style="margin-top:var(--space-md);"><span data-icon="dot-green" data-size="14"></span> Avatar and banner are shared with friends and visible on your public profile card.</p>
         </div>
 
         <div class="prof-card" id="sync-card">
           <h3>Sync to Network</h3>
-          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-lg);">
             Sync your network profile to the relay so friends can view it. Requires an active Network connection.
           </p>
           <button class="save-btn" onclick="syncNetworkProfile()">🔄 Sync to Network</button>
-          <span id="sync-status" style="font-size:0.78rem;color:var(--text-muted);margin-left:0.75rem;"></span>
+          <span id="sync-status" style="font-size:0.78rem;color:var(--text-muted);margin-left:var(--space-lg);"></span>
         </div>
       </div>
 
@@ -785,13 +785,13 @@
 
         <div class="prof-card">
           <h3>OBS / Multistream Setup</h3>
-          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.75rem;">
+          <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-lg);">
             Enter your RTMP stream keys for each platform. Stored locally only — never synced to the relay.
             Enable the toggle to include a platform in your multistream output.
           </p>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-yt-enabled" style="width:auto;"> ▶️ YouTube Live
             </label></h4>
             <div class="field-grid two-col">
@@ -807,7 +807,7 @@
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-twitch-enabled" style="width:auto;"> 🎮 Twitch
             </label></h4>
             <div class="field-grid two-col">
@@ -823,7 +823,7 @@
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-rumble-enabled" checked style="width:auto;"> 🟠 Rumble
             </label></h4>
             <div class="field-grid two-col">
@@ -839,7 +839,7 @@
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-facebook-enabled" style="width:auto;"> 📘 Facebook / Instagram Live
             </label></h4>
             <div class="field-grid two-col">
@@ -852,11 +852,11 @@
                 <input type="text" id="f-facebook-rtmp" value="rtmps://live-api-s.facebook.com:443/rtmp/" readonly style="opacity:0.6;">
               </div>
             </div>
-            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Get your key from Meta Business Suite → Live → Create Live Video.</p>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">Get your key from Meta Business Suite → Live → Create Live Video.</p>
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-x-enabled" style="width:auto;"> 🐦 X (Twitter)
             </label></h4>
             <div class="field-grid two-col">
@@ -869,11 +869,11 @@
                 <input type="text" id="f-x-rtmp" value="rtmps://ingest.pscp.tv:443/x/" readonly style="opacity:0.6;">
               </div>
             </div>
-            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">Get your key from X Media Studio → Producer → Broadcast.</p>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">Get your key from X Media Studio → Producer → Broadcast.</p>
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-kick-enabled" style="width:auto;"> 🟩 Kick
             </label></h4>
             <div class="field-grid two-col">
@@ -889,7 +889,7 @@
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-tiktok-enabled" style="width:auto;"> 🎵 TikTok Live
             </label></h4>
             <div class="field-grid two-col">
@@ -902,11 +902,11 @@
                 <input type="text" id="f-tiktok-rtmp" placeholder="rtmp:// (varies by region)" autocomplete="off">
               </div>
             </div>
-            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;">TikTok RTMP server varies — get it from TikTok LIVE Studio.</p>
+            <p style="font-size:0.72rem;color:var(--text-muted);margin-top:var(--space-sm);">TikTok RTMP server varies — get it from TikTok LIVE Studio.</p>
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-linkedin-enabled" style="width:auto;"> 💼 LinkedIn Live
             </label></h4>
             <div class="field-grid two-col">
@@ -922,7 +922,7 @@
           </div>
 
           <div class="stream-platform">
-            <h4><label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-weight:600;">
+            <h4><label style="display:flex;align-items:center;gap:var(--space-md);cursor:pointer;font-weight:600;">
               <input type="checkbox" id="f-custom-enabled" style="width:auto;"> 🌐 Custom RTMP
             </label></h4>
             <div class="field-grid two-col">
@@ -937,9 +937,9 @@
             </div>
           </div>
 
-          <div style="margin-top:0.75rem;">
+          <div style="margin-top:var(--space-lg);">
             <button class="save-btn" onclick="copyObsConfig()"><span data-icon="copy" data-size="16"></span> Copy OBS Multistream Config</button>
-            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.35rem;">
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-sm);">
               Copies config for all enabled platforms. Paste into the
               <a href="https://obsproject.com/forum/resources/obs-multi-rtmp.964/" target="_blank">obs-multi-rtmp</a> plugin
               or use with a multistream service like Restream.
@@ -1349,7 +1349,7 @@
 
       var endorsement = skillEndorsements[skill.id.toLowerCase()];
       var endorseBadge = endorsement && endorsement.count > 0
-        ? '<span style="font-size:0.7rem;color:#ffd700;margin-top:0.2rem;display:block;" title="Endorsed by ' + (endorsement.last_endorser || 'a peer') + '">🏅 ' + endorsement.count + '</span>'
+        ? '<span style="font-size:0.7rem;color:#ffd700;margin-top:var(--space-xs);display:block;" title="Endorsed by ' + (endorsement.last_endorser || 'a peer') + '">🏅 ' + endorsement.count + '</span>'
         : '';
 
       return '<div class="skill-card" id="card-' + skill.id + '">' +
@@ -1414,14 +1414,14 @@
     /** Show a modal listing community members who have this skill */
     function skill_findUsers(skillId, skillName) {
       var overlay = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
       overlay.innerHTML =
-        '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:#e0e0e0;">' +
-          '<h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:0.25rem">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +
-          '<p style="font-size:0.73rem;color:#666;margin-bottom:1rem">Community members with this skill (from relay database):</p>' +
+        '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:var(--space-2xl);width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:#e0e0e0;">' +
+          '<h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:var(--space-sm)">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +
+          '<p style="font-size:0.73rem;color:#666;margin-bottom:var(--space-xl)">Community members with this skill (from relay database):</p>' +
           '<div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>' +
-          '<div style="display:flex;justify-content:flex-end;margin-top:1rem;">' +
-            '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:0.4rem 1rem;font-size:0.82rem;cursor:pointer;">Close</button>' +
+          '<div style="display:flex;justify-content:flex-end;margin-top:var(--space-xl);">' +
+            '<button onclick="this.closest(\'[style*=fixed]\').remove()" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:0.82rem;cursor:pointer;">Close</button>' +
           '</div>' +
         '</div>';
       document.body.appendChild(overlay);
@@ -1439,7 +1439,7 @@
           resultsEl.innerHTML = users.map(function(u) {
             var lv = u.level || 0;
             var c = lvColors[Math.min(lv, lvColors.length-1)];
-            return '<div style="display:flex;align-items:center;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid #1e1e1e;">' +
+            return '<div style="display:flex;align-items:center;gap:var(--space-md);padding:var(--space-sm) 0;border-bottom:1px solid #1e1e1e;">' +
               '<div style="width:28px;height:28px;border-radius:50%;background:#222;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;flex-shrink:0;color:' + c + '">' + lv + '</div>' +
               '<span style="flex:1;font-weight:600">' + (u.display_name || u.public_key.slice(0,12) + '…') + '</span>' +
               '<span style="font-size:0.68rem;color:#555">' + (u.reality_xp|0) + ' XP</span>' +

@@ -26,20 +26,20 @@
     #cal-topbar {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.6rem 1rem;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
       background: #0f0f0f;
       border-bottom: 1px solid #1a1a1a;
       flex-shrink: 0;
     }
 
-    #cal-nav { display: flex; gap: 0.3rem; }
+    #cal-nav { display: flex; gap: var(--space-sm); }
     .nav-btn {
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
       border-radius: var(--radius-sm);
       color: #aaa;
-      padding: 0.3rem 0.7rem;
+      padding: var(--space-sm) var(--space-lg);
       font-size: 0.82rem;
       cursor: pointer;
       transition: all 0.15s;
@@ -54,13 +54,13 @@
       min-width: 180px;
     }
 
-    #view-tabs { display: flex; gap: 0.25rem; margin-left: auto; }
+    #view-tabs { display: flex; gap: var(--space-sm); margin-left: auto; }
     .view-tab {
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
       border-radius: var(--radius-sm);
       color: #888;
-      padding: 0.28rem 0.7rem;
+      padding: 0.28rem var(--space-lg);
       font-size: 0.78rem;
       cursor: pointer;
       transition: all 0.15s;
@@ -73,7 +73,7 @@
       border: 1px solid #2a5a2a;
       color: #4caf50;
       border-radius: var(--radius-sm);
-      padding: 0.3rem 0.8rem;
+      padding: var(--space-sm) var(--space-xl);
       font-size: 0.8rem;
       cursor: pointer;
       transition: all 0.15s;
@@ -110,7 +110,7 @@
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: #555;
-      padding: 0.4rem 0;
+      padding: var(--space-md) 0;
     }
 
     .month-grid {
@@ -125,7 +125,7 @@
 
     .cal-day {
       background: #111;
-      padding: 0.3rem 0.4rem;
+      padding: var(--space-sm) var(--space-md);
       min-height: 0;
       overflow: hidden;
       cursor: pointer;
@@ -187,7 +187,7 @@
     }
     .week-header-cell {
       text-align: center;
-      padding: 0.35rem 0;
+      padding: var(--space-sm) 0;
       font-size: 0.72rem;
       border-left: 1px solid #1a1a1a;
     }
@@ -250,7 +250,7 @@
       overflow: hidden;
     }
     .day-header {
-      padding: 0.6rem 1rem;
+      padding: var(--space-lg) var(--space-xl);
       border-bottom: 1px solid #1a1a1a;
       background: #0f0f0f;
       font-size: 0.85rem;
@@ -327,12 +327,12 @@
       border-radius: var(--radius-lg);
       width: 420px;
       max-width: 95vw;
-      padding: 1.5rem;
+      padding: var(--space-2xl);
     }
-    #ev-modal h2 { font-size: 1rem; margin-bottom: 1rem; }
+    #ev-modal h2 { font-size: 1rem; margin-bottom: var(--space-xl); }
 
-    .ev-field { margin-bottom: 0.75rem; }
-    .ev-field label { display: block; font-size: 0.72rem; color: #888; margin-bottom: 0.2rem; }
+    .ev-field { margin-bottom: var(--space-lg); }
+    .ev-field label { display: block; font-size: 0.72rem; color: #888; margin-bottom: var(--space-xs); }
     .ev-field input, .ev-field select, .ev-field textarea {
       width: 100%;
       background: #1a1a1a;
@@ -340,16 +340,16 @@
       border-radius: var(--radius-sm);
       color: #e0e0e0;
       font-size: 0.82rem;
-      padding: 0.4rem 0.6rem;
+      padding: var(--space-md) var(--space-lg);
       outline: none;
       font-family: inherit;
     }
     .ev-field input:focus, .ev-field select:focus { border-color: #444; }
 
-    .ev-row { display: flex; gap: 0.6rem; }
+    .ev-row { display: flex; gap: var(--space-lg); }
     .ev-row .ev-field { flex: 1; }
 
-    .color-picker { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .color-picker { display: flex; gap: var(--space-md); flex-wrap: wrap; }
     .color-swatch {
       width: 24px; height: 24px;
       border-radius: 50%;
@@ -359,13 +359,13 @@
     }
     .color-swatch.selected { border-color: #fff; transform: scale(1.1); }
 
-    .ev-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+    .ev-actions { display: flex; gap: var(--space-md); justify-content: flex-end; margin-top: var(--space-xl); }
     .ev-btn {
       background: #1e1e1e;
       border: 1px solid #2a2a2a;
       border-radius: var(--radius-sm);
       color: #aaa;
-      padding: 0.38rem 1rem;
+      padding: 0.38rem var(--space-xl);
       font-size: 0.82rem;
       cursor: pointer;
       transition: all 0.15s;

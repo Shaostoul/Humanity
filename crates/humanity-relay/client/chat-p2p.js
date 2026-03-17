@@ -125,17 +125,17 @@ function showContactCardExportModal(cardJson) {
           Give this card to someone so they can add you as a contact.
           It expires in 7 days.
         </p>
-        <canvas id="p2p-qr-canvas" style="display:block;margin:0.5rem auto;"></canvas>
+        <canvas id="p2p-qr-canvas" style="display:block;margin:var(--space-md) auto;"></canvas>
         <textarea id="p2p-card-json" readonly
-          style="width:100%;height:120px;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem;resize:none;"></textarea>
-        <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
+          style="width:100%;height:120px;font-size:0.7rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);resize:none;"></textarea>
+        <div style="display:flex;gap:var(--space-md);margin-top:var(--space-lg);">
           <button id="p2p-copy-btn"
             onclick="(function(btn){navigator.clipboard.writeText(document.getElementById('p2p-card-json').value).then(function(){btn.innerHTML=hosIcon('check',14)+' Copied!';btn.style.background='#1a5c2a';setTimeout(function(){btn.innerHTML=hosIcon('copy',14)+' Copy JSON';btn.style.background='';},2000);}).catch(function(){btn.innerHTML=hosIcon('close',14)+' Failed';setTimeout(function(){btn.innerHTML=hosIcon('copy',14)+' Copy JSON';},2000);})})(this)"
-            style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:0.4rem;cursor:pointer;">
+            style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ${hosIcon('copy', 14)} Copy JSON
           </button>
           <button onclick="var m=document.getElementById('p2p-export-modal');if(m)m.classList.remove('open');"
-            style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem;cursor:pointer;">
+            style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ✕ Close
           </button>
         </div>
@@ -201,19 +201,19 @@ function showContactCardImportModal() {
           Paste a contact card JSON from another user.
         </p>
         <textarea id="p2p-import-json" placeholder="Paste contact card JSON here…"
-          style="width:100%;height:140px;font-size:0.75rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem;resize:none;"></textarea>
-        <div style="display:flex;gap:0.5rem;margin-top:0.6rem;">
+          style="width:100%;height:140px;font-size:0.75rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);resize:none;"></textarea>
+        <div style="display:flex;gap:var(--space-md);margin-top:var(--space-lg);">
           <button onclick="importContactCardFromModal()"
-            style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:0.4rem;cursor:pointer;">
+            style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             ${hosIcon('check', 14)} Add Contact
           </button>
           <button onclick="document.getElementById('p2p-import-modal').classList.remove('open')"
-            style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.4rem;cursor:pointer;">
+            style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md);cursor:pointer;">
             Cancel
           </button>
         </div>
-        <p id="p2p-import-error" style="color:var(--danger,#e74c3c);font-size:0.8rem;margin-top:0.4rem;display:none;"></p>
-        <p id="p2p-import-success" style="color:var(--success,#2a6);font-size:0.85rem;font-weight:600;margin-top:0.4rem;display:none;"></p>
+        <p id="p2p-import-error" style="color:var(--danger,#e74c3c);font-size:0.8rem;margin-top:var(--space-md);display:none;"></p>
+        <p id="p2p-import-success" style="color:var(--success,#2a6);font-size:0.85rem;font-weight:600;margin-top:var(--space-md);display:none;"></p>
       </div>`;
     document.body.appendChild(modal);
   }

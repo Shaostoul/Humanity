@@ -231,25 +231,25 @@ function renderDeviceList(devices) {
   container.innerHTML = '';
   devices.forEach(d => {
     const div = document.createElement('div');
-    div.style.cssText = 'padding:0.5rem;margin-bottom:0.4rem;background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--border);';
+    div.style.cssText = 'padding:var(--space-xl);margin-bottom:var(--space-md);background:var(--bg-secondary);border-radius:var(--radius);border:1px solid var(--border);';
     const keyShort = d.public_key.substring(0, 16) + '…';
     const statusDot = d.is_online ? '🟢' : '⚫';
     const currentBadge = d.is_current ? ' <span style="color:var(--accent);font-size:0.7rem">(this device)</span>' : '';
     const date = new Date(d.registered_at).toLocaleDateString();
     div.innerHTML = `
-      <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem">
+      <div style="display:flex;align-items:center;gap:var(--space-md);margin-bottom:var(--space-sm)">
         <span>${statusDot}</span>
         <code style="font-size:0.75rem;color:var(--text-muted)">${keyShort}</code>
         ${currentBadge}
       </div>
-      <div style="display:flex;align-items:center;gap:0.3rem;margin-bottom:0.3rem">
+      <div style="display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-sm)">
         <input type="text" value="${(d.label || '').replace(/"/g, '&quot;')}"
                placeholder="Label (e.g. PC, Phone, Laptop)"
                maxlength="32"
-               style="flex:1;font-size:0.8rem;padding:0.2rem 0.4rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)"
+               style="flex:1;font-size:0.8rem;padding:var(--space-xs) var(--space-md);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text)"
                onchange="labelDevice('${d.public_key}', this.value)">
         ${!d.is_current ? `<button onclick="revokeDevice('${d.public_key.substring(0, 8)}')"
-                style="font-size:0.75rem;padding:0.2rem 0.5rem;background:var(--danger);border:none;border-radius:var(--radius-sm);color:#fff;cursor:pointer"
+                style="font-size:0.75rem;padding:var(--space-xs) var(--space-xl);background:var(--danger);border:none;border-radius:var(--radius-sm);color:#fff;cursor:pointer"
                 title="Remove this device">✕</button>` : ''}
       </div>
       <div style="font-size:0.7rem;color:var(--text-muted)">Registered: ${date}</div>
@@ -273,22 +273,22 @@ async function openLinkDeviceModal() {
   const json = JSON.stringify(data, null, 2);
   const overlay = document.createElement('div');
   overlay.id = 'link-device-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:7000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:7000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
   overlay.innerHTML = `
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;width:100%;max-width:440px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto;">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:.4rem">📱 Link New Device</h2>
-      <p style="font-size:.75rem;color:var(--accent);background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.2);border-radius:var(--radius);padding:.5rem .75rem;margin-bottom:.9rem;line-height:1.55">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:440px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto;">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)">📱 Link New Device</h2>
+      <p style="font-size:.75rem;color:var(--accent);background:rgba(240,165,0,.08);border:1px solid rgba(240,165,0,.2);border-radius:var(--radius);padding:var(--space-xl) var(--space-lg);margin-bottom:var(--space-xl);line-height:1.55">
         ⚠️ <strong>Private:</strong> this QR code contains your private key. Only scan it in a physically private location. Close this modal immediately after use.
       </p>
-      <canvas id="link-device-qr" style="display:block;margin:0 auto .75rem;border-radius:var(--radius);background:#fff;padding:6px;max-width:220px;width:100%;height:auto;"></canvas>
-      <p style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-bottom:.75rem">Scan with your new device's camera. Or copy the JSON below.</p>
+      <canvas id="link-device-qr" style="display:block;margin:0 auto var(--space-lg);border-radius:var(--radius);background:#fff;padding:6px;max-width:220px;width:100%;height:auto;"></canvas>
+      <p style="font-size:.72rem;color:var(--text-muted);text-align:center;margin-bottom:var(--space-lg)">Scan with your new device's camera. Or copy the JSON below.</p>
       <textarea id="link-device-json" readonly rows="5"
-        style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem;font-size:.7rem;color:var(--text-muted);font-family:monospace;resize:none;margin-bottom:.75rem">${json.replace(/</g,'&lt;')}</textarea>
-      <div style="display:flex;gap:.5rem;justify-content:flex-end">
+        style="width:100%;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl);font-size:.7rem;color:var(--text-muted);font-family:monospace;resize:none;margin-bottom:var(--space-lg)">${json.replace(/</g,'&lt;')}</textarea>
+      <div style="display:flex;gap:var(--space-xl);justify-content:flex-end">
         <button onclick="navigator.clipboard.writeText(document.getElementById('link-device-json').value).then(()=>this.textContent='Copied!')"
-          style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.4rem 1rem;font-size:.82rem;cursor:pointer;">📋 Copy JSON</button>
+          style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">📋 Copy JSON</button>
         <button onclick="document.getElementById('link-device-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.4rem 1rem;font-size:.82rem;cursor:pointer;">Close</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer;">Close</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);

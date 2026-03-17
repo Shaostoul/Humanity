@@ -5,35 +5,35 @@
   display: none;
   background: linear-gradient(135deg, #1a3a2a, #1a2a3a);
   border-bottom: 1px solid var(--border);
-  padding: 0.5rem 1rem;
+  padding: var(--space-md) var(--space-xl);
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 0.85rem;
+  gap: var(--space-md);
+  font-size: var(--text-sm);
   animation: noticeFadeIn 0.2s ease;
 }
 #call-bar.active { display: flex; }
 #call-bar .call-info {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-md);
   color: var(--success);
   font-weight: 600;
 }
 #call-bar .call-timer {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   font-family: monospace;
 }
 #call-bar .call-actions {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-md);
 }
 #call-bar .call-actions button {
   border: none;
-  padding: 0.35rem 0.7rem;
+  padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-sm);
-  font-size: 0.78rem;
+  font-size: var(--text-sm);
   cursor: pointer;
   font-weight: 600;
 }
@@ -64,37 +64,37 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1.5rem 2rem;
+  padding: var(--space-2xl) var(--space-3xl);
   text-align: center;
   min-width: 280px;
   animation: noticeFadeIn 0.3s ease;
 }
 #incoming-call-box .call-icon {
   font-size: 2.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: var(--space-md);
   animation: pulse 1s infinite;
 }
 #incoming-call-box .caller-name {
-  font-size: 1.1rem;
+  font-size: var(--text-xl);
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 0.3rem;
+  margin-bottom: var(--space-sm);
 }
 #incoming-call-box .call-label {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-xl);
 }
 #incoming-call-box .call-btns {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-xl);
   justify-content: center;
 }
 #incoming-call-box .call-btns button {
   border: none;
-  padding: 0.6rem 1.5rem;
+  padding: var(--space-lg) var(--space-2xl);
   border-radius: var(--radius);
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   cursor: pointer;
   font-weight: 600;
 }
@@ -107,8 +107,8 @@
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0.1rem 0.25rem;
+  font-size: var(--text-sm);
+  padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
   opacity: 0.5;
   transition: opacity 0.15s;
@@ -118,8 +118,8 @@
   display: none;
   text-align: center;
   color: var(--text-muted);
-  font-size: 0.85rem;
-  padding: 0.5rem;
+  font-size: var(--text-sm);
+  padding: var(--space-md);
   animation: pulse 1.5s infinite;
 }
 #ringing-status.active { display: block; }
@@ -130,16 +130,16 @@
   background: linear-gradient(135deg, #1a3a2a, #1a2a3a);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0.5rem;
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
+  padding: var(--space-md);
+  margin-top: var(--space-md);
+  font-size: var(--text-sm);
 }
 #voice-control-bar.active { display: block; }
 #voice-control-bar .vc-bar-header {
   color: var(--success);
   font-weight: 600;
-  font-size: 0.72rem;
-  margin-bottom: 0.35rem;
+  font-size: var(--text-xs);
+  margin-bottom: var(--space-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -148,7 +148,7 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: var(--space-sm);
 }
 #voice-control-bar button {
   border: 1px solid var(--border);
@@ -156,7 +156,7 @@
   color: var(--text);
   padding: 0.22rem 0.44rem;
   border-radius: var(--radius-sm);
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -223,7 +223,7 @@
   position: absolute;
   bottom: 4px;
   left: 4px;
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
   background: rgba(0,0,0,0.7);
   padding: 1px 4px;
   border-radius: 2px;
@@ -236,7 +236,7 @@
   background: rgba(0,0,0,0.6);
   border: none;
   color: #fff;
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   padding: 2px 5px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -323,8 +323,8 @@
   overflow: hidden;
 }
 #video-panel .stream-chat-overlay .stream-chat-overlay-body {
-  padding: 0.35rem 0.45rem;
-  font-size: 0.72rem;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-xs);
   color: var(--text-muted);
   line-height: 1.35;
 }
@@ -337,7 +337,7 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0.3rem 0;
+  padding: var(--space-sm) 0;
   min-width: 200px;
   z-index: 310;
   display: none;
@@ -346,9 +346,9 @@
 }
 .camera-selector.open { display: block; }
 .camera-selector .cam-option {
-  padding: 0.4rem 0.8rem;
+  padding: var(--space-md) var(--space-xl);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -376,7 +376,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  margin-bottom: 0.35rem;
+  margin-bottom: var(--space-sm);
 }
 .stream-studio-preview video {
   width: 100%;
@@ -423,26 +423,26 @@
 @media (max-width: 640px) {
   /* Call controls: wrap cleanly on narrow screens */
   #call-bar {
-    padding: 0.45rem 0.55rem;
+    padding: var(--space-md) var(--space-md);
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: var(--space-sm);
   }
   #call-bar .call-info {
     width: 100%;
-    font-size: 0.78rem;
+    font-size: var(--text-sm);
   }
   #call-bar .call-actions {
     width: 100%;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.35rem;
+    gap: var(--space-sm);
   }
   #call-bar .call-actions button {
     width: 100%;
     min-height: 34px;
-    padding: 0.3rem 0.45rem;
-    font-size: 0.72rem;
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--text-xs);
   }
 
   /* Floating video panel: keep inside viewport on mobile */

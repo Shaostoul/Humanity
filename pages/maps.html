@@ -48,7 +48,7 @@ button {
 </div>
 <div id=page-app>
 <!-- Mode bar -->
-  <div id="map-modes" style="display:flex;gap:0.5rem;padding:0.5rem 1rem;border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap;">
+  <div id="map-modes" style="display:flex;gap:var(--space-md);padding:var(--space-md) var(--space-xl);border-bottom:1px solid var(--border);align-items:center;flex-shrink:0;flex-wrap:wrap;">
    <span style="font-size:0.8rem;color:var(--text-muted);">🧘 Astral Projection:</span>
    <button onclick="mapSetView('surface')" class="map-mode-btn active" data-mode="surface" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,200,150,0.4);color:#6cc;border-radius:4px;cursor:pointer;"><span class="pg-ico" data-icon="globe" data-size="14"></span> Surface</button>
    <button onclick="mapSetView('system')" class="map-mode-btn" data-mode="system" style="padding:3px 10px;font-size:0.75rem;background:rgba(20,20,40,0.8);border:1px solid rgba(100,150,255,0.3);color:#6699ff;border-radius:4px;cursor:pointer;">☀️ Solar System</button>
@@ -63,7 +63,7 @@ button {
    <div id="map-canvas-container" style="flex:1;position:relative;background:#0a0a1a;overflow:hidden;">
     <canvas id="map-canvas" style="width:100%;height:100%;display:block;"></canvas>
     <!-- Overlay controls -->
-    <div id="map-overlay-controls" style="position:absolute;top:0.5rem;right:0.5rem;display:flex;flex-direction:column;gap:0.3rem;z-index:10;">
+    <div id="map-overlay-controls" style="position:absolute;top:var(--space-md);right:var(--space-md);display:flex;flex-direction:column;gap:var(--space-sm);z-index:10;">
      <button onclick="mapZoomIn()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">+</button>
      <button onclick="mapZoomOut()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1.1rem;line-height:1;">−</button>
      <button onclick="mapGoHome()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Go to home location"><span class="pg-ico" data-icon="home" data-size="18"></span></button>
@@ -73,13 +73,13 @@ button {
      <button id="draw-polygon-btn" onclick="mapToggleDrawMode()" style="width:32px;height:32px;background:rgba(20,20,40,0.85);border:1px solid rgba(100,200,150,0.3);color:#6cc;border-radius:6px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;" title="Draw polygon / zone"><span class="pg-ico" data-icon="edit" data-size="18"></span></button>
     </div>
     <!-- Search bar overlay -->
-    <div style="position:absolute;top:0.5rem;left:0.5rem;right:3.5rem;z-index:10;">
-     <input type="text" id="map-search" placeholder="Search location, star, planet..." style="width:100%;max-width:350px;background:rgba(26,26,46,0.9);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.8rem;border-radius:8px;font-size:0.8rem;backdrop-filter:blur(4px);outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')mapDoSearch()">
+    <div style="position:absolute;top:var(--space-md);left:var(--space-md);right:3.5rem;z-index:10;">
+     <input type="text" id="map-search" placeholder="Search location, star, planet..." style="width:100%;max-width:350px;background:rgba(26,26,46,0.9);border:1px solid var(--border);color:var(--text);padding:var(--space-md) var(--space-xl);border-radius:8px;font-size:0.8rem;backdrop-filter:blur(4px);outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')mapDoSearch()">
     </div>
    </div>
    <!-- Info sidebar -->
    <div id="map-sidebar" style="width:320px;border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;background:var(--bg-card,#141414);">
-    <div id="map-info-panel" style="padding:0.8rem;font-size:0.82rem;"></div>
+    <div id="map-info-panel" style="padding:var(--space-xl);font-size:0.82rem;"></div>
    </div>
   </div>
 </div>
@@ -258,34 +258,34 @@ function updateSidebar() {
   // Location info
   if (mapSelectedLocation) {
     const { lat, lng, name } = mapSelectedLocation;
-    html += `<div style="margin-bottom:0.8rem">
-      <div style="font-size:0.9rem;font-weight:600;margin-bottom:0.3rem">${name ? `${hosIcon('mappin',14)} ${name}` : `${hosIcon('mappin',14)} Selected Location`}</div>
+    html += `<div style="margin-bottom:var(--space-xl)">
+      <div style="font-size:0.9rem;font-weight:600;margin-bottom:var(--space-sm)">${name ? `${hosIcon('mappin',14)} ${name}` : `${hosIcon('mappin',14)} Selected Location`}</div>
       <div style="font-size:0.75rem;color:var(--text-muted);font-family:monospace">${lat.toFixed(6)}, ${lng.toFixed(6)}</div>
-      <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">
+      <div style="display:flex;gap:var(--space-md);margin-top:var(--space-md);flex-wrap:wrap">
         <button onclick="setHomeHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">${hosIcon('home',12)} Set Home</button>
         <button onclick="addPinHere(${lat},${lng})" style="font-size:0.72rem;padding:2px 7px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:#f0c040;cursor:pointer;">${hosIcon('pin',12)} Add Pin</button>
       </div>
-    </div><hr style="border-color:var(--border);margin-bottom:0.8rem">`;
+    </div><hr style="border-color:var(--border);margin-bottom:var(--space-xl)">`;
   }
 
   // Home
   const home = loadHome();
   if (home) {
-    html += `<div style="margin-bottom:0.8rem">
+    html += `<div style="margin-bottom:var(--space-xl)">
       <div style="font-size:0.8rem;font-weight:600;color:var(--accent)">${hosIcon('home',14)} Home</div>
       <div style="font-size:0.75rem;color:var(--text-muted)">${home.name || 'Home'}</div>
       <div style="font-size:0.72rem;color:var(--text-muted);font-family:monospace">${home.lat.toFixed(4)}, ${home.lng.toFixed(4)}</div>
-      <button onclick="mapGoHome()" style="font-size:0.72rem;padding:2px 7px;margin-top:0.3rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">Go Here</button>
+      <button onclick="mapGoHome()" style="font-size:0.72rem;padding:2px 7px;margin-top:var(--space-sm);background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--accent);cursor:pointer;">Go Here</button>
     </div>`;
   }
 
   // Pins
   const pins = loadPins();
   if (pins.length > 0) {
-    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#f0c040;margin-bottom:0.4rem">${hosIcon('pin',14)} Pins</div>`;
+    html += `<div style="margin-bottom:var(--space-xl)"><div style="font-size:0.8rem;font-weight:600;color:#f0c040;margin-bottom:var(--space-md)">${hosIcon('pin',14)} Pins</div>`;
     for (let i = 0; i < pins.length; i++) {
       const p = pins[i];
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;font-size:0.75rem">
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm);font-size:0.75rem">
         <span style="cursor:pointer;color:var(--text)" onclick="mapGoToPin(${p.lat},${p.lng},'${(p.name||'Pin').replace(/'/g,"\\'")}')">${p.name || 'Pin'}</span>
         <button onclick="deletePin(${i})" style="font-size:0.65rem;padding:1px 5px;background:transparent;border:none;color:#e55;cursor:pointer">✕</button>
       </div>`;
@@ -296,9 +296,9 @@ function updateSidebar() {
   // Polygons
   const polys = loadPolygons();
   if (polys.length > 0) {
-    html += `<div style="margin-bottom:0.8rem"><div style="font-size:0.8rem;font-weight:600;color:#ff8811;margin-bottom:0.4rem">${hosIcon('edit',14)} Zones</div>`;
+    html += `<div style="margin-bottom:var(--space-xl)"><div style="font-size:0.8rem;font-weight:600;color:#ff8811;margin-bottom:var(--space-md)">${hosIcon('edit',14)} Zones</div>`;
     for (const poly of polys) {
-      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;font-size:0.75rem">
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm);font-size:0.75rem">
         <span style="color:var(--text)">${poly.label || 'Zone'} <span style="color:var(--text-muted)">(${poly.points.length} pts)</span></span>
         <button onclick="deleteMapPolygon(${poly.id})" style="font-size:0.65rem;padding:1px 5px;background:transparent;border:none;color:#e55;cursor:pointer">✕</button>
       </div>`;
@@ -425,7 +425,7 @@ function mapInit() {
   const statColors = { Strength: '#e55', Intelligence: '#58f', Dexterity: '#4c8', Charisma: '#eb4' };
   statsEl.innerHTML = Object.entries(c.stats).map(([k, v]) => {
   const pct = ((v - 3) / 15 * 100).toFixed(0);
-  return `<div style="background:var(--bg-input);border-radius:6px;padding:0.35rem 0.5rem;">
+  return `<div style="background:var(--bg-input);border-radius:6px;padding:var(--space-sm) var(--space-md);">
 }
 
 // ── Coordinate helpers ──

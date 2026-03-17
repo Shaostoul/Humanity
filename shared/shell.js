@@ -303,8 +303,8 @@
     .site-footer { transition: transform 0.25s ease; }
     .site-footer.collapsed { transform: translateY(100%); }
     .site-footer .footer-content { padding: 10px 16px; }
-    .site-footer .footer-content a { color: #FF8811; text-decoration: none; }
-    .site-footer .footer-content a:hover { color: #ff9f40; }
+    .site-footer .footer-content a { color: var(--accent); text-decoration: none; }
+    .site-footer .footer-content a:hover { color: var(--accent-hover); }
     .site-footer .footer-links {
       display: flex;
       gap: 16px;
@@ -313,7 +313,7 @@
       margin-top: 6px;
     }
     .site-footer .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
-    .site-footer .footer-links a:hover { color: #FF8811; }
+    .site-footer .footer-links a:hover { color: var(--accent); }
     .site-footer .footer-links svg { width: 14px; height: 14px; fill: currentColor; vertical-align: middle; }
     /* Toggle is its own fixed element — always visible above all content */
     /* Toggle lives INSIDE .site-footer so it slides with the panel.
@@ -337,7 +337,7 @@
       border: 1px solid #f44; /* start of RGB cycle */
       border-bottom: none;
       border-radius: var(--radius) var(--radius) 0 0;
-      color: #FF8811;
+      color: var(--accent);
       cursor: pointer;
       padding: 5px 28px;
       font-size: 0.78rem;
@@ -456,7 +456,7 @@
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
-    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid var(--border);align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
+    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid var(--border);align-items:center;padding:0 var(--space-xl);gap:var(--space-sm);overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
   // Spacer so fixed nav doesn't overlap page content
@@ -742,12 +742,12 @@
     content.className = 'webview-tab-content';
     content.style.cssText = 'display:none;flex-direction:column;height:calc(100vh - 80px);position:fixed;top:0;left:0;right:0;bottom:0;z-index:150;background:var(--bg,#0a0a0a);';
     content.innerHTML =
-      '<div style="display:flex;gap:0.3rem;padding:0.3rem 0.5rem;border-bottom:1px solid var(--border);align-items:center;background:rgba(13,13,13,0.95);height:36px;flex-shrink:0;">' +
-        '<button onclick="webviewBack(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">←</button>' +
-        '<button onclick="webviewForward(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">→</button>' +
-        '<button onclick="webviewRefresh(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">↻</button>' +
-        '<input type="text" readonly value="' + url.replace(/"/g, '&quot;') + '" style="flex:1;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.6rem;border-radius:var(--radius-sm);font-size:0.78rem;font-family:monospace;">' +
-        '<button onclick="closeWebviewTab(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--danger,#e55);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">✕</button>' +
+      '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) var(--space-xl);border-bottom:1px solid var(--border);align-items:center;background:rgba(13,13,13,0.95);height:36px;flex-shrink:0;">' +
+        '<button onclick="webviewBack(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">←</button>' +
+        '<button onclick="webviewForward(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">→</button>' +
+        '<button onclick="webviewRefresh(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">↻</button>' +
+        '<input type="text" readonly value="' + url.replace(/"/g, '&quot;') + '" style="flex:1;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:var(--radius-sm);font-size:0.78rem;font-family:monospace;">' +
+        '<button onclick="closeWebviewTab(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--danger,#e55);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">✕</button>' +
       '</div>' +
       '<iframe src="' + url.replace(/"/g, '&quot;') + '" style="flex:1;border:none;width:100%;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>';
     document.body.appendChild(content);
@@ -803,8 +803,8 @@
     keys.forEach(function(id) {
       var tab = webviewTabs[id];
       var btn = document.createElement('button');
-      btn.style.cssText = 'display:flex;align-items:center;gap:0.3rem;padding:0.15rem 0.6rem;border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;';
-      btn.innerHTML = '<span onclick="switchWebviewTab(\'' + id + '\')">' + (tab.title||'Tab').substring(0,20) + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:0.3rem;color:var(--danger,#e55);font-weight:700;">✕</span>';
+      btn.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) var(--space-lg);border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;';
+      btn.innerHTML = '<span onclick="switchWebviewTab(\'' + id + '\')">' + (tab.title||'Tab').substring(0,20) + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;">✕</span>';
       btn.onclick = function() { switchWebviewTab(id); };
       bar.appendChild(btn);
     });
@@ -885,22 +885,22 @@
     ];
 
     var html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);' +
-      'padding:1.5rem 2rem;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;color:var(--text)">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">' +
+      'padding:var(--space-2xl) var(--space-3xl);width:100%;max-width:640px;max-height:85vh;overflow-y:auto;color:var(--text)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2xl)">' +
       '<h2 style="font-size:1rem;font-weight:700;color:var(--accent)">Keyboard Shortcuts</h2>' +
       '<button onclick="document.getElementById(\'hos-shortcut-overlay\').style.display=\'none\'" ' +
       'style="background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer">✕</button>' +
       '</div>';
 
     shortcuts.forEach(function (group) {
-      html += '<div style="margin-bottom:1.25rem">';
+      html += '<div style="margin-bottom:var(--space-2xl)">';
       html += '<div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;color:var(--text-muted);' +
-        'text-transform:uppercase;margin-bottom:.6rem">' + group[0] + '</div>';
+        'text-transform:uppercase;margin-bottom:var(--space-lg)">' + group[0] + '</div>';
       html += '<table style="width:100%;border-collapse:collapse">';
       group[1].forEach(function (row) {
         html += '<tr style="border-bottom:1px solid var(--bg-input)">' +
-          '<td style="padding:.3rem .5rem;font-family:monospace;font-size:.78rem;color:var(--accent);white-space:nowrap">' + row[0] + '</td>' +
-          '<td style="padding:.3rem .5rem;font-size:.78rem;color:var(--text-muted)">' + row[1] + '</td></tr>';
+          '<td style="padding:var(--space-sm) var(--space-xl);font-family:monospace;font-size:.78rem;color:var(--accent);white-space:nowrap">' + row[0] + '</td>' +
+          '<td style="padding:var(--space-sm) var(--space-xl);font-size:.78rem;color:var(--text-muted)">' + row[1] + '</td></tr>';
       });
       html += '</table></div>';
     });

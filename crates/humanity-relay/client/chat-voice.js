@@ -309,7 +309,7 @@ async function handleVoiceRoomSignal(msg) {
 (function() {
   const style = document.createElement('style');
   style.textContent = `
-    .vr-btn { font-size:0.7rem; padding:0.15rem 0.4rem; cursor:pointer; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); }
+    .vr-btn { font-size:0.7rem; padding:var(--space-xs) var(--space-md); cursor:pointer; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); }
     .vr-btn:hover { background:var(--bg-hover); }
     .vr-join { color:var(--success); border-color:var(--success); }
     .vr-leave { color:#e74c3c; border-color:#e74c3c; }
@@ -1312,7 +1312,7 @@ function renderPresenceSidebarForActiveContext() {
     const byKey = new Map((allUsersSnapshot || []).map(u => [u.public_key, u]));
     const friendRows = (allUsersSnapshot || []).filter(u => u.public_key !== myKey && isFriend(u.public_key));
     if (friendRows.length === 0) {
-      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">No friends yet. Mutual follow is required for DMs.</div>';
+      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:var(--space-sm);">No friends yet. Mutual follow is required for DMs.</div>';
       if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
       return;
     }
@@ -1324,7 +1324,7 @@ function renderPresenceSidebarForActiveContext() {
       const unread = dmConv && dmConv.unread_count ? ` <span style="color:var(--accent);font-size:0.68rem;">(${dmConv.unread_count})</span>` : '';
       return `<div class="peer" data-pubkey="${esc(u.public_key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${unread}</div>`;
     }).join('');
-    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">Friends</div>${rows}`;
+    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:var(--space-sm);">Friends</div>${rows}`;
     if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
     return;
   }
@@ -1332,7 +1332,7 @@ function renderPresenceSidebarForActiveContext() {
   if (tab === 'groups') {
     if (usersHeader) usersHeader.textContent = 'Group Members';
     if (!activeGroupId) {
-      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Open a group to view members.</div>';
+      peerList.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);padding:var(--space-sm);">Open a group to view members.</div>';
       if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
       return;
     }
@@ -1341,7 +1341,7 @@ function renderPresenceSidebarForActiveContext() {
     const members = groupMembersByGroup[activeGroupId] || [];
     const byKey = new Map((allUsersSnapshot || []).map(u => [u.public_key, u]));
     if (members.length === 0) {
-      peerList.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:0.35rem;">Loading members for <b>${gName}</b>...</div>`;
+      peerList.innerHTML = `<div style="font-size:0.75rem;color:var(--text-muted);padding:var(--space-sm);">Loading members for <b>${gName}</b>...</div>`;
       if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
       return;
     }
@@ -1353,7 +1353,7 @@ function renderPresenceSidebarForActiveContext() {
       const role = m.role ? ` <span style="font-size:0.64rem;color:var(--text-muted);">(${esc(m.role)})</span>` : '';
       return `<div class="peer" data-pubkey="${esc(m.key)}" style="opacity:${online ? '1' : '0.65'}">${dot} ${name}${role}</div>`;
     }).join('');
-    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">${gName} (${members.length})</div>${rows}`;
+    peerList.innerHTML = `<div style="font-size:0.62rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:var(--space-sm);">${gName} (${members.length})</div>${rows}`;
     if (typeof applyCachedQualityBadges === 'function') setTimeout(applyCachedQualityBadges, 0);
     return;
   }
@@ -2507,24 +2507,24 @@ _origHandleMessage4(msg);
 
   window.openSceneManager = function() {
     const scenes = JSON.parse(localStorage.getItem(SCENES_KEY) || '[]');
-    let html = '<div style="padding:0.5rem;">';
-    html += '<p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem;">Save your current studio setup as a scene, or load a saved one.</p>';
+    let html = '<div style="padding:var(--space-md);">';
+    html += '<p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-md);">Save your current studio setup as a scene, or load a saved one.</p>';
 
     if (scenes.length) {
       html += scenes.map((s, i) => `
-        <div style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0;border-bottom:1px solid var(--border);font-size:0.78rem;">
+        <div style="display:flex;align-items:center;gap:var(--space-md);padding:var(--space-sm) 0;border-bottom:1px solid var(--border);font-size:0.78rem;">
           <span style="flex:1;color:var(--text);">${s.name}</span>
-          <button onclick="loadScene(${i})" style="background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">Load</button>
-          <button onclick="deleteScene(${i})" style="background:transparent;border:1px solid var(--danger);color:var(--danger);padding:0.15rem 0.35rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">✕</button>
+          <button onclick="loadScene(${i})" style="background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);padding:var(--space-xs) var(--space-md);border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">Load</button>
+          <button onclick="deleteScene(${i})" style="background:transparent;border:1px solid var(--danger);color:var(--danger);padding:var(--space-xs) var(--space-sm);border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">✕</button>
         </div>
       `).join('');
     } else {
       html += '<p style="font-size:0.78rem;color:var(--text-muted);">No saved scenes yet.</p>';
     }
 
-    html += '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">';
-    html += '<input type="text" id="scene-name-input" placeholder="Scene name" style="flex:1;padding:0.25rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.78rem;">';
-    html += '<button onclick="saveCurrentScene()" style="background:var(--accent);border:none;color:#fff;padding:0.25rem 0.6rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.78rem;">Save Current</button>';
+    html += '<div style="display:flex;gap:var(--space-md);margin-top:var(--space-md);">';
+    html += '<input type="text" id="scene-name-input" placeholder="Scene name" style="flex:1;padding:var(--space-sm) var(--space-md);background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.78rem;">';
+    html += '<button onclick="saveCurrentScene()" style="background:var(--accent);border:none;color:#fff;padding:var(--space-sm) var(--space-lg);border-radius:var(--radius-sm);cursor:pointer;font-size:0.78rem;">Save Current</button>';
     html += '</div></div>';
 
     // Use a simple overlay

@@ -199,7 +199,7 @@ function renderGroupList() {
   const container = document.getElementById('tab-groups');
   if (!container) return;
   if (myGroups.length === 0) {
-    container.innerHTML = '<div style="padding:0.5rem;color:var(--text-muted);font-size:0.8rem;">No groups yet.<br>Use <code>/group-create &lt;name&gt;</code> to create one.</div>';
+    container.innerHTML = '<div style="padding:var(--space-md);color:var(--text-muted);font-size:0.8rem;">No groups yet.<br>Use <code>/group-create &lt;name&gt;</code> to create one.</div>';
     return;
   }
   let html = '';
@@ -212,7 +212,7 @@ function renderGroupList() {
       ${badge}
     </div>`;
   }
-  html += '<div style="display:flex;gap:0.25rem;padding:0.3rem 0;">'
+  html += '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) 0;">'
        + '<button class="vr-btn" onclick="promptCreateGroup()" style="flex:1;font-size:0.7rem;">+ Create Group</button>'
        + '<button class="vr-btn" onclick="promptJoinGroup()" style="flex:1;font-size:0.7rem;">+ Join Group</button>'
        + '</div>';
@@ -286,7 +286,7 @@ function openGroup(groupId) {
   const msgsEl = document.getElementById('messages');
   msgsEl.dataset.ctx = 'group';
   if (typeof resetMsgStripe === 'function') resetMsgStripe();
-  msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
+  msgsEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:var(--space-xl);font-size:0.8rem;">Loading group history for ' + esc(group.name) + '...</div>';
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'group_history_request', group_id: groupId }));
     ws.send(JSON.stringify({ type: 'group_members_request', group_id: groupId }));

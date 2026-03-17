@@ -119,10 +119,10 @@ function renderSoundOptions() {
   const container = document.getElementById('sound-options');
   container.innerHTML = Object.entries(SOUND_PRESETS).map(([key, preset]) => {
     const checked = key === selectedSound ? 'checked' : '';
-    return `<label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;cursor:pointer;padding:0.15rem 0;">
+    return `<label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:var(--space-md);cursor:pointer;padding:var(--space-xs) 0;">
       <input type="radio" name="sound-choice" value="${key}" ${checked} onchange="selectSound('${key}')" style="accent-color:var(--accent);">
       ${esc(preset.label)}
-      <button onclick="event.preventDefault();previewSound('${key}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;padding:0 0.3rem;">▶</button>
+      <button onclick="event.preventDefault();previewSound('${key}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.7rem;padding:0 var(--space-sm);">▶</button>
     </label>`;
   }).join('');
   document.getElementById('sound-enabled').checked = soundEnabled;
@@ -387,7 +387,7 @@ function showUserContextMenu(e, name, publicKey) {
     html += ci("botCommand('help')", '\u2753 Help', 'user');
   } else {
     // Header with name + role badge
-    html += '<div class="ctx-item" style="font-weight:600;pointer-events:none;padding-bottom:0.2rem;">' + esc(name) + roleBadge + '</div>';
+    html += '<div class="ctx-item" style="font-weight:600;pointer-events:none;padding-bottom:var(--space-xs);">' + esc(name) + roleBadge + '</div>';
     html += '<div class="ctx-sep"></div>';
     html += ci("viewProfileFromCtx()", '\uD83D\uDC64 View Profile', 'user');
     html += ci("copyPublicKey()", '\uD83D\uDCCB Copy Key', 'user');
@@ -412,7 +412,7 @@ function showUserContextMenu(e, name, publicKey) {
         html += ci("ctxCommand('/ban')", '\uD83D\uDEB7 Ban', 'danger');
       }
       if (amAdmin) {
-        html += '<div class="ctx-item" style="font-size:0.68rem;color:#56b;pointer-events:none;padding-top:0.3rem;">\u2014 Admin Actions \u2014</div>';
+        html += '<div class="ctx-item" style="font-size:0.68rem;color:#56b;pointer-events:none;padding-top:var(--space-sm);">\u2014 Admin Actions \u2014</div>';
         html += ci("ctxCommand('/verify')", '\u2736 Verify', 'admin');
         html += ci("ctxCommand('/mod')", '\u2B06\uFE0F Promote to Mod', 'admin');
         html += ci("ctxCommand('/unmod')", '\u2B07\uFE0F Demote', 'admin');
@@ -1046,7 +1046,7 @@ var federatedServersFetched = false;
     // Text channel create button (admin/mod only)
     let createChannelBtn = '';
     if (myRoleCh === 'admin' || myRoleCh === 'mod') {
-      createChannelBtn = '<div style="padding:0.2rem 0;"><button class="vr-btn" data-action="create-text-channel" style="width:100%;margin-top:0.2rem;font-size:0.7rem;">+ Create Channel</button></div>';
+      createChannelBtn = '<div style="padding:var(--space-xs) 0;"><button class="vr-btn" data-action="create-text-channel" style="width:100%;margin-top:var(--space-xs);font-size:0.7rem;">+ Create Channel</button></div>';
     }
 
     // Persistent voice channels section
@@ -1069,7 +1069,7 @@ var federatedServersFetched = false;
         }
         voiceHtml += '</div>';
       }
-      voiceHtml += '<div style="margin-top:0.2rem;">';
+      voiceHtml += '<div style="margin-top:var(--space-xs);">';
       if (inRoom) {
         voiceHtml += '<button class="vr-btn vr-leave" data-action="vc-leave">Leave</button>';
       } else {
@@ -1078,7 +1078,7 @@ var federatedServersFetched = false;
       voiceHtml += '</div></div>';
     }
     if (myRoleCh === 'admin' || myRoleCh === 'mod') {
-      voiceHtml += '<button class="vr-btn" data-action="vc-create" style="margin-top:0.3rem;width:100%;">+ Create Voice Channel</button>';
+      voiceHtml += '<button class="vr-btn" data-action="vc-create" style="margin-top:var(--space-sm);width:100%;">+ Create Voice Channel</button>';
     }
     voiceHtml += '</div>';
 
@@ -1093,7 +1093,7 @@ var federatedServersFetched = false;
 
     // Federated servers.
     if (federatedServers.length > 0) {
-      html += '<div style="padding:0.3rem 0.5rem 0.1rem;font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Federation</div>';
+      html += '<div style="padding:var(--space-sm) var(--space-md) var(--space-xs);font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Federation</div>';
       for (const s of federatedServers) {
         const tierBadge = s.trust_tier === 3 ? '🟢' : s.trust_tier === 2 ? '🟡' : s.trust_tier === 1 ? '🔵' : '⚪';
         const fedLive = (window._federationStatus || {})[s.server_id];
@@ -1109,8 +1109,8 @@ var federatedServersFetched = false;
     // Add Server button (only show for admins).
     const myRole = (window.myPeerRole || '').toLowerCase();
     if (myRole === 'admin') {
-      html += `<div style="padding:0.4rem 0.5rem;">
-        <button onclick="promptAddServer()" style="font-size:0.75rem;padding:0.2rem 0.5rem;cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
+      html += `<div style="padding:var(--space-md) var(--space-md);">
+        <button onclick="promptAddServer()" style="font-size:0.75rem;padding:var(--space-xs) var(--space-md);cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
       </div>`;
     }
 
@@ -1419,12 +1419,12 @@ showReactionPicker = function(btn, targetFrom, targetTs, msgEl) {
   const picker = document.createElement('div');
   picker.className = 'reaction-picker';
   // Base styles.
-  picker.style.cssText = 'position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:0.3rem;display:flex;flex-wrap:wrap;gap:0.2rem;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
+  picker.style.cssText = 'position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-sm);display:flex;flex-wrap:wrap;gap:var(--space-xs);z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
 
   if (isMobile()) {
     // On mobile: position below the message, centered, larger buttons.
     picker.style.position = 'relative';
-    picker.style.marginTop = '0.3rem';
+    picker.style.marginTop = 'var(--space-sm)';
     picker.style.justifyContent = 'center';
   } else {
     picker.style.top = '-2rem';
@@ -1434,7 +1434,7 @@ showReactionPicker = function(btn, targetFrom, targetTs, msgEl) {
   REACTION_EMOJIS.forEach(emoji => {
     const emojiBtn = document.createElement('span');
     emojiBtn.textContent = emoji;
-    const size = isMobile() ? 'padding:0.35rem 0.45rem;font-size:1.2rem;min-width:36px;text-align:center;' : 'padding:0.15rem 0.25rem;font-size:0.9rem;';
+    const size = isMobile() ? 'padding:var(--space-sm) var(--space-md);font-size:1.2rem;min-width:36px;text-align:center;' : 'padding:var(--space-xs) var(--space-sm);font-size:0.9rem;';
     emojiBtn.style.cssText = 'cursor:pointer;border-radius:var(--radius-sm);' + size;
     emojiBtn.onmouseover = () => emojiBtn.style.background = 'var(--bg-hover)';
     emojiBtn.onmouseout = () => emojiBtn.style.background = '';

@@ -23,7 +23,7 @@
       flex-shrink: 0;
     }
     .journal-tab {
-      padding: 0.5rem 1.5rem;
+      padding: var(--space-md) var(--space-2xl);
       font-size: 0.85rem;
       font-weight: 600;
       color: #666;
@@ -58,11 +58,11 @@
     }
 
     #sidebar-header {
-      padding: 0.75rem 1rem;
+      padding: var(--space-lg) var(--space-xl);
       border-bottom: 1px solid #1e1e1e;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-md);
     }
 
     #sidebar-header h2 {
@@ -79,7 +79,7 @@
       color: #000;
       border: none;
       border-radius: var(--radius-sm);
-      padding: 0.25rem 0.55rem;
+      padding: var(--space-sm) var(--space-md);
       font-size: 0.78rem;
       font-weight: 700;
       cursor: pointer;
@@ -87,7 +87,7 @@
     #btn-new-note:hover { opacity: 0.85; }
 
     #note-search {
-      padding: 0.5rem 0.75rem;
+      padding: var(--space-md) var(--space-lg);
       border-bottom: 1px solid #1a1a1a;
     }
     #note-search input {
@@ -95,7 +95,7 @@
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
       border-radius: var(--radius-sm);
-      padding: 0.3rem 0.6rem;
+      padding: var(--space-sm) var(--space-lg);
       color: #e0e0e0;
       font-size: 0.78rem;
       outline: none;
@@ -110,7 +110,7 @@
     }
 
     .note-item {
-      padding: 0.65rem 1rem;
+      padding: var(--space-lg) var(--space-xl);
       cursor: pointer;
       border-bottom: 1px solid #141414;
       border-left: 3px solid transparent;
@@ -125,7 +125,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      margin-bottom: 0.2rem;
+      margin-bottom: var(--space-xs);
     }
     .note-item-preview {
       font-size: 0.7rem;
@@ -137,7 +137,7 @@
     .note-item-date {
       font-size: 0.65rem;
       color: #444;
-      margin-top: 0.2rem;
+      margin-top: var(--space-xs);
     }
     .note-item-encrypted {
       font-size: 0.6rem;
@@ -146,13 +146,13 @@
     }
 
     #sidebar-footer {
-      padding: 0.6rem 1rem;
+      padding: var(--space-lg) var(--space-xl);
       border-top: 1px solid #1a1a1a;
       font-size: 0.65rem;
       color: #444;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-md);
     }
     .lock-status { color: #FF8811; font-size: 0.7rem; }
 
@@ -168,8 +168,8 @@
     #note-toolbar {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
-      padding: 0.6rem 1rem;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
       border-bottom: 1px solid #1a1a1a;
       background: #0f0f0f;
       flex-shrink: 0;
@@ -192,7 +192,7 @@
       border: 1px solid #2a2a2a;
       color: #888;
       border-radius: var(--radius-sm);
-      padding: 0.28rem 0.6rem;
+      padding: 0.28rem var(--space-lg);
       font-size: 0.75rem;
       cursor: pointer;
       white-space: nowrap;
@@ -203,7 +203,7 @@
 
     #note-body {
       flex: 1;
-      padding: 1.25rem 1.5rem;
+      padding: var(--space-2xl) var(--space-2xl);
       overflow-y: auto;
     }
 
@@ -223,13 +223,13 @@
     #note-content::placeholder { color: #2a2a2a; }
 
     #note-status {
-      padding: 0.35rem 1rem;
+      padding: var(--space-sm) var(--space-xl);
       border-top: 1px solid #1a1a1a;
       font-size: 0.68rem;
       color: #444;
       display: flex;
       align-items: center;
-      gap: 1rem;
+      gap: var(--space-xl);
       flex-shrink: 0;
     }
 
@@ -241,7 +241,7 @@
       align-items: center;
       justify-content: center;
       color: #333;
-      gap: 0.75rem;
+      gap: var(--space-lg);
     }
     #empty-state .big { font-size: 3rem; }
     #empty-state p { font-size: 0.85rem; color: #444; }
@@ -256,29 +256,29 @@
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      gap: 1rem;
+      gap: var(--space-xl);
     }
     #unlock-overlay.open { display: flex; }
     #unlock-box {
       background: #181818;
       border: 1px solid #2a2a2a;
       border-radius: var(--radius-lg);
-      padding: 1.5rem;
+      padding: var(--space-2xl);
       width: 360px;
       text-align: center;
     }
-    #unlock-box h3 { color: #FF8811; font-size: 0.95rem; margin-bottom: 0.5rem; }
-    #unlock-box p { font-size: 0.78rem; color: #666; margin-bottom: 1rem; }
+    #unlock-box h3 { color: #FF8811; font-size: 0.95rem; margin-bottom: var(--space-md); }
+    #unlock-box p { font-size: 0.78rem; color: #666; margin-bottom: var(--space-xl); }
     #unlock-pass {
       width: 100%;
       background: #111;
       border: 1px solid #2a2a2a;
       border-radius: var(--radius);
-      padding: 0.5rem 0.75rem;
+      padding: var(--space-md) var(--space-lg);
       color: #e0e0e0;
       font-size: 0.85rem;
       outline: none;
-      margin-bottom: 0.75rem;
+      margin-bottom: var(--space-lg);
     }
     #unlock-pass:focus { border-color: #FF8811; }
     #unlock-btn {
@@ -287,12 +287,12 @@
       color: #000;
       border: none;
       border-radius: var(--radius);
-      padding: 0.5rem;
+      padding: var(--space-md);
       font-size: 0.85rem;
       font-weight: 700;
       cursor: pointer;
     }
-    #unlock-err { font-size: 0.75rem; color: #e55; margin-top: 0.5rem; }
+    #unlock-err { font-size: 0.75rem; color: #e55; margin-top: var(--space-md); }
 
     @media (max-width: 600px) {
       #notes-sidebar { width: 200px; }
@@ -320,11 +320,11 @@
       overflow: hidden;
     }
     #log-sidebar-header {
-      padding: 0.7rem 0.8rem;
+      padding: var(--space-lg) var(--space-xl);
       border-bottom: 1px solid #1e1e1e;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: var(--space-md);
       flex-shrink: 0;
     }
     #log-sidebar-header h2 {
@@ -337,7 +337,7 @@
       border: 1px solid #333;
       border-radius: var(--radius);
       color: #e0e0e0;
-      padding: 0.3rem 0.6rem;
+      padding: var(--space-sm) var(--space-lg);
       font-size: 0.83rem;
       width: 100%;
       outline: none;
@@ -347,7 +347,7 @@
       background: #1a4a2a;
       border: 1px solid #2a6;
       color: #4d9;
-      padding: 0.35rem;
+      padding: var(--space-sm);
       border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.83rem;
@@ -360,13 +360,13 @@
     #log-entry-list {
       flex: 1;
       overflow-y: auto;
-      padding: 0.4rem;
+      padding: var(--space-md);
     }
     .log-entry-item {
-      padding: 0.55rem 0.65rem;
+      padding: var(--space-md) var(--space-lg);
       border-radius: var(--radius);
       cursor: pointer;
-      margin-bottom: 0.2rem;
+      margin-bottom: var(--space-xs);
       border: 1px solid transparent;
       transition: background 0.1s;
     }
@@ -378,7 +378,7 @@
     .log-entry-item .log-item-date {
       font-size: 0.72rem;
       color: #555;
-      margin-bottom: 0.2rem;
+      margin-bottom: var(--space-xs);
     }
     .log-entry-item .log-item-title {
       font-size: 0.84rem;
@@ -394,7 +394,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      margin-top: 0.15rem;
+      margin-top: var(--space-xs);
     }
     .log-tag {
       display: inline-block;
@@ -417,8 +417,8 @@
     #log-editor-bar {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.6rem 0.9rem;
+      gap: var(--space-md);
+      padding: var(--space-lg) var(--space-xl);
       border-bottom: 1px solid #1a1a1a;
       flex-shrink: 0;
     }
@@ -443,7 +443,7 @@
       border: 1px solid #2a2a2a;
       border-radius: var(--radius-sm);
       color: #aaa;
-      padding: 0.2rem 0.5rem;
+      padding: var(--space-xs) var(--space-md);
       font-size: 0.75rem;
       width: 130px;
       outline: none;
@@ -453,7 +453,7 @@
       background: none;
       border: 1px solid #2a2a2a;
       color: #555;
-      padding: 0.2rem 0.5rem;
+      padding: var(--space-xs) var(--space-md);
       border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.8rem;
@@ -475,7 +475,7 @@
       color: #d8d8d8;
       font-size: 0.95rem;
       line-height: 1.7;
-      padding: 1.2rem 1.5rem;
+      padding: 1.2rem var(--space-2xl);
       resize: none;
       outline: none;
       font-family: 'Segoe UI', system-ui, sans-serif;
@@ -487,8 +487,8 @@
     #log-footer-bar {
       display: flex;
       align-items: center;
-      gap: 1rem;
-      padding: 0.35rem 1rem;
+      gap: var(--space-xl);
+      padding: var(--space-sm) var(--space-xl);
       border-top: 1px solid #1a1a1a;
       flex-shrink: 0;
       background: #0d0d0d;
@@ -502,10 +502,10 @@
       align-items: center;
       justify-content: center;
       flex: 1;
-      gap: 0.75rem;
+      gap: var(--space-lg);
       color: #444;
       text-align: center;
-      padding: 2rem;
+      padding: var(--space-3xl);
     }
     #log-empty .empty-icon { font-size: 3rem; }
     #log-empty p { font-size: 0.92rem; }
@@ -613,7 +613,7 @@
       <div class="empty-icon"><span class="pg-ico" data-icon="edit" data-size="48"></span></div>
       <p>Your personal log.<br>Record thoughts, discoveries, and daily reflections.</p>
       <button class="btn-new" onclick="log_newEntry()"
-        style="background:#1a4a2a;border:1px solid #2a6;color:#4d9;padding:0.4rem 1rem;border-radius:6px;cursor:pointer;font-size:0.88rem;font-weight:600;margin-top:0.5rem;">
+        style="background:#1a4a2a;border:1px solid #2a6;color:#4d9;padding:var(--space-md) var(--space-xl);border-radius:6px;cursor:pointer;font-size:0.88rem;font-weight:600;margin-top:var(--space-md);">
         + Write First Entry
       </button>
     </div>
@@ -719,7 +719,7 @@ function renderList() {
   ).sort((a, b) => b.updatedAt - a.updatedAt);
 
   if (!filtered.length) {
-    list.innerHTML = '<div style="padding:1rem;color:#444;font-size:.78rem;text-align:center">No notes yet.</div>';
+    list.innerHTML = '<div style="padding:var(--space-xl);color:#444;font-size:.78rem;text-align:center">No notes yet.</div>';
     return;
   }
 
@@ -1068,7 +1068,7 @@ function log_renderSidebar() {
   }
   const list = document.getElementById('log-entry-list');
   if (!visible.length) {
-    list.innerHTML = '<div style="color:#444;font-size:0.8rem;text-align:center;padding:1.5rem 0.5rem;">' +
+    list.innerHTML = '<div style="color:#444;font-size:0.8rem;text-align:center;padding:var(--space-2xl) var(--space-md);">' +
       (search ? 'No entries match your search.' : 'No entries yet.') + '</div>';
     return;
   }

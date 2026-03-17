@@ -10,14 +10,14 @@ body {
 header {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
-  padding: 0.6rem 1rem;
+  padding: var(--space-lg) var(--space-xl);
   display: flex;
   align-items: center;
   justify-content: space-between;
   min-height: 48px;
 }
 
-.header-left { display: flex; align-items: center; gap: 0.75rem; }
+.header-left { display: flex; align-items: center; gap: var(--space-lg); }
 
 header h1 {
   font-size: 1rem;
@@ -26,16 +26,16 @@ header h1 {
 }
 
 #stats {
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
 #status {
-  font-size: 0.75rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-sm);
 }
 
 #status .dot {
@@ -68,7 +68,7 @@ header h1 {
 #messages {
   flex: 1;
   overflow-y: auto;
-  padding: 0.75rem 1rem;
+  padding: var(--space-lg) var(--space-xl);
   scroll-behavior: smooth;
 }
 
@@ -80,8 +80,8 @@ header h1 {
   justify-content: center;
   flex: 1;
   min-height: 0;
-  gap: 1rem;
-  padding: 1rem;
+  gap: var(--space-xl);
+  padding: var(--space-xl);
 }
 
 #login-screen h1 {
@@ -94,14 +94,14 @@ header h1 {
   max-width: 420px;
   text-align: center;
   line-height: 1.6;
-  font-size: 0.9rem;
+  font-size: var(--text-base);
 }
 
 #login-screen input {
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 0.6rem 0.75rem;
+  padding: var(--space-lg) var(--space-lg);
   border-radius: var(--radius);
   font-size: 1rem;
   width: 340px;
@@ -116,7 +116,7 @@ header h1 {
   background: var(--accent);
   color: #fff;
   border: none;
-  padding: 0.6rem 2rem;
+  padding: var(--space-lg) var(--space-3xl);
   border-radius: var(--radius);
   font-size: 1rem;
   cursor: pointer;
@@ -126,9 +126,9 @@ header h1 {
 #login-screen button:hover { background: var(--accent-hover); }
 
 .subtitle {
-  font-size: 0.72rem !important;
+  font-size: var(--text-xs) !important;
   color: var(--text-muted) !important;
-  margin-top: 0.5rem;
+  margin-top: var(--space-md);
 }
 
 #chat-screen { display: none; flex: 1; min-height: 0; flex-direction: column; }
@@ -141,7 +141,7 @@ header h1 {
   color: var(--text);
   font-size: 1.3rem;
   cursor: pointer;
-  padding: 0.2rem;
+  padding: var(--space-xs);
 }
 
 /* ── People toggle button (mobile) ── */
@@ -150,9 +150,9 @@ header h1 {
   background: none;
   border: none;
   color: var(--text);
-  font-size: 1.2rem;
+  font-size: var(--text-2xl);
   cursor: pointer;
-  padding: 0.2rem;
+  padding: var(--space-xs);
 }
 
 /* ── Help Button ── */
@@ -163,7 +163,7 @@ header h1 {
   background: var(--bg-input);
   border: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -178,8 +178,8 @@ header h1 {
   border: none;
   color: var(--text);
   cursor: pointer;
-  font-size: 1.1rem;
-  padding: 0.2rem;
+  font-size: var(--text-xl);
+  padding: var(--space-xs);
 }
 
 /* Federation Phase 2 styles */
@@ -187,7 +187,7 @@ header h1 {
   display: inline-block;
   background: #5865f2;
   color: #fff;
-  font-size: 0.7rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   padding: 1px 5px;
   border-radius: var(--radius-sm);
@@ -195,8 +195,8 @@ header h1 {
   vertical-align: middle;
 }
 .federated-msg { border-left: 2px solid #5865f2; padding-left: 8px; }
-.fed-icon { font-size: 0.75rem; margin-left: 2px; opacity: 0.7; }
-.fed-server-status { display: flex; align-items: center; gap: 6px; padding: 2px 8px; font-size: 0.8rem; }
+.fed-icon { font-size: var(--text-sm); margin-left: 2px; opacity: 0.7; }
+.fed-server-status { display: flex; align-items: center; gap: 6px; padding: 2px 8px; font-size: var(--text-sm); }
 .fed-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .fed-dot.connected { background: #57f287; }
 .fed-dot.disconnected { background: #ed4245; }

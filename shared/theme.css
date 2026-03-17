@@ -25,6 +25,22 @@
   --icon-size: 20px;
   --icon-weight: 3;
   --content-width: none;
+  /* Spacing scale */
+  --space-xs: 0.15rem;
+  --space-sm: 0.3rem;
+  --space-md: 0.5rem;
+  --space-lg: 0.75rem;
+  --space-xl: 1rem;
+  --space-2xl: 1.5rem;
+  --space-3xl: 2rem;
+  /* Font size scale */
+  --text-xs: 0.65rem;
+  --text-sm: 0.78rem;
+  --text-base: 0.88rem;
+  --text-lg: 1rem;
+  --text-xl: 1.15rem;
+  --text-2xl: 1.4rem;
+  --text-3xl: 1.8rem;
 }
 
 /* ── Light theme — toggled by adding data-theme="light" to <html> ── */
@@ -59,10 +75,10 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-hover); }
 
-h1 { font-size: 1.8rem; }
-h2 { font-size: 1.4rem; }
-h3 { font-size: 1.1rem; }
-h4 { font-size: 0.9rem; }
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-base); }
 
 /* ── Content Width — constrains main page content ── */
 .page-content, #settings-main, #messages, main {
@@ -71,9 +87,9 @@ h4 { font-size: 0.9rem; }
 
 /* Page purpose hints — shown at the top of every page */
 .page-hint {
-  margin: 0.5rem 1rem;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.8rem;
+  margin: var(--space-md) var(--space-xl);
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--text-sm);
   color: var(--text-muted);
   background: var(--bg-secondary);
   border-left: 3px solid var(--accent);
@@ -81,16 +97,16 @@ h4 { font-size: 0.9rem; }
   line-height: 1.5;
 }
 
-/* ── Compact Mode — reduces padding/gaps when [data-compact] is on html ── */
-[data-compact] .page-hint { padding: 0.25rem 0.5rem; margin: 0.25rem 0.5rem; }
-[data-compact] .message { padding: 0.15rem 0.3rem; }
-[data-compact] .channel-item { padding: 0.15rem 0.4rem; }
-[data-compact] .setting-row { padding: 0.4rem 0.6rem; }
-[data-compact] .settings-group { margin-bottom: 0.5rem; }
-[data-compact] #sidebar { padding: 0.4rem; }
-[data-compact] #messages { padding: 0.4rem 0.6rem; }
-[data-compact] h1 { font-size: 1.3rem; }
-[data-compact] h2 { font-size: 1.1rem; }
+/* ── Compact Mode — shrinks spacing scale when [data-compact] is on <html> ── */
+[data-compact] {
+  --space-xs: 0.1rem;
+  --space-sm: 0.15rem;
+  --space-md: 0.3rem;
+  --space-lg: 0.45rem;
+  --space-xl: 0.6rem;
+  --space-2xl: 0.9rem;
+  --space-3xl: 1.2rem;
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }

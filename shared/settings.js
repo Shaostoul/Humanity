@@ -174,7 +174,7 @@
     gear.className = 'tab';
     gear.textContent = '⚙️';
     gear.title = 'Settings';
-    gear.style.cssText = 'font-size:1rem;padding:0.3rem 0.5rem;border:none;background:transparent;cursor:pointer;';
+    gear.style.cssText = 'font-size:1rem;padding:var(--space-sm) var(--space-xl);border:none;background:transparent;cursor:pointer;';
     gear.addEventListener('click', togglePanel);
     spacer.parentNode.insertBefore(gear, spacer);
   }
@@ -201,7 +201,7 @@
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closePanel(); });
 
     const modal = document.createElement('div');
-    modal.style.cssText = 'background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);max-width:480px;width:90%;max-height:85vh;overflow-y:auto;padding:1.5rem;position:relative;';
+    modal.style.cssText = 'background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);max-width:480px;width:90%;max-height:85vh;overflow-y:auto;padding:var(--space-2xl);position:relative;';
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
@@ -218,7 +218,7 @@
     // ── Accent Color ──
     const accentSection = section('🎨 Accent Color');
     const presetRow = document.createElement('div');
-    presetRow.style.cssText = 'display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.5rem;';
+    presetRow.style.cssText = 'display:flex;gap:var(--space-xl);flex-wrap:wrap;margin-bottom:var(--space-xl);';
     ACCENT_PRESETS.forEach(p => {
       const btn = document.createElement('button');
       btn.style.cssText = `width:32px;height:32px;border-radius:50%;border:2px solid ${settings.accent === p.color ? '#fff' : 'transparent'};background:${p.color};cursor:pointer;transition:border-color 0.15s;`;
@@ -235,7 +235,7 @@
     accentSection.appendChild(presetRow);
 
     const customRow = document.createElement('div');
-    customRow.style.cssText = 'display:flex;align-items:center;gap:0.5rem;';
+    customRow.style.cssText = 'display:flex;align-items:center;gap:var(--space-xl);';
     const colorInput = document.createElement('input');
     colorInput.type = 'color';
     colorInput.value = settings.accent;
@@ -257,7 +257,7 @@
     // ── Font Size ──
     const fsSection = section('🔤 Font Size');
     const fsRow = document.createElement('div');
-    fsRow.style.cssText = 'display:flex;gap:0.4rem;';
+    fsRow.style.cssText = 'display:flex;gap:var(--space-md);';
     FONT_SIZES.forEach(f => {
       const btn = pill(f.label, settings.fontSize === f.value);
       btn.onclick = () => {
@@ -275,7 +275,7 @@
     // ── Theme ──
     const themeSection = section('🌙 Theme');
     const themeRow = document.createElement('div');
-    themeRow.style.cssText = 'display:flex;gap:0.4rem;';
+    themeRow.style.cssText = 'display:flex;gap:var(--space-md);';
     [['Dark', 'dark'], ['Midnight', 'midnight'], ['OLED Black', 'oled']].forEach(([label, val]) => {
       const btn = pill(label, settings.theme === val);
       btn.onclick = () => {
@@ -296,11 +296,11 @@
 
       // Timestamp mode
       const tsLabel = document.createElement('div');
-      tsLabel.style.cssText = 'font-size:0.8rem;color:var(--text-muted);margin-bottom:0.3rem;';
+      tsLabel.style.cssText = 'font-size:0.8rem;color:var(--text-muted);margin-bottom:var(--space-sm);';
       tsLabel.textContent = 'Timestamps';
       chatSection.appendChild(tsLabel);
       const tsRow = document.createElement('div');
-      tsRow.style.cssText = 'display:flex;gap:0.4rem;margin-bottom:0.5rem;';
+      tsRow.style.cssText = 'display:flex;gap:var(--space-md);margin-bottom:var(--space-xl);';
       [['Relative', 'relative'], ['Absolute', 'absolute']].forEach(([label, val]) => {
         const btn = pill(label, settings.timestampMode === val);
         btn.onclick = () => {
@@ -316,7 +316,7 @@
 
       // Sound toggle — syncs with chat's 🔔 menu
       const soundRow = document.createElement('label');
-      soundRow.style.cssText = 'display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--text);cursor:pointer;margin-bottom:0.4rem;';
+      soundRow.style.cssText = 'display:flex;align-items:center;gap:var(--space-xl);font-size:0.8rem;color:var(--text);cursor:pointer;margin-bottom:var(--space-md);';
       const soundCb = document.createElement('input');
       soundCb.type = 'checkbox';
       // Read from chat's own localStorage key for truth
@@ -346,7 +346,7 @@
       // "Open sound picker" button — opens the chat's existing sound menu
       const soundPickerBtn = document.createElement('button');
       soundPickerBtn.textContent = '🎵 Choose notification sound…';
-      soundPickerBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.75rem;border-radius:var(--radius);font-size:0.78rem;cursor:pointer;font-family:inherit;display:block;';
+      soundPickerBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-md) var(--space-lg);border-radius:var(--radius);font-size:0.78rem;cursor:pointer;font-family:inherit;display:block;';
       soundPickerBtn.onmouseenter = () => { soundPickerBtn.style.borderColor = 'var(--accent)'; };
       soundPickerBtn.onmouseleave = () => { soundPickerBtn.style.borderColor = 'var(--border)'; };
       soundPickerBtn.onclick = () => {
@@ -364,7 +364,7 @@
 
     const exportBtn = document.createElement('button');
     exportBtn.textContent = '📤 Export All Data';
-    exportBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;margin-bottom:0.4rem;font-family:inherit;';
+    exportBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:var(--space-md) var(--space-xl);border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;margin-bottom:var(--space-md);font-family:inherit;';
     exportBtn.onmouseenter = () => { exportBtn.style.borderColor = 'var(--accent)'; };
     exportBtn.onmouseleave = () => { exportBtn.style.borderColor = 'var(--border)'; };
     exportBtn.onclick = () => {
@@ -395,7 +395,7 @@
 
     const importBtn = document.createElement('button');
     importBtn.textContent = '📥 Import Data';
-    importBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;font-family:inherit;';
+    importBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:var(--space-md) var(--space-xl);border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;font-family:inherit;';
     importBtn.onmouseenter = () => { importBtn.style.borderColor = 'var(--accent)'; };
     importBtn.onmouseleave = () => { importBtn.style.borderColor = 'var(--border)'; };
     importBtn.onclick = () => {
@@ -441,7 +441,7 @@
     // ── Reset ──
     const resetBtn = document.createElement('button');
     resetBtn.textContent = '↺ Reset to Defaults';
-    resetBtn.style.cssText = 'margin-top:1rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.45rem 1rem;border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;';
+    resetBtn.style.cssText = 'margin-top:var(--space-xl);background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-md) var(--space-xl);border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;';
     resetBtn.onmouseenter = () => { resetBtn.style.borderColor = 'var(--danger, #c44)'; resetBtn.style.color = 'var(--danger, #c44)'; };
     resetBtn.onmouseleave = () => { resetBtn.style.borderColor = 'var(--border)'; resetBtn.style.color = 'var(--text-muted)'; };
     resetBtn.onclick = () => {
@@ -463,9 +463,9 @@
   // Helpers
   function section(label) {
     const div = document.createElement('div');
-    div.style.cssText = 'margin-bottom:1rem;';
+    div.style.cssText = 'margin-bottom:var(--space-xl);';
     const h = document.createElement('div');
-    h.style.cssText = 'font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:0.4rem;';
+    h.style.cssText = 'font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:var(--space-md);';
     h.textContent = label;
     div.appendChild(h);
     return div;
@@ -474,7 +474,7 @@
   function pill(text, active) {
     const btn = document.createElement('button');
     btn.textContent = text;
-    btn.style.cssText = `padding:0.3rem 0.75rem;border-radius:var(--radius-lg);font-size:0.78rem;cursor:pointer;border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};background:${active ? 'var(--accent-dim)' : 'var(--bg-input)'};color:${active ? 'var(--accent)' : 'var(--text-muted)'};font-family:inherit;`;
+    btn.style.cssText = `padding:var(--space-sm) var(--space-lg);border-radius:var(--radius-lg);font-size:0.78rem;cursor:pointer;border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};background:${active ? 'var(--accent-dim)' : 'var(--bg-input)'};color:${active ? 'var(--accent)' : 'var(--text-muted)'};font-family:inherit;`;
     return btn;
   }
 

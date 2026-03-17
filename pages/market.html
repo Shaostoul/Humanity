@@ -15,11 +15,11 @@
 }
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
     a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
-    input,select,textarea{font-family:inherit;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.6rem;outline:none}
+    input,select,textarea{font-family:inherit;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:var(--space-sm) var(--space-lg);outline:none}
     input:focus,select:focus,textarea:focus{border-color:var(--accent)}
-    .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.25rem}
+    .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl) var(--space-2xl);margin-bottom:var(--space-2xl)}
 
-    #page-app{flex:1;overflow-y:auto;padding:1rem 1.25rem;max-width:1100px;width:100%;margin:0 auto}
+    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:1100px;width:100%;margin:0 auto}
 </style>
 </head>
 <body>
@@ -30,81 +30,81 @@
   <div class="eli5-expert">Peer-to-peer marketplace with listings stored server-side via REST API (/api/listings). Ed25519 authenticated. Categories span physical goods, digital assets, services, and in-game items. Crypto payment integration planned (see docs/economy/crypto_exchange.md).</div>
 </div>
 <p class="page-hint">The marketplace. Find things people are offering, or share something you'd like to give, trade, or sell. Browse stores and post your own listings.</p>
-<div id=page-app><div id="tab-market" class="tab-content" style="padding:1rem;overflow-y:auto;">
+<div id=page-app><div id="tab-market" class="tab-content" style="padding:var(--space-xl);overflow-y:auto;">
   <!-- Sub-navigation -->
-  <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
-   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.3rem;"><span data-icon="market" data-size="16"></span> Marketplace</button>
-   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.3rem;"><span data-icon="storefront" data-size="16"></span> Stores</button>
-   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:inline-flex;align-items:center;gap:0.3rem;"><span data-icon="tasklist" data-size="16"></span> My Listings</button>
+  <div style="display:flex;gap:var(--space-md);margin-bottom:var(--space-xl);flex-wrap:wrap;align-items:center;">
+   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="market" data-size="16"></span> Marketplace</button>
+   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="storefront" data-size="16"></span> Stores</button>
+   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="tasklist" data-size="16"></span> My Listings</button>
    <span style="flex:1;"></span>
-   <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:0.25rem 0.7rem;font-size:0.8rem;display:none;">+ Create Listing</button>
+   <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:none;">+ Create Listing</button>
   </div>
 
   <!-- Marketplace Section -->
   <div id="market-section-marketplace">
-   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:0.5rem 0;">
-    <input type="text" id="market-search" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:0.4rem 0.6rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-    <select id="market-category-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+   <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:var(--space-md) 0;">
+    <input type="text" id="market-search" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-category-filter" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">All Categories</option>
      <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
      <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
      <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
     </select>
-    <select id="market-condition-filter" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-condition-filter" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">Any Condition</option>
      <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
     </select>
-    <select id="market-sort" onchange="renderMarketListings()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-sort" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="newest">Newest</option>
      <option value="oldest">Oldest</option>
      <option value="alpha">A-Z</option>
     </select>
    </div>
-   <div id="market-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
-   <div id="market-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">No listings yet. Be the first to list something!</div>
+   <div id="market-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl);"></div>
+   <div id="market-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl);display:none;">No listings yet. Be the first to list something!</div>
   </div>
 
   <!-- Store Directory Section -->
   <div id="market-section-stores" style="display:none;">
-   <div style="margin-bottom:1rem;">
-    <select id="store-category-filter" onchange="renderStoreDirectory()" style="padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+   <div style="margin-bottom:var(--space-xl);">
+    <select id="store-category-filter" onchange="renderStoreDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">All Categories</option>
     </select>
    </div>
-   <div id="store-directory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;"></div>
+   <div id="store-directory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--space-xl);"></div>
   </div>
 
   <!-- My Listings Section -->
   <div id="market-section-mylistings" style="display:none;">
-   <div id="my-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;"></div>
-   <div id="my-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem 1rem;display:none;">You haven't listed anything yet.</div>
+   <div id="my-listings-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--space-xl);"></div>
+   <div id="my-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl);display:none;">You haven't listed anything yet.</div>
   </div>
 
   <!-- Listing Detail Modal -->
   <div id="listing-detail-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
-   <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
+   <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="listing-detail-content"></div>
    </div>
   </div>
 
   <!-- Create/Edit Listing Modal -->
   <div id="listing-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
-   <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;">
-    <h2 style="color:var(--accent);margin-bottom:1rem;font-size:1rem;" id="listing-modal-title">Create Listing</h2>
+   <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
+    <h2 style="color:var(--accent);margin-bottom:var(--space-xl);font-size:1rem;" id="listing-modal-title">Create Listing</h2>
     <input type="hidden" id="listing-edit-id" value="">
-    <div style="display:flex;flex-direction:column;gap:0.6rem;">
+    <div style="display:flex;flex-direction:column;gap:var(--space-lg);">
      <div>
       <label style="font-size:0.75rem;color:var(--text-muted);">Title *</label>
-      <input type="text" id="listing-title" maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <input type="text" id="listing-title" maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div>
       <label style="font-size:0.75rem;color:var(--text-muted);">Description</label>
-      <textarea id="listing-description" rows="3" maxlength="2000" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
+      <textarea id="listing-description" rows="3" maxlength="2000" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
      </div>
-     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);">
       <div>
        <label style="font-size:0.75rem;color:var(--text-muted);">Category *</label>
-       <select id="listing-category" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+       <select id="listing-category" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
         <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
         <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
         <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
@@ -112,14 +112,14 @@
       </div>
       <div>
        <label style="font-size:0.75rem;color:var(--text-muted);">Condition</label>
-       <select id="listing-condition" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+       <select id="listing-condition" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
         <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
        </select>
       </div>
      </div>
      <div id="listing-3d-subcategory-wrap" style="display:none;">
       <label style="font-size:0.75rem;color:var(--text-muted);">Model Subcategory</label>
-      <select id="listing-3d-subcategory" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <select id="listing-3d-subcategory" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
        <option value="">None</option>
        <option>Vehicles</option><option>Architecture</option><option>Characters</option><option>Props</option>
        <option>Weapons</option><option>Nature</option><option>Sci-Fi</option><option>Other</option>
@@ -127,24 +127,24 @@
      </div>
      <div>
       <label style="font-size:0.75rem;color:var(--text-muted);">Price</label>
-      <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
-      <div style="display:flex;gap:0.3rem;margin-top:0.3rem;flex-wrap:wrap;">
-       <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Free</button>
-       <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Donations Welcome</button>
-       <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;cursor:pointer;">Pay What You Want</button>
+      <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-sm);flex-wrap:wrap;">
+       <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.65rem;cursor:pointer;">Free</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.65rem;cursor:pointer;">Donations Welcome</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.65rem;cursor:pointer;">Pay What You Want</button>
       </div>
      </div>
      <div>
       <label style="font-size:0.75rem;color:var(--text-muted);">Payment Methods</label>
-      <input type="text" id="listing-payment" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <input type="text" id="listing-payment" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div>
       <label style="font-size:0.75rem;color:var(--text-muted);">Location</label>
-      <input type="text" id="listing-location" placeholder='Seattle area, Ships worldwide…' maxlength="100" style="width:100%;padding:0.4rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
+      <input type="text" id="listing-location" placeholder='Seattle area, Ships worldwide…' maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
-     <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem;">
-      <button class="btn" onclick="closeListingModal()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Cancel</button>
-      <button class="btn btn-clickable" onclick="submitListing()" style="min-width:80px;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;">Submit</button>
+     <div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-md);">
+      <button class="btn" onclick="closeListingModal()" style="min-width:80px;min-height:36px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem;">Cancel</button>
+      <button class="btn btn-clickable" onclick="submitListing()" style="min-width:80px;min-height:36px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem;">Submit</button>
      </div>
     </div>
    </div>
@@ -262,20 +262,20 @@ function showListingDetail(id) {
   const catColor = CATEGORY_COLORS[l.category] || '#888';
   content.innerHTML =
     '<button onclick="closeListingDetail()" style="float:right;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">' + hosIcon('close', 14) + '</button>' +
-    '<h3 style="color:var(--text);margin:0 0 0.5rem;font-size:1.05rem;">' + escHtml(l.title) + '</h3>' +
-    '<div style="font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:0.5rem;">' + escHtml(l.price || 'Contact for price') + '</div>' +
-    '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.7rem;">' +
-      '<span style="background:' + catColor + '22;color:' + catColor + ';font-size:0.7rem;padding:0.1rem 0.5rem;border-radius:4px;">' + escHtml(l.category) + '</span>' +
-      (l.condition && l.condition !== 'N/A' ? '<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.7rem;padding:0.1rem 0.5rem;border-radius:4px;">' + escHtml(l.condition) + '</span>' : '') +
+    '<h3 style="color:var(--text);margin:0 0 var(--space-md);font-size:1.05rem;">' + escHtml(l.title) + '</h3>' +
+    '<div style="font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md);">' + escHtml(l.price || 'Contact for price') + '</div>' +
+    '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-lg);">' +
+      '<span style="background:' + catColor + '22;color:' + catColor + ';font-size:0.7rem;padding:var(--space-xs) var(--space-md);border-radius:4px;">' + escHtml(l.category) + '</span>' +
+      (l.condition && l.condition !== 'N/A' ? '<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.7rem;padding:var(--space-xs) var(--space-md);border-radius:4px;">' + escHtml(l.condition) + '</span>' : '') +
     '</div>' +
-    (l.description ? '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.7rem;white-space:pre-wrap;line-height:1.5;">' + escHtml(l.description) + '</div>' : '') +
-    '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.3rem;">Seller: <strong style="color:var(--text);">' + escHtml(l.seller_name || 'Anonymous') + '</strong></div>' +
-    (l.payment_methods ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">Payment: ' + escHtml(l.payment_methods) + '</div>' : '') +
-    (l.location ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;display:flex;align-items:center;gap:0.25rem;">' + hosIcon('mappin', 14) + ' ' + escHtml(l.location) + '</div>' : '') +
-    (isMine ? '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">' +
-      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:0.25rem;">' + hosIcon('edit', 14) + ' Edit</button>' +
-      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--success);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:0.25rem;">' + hosIcon('check', 14) + ' Mark Sold</button>' +
-      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:0.35rem;background:var(--bg-panel);border:1px solid rgba(229,85,85,0.4);border-radius:6px;color:var(--error);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:0.25rem;">' + hosIcon('trash', 14) + ' Delete</button>' +
+    (l.description ? '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-lg);white-space:pre-wrap;line-height:1.5;">' + escHtml(l.description) + '</div>' : '') +
+    '<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:var(--space-sm);">Seller: <strong style="color:var(--text);">' + escHtml(l.seller_name || 'Anonymous') + '</strong></div>' +
+    (l.payment_methods ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:var(--space-sm);">Payment: ' + escHtml(l.payment_methods) + '</div>' : '') +
+    (l.location ? '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:var(--space-lg);display:flex;align-items:center;gap:var(--space-sm);">' + hosIcon('mappin', 14) + ' ' + escHtml(l.location) + '</div>' : '') +
+    (isMine ? '<div style="display:flex;gap:var(--space-md);margin-top:var(--space-md);">' +
+      '<button onclick="editListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-sm);">' + hosIcon('edit', 14) + ' Edit</button>' +
+      '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--success);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-sm);">' + hosIcon('check', 14) + ' Mark Sold</button>' +
+      '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid rgba(229,85,85,0.4);border-radius:6px;color:var(--error);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-sm);">' + hosIcon('trash', 14) + ' Delete</button>' +
     '</div>' : '');
   modal.style.display = '';
 }
@@ -375,27 +375,27 @@ function streamHandleMessage(msg) { /* WebRTC streaming not yet implemented in m
    const isMine = l.seller_key === marketMyKey;
    const isAdmin = marketMyRole === 'admin' || marketMyRole === 'mod';
    const actions = (isMine || showActions) ? `
-    <div style="display:flex;gap:0.3rem;margin-top:0.5rem;">
-     ${isMine?`<button onclick="editListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:0.2rem;">${hosIcon('edit', 14)} Edit</button>`:''}
-     ${isMine?`<button onclick="markListingSold('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--success);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:0.2rem;">${hosIcon('check', 14)} Sold</button>`:''}
-     ${(isMine||isAdmin)?`<button onclick="deleteListing('${l.id}')" style="flex:1;padding:0.25rem;background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--error);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:0.2rem;">${hosIcon('trash', 14)} Delete</button>`:''}
+    <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-md);">
+     ${isMine?`<button onclick="editListing('${l.id}')" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-xs);">${hosIcon('edit', 14)} Edit</button>`:''}
+     ${isMine?`<button onclick="markListingSold('${l.id}')" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--success);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-xs);">${hosIcon('check', 14)} Sold</button>`:''}
+     ${(isMine||isAdmin)?`<button onclick="deleteListing('${l.id}')" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:4px;color:var(--error);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-xs);">${hosIcon('trash', 14)} Delete</button>`:''}
     </div>` : '';
-   const statusBadge = l.status === 'sold' ? '<span style="background:#4a8;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">SOLD</span>' :
-             l.status === 'withdrawn' ? '<span style="background:#888;color:#fff;font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;margin-left:0.3rem;">WITHDRAWN</span>' : '';
+   const statusBadge = l.status === 'sold' ? '<span style="background:#4a8;color:#fff;font-size:0.6rem;padding:var(--space-xs) var(--space-md);border-radius:4px;margin-left:var(--space-sm);">SOLD</span>' :
+             l.status === 'withdrawn' ? '<span style="background:#888;color:#fff;font-size:0.6rem;padding:var(--space-xs) var(--space-md);border-radius:4px;margin-left:var(--space-sm);">WITHDRAWN</span>' : '';
    return `
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'" onclick="showListingDetail('${l.id}')">
      <div style="height:120px;background:linear-gradient(135deg,rgba(255,255,255,0.02),rgba(255,255,255,0.06));display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem;">${l.category === '3D Models' ? '🧊' : '📦'}</div>
-     <div style="padding:0.8rem;">
-      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:0.3rem;">
+     <div style="padding:var(--space-xl);">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--space-sm);">
        <span style="font-weight:600;font-size:0.85rem;color:var(--text);flex:1;">${escHtml(l.title)}${statusBadge}</span>
       </div>
-      <div style="font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:0.3rem;">${escHtml(l.price || 'Contact for price')}</div>
-      <div style="display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.3rem;">
-       <span style="background:${catColor}22;color:${catColor};font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;">${escHtml(l.category)}</span>
-       ${l.condition && l.condition !== 'N/A' ? `<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:4px;">${escHtml(l.condition)}</span>` : ''}
+      <div style="font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm);">${escHtml(l.price || 'Contact for price')}</div>
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap;margin-bottom:var(--space-sm);">
+       <span style="background:${catColor}22;color:${catColor};font-size:0.6rem;padding:var(--space-xs) var(--space-md);border-radius:4px;">${escHtml(l.category)}</span>
+       ${l.condition && l.condition !== 'N/A' ? `<span style="background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:0.6rem;padding:var(--space-xs) var(--space-md);border-radius:4px;">${escHtml(l.condition)}</span>` : ''}
       </div>
       <div style="font-size:0.72rem;color:var(--text-muted);">by ${escHtml(l.seller_name || 'Anonymous')}</div>
-      ${l.location ? `<div style="font-size:0.68rem;color:var(--text-muted);display:flex;align-items:center;gap:0.2rem;">${hosIcon('mappin', 14)} ${escHtml(l.location)}</div>` : ''}
+      ${l.location ? `<div style="font-size:0.68rem;color:var(--text-muted);display:flex;align-items:center;gap:var(--space-xs);">${hosIcon('mappin', 14)} ${escHtml(l.location)}</div>` : ''}
       ${actions}
      </div>
     </div>`;
@@ -450,14 +450,14 @@ function streamHandleMessage(msg) { /* WebRTC streaming not yet implemented in m
    const filtered = filter ? STORE_DIRECTORY.filter(s => s.category === filter) : STORE_DIRECTORY;
    const grid = document.getElementById('store-directory-grid');
    if (!grid) return;
-   if (!filtered.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-style:italic;padding:2rem;text-align:center;">No stores listed yet.</div>'; return; }
+   if (!filtered.length) { grid.innerHTML = '<div style="color:var(--text-muted);font-style:italic;padding:var(--space-3xl);text-align:center;">No stores listed yet.</div>'; return; }
    grid.innerHTML = filtered.map(s => `
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:1rem;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'">
-     <div style="font-size:1.5rem;margin-bottom:0.4rem;">${s.icon}</div>
-     <div style="font-weight:600;font-size:0.9rem;color:var(--text);margin-bottom:0.2rem;">${escHtml(s.name)}</div>
-     <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.4rem;">${escHtml(s.category)}</div>
-     <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem;">${escHtml(s.description)}</div>
-     <a href="${s.url}" target="_blank" rel="noopener" style="display:inline-block;padding:0.3rem 0.8rem;background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.75rem;font-weight:600;">Visit Store →</a>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:var(--space-xl);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(255,136,17,0.3)'" onmouseleave="this.style.borderColor='var(--border)'">
+     <div style="font-size:1.5rem;margin-bottom:var(--space-md);">${s.icon}</div>
+     <div style="font-weight:600;font-size:0.9rem;color:var(--text);margin-bottom:var(--space-xs);">${escHtml(s.name)}</div>
+     <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:var(--space-md);">${escHtml(s.category)}</div>
+     <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:var(--space-lg);">${escHtml(s.description)}</div>
+     <a href="${s.url}" target="_blank" rel="noopener" style="display:inline-block;padding:var(--space-sm) var(--space-xl);background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.75rem;font-weight:600;">Visit Store →</a>
     </div>`).join('');
   }
 

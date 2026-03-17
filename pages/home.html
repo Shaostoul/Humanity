@@ -15,10 +15,10 @@
     #home-app {
       flex: 1;
       overflow-y: auto;
-      padding: 1.25rem;
+      padding: var(--space-2xl);
       display: flex;
       flex-direction: column;
-      gap: 1.25rem;
+      gap: var(--space-2xl);
       max-width: 1100px;
       margin: 0 auto;
       width: 100%;
@@ -27,17 +27,17 @@
     /* ── Room tab bar ── */
     .room-tabs {
       display: flex;
-      gap: 0.35rem;
+      gap: var(--space-sm);
       flex-wrap: wrap;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 0.5rem;
+      padding-bottom: var(--space-md);
     }
 
     .room-tab {
       display: flex;
       align-items: center;
-      gap: 0.35rem;
-      padding: 0.4rem 0.85rem;
+      gap: var(--space-sm);
+      padding: var(--space-md) 0.85rem;
       border-radius: var(--radius);
       border: 1px solid transparent;
       background: transparent;
@@ -60,8 +60,8 @@
     .room-tab-add {
       display: flex;
       align-items: center;
-      gap: 0.25rem;
-      padding: 0.4rem 0.65rem;
+      gap: var(--space-sm);
+      padding: var(--space-md) var(--space-lg);
       border-radius: var(--radius);
       border: 1px dashed var(--border);
       background: transparent;
@@ -77,7 +77,7 @@
     .room-panel {
       display: none;
       flex-direction: column;
-      gap: 1rem;
+      gap: var(--space-xl);
     }
     .room-panel.active { display: flex; }
 
@@ -85,13 +85,13 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.75rem;
+      gap: var(--space-lg);
     }
 
     .room-title-row {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-md);
     }
 
     .room-title-icon { font-size: 1.5rem; }
@@ -108,11 +108,11 @@
 
     .room-actions {
       display: flex;
-      gap: 0.4rem;
+      gap: var(--space-md);
     }
 
     .btn-sm {
-      padding: 0.3rem 0.7rem;
+      padding: var(--space-sm) var(--space-lg);
       border-radius: var(--radius);
       border: 1px solid var(--border);
       background: var(--bg-card);
@@ -137,8 +137,8 @@
     .card-header {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.6rem 0.9rem;
+      gap: var(--space-md);
+      padding: var(--space-lg) var(--space-xl);
       border-bottom: 1px solid var(--border);
     }
 
@@ -152,24 +152,24 @@
       margin: 0;
     }
 
-    .card-body { padding: 0.75rem 0.9rem; }
+    .card-body { padding: var(--space-lg) var(--space-xl); }
 
     /* ── Content grid (main + sidebar) ── */
     .content-grid {
       display: grid;
       grid-template-columns: 1fr 320px;
-      gap: 1.25rem;
+      gap: var(--space-2xl);
       align-items: start;
     }
 
     /* ── Item list (furniture, items in rooms) ── */
-    .item-list { display: flex; flex-direction: column; gap: 0.25rem; }
+    .item-list { display: flex; flex-direction: column; gap: var(--space-sm); }
 
     .item-row {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.3rem 0.5rem;
+      gap: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
       border-radius: var(--radius);
       background: var(--bg-secondary);
       font-size: 0.78rem;
@@ -183,14 +183,14 @@
       color: var(--text-muted);
       background: var(--bg-input);
       border-radius: var(--radius-sm);
-      padding: 0.1rem 0.4rem;
+      padding: var(--space-xs) var(--space-md);
       white-space: nowrap;
     }
 
     .item-status {
       font-size: 0.6rem;
       font-weight: 600;
-      padding: 0.12rem 0.4rem;
+      padding: 0.12rem var(--space-md);
       border-radius: var(--radius-sm);
     }
     .status-ok   { background: #0d2e14; color: #4caf50; }
@@ -203,7 +203,7 @@
       color: var(--border);
       font-size: 0.8rem;
       cursor: pointer;
-      padding: 0 0.2rem;
+      padding: 0 var(--space-xs);
       line-height: 1;
       transition: color 0.12s;
     }
@@ -212,14 +212,14 @@
     .item-add-btn {
       display: flex;
       align-items: center;
-      gap: 0.4rem;
-      margin-top: 0.5rem;
+      gap: var(--space-md);
+      margin-top: var(--space-md);
       background: none;
       border: 1px dashed var(--border);
       border-radius: var(--radius);
       color: var(--text-muted);
       font-size: 0.72rem;
-      padding: 0.3rem 0.6rem;
+      padding: var(--space-sm) var(--space-lg);
       cursor: pointer;
       width: 100%;
       transition: all 0.12s;
@@ -235,7 +235,7 @@
       border-radius: var(--radius);
       color: var(--text);
       font-size: 0.78rem;
-      padding: 0.5rem 0.6rem;
+      padding: var(--space-md) var(--space-lg);
       resize: none;
       min-height: 80px;
       outline: none;
@@ -249,7 +249,7 @@
     .sys-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 0.75rem;
+      gap: var(--space-lg);
     }
 
     .sys-card {
@@ -264,8 +264,8 @@
     .sys-card-header {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.6rem;
+      gap: var(--space-md);
+      margin-bottom: var(--space-lg);
     }
 
     .sys-card-icon { font-size: 1.3rem; flex-shrink: 0; }
@@ -278,7 +278,7 @@
     .sys-card-desc {
       font-size: 0.65rem;
       color: var(--text-muted);
-      margin-top: 0.1rem;
+      margin-top: var(--space-xs);
     }
 
     .sys-meter {
@@ -286,7 +286,7 @@
       background: var(--bg-input);
       border-radius: var(--radius-sm);
       overflow: hidden;
-      margin-bottom: 0.5rem;
+      margin-bottom: var(--space-md);
     }
 
     .sys-meter-fill {
@@ -301,7 +301,7 @@
       align-items: center;
       font-size: 0.7rem;
       color: var(--text-muted);
-      padding: 0.15rem 0;
+      padding: var(--space-xs) 0;
     }
 
     .sys-stat-value { font-weight: 700; font-size: 0.75rem; }
@@ -312,9 +312,9 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      padding: 0.12rem 0.45rem;
+      padding: 0.12rem var(--space-md);
       border-radius: var(--radius-sm);
-      margin-top: 0.35rem;
+      margin-top: var(--space-sm);
     }
     .sys-ok   { background: #0d2e14; color: #4caf50; }
     .sys-warn { background: #2e2a0d; color: #f4d68a; }
@@ -324,7 +324,7 @@
     .garden-layout {
       display: grid;
       grid-template-columns: 200px 1fr;
-      gap: 1.25rem;
+      gap: var(--space-2xl);
       align-items: start;
     }
 
@@ -332,7 +332,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-md);
     }
 
     .tower-visual {
@@ -356,7 +356,7 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       font-weight: 700;
-      margin-top: 0.3rem;
+      margin-top: var(--space-sm);
     }
 
     .tower-plant {
@@ -372,21 +372,21 @@
       font-size: 0.62rem;
       color: var(--text-muted);
       text-align: center;
-      margin-top: 0.25rem;
+      margin-top: var(--space-sm);
     }
 
     /* ── Garden: Ground beds ── */
     .ground-beds {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 0.5rem;
+      gap: var(--space-md);
     }
 
     .ground-bed {
       background: linear-gradient(180deg, #1a1a0d 0%, #141210 100%);
       border: 1px solid #2a2518;
       border-radius: var(--radius);
-      padding: 0.5rem;
+      padding: var(--space-md);
       text-align: center;
       font-size: 0.72rem;
       min-height: 60px;
@@ -394,7 +394,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 0.2rem;
+      gap: var(--space-xs);
     }
 
     .ground-bed-icon { font-size: 1.2rem; }
@@ -413,17 +413,17 @@
     .plant-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-      gap: 0.5rem;
+      gap: var(--space-md);
     }
 
     .plant-card {
       background: var(--bg-secondary);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 0.55rem 0.7rem;
+      padding: var(--space-md) var(--space-lg);
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: var(--space-md);
       transition: border-color 0.15s;
     }
     .plant-card:hover { border-color: #444; }
@@ -436,13 +436,13 @@
     .plant-stage {
       font-size: 0.62rem;
       color: var(--text-muted);
-      margin-top: 0.1rem;
+      margin-top: var(--space-xs);
     }
 
     .plant-harvest {
       font-size: 0.58rem;
       color: var(--success);
-      margin-top: 0.1rem;
+      margin-top: var(--space-xs);
     }
 
     .plant-progress {
@@ -450,7 +450,7 @@
       background: var(--bg-input);
       border-radius: 2px;
       overflow: hidden;
-      margin-top: 0.25rem;
+      margin-top: var(--space-sm);
     }
 
     .plant-progress-fill {
@@ -466,7 +466,7 @@
       color: var(--border);
       font-size: 0.75rem;
       cursor: pointer;
-      padding: 0 0.2rem;
+      padding: 0 var(--space-xs);
       transition: color 0.12s;
     }
     .plant-del:hover { color: var(--danger); }
@@ -475,8 +475,8 @@
     .garden-modes {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
     }
 
     .garden-mode-card {
@@ -490,8 +490,8 @@
 
     .garden-mode-card .mode-bg {
       position: absolute;
-      right: -0.5rem;
-      bottom: -0.5rem;
+      right: -var(--space-md);
+      bottom: -var(--space-md);
       font-size: 4rem;
       opacity: 0.06;
       pointer-events: none;
@@ -501,8 +501,8 @@
     .mode-header {
       display: flex;
       align-items: center;
-      gap: 0.4rem;
-      margin-bottom: 0.4rem;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
     }
 
     .mode-icon { font-size: 1.2rem; }
@@ -516,17 +516,17 @@
       font-size: 0.7rem;
       color: var(--text-muted);
       line-height: 1.5;
-      margin-bottom: 0.5rem;
+      margin-bottom: var(--space-md);
     }
 
-    .mode-specs { display: flex; flex-direction: column; gap: 0.2rem; }
+    .mode-specs { display: flex; flex-direction: column; gap: var(--space-xs); }
 
     .mode-spec {
       font-size: 0.65rem;
       color: var(--text-muted);
       display: flex;
       align-items: center;
-      gap: 0.3rem;
+      gap: var(--space-sm);
     }
 
     .spec-dot {
@@ -542,14 +542,14 @@
       color: var(--text-muted);
       display: flex;
       align-items: center;
-      gap: 0.3rem;
+      gap: var(--space-sm);
     }
 
     /* ── Empty state ── */
     .empty-msg {
       font-size: 0.75rem;
       color: var(--text-muted);
-      padding: 1rem;
+      padding: var(--space-xl);
       text-align: center;
       font-style: italic;
     }
@@ -902,7 +902,7 @@ function renderGenericRoom(room) {
 function renderLivingRoom(room) {
   const status = room.status || {};
   let statusHtml = '<div class="card"><div class="card-header"><h3>Home Status</h3></div><div class="card-body">';
-  statusHtml += '<div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.78rem;">';
+  statusHtml += '<div style="display:flex;gap:var(--space-xl);flex-wrap:wrap;font-size:0.78rem;">';
   if (status.mood) statusHtml += '<div><span style="color:var(--text-muted)">Mood:</span> ' + esc(status.mood) + '</div>';
   if (status.temp) statusHtml += '<div><span style="color:var(--text-muted)">Temp:</span> ' + esc(status.temp) + '</div>';
   if (status.lighting) statusHtml += '<div><span style="color:var(--text-muted)">Lighting:</span> ' + esc(status.lighting) + '</div>';
@@ -923,8 +923,8 @@ function renderBedroomRoom(room) {
   let sleepHtml = '<div class="card"><div class="card-header"><h3>Sleep Tracking</h3></div><div class="card-body">';
   sleepHtml += '<div style="font-size:0.78rem;color:var(--text-muted);">';
   sleepHtml += '<div>Avg hours: <span style="color:var(--text);font-weight:600;">' + (sleep.avgHours || '--') + '</span></div>';
-  sleepHtml += '<div style="margin-top:0.3rem;">Last sleep: <span style="color:var(--text);">' + (sleep.lastSleep || 'Not tracked yet') + '</span></div>';
-  sleepHtml += '<button class="btn-sm" style="margin-top:0.5rem;" onclick="logSleep()">Log Sleep</button>';
+  sleepHtml += '<div style="margin-top:var(--space-sm);">Last sleep: <span style="color:var(--text);">' + (sleep.lastSleep || 'Not tracked yet') + '</span></div>';
+  sleepHtml += '<button class="btn-sm" style="margin-top:var(--space-md);" onclick="logSleep()">Log Sleep</button>';
   sleepHtml += '</div></div></div>';
 
   return '<div class="content-grid">'
@@ -1026,7 +1026,7 @@ function renderGardenRoom(room) {
   html += '<div>';
 
   // Tower plants
-  html += '<div class="card" style="margin-bottom:0.75rem;">'
+  html += '<div class="card" style="margin-bottom:var(--space-lg);">'
     + '<div class="card-header"><h3>Tower Plants</h3>'
     + '<button class="btn-sm" onclick="addTowerPlant()">+ Plant</button></div>'
     + '<div class="card-body">';
@@ -1069,7 +1069,7 @@ function renderGardenRoom(room) {
         + '<span class="ground-bed-icon">' + (p.icon || '\u{1F33F}') + '</span>'
         + '<div class="ground-bed-name">' + esc(p.name) + '</div>'
         + '<div class="ground-bed-status">' + stageIcon + ' ' + esc(p.stage) + ' ' + (p.progress || 0) + '%</div>'
-        + '<button class="plant-del" onclick="deleteSoilPlant(' + idx + ')" title="Remove" style="margin-top:0.2rem;">\u00D7</button>'
+        + '<button class="plant-del" onclick="deleteSoilPlant(' + idx + ')" title="Remove" style="margin-top:var(--space-xs);">\u00D7</button>'
         + '</div>';
     });
     html += '</div>';
@@ -1110,7 +1110,7 @@ function renderPowerRoom(room) {
   });
   html += '</div>';
 
-  html += '<div style="margin-top:1rem;">' + renderNotesCard(room) + '</div>';
+  html += '<div style="margin-top:var(--space-xl);">' + renderNotesCard(room) + '</div>';
 
   return html;
 }
@@ -1120,7 +1120,7 @@ function renderPowerRoom(room) {
 // ────────────────────────────────────────────────
 
 function renderItemsCard(room, title) {
-  let html = '<div class="card" style="margin-top:0.75rem;">'
+  let html = '<div class="card" style="margin-top:var(--space-lg);">'
     + '<div class="card-header"><h3>' + esc(title || 'Items') + '</h3>'
     + '<button class="btn-sm" onclick="addItem()">+ Add</button></div>'
     + '<div class="card-body">';

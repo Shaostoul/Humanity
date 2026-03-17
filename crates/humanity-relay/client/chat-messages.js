@@ -15,11 +15,11 @@ function showReactionPicker(btn, targetFrom, targetTs, msgEl) {
 
   const picker = document.createElement('div');
   picker.className = 'reaction-picker';
-  picker.style.cssText = 'position:absolute;top:-2rem;right:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:0.2rem;display:flex;gap:0.15rem;z-index:20;';
+  picker.style.cssText = 'position:absolute;top:-2rem;right:0;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xs);display:flex;gap:var(--space-xs);z-index:20;';
   REACTION_EMOJIS.forEach(emoji => {
     const btn = document.createElement('span');
     btn.textContent = emoji;
-    btn.style.cssText = 'cursor:pointer;padding:0.15rem 0.25rem;border-radius:var(--radius-sm);font-size:0.9rem;';
+    btn.style.cssText = 'cursor:pointer;padding:var(--space-xs) var(--space-sm);border-radius:var(--radius-sm);font-size:0.9rem;';
     btn.onmouseover = () => btn.style.background = 'var(--bg-hover)';
     btn.onmouseout = () => btn.style.background = '';
     btn.onclick = (e) => {
@@ -524,7 +524,7 @@ function openThreadPanel(fromKey, timestamp, author, body) {
     <span class="thread-msg-time">${formatTime(timestamp)}</span>
     <div class="thread-msg-body">${formatBody(body)}</div>
   </div>
-  <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.5rem;">Loading replies...</div>`;
+  <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:var(--space-md);">Loading replies...</div>`;
   // Request thread from server.
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'thread_request', from: fromKey, timestamp: Number(timestamp) }));
@@ -548,7 +548,7 @@ function renderThreadMessages(messages) {
   </div>`;
   let repliesHtml = '';
   if (messages.length === 0) {
-    repliesHtml = '<div style="font-size:0.8rem;color:var(--text-muted);padding:0.5rem;">No replies yet. Be the first!</div>';
+    repliesHtml = '<div style="font-size:0.8rem;color:var(--text-muted);padding:var(--space-md);">No replies yet. Be the first!</div>';
   } else {
     for (const m of messages) {
       repliesHtml += `<div class="thread-msg">

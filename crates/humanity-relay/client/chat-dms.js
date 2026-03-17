@@ -122,7 +122,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
   const isBotMsg2 = fromKey && fromKey.startsWith('bot_');
   const identiconSrc = (!isBotMsg2 && fromKey) ? generateIdenticon(fromKey, 20) : '';
   const identiconHtml = isBotMsg2 ? '<span class="identicon" style="font-size:18px;line-height:20px;">🤖</span>' : (identiconSrc ? `<img src="${identiconSrc}" class="identicon" alt="">` : '');
-  const e2eeBadge = isEncrypted ? '<span title="End-to-end encrypted" style="font-size:0.65rem;opacity:0.6;margin-left:0.3rem;">' + hosIcon('lock', 14) + '</span>' : '';
+  const e2eeBadge = isEncrypted ? '<span title="End-to-end encrypted" style="font-size:0.65rem;opacity:0.6;margin-left:var(--space-sm);">' + hosIcon('lock', 14) + '</span>' : '';
 
   el.innerHTML = `
     <div class="meta">
@@ -141,7 +141,7 @@ function addDmMessage(author, body, timestamp, fromKey, toKey, isEncrypted) {
 function renderDmList() {
   const list = document.getElementById('dm-list');
   if (dmConversations.length === 0) {
-    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:0.3rem 0.5rem;">No conversations yet</div>';
+    list.innerHTML = '<div style="font-size:0.7rem;color:var(--text-muted);padding:var(--space-sm) var(--space-md);">No conversations yet</div>';
     return;
   }
 

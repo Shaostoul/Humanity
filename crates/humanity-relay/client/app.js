@@ -813,7 +813,7 @@ async function handleMessage(msg) {
         // E2EE status banner
         const partnerEcdh = getPeerEcdhPublic(msg.partner);
         const e2eeNotice = document.createElement('div');
-        e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:0.3rem;color:var(--text-muted);';
+        e2eeNotice.style.cssText = 'text-align:center;font-size:0.7rem;padding:var(--space-sm);color:var(--text-muted);';
         if (partnerEcdh && myEcdhKeyPair) {
           e2eeNotice.innerHTML = hosIcon('lock', 14) + ' Messages are end-to-end encrypted';
         } else {
@@ -1466,11 +1466,11 @@ function updateUserList(users) {
   }
 
   let html = '';
-  html += `<div style="font-size:0.6rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">Online (${online.length})</div>`;
+  html += `<div style="font-size:0.6rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:var(--space-sm);">Online (${online.length})</div>`;
   html += online.map(renderUser).join('');
   if (offline.length > 0) {
-    html += `<div style="height:1px;background:var(--border);margin:0.5rem 0;"></div>`;
-    html += `<div style="font-size:0.6rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:0.3rem;">Offline (${offline.length})</div>`;
+    html += `<div style="height:1px;background:var(--border);margin:var(--space-md) 0;"></div>`;
+    html += `<div style="font-size:0.6rem;text-transform:uppercase;color:var(--text-muted);letter-spacing:0.08em;margin-bottom:var(--space-sm);">Offline (${offline.length})</div>`;
     html += offline.map(renderUser).join('');
   }
 
@@ -1572,7 +1572,7 @@ function updateRulesBanner() {
   if (!banner) {
     banner = document.createElement('div');
     banner.id = 'rules-agree-banner';
-    banner.style.cssText = 'padding:0.8rem 1rem;border-top:1px solid var(--border);background:var(--bg-panel,#141414);display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;flex-shrink:0;';
+    banner.style.cssText = 'padding:var(--space-xl) var(--space-xl);border-top:1px solid var(--border);background:var(--bg-panel,#141414);display:flex;align-items:center;gap:var(--space-xl);flex-wrap:wrap;flex-shrink:0;';
     const inputArea = document.getElementById('input-area');
     if (inputArea && inputArea.parentNode) inputArea.parentNode.insertBefore(banner, inputArea);
   }
@@ -1580,14 +1580,14 @@ function updateRulesBanner() {
   const agreed = localStorage.getItem('humanity_rules_agreed');
   if (agreed === 'true') {
     banner.innerHTML = '<span style="color:var(--success);font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' +
-      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:0.3rem 0.8rem;border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
+      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
   } else if (agreed === 'false') {
     banner.innerHTML = '<span style="color:var(--danger);font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>' +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid var(--success);color:var(--success);padding:0.3rem 0.8rem;border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid var(--success);color:var(--success);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
   } else {
     banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the Community Guidelines?</span>' +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:0.35rem 1.2rem;border-radius:var(--radius);cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
-      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:0.35rem 1rem;border-radius:var(--radius);cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:var(--space-sm) var(--space-2xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
+      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:var(--space-sm) var(--space-xl);border-radius:var(--radius);cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
   }
 }
 
@@ -1789,7 +1789,7 @@ function formatTodoMessage(text) {
   // Text before first section
   const preamble = text.substring(0, matches[0].index).trim();
   if (preamble) {
-    parts.push('<div style="margin-bottom:0.4rem;">' + esc(preamble) + '</div>');
+    parts.push('<div style="margin-bottom:var(--space-md);">' + esc(preamble) + '</div>');
   }
 
   for (let i = 0; i < matches.length; i++) {

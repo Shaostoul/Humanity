@@ -29,7 +29,7 @@
       background: #111;
       border-right: 1px solid #222;
       overflow-y: auto;
-      padding: 0.5rem 0.4rem;
+      padding: var(--space-md) var(--space-md);
       flex-shrink: 0;
     }
     #settings-sidebar h2 {
@@ -38,20 +38,20 @@
       color: #555;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      padding: 0.4rem 0.5rem 0.35rem;
+      padding: var(--space-md) var(--space-md) var(--space-sm);
     }
     .s-nav {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 0.6rem;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
       cursor: pointer;
       border-radius: var(--radius);
       font-size: 0.86rem;
       color: #aaa;
       transition: background 0.1s, color 0.1s;
       border: 1px solid transparent;
-      margin-bottom: 0.1rem;
+      margin-bottom: var(--space-xs);
     }
     .s-nav:hover { background: #1a1a1a; color: #eee; }
     .s-nav.active { background: #141414; color: #fff; border-color: #2a6; }
@@ -60,7 +60,7 @@
     #settings-main {
       flex: 1;
       overflow-y: auto;
-      padding: 1.25rem 2rem;
+      padding: var(--space-2xl) var(--space-3xl);
     }
 
     .settings-section { display: none; }
@@ -70,12 +70,12 @@
       font-size: 1.15rem;
       font-weight: 700;
       color: #fff;
-      margin-bottom: 0.35rem;
+      margin-bottom: var(--space-sm);
     }
     .settings-section .section-desc {
       font-size: 0.83rem;
       color: #666;
-      margin-bottom: 1.25rem;
+      margin-bottom: var(--space-2xl);
       line-height: 1.5;
     }
 
@@ -83,7 +83,7 @@
       background: #111;
       border: 1px solid #1e1e1e;
       border-radius: var(--radius-lg);
-      margin-bottom: 1rem;
+      margin-bottom: var(--space-xl);
       overflow: hidden;
     }
     .settings-group-title {
@@ -92,14 +92,14 @@
       color: #555;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      padding: 0.65rem 0.9rem 0.4rem;
+      padding: var(--space-lg) var(--space-xl) var(--space-md);
     }
 
     .setting-row {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem 0.9rem;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
       border-bottom: 1px solid #181818;
     }
     .setting-row:last-child { border-bottom: none; }
@@ -144,7 +144,7 @@
       border: 1px solid #333;
       border-radius: var(--radius);
       color: #ddd;
-      padding: 0.3rem 0.6rem;
+      padding: var(--space-sm) var(--space-lg);
       font-size: 0.84rem;
       font-family: inherit;
       outline: none;
@@ -173,7 +173,7 @@
       border: 1px solid #333;
       border-radius: var(--radius);
       color: #ddd;
-      padding: 0.3rem 0.6rem;
+      padding: var(--space-sm) var(--space-lg);
       font-size: 0.84rem;
       font-family: inherit;
       outline: none;
@@ -189,7 +189,7 @@
       background: #1a4a2a;
       border: 1px solid #2a6;
       color: #4d9;
-      padding: 0.55rem 1.4rem;
+      padding: var(--space-md) 1.4rem;
       border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.92rem;
@@ -206,7 +206,7 @@
       background: transparent;
       border: 1px solid #e44;
       color: #e44;
-      padding: 0.3rem 0.75rem;
+      padding: var(--space-sm) var(--space-lg);
       border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.84rem;
@@ -230,8 +230,8 @@
     .version-tag {
       font-size: 0.75rem;
       color: #444;
-      margin-top: 0.5rem;
-      padding: 0 0.1rem;
+      margin-top: var(--space-md);
+      padding: 0 var(--space-xs);
     }
 
     /* Time input */
@@ -240,24 +240,24 @@
     }
 
     /* ── Server Info section (from knowledge.html) ── */
-    #sec-server-info .info-section { margin-bottom:1.5rem; }
-    #sec-server-info .info-section h2 { font-size:1.1rem; color:var(--accent,#2a6); margin-bottom:0.8rem; border-bottom:1px solid #222; padding-bottom:0.4rem; cursor:pointer; user-select:none; }
+    #sec-server-info .info-section { margin-bottom:var(--space-2xl); }
+    #sec-server-info .info-section h2 { font-size:1.1rem; color:var(--accent,#2a6); margin-bottom:var(--space-xl); border-bottom:1px solid #222; padding-bottom:var(--space-md); cursor:pointer; user-select:none; }
     #sec-server-info .info-section h2::after { content:' \25BE'; font-size:0.7rem; opacity:0.5; }
     #sec-server-info .info-section.collapsed h2::after { content:' \25B8'; }
     #sec-server-info .info-section.collapsed .info-body { display:none; }
-    #sec-server-info .role-card { background:#141414; border:1px solid #1e1e1e; border-radius:10px; padding:1rem; margin-bottom:0.75rem; }
-    #sec-server-info .role-card h3 { margin:0 0 0.4rem; font-size:0.95rem; }
+    #sec-server-info .role-card { background:#141414; border:1px solid #1e1e1e; border-radius:10px; padding:var(--space-xl); margin-bottom:var(--space-lg); }
+    #sec-server-info .role-card h3 { margin:0 0 var(--space-md); font-size:0.95rem; }
     #sec-server-info .role-card .perms { font-size:0.8rem; color:#888; line-height:1.6; }
     #sec-server-info .role-card .perms .yes { color:#4a8; }
     #sec-server-info .role-card .perms .no { color:#e55; }
-    #sec-server-info .cmd-group { margin-bottom:1rem; }
-    #sec-server-info .cmd-group h4 { font-size:0.85rem; color:var(--text,#ddd); margin:0.6rem 0 0.3rem; }
-    #sec-server-info .cmd-row { font-size:0.8rem; color:#888; padding:0.15rem 0; }
-    #sec-server-info .cmd-row code { background:rgba(255,255,255,0.06); padding:0.1rem 0.4rem; border-radius:3px; color:var(--accent,#2a6); font-size:0.78rem; }
-    #sec-server-info .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:0.8rem; }
-    #sec-server-info .stat-card { background:#141414; border:1px solid #1e1e1e; border-radius:8px; padding:0.8rem; text-align:center; }
+    #sec-server-info .cmd-group { margin-bottom:var(--space-xl); }
+    #sec-server-info .cmd-group h4 { font-size:0.85rem; color:var(--text,#ddd); margin:var(--space-lg) 0 var(--space-sm); }
+    #sec-server-info .cmd-row { font-size:0.8rem; color:#888; padding:var(--space-xs) 0; }
+    #sec-server-info .cmd-row code { background:rgba(255,255,255,0.06); padding:var(--space-xs) var(--space-md); border-radius:3px; color:var(--accent,#2a6); font-size:0.78rem; }
+    #sec-server-info .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:var(--space-xl); }
+    #sec-server-info .stat-card { background:#141414; border:1px solid #1e1e1e; border-radius:8px; padding:var(--space-xl); text-align:center; }
     #sec-server-info .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent,#2a6); }
-    #sec-server-info .stat-card .stat-label { font-size:0.7rem; color:#888; margin-top:0.2rem; }
+    #sec-server-info .stat-card .stat-label { font-size:0.7rem; color:#888; margin-top:var(--space-xs); }
 
     /* ── Vault section (from vault.html) ── */
     #sec-vault .vault-screen { display: none; }
@@ -266,7 +266,7 @@
     #sec-vault .vault-lock-screen {
       align-items: center;
       justify-content: center;
-      padding: 2rem 1rem;
+      padding: var(--space-3xl) var(--space-xl);
       flex-direction: column;
     }
 
@@ -274,7 +274,7 @@
       background: #111;
       border: 1px solid #1e1e1e;
       border-radius: 18px;
-      padding: 2.5rem 2rem;
+      padding: var(--space-3xl) var(--space-3xl);
       width: 100%;
       max-width: 480px;
     }
@@ -282,37 +282,37 @@
       font-size: 1.5rem;
       font-weight: 800;
       color: #f0a500;
-      margin-bottom: .35rem;
+      margin-bottom: var(--space-sm);
     }
     #sec-vault .lock-card .subtitle {
       font-size: .82rem;
       color: #666;
       line-height: 1.6;
-      margin-bottom: 1.5rem;
+      margin-bottom: var(--space-2xl);
     }
 
     #sec-vault .eli5-box {
       background: #0a0a0a;
       border: 1px solid #1a1a1a;
       border-radius: var(--radius-lg);
-      padding: 1rem 1.1rem;
-      margin-bottom: 1.25rem;
+      padding: var(--space-xl) 1.1rem;
+      margin-bottom: var(--space-2xl);
     }
     #sec-vault .eli5-box p { font-size: .8rem; color: #888; line-height: 1.65; margin: 0; }
-    #sec-vault .eli5-box p + p { margin-top: .5rem; }
+    #sec-vault .eli5-box p + p { margin-top: var(--space-md); }
     #sec-vault .eli5-box strong { color: #ccc; }
 
-    #sec-vault .vault-field-group { margin-bottom: .9rem; }
+    #sec-vault .vault-field-group { margin-bottom: var(--space-xl); }
     #sec-vault .vault-field-group label {
       display: block; font-size: .7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .06em; color: #555; margin-bottom: .3rem;
+      text-transform: uppercase; letter-spacing: .06em; color: #555; margin-bottom: var(--space-sm);
     }
     #sec-vault .vault-field-group input {
       width: 100%;
       background: #0d0d0d;
       border: 1px solid #222;
       border-radius: var(--radius);
-      padding: .55rem .8rem;
+      padding: var(--space-md) var(--space-xl);
       color: var(--text, #e0e0e0);
       font-size: .88rem;
       outline: none;
@@ -326,7 +326,7 @@
       color: #000;
       border: none;
       border-radius: var(--radius);
-      padding: .65rem 1.2rem;
+      padding: var(--space-lg) 1.2rem;
       font-size: .9rem;
       font-weight: 700;
       cursor: pointer;
@@ -338,7 +338,7 @@
     #sec-vault .vault-screen-msg {
       font-size: .76rem;
       min-height: 1.3em;
-      margin-top: .55rem;
+      margin-top: var(--space-md);
     }
 
     /* Vault main UI */
@@ -360,29 +360,29 @@
     }
 
     #vault-sec-sidebar-header {
-      padding: .65rem .85rem;
+      padding: var(--space-lg) .85rem;
       border-bottom: 1px solid #1a1a1a;
       display: flex;
       align-items: center;
-      gap: .5rem;
+      gap: var(--space-md);
     }
     #vault-sec-sidebar-header h2 {
       font-size: .72rem; font-weight: 700;
       text-transform: uppercase; letter-spacing: .08em; color: #555; flex: 1;
     }
 
-    #vault-sec-search { padding: .5rem .6rem; border-bottom: 1px solid #1a1a1a; }
+    #vault-sec-search { padding: var(--space-md) var(--space-lg); border-bottom: 1px solid #1a1a1a; }
     #vault-sec-search input {
       width: 100%; background: #0d0d0d; border: 1px solid #1e1e1e;
-      border-radius: var(--radius); padding: .35rem .65rem; color: #e0e0e0; font-size: .8rem; outline: none;
+      border-radius: var(--radius); padding: var(--space-sm) var(--space-lg); color: #e0e0e0; font-size: .8rem; outline: none;
     }
     #vault-sec-search input:focus { border-color: #333; }
 
-    #vault-sec-entry-list { flex: 1; overflow-y: auto; padding: .4rem 0; }
+    #vault-sec-entry-list { flex: 1; overflow-y: auto; padding: var(--space-md) 0; }
 
     #sec-vault .entry-item {
-      display: flex; align-items: center; gap: .6rem;
-      padding: .55rem .85rem; cursor: pointer; border-radius: 0; transition: background .1s;
+      display: flex; align-items: center; gap: var(--space-lg);
+      padding: var(--space-md) .85rem; cursor: pointer; border-radius: 0; transition: background .1s;
     }
     #sec-vault .entry-item:hover { background: #181818; }
     #sec-vault .entry-item.active { background: #1a1a0a; border-left: 2px solid #f0a500; }
@@ -395,46 +395,46 @@
     #sec-vault .entry-item-type { font-size: .66rem; color: #555; text-transform: uppercase; letter-spacing: .04em; }
 
     #vault-sec-sidebar-footer {
-      padding: .5rem .85rem; border-top: 1px solid #1a1a1a;
-      display: flex; align-items: center; gap: .5rem;
+      padding: var(--space-md) .85rem; border-top: 1px solid #1a1a1a;
+      display: flex; align-items: center; gap: var(--space-md);
     }
     #vault-sec-sidebar-footer span { font-size: .68rem; color: #444; }
     #vault-sec-lock-countdown { font-size: .62rem; color: #3a3a3a; flex: 1; text-align: center; }
     #sec-vault .btn-lock {
       background: none; border: 1px solid #2a2a2a; color: #555;
-      border-radius: var(--radius-sm); padding: .25rem .55rem; font-size: .72rem; cursor: pointer;
+      border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); font-size: .72rem; cursor: pointer;
     }
     #sec-vault .btn-lock:hover { border-color: #555; color: #888; }
 
     #vault-sec-main {
-      flex: 1; overflow-y: auto; padding: 1.5rem 2rem;
+      flex: 1; overflow-y: auto; padding: var(--space-2xl) var(--space-3xl);
       display: flex; flex-direction: column;
     }
 
     #vault-sec-welcome { max-width: 640px; margin: 0 auto; }
-    #vault-sec-welcome h2 { font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: .35rem; }
-    #vault-sec-welcome p { font-size: .83rem; color: #666; line-height: 1.65; margin-bottom: 1.25rem; }
+    #vault-sec-welcome h2 { font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: var(--space-sm); }
+    #vault-sec-welcome p { font-size: .83rem; color: #666; line-height: 1.65; margin-bottom: var(--space-2xl); }
 
     #sec-vault .quick-add-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: .65rem; margin-bottom: 1.5rem;
+      gap: var(--space-lg); margin-bottom: var(--space-2xl);
     }
     #sec-vault .quick-add-btn {
       background: #111; border: 1px solid #1e1e1e; border-radius: var(--radius-lg);
-      padding: 1rem; cursor: pointer; text-align: left;
+      padding: var(--space-xl); cursor: pointer; text-align: left;
       transition: border-color .15s, background .15s;
     }
     #sec-vault .quick-add-btn:hover { background: #181818; border-color: #2a2a2a; }
-    #sec-vault .quick-add-btn .qa-icon { font-size: 1.4rem; margin-bottom: .35rem; display: block; }
+    #sec-vault .quick-add-btn .qa-icon { font-size: 1.4rem; margin-bottom: var(--space-sm); display: block; }
     #sec-vault .quick-add-btn .qa-title { font-size: .82rem; font-weight: 700; color: #e0e0e0; display: block; }
-    #sec-vault .quick-add-btn .qa-desc { font-size: .72rem; color: #555; margin-top: .15rem; display: block; line-height: 1.4; }
+    #sec-vault .quick-add-btn .qa-desc { font-size: .72rem; color: #555; margin-top: var(--space-xs); display: block; line-height: 1.4; }
 
     #sec-vault .eli5-section {
       background: #111; border: 1px solid #1a1a1a; border-radius: var(--radius-lg);
-      padding: 1.25rem 1.4rem; margin-bottom: 1rem;
+      padding: var(--space-2xl) 1.4rem; margin-bottom: var(--space-xl);
     }
-    #sec-vault .eli5-section h3 { font-size: .85rem; font-weight: 700; color: #ccc; margin-bottom: .75rem; }
-    #sec-vault .eli5-row { display: flex; gap: .75rem; margin-bottom: .7rem; align-items: flex-start; }
+    #sec-vault .eli5-section h3 { font-size: .85rem; font-weight: 700; color: #ccc; margin-bottom: var(--space-lg); }
+    #sec-vault .eli5-row { display: flex; gap: var(--space-lg); margin-bottom: var(--space-lg); align-items: flex-start; }
     #sec-vault .eli5-row:last-child { margin-bottom: 0; }
     #sec-vault .eli5-row .eli5-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
     #sec-vault .eli5-row p { font-size: .8rem; color: #777; line-height: 1.55; }
@@ -444,42 +444,42 @@
     #vault-sec-detail.visible { display: block; }
 
     #vault-sec-detail-header {
-      display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem;
+      display: flex; align-items: flex-start; gap: var(--space-xl); margin-bottom: var(--space-2xl);
     }
     #vault-sec-detail-icon { font-size: 2rem; }
     #vault-sec-detail-title-block { flex: 1; }
     #vault-sec-detail-title {
-      font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: .2rem; word-break: break-word;
+      font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: var(--space-xs); word-break: break-word;
     }
     #vault-sec-detail-type { font-size: .7rem; color: #555; text-transform: uppercase; letter-spacing: .05em; }
 
-    #sec-vault .detail-actions { display: flex; gap: .5rem; flex-shrink: 0; }
+    #sec-vault .detail-actions { display: flex; gap: var(--space-md); flex-shrink: 0; }
     #sec-vault .btn-detail-edit, #sec-vault .btn-detail-delete {
       background: none; border: 1px solid #2a2a2a; border-radius: var(--radius);
-      padding: .3rem .75rem; font-size: .76rem; cursor: pointer;
+      padding: var(--space-sm) var(--space-lg); font-size: .76rem; cursor: pointer;
     }
     #sec-vault .btn-detail-edit { color: #aaa; }
     #sec-vault .btn-detail-edit:hover { border-color: #555; color: #e0e0e0; }
     #sec-vault .btn-detail-delete { color: #c44; border-color: #3a1515; }
     #sec-vault .btn-detail-delete:hover { background: #1a0505; }
 
-    #sec-vault .field-display { margin-bottom: 1rem; }
+    #sec-vault .field-display { margin-bottom: var(--space-xl); }
     #sec-vault .field-display-label {
       font-size: .68rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .06em; color: #444; margin-bottom: .3rem;
+      letter-spacing: .06em; color: #444; margin-bottom: var(--space-sm);
     }
     #sec-vault .field-display-value {
       background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: var(--radius);
-      padding: .55rem .75rem; font-size: .85rem; color: #e0e0e0;
+      padding: var(--space-md) var(--space-lg); font-size: .85rem; color: #e0e0e0;
       word-break: break-word; white-space: pre-wrap; line-height: 1.5; position: relative;
     }
     #sec-vault .field-display-value.secret { color: transparent; text-shadow: 0 0 8px #888; user-select: none; cursor: pointer; }
     #sec-vault .field-display-value.secret.revealed { color: #e0e0e0; text-shadow: none; user-select: text; }
 
-    #sec-vault .field-copy-row { display: flex; align-items: center; gap: .5rem; margin-top: .35rem; }
+    #sec-vault .field-copy-row { display: flex; align-items: center; gap: var(--space-md); margin-top: var(--space-sm); }
     #sec-vault .btn-copy-field, #sec-vault .btn-reveal {
       background: none; border: 1px solid #222; border-radius: var(--radius-sm);
-      padding: .2rem .6rem; font-size: .7rem; color: #666; cursor: pointer;
+      padding: var(--space-xs) var(--space-lg); font-size: .7rem; color: #666; cursor: pointer;
     }
     #sec-vault .btn-copy-field:hover, #sec-vault .btn-reveal:hover { border-color: #444; color: #aaa; }
     #sec-vault .copy-confirm { font-size: .68rem; color: #4ec87a; }
@@ -488,7 +488,7 @@
     #vault-sec-entry-modal-overlay {
       display: none; position: fixed; inset: 0;
       background: rgba(0,0,0,.82); z-index: 800;
-      align-items: center; justify-content: center; padding: 1rem;
+      align-items: center; justify-content: center; padding: var(--space-xl);
     }
     #vault-sec-entry-modal-overlay.open { display: flex; }
     #vault-sec-entry-modal {
@@ -499,47 +499,47 @@
     #sec-vault .modal-field { margin-bottom: .85rem; }
     #sec-vault .modal-field label {
       display: block; font-size: .7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .05em; color: #555; margin-bottom: .3rem;
+      text-transform: uppercase; letter-spacing: .05em; color: #555; margin-bottom: var(--space-sm);
     }
     #sec-vault .modal-field input, #sec-vault .modal-field textarea, #sec-vault .modal-field select {
       width: 100%; background: #0d0d0d; border: 1px solid #222; border-radius: var(--radius);
-      padding: .5rem .7rem; color: #e0e0e0; font-size: .85rem; outline: none; font-family: inherit;
+      padding: var(--space-md) var(--space-lg); color: #e0e0e0; font-size: .85rem; outline: none; font-family: inherit;
     }
     #sec-vault .modal-field input:focus, #sec-vault .modal-field textarea:focus, #sec-vault .modal-field select:focus { border-color: #f0a500; }
     #sec-vault .modal-field textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
-    #vault-sec-modal-msg { font-size: .75rem; min-height: 1.2em; margin-bottom: .5rem; }
-    #sec-vault .modal-actions { display: flex; gap: .65rem; justify-content: flex-end; }
+    #vault-sec-modal-msg { font-size: .75rem; min-height: 1.2em; margin-bottom: var(--space-md); }
+    #sec-vault .modal-actions { display: flex; gap: var(--space-lg); justify-content: flex-end; }
     #sec-vault .btn-cancel {
       background: none; border: 1px solid #2a2a2a; color: #666;
-      border-radius: var(--radius); padding: .45rem 1rem; font-size: .82rem; cursor: pointer;
+      border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: .82rem; cursor: pointer;
     }
     #sec-vault .btn-save {
       background: #f0a500; color: #000; border: none; border-radius: var(--radius);
-      padding: .45rem 1.2rem; font-size: .82rem; font-weight: 700; cursor: pointer;
+      padding: var(--space-md) 1.2rem; font-size: .82rem; font-weight: 700; cursor: pointer;
     }
     #sec-vault .btn-save:disabled { opacity: .5; cursor: default; }
 
     #sec-vault .type-selector {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .4rem; margin-bottom: 1rem;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);
     }
     #sec-vault .type-chip {
-      border: 1px solid #222; border-radius: var(--radius); padding: .45rem .6rem;
-      display: flex; align-items: center; gap: .4rem; cursor: pointer;
+      border: 1px solid #222; border-radius: var(--radius); padding: var(--space-md) var(--space-lg);
+      display: flex; align-items: center; gap: var(--space-md); cursor: pointer;
       font-size: .78rem; color: #888; background: #0d0d0d; transition: border-color .12s;
     }
     #sec-vault .type-chip:hover { border-color: #444; color: #ccc; }
     #sec-vault .type-chip.selected { border-color: #f0a500; color: #f0a500; background: #1a1000; }
     #sec-vault .type-chip .chip-icon { font-size: 1rem; }
-    #sec-vault .no-entries { padding: 1.5rem .85rem; font-size: .78rem; color: #444; text-align: center; }
+    #sec-vault .no-entries { padding: var(--space-2xl) .85rem; font-size: .78rem; color: #444; text-align: center; }
 
     @media (max-width: 600px) {
       #vault-sec-sidebar { width: 200px; min-width: 160px; }
-      #vault-sec-main { padding: 1rem; }
+      #vault-sec-main { padding: var(--space-xl); }
     }
     @media (max-width: 480px) {
       #vault-sec-sidebar { display: none; }
       #vault-sec-main-screen { flex-direction: column; }
-      #vault-sec-main { padding: .75rem; }
+      #vault-sec-main { padding: var(--space-lg); }
     }
   </style>
 </head>
@@ -564,7 +564,7 @@
     <div class="s-nav" data-sec="app" onclick="showSection('app')"><span class="s-ico" data-icon="settings"></span> App</div>
     <div class="s-nav" data-sec="account" onclick="showSection('account')"><span class="s-ico" data-icon="user"></span> Account</div>
     <div class="s-nav" data-sec="advanced" onclick="showSection('advanced')"><span class="s-ico" data-icon="ops"></span> Advanced</div>
-    <h2 style="margin-top:0.5rem">More</h2>
+    <h2 style="margin-top:var(--space-md)">More</h2>
     <div class="s-nav" data-sec="keybinds" onclick="showSection('keybinds')"><span class="s-ico" data-icon="grid"></span> Shortcuts</div>
     <div class="s-nav" data-sec="accessibility" onclick="showSection('accessibility')"><span class="s-ico" data-icon="eye"></span> Accessibility</div>
     <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')"><span class="s-ico" data-icon="mic"></span> Audio &amp; Video</div>
@@ -592,7 +592,7 @@
       <!-- Live preview strip -->
       <div class="settings-group" id="theme-preview-group">
         <div class="settings-group-title">Live Preview</div>
-        <div style="padding:0.75rem 0.9rem">
+        <div style="padding:var(--space-lg) var(--space-xl)">
           <div id="theme-preview" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
             <div id="tp-icons" style="display:flex;gap:6px;align-items:center"></div>
             <button style="padding:4px 12px;border-radius:var(--radius);background:var(--accent);color:#fff;border:none;font-size:0.8rem;cursor:default">Button</button>
@@ -798,8 +798,8 @@
         </div>
       </div>
 
-      <div style="text-align:right;margin-top:0.5rem">
-        <button class="btn-danger" onclick="resetThemeDefaults()" style="font-size:0.78rem;padding:0.3rem 0.8rem">Reset All to Defaults</button>
+      <div style="text-align:right;margin-top:var(--space-md)">
+        <button class="btn-danger" onclick="resetThemeDefaults()" style="font-size:0.78rem;padding:var(--space-sm) var(--space-xl)">Reset All to Defaults</button>
       </div>
     </section>
 
@@ -989,9 +989,9 @@
             <strong>Push-to-Talk Key</strong>
             <span>Hold this key while in PTT mode to transmit</span>
           </div>
-          <div style="display:flex;align-items:center;gap:0.5rem;">
-            <kbd id="ptt-key-display" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem 0.7rem;border-radius:5px;font-family:monospace;font-size:0.9rem;min-width:48px;text-align:center;">V</kbd>
-            <button onclick="beginPttRebind()" id="ptt-rebind-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:0.25rem 0.6rem;border-radius:5px;cursor:pointer;font-size:0.8rem;">Rebind</button>
+          <div style="display:flex;align-items:center;gap:var(--space-md);">
+            <kbd id="ptt-key-display" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.9rem;min-width:48px;text-align:center;">V</kbd>
+            <button onclick="beginPttRebind()" id="ptt-rebind-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Rebind</button>
           </div>
         </div>
       </div>
@@ -1094,7 +1094,7 @@
             <strong>Edit Full Profile</strong>
             <span>Avatar, bio, pronouns, social links, streaming</span>
           </div>
-          <a href="/profile" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Open Profile →</a>
+          <a href="/profile" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Open Profile →</a>
         </div>
       </div>
 
@@ -1143,7 +1143,7 @@
             <strong>Operations Panel</strong>
             <span>System health, deploy logs, and moderation tools</span>
           </div>
-          <a href="/debug" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Open Ops →</a>
+          <a href="/debug" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">Open Ops →</a>
         </div>
       </div>
 
@@ -1154,7 +1154,7 @@
             <strong>Export All Data</strong>
             <span>Download a JSON backup of all local HumanityOS data</span>
           </div>
-          <button onclick="exportData()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.84rem;">Export JSON</button>
+          <button onclick="exportData()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Export JSON</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1162,7 +1162,7 @@
             <span>Restore from a previously exported JSON backup</span>
           </div>
           <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)">
-          <button onclick="document.getElementById('import-file').click()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
+          <button onclick="document.getElementById('import-file').click()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
         </div>
       </div>
 
@@ -1173,7 +1173,7 @@
             <strong>Clear App Cache &amp; Reload</strong>
             <span>Forces every page to re-download fresh — use when an update isn't showing up. Keyboard shortcut: <kbd style="background:#222;border:1px solid #444;border-radius:3px;padding:1px 5px;font-size:0.78rem;">Ctrl+Shift+Delete</kbd></span>
           </div>
-          <button onclick="clearAppCache()" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:0.3rem 0.75rem;border-radius:6px;cursor:pointer;font-size:0.84rem;font-weight:600;">Clear Cache</button>
+          <button onclick="clearAppCache()" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;font-weight:600;">Clear Cache</button>
         </div>
       </div>
 
@@ -1273,7 +1273,7 @@
           <div style="flex:1;max-width:200px;height:8px;background:#222;border-radius:4px;overflow:hidden;">
             <div id="mic-level-bar" style="width:0%;height:100%;background:#2a6;transition:width 0.1s;border-radius:4px;"></div>
           </div>
-          <button onclick="testMic()" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:0.25rem 0.6rem;border-radius:5px;cursor:pointer;font-size:0.8rem;" id="mic-test-btn">Test Mic</button>
+          <button onclick="testMic()" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;" id="mic-test-btn">Test Mic</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1334,10 +1334,10 @@
             <strong>Camera Preview</strong>
             <span>Check how you look before going live</span>
           </div>
-          <button onclick="toggleCameraPreview()" id="cam-preview-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:0.25rem 0.6rem;border-radius:5px;cursor:pointer;font-size:0.8rem;">Preview</button>
+          <button onclick="toggleCameraPreview()" id="cam-preview-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Preview</button>
         </div>
       </div>
-      <video id="settings-cam-preview" autoplay muted playsinline style="display:none;width:100%;max-width:320px;border-radius:8px;margin-top:0.5rem;border:1px solid #333;"></video>
+      <video id="settings-cam-preview" autoplay muted playsinline style="display:none;width:100%;max-width:320px;border-radius:8px;margin-top:var(--space-md);border:1px solid #333;"></video>
     </section>
 
     <!-- Security -->
@@ -1345,16 +1345,16 @@
       <h1>Security</h1>
       <p class="section-desc">Protect your identity and manage your devices. Your Ed25519 key is your passport — keep it safe.</p>
 
-      <div id="backup-warning" class="settings-group" style="background:rgba(229,85,85,0.08);border:1px solid rgba(229,85,85,0.3);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
-        <div style="display:flex;align-items:flex-start;gap:0.75rem;">
+      <div id="backup-warning" class="settings-group" style="background:rgba(229,85,85,0.08);border:1px solid rgba(229,85,85,0.3);border-radius:10px;padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-2xl);">
+        <div style="display:flex;align-items:flex-start;gap:var(--space-lg);">
           <span style="font-size:1.4rem;flex-shrink:0;">⚠️</span>
           <div>
             <strong style="color:#e55;font-size:0.95rem;">Your identity is NOT backed up</strong>
-            <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:0.4rem 0 0;">
+            <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:var(--space-md) 0 0;">
               Your private key lives only in this browser's storage. If you clear your browser data, reinstall, or lose this device,
               <strong style="color:var(--text);">your identity is gone forever</strong> — no one can recover it for you.
             </p>
-            <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:0.5rem 0 0;">
+            <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:var(--space-md) 0 0;">
               <strong style="color:var(--text);">Fix this now:</strong> Use any backup method below — seed phrase (paper), encrypted file (cloud), or password manager.
               Two backups in different places is safest.
             </p>
@@ -1362,12 +1362,12 @@
         </div>
       </div>
 
-      <div id="backup-ok" class="settings-group" style="display:none;background:rgba(34,170,102,0.08);border:1px solid rgba(34,170,102,0.3);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
-        <div style="display:flex;align-items:center;gap:0.75rem;">
+      <div id="backup-ok" class="settings-group" style="display:none;background:rgba(34,170,102,0.08);border:1px solid rgba(34,170,102,0.3);border-radius:10px;padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-2xl);">
+        <div style="display:flex;align-items:center;gap:var(--space-lg);">
           <span style="font-size:1.4rem;">✅</span>
           <div>
             <strong style="color:#2a6;font-size:0.95rem;">Identity backed up</strong>
-            <p style="color:var(--text-muted);font-size:0.82rem;margin:0.25rem 0 0;">
+            <p style="color:var(--text-muted);font-size:0.82rem;margin:var(--space-sm) 0 0;">
               You have at least one backup method active. Your identity can be recovered if this browser's data is lost.
             </p>
           </div>
@@ -1405,7 +1405,7 @@
             <strong>Manage Linked Devices</strong>
             <span>See all devices using your identity, label them, or revoke access</span>
           </div>
-          <a href="/chat" onclick="sessionStorage.setItem('open_device_panel','1')" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">My Devices →</a>
+          <a href="/chat" onclick="sessionStorage.setItem('open_device_panel','1')" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">My Devices →</a>
         </div>
       </div>
 
@@ -1416,28 +1416,28 @@
             <strong>Download Encrypted Backup</strong>
             <span>Export your private key as a passphrase-protected file you can restore on any device</span>
           </div>
-          <button onclick="settingsOpenBackup()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔐 Backup</button>
+          <button onclick="settingsOpenBackup()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔐 Backup</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Restore from Backup File</strong>
             <span>Import an encrypted backup file to restore your identity on this device</span>
           </div>
-          <button onclick="settingsOpenRestore()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">📥 Restore</button>
+          <button onclick="settingsOpenRestore()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">📥 Restore</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>View Seed Phrase</strong>
             <span>24-word recovery phrase — write it down, never share it, never screenshot it</span>
           </div>
-          <button onclick="settingsOpenSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🌱 View Seed</button>
+          <button onclick="settingsOpenSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🌱 View Seed</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Restore from Seed Phrase</strong>
             <span>Rebuild your identity from the 24-word phrase (replaces current identity)</span>
           </div>
-          <button onclick="settingsOpenRestoreSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔤 Restore from Words</button>
+          <button onclick="settingsOpenRestoreSeed()" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:var(--space-sm) var(--space-lg);border-radius:6px;font-size:0.84rem;font-weight:600;cursor:pointer;">🔤 Restore from Words</button>
         </div>
       </div>
     </section>
@@ -1519,7 +1519,7 @@
 
       <div class="settings-group">
         <div class="settings-group-title">Local Storage Usage</div>
-        <div id="storage-breakdown" style="padding:0.5rem 0.9rem;">
+        <div id="storage-breakdown" style="padding:var(--space-md) var(--space-xl);">
           <p style="font-size:0.8rem;color:#666;">Calculating…</p>
         </div>
       </div>
@@ -1758,7 +1758,7 @@
               It lives entirely on your device.
             </p>
           </div>
-          <div class="eli5-box" style="margin-bottom:1.25rem;border-color:#3a3000;background:#100e00">
+          <div class="eli5-box" style="margin-bottom:var(--space-2xl);border-color:#3a3000;background:#100e00">
             <p>
               <strong style="color:#f0a500">⚠ Choose a passphrase you'll remember.</strong>
               If you forget your vault passphrase, everything inside is gone —
@@ -1776,7 +1776,7 @@
           </div>
           <div id="vault-sec-setup-msg" class="vault-screen-msg"></div>
           <button class="vault-btn-primary" id="vault-sec-setup-btn" onclick="vault_doSetup()">Create Vault</button>
-          <p style="font-size:.7rem;color:#3a3a3a;margin-top:1rem;text-align:center">
+          <p style="font-size:.7rem;color:#3a3a3a;margin-top:var(--space-xl);text-align:center">
             Your passphrase is never stored or transmitted — only a mathematical lock derived from it.
           </p>
         </div>
@@ -1806,15 +1806,15 @@
           <div id="vault-sec-sidebar-header">
             <h2>Vault</h2>
             <button id="vault-sec-cloud-sync-btn" onclick="vault_syncToCloud()" title="Sync encrypted vault to Humanity relay (requires chat identity)"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">☁ Sync</button>
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁ Sync</button>
             <button onclick="vault_restoreFromCloud()" title="Restore vault from Humanity relay cloud backup"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">☁⬇</button>
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁⬇</button>
             <button onclick="vault_export()" title="Download an encrypted backup file of your vault"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">⬇</button>
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬇</button>
             <button onclick="vault_openImportUI()" title="Restore vault from a backup file"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:.25rem .5rem;font-size:.72rem;cursor:pointer">⬆</button>
+              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬆</button>
             <button onclick="vault_openNewEntryModal()" title="Add a new entry (Ctrl+N)"
-              style="background:#f0a500;color:#000;border:none;border-radius:5px;padding:.25rem .55rem;font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
+              style="background:#f0a500;color:#000;border:none;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
           </div>
           <div id="vault-sec-search">
             <input type="text" id="vault-sec-search-input" placeholder="Search…" oninput="vault_renderEntryList()">
@@ -1829,24 +1829,24 @@
 
         <div id="vault-sec-main">
           <!-- Seed phrase nudge banner -->
-          <div id="vault-sec-seed-nudge-banner" style="display:none;align-items:flex-start;gap:.9rem;
+          <div id="vault-sec-seed-nudge-banner" style="display:none;align-items:flex-start;gap:var(--space-xl);
                background:#1a1000;border:1px solid #3a2800;border-radius:11px;
-               padding:1rem 1.1rem;margin-bottom:1.25rem;max-width:640px">
+               padding:var(--space-xl) 1.1rem;margin-bottom:var(--space-2xl);max-width:640px">
             <span style="font-size:1.4rem;flex-shrink:0">🌱</span>
             <div style="flex:1">
-              <div style="font-size:.85rem;font-weight:700;color:#f0a500;margin-bottom:.25rem">Your Humanity identity isn't backed up here yet</div>
-              <div style="font-size:.78rem;color:#888;line-height:1.55;margin-bottom:.7rem">
+              <div style="font-size:.85rem;font-weight:700;color:#f0a500;margin-bottom:var(--space-sm)">Your Humanity identity isn't backed up here yet</div>
+              <div style="font-size:.78rem;color:#888;line-height:1.55;margin-bottom:var(--space-lg)">
                 Your chat identity has a 24-word seed phrase — like a master key written in plain English.
                 Save it here and you can always recover your account, even if your device is lost or your browser is wiped.
               </div>
-              <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+              <div style="display:flex;gap:var(--space-lg);flex-wrap:wrap">
                 <a href="/chat" style="background:#f0a500;color:#000;border:none;border-radius:6px;
-                   padding:.35rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none">
+                   padding:var(--space-sm) var(--space-xl);font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none">
                   Go to Chat → Get Seed Phrase
                 </a>
                 <button onclick="vault_dismissSeedNudge()"
                   style="background:none;border:1px solid #2a2a2a;color:#555;border-radius:6px;
-                         padding:.35rem .75rem;font-size:.78rem;cursor:pointer">
+                         padding:var(--space-sm) var(--space-lg);font-size:.78rem;cursor:pointer">
                   Don't show again
                 </button>
               </div>
@@ -1934,7 +1934,7 @@
 <!-- Vault blur overlay -->
 <div id="vault-sec-blur-overlay"
   style="display:none;position:fixed;inset:0;z-index:900;background:rgba(8,8,8,.97);
-         align-items:center;justify-content:center;flex-direction:column;gap:.6rem;cursor:pointer"
+         align-items:center;justify-content:center;flex-direction:column;gap:var(--space-lg);cursor:pointer"
   onclick="document.getElementById('vault-sec-blur-overlay').style.display='none'">
   <div style="font-size:2.5rem">🔒</div>
   <div style="font-size:.95rem;color:#888">Vault hidden while you were away</div>
@@ -1944,30 +1944,30 @@
 <!-- Vault import modal -->
 <div id="vault-sec-import-overlay"
   style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;
-         align-items:center;justify-content:center;padding:1rem"
+         align-items:center;justify-content:center;padding:var(--space-xl)"
   onclick="if(event.target===this)this.style.display='none'">
   <div style="background:#111;border:1px solid #222;border-radius:14px;padding:1.75rem;width:100%;max-width:460px;color:#e0e0e0">
-    <h3 style="font-size:.95rem;font-weight:700;color:#e0e0e0;margin-bottom:.4rem">⬆ Import Vault Backup</h3>
-    <p style="font-size:.78rem;color:#666;line-height:1.5;margin-bottom:1rem">
+    <h3 style="font-size:.95rem;font-weight:700;color:#e0e0e0;margin-bottom:var(--space-md)">⬆ Import Vault Backup</h3>
+    <p style="font-size:.78rem;color:#666;line-height:1.5;margin-bottom:var(--space-xl)">
       Select a <code>humanity-vault-backup.json</code> file and enter the passphrase you used when you exported it.
       Entries will be merged — nothing gets overwritten.
     </p>
-    <div style="margin-bottom:.8rem">
-      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.3rem">Backup File</label>
+    <div style="margin-bottom:var(--space-xl)">
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:var(--space-sm)">Backup File</label>
       <input type="file" id="vault-sec-import-file" accept=".json,application/json"
-        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:.45rem .7rem;color:#e0e0e0;font-size:.82rem;cursor:pointer">
+        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.82rem;cursor:pointer">
     </div>
-    <div style="margin-bottom:1rem">
-      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.3rem">Vault Passphrase</label>
+    <div style="margin-bottom:var(--space-xl)">
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:var(--space-sm)">Vault Passphrase</label>
       <input type="password" id="vault-sec-import-pass" placeholder="The passphrase used when this backup was created…"
-        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:.5rem .7rem;color:#e0e0e0;font-size:.85rem;outline:none">
+        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none">
     </div>
-    <div id="vault-sec-import-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.75rem"></div>
-    <div style="display:flex;gap:.65rem;justify-content:flex-end">
+    <div id="vault-sec-import-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
+    <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
       <button onclick="document.getElementById('vault-sec-import-overlay').style.display='none'"
-        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
       <button id="vault-sec-import-btn" onclick="vault_doImport()"
-        style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import &amp; Merge</button>
+        style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import &amp; Merge</button>
     </div>
   </div>
 </div>
@@ -1977,7 +1977,7 @@
   <div id="vault-sec-entry-modal">
     <h3 id="vault-sec-modal-title">New Entry</h3>
     <div id="vault-sec-type-selector-row">
-      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.5rem">Type</div>
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:var(--space-md)">Type</div>
       <div class="type-selector">
         <div class="type-chip selected" data-type="seed_phrase" onclick="vault_selectEntryType('seed_phrase')">
           <span class="chip-icon">🌱</span> Seed Phrase
@@ -2443,10 +2443,10 @@ function renderKeybinds() {
           <div class="setting-label">
             <strong>${b.label}</strong>
           </div>
-          <div style="display:flex;align-items:center;gap:0.4rem;">
-            <kbd id="kb-${b.id}" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem 0.7rem;border-radius:5px;font-family:monospace;font-size:0.82rem;min-width:60px;text-align:center;cursor:pointer;"
+          <div style="display:flex;align-items:center;gap:var(--space-md);">
+            <kbd id="kb-${b.id}" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.82rem;min-width:60px;text-align:center;cursor:pointer;"
               onclick="captureKeybind('${b.id}')">${formatKey(val)}</kbd>
-            <button onclick="clearKeybind('${b.id}')" style="background:transparent;border:1px solid #555;color:#888;padding:0.15rem 0.4rem;border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
+            <button onclick="clearKeybind('${b.id}')" style="background:transparent;border:1px solid #555;color:#888;padding:var(--space-xs) var(--space-md);border-radius:4px;cursor:pointer;font-size:0.7rem;" title="Clear">✕</button>
           </div>
         </div>`;
       }).join('')}
@@ -2633,13 +2633,13 @@ function calculateStorage() {
     const bytes = val ? new Blob([val]).size : 0;
     totalBytes += bytes;
     const sizeStr = bytes < 1024 ? bytes + ' B' : (bytes / 1024).toFixed(1) + ' KB';
-    return `<div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid #181818;font-size:0.82rem;">
+    return `<div style="display:flex;justify-content:space-between;padding:var(--space-sm) 0;border-bottom:1px solid #181818;font-size:0.82rem;">
       <span style="color:#aaa">${m.label}</span>
       <span style="color:#666;font-family:monospace;">${sizeStr}</span>
     </div>`;
   });
   const totalStr = totalBytes < 1024 ? totalBytes + ' B' : (totalBytes / 1024).toFixed(1) + ' KB';
-  rows.push(`<div style="display:flex;justify-content:space-between;padding:0.4rem 0 0;font-size:0.85rem;font-weight:700;">
+  rows.push(`<div style="display:flex;justify-content:space-between;padding:var(--space-md) 0 0;font-size:0.85rem;font-weight:700;">
     <span style="color:#ddd">Total</span>
     <span style="color:#2a6;font-family:monospace;">${totalStr}</span>
   </div>`);
@@ -2669,7 +2669,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.5.1 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.5.2 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Update the button label to just say Save Settings
@@ -2992,7 +2992,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
     const ts = new Date(entry.updated_at || entry.created_at);
     const dateEl = document.createElement('p');
-    dateEl.style.cssText = 'font-size:.66rem;color:#3a3a3a;margin-top:1rem';
+    dateEl.style.cssText = 'font-size:.66rem;color:#3a3a3a;margin-top:var(--space-xl)';
     dateEl.textContent = 'Last updated ' + ts.toLocaleDateString() + ' at ' + ts.toLocaleTimeString();
     fieldsEl.appendChild(dateEl);
   }
@@ -3107,7 +3107,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
     let html = '';
 
     if (tmpl.note) {
-      html += `<div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:7px;padding:.65rem .8rem;margin-bottom:.8rem;font-size:.76rem;color:#666;line-height:1.5">${vault_esc(tmpl.note)}</div>`;
+      html += `<div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:7px;padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl);font-size:.76rem;color:#666;line-height:1.5">${vault_esc(tmpl.note)}</div>`;
     }
 
     tmpl.fields.forEach(f => {
@@ -3462,7 +3462,7 @@ document.querySelectorAll('#sec-server-info .info-section h2').forEach(h2 => {
 
 function settingsAlert(msg) {
   var d = document.createElement('div');
-  d.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;background:#181818;border:1px solid #2a2a2a;border-radius:8px;padding:0.75rem 1.25rem;color:#e0e0e0;font-size:0.85rem;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
+  d.style.cssText = 'position:fixed;top:var(--space-xl);right:var(--space-xl);z-index:9999;background:#181818;border:1px solid #2a2a2a;border-radius:8px;padding:var(--space-lg) var(--space-2xl);color:#e0e0e0;font-size:0.85rem;max-width:400px;box-shadow:0 8px 24px rgba(0,0,0,0.5);';
   d.textContent = msg;
   document.body.appendChild(d);
   setTimeout(function() { d.remove(); }, 5000);
@@ -3470,16 +3470,16 @@ function settingsAlert(msg) {
 
 async function settingsOpenBackup() {
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .5rem">🔐 Download Encrypted Backup</h2>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 1rem">Enter a passphrase to encrypt your private key. Store the file in your cloud — it\'s useless without the passphrase.</p>' +
-    '<input id="set-bkp-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.4rem .6rem;color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:.5rem;">' +
-    '<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem;">' +
-    '<button id="set-bkp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>' +
-    '<button id="set-bkp-go" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.4rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
+    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud — it\'s useless without the passphrase.</p>' +
+    '<input id="set-bkp-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
+    '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
+    '<button id="set-bkp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
+    '<button id="set-bkp-go" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
     '</div>' +
-    '<div id="set-bkp-msg" style="font-size:.75rem;margin-top:.5rem;min-height:1em;"></div>' +
+    '<div id="set-bkp-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
@@ -3505,18 +3505,18 @@ async function settingsOpenBackup() {
 
 function settingsOpenRestore() {
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .5rem">📥 Restore from Backup File</h2>' +
-    '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 .5rem"><strong>This will replace your current identity on this device.</strong></p>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 1rem">Select your encrypted backup file and enter the passphrase you used when creating it.</p>' +
-    '<input id="set-rst-file" type="file" accept=".json,.bak" style="margin-bottom:.5rem;font-size:.82rem;color:#888;">' +
-    '<input id="set-rst-pass" type="password" placeholder="Backup passphrase" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.4rem .6rem;color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:.5rem;">' +
-    '<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem;">' +
-    '<button id="set-rst-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>' +
-    '<button id="set-rst-go" style="background:#e55;color:#fff;border:none;border-radius:7px;padding:.4rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore</button>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">📥 Restore from Backup File</h2>' +
+    '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will replace your current identity on this device.</strong></p>' +
+    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Select your encrypted backup file and enter the passphrase you used when creating it.</p>' +
+    '<input id="set-rst-file" type="file" accept=".json,.bak" style="margin-bottom:var(--space-md);font-size:.82rem;color:#888;">' +
+    '<input id="set-rst-pass" type="password" placeholder="Backup passphrase" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
+    '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
+    '<button id="set-rst-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
+    '<button id="set-rst-go" style="background:#e55;color:#fff;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore</button>' +
     '</div>' +
-    '<div id="set-rst-msg" style="font-size:.75rem;margin-top:.5rem;min-height:1em;"></div>' +
+    '<div id="set-rst-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
@@ -3552,19 +3552,19 @@ async function settingsOpenSeed() {
   if (!mnemonic) { settingsAlert('Seed phrase unavailable — key may be non-extractable.'); return; }
   var words = mnemonic.trim().split(/\s+/);
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   var grid = words.map(function(w, i) {
-    return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:.4rem .55rem;display:flex;align-items:baseline;gap:.3rem"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:#f0a500;font-weight:600">' + w + '</span></div>';
+    return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:#f0a500;font-weight:600">' + w + '</span></div>';
   }).join('');
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .3rem">🌱 Your 24-Word Seed Phrase</h2>' +
-    '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 .5rem"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
-    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.9rem">' + grid + '</div>' +
-    '<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;">' +
-    '<button id="set-seed-copy" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy to clipboard</button>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-sm)">🌱 Your 24-Word Seed Phrase</h2>' +
+    '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-md);margin-bottom:var(--space-xl)">' + grid + '</div>' +
+    '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);">' +
+    '<button id="set-seed-copy" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:var(--space-sm) var(--space-xl);font-size:.75rem;cursor:pointer">📋 Copy to clipboard</button>' +
     '<span id="set-seed-msg" style="font-size:.7rem;color:#4ec87a;align-self:center;"></span>' +
     '</div>' +
-    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
+    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
@@ -3579,17 +3579,17 @@ async function settingsOpenSeed() {
 
 function settingsOpenRestoreSeed() {
   var overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .3rem">🌱 Restore from Seed Phrase</h2>' +
-    '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 .5rem"><strong>This will permanently replace your current identity on this device.</strong></p>' +
-    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 1rem">Enter your 24 words separated by spaces:</p>' +
-    '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.5rem .6rem;color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +
-    '<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem;">' +
-    '<button id="set-rseed-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>' +
-    '<button id="set-rseed-go" style="background:#e55;color:#fff;border:none;border-radius:7px;padding:.4rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>' +
+    '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +
+    '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter your 24 words separated by spaces:</p>' +
+    '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +
+    '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
+    '<button id="set-rseed-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
+    '<button id="set-rseed-go" style="background:#e55;color:#fff;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>' +
     '</div>' +
-    '<div id="set-rseed-msg" style="font-size:.75rem;margin-top:.5rem;min-height:1em;"></div>' +
+    '<div id="set-rseed-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
