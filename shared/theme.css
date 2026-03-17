@@ -24,6 +24,7 @@
   --font-size-base: 16px;
   --icon-size: 20px;
   --icon-weight: 3;
+  --ui-spacing: 1;
 }
 
 /* ── Light theme — toggled by adding data-theme="light" to <html> ── */
@@ -73,6 +74,12 @@ h4 { font-size: 0.9rem; }
   border-left: 3px solid var(--accent);
   border-radius: var(--radius-sm);
   line-height: 1.5;
+}
+
+/* ── UI Spacing — multiplied by --ui-spacing (default 1) ── */
+.page-hint {
+  padding: calc(0.5rem * var(--ui-spacing)) calc(0.75rem * var(--ui-spacing));
+  margin: calc(0.5rem * var(--ui-spacing)) calc(1rem * var(--ui-spacing));
 }
 
 /* Scrollbar */

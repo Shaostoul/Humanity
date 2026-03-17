@@ -16,6 +16,7 @@
     iconWeight: 3,
     iconSize: 20,
     borderRadius: 8,
+    uiSpacing: 100,
     // Color overrides (empty string = use theme default)
     successColor: '',
     dangerColor: '',
@@ -133,6 +134,10 @@
     doc.style.setProperty('--radius', br + 'px');
     doc.style.setProperty('--radius-sm', Math.max(1, Math.round(br * 0.5)) + 'px');
     doc.style.setProperty('--radius-lg', Math.round(br * 1.5) + 'px');
+
+    // UI spacing multiplier
+    const sp = (settings.uiSpacing || 100) / 100;
+    doc.style.setProperty('--ui-spacing', sp.toFixed(2));
 
     // Semantic color overrides
     if (settings.successColor) doc.style.setProperty('--success', settings.successColor);

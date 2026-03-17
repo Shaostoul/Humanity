@@ -60,7 +60,7 @@
 
 .channel-item {
   font-size: 0.82rem;
-  padding: 0.3rem 0.5rem;
+  padding: calc(0.3rem * var(--ui-spacing, 1)) calc(0.5rem * var(--ui-spacing, 1));
   color: var(--text-muted);
   border-radius: var(--radius-sm);
   cursor: pointer;

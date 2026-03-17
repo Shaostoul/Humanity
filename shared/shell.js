@@ -89,6 +89,7 @@
       right: 0;
       z-index: 5500;
       isolation: isolate;
+      font-size: 15px !important; /* fixed so global font-size slider doesn't break nav */
     }
     /* Spacer pushes page content below the fixed nav */
     .hub-nav-spacer {

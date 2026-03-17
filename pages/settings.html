@@ -13,11 +13,13 @@
       flex-direction: column;
     }
 
+    /* Settings UI uses fixed base so controls stay usable at any global font-size */
     #settings-app {
       display: flex;
       flex: 1;
       height: calc(100vh - 42px);
       overflow: hidden;
+      font-size: 15px !important;
     }
 
     /* ── Sidebar ── */
@@ -737,10 +739,15 @@
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Background Intensity</strong>
-            <span>How dark the background panels appear</span>
+            <strong>UI Spacing</strong>
+            <span>Padding and margins around elements (50% = default)</span>
           </div>
-          <input type="range" class="setting-range" id="pref-bg-intensity" min="0" max="100" value="85" oninput="savePref()">
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-ui-spacing" min="25" max="200" step="5" value="100"
+              style="width:160px;accent-color:var(--accent)"
+              oninput="applyCustomizerLive()">
+            <span id="ui-spacing-val" style="font-weight:700;min-width:40px;color:var(--accent)">100%</span>
+          </div>
         </div>
       </div>
 
@@ -1996,7 +2003,7 @@
 <script>
 const STORAGE_KEY = 'hos_settings_v1';
 const DEFAULTS = {
-  theme: 'dark', accent: '#22aa66', 'bg-intensity': 85, 'font-size': 'medium', compact: false,
+  theme: 'dark', accent: '#22aa66', 'font-size': 'medium', compact: false,
   'rgb-nav': true, 'nav-tips': true,
   'notif-dm': true, 'notif-group': true, 'notif-mention': true,
   'notif-quests': true, 'notif-cal': true, 'notif-sound': false,
@@ -2096,6 +2103,12 @@ function applyPrefs() {
       brSlider.value = br;
       document.getElementById('border-radius-val').textContent = br + 'px';
     }
+    var spSlider = document.getElementById('pref-ui-spacing');
+    if (spSlider) {
+      var sp = cs.uiSpacing || 100;
+      spSlider.value = sp;
+      document.getElementById('ui-spacing-val').textContent = sp + '%';
+    }
     if (cs.successColor) document.getElementById('pref-success-color').value = cs.successColor;
     if (cs.dangerColor) document.getElementById('pref-danger-color').value = cs.dangerColor;
     if (cs.warningColor) document.getElementById('pref-warning-color').value = cs.warningColor;
@@ -2136,6 +2149,10 @@ function applyCustomizerLive() {
   doc.style.setProperty('--radius', br + 'px');
   doc.style.setProperty('--radius-sm', Math.max(1, Math.round(br * 0.5)) + 'px');
   doc.style.setProperty('--radius-lg', Math.round(br * 1.5) + 'px');
+  // UI spacing
+  var sp = parseInt(document.getElementById('pref-ui-spacing').value);
+  document.getElementById('ui-spacing-val').textContent = sp + '%';
+  doc.style.setProperty('--ui-spacing', (sp / 100).toFixed(2));
   // Semantic colors
   var sc = document.getElementById('pref-success-color').value;
   var dc = document.getElementById('pref-danger-color').value;
@@ -2155,6 +2172,7 @@ function saveCustomizer() {
     s.iconSize = parseInt(document.getElementById('pref-icon-size').value);
     s.fontSizePx = parseInt(document.getElementById('pref-font-size-slider').value);
     s.borderRadius = parseInt(document.getElementById('pref-border-radius').value);
+    s.uiSpacing = parseInt(document.getElementById('pref-ui-spacing').value);
     s.successColor = document.getElementById('pref-success-color').value;
     s.dangerColor = document.getElementById('pref-danger-color').value;
     s.warningColor = document.getElementById('pref-warning-color').value;
@@ -2172,6 +2190,7 @@ function resetThemeDefaults() {
   document.getElementById('pref-icon-size').value = 20;
   document.getElementById('pref-font-size-slider').value = 16;
   document.getElementById('pref-border-radius').value = 8;
+  document.getElementById('pref-ui-spacing').value = 100;
   document.getElementById('pref-success-color').value = '#44aa99';
   document.getElementById('pref-danger-color').value = '#cc4444';
   document.getElementById('pref-warning-color').value = '#ccaa33';
