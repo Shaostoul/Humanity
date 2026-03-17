@@ -1197,6 +1197,35 @@
       <h1>Security</h1>
       <p class="section-desc">Protect your identity and manage your devices. Your Ed25519 key is your passport — keep it safe.</p>
 
+      <div id="backup-warning" class="settings-group" style="background:rgba(229,85,85,0.08);border:1px solid rgba(229,85,85,0.3);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
+        <div style="display:flex;align-items:flex-start;gap:0.75rem;">
+          <span style="font-size:1.4rem;flex-shrink:0;">⚠️</span>
+          <div>
+            <strong style="color:#e55;font-size:0.95rem;">Your identity is NOT backed up</strong>
+            <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:0.4rem 0 0;">
+              Your private key lives only in this browser's storage. If you clear your browser data, reinstall, or lose this device,
+              <strong style="color:var(--text);">your identity is gone forever</strong> — no one can recover it for you.
+            </p>
+            <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:0.5rem 0 0;">
+              <strong style="color:var(--text);">Fix this now:</strong> Use any backup method below — seed phrase (paper), encrypted file (cloud), or password manager.
+              Two backups in different places is safest.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div id="backup-ok" class="settings-group" style="display:none;background:rgba(34,170,102,0.08);border:1px solid rgba(34,170,102,0.3);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1.25rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <span style="font-size:1.4rem;">✅</span>
+          <div>
+            <strong style="color:#2a6;font-size:0.95rem;">Identity backed up</strong>
+            <p style="color:var(--text-muted);font-size:0.82rem;margin:0.25rem 0 0;">
+              You have at least one backup method active. Your identity can be recovered if this browser's data is lost.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-group">
         <div class="settings-group-title">Key Protection</div>
         <div class="setting-row">
@@ -1244,7 +1273,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Recovery Seed Phrase</strong>
-            <span>12-word phrase that can restore your identity if all devices are lost</span>
+            <span>24-word phrase that can restore your identity if all devices are lost</span>
           </div>
           <a href="/chat" onclick="sessionStorage.setItem('open_seed','1')" style="background:#1a3a4a;border:1px solid #28f;color:#4af;padding:0.3rem 0.75rem;border-radius:6px;text-decoration:none;font-size:0.84rem;font-weight:600;">View Seed →</a>
         </div>
@@ -2258,6 +2287,20 @@ function checkKeyProtection() {
   el.style.color = hasProtected ? '#4a9' : '#e44';
 }
 
+function checkBackupStatus() {
+  // Check signals that user has backed up their identity
+  var hasPassphrase = !!localStorage.getItem('hos_key_protected');
+  var hasVault = !!localStorage.getItem('hos_vault_v1');
+  var hasSeedDismissed = !!localStorage.getItem('hos_vault_seed_nudge_dismissed');
+  var hasOnboarded = !!localStorage.getItem('humanity_onboarding_done');
+  // If they completed onboarding AND have passphrase protection or vault, assume backed up
+  var isBackedUp = hasPassphrase || hasVault || hasSeedDismissed;
+  var warn = document.getElementById('backup-warning');
+  var ok = document.getElementById('backup-ok');
+  if (warn) warn.style.display = isBackedUp ? 'none' : 'block';
+  if (ok) ok.style.display = isBackedUp ? 'block' : 'none';
+}
+
 // ── Storage ──
 function calculateStorage() {
   const container = document.getElementById('storage-breakdown');
@@ -2320,7 +2363,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.4.6 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.4.11 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Update the button label to just say Save Settings
@@ -2333,6 +2376,7 @@ loadKeybinds();
 renderKeybinds();
 populateDeviceLists();
 checkKeyProtection();
+checkBackupStatus();
 calculateStorage();
 updateRangeLabels();
 

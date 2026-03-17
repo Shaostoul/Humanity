@@ -360,6 +360,19 @@ function onIdentityConfirmed() {
   // Request persistent storage to prevent browser eviction of keys.
   requestPersistentStorage();
 
+  // Nudge users who haven't backed up (show once per session, not on first visit)
+  if (!sessionStorage.getItem('backup_nudge_shown') && localStorage.getItem('humanity_onboarding_done')) {
+    var hasProtection = localStorage.getItem('hos_key_protected');
+    var hasVault = localStorage.getItem('hos_vault_v1');
+    var seedDismissed = localStorage.getItem('hos_vault_seed_nudge_dismissed');
+    if (!hasProtection && !hasVault && !seedDismissed) {
+      sessionStorage.setItem('backup_nudge_shown', '1');
+      setTimeout(function() {
+        addNotice("⚠️ Your identity is not backed up. If you clear browser data, it's gone forever. Go to Settings → Security to back up now.", 'red', 30);
+      }, 5000);
+    }
+  }
+
   // Request notification permission once.
   requestNotifications();
 
