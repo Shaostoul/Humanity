@@ -213,6 +213,19 @@
     }
     .btn-danger:hover { background: rgba(230,68,68,0.1); }
 
+    /* Theme customizer reset buttons */
+    .tc-reset {
+      background: transparent;
+      border: 1px solid #333;
+      color: #888;
+      padding: 2px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      transition: color 0.1s, border-color 0.1s;
+    }
+    .tc-reset:hover { color: #ddd; border-color: #555; }
+
     .version-tag {
       font-size: 0.75rem;
       color: #444;
@@ -570,17 +583,33 @@
   <!-- Settings panels -->
   <div id="settings-main">
 
-    <!-- Appearance -->
+    <!-- Appearance / Theme Customizer -->
     <section class="settings-section active" id="sec-appearance">
-      <h1>Appearance</h1>
-      <p class="section-desc">Customize how HumanityOS looks and feels.</p>
+      <h1>Theme Customizer</h1>
+      <p class="section-desc">Full control over colors, icons, typography, and layout. Changes apply instantly across all pages.</p>
+
+      <!-- Live preview strip -->
+      <div class="settings-group" id="theme-preview-group">
+        <div class="settings-group-title">Live Preview</div>
+        <div style="padding:0.75rem 0.9rem">
+          <div id="theme-preview" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <div id="tp-icons" style="display:flex;gap:6px;align-items:center"></div>
+            <button style="padding:4px 12px;border-radius:var(--radius);background:var(--accent);color:#fff;border:none;font-size:0.8rem;cursor:default">Button</button>
+            <span style="color:var(--success);font-size:0.8rem;font-weight:600">Success</span>
+            <span style="color:var(--danger);font-size:0.8rem;font-weight:600">Danger</span>
+            <span style="color:var(--warning);font-size:0.8rem;font-weight:600">Warning</span>
+            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;font-size:0.78rem;color:var(--text)">Card</div>
+            <span style="color:var(--text-muted);font-size:0.78rem">Muted text</span>
+          </div>
+        </div>
+      </div>
 
       <div class="settings-group">
-        <div class="settings-group-title">Theme</div>
+        <div class="settings-group-title">Theme Base</div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Color Scheme</strong>
-            <span>Choose light, dark, or match your OS</span>
+            <span>Base palette — colors below override individual values</span>
           </div>
           <select class="setting-select" id="pref-theme" onchange="savePref()">
             <option value="dark">Dark</option>
@@ -591,34 +620,81 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Accent Color</strong>
-            <span>Primary highlight color used throughout the UI</span>
+            <span>Primary highlight used for buttons, links, and focus states</span>
           </div>
-          <input type="color" class="setting-color" id="pref-accent" value="#22aa66" onchange="savePref()">
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Background Intensity</strong>
-            <span>How dark the background panels appear</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="color" class="setting-color" id="pref-accent" value="#22aa66" oninput="document.getElementById('accent-hex').textContent=this.value;savePref()">
+            <span id="accent-hex" style="font-size:0.78rem;color:var(--text-muted);font-family:monospace"></span>
           </div>
-          <input type="range" class="setting-range" id="pref-bg-intensity" min="0" max="100" value="85" oninput="savePref()">
         </div>
       </div>
 
       <div class="settings-group">
-        <div class="settings-group-title">Page Hints</div>
+        <div class="settings-group-title">Semantic Colors</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show Simple (💡)</strong>
-            <span>Plain-language explanations on every page</span>
+            <strong>Success</strong>
+            <span>Confirmations, online status, positive actions</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-simple" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="color" class="setting-color" id="pref-success-color" value="#44aa99" oninput="applyCustomizerLive()">
+            <button class="tc-reset" onclick="resetColor('success-color','#44aa99')" title="Reset to default">Reset</button>
+          </div>
         </div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Show Expert (🔬)</strong>
-            <span>Technical details for developers and power users</span>
+            <strong>Danger</strong>
+            <span>Errors, destructive actions, offline status</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-show-expert" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="color" class="setting-color" id="pref-danger-color" value="#cc4444" oninput="applyCustomizerLive()">
+            <button class="tc-reset" onclick="resetColor('danger-color','#cc4444')" title="Reset to default">Reset</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Warning</strong>
+            <span>Cautions, pending states, attention needed</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="color" class="setting-color" id="pref-warning-color" value="#ccaa33" oninput="applyCustomizerLive()">
+            <button class="tc-reset" onclick="resetColor('warning-color','#ccaa33')" title="Reset to default">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Icons</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Line Weight</strong>
+            <span>Stroke thickness for all SVG icons — thicker is easier to see</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-icon-weight" min="1" max="6" step="0.5" value="3"
+              style="width:140px;accent-color:var(--accent)"
+              oninput="applyCustomizerLive()">
+            <span id="icon-weight-val" style="font-weight:700;min-width:24px;color:var(--accent)">3</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Default Size</strong>
+            <span>Base icon dimensions in pixels</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-icon-size" min="14" max="32" step="2" value="20"
+              style="width:140px;accent-color:var(--accent)"
+              oninput="applyCustomizerLive()">
+            <span id="icon-size-val" style="font-weight:700;min-width:30px;color:var(--accent)">20px</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Preview</strong>
+            <span>Icons at current weight and size</span>
+          </div>
+          <div id="icon-weight-preview" style="display:flex;gap:8px;align-items:center"></div>
         </div>
       </div>
 
@@ -646,6 +722,29 @@
       </div>
 
       <div class="settings-group">
+        <div class="settings-group-title">Layout</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Border Radius</strong>
+            <span>Roundness of cards, buttons, and panels (0 = sharp corners)</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-border-radius" min="0" max="20" step="1" value="8"
+              style="width:140px;accent-color:var(--accent)"
+              oninput="applyCustomizerLive()">
+            <span id="border-radius-val" style="font-weight:700;min-width:30px;color:var(--accent)">8px</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Background Intensity</strong>
+            <span>How dark the background panels appear</span>
+          </div>
+          <input type="range" class="setting-range" id="pref-bg-intensity" min="0" max="100" value="85" oninput="savePref()">
+        </div>
+      </div>
+
+      <div class="settings-group">
         <div class="settings-group-title">Nav Bar</div>
         <div class="setting-row">
           <div class="setting-label">
@@ -661,6 +760,28 @@
           </div>
           <label class="toggle"><input type="checkbox" id="pref-nav-tips" checked onchange="savePref()"><span class="toggle-track"></span></label>
         </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Page Hints</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Simple Explanations</strong>
+            <span>Plain-language descriptions on every page</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-show-simple" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show Expert Details</strong>
+            <span>Technical info for developers and power users</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="pref-show-expert" checked onchange="saveEli5Pref()"><span class="slider"></span></label>
+        </div>
+      </div>
+
+      <div style="text-align:right;margin-top:0.5rem">
+        <button class="btn-danger" onclick="resetThemeDefaults()" style="font-size:0.78rem;padding:0.3rem 0.8rem">Reset All to Defaults</button>
       </div>
     </section>
 
@@ -1096,28 +1217,7 @@
         </div>
       </div>
 
-      <div class="settings-group">
-        <div class="settings-group-title">Graphics</div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Icon Line Weight</strong>
-            <span>Adjust the thickness of all SVG icons. Thicker lines are easier to see.</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <input type="range" id="pref-icon-weight" min="1" max="6" step="0.5" value="3"
-              style="width:140px;accent-color:var(--accent)"
-              oninput="updateIconWeight(this.value)">
-            <span id="icon-weight-val" style="font-weight:700;min-width:24px;color:var(--accent)">3</span>
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Preview</strong>
-            <span>How icons look at the current weight</span>
-          </div>
-          <div id="icon-weight-preview" style="display:flex;gap:8px;align-items:center"></div>
-        </div>
-      </div>
+      <!-- Icon settings moved to Theme Customizer -->
 
       <div class="settings-group">
         <div class="settings-group-title">Screen Reader</div>
@@ -1969,13 +2069,35 @@ function applyPrefs() {
   var ee = document.getElementById('pref-show-expert');
   if (es) es.checked = localStorage.getItem('hos_show_simple') !== '0';
   if (ee) ee.checked = localStorage.getItem('hos_show_expert') !== '0';
-  // Load icon weight
-  var iwSlider = document.getElementById('pref-icon-weight');
-  if (iwSlider && window.hosGetIconWeight) {
-    var iw = hosGetIconWeight();
-    iwSlider.value = iw;
-    document.getElementById('icon-weight-val').textContent = iw;
-  }
+  // Load customizer values from shared settings store
+  try {
+    var cs = JSON.parse(localStorage.getItem('humanity_settings') || '{}');
+    var iwSlider = document.getElementById('pref-icon-weight');
+    if (iwSlider) {
+      var iw = cs.iconWeight || (window.hosGetIconWeight ? hosGetIconWeight() : 3);
+      iwSlider.value = iw;
+      document.getElementById('icon-weight-val').textContent = iw;
+    }
+    var isSlider = document.getElementById('pref-icon-size');
+    if (isSlider) {
+      var is = cs.iconSize || 20;
+      isSlider.value = is;
+      document.getElementById('icon-size-val').textContent = is + 'px';
+    }
+    var brSlider = document.getElementById('pref-border-radius');
+    if (brSlider) {
+      var br = cs.borderRadius !== undefined ? cs.borderRadius : 8;
+      brSlider.value = br;
+      document.getElementById('border-radius-val').textContent = br + 'px';
+    }
+    if (cs.successColor) document.getElementById('pref-success-color').value = cs.successColor;
+    if (cs.dangerColor) document.getElementById('pref-danger-color').value = cs.dangerColor;
+    if (cs.warningColor) document.getElementById('pref-warning-color').value = cs.warningColor;
+  } catch(e) {}
+  // Update accent hex display
+  var accentEl = document.getElementById('pref-accent');
+  var accentHex = document.getElementById('accent-hex');
+  if (accentEl && accentHex) accentHex.textContent = accentEl.value;
   renderIconPreview();
 }
 
@@ -1986,18 +2108,72 @@ function showSection(id) {
   if (sec) sec.classList.add('active');
 }
 
-function updateIconWeight(val) {
-  val = parseFloat(val);
-  document.getElementById('icon-weight-val').textContent = val;
-  if (window.hosSetIconWeight) window.hosSetIconWeight(val);
+// ── Theme Customizer live updates ──
+function applyCustomizerLive() {
+  var doc = document.documentElement;
+  // Icon weight
+  var iw = parseFloat(document.getElementById('pref-icon-weight').value);
+  document.getElementById('icon-weight-val').textContent = iw;
+  if (window.hosSetIconWeight) window.hosSetIconWeight(iw);
+  // Icon size
+  var is = parseInt(document.getElementById('pref-icon-size').value);
+  document.getElementById('icon-size-val').textContent = is + 'px';
+  doc.style.setProperty('--icon-size', is + 'px');
+  // Border radius
+  var br = parseInt(document.getElementById('pref-border-radius').value);
+  document.getElementById('border-radius-val').textContent = br + 'px';
+  doc.style.setProperty('--radius', br + 'px');
+  // Semantic colors
+  var sc = document.getElementById('pref-success-color').value;
+  var dc = document.getElementById('pref-danger-color').value;
+  var wc = document.getElementById('pref-warning-color').value;
+  doc.style.setProperty('--success', sc);
+  doc.style.setProperty('--danger', dc);
+  doc.style.setProperty('--warning', wc);
   renderIconPreview();
+  saveCustomizer();
+}
+
+function saveCustomizer() {
+  // Persist customizer values into the shared settings store
+  try {
+    var s = JSON.parse(localStorage.getItem('humanity_settings') || '{}');
+    s.iconWeight = parseFloat(document.getElementById('pref-icon-weight').value);
+    s.iconSize = parseInt(document.getElementById('pref-icon-size').value);
+    s.borderRadius = parseInt(document.getElementById('pref-border-radius').value);
+    s.successColor = document.getElementById('pref-success-color').value;
+    s.dangerColor = document.getElementById('pref-danger-color').value;
+    s.warningColor = document.getElementById('pref-warning-color').value;
+    localStorage.setItem('humanity_settings', JSON.stringify(s));
+  } catch(e) {}
+}
+
+function resetColor(id, defaultVal) {
+  var el = document.getElementById('pref-' + id);
+  if (el) { el.value = defaultVal; applyCustomizerLive(); }
+}
+
+function resetThemeDefaults() {
+  document.getElementById('pref-icon-weight').value = 3;
+  document.getElementById('pref-icon-size').value = 20;
+  document.getElementById('pref-border-radius').value = 8;
+  document.getElementById('pref-success-color').value = '#44aa99';
+  document.getElementById('pref-danger-color').value = '#cc4444';
+  document.getElementById('pref-warning-color').value = '#ccaa33';
+  document.getElementById('pref-accent').value = '#FF8811';
+  applyCustomizerLive();
+  savePref();
 }
 
 function renderIconPreview() {
   var el = document.getElementById('icon-weight-preview');
   if (!el || !window.hosIcon) return;
+  var sz = parseInt(document.getElementById('pref-icon-size').value) || 20;
   var names = ['home', 'chat', 'settings', 'lock', 'bell', 'search', 'star', 'user'];
-  el.innerHTML = names.map(function(n) { return hosIcon(n, 24); }).join('');
+  el.innerHTML = names.map(function(n) { return hosIcon(n, sz); }).join('');
+  // Update top preview strip
+  var tp = document.getElementById('tp-icons');
+  if (tp) tp.innerHTML = ['network','games','profile','tasklist','calendar','map'].map(function(n){ return hosIcon(n, sz); }).join('');
 }
 
 function showSaved() {

@@ -10,7 +10,15 @@
     fontSize: 'medium',
     theme: 'dark',
     soundEnabled: true,
-    timestampMode: 'relative'
+    timestampMode: 'relative',
+    // Theme customizer
+    iconWeight: 3,
+    iconSize: 20,
+    borderRadius: 8,
+    // Color overrides (empty string = use theme default)
+    successColor: '',
+    dangerColor: '',
+    warningColor: ''
   };
 
   const ACCENT_PRESETS = [
@@ -104,6 +112,23 @@
     // Theme
     const theme = THEMES[settings.theme] || THEMES.dark;
     Object.entries(theme).forEach(([k, v]) => doc.style.setProperty(k, v));
+
+    // Icon weight + size
+    const iw = settings.iconWeight || DEFAULTS.iconWeight;
+    doc.style.setProperty('--icon-weight', iw);
+    localStorage.setItem('hos_icon_weight', iw);
+    if (window.hosSetIconWeight) window.hosSetIconWeight(iw);
+
+    const is = settings.iconSize || DEFAULTS.iconSize;
+    doc.style.setProperty('--icon-size', is + 'px');
+
+    // Border radius
+    doc.style.setProperty('--radius', (settings.borderRadius ?? DEFAULTS.borderRadius) + 'px');
+
+    // Semantic color overrides
+    if (settings.successColor) doc.style.setProperty('--success', settings.successColor);
+    if (settings.dangerColor) doc.style.setProperty('--danger', settings.dangerColor);
+    if (settings.warningColor) doc.style.setProperty('--warning', settings.warningColor);
 
     // Expose settings globally for other scripts
     window.humanitySettings = settings;
