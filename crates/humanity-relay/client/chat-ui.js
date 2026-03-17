@@ -175,14 +175,69 @@ function notifyNewMessage(author, content, isDm) {
   }
 }
 
-// Request notification permission (once, stored in localStorage).
+// Request notification permission and subscribe to WebPush (once).
 function requestNotifications() {
-  if ('Notification' in window && Notification.permission === 'default') {
-    if (!localStorage.getItem('humanity_notif_asked')) {
-      Notification.requestPermission();
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default' && !localStorage.getItem('humanity_notif_asked')) {
+    Notification.requestPermission().then(function(result) {
       localStorage.setItem('humanity_notif_asked', '1');
-    }
+      if (result === 'granted') subscribeToPush();
+    });
+  } else if (Notification.permission === 'granted' && !localStorage.getItem('hos_push_subscribed')) {
+    subscribeToPush();
   }
+}
+
+// Subscribe to WebPush via the relay's VAPID key.
+function subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (!myIdentity || !myIdentity.canSign) return;
+
+  fetch('/api/vapid-public-key')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.key) return;
+      // Convert base64url to Uint8Array for applicationServerKey.
+      var raw = atob(data.key.replace(/-/g, '+').replace(/_/g, '/'));
+      var arr = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+
+      return navigator.serviceWorker.ready.then(function(reg) {
+        return reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: arr
+        });
+      });
+    })
+    .then(function(sub) {
+      if (!sub) return;
+      var keys = sub.toJSON().keys;
+      // Sign the request so the server knows which user this subscription belongs to.
+      var ts = Date.now();
+      return signMessage(myIdentity.privateKey, 'push_subscribe', ts).then(function(sig) {
+        return fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            public_key: myIdentity.publicKeyHex,
+            endpoint: sub.endpoint,
+            p256dh: keys.p256dh,
+            auth: keys.auth,
+            timestamp: ts,
+            sig: sig
+          })
+        });
+      });
+    })
+    .then(function(resp) {
+      if (resp && resp.ok) {
+        localStorage.setItem('hos_push_subscribed', '1');
+        console.log('Push subscription registered');
+      }
+    })
+    .catch(function(e) {
+      console.warn('Push subscribe failed:', e);
+    });
 }
 
 // Hook into message rendering to trigger notifications and update last-seen.

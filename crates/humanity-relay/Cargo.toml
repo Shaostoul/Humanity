@@ -37,6 +37,10 @@ hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
 
+# Web Push (pure Rust, no OpenSSL)
+web-push-native = "0.4"
+base64ct = { version = "1", features = ["alloc"] }
+
 # Utilities
 tokio-stream = "0.1"
 futures = "0.3"

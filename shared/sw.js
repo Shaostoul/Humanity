@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v20';
+const CACHE_NAME = 'humanity-v21';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -37,6 +37,20 @@ self.addEventListener('message', event => {
       data: { url: event.data.url || '/chat' }
     });
   }
+});
+
+// ── WebPush handler — shows notification when relay sends a push ──
+self.addEventListener('push', event => {
+  const data = event.data ? event.data.json() : {};
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'HumanityOS', {
+      body: data.body || 'New message',
+      icon: '/shared/icons/icon-192.png',
+      badge: '/shared/icons/icon-192.png',
+      tag: data.tag || 'humanity',
+      data: { url: data.url || '/chat' }
+    })
+  );
 });
 
 self.addEventListener('notificationclick', event => {

@@ -13,6 +13,7 @@ use tokio::sync::{broadcast, RwLock};
 use tracing::info;
 
 use crate::storage::Storage;
+use web_push_native::jwt_simple::prelude::ES256KeyPair;
 
 use crate::handlers::*;
 // Re-export start_federation_connections so main.rs can call relay::start_federation_connections.
@@ -129,6 +130,8 @@ pub struct RelayState {
     pub federation_connections: RwLock<HashMap<String, FederatedConnection>>,
     /// Rate limiter for federation message forwarding (server_id → last send times).
     pub federation_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
+    /// VAPID keypair for WebPush notifications (P-256/ES256).
+    pub vapid_key: Option<ES256KeyPair>,
 }
 
 impl RelayState {
@@ -197,7 +200,39 @@ impl RelayState {
             active_stream: RwLock::new(None),
             federation_connections: RwLock::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
+            vapid_key: None,
         }
+    }
+
+    /// Load or generate the VAPID keypair for WebPush.
+    /// Persists the private key to `data/vapid_private.key` (raw ES256 bytes, base64url).
+    pub fn init_vapid_key(&mut self) {
+        use base64ct::{Base64UrlUnpadded, Encoding};
+
+        let key_path = "data/vapid_private.key";
+        if let Ok(encoded) = std::fs::read_to_string(key_path) {
+            match Base64UrlUnpadded::decode_vec(encoded.trim()) {
+                Ok(bytes) => match ES256KeyPair::from_bytes(&bytes) {
+                    Ok(kp) => {
+                        info!("VAPID key loaded from {key_path}");
+                        self.vapid_key = Some(kp);
+                        return;
+                    }
+                    Err(e) => tracing::error!("Failed to parse VAPID key: {e}"),
+                },
+                Err(e) => tracing::error!("Failed to decode VAPID key: {e}"),
+            }
+        }
+
+        // Generate new keypair.
+        let kp = ES256KeyPair::generate();
+        let encoded = Base64UrlUnpadded::encode_string(&kp.to_bytes());
+        if let Err(e) = std::fs::write(key_path, &encoded) {
+            tracing::error!("Failed to write VAPID key to {key_path}: {e}");
+            return;
+        }
+        info!("Generated new VAPID keypair → {key_path}");
+        self.vapid_key = Some(kp);
     }
 
     /// Add a message to history, persist to DB, and broadcast it.
@@ -248,6 +283,85 @@ impl RelayState {
                 }
                 Err(e) => {
                     tracing::warn!("Webhook failed: {e}");
+                }
+            }
+        });
+    }
+
+    /// Send push notifications to all offline devices of a user.
+    /// Fire-and-forget: spawns a tokio task, never blocks message routing.
+    /// Automatically deletes stale subscriptions on 410 Gone.
+    pub fn send_push_notification(
+        self: &Arc<Self>,
+        to_key: &str,
+        title: &str,
+        body: &str,
+        tag: &str,
+        url_path: &str,
+    ) {
+        use base64ct::{Base64UrlUnpadded, Encoding};
+        use web_push_native::jwt_simple::prelude::ECDSAP256KeyPairLike;
+
+        let Some(ref vapid_kp) = self.vapid_key else { return };
+
+        let subs = self.db.get_push_subscriptions(to_key);
+        if subs.is_empty() { return; }
+
+        let payload = serde_json::json!({
+            "title": title,
+            "body": body,
+            "tag": tag,
+            "url": url_path,
+        }).to_string();
+
+        let client = self.http_client.clone();
+        let vapid_bytes = vapid_kp.to_bytes();
+        let state = self.clone();
+
+        tokio::spawn(async move {
+            let Ok(vapid_kp) = ES256KeyPair::from_bytes(&vapid_bytes) else { return };
+
+            for sub in subs {
+                // Decode subscription keys from base64url.
+                let Ok(p256dh_bytes) = Base64UrlUnpadded::decode_vec(&sub.p256dh) else { continue };
+                let Ok(auth_bytes) = Base64UrlUnpadded::decode_vec(&sub.auth) else { continue };
+                let Ok(endpoint) = sub.endpoint.parse::<axum::http::Uri>() else { continue };
+                let Ok(ua_public) = web_push_native::p256::PublicKey::from_sec1_bytes(&p256dh_bytes) else { continue };
+                let ua_auth = web_push_native::Auth::clone_from_slice(&auth_bytes);
+
+                let builder = web_push_native::WebPushBuilder::new(endpoint, ua_public, ua_auth)
+                    .with_vapid(&vapid_kp, "mailto:admin@united-humanity.us");
+
+                let http_req = match builder.build(payload.as_bytes()) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        tracing::warn!("Failed to build push message: {e}");
+                        continue;
+                    }
+                };
+
+                // Convert web_push_native http::Request to reqwest.
+                let (parts, body_bytes) = http_req.into_parts();
+                let url = parts.uri.to_string();
+                let mut req = client.post(&url).body(body_bytes);
+                for (k, v) in &parts.headers {
+                    req = req.header(k.as_str(), v.to_str().unwrap_or_default());
+                }
+
+                match req.send().await {
+                    Ok(resp) => {
+                        let status = resp.status().as_u16();
+                        if status == 410 || status == 404 {
+                            // Subscription expired — remove it.
+                            let _ = state.db.remove_push_subscription(&sub.endpoint);
+                            tracing::info!("Removed stale push subscription ({})", status);
+                        } else if status >= 400 {
+                            tracing::warn!("Push failed for endpoint: HTTP {status}");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("Push request failed: {e}");
+                    }
                 }
             }
         });
@@ -3840,6 +3954,30 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     state_clone.notify_webhook(&display, &content);
                                 }
 
+                                // Push notifications for @mentioned users who are offline.
+                                {
+                                    let mention_re = regex::Regex::new(r"@(\w+)").unwrap_or_else(|_| regex::Regex::new(r"$^").unwrap());
+                                    let peers = state_clone.peers.read().await;
+                                    for cap in mention_re.captures_iter(&content) {
+                                        let mentioned_name = &cap[1];
+                                        // Resolve name → public key(s), check if offline.
+                                        if let Ok(keys) = state_clone.db.keys_for_name(mentioned_name) {
+                                            for mentioned_key in keys {
+                                                if mentioned_key != my_key_for_recv && !peers.contains_key(&mentioned_key) {
+                                                    let preview = if content.len() > 100 { &content[..100] } else { &content };
+                                                    state_clone.send_push_notification(
+                                                        &mentioned_key,
+                                                        &format!("{} mentioned you", display),
+                                                        preview,
+                                                        &format!("mention-{}", &ch),
+                                                        "/chat",
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
                                 // Federation Phase 2: forward to federated servers if channel is federated.
                                 if state_clone.db.is_channel_federated(&ch).unwrap_or(false) {
                                     let fed_state = state_clone.clone();
@@ -4381,6 +4519,26 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     nonce: nonce.clone(),
                                 };
                                 let _ = state_clone.broadcast_tx.send(dm_msg);
+
+                                // Push notification if recipient is offline.
+                                let target_online = state_clone.peers.read().await.contains_key(&to);
+                                if !target_online {
+                                    // For encrypted DMs, never leak content in the push payload.
+                                    let push_body = if encrypted {
+                                        "New encrypted message".to_string()
+                                    } else {
+                                        let max = 100.min(content.len());
+                                        content[..max].to_string()
+                                    };
+                                    let tag = format!("dm-{}", &my_key_for_recv[..8.min(my_key_for_recv.len())]);
+                                    state_clone.send_push_notification(
+                                        &to,
+                                        &format!("DM from {}", sender_name),
+                                        &push_body,
+                                        &tag,
+                                        "/chat",
+                                    );
+                                }
 
                                 // Update DM lists for both parties.
                                 send_dm_list_update(&state_clone, &my_key_for_recv);

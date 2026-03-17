@@ -201,6 +201,14 @@
     /* No ::after tooltip on active tab */
     .hub-nav .tab.active::after { display: none !important; }
 
+    /* ── Update-ready: RGB border on download button when a new version exists ── */
+    .hub-nav .tab.tab-update-ready {
+      animation: channeling 3s linear infinite;
+    }
+    .hub-nav .tab.tab-update-ready .tab-icon img {
+      opacity: 1;
+    }
+
     [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
     [data-theme="light"] .hub-nav .tab { color: #555; box-shadow: inset 0 0 0 1px #2a6; }
     [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
@@ -432,7 +440,7 @@
 
       /* Utility — right-aligned */
       navTab('/settings', '⚙️',            'Settings',  'settings') +
-      navTab('/download', '⬇️',            'Download',  'download') +
+      navTab('/download', 'download.png',  'Download',  'download') +
       navTab('/ops',      '🛠️',            'Ops',       'ops') +
 
       /* Mobile hamburger — only visible on small screens */
@@ -477,7 +485,7 @@
     '</div>' +
     '<div class="mobile-hub-group"><h4>Config</h4>' +
       mobileLink('/settings', '⚙️ Settings') +
-      mobileLink('/download', '⬇️ Download') +
+      mobileLink('/download', '⬇ Download') +
       mobileLink('/ops',      '🛠️ Ops') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
@@ -968,6 +976,99 @@
 
     // Apply saved preference immediately on page load
     applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+  })();
+
+  // ── Update Checker ─────────────────────────────────────────────────────────
+  // WHY: Light up the download button with RGB when a new version is available
+  // so the user knows at a glance. Checks GitHub releases once per session.
+  (function updateChecker() {
+    var CURRENT_VERSION = '0.5.0';
+    var CACHE_KEY = 'hos_latest_version';
+    var CACHE_TS_KEY = 'hos_latest_version_ts';
+    var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
+
+    function compareVersions(a, b) {
+      var pa = a.replace(/^v/, '').split('.').map(Number);
+      var pb = b.replace(/^v/, '').split('.').map(Number);
+      for (var i = 0; i < 3; i++) {
+        if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+        if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+      }
+      return 0;
+    }
+
+    function markUpdateReady(latestTag) {
+      var dlTab = document.querySelector('a.tab[href="/download"]');
+      if (!dlTab) return;
+      dlTab.classList.add('tab-update-ready');
+      dlTab.setAttribute('data-tip', 'Update Available! v' + latestTag.replace(/^v/, ''));
+
+      // Override click: go to GitHub release directly instead of /download page.
+      dlTab.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.open('https://github.com/Shaostoul/Humanity/releases/latest', '_blank');
+      });
+    }
+
+    function checkUpdate() {
+      // Use cached result if fresh enough.
+      var cached = localStorage.getItem(CACHE_KEY);
+      var cachedTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || '0', 10);
+      if (cached && (Date.now() - cachedTs) < CHECK_INTERVAL) {
+        if (compareVersions(CURRENT_VERSION, cached) < 0) markUpdateReady(cached);
+        return;
+      }
+
+      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d && d.tag_name) {
+            localStorage.setItem(CACHE_KEY, d.tag_name);
+            localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+            if (compareVersions(CURRENT_VERSION, d.tag_name) < 0) {
+              markUpdateReady(d.tag_name);
+            }
+          }
+        })
+        .catch(function() { /* offline or rate-limited — skip silently */ });
+    }
+
+    // Desktop app: Tauri injects __HOS_UPDATE_READY after its background check.
+    // When detected, override the download button to invoke the Tauri install command.
+    function markDesktopUpdate(version) {
+      var dlTab = document.querySelector('a.tab[href="/download"]');
+      if (!dlTab || dlTab.classList.contains('tab-update-ready')) return;
+      dlTab.classList.add('tab-update-ready');
+      dlTab.setAttribute('data-tip', 'Install v' + version);
+      dlTab.addEventListener('click', function(e) {
+        e.preventDefault();
+        dlTab.setAttribute('data-tip', 'Installing…');
+        if (window.__TAURI__?.core?.invoke) {
+          window.__TAURI__.core.invoke('install_update').catch(function(err) {
+            dlTab.setAttribute('data-tip', 'Update failed');
+            console.error('Update install failed:', err);
+          });
+        }
+      });
+    }
+
+    // Delay the check so it doesn't compete with page load.
+    setTimeout(function() {
+      if (window.__HOS_UPDATE_READY) {
+        markDesktopUpdate(window.__HOS_UPDATE_VERSION);
+      } else {
+        checkUpdate(); // Web: check GitHub API
+      }
+    }, 3000);
+
+    // Poll for late Tauri signal (its 5s check fires after our 3s timeout).
+    var _hosUpdatePoll = setInterval(function() {
+      if (window.__HOS_UPDATE_READY) {
+        clearInterval(_hosUpdatePoll);
+        markDesktopUpdate(window.__HOS_UPDATE_VERSION);
+      }
+    }, 2000);
+    setTimeout(function() { clearInterval(_hosUpdatePoll); }, 30000);
   })();
 
 })();

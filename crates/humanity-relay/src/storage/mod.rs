@@ -141,6 +141,15 @@ pub struct FederatedServer {
     pub added_at: i64,
 }
 
+/// A push notification subscription record.
+#[derive(Debug, Clone)]
+pub struct PushSubscriptionRecord {
+    pub public_key: String,
+    pub endpoint: String,
+    pub p256dh: String,
+    pub auth: String,
+}
+
 /// Persistent storage backed by SQLite.
 pub struct Storage {
     pub(crate) conn: Mutex<Connection>,
@@ -705,6 +714,21 @@ impl Storage {
                 ON skill_verifications(to_key, skill_id);"
         )?;
 
+        // Push notification subscriptions (WebPush API).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                public_key  TEXT NOT NULL,
+                endpoint    TEXT NOT NULL UNIQUE,
+                p256dh      TEXT NOT NULL,
+                auth        TEXT NOT NULL,
+                created_at  INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_push_subs_key
+                ON push_subscriptions(public_key);"
+        )?;
+
         conn.execute_batch("
             -- Key rotation: maps an old identity key to a new one.
             -- old_key is PRIMARY KEY so each identity can only rotate forward once per entry.
@@ -785,6 +809,7 @@ mod messages;
 mod misc;
 mod pins;
 mod profile;
+mod push;
 mod reactions;
 mod skill_dna;
 mod social;

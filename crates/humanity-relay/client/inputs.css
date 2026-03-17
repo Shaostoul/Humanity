@@ -4,6 +4,8 @@
 #input-area {
   border-top: 1px solid var(--border);
   padding: 0.6rem 0.75rem;
+  /* Extra bottom padding so the footer toggle button doesn't overlap the compose bar */
+  padding-bottom: 2rem;
   display: flex;
   gap: 0.5rem;
   background: var(--bg-secondary);

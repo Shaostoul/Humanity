@@ -1562,3 +1562,92 @@ pub async fn system_profile_delete(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
     Ok(Json(serde_json::json!({ "status": "deleted" })))
 }
+
+// ── WebPush API ──────────────────────────────────────────────────────────────
+// Goal: let browser clients register for push notifications so the relay can
+// send alerts when the user receives a DM or @mention while offline.
+
+/// GET /api/vapid-public-key — Returns the server's VAPID public key (base64url).
+/// The key is returned in uncompressed SEC1 format (65 bytes, 0x04 prefix)
+/// which is what the browser's PushManager.subscribe() expects.
+pub async fn get_vapid_public_key(
+    state: State<Arc<RelayState>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use base64ct::{Base64UrlUnpadded, Encoding};
+    use web_push_native::jwt_simple::prelude::ECDSAP256KeyPairLike;
+
+    let kp = state.vapid_key.as_ref()
+        .ok_or((StatusCode::SERVICE_UNAVAILABLE, "VAPID not configured.".into()))?;
+    // to_bytes() may return compressed (33 bytes) — browser needs uncompressed (65 bytes).
+    // If compressed, decompress via p256. If already 65 bytes, use as-is.
+    let pk_bytes = kp.public_key().to_bytes();
+    let uncompressed = if pk_bytes.len() == 65 {
+        pk_bytes
+    } else {
+        // Decompress via p256 crate.
+        use web_push_native::p256::PublicKey;
+        use web_push_native::p256::elliptic_curve::sec1::ToEncodedPoint;
+        let pk = PublicKey::from_sec1_bytes(&pk_bytes)
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Key decode error: {e}")))?;
+        pk.to_encoded_point(false).as_bytes().to_vec()
+    };
+    let encoded = Base64UrlUnpadded::encode_string(&uncompressed);
+    Ok(Json(serde_json::json!({ "key": encoded })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PushSubscribeRequest {
+    /// Ed25519 public key (hex) of the subscribing user.
+    pub public_key: String,
+    /// Push service endpoint URL from PushSubscription.
+    pub endpoint: String,
+    /// P-256 DH public key from PushSubscription.keys.p256dh (base64url).
+    pub p256dh: String,
+    /// Auth secret from PushSubscription.keys.auth (base64url).
+    pub auth: String,
+    /// Unix milliseconds (anti-replay).
+    pub timestamp: u64,
+    /// sign("push_subscribe\n" + timestamp, private_key).
+    pub sig: String,
+}
+
+/// POST /api/push/subscribe — Register a push subscription for a user.
+pub async fn push_subscribe(
+    state: State<Arc<RelayState>>,
+    Json(body): Json<PushSubscribeRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+    if !verify_ed25519_signature(&body.public_key, "push_subscribe", body.timestamp, &body.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    state.db.save_push_subscription(&body.public_key, &body.endpoint, &body.p256dh, &body.auth)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+
+    tracing::info!("Push subscription registered for key {}", &body.public_key[..8.min(body.public_key.len())]);
+    Ok(Json(serde_json::json!({ "status": "subscribed" })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PushUnsubscribeRequest {
+    /// Push service endpoint URL to remove.
+    pub endpoint: String,
+}
+
+/// POST /api/push/unsubscribe — Remove a push subscription.
+pub async fn push_unsubscribe(
+    state: State<Arc<RelayState>>,
+    Json(body): Json<PushUnsubscribeRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    state.db.remove_push_subscription(&body.endpoint)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
+    Ok(Json(serde_json::json!({ "status": "unsubscribed" })))
+}

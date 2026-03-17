@@ -1,6 +1,6 @@
 {
   "productName": "HumanityOS",
-  "version": "0.4.12",
+  "version": "0.5.0",
   "identifier": "us.united-humanity.app",
   "build": {
     "frontendDist": "../src"
@@ -27,7 +27,10 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0REQ3MjFDMDZGMkYyNkMKUldSczh2SUdISExkSk51b3lYRFBPOXJRY1hxMHZqaDdUUU8zZk50S0RDZGFHbDhaWGFYRXo3cEoK",
       "endpoints": [
         "https://github.com/Shaostoul/Humanity/releases/latest/download/latest.json"
-      ]
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

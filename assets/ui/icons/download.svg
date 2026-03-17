@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <g stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Arrow shaft -->
+      <line x1="256" y1="68" x2="256" y2="320" />
+      <!-- Arrow head -->
+      <polyline points="176,240 256,320 336,240" />
+      <!-- Tray -->
+      <polyline points="88,380 88,464 424,464 424,380" />
+  </g>
+</svg>

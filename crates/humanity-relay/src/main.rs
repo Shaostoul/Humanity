@@ -114,7 +114,9 @@ async fn main() {
     let _ = db.set_channel_position("stream", 15);
     let _ = db.set_channel_position("dev", 20);
 
-    let state = Arc::new(RelayState::new(db));
+    let mut relay_state = RelayState::new(db);
+    relay_state.init_vapid_key();
+    let state = Arc::new(relay_state);
 
     // Federation Phase 2: start outbound connections to verified federated servers.
     {
@@ -157,6 +159,9 @@ async fn main() {
             .put(api::vault_sync_put)
             .delete(api::vault_sync_delete)
         )
+        .route("/api/push/subscribe", post(api::push_subscribe))
+        .route("/api/push/unsubscribe", post(api::push_unsubscribe))
+        .route("/api/vapid-public-key", get(api::get_vapid_public_key))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)
