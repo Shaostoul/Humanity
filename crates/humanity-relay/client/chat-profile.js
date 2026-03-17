@@ -361,8 +361,8 @@ function showViewProfileCard(name, publicKey, profile) {
     html += '<div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);">';
     if (statusText) html += '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">' + statusText + '</div>';
     html += '<div style="display:flex;gap:0.4rem;flex-wrap:wrap">';
-    html += '<button id="profile-follow-btn" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;">' + btnLabel + '</button>';
-    html += '<button id="profile-endorse-btn" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;" title="Ask this user to verify one of your skills">🏅 Ask to Endorse</button>';
+    html += '<button id="profile-follow-btn" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius);padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;">' + btnLabel + '</button>';
+    html += '<button id="profile-endorse-btn" style="background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:var(--radius);padding:0.3rem 0.8rem;font-size:0.78rem;cursor:pointer;" title="Ask this user to verify one of your skills">🏅 Ask to Endorse</button>';
     html += '</div></div>';
   }
 
@@ -517,67 +517,67 @@ async function openSeedPhraseModal() {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
 
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .3rem">🌱 Identity Seed Phrase (24 words)</h2>
-      <p style="font-size:.76rem;color:#888;line-height:1.5;margin:0 0 .8rem">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.75rem;width:100%;max-width:600px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 .3rem">🌱 Identity Seed Phrase (24 words)</h2>
+      <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 .8rem">
         These 24 words <em>are</em> your identity — anyone who has them can use your account.
-        Store at least one copy somewhere safe. <strong style="color:#e55">Never photograph this screen.</strong>
+        Store at least one copy somewhere safe. <strong style="color:var(--danger)">Never photograph this screen.</strong>
       </p>
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;margin-bottom:.9rem">
         ${words.map((w, i) => `
-          <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:.4rem .55rem;display:flex;align-items:baseline;gap:.3rem">
-            <span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">${i+1}.</span>
-            <span style="font-size:.86rem;color:#f0a500;font-weight:600">${w}</span>
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.4rem .55rem;display:flex;align-items:baseline;gap:.3rem">
+            <span style="font-size:.6rem;color:var(--text-muted);min-width:16px;text-align:right">${i+1}.</span>
+            <span style="font-size:.86rem;color:var(--accent);font-weight:600">${w}</span>
           </div>`).join('')}
       </div>
 
-      <p style="font-size:.7rem;color:#555;margin:0 0 .6rem">Pick at least one storage method:</p>
+      <p style="font-size:.7rem;color:var(--text-muted);margin:0 0 .6rem">Pick at least one storage method:</p>
 
       <div style="display:grid;gap:.5rem;margin-bottom:1rem">
         <!-- Paper -->
-        <div style="background:#0f0f0f;border:1px solid #222;border-radius:8px;padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
           <div>
-            <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">📝 Paper — write it down</p>
-            <p style="font-size:.72rem;color:#555;margin:0">Offline. Can't be hacked. Fireproof box or safe.</p>
+            <p style="font-size:.8rem;color:var(--text);font-weight:600;margin:0 0 .15rem">📝 Paper — write it down</p>
+            <p style="font-size:.72rem;color:var(--text-muted);margin:0">Offline. Can't be hacked. Fireproof box or safe.</p>
           </div>
           <div style="display:flex;align-items:center;gap:.5rem">
-            <button id="sp-copy-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">${hosIcon('copy', 14)} Copy</button>
-            <span id="sp-copy-msg" style="font-size:.68rem;color:#4ec87a"></span>
+            <button id="sp-copy-btn" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.3rem .8rem;font-size:.75rem;cursor:pointer">${hosIcon('copy', 14)} Copy</button>
+            <span id="sp-copy-msg" style="font-size:.68rem;color:var(--success)"></span>
           </div>
         </div>
 
         <!-- Encrypted file -->
-        <div style="background:#0f0f0f;border:1px solid #222;border-radius:8px;padding:.7rem .9rem">
-          <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">${hosIcon('save', 14)} Encrypted file — store in cloud</p>
-          <p style="font-size:.72rem;color:#555;margin:0 0 .5rem">Lock the words with a passphrase → download a tiny file → store in Google Drive, Dropbox, etc. Useless without the passphrase, so keep them separate.</p>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .9rem">
+          <p style="font-size:.8rem;color:var(--text);font-weight:600;margin:0 0 .15rem">${hosIcon('save', 14)} Encrypted file — store in cloud</p>
+          <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .5rem">Lock the words with a passphrase → download a tiny file → store in Google Drive, Dropbox, etc. Useless without the passphrase, so keep them separate.</p>
           <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
             <input id="sp-enc-pass" type="password" placeholder="Choose a passphrase (8+ chars)…" autocomplete="new-password"
-              style="flex:1;min-width:150px;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:.3rem .6rem;color:#e0e0e0;font-size:.76rem;outline:none">
-            <button id="sp-enc-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer;white-space:nowrap">${hosIcon('save', 14)} Download</button>
+              style="flex:1;min-width:150px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:.3rem .6rem;color:var(--text);font-size:.76rem;outline:none">
+            <button id="sp-enc-btn" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.3rem .8rem;font-size:.75rem;cursor:pointer;white-space:nowrap">${hosIcon('save', 14)} Download</button>
           </div>
-          <span id="sp-enc-msg" style="font-size:.7rem;color:#4ec87a;display:block;margin-top:.3rem;min-height:1em"></span>
+          <span id="sp-enc-msg" style="font-size:.7rem;color:var(--success);display:block;margin-top:.3rem;min-height:1em"></span>
         </div>
 
         <!-- Password manager -->
-        <div style="background:#0f0f0f;border:1px solid #222;border-radius:8px;padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap">
           <div>
-            <p style="font-size:.8rem;color:#e0e0e0;font-weight:600;margin:0 0 .15rem">🔐 Password manager Secure Note</p>
-            <p style="font-size:.72rem;color:#555;margin:0">Copy → paste into <strong style="color:#777">Bitwarden</strong> or <strong style="color:#777">1Password</strong> as a Secure Note. Syncs everywhere.</p>
+            <p style="font-size:.8rem;color:var(--text);font-weight:600;margin:0 0 .15rem">🔐 Password manager Secure Note</p>
+            <p style="font-size:.72rem;color:var(--text-muted);margin:0">Copy → paste into <strong style="color:var(--text-muted)">Bitwarden</strong> or <strong style="color:var(--text-muted)">1Password</strong> as a Secure Note. Syncs everywhere.</p>
           </div>
           <div style="display:flex;align-items:center;gap:.5rem;flex-shrink:0">
-            <button id="sp-pm-btn" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer">${hosIcon('copy', 14)} Copy</button>
-            <span id="sp-pm-msg" style="font-size:.68rem;color:#4ec87a"></span>
+            <button id="sp-pm-btn" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.3rem .8rem;font-size:.75rem;cursor:pointer">${hosIcon('copy', 14)} Copy</button>
+            <span id="sp-pm-msg" style="font-size:.68rem;color:var(--success)"></span>
           </div>
         </div>
       </div>
 
-      <p style="font-size:.66rem;color:#3a3a3a;margin:0 0 .9rem">
-        Identity: <code style="color:#555">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
+      <p style="font-size:.66rem;color:var(--text-muted);margin:0 0 .9rem">
+        Identity: <code style="color:var(--text-muted)">${(window.myIdentity && myIdentity.publicKeyHex || '').slice(0,20)}…</code>
       </p>
       <div style="display:flex;justify-content:flex-end">
         <button onclick="document.getElementById('seed-phrase-overlay').remove()"
-          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:.45rem 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
       </div>
     </div>
   `;
@@ -604,14 +604,14 @@ async function openSeedPhraseModal() {
     const pass = overlay.querySelector('#sp-enc-pass').value.trim();
     const encMsg = overlay.querySelector('#sp-enc-msg');
     const encBtn = overlay.querySelector('#sp-enc-btn');
-    if (pass.length < 8) { encMsg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
+    if (pass.length < 8) { encMsg.innerHTML = '<span style="color:var(--danger)">Passphrase must be at least 8 characters.</span>'; return; }
     encBtn.disabled = true; encBtn.textContent = 'Encrypting…'; encMsg.textContent = '';
     try {
       await downloadEncryptedMnemonic(_mn, pass);
       encMsg.textContent = '✓ Downloaded — store the file in cloud, passphrase stays in your head.';
       encBtn.textContent = 'Downloaded!';
     } catch(e) {
-      encMsg.innerHTML = `<span style="color:#e55">${e.message}</span>`;
+      encMsg.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
       encBtn.disabled = false; encBtn.innerHTML = hosIcon('save', 14) + ' Download';
     }
   });
@@ -629,42 +629,42 @@ function openRestoreFromMnemonicModal() {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
 
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0;max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 .3rem">🌱 Restore from Seed Phrase</h2>
-      <p style="font-size:.78rem;color:#888;line-height:1.5;margin:0 0 .9rem">
-        <strong style="color:#e55">This will permanently replace your current identity on this device.</strong>
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.75rem;width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 .3rem">🌱 Restore from Seed Phrase</h2>
+      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin:0 0 .9rem">
+        <strong style="color:var(--danger)">This will permanently replace your current identity on this device.</strong>
         Use one of the two methods below:
       </p>
 
       <!-- Tab: type words -->
-      <div style="border:1px solid #2a2a2a;border-radius:9px;padding:.9rem 1rem;margin-bottom:.6rem">
-        <p style="font-size:.82rem;color:#e0e0e0;font-weight:600;margin:0 0 .4rem">✍️ Type or paste your 24 words</p>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.9rem 1rem;margin-bottom:.6rem">
+        <p style="font-size:.82rem;color:var(--text);font-weight:600;margin:0 0 .4rem">✍️ Type or paste your 24 words</p>
         <textarea id="rm-words" rows="3" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          style="width:100%;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:.55rem .7rem;color:#e0e0e0;font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
-        <div id="rm-word-count" style="font-size:.7rem;color:#555;margin:.3rem 0 0">0 / 24 words</div>
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.55rem .7rem;color:var(--text);font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
+        <div id="rm-word-count" style="font-size:.7rem;color:var(--text-muted);margin:.3rem 0 0">0 / 24 words</div>
       </div>
 
       <!-- Tab: decrypt encrypted file -->
-      <div style="border:1px solid #2a2a2a;border-radius:9px;padding:.9rem 1rem;margin-bottom:.9rem">
-        <p style="font-size:.82rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">${hosIcon('save', 14)} Restore from encrypted phrase file</p>
-        <p style="font-size:.72rem;color:#555;margin:0 0 .5rem">If you saved a <code>humanity-phrase-backup.json</code> earlier, upload it here with the passphrase you chose.</p>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:.9rem 1rem;margin-bottom:.9rem">
+        <p style="font-size:.82rem;color:var(--text);font-weight:600;margin:0 0 .25rem">${hosIcon('save', 14)} Restore from encrypted phrase file</p>
+        <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .5rem">If you saved a <code>humanity-phrase-backup.json</code> earlier, upload it here with the passphrase you chose.</p>
         <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
           <input id="rm-file" type="file" accept=".json,application/json"
-            style="flex:1;min-width:120px;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:6px;padding:.3rem .5rem;color:#aaa;font-size:.74rem;cursor:pointer">
+            style="flex:1;min-width:120px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.3rem .5rem;color:var(--text-muted);font-size:.74rem;cursor:pointer">
           <input id="rm-file-pass" type="password" placeholder="Passphrase…" autocomplete="current-password"
-            style="flex:1;min-width:110px;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:6px;padding:.3rem .6rem;color:#e0e0e0;font-size:.76rem;outline:none">
+            style="flex:1;min-width:110px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.3rem .6rem;color:var(--text);font-size:.76rem;outline:none">
           <button id="rm-file-btn"
-            style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:.3rem .8rem;font-size:.74rem;cursor:pointer;white-space:nowrap">Decrypt</button>
+            style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.3rem .8rem;font-size:.74rem;cursor:pointer;white-space:nowrap">Decrypt</button>
         </div>
-        <div id="rm-file-msg" style="font-size:.7rem;color:#4ec87a;min-height:1em;margin-top:.3rem"></div>
+        <div id="rm-file-msg" style="font-size:.7rem;color:var(--success);min-height:1em;margin-top:.3rem"></div>
       </div>
 
       <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.7rem"></div>
       <div style="display:flex;gap:.75rem;justify-content:flex-end">
         <button onclick="document.getElementById('restore-mnemonic-overlay').remove()"
-          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="rm-btn" onclick="doRestoreFromMnemonic()"
-          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
   `;
@@ -676,7 +676,7 @@ function openRestoreFromMnemonicModal() {
   ta.addEventListener('input', () => {
     const count = ta.value.trim().split(/\s+/).filter(Boolean).length;
     counter.textContent = `${count} / 24 words`;
-    counter.style.color = count === 24 ? '#4ec87a' : '#555';
+    counter.style.color = count === 24 ? 'var(--success)' : 'var(--text-muted)';
   });
   ta.focus();
 
@@ -685,8 +685,8 @@ function openRestoreFromMnemonicModal() {
     const fileInput = document.getElementById('rm-file');
     const pass      = document.getElementById('rm-file-pass').value;
     const fileMsg   = document.getElementById('rm-file-msg');
-    if (!fileInput.files.length) { fileMsg.innerHTML = '<span style="color:#e55">Select a file first.</span>'; return; }
-    if (!pass) { fileMsg.innerHTML = '<span style="color:#e55">Enter your passphrase.</span>'; return; }
+    if (!fileInput.files.length) { fileMsg.innerHTML = '<span style="color:var(--danger)">Select a file first.</span>'; return; }
+    if (!pass) { fileMsg.innerHTML = '<span style="color:var(--danger)">Enter your passphrase.</span>'; return; }
     try {
       const text   = await fileInput.files[0].text();
       const blob   = JSON.parse(text);
@@ -695,7 +695,7 @@ function openRestoreFromMnemonicModal() {
       ta.dispatchEvent(new Event('input'));
       fileMsg.textContent = '✓ Decrypted — verify the words above, then click Restore Identity.';
     } catch(e) {
-      fileMsg.innerHTML = `<span style="color:#e55">⚠ ${e.message}</span>`;
+      fileMsg.innerHTML = `<span style="color:var(--danger)">⚠ ${e.message}</span>`;
     }
   });
 }
@@ -708,7 +708,7 @@ async function doRestoreFromMnemonic() {
 
   const wordCount = mnemonic.split(' ').filter(Boolean).length;
   if (wordCount !== 24) {
-    msg.innerHTML = `<span style="color:#e55">Expected 24 words, got ${wordCount}. Check for extra spaces or missing words.</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Expected 24 words, got ${wordCount}. Check for extra spaces or missing words.</span>`;
     return;
   }
 
@@ -716,10 +716,10 @@ async function doRestoreFromMnemonic() {
 
   try {
     const identity = await restoreIdentityFromMnemonic(mnemonic);
-    msg.innerHTML = `<span style="color:#4ec87a">✓ Identity restored! Public key: <code>${identity.publicKeyHex.slice(0,16)}…</code><br>Reloading in 2 seconds…</span>`;
+    msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored! Public key: <code>${identity.publicKeyHex.slice(0,16)}…</code><br>Reloading in 2 seconds…</span>`;
     setTimeout(() => location.reload(), 2000);
   } catch (e) {
-    msg.innerHTML = `<span style="color:#e55">⚠ ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">⚠ ${e.message}</span>`;
     btn.disabled = false; btn.textContent = 'Restore Identity';
   }
 }
@@ -740,28 +740,28 @@ function openEncryptedBackupModal() {
     display:flex;align-items:center;justify-content:center;
   `;
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">${hosIcon('lock', 14)} Encrypted Identity Backup</h2>
-      <p style="font-size:.82rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:.5rem">${hosIcon('lock', 14)} Encrypted Identity Backup</h2>
+      <p style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin-bottom:1.25rem">
         Choose a passphrase to protect your backup. Anyone with the file AND passphrase can use your identity —
-        so keep them <strong style="color:#e0e0e0">separate</strong> (file in cloud, passphrase memorised or in password manager).
+        so keep them <strong style="color:var(--text)">separate</strong> (file in cloud, passphrase memorised or in password manager).
       </p>
       <div style="margin-bottom:.9rem">
-        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Passphrase</label>
+        <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Passphrase</label>
         <input id="eb-passphrase" type="password" placeholder="At least 8 characters…" autocomplete="new-password"
-          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+          style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem .75rem;color:var(--text);font-size:.85rem;outline:none">
       </div>
       <div style="margin-bottom:1.25rem">
-        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Confirm Passphrase</label>
+        <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Confirm Passphrase</label>
         <input id="eb-passphrase2" type="password" placeholder="Repeat passphrase…" autocomplete="new-password"
-          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+          style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem .75rem;color:var(--text);font-size:.85rem;outline:none">
       </div>
       <div id="eb-msg" style="font-size:.75rem;margin-bottom:.9rem"></div>
       <div style="display:flex;gap:.75rem;justify-content:flex-end">
         <button onclick="this.closest('#encrypted-backup-overlay').remove()"
-          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="eb-btn" onclick="doEncryptedBackup()"
-          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
       </div>
     </div>
   `;
@@ -775,8 +775,8 @@ async function doEncryptedBackup() {
   const p2 = document.getElementById('eb-passphrase2').value;
   const msg = document.getElementById('eb-msg');
 
-  if (p1.length < 8) { msg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
-  if (p1 !== p2)     { msg.innerHTML = '<span style="color:#e55">Passphrases do not match.</span>'; return; }
+  if (p1.length < 8) { msg.innerHTML = '<span style="color:var(--danger)">Passphrase must be at least 8 characters.</span>'; return; }
+  if (p1 !== p2)     { msg.innerHTML = '<span style="color:var(--danger)">Passphrases do not match.</span>'; return; }
 
   const btn = document.getElementById('eb-btn');
   btn.disabled = true; btn.textContent = 'Encrypting…';
@@ -784,11 +784,11 @@ async function doEncryptedBackup() {
 
   try {
     await exportEncryptedIdentityBackup(p1);
-    msg.innerHTML = '<span style="color:#4ec87a">✓ Backup downloaded. Keep the file and passphrase safe — separately.</span>';
+    msg.innerHTML = '<span style="color:var(--success)">✓ Backup downloaded. Keep the file and passphrase safe — separately.</span>';
     btn.textContent = 'Done';
     setTimeout(() => document.getElementById('encrypted-backup-overlay')?.remove(), 2500);
   } catch (e) {
-    msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
     btn.disabled = false; btn.textContent = 'Download Encrypted Backup';
   }
 }
@@ -805,28 +805,28 @@ function openRestoreIdentityModal() {
     display:flex;align-items:center;justify-content:center;
   `;
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">${hosIcon('save', 14)} Restore Identity</h2>
-      <p style="font-size:.82rem;color:#888;line-height:1.6;margin-bottom:1.25rem">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.75rem;width:100%;max-width:480px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:.5rem">${hosIcon('save', 14)} Restore Identity</h2>
+      <p style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin-bottom:1.25rem">
         Upload your identity backup file. If it was encrypted, enter the passphrase you used when creating it.
-        <strong style="color:#e55">This will replace your current identity.</strong>
+        <strong style="color:var(--danger)">This will replace your current identity.</strong>
       </p>
       <div style="margin-bottom:.9rem">
-        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Backup File (.json)</label>
+        <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Backup File (.json)</label>
         <input id="ri-file" type="file" accept=".json,application/json"
-          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.45rem .75rem;color:#e0e0e0;font-size:.82rem;cursor:pointer">
+          style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:.45rem .75rem;color:var(--text);font-size:.82rem;cursor:pointer">
       </div>
       <div style="margin-bottom:1.25rem">
-        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Passphrase (if encrypted)</label>
+        <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">Passphrase (if encrypted)</label>
         <input id="ri-passphrase" type="password" placeholder="Leave blank for plain backups…" autocomplete="current-password"
-          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+          style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem .75rem;color:var(--text);font-size:.85rem;outline:none">
       </div>
       <div id="ri-msg" style="font-size:.75rem;margin-bottom:.9rem"></div>
       <div style="display:flex;gap:.75rem;justify-content:flex-end">
         <button onclick="this.closest('#restore-identity-overlay').remove()"
-          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="ri-btn" onclick="doRestoreIdentity()"
-          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
   `;
@@ -840,7 +840,7 @@ async function doRestoreIdentity() {
   const msg = document.getElementById('ri-msg');
   const btn = document.getElementById('ri-btn');
 
-  if (!fileInput.files.length) { msg.innerHTML = '<span style="color:#e55">Please select a backup file.</span>'; return; }
+  if (!fileInput.files.length) { msg.innerHTML = '<span style="color:var(--danger)">Please select a backup file.</span>'; return; }
 
   btn.disabled = true; btn.textContent = 'Restoring…'; msg.innerHTML = '';
 
@@ -849,10 +849,10 @@ async function doRestoreIdentity() {
     const parsed = JSON.parse(text);
     const result = await importIdentityBackup(parsed, passphrase || undefined);
 
-    msg.innerHTML = `<span style="color:#4ec87a">✓ Identity restored for <strong>${result.name}</strong>. Reloading…</span>`;
+    msg.innerHTML = `<span style="color:var(--success)">✓ Identity restored for <strong>${result.name}</strong>. Reloading…</span>`;
     setTimeout(() => location.reload(), 1800);
   } catch (e) {
-    msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
     btn.disabled = false; btn.textContent = 'Restore Identity';
   }
 }
@@ -871,30 +871,30 @@ function openKeyProtectionModal() {
   overlay.id = 'key-protection-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;';
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:500px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin-bottom:.5rem">${hosIcon('lock', 14)} Key Protection</h2>
-      <div style="font-size:.78rem;color:#888;line-height:1.6;margin-bottom:1.1rem">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.75rem;width:100%;max-width:500px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:.5rem">${hosIcon('lock', 14)} Key Protection</h2>
+      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:1.1rem">
         ${wrapped
-          ? `<span style="color:#4ec87a;font-weight:600">${hosIcon('check', 14)} Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
-          : `<span style="color:#f0a500;font-weight:600">⚠️ Not protected</span> — your private key is stored as readable plaintext in your browser's <code style="color:#ccc">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
+          ? `<span style="color:var(--success);font-weight:600">${hosIcon('check', 14)} Protected</span> — your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
+          : `<span style="color:var(--accent);font-weight:600">⚠️ Not protected</span> — your private key is stored as readable plaintext in your browser's <code style="color:var(--text-muted)">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
         }
       </div>
       <div style="margin-bottom:.8rem">
-        <label style="display:block;font-size:.72rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">${wrapped ? 'New passphrase' : 'Set passphrase'}</label>
+        <label style="display:block;font-size:.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem">${wrapped ? 'New passphrase' : 'Set passphrase'}</label>
         <input id="kp-pass1" type="password" placeholder="At least 8 characters…" autocomplete="new-password"
-          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none;margin-bottom:.5rem">
+          style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem .75rem;color:var(--text);font-size:.85rem;outline:none;margin-bottom:.5rem">
         <input id="kp-pass2" type="password" placeholder="Confirm passphrase…" autocomplete="new-password"
-          style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.85rem;outline:none">
+          style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem .75rem;color:var(--text);font-size:.85rem;outline:none">
       </div>
       <div id="kp-msg" style="font-size:.75rem;margin-bottom:.85rem;min-height:1.2em"></div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end">
         <button onclick="document.getElementById('key-protection-overlay').remove()"
-          style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
         ${wrapped ? `<button id="kp-remove-btn" onclick="doRemoveKeyProtection()"
-          style="background:none;border:1px solid #c44;color:#c44;border-radius:7px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer"
+          style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:.4rem 1rem;font-size:.82rem;cursor:pointer"
           title="Remove passphrase protection — key will be stored in plaintext again">Remove Protection</button>` : ''}
         <button id="kp-save-btn" onclick="doEnableKeyProtection()"
-          style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:.4rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:.4rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">
           ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
       </div>
     </div>
@@ -909,16 +909,16 @@ async function doEnableKeyProtection() {
   const p2  = document.getElementById('kp-pass2').value;
   const msg = document.getElementById('kp-msg');
   const btn = document.getElementById('kp-save-btn');
-  if (p1.length < 8) { msg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
-  if (p1 !== p2)     { msg.innerHTML = '<span style="color:#e55">Passphrases do not match.</span>'; return; }
+  if (p1.length < 8) { msg.innerHTML = '<span style="color:var(--danger)">Passphrase must be at least 8 characters.</span>'; return; }
+  if (p1 !== p2)     { msg.innerHTML = '<span style="color:var(--danger)">Passphrases do not match.</span>'; return; }
   btn.disabled = true; btn.textContent = 'Encrypting…'; msg.innerHTML = '';
   try {
     await wrapAndStoreKey(p1);
     // Update sidebar status immediately.
     const protBtn = document.getElementById('key-protect-btn');
-    if (protBtn) { protBtn.innerHTML = hosIcon('lock', 14) + ' Protected'; protBtn.style.color = '#4ec87a'; }
+    if (protBtn) { protBtn.innerHTML = hosIcon('lock', 14) + ' Protected'; protBtn.style.color = 'var(--success)'; }
     // Show success briefly then close.
-    msg.innerHTML = '<span style="color:#4ec87a">' + hosIcon('check', 14) + ' Key encrypted with your passphrase.</span>';
+    msg.innerHTML = '<span style="color:var(--success)">' + hosIcon('check', 14) + ' Key encrypted with your passphrase.</span>';
     btn.textContent = 'Done ✓'; btn.disabled = false;
     // Change onclick to close instead of re-running protection.
     btn.onclick = () => document.getElementById('key-protection-overlay').remove();
@@ -926,7 +926,7 @@ async function doEnableKeyProtection() {
     const removeBtn = document.getElementById('kp-remove-btn');
     if (removeBtn) removeBtn.title = 'Remove passphrase encryption — key reverts to plaintext in localStorage';
   } catch(e) {
-    msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
     btn.disabled = false; btn.textContent = 'Protect Key';
   }
 }
@@ -937,7 +937,7 @@ function doRemoveKeyProtection() {
     localStorage.removeItem(WRAPPED_KEY_LS);
     localStorage.removeItem(WRAPPED_ECDH_LS);
     const msg = document.getElementById('kp-msg');
-    if (msg) msg.innerHTML = '<span style="color:#f0a500">⚠️ Protection removed. Key is now stored in plaintext.</span>';
+    if (msg) msg.innerHTML = '<span style="color:var(--accent)">⚠️ Protection removed. Key is now stored in plaintext.</span>';
     const protBtn = document.getElementById('key-protect-btn');
     if (protBtn) { protBtn.innerHTML = hosIcon('unlock', 14) + ' Protect Key'; protBtn.style.color = ''; }
   } catch(e) {}
@@ -958,28 +958,28 @@ function openKeyRotationModal() {
   overlay.id = 'key-rotation-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #3a1515;border-radius:14px;padding:1.75rem;width:100%;max-width:520px;font-family:'Segoe UI',system-ui,sans-serif;color:#e0e0e0">
-      <h2 style="font-size:1rem;font-weight:700;color:#e55;margin:0 0 .4rem">🔄 Rotate Identity Key</h2>
-      <p style="font-size:.8rem;color:#888;line-height:1.55;margin:0 0 .9rem">
-        This generates a <strong style="color:#e0e0e0">brand new identity</strong> and signs a certificate proving
+    <div style="background:var(--bg-secondary);border:1px solid #3a1515;border-radius:var(--radius-lg);padding:1.75rem;width:100%;max-width:520px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--danger);margin:0 0 .4rem">🔄 Rotate Identity Key</h2>
+      <p style="font-size:.8rem;color:var(--text-muted);line-height:1.55;margin:0 0 .9rem">
+        This generates a <strong style="color:var(--text)">brand new identity</strong> and signs a certificate proving
         it was authorised by your current key. Peers who see the rotation will know the new key is yours.
       </p>
-      <div style="background:#100000;border:1px solid #3a1515;border-radius:8px;padding:.8rem .9rem;margin-bottom:1rem;font-size:.78rem;color:#c44;line-height:1.55">
+      <div style="background:#100000;border:1px solid #3a1515;border-radius:var(--radius);padding:.8rem .9rem;margin-bottom:1rem;font-size:.78rem;color:var(--danger);line-height:1.55">
         ⚠ <strong>This is permanent.</strong> Your old key will be marked as rotated.<br>
         Back up your current seed phrase <em>before</em> rotating — you may need it to prove ownership later.<br>
         Followers and friends linked to your old key will need to update their contact list.
       </div>
       <div style="margin-bottom:1rem">
-        <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:.35rem">Type ROTATE to confirm</label>
+        <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:.35rem">Type ROTATE to confirm</label>
         <input id="kr-confirm" type="text" placeholder="ROTATE" autocomplete="off"
-          style="width:100%;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:7px;padding:.5rem .75rem;color:#e0e0e0;font-size:.88rem;outline:none">
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem .75rem;color:var(--text);font-size:.88rem;outline:none">
       </div>
       <div id="kr-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.75rem"></div>
       <div style="display:flex;gap:.75rem;justify-content:flex-end">
         <button onclick="document.getElementById('key-rotation-overlay').remove()"
-          style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:7px;padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:.45rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="kr-btn" onclick="doKeyRotation()"
-          style="background:#c44;color:#fff;border:none;border-radius:7px;padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>
+          style="background:var(--danger);color:#fff;border:none;border-radius:var(--radius);padding:.45rem 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>
       </div>
     </div>
   `;
@@ -994,11 +994,11 @@ async function doKeyRotation() {
   const btn     = document.getElementById('kr-btn');
 
   if (confirm !== 'ROTATE') {
-    msg.innerHTML = '<span style="color:#e55">Type ROTATE (all caps) to confirm.</span>';
+    msg.innerHTML = '<span style="color:var(--danger)">Type ROTATE (all caps) to confirm.</span>';
     return;
   }
   if (!myIdentity || !myIdentity.canSign) {
-    msg.innerHTML = '<span style="color:#e55">Current identity is not signable — cannot rotate.</span>';
+    msg.innerHTML = '<span style="color:var(--danger)">Current identity is not signable — cannot rotate.</span>';
     return;
   }
 
@@ -1024,7 +1024,7 @@ async function doKeyRotation() {
 
     // 4. Send rotation certificate to relay
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      msg.innerHTML = '<span style="color:#e55">Not connected to relay — connect first, then rotate.</span>';
+      msg.innerHTML = '<span style="color:var(--danger)">Not connected to relay — connect first, then rotate.</span>';
       btn.disabled = false; btn.textContent = 'Rotate Key';
       return;
     }
@@ -1038,7 +1038,7 @@ async function doKeyRotation() {
     }));
 
     // 5. Store new identity and reload
-    msg.innerHTML = '<span style="color:#4ec87a">✓ Rotation sent — storing new identity and reloading…</span>';
+    msg.innerHTML = '<span style="color:var(--success)">✓ Rotation sent — storing new identity and reloading…</span>';
     btn.textContent = 'Done';
 
     // Store new keypair using existing loadOrCreateIdentity infrastructure
@@ -1046,7 +1046,7 @@ async function doKeyRotation() {
     setTimeout(() => location.reload(), 2000);
 
   } catch(e) {
-    msg.innerHTML = `<span style="color:#e55">Error: ${e.message}</span>`;
+    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
     btn.disabled = false; btn.textContent = 'Rotate Key';
   }
 }

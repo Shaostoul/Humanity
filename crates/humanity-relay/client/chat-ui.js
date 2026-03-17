@@ -362,18 +362,18 @@ function showUserContextMenu(e, name, publicKey) {
   // Color-coded ctx-item: user=default, mod=green left border, admin=blue, danger=red
   const ci = (onclick, label, tier) => {
     const borderStyle = {
-      mod:    'border-left:3px solid #4a8;padding-left:9px;',
+      mod:    'border-left:3px solid var(--success);padding-left:9px;',
       admin:  'border-left:3px solid #56b;padding-left:9px;',
-      danger: 'border-left:3px solid #e55;padding-left:9px;color:#e88;',
+      danger: 'border-left:3px solid var(--danger);padding-left:9px;color:#e88;',
     }[tier] || '';
     return '<div class="ctx-item" style="' + borderStyle + '" onclick="' + onclick + '">' + label + '</div>';
   };
 
   // Role badge for target user header
   const roleBadge = {
-    admin: '<span style="font-size:0.68rem;background:#56b;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">ADMIN</span>',
-    mod:   '<span style="font-size:0.68rem;background:#4a8;color:#fff;padding:1px 5px;border-radius:3px;margin-left:4px;">MOD</span>',
-  }[targetRole] || '<span style="font-size:0.68rem;background:#444;color:#aaa;padding:1px 5px;border-radius:3px;margin-left:4px;">USER</span>';
+    admin: '<span style="font-size:0.68rem;background:#56b;color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">ADMIN</span>',
+    mod:   '<span style="font-size:0.68rem;background:var(--success);color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">MOD</span>',
+  }[targetRole] || '<span style="font-size:0.68rem;background:#444;color:var(--text-muted);padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">USER</span>';
 
   const isBot = publicKey && publicKey.startsWith('bot_');
   let html = '';
@@ -406,7 +406,7 @@ function showUserContextMenu(e, name, publicKey) {
       html += ci("reportUser()", '\uD83D\uDEA9 Report', 'danger');
       if (amMod) {
         html += '<div class="ctx-sep"></div>';
-        html += '<div class="ctx-item" style="font-size:0.68rem;color:#4a8;pointer-events:none;">\u2014 Mod Actions \u2014</div>';
+        html += '<div class="ctx-item" style="font-size:0.68rem;color:var(--success);pointer-events:none;">\u2014 Mod Actions \u2014</div>';
         html += ci("ctxCommand('/kick')", '\uD83D\uDC62 Kick', 'mod');
         html += ci("ctxCommand('/mute')", '\uD83D\uDD07 Mute', 'mod');
         html += ci("ctxCommand('/ban')", '\uD83D\uDEB7 Ban', 'danger');
@@ -1110,7 +1110,7 @@ var federatedServersFetched = false;
     const myRole = (window.myPeerRole || '').toLowerCase();
     if (myRole === 'admin') {
       html += `<div style="padding:0.4rem 0.5rem;">
-        <button onclick="promptAddServer()" style="font-size:0.75rem;padding:0.2rem 0.5rem;cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);width:100%;">+ Add Server</button>
+        <button onclick="promptAddServer()" style="font-size:0.75rem;padding:0.2rem 0.5rem;cursor:pointer;background:var(--bg-hover);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-primary);width:100%;">+ Add Server</button>
       </div>`;
     }
 
@@ -1419,7 +1419,7 @@ showReactionPicker = function(btn, targetFrom, targetTs, msgEl) {
   const picker = document.createElement('div');
   picker.className = 'reaction-picker';
   // Base styles.
-  picker.style.cssText = 'position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:0.3rem;display:flex;flex-wrap:wrap;gap:0.2rem;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
+  picker.style.cssText = 'position:absolute;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:0.3rem;display:flex;flex-wrap:wrap;gap:0.2rem;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.4);';
 
   if (isMobile()) {
     // On mobile: position below the message, centered, larger buttons.
@@ -1435,7 +1435,7 @@ showReactionPicker = function(btn, targetFrom, targetTs, msgEl) {
     const emojiBtn = document.createElement('span');
     emojiBtn.textContent = emoji;
     const size = isMobile() ? 'padding:0.35rem 0.45rem;font-size:1.2rem;min-width:36px;text-align:center;' : 'padding:0.15rem 0.25rem;font-size:0.9rem;';
-    emojiBtn.style.cssText = 'cursor:pointer;border-radius:4px;' + size;
+    emojiBtn.style.cssText = 'cursor:pointer;border-radius:var(--radius-sm);' + size;
     emojiBtn.onmouseover = () => emojiBtn.style.background = 'var(--bg-hover)';
     emojiBtn.onmouseout = () => emojiBtn.style.background = '';
     emojiBtn.onclick = (e) => {

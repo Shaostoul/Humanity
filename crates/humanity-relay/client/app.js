@@ -1579,15 +1579,15 @@ function updateRulesBanner() {
   banner.style.display = 'flex';
   const agreed = localStorage.getItem('humanity_rules_agreed');
   if (agreed === 'true') {
-    banner.innerHTML = '<span style="color:#4a8;font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' +
-      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
+    banner.innerHTML = '<span style="color:var(--success);font-size:0.85rem;">' + hosIcon('check', 14) + ' You have agreed to the community rules.</span>' +
+      '<button onclick="rulesDisagree()" style="margin-left:auto;background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:0.3rem 0.8rem;border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('close', 14) + ' Withdraw</button>';
   } else if (agreed === 'false') {
-    banner.innerHTML = '<span style="color:#e55;font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>' +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid #4a8;color:#4a8;padding:0.3rem 0.8rem;border-radius:6px;cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
+    banner.innerHTML = '<span style="color:var(--danger);font-size:0.85rem;">' + hosIcon('close', 14) + ' You have not agreed to the rules.</span>' +
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.15);border:1px solid var(--success);color:var(--success);padding:0.3rem 0.8rem;border-radius:var(--radius);cursor:pointer;font-size:0.78rem;">' + hosIcon('check', 14) + ' I Agree</button>';
   } else {
     banner.innerHTML = '<span style="font-size:0.85rem;font-weight:600;">Do you agree to the Community Guidelines?</span>' +
-      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:0.35rem 1.2rem;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
-      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:#e55;padding:0.35rem 1rem;border-radius:6px;cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
+      '<button onclick="rulesAgree()" style="background:rgba(34,170,102,0.9);border:none;color:#fff;padding:0.35rem 1.2rem;border-radius:var(--radius);cursor:pointer;font-size:0.85rem;font-weight:600;">' + hosIcon('check', 14) + ' I Agree</button>' +
+      '<button onclick="rulesDisagree()" style="background:rgba(220,50,50,0.15);border:1px solid rgba(220,50,50,0.4);color:var(--danger);padding:0.35rem 1rem;border-radius:var(--radius);cursor:pointer;font-size:0.85rem;">' + hosIcon('close', 14) + ' Disagree</button>';
   }
 }
 
@@ -1624,7 +1624,7 @@ function updateNavDot(cls) {
     dot.style.cssText = 'position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;transition:background 0.4s';
     chatTab.appendChild(dot);
   }
-  dot.style.background = cls === 'connected' ? '#4ec87a' : cls === 'reconnecting' ? '#f0c040' : '#e55';
+  dot.style.background = cls === 'connected' ? 'var(--success)' : cls === 'reconnecting' ? '#f0c040' : 'var(--danger)';
   dot.title = cls === 'connected' ? 'Connected' : cls === 'reconnecting' ? 'Reconnecting…' : 'Disconnected';
 }
 

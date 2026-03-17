@@ -169,7 +169,7 @@ function addFollowContextMenu() {
       document.querySelectorAll('.follow-ctx-menu').forEach(m => m.remove());
       const menu = document.createElement('div');
       menu.className = 'follow-ctx-menu';
-      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:4px 0;min-width:140px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:140px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
       menu.style.left = e.clientX + 'px';
       menu.style.top = e.clientY + 'px';
 
@@ -206,7 +206,7 @@ function renderGroupList() {
   for (const g of myGroups) {
     const isActive = activeGroupId === g.id;
     const unread = groupUnread[g.id] || 0;
-    const badge = unread > 0 ? `<span style="background:var(--accent);color:#fff;border-radius:10px;padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:auto;">${unread}</span>` : `<span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>`;
+    const badge = unread > 0 ? `<span style="background:var(--accent);color:#fff;border-radius:var(--radius-lg);padding:1px 6px;font-size:0.65rem;font-weight:700;margin-left:auto;">${unread}</span>` : `<span style="font-size:0.6rem;color:var(--text-muted);margin-left:auto;">${g.role}</span>`;
     html += `<div class="channel-item${isActive ? ' active' : ''}" data-group-id="${g.id}" style="cursor:pointer;">
       <span style="opacity:0.6">${hosIcon('users', 16)} </span>${esc(g.name)}
       ${badge}
@@ -228,7 +228,7 @@ function renderGroupList() {
       if (!group) return;
       const menu = document.createElement('div');
       menu.className = 'group-ctx-menu';
-      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;padding:4px 0;min-width:150px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:4px 0;min-width:150px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
       menu.style.left = e.clientX + 'px';
       menu.style.top = e.clientY + 'px';
       const items = [

@@ -59,7 +59,7 @@ async function showOnboardingWizard(mnemonic) {
 
 function buildStep(step, mnemonic) {
   const dots = Array.from({length: 5}, (_, i) =>
-    `<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${i === step ? '#f0a500' : '#333'};margin:0 3px"></span>`
+    `<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${i === step ? 'var(--accent)' : 'var(--border)'};margin:0 3px"></span>`
   ).join('');
 
   const content = [step0, step1, step2, step3, step4][step](mnemonic);
@@ -67,9 +67,9 @@ function buildStep(step, mnemonic) {
   const isFirst = step === 0;
 
   return `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:16px;padding:2rem;
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;
                 width:100%;max-width:580px;font-family:'Segoe UI',system-ui,sans-serif;
-                color:#e0e0e0;max-height:92vh;overflow-y:auto;box-sizing:border-box;">
+                color:var(--text);max-height:92vh;overflow-y:auto;box-sizing:border-box;">
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
         <div>${dots}</div>
@@ -84,10 +84,10 @@ function buildStep(step, mnemonic) {
         </button>
         <div style="display:flex;gap:.75rem">
           ${!isFirst ? `<button id="ob-prev"
-            style="background:none;border:1px solid #333;color:#888;border-radius:8px;
+            style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);
                    padding:.5rem 1.1rem;font-size:.85rem;cursor:pointer">← Back</button>` : ''}
           <button id="ob-next"
-            style="background:#f0a500;color:#000;border:none;border-radius:8px;
+            style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);
                    padding:.5rem 1.4rem;font-size:.85rem;font-weight:700;cursor:pointer">
             ${isLast ? '🚀 Let\'s go!' : 'Next →'}
           </button>
@@ -100,24 +100,24 @@ function buildStep(step, mnemonic) {
 // ── Step 0: Welcome ───────────────────────────────────────────────────────────
 function step0() {
   return `
-    <h2 style="font-size:1.4rem;font-weight:800;color:#f0a500;margin:0 0 .5rem">👋 Welcome to Humanity!</h2>
+    <h2 style="font-size:1.4rem;font-weight:800;color:var(--accent);margin:0 0 .5rem">👋 Welcome to Humanity!</h2>
     <p style="font-size:.9rem;line-height:1.65;color:#ccc;margin:0 0 1rem">
-      We just created a <strong style="color:#e0e0e0">unique digital identity</strong> for you — and we want to explain what that means
+      We just created a <strong style="color:var(--text)">unique digital identity</strong> for you — and we want to explain what that means
       in plain language before you dive in.
     </p>
 
-    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:1.1rem 1.2rem;margin-bottom:1rem">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.1rem 1.2rem;margin-bottom:1rem">
       <p style="font-size:.85rem;color:#ccc;margin:0 0 .6rem;font-weight:600">🤔 Wait — no account? No password?</p>
-      <p style="font-size:.82rem;color:#888;line-height:1.6;margin:0">
+      <p style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin:0">
         That's right. Instead of a username and password stored on a server somewhere, we generated a
-        <strong style="color:#e0e0e0">secret key</strong> that lives right here in your browser.
+        <strong style="color:var(--text)">secret key</strong> that lives right here in your browser.
         It's like getting a house key cut — it's yours, it's unique, and nobody else has one like it.
       </p>
     </div>
 
-    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:1.1rem 1.2rem">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.1rem 1.2rem">
       <p style="font-size:.85rem;color:#ccc;margin:0 0 .6rem;font-weight:600">✅ What this means for you</p>
-      <ul style="font-size:.82rem;color:#888;line-height:1.8;margin:0;padding-left:1.2rem">
+      <ul style="font-size:.82rem;color:var(--text-muted);line-height:1.8;margin:0;padding-left:1.2rem">
         <li>No company holds your account — not us, not anyone.</li>
         <li>You can't be banned, shadowbanned, or deplatformed.</li>
         <li>Nobody reads your messages — they're encrypted.</li>
@@ -133,20 +133,20 @@ function step1(mnemonic) {
   const wordGrid = words.length === 24
     ? `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin:.75rem 0 .6rem">
         ${words.map((w, i) => `
-          <div style="background:#0a0a0a;border:1px solid #2a2a2a;border-radius:6px;
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
                       padding:.35rem .45rem;display:flex;align-items:baseline;gap:.25rem">
             <span style="font-size:.58rem;color:#444;min-width:15px;text-align:right">${i+1}.</span>
-            <span style="font-size:.8rem;color:#f0a500;font-weight:600">${w}</span>
+            <span style="font-size:.8rem;color:var(--accent);font-weight:600">${w}</span>
           </div>`).join('')}
       </div>`
-    : `<div style="background:#1a1a1a;border:1px dashed #333;border-radius:8px;padding:.9rem;
-                   font-size:.8rem;color:#666;margin:.75rem 0;text-align:center">
+    : `<div style="background:var(--bg-secondary);border:1px dashed var(--border);border-radius:var(--radius);padding:.9rem;
+                   font-size:.8rem;color:var(--text-muted);margin:.75rem 0;text-align:center">
          Seed phrase unavailable in this browser. Use <strong>Encrypted Backup</strong> instead.
        </div>`;
 
   return `
-    <h2 style="font-size:1.15rem;font-weight:800;color:#f0a500;margin:0 0 .3rem">🌱 Your 24-Word Recovery Phrase</h2>
-    <p style="font-size:.8rem;line-height:1.5;color:#888;margin:0 0 .5rem">
+    <h2 style="font-size:1.15rem;font-weight:800;color:var(--accent);margin:0 0 .3rem">🌱 Your 24-Word Recovery Phrase</h2>
+    <p style="font-size:.8rem;line-height:1.5;color:var(--text-muted);margin:0 0 .5rem">
       These 24 words <em>are</em> your identity — they can recreate your account on any device, forever.
       Think of them as a master key. <strong style="color:#ccc">Anyone who has them is you.</strong>
     </p>
@@ -156,54 +156,54 @@ function step1(mnemonic) {
     <p style="font-size:.75rem;color:#555;margin:0 0 .7rem">Choose at least one backup method below. Two is better.</p>
 
     <!-- Option A: Paper -->
-    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.8rem 1rem;margin-bottom:.5rem">
-      <p style="font-size:.82rem;color:#e0e0e0;font-weight:700;margin:0 0 .25rem">📝 Paper (most secure)</p>
-      <p style="font-size:.76rem;color:#666;line-height:1.5;margin:0 0 .5rem">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.8rem 1rem;margin-bottom:.5rem">
+      <p style="font-size:.82rem;color:var(--text);font-weight:700;margin:0 0 .25rem">📝 Paper (most secure)</p>
+      <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 .5rem">
         Write the 24 words by hand. Store the paper somewhere safe — a fireproof box, a safe, a trusted person's home.
         Paper can't be hacked. Just don't lose it or get it wet.
       </p>
       <div style="display:flex;align-items:center;gap:.6rem">
         <button id="ob-copy-btn"
-          style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);
                  padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy words</button>
-        <span id="ob-copy-msg" style="font-size:.7rem;color:#4ec87a"></span>
+        <span id="ob-copy-msg" style="font-size:.7rem;color:var(--success)"></span>
       </div>
     </div>
 
     <!-- Option B: Encrypted file -->
-    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.8rem 1rem;margin-bottom:.5rem">
-      <p style="font-size:.82rem;color:#e0e0e0;font-weight:700;margin:0 0 .25rem">💾 Encrypted file (easiest digital)</p>
-      <p style="font-size:.76rem;color:#666;line-height:1.5;margin:0 0 .5rem">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.8rem 1rem;margin-bottom:.5rem">
+      <p style="font-size:.82rem;color:var(--text);font-weight:700;margin:0 0 .25rem">💾 Encrypted file (easiest digital)</p>
+      <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 .5rem">
         We lock the 24 words with a passphrase you choose, then download a tiny file (~1 KB).
         Store that file in your cloud (Google Drive, Dropbox, iCloud) — it's useless without the passphrase,
-        so keep the passphrase in your head or a password manager. <strong style="color:#888">Never store the file and passphrase in the same place.</strong>
+        so keep the passphrase in your head or a password manager. <strong style="color:var(--text-muted)">Never store the file and passphrase in the same place.</strong>
       </p>
       <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
         <input id="ob-enc-pass" type="password" placeholder="Choose a passphrase…" autocomplete="new-password"
-          style="flex:1;min-width:140px;background:#111;border:1px solid #2a2a2a;border-radius:6px;
-                 padding:.3rem .6rem;color:#e0e0e0;font-size:.78rem;outline:none">
+          style="flex:1;min-width:140px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);
+                 padding:.3rem .6rem;color:var(--text);font-size:.78rem;outline:none">
         <button id="ob-enc-btn"
-          style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);
                  padding:.3rem .8rem;font-size:.75rem;cursor:pointer;white-space:nowrap">💾 Download</button>
-        <span id="ob-enc-msg" style="font-size:.7rem;color:#4ec87a;width:100%"></span>
+        <span id="ob-enc-msg" style="font-size:.7rem;color:var(--success);width:100%"></span>
       </div>
     </div>
 
     <!-- Option C: Password manager -->
-    <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.8rem 1rem">
-      <p style="font-size:.82rem;color:#e0e0e0;font-weight:700;margin:0 0 .25rem">🔐 Password manager (most accessible)</p>
-      <p style="font-size:.76rem;color:#666;line-height:1.5;margin:0 0 .5rem">
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.8rem 1rem">
+      <p style="font-size:.82rem;color:var(--text);font-weight:700;margin:0 0 .25rem">🔐 Password manager (most accessible)</p>
+      <p style="font-size:.76rem;color:var(--text-muted);line-height:1.5;margin:0 0 .5rem">
         Open <a href="https://bitwarden.com" target="_blank" rel="noopener"
-          style="color:#f0a500">Bitwarden</a>, <strong style="color:#888">1Password</strong>, or any password manager.
+          style="color:var(--accent)">Bitwarden</a>, <strong style="color:var(--text-muted)">1Password</strong>, or any password manager.
         Create a new <em>Secure Note</em> called "Humanity seed phrase" and paste the 24 words there.
         Password managers are encrypted, sync across devices, and survive losing your phone or laptop.
-        <br><strong style="color:#888">Bitwarden is free and open source.</strong>
+        <br><strong style="color:var(--text-muted)">Bitwarden is free and open source.</strong>
       </p>
       <div style="display:flex;align-items:center;gap:.6rem">
         <button id="ob-pm-btn"
-          style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);
                  padding:.3rem .8rem;font-size:.75rem;cursor:pointer">📋 Copy for password manager</button>
-        <span id="ob-pm-msg" style="font-size:.7rem;color:#4ec87a"></span>
+        <span id="ob-pm-msg" style="font-size:.7rem;color:var(--success)"></span>
       </div>
     </div>
   `;
@@ -229,14 +229,14 @@ function wireStep1(overlay, mnemonic) {
   if (encBtn && mnemonic) {
     encBtn.addEventListener('click', async () => {
       const pass = encPass ? encPass.value.trim() : '';
-      if (pass.length < 8) { encMsg.innerHTML = '<span style="color:#e55">Passphrase must be at least 8 characters.</span>'; return; }
+      if (pass.length < 8) { encMsg.innerHTML = '<span style="color:var(--danger)">Passphrase must be at least 8 characters.</span>'; return; }
       encBtn.disabled = true; encBtn.textContent = 'Encrypting…'; encMsg.textContent = '';
       try {
         await downloadEncryptedMnemonic(mnemonic, pass);
         encMsg.textContent = '✓ File downloaded — store it in your cloud, keep the passphrase separate.';
         encBtn.textContent = 'Downloaded!';
       } catch(e) {
-        encMsg.innerHTML = `<span style="color:#e55">${e.message}</span>`;
+        encMsg.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
         encBtn.disabled = false; encBtn.textContent = '💾 Download';
       }
     });
@@ -258,31 +258,31 @@ function wireStep1(overlay, mnemonic) {
 // ── Step 2: What is Humanity ─────────────────────────────────────────────────
 function step2() {
   return `
-    <h2 style="font-size:1.2rem;font-weight:800;color:#f0a500;margin:0 0 .4rem">🌍 What is Humanity?</h2>
-    <p style="font-size:.83rem;line-height:1.6;color:#888;margin:0 0 1rem">
+    <h2 style="font-size:1.2rem;font-weight:800;color:var(--accent);margin:0 0 .4rem">🌍 What is Humanity?</h2>
+    <p style="font-size:.83rem;line-height:1.6;color:var(--text-muted);margin:0 0 1rem">
       Humanity is a cooperative platform — not owned by any company, not funded by ads, and not watching you.
     </p>
 
     <div style="display:grid;gap:.6rem">
-      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:.9rem 1rem">
-        <p style="font-size:.85rem;color:#e0e0e0;font-weight:600;margin:0 0 .3rem">💬 Chat that's actually private</p>
-        <p style="font-size:.8rem;color:#888;line-height:1.5;margin:0">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.9rem 1rem">
+        <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 .3rem">💬 Chat that's actually private</p>
+        <p style="font-size:.8rem;color:var(--text-muted);line-height:1.5;margin:0">
           Messages between you and another person are encrypted end-to-end — meaning only you two can read them.
           Not us, not the server, not your ISP. It's like passing a note in an envelope no one else can open.
         </p>
       </div>
 
-      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:.9rem 1rem">
-        <p style="font-size:.85rem;color:#e0e0e0;font-weight:600;margin:0 0 .3rem">🚫 No algorithm. No ads. No engagement bait.</p>
-        <p style="font-size:.8rem;color:#888;line-height:1.5;margin:0">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.9rem 1rem">
+        <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 .3rem">🚫 No algorithm. No ads. No engagement bait.</p>
+        <p style="font-size:.8rem;color:var(--text-muted);line-height:1.5;margin:0">
           There's no feed tuned to keep you angry or scrolling. You see what you choose to see.
           The platform doesn't profit from your attention.
         </p>
       </div>
 
-      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:.9rem 1rem">
-        <p style="font-size:.85rem;color:#e0e0e0;font-weight:600;margin:0 0 .3rem">🤝 Owned by everyone, run by the community</p>
-        <p style="font-size:.8rem;color:#888;line-height:1.5;margin:0">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.9rem 1rem">
+        <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 .3rem">🤝 Owned by everyone, run by the community</p>
+        <p style="font-size:.8rem;color:var(--text-muted);line-height:1.5;margin:0">
           The code is open source. Anyone can check it. Anyone can run a copy.
           Decisions about the platform's direction are made cooperatively.
         </p>
@@ -294,49 +294,49 @@ function step2() {
 // ── Step 3: How to Connect ───────────────────────────────────────────────────
 function step3() {
   return `
-    <h2 style="font-size:1.2rem;font-weight:800;color:#f0a500;margin:0 0 .4rem">🤝 Meeting People</h2>
-    <p style="font-size:.83rem;line-height:1.6;color:#888;margin:0 0 1rem">
+    <h2 style="font-size:1.2rem;font-weight:800;color:var(--accent);margin:0 0 .4rem">🤝 Meeting People</h2>
+    <p style="font-size:.83rem;line-height:1.6;color:var(--text-muted);margin:0 0 1rem">
       Unlike social media, you build your network intentionally — no followers game, no public follower counts.
     </p>
 
     <div style="display:grid;gap:.6rem">
-      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:.9rem 1rem;display:flex;gap:.75rem">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.9rem 1rem;display:flex;gap:.75rem">
         <span style="font-size:1.4rem;flex-shrink:0">💬</span>
         <div>
-          <p style="font-size:.85rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">Jump into a channel</p>
-          <p style="font-size:.79rem;color:#888;line-height:1.5;margin:0">
+          <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 .25rem">Jump into a channel</p>
+          <p style="font-size:.79rem;color:var(--text-muted);line-height:1.5;margin:0">
             Channels on the left sidebar are open rooms — like a coffee shop with a topic.
             Just start talking. Nobody requires an introduction.
           </p>
         </div>
       </div>
 
-      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:.9rem 1rem;display:flex;gap:.75rem">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.9rem 1rem;display:flex;gap:.75rem">
         <span style="font-size:1.4rem;flex-shrink:0">📮</span>
         <div>
-          <p style="font-size:.85rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">Direct Messages</p>
-          <p style="font-size:.79rem;color:#888;line-height:1.5;margin:0">
+          <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 .25rem">Direct Messages</p>
+          <p style="font-size:.79rem;color:var(--text-muted);line-height:1.5;margin:0">
             Click any username to open a private, encrypted conversation with that person. Only the two of you can read it.
           </p>
         </div>
       </div>
 
-      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:.9rem 1rem;display:flex;gap:.75rem">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.9rem 1rem;display:flex;gap:.75rem">
         <span style="font-size:1.4rem;flex-shrink:0">🪪</span>
         <div>
-          <p style="font-size:.85rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">Contact Cards (P2P)</p>
-          <p style="font-size:.79rem;color:#888;line-height:1.5;margin:0">
+          <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 .25rem">Contact Cards (P2P)</p>
+          <p style="font-size:.79rem;color:var(--text-muted);line-height:1.5;margin:0">
             In the Contacts tab you can share a QR code or a short link.
             Scanning it lets two people connect directly, even without the relay server in the middle.
           </p>
         </div>
       </div>
 
-      <div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:10px;padding:.9rem 1rem;display:flex;gap:.75rem">
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.9rem 1rem;display:flex;gap:.75rem">
         <span style="font-size:1.4rem;flex-shrink:0">✏️</span>
         <div>
-          <p style="font-size:.85rem;color:#e0e0e0;font-weight:600;margin:0 0 .25rem">Set up your profile</p>
-          <p style="font-size:.79rem;color:#888;line-height:1.5;margin:0">
+          <p style="font-size:.85rem;color:var(--text);font-weight:600;margin:0 0 .25rem">Set up your profile</p>
+          <p style="font-size:.79rem;color:var(--text-muted);line-height:1.5;margin:0">
             Tap your name in the sidebar to add a bio, pronouns, social links, and a profile picture.
             You control what's public and what's friends-only.
           </p>
@@ -350,40 +350,40 @@ function step3() {
 function step4() {
   const pubKey = (window.myIdentity && myIdentity.publicKeyHex || '').slice(0, 20);
   return `
-    <h2 style="font-size:1.2rem;font-weight:800;color:#4ec87a;margin:0 0 .4rem">🚀 You're all set!</h2>
-    <p style="font-size:.83rem;line-height:1.6;color:#888;margin:0 0 1rem">
+    <h2 style="font-size:1.2rem;font-weight:800;color:var(--success);margin:0 0 .4rem">🚀 You're all set!</h2>
+    <p style="font-size:.83rem;line-height:1.6;color:var(--text-muted);margin:0 0 1rem">
       Your identity is live. Here's a quick reference you can always come back to.
     </p>
 
-    ${pubKey ? `<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:8px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.75rem;color:#555">
-      Your public ID: <code style="color:#888">${pubKey}…</code>
+    ${pubKey ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem 1rem;margin-bottom:1rem;font-size:.75rem;color:#555">
+      Your public ID: <code style="color:var(--text-muted)">${pubKey}…</code>
       <br><span style="font-size:.68rem;color:#3a3a3a">This is your address — share it freely. Your private key never leaves your device.</span>
     </div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem">
       <button onclick="openSeedPhraseModal()" id="ob-seed-btn"
-        style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.75rem;
-               color:#f0a500;font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
+        style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.75rem;
+               color:var(--accent);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         🌱 View Seed Phrase<br>
-        <span style="font-size:.7rem;color:#666;font-weight:400">24-word paper backup</span>
+        <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">24-word paper backup</span>
       </button>
       <button onclick="openEncryptedBackupModal()" id="ob-bkp-btn"
-        style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.75rem;
-               color:#e0e0e0;font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
+        style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.75rem;
+               color:var(--text);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         🔑 Encrypted Backup<br>
-        <span style="font-size:.7rem;color:#666;font-weight:400">Download a backup file</span>
+        <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">Download a backup file</span>
       </button>
       <button onclick="openEditProfileModal()" id="ob-prof-btn"
-        style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.75rem;
-               color:#e0e0e0;font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
+        style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.75rem;
+               color:var(--text);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         ✏️ Edit Profile<br>
-        <span style="font-size:.7rem;color:#666;font-weight:400">Name, bio, avatar…</span>
+        <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">Name, bio, avatar…</span>
       </button>
       <button onclick="openKeyProtectionModal()" id="ob-kp-btn"
-        style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:.75rem;
-               color:#e0e0e0;font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
+        style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:.75rem;
+               color:var(--text);font-size:.8rem;font-weight:600;cursor:pointer;text-align:left">
         🔒 Protect Your Key<br>
-        <span style="font-size:.7rem;color:#666;font-weight:400">Add a passphrase lock</span>
+        <span style="font-size:.7rem;color:var(--text-muted);font-weight:400">Add a passphrase lock</span>
       </button>
     </div>
 

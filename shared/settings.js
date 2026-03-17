@@ -192,7 +192,7 @@
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closePanel(); });
 
     const modal = document.createElement('div');
-    modal.style.cssText = 'background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;max-width:480px;width:90%;max-height:85vh;overflow-y:auto;padding:1.5rem;position:relative;';
+    modal.style.cssText = 'background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);max-width:480px;width:90%;max-height:85vh;overflow-y:auto;padding:1.5rem;position:relative;';
 
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
@@ -337,7 +337,7 @@
       // "Open sound picker" button — opens the chat's existing sound menu
       const soundPickerBtn = document.createElement('button');
       soundPickerBtn.textContent = '🎵 Choose notification sound…';
-      soundPickerBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.75rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-family:inherit;display:block;';
+      soundPickerBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.75rem;border-radius:var(--radius);font-size:0.78rem;cursor:pointer;font-family:inherit;display:block;';
       soundPickerBtn.onmouseenter = () => { soundPickerBtn.style.borderColor = 'var(--accent)'; };
       soundPickerBtn.onmouseleave = () => { soundPickerBtn.style.borderColor = 'var(--border)'; };
       soundPickerBtn.onclick = () => {
@@ -355,7 +355,7 @@
 
     const exportBtn = document.createElement('button');
     exportBtn.textContent = '📤 Export All Data';
-    exportBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:6px;font-size:0.8rem;cursor:pointer;width:100%;margin-bottom:0.4rem;font-family:inherit;';
+    exportBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;margin-bottom:0.4rem;font-family:inherit;';
     exportBtn.onmouseenter = () => { exportBtn.style.borderColor = 'var(--accent)'; };
     exportBtn.onmouseleave = () => { exportBtn.style.borderColor = 'var(--border)'; };
     exportBtn.onclick = () => {
@@ -386,7 +386,7 @@
 
     const importBtn = document.createElement('button');
     importBtn.textContent = '📥 Import Data';
-    importBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:6px;font-size:0.8rem;cursor:pointer;width:100%;font-family:inherit;';
+    importBtn.style.cssText = 'background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.45rem 1rem;border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;font-family:inherit;';
     importBtn.onmouseenter = () => { importBtn.style.borderColor = 'var(--accent)'; };
     importBtn.onmouseleave = () => { importBtn.style.borderColor = 'var(--border)'; };
     importBtn.onclick = () => {
@@ -432,7 +432,7 @@
     // ── Reset ──
     const resetBtn = document.createElement('button');
     resetBtn.textContent = '↺ Reset to Defaults';
-    resetBtn.style.cssText = 'margin-top:1rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.45rem 1rem;border-radius:6px;font-size:0.8rem;cursor:pointer;width:100%;';
+    resetBtn.style.cssText = 'margin-top:1rem;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.45rem 1rem;border-radius:var(--radius);font-size:0.8rem;cursor:pointer;width:100%;';
     resetBtn.onmouseenter = () => { resetBtn.style.borderColor = 'var(--danger, #c44)'; resetBtn.style.color = 'var(--danger, #c44)'; };
     resetBtn.onmouseleave = () => { resetBtn.style.borderColor = 'var(--border)'; resetBtn.style.color = 'var(--text-muted)'; };
     resetBtn.onclick = () => {
@@ -465,7 +465,7 @@
   function pill(text, active) {
     const btn = document.createElement('button');
     btn.textContent = text;
-    btn.style.cssText = `padding:0.3rem 0.75rem;border-radius:20px;font-size:0.78rem;cursor:pointer;border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};background:${active ? 'var(--accent-dim)' : 'var(--bg-input)'};color:${active ? 'var(--accent)' : 'var(--text-muted)'};font-family:inherit;`;
+    btn.style.cssText = `padding:0.3rem 0.75rem;border-radius:var(--radius-lg);font-size:0.78rem;cursor:pointer;border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};background:${active ? 'var(--accent-dim)' : 'var(--bg-input)'};color:${active ? 'var(--accent)' : 'var(--text-muted)'};font-family:inherit;`;
     return btn;
   }
 

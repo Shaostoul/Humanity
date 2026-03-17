@@ -309,7 +309,7 @@ async function handleVoiceRoomSignal(msg) {
 (function() {
   const style = document.createElement('style');
   style.textContent = `
-    .vr-btn { font-size:0.7rem; padding:0.15rem 0.4rem; cursor:pointer; border-radius:4px; border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); }
+    .vr-btn { font-size:0.7rem; padding:0.15rem 0.4rem; cursor:pointer; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); }
     .vr-btn:hover { background:var(--bg-hover); }
     .vr-join { color:var(--success); border-color:var(--success); }
     .vr-leave { color:#e74c3c; border-color:#e74c3c; }
@@ -2514,17 +2514,17 @@ _origHandleMessage4(msg);
       html += scenes.map((s, i) => `
         <div style="display:flex;align-items:center;gap:0.4rem;padding:0.3rem 0;border-bottom:1px solid var(--border);font-size:0.78rem;">
           <span style="flex:1;color:var(--text);">${s.name}</span>
-          <button onclick="loadScene(${i})" style="background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.72rem;">Load</button>
-          <button onclick="deleteScene(${i})" style="background:transparent;border:1px solid #e44;color:#e44;padding:0.15rem 0.35rem;border-radius:4px;cursor:pointer;font-size:0.72rem;">✕</button>
+          <button onclick="loadScene(${i})" style="background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">Load</button>
+          <button onclick="deleteScene(${i})" style="background:transparent;border:1px solid var(--danger);color:var(--danger);padding:0.15rem 0.35rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.72rem;">✕</button>
         </div>
       `).join('');
     } else {
-      html += '<p style="font-size:0.78rem;color:#666;">No saved scenes yet.</p>';
+      html += '<p style="font-size:0.78rem;color:var(--text-muted);">No saved scenes yet.</p>';
     }
 
     html += '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;">';
-    html += '<input type="text" id="scene-name-input" placeholder="Scene name" style="flex:1;padding:0.25rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:0.78rem;">';
-    html += '<button onclick="saveCurrentScene()" style="background:var(--accent);border:none;color:#fff;padding:0.25rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.78rem;">Save Current</button>';
+    html += '<input type="text" id="scene-name-input" placeholder="Scene name" style="flex:1;padding:0.25rem 0.5rem;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:0.78rem;">';
+    html += '<button onclick="saveCurrentScene()" style="background:var(--accent);border:none;color:#fff;padding:0.25rem 0.6rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.78rem;">Save Current</button>';
     html += '</div></div>';
 
     // Use a simple overlay

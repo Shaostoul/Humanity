@@ -133,7 +133,7 @@
       width: 30px;
       height: 28px;
       padding: 0;
-      color: #888;
+      color: var(--text-muted);
       cursor: pointer;
       border-radius: var(--radius);
       user-select: none;
@@ -174,7 +174,7 @@
     /* ── Hover: tooltip below, icon stays fully visible ── */
     .hub-nav .tab:not(.active):hover {
       box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
-      color: #e0e0e0;
+      color: var(--text);
     }
     .hub-nav .tab:not(.active):hover .tab-icon img,
     .hub-nav .tab:not(.active):hover .tab-icon svg { opacity: 1; }
@@ -186,8 +186,8 @@
       left: 50%;
       transform: translateX(-50%);
       background: rgba(8,8,10,0.97);
-      color: #ddd;
-      border: 1px solid #3a3a3a;
+      color: var(--text);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 0.22rem 0.55rem;
       font-size: 0.7rem;
@@ -222,7 +222,7 @@
     }
 
     [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
-    [data-theme="light"] .hub-nav .tab { color: #555; box-shadow: inset 0 0 0 1px #2a6; }
+    [data-theme="light"] .hub-nav .tab { color: var(--text-muted); box-shadow: inset 0 0 0 1px #2a6; }
     [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
     [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
 
@@ -244,7 +244,7 @@
       display: none;
       background: transparent;
       border: 1px solid #2a6;
-      color: #ddd;
+      color: var(--text);
       padding: 0.24rem 0.55rem;
       border-radius: var(--radius);
       cursor: pointer;
@@ -292,11 +292,11 @@
       right: 0;
       background: rgba(13, 13, 13, 0.95);
       backdrop-filter: blur(12px);
-      border-top: 1px solid #444;
+      border-top: 1px solid var(--border);
       z-index: 2100;
       text-align: center;
       font-size: 0.8rem;
-      color: #888;
+      color: var(--text-muted);
       transition: transform 0.3s ease;
     }
     /* Footer slides off-screen when collapsed instead of hiding content */
@@ -312,7 +312,7 @@
       flex-wrap: wrap;
       margin-top: 6px;
     }
-    .site-footer .footer-links a { color: #888; text-decoration: none; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
+    .site-footer .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 4px; }
     .site-footer .footer-links a:hover { color: #FF8811; }
     .site-footer .footer-links svg { width: 14px; height: 14px; fill: currentColor; vertical-align: middle; }
     /* Toggle is its own fixed element — always visible above all content */
@@ -336,7 +336,7 @@
       background: rgba(18, 18, 18, 0.97);
       border: 1px solid #f44; /* start of RGB cycle */
       border-bottom: none;
-      border-radius: var(--radius) 8px 0 0;
+      border-radius: var(--radius) var(--radius) 0 0;
       color: #FF8811;
       cursor: pointer;
       padding: 5px 28px;
@@ -380,9 +380,9 @@
     }
     #mobile-hub-drawer.open { transform: translateX(0); }
     #mobile-hub-backdrop.open { display: block; }
-    .mobile-hub-group { margin-bottom: 0.65rem; border:1px solid #2a2a2a; border-radius:8px; }
-    .mobile-hub-group h4 { margin:0; padding:0.45rem 0.55rem; font-size:0.72rem; color:#9aa; border-bottom:1px solid #2a2a2a; text-transform:uppercase; letter-spacing:.08em; }
-    .mobile-hub-group a { display:block; color:#ddd; text-decoration:none; padding:0.5rem 0.55rem; font-size:0.86rem; border-bottom:1px solid #1d1d1d; }
+    .mobile-hub-group { margin-bottom: 0.65rem; border:1px solid var(--border); border-radius:var(--radius); }
+    .mobile-hub-group h4 { margin:0; padding:0.45rem 0.55rem; font-size:0.72rem; color:var(--text-muted); border-bottom:1px solid var(--border); text-transform:uppercase; letter-spacing:.08em; }
+    .mobile-hub-group a { display:block; color:var(--text); text-decoration:none; padding:0.5rem 0.55rem; font-size:0.86rem; border-bottom:1px solid var(--bg-secondary); }
     .mobile-hub-group a:last-child { border-bottom:none; }
     .mobile-hub-group a:hover { background: rgba(255,255,255,0.05); }
     .mobile-hub-group a.active {
@@ -456,7 +456,7 @@
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
-    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid #333;align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
+    '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid var(--border);align-items:center;padding:0 0.5rem;gap:0.3rem;overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
   document.body.prepend(nav);
   // Spacer so fixed nav doesn't overlap page content
@@ -566,7 +566,7 @@
 
     var tip = document.createElement('div');
     tip.id = 'hos-rich-tooltip';
-    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:300px;background:rgba(8,8,10,0.97);border:1px solid rgba(130,130,140,0.35);border-radius:9px;padding:8px 11px;color:#ddd;font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,0.55);display:none;';
+    tip.style.cssText = 'position:fixed;z-index:9000;pointer-events:none;max-width:300px;background:rgba(8,8,10,0.97);border:1px solid rgba(130,130,140,0.35);border-radius:var(--radius);padding:8px 11px;color:var(--text);font-size:12px;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,0.55);display:none;';
     document.body.appendChild(tip);
 
     /** Strip native title to prevent browser double-tooltip. */
@@ -593,7 +593,7 @@
       var html = '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:' + (desc ? '4' : '0') + 'px;">' +
         '<span style="font-weight:600;color:#fff;font-size:12.5px;">' + esc(name) + '</span>';
       if (hotkey) {
-        html += '<kbd style="font-size:10px;background:#0e2010;border:1px solid #2a4a2a;border-radius:3px;padding:1px 6px;color:#5d5;white-space:nowrap;flex-shrink:0;">' + esc(hotkey) + '</kbd>';
+        html += '<kbd style="font-size:10px;background:#0e2010;border:1px solid #2a4a2a;border-radius:var(--radius-sm);padding:1px 6px;color:#5d5;white-space:nowrap;flex-shrink:0;">' + esc(hotkey) + '</kbd>';
       }
       html += '</div>';
       if (desc) {
@@ -742,12 +742,12 @@
     content.className = 'webview-tab-content';
     content.style.cssText = 'display:none;flex-direction:column;height:calc(100vh - 80px);position:fixed;top:0;left:0;right:0;bottom:0;z-index:150;background:var(--bg,#0a0a0a);';
     content.innerHTML =
-      '<div style="display:flex;gap:0.3rem;padding:0.3rem 0.5rem;border-bottom:1px solid #333;align-items:center;background:rgba(13,13,13,0.95);height:36px;flex-shrink:0;">' +
-        '<button onclick="webviewBack(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#888;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">←</button>' +
-        '<button onclick="webviewForward(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#888;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">→</button>' +
-        '<button onclick="webviewRefresh(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#888;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">↻</button>' +
-        '<input type="text" readonly value="' + url.replace(/"/g, '&quot;') + '" style="flex:1;background:#1a1a1a;border:1px solid #333;color:#aaa;padding:0.25rem 0.6rem;border-radius:4px;font-size:0.78rem;font-family:monospace;">' +
-        '<button onclick="closeWebviewTab(\'' + tabId + '\')" style="background:none;border:1px solid #333;color:#e55;padding:0.15rem 0.5rem;border-radius:4px;cursor:pointer;font-size:0.85rem;">✕</button>' +
+      '<div style="display:flex;gap:0.3rem;padding:0.3rem 0.5rem;border-bottom:1px solid var(--border);align-items:center;background:rgba(13,13,13,0.95);height:36px;flex-shrink:0;">' +
+        '<button onclick="webviewBack(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">←</button>' +
+        '<button onclick="webviewForward(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">→</button>' +
+        '<button onclick="webviewRefresh(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">↻</button>' +
+        '<input type="text" readonly value="' + url.replace(/"/g, '&quot;') + '" style="flex:1;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.6rem;border-radius:var(--radius-sm);font-size:0.78rem;font-family:monospace;">' +
+        '<button onclick="closeWebviewTab(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--danger,#e55);padding:0.15rem 0.5rem;border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">✕</button>' +
       '</div>' +
       '<iframe src="' + url.replace(/"/g, '&quot;') + '" style="flex:1;border:none;width:100%;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>';
     document.body.appendChild(content);
@@ -803,8 +803,8 @@
     keys.forEach(function(id) {
       var tab = webviewTabs[id];
       var btn = document.createElement('button');
-      btn.style.cssText = 'display:flex;align-items:center;gap:0.3rem;padding:0.15rem 0.6rem;border-radius:4px;border:1px solid ' + (id===activeWebviewTab?'#FF8811':'#333') + ';background:' + (id===activeWebviewTab?'rgba(255,136,17,0.15)':'transparent') + ';color:' + (id===activeWebviewTab?'#FF8811':'#888') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;';
-      btn.innerHTML = '<span onclick="switchWebviewTab(\'' + id + '\')">' + (tab.title||'Tab').substring(0,20) + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:0.3rem;color:#e55;font-weight:700;">✕</span>';
+      btn.style.cssText = 'display:flex;align-items:center;gap:0.3rem;padding:0.15rem 0.6rem;border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;';
+      btn.innerHTML = '<span onclick="switchWebviewTab(\'' + id + '\')">' + (tab.title||'Tab').substring(0,20) + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:0.3rem;color:var(--danger,#e55);font-weight:700;">✕</span>';
       btn.onclick = function() { switchWebviewTab(id); };
       bar.appendChild(btn);
     });
@@ -884,23 +884,23 @@
       ]],
     ];
 
-    var html = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;' +
-      'padding:1.5rem 2rem;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;color:#e0e0e0">' +
+    var html = '<div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);' +
+      'padding:1.5rem 2rem;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;color:var(--text)">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">' +
-      '<h2 style="font-size:1rem;font-weight:700;color:#f0a500">Keyboard Shortcuts</h2>' +
+      '<h2 style="font-size:1rem;font-weight:700;color:var(--accent)">Keyboard Shortcuts</h2>' +
       '<button onclick="document.getElementById(\'hos-shortcut-overlay\').style.display=\'none\'" ' +
-      'style="background:none;border:none;color:#666;font-size:1.1rem;cursor:pointer">✕</button>' +
+      'style="background:none;border:none;color:var(--text-muted);font-size:1.1rem;cursor:pointer">✕</button>' +
       '</div>';
 
     shortcuts.forEach(function (group) {
       html += '<div style="margin-bottom:1.25rem">';
-      html += '<div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;color:#555;' +
+      html += '<div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;color:var(--text-muted);' +
         'text-transform:uppercase;margin-bottom:.6rem">' + group[0] + '</div>';
       html += '<table style="width:100%;border-collapse:collapse">';
       group[1].forEach(function (row) {
-        html += '<tr style="border-bottom:1px solid #1e1e1e">' +
-          '<td style="padding:.3rem .5rem;font-family:monospace;font-size:.78rem;color:#f0a500;white-space:nowrap">' + row[0] + '</td>' +
-          '<td style="padding:.3rem .5rem;font-size:.78rem;color:#aaa">' + row[1] + '</td></tr>';
+        html += '<tr style="border-bottom:1px solid var(--bg-input)">' +
+          '<td style="padding:.3rem .5rem;font-family:monospace;font-size:.78rem;color:var(--accent);white-space:nowrap">' + row[0] + '</td>' +
+          '<td style="padding:.3rem .5rem;font-size:.78rem;color:var(--text-muted)">' + row[1] + '</td></tr>';
       });
       html += '</table></div>';
     });
@@ -934,7 +934,7 @@
 
     var dbg = document.createElement('div');
     dbg.id = 'hos-debug-overlay';
-    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:7px;padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;';
+    dbg.style.cssText = 'position:fixed;bottom:48px;right:10px;z-index:8800;background:rgba(0,4,0,0.93);border:1px solid #1a4a1a;border-radius:var(--radius);padding:6px 10px;font-size:11px;font-family:monospace;color:#3d3;line-height:1.6;pointer-events:none;width:210px;box-shadow:0 4px 14px rgba(0,0,0,0.5);white-space:nowrap;overflow:hidden;';
     document.body.appendChild(dbg);
 
     var WS_LABELS = ['CONNECTING','OPEN','CLOSING','CLOSED'];
@@ -950,10 +950,10 @@
       var state = ws ? ws.readyState : null;
       dbg.innerHTML =
         '<b style="color:#6f6">🐛 Debug</b><br>' +
-        '<span style="color:#888">Page: </span>' + location.pathname + '<br>' +
-        '<span style="color:#888">WS: </span><span style="color:' + (state !== null ? wsColor(state) : '#888') + '">' + (state !== null ? wsLabel(state) : '—') + '</span><br>' +
-        '<span style="color:#888">Key: </span>' + keyPrefix() + '<br>' +
-        '<span style="color:#888">SW: </span>humanity-v9';
+        '<span style="color:var(--text-muted)">Page: </span>' + location.pathname + '<br>' +
+        '<span style="color:var(--text-muted)">WS: </span><span style="color:' + (state !== null ? wsColor(state) : 'var(--text-muted)') + '">' + (state !== null ? wsLabel(state) : '—') + '</span><br>' +
+        '<span style="color:var(--text-muted)">Key: </span>' + keyPrefix() + '<br>' +
+        '<span style="color:var(--text-muted)">SW: </span>humanity-v9';
     }
     update();
     setInterval(update, 2000);
