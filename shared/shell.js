@@ -14,6 +14,13 @@
   if (window.__HOS_SHELL_INIT__) return;
   window.__HOS_SHELL_INIT__ = true;
 
+  // ── Load shared icon system ──
+  if (!window.hosIcon) {
+    var iconsScript = document.createElement('script');
+    iconsScript.src = '/shared/icons.js';
+    document.head.appendChild(iconsScript);
+  }
+
   // If prior shell artifacts somehow exist, remove them before injecting once.
   // Also remove the old standalone #footer-toggle that existed before the toggle
   // was moved inside .site-footer.

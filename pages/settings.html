@@ -530,6 +530,7 @@
   </style>
 </head>
 <body>
+<script src="/shared/icons.js"></script>
 <script src="/shared/shell.js" data-active="settings"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
@@ -542,23 +543,29 @@
   <!-- Sidebar nav -->
   <nav id="settings-sidebar">
     <h2>Settings</h2>
-    <div class="s-nav active" data-sec="appearance" onclick="showSection('appearance')">🎨 Appearance</div>
-    <div class="s-nav" data-sec="notifications" onclick="showSection('notifications')">🔔 Notifications</div>
-    <div class="s-nav" data-sec="privacy" onclick="showSection('privacy')">🔒 Privacy</div>
-    <div class="s-nav" data-sec="chat" onclick="showSection('chat')">💬 Chat</div>
-    <div class="s-nav" data-sec="app" onclick="showSection('app')">⚙️ App</div>
-    <div class="s-nav" data-sec="account" onclick="showSection('account')">👤 Account</div>
-    <div class="s-nav" data-sec="advanced" onclick="showSection('advanced')">🛠 Advanced</div>
+    <div class="s-nav active" data-sec="appearance" onclick="showSection('appearance')"><span class="s-ico" data-icon="eye"></span> Appearance</div>
+    <div class="s-nav" data-sec="notifications" onclick="showSection('notifications')"><span class="s-ico" data-icon="bell"></span> Notifications</div>
+    <div class="s-nav" data-sec="privacy" onclick="showSection('privacy')"><span class="s-ico" data-icon="lock"></span> Privacy</div>
+    <div class="s-nav" data-sec="chat" onclick="showSection('chat')"><span class="s-ico" data-icon="chat"></span> Chat</div>
+    <div class="s-nav" data-sec="app" onclick="showSection('app')"><span class="s-ico" data-icon="settings"></span> App</div>
+    <div class="s-nav" data-sec="account" onclick="showSection('account')"><span class="s-ico" data-icon="user"></span> Account</div>
+    <div class="s-nav" data-sec="advanced" onclick="showSection('advanced')"><span class="s-ico" data-icon="ops"></span> Advanced</div>
     <h2 style="margin-top:0.5rem">More</h2>
-    <div class="s-nav" data-sec="keybinds" onclick="showSection('keybinds')">⌨️ Shortcuts</div>
-    <div class="s-nav" data-sec="accessibility" onclick="showSection('accessibility')">♿ Accessibility</div>
-    <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')">🎤 Audio &amp; Video</div>
-    <div class="s-nav" data-sec="security" onclick="showSection('security')">🔐 Security</div>
-    <div class="s-nav" data-sec="dnd" onclick="showSection('dnd')">🌙 Do Not Disturb</div>
-    <div class="s-nav" data-sec="storage" onclick="showSection('storage')">💾 Storage</div>
-    <div class="s-nav" data-sec="vault" onclick="showSection('vault')">🔐 Vault</div>
-    <div class="s-nav" data-sec="server-info" onclick="showSection('server-info')">🖥️ Server Info</div>
+    <div class="s-nav" data-sec="keybinds" onclick="showSection('keybinds')"><span class="s-ico" data-icon="grid"></span> Shortcuts</div>
+    <div class="s-nav" data-sec="accessibility" onclick="showSection('accessibility')"><span class="s-ico" data-icon="eye"></span> Accessibility</div>
+    <div class="s-nav" data-sec="audiovideo" onclick="showSection('audiovideo')"><span class="s-ico" data-icon="mic"></span> Audio &amp; Video</div>
+    <div class="s-nav" data-sec="security" onclick="showSection('security')"><span class="s-ico" data-icon="shield"></span> Security</div>
+    <div class="s-nav" data-sec="dnd" onclick="showSection('dnd')"><span class="s-ico" data-icon="minus"></span> Do Not Disturb</div>
+    <div class="s-nav" data-sec="storage" onclick="showSection('storage')"><span class="s-ico" data-icon="save"></span> Storage</div>
+    <div class="s-nav" data-sec="vault" onclick="showSection('vault')"><span class="s-ico" data-icon="key"></span> Vault</div>
+    <div class="s-nav" data-sec="server-info" onclick="showSection('server-info')"><span class="s-ico" data-icon="monitor"></span> Server Info</div>
   </nav>
+  <script>
+    // Populate sidebar icons from icons.js
+    document.querySelectorAll('.s-ico[data-icon]').forEach(function(el) {
+      if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, 16);
+    });
+  </script>
 
   <!-- Settings panels -->
   <div id="settings-main">
@@ -1086,6 +1093,29 @@
             <span>Use a font with more distinct letter shapes</span>
           </div>
           <label class="toggle"><input type="checkbox" id="pref-dyslexia-font" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Graphics</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Icon Line Weight</strong>
+            <span>Adjust the thickness of all SVG icons. Thicker lines are easier to see.</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <input type="range" id="pref-icon-weight" min="1" max="6" step="0.5" value="3"
+              style="width:140px;accent-color:var(--accent)"
+              oninput="updateIconWeight(this.value)">
+            <span id="icon-weight-val" style="font-weight:700;min-width:24px;color:var(--accent)">3</span>
+          </div>
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Preview</strong>
+            <span>How icons look at the current weight</span>
+          </div>
+          <div id="icon-weight-preview" style="display:flex;gap:8px;align-items:center"></div>
         </div>
       </div>
 
@@ -1939,6 +1969,14 @@ function applyPrefs() {
   var ee = document.getElementById('pref-show-expert');
   if (es) es.checked = localStorage.getItem('hos_show_simple') !== '0';
   if (ee) ee.checked = localStorage.getItem('hos_show_expert') !== '0';
+  // Load icon weight
+  var iwSlider = document.getElementById('pref-icon-weight');
+  if (iwSlider && window.hosGetIconWeight) {
+    var iw = hosGetIconWeight();
+    iwSlider.value = iw;
+    document.getElementById('icon-weight-val').textContent = iw;
+  }
+  renderIconPreview();
 }
 
 function showSection(id) {
@@ -1946,6 +1984,20 @@ function showSection(id) {
   document.querySelectorAll('.s-nav').forEach(el => el.classList.toggle('active', el.dataset.sec === id));
   const sec = document.getElementById('sec-' + id);
   if (sec) sec.classList.add('active');
+}
+
+function updateIconWeight(val) {
+  val = parseFloat(val);
+  document.getElementById('icon-weight-val').textContent = val;
+  if (window.hosSetIconWeight) window.hosSetIconWeight(val);
+  renderIconPreview();
+}
+
+function renderIconPreview() {
+  var el = document.getElementById('icon-weight-preview');
+  if (!el || !window.hosIcon) return;
+  var names = ['home', 'chat', 'settings', 'lock', 'bell', 'search', 'star', 'user'];
+  el.innerHTML = names.map(function(n) { return hosIcon(n, 24); }).join('');
 }
 
 function showSaved() {
