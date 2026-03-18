@@ -1651,3 +1651,108 @@ pub async fn push_unsubscribe(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?;
     Ok(Json(serde_json::json!({ "status": "unsubscribed" })))
 }
+
+// ── Asset Manifest API ───────────────────────────────────────────────────────
+// Scans the static file directories and returns every asset on disk so the
+// dev page (and future game loader) can discover files dynamically instead of
+// maintaining a hardcoded list.
+
+/// Directory spec: (relative path from web root, category name, allowed extensions).
+const ASSET_DIRS: &[(&str, &str, &[&str])] = &[
+    ("assets/ui/icons",          "icons",     &["png", "svg"]),
+    ("assets/concepts",          "concepts",  &["png", "jpg", "jpeg", "webp"]),
+    ("shared/icons",             "app-icons", &["png", "svg", "ico"]),
+    ("desktop/src-tauri/icons",  "desktop-icons", &["png", "ico", "icns", "svg"]),
+    ("assets/textures",          "textures",  &["ktx2", "png", "jpg", "jpeg", "webp"]),
+    ("assets/models",            "models",    &["glb", "gltf"]),
+    ("assets/audio",             "audio",     &["ogg", "flac", "mp3", "wav"]),
+    ("assets/shaders",           "shaders",   &["wgsl", "glsl", "frag", "vert"]),
+    ("assets/fonts",             "fonts",     &["ttf", "woff2", "woff", "otf"]),
+];
+
+#[derive(Serialize)]
+struct AssetEntry {
+    path: String,
+    filename: String,
+    extension: String,
+    category: String,
+    size_bytes: u64,
+    modified: u64,
+}
+
+/// GET /api/asset-manifest — Scan static directories and return every asset on disk.
+pub async fn get_asset_manifest() -> Json<serde_json::Value> {
+    let web_root = std::env::var("WEB_ROOT").unwrap_or_else(|_| ".".to_string());
+    let base = std::path::Path::new(&web_root);
+
+    let mut assets: Vec<AssetEntry> = Vec::new();
+    let mut categories: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+
+    for &(dir_rel, category, extensions) in ASSET_DIRS {
+        let dir_path = base.join(dir_rel);
+        let entries = match std::fs::read_dir(&dir_path) {
+            Ok(e) => e,
+            Err(_) => continue, // directory may not exist yet
+        };
+
+        for entry in entries.flatten() {
+            let file_path = entry.path();
+            if !file_path.is_file() {
+                continue;
+            }
+
+            let file_name = match file_path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+
+            let ext = file_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            // Skip files whose extension is not in the allow-list for this dir.
+            if !extensions.iter().any(|&allowed| allowed == ext) {
+                continue;
+            }
+
+            let meta = match std::fs::metadata(&file_path) {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+
+            let size_bytes = meta.len();
+            let modified = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+
+            // Build URL path with forward slashes regardless of OS.
+            let url_path = format!("/{}", dir_rel.replace('\\', "/")) + "/" + &file_name;
+
+            assets.push(AssetEntry {
+                path: url_path,
+                filename: file_name,
+                extension: ext,
+                category: category.to_string(),
+                size_bytes,
+                modified,
+            });
+
+            *categories.entry(category.to_string()).or_insert(0) += 1;
+        }
+    }
+
+    // Sort by category then filename for deterministic output.
+    assets.sort_by(|a, b| a.category.cmp(&b.category).then(a.filename.cmp(&b.filename)));
+
+    let total = assets.len();
+    Json(serde_json::json!({
+        "assets": assets,
+        "categories": categories,
+        "total": total,
+    }))
+}

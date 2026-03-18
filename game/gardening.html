@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garden — HumanityOS</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+    }
+    #game-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #0a0a0a;
+    }
+    #game-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+
+    /* ── HUD: Top bar ── */
+    #hud-top {
+      position: absolute;
+      top: 8px; left: 8px; right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #hud-top > * { pointer-events: auto; }
+    .hud-pill {
+      background: rgba(13,13,13,0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.78rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .hud-pill .label { color: var(--text-muted); }
+    .hud-pill .value { color: var(--accent); font-weight: 600; }
+    #hud-spacer { flex: 1; }
+
+    /* ── Minimap ── */
+    #minimap-wrap {
+      position: absolute;
+      top: 8px; left: 8px;
+      z-index: 10;
+    }
+    #minimap {
+      width: 120px;
+      height: 120px;
+      background: rgba(13,13,13,0.85);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      image-rendering: pixelated;
+    }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      position: absolute;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 4px;
+      background: rgba(13,13,13,0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 6px 10px;
+      z-index: 10;
+    }
+    .tool-btn {
+      width: 48px;
+      height: 48px;
+      border: 2px solid transparent;
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+      position: relative;
+    }
+    .tool-btn:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .tool-btn.active { border-color: var(--accent); background: rgba(255,136,17,0.15); box-shadow: 0 0 12px rgba(255,136,17,0.2); }
+    .tool-btn .tool-key {
+      position: absolute;
+      top: 2px; right: 4px;
+      font-size: 9px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .tool-btn .tool-label {
+      font-size: 8px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* ── Seed selector ── */
+    #seed-popup {
+      display: none;
+      position: absolute;
+      bottom: 76px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(13,13,13,0.95);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 10px;
+      z-index: 15;
+      min-width: 200px;
+    }
+    #seed-popup.show { display: flex; flex-wrap: wrap; gap: 6px; }
+    .seed-opt {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text);
+      transition: all 0.12s;
+    }
+    .seed-opt:hover { border-color: var(--accent); }
+    .seed-opt.active { border-color: var(--accent); background: rgba(255,136,17,0.12); }
+    .seed-opt .seed-icon { font-size: 16px; }
+    .seed-opt .seed-count { color: var(--text-muted); font-size: 0.7rem; }
+
+    /* ── Inventory panel ── */
+    #inventory-panel {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(13,13,13,0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      z-index: 20;
+      min-width: 300px;
+      max-width: 420px;
+    }
+    #inventory-panel.show { display: block; }
+    #inventory-panel h3 {
+      font-size: 1rem;
+      color: var(--accent);
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .inv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 8px;
+    }
+    .inv-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px;
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--text);
+    }
+    .inv-item .inv-icon { font-size: 24px; margin-bottom: 4px; }
+    .inv-item .inv-count { color: var(--accent); font-weight: 600; }
+
+    /* ── Tile info tooltip ── */
+    #tile-info {
+      display: none;
+      position: absolute;
+      background: rgba(13,13,13,0.92);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      font-size: 0.78rem;
+      color: var(--text);
+      z-index: 12;
+      pointer-events: none;
+      max-width: 200px;
+    }
+    #tile-info .ti-title { color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+    #tile-info .ti-row { display: flex; justify-content: space-between; gap: 12px; }
+    #tile-info .ti-label { color: var(--text-muted); }
+
+    /* ── Notifications ── */
+    #notif-area {
+      position: absolute;
+      top: 50px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+    .notif {
+      background: rgba(13,13,13,0.9);
+      border: 1px solid var(--accent);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 0.82rem;
+      color: var(--accent);
+      animation: notif-fade 2s ease-out forwards;
+    }
+    @keyframes notif-fade {
+      0% { opacity: 0; transform: translateY(10px); }
+      15% { opacity: 1; transform: translateY(0); }
+      70% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-10px); }
+    }
+
+    /* ── Help overlay ── */
+    #help-overlay {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(13,13,13,0.95);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      z-index: 30;
+      min-width: 320px;
+      max-width: 500px;
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+    #help-overlay.show { display: block; }
+    #help-overlay h3 { color: var(--accent); margin-bottom: 12px; }
+    #help-overlay table { width: 100%; border-collapse: collapse; }
+    #help-overlay td { padding: 3px 8px; }
+    #help-overlay td:first-child { color: var(--accent); font-weight: 600; white-space: nowrap; }
+    #help-overlay .close-help {
+      position: absolute; top: 8px; right: 12px;
+      background: none; border: none; color: var(--text-muted);
+      font-size: 18px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/shell.js" data-active="garden"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div id="game-wrap">
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Minimap -->
+  <div id="minimap-wrap">
+    <canvas id="minimap" width="120" height="120"></canvas>
+  </div>
+
+  <!-- HUD top-right -->
+  <div id="hud-top">
+    <div style="flex:1"></div>
+    <div class="hud-pill" id="hud-day"><span class="label">Day</span><span class="value" id="day-val">1</span></div>
+    <div class="hud-pill" id="hud-time"><span class="label" id="time-icon">&#9728;</span><span class="value" id="time-val">Morning</span></div>
+    <div class="hud-pill" id="hud-coins"><span class="label">Coins</span><span class="value" id="coins-val">50</span></div>
+    <div class="hud-pill" style="cursor:pointer" onclick="toggleHelp()" title="Help (H)"><span class="value">?</span></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <button class="tool-btn active" data-tool="hoe" onclick="selectTool('hoe')"><span class="tool-key">1</span>&#9935;<span class="tool-label">Hoe</span></button>
+    <button class="tool-btn" data-tool="water" onclick="selectTool('water')"><span class="tool-key">2</span>&#128167;<span class="tool-label">Water</span></button>
+    <button class="tool-btn" data-tool="seeds" onclick="selectTool('seeds')"><span class="tool-key">3</span>&#127793;<span class="tool-label">Seeds</span></button>
+    <button class="tool-btn" data-tool="scythe" onclick="selectTool('scythe')"><span class="tool-key">4</span>&#127807;<span class="tool-label">Harvest</span></button>
+    <button class="tool-btn" data-tool="hand" onclick="selectTool('hand')"><span class="tool-key">5</span>&#9995;<span class="tool-label">Hand</span></button>
+  </div>
+
+  <!-- Seed popup -->
+  <div id="seed-popup"></div>
+
+  <!-- Inventory panel -->
+  <div id="inventory-panel">
+    <h3>Inventory</h3>
+    <div class="inv-grid" id="inv-grid"></div>
+  </div>
+
+  <!-- Tile info -->
+  <div id="tile-info"></div>
+
+  <!-- Notifications -->
+  <div id="notif-area"></div>
+
+  <!-- Help -->
+  <div id="help-overlay">
+    <button class="close-help" onclick="toggleHelp()">&times;</button>
+    <h3>Garden Controls</h3>
+    <table>
+      <tr><td>WASD / Arrows</td><td>Move player</td></tr>
+      <tr><td>1-5 / Q/E</td><td>Select tool</td></tr>
+      <tr><td>Click tile</td><td>Use tool</td></tr>
+      <tr><td>Right-click</td><td>Inspect tile</td></tr>
+      <tr><td>I</td><td>Inventory</td></tr>
+      <tr><td>C</td><td>Center camera on player</td></tr>
+      <tr><td>Space</td><td>Sleep (next day)</td></tr>
+      <tr><td>Mouse wheel</td><td>Zoom in/out</td></tr>
+      <tr><td>Middle-drag</td><td>Pan camera</td></tr>
+      <tr><td>H</td><td>Toggle this help</td></tr>
+      <tr><td>Esc</td><td>Close panels</td></tr>
+    </table>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// HumanityOS Garden — Isometric 2D Farming Game
+// ═══════════════════════════════════════════════════════════════════
+(function() {
+'use strict';
+
+// ── Constants ──
+const TILE_W = 64;
+const TILE_H = 32;
+const MAP_SIZE = 16;
+const DAY_LENGTH = 120; // seconds per in-game day
+const SAVE_KEY = 'hos_garden_save';
+
+// ── Crop definitions ──
+const CROPS = {
+  tomato:    { name: 'Tomato',    icon: '\uD83C\uDF45', stages: 4, days: 3, color: '#e53935', seedColor: '#66bb6a', price: 15, seedCost: 5 },
+  carrot:    { name: 'Carrot',    icon: '\uD83E\uDD55', stages: 3, days: 2, color: '#ff9800', seedColor: '#a5d6a7', price: 10, seedCost: 3 },
+  wheat:     { name: 'Wheat',     icon: '\uD83C\uDF3E', stages: 4, days: 4, color: '#fdd835', seedColor: '#c8e6c9', price: 8,  seedCost: 2 },
+  potato:    { name: 'Potato',    icon: '\uD83E\uDD54', stages: 3, days: 3, color: '#8d6e63', seedColor: '#a1887f', price: 12, seedCost: 4 },
+  lettuce:   { name: 'Lettuce',   icon: '\uD83E\uDD6C', stages: 2, days: 1, color: '#81c784', seedColor: '#c8e6c9', price: 6,  seedCost: 2 },
+  sunflower: { name: 'Sunflower', icon: '\uD83C\uDF3B', stages: 5, days: 5, color: '#ffeb3b', seedColor: '#fff9c4', price: 25, seedCost: 8 }
+};
+
+// ── Canvas setup ──
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const mmCanvas = document.getElementById('minimap');
+const mmCtx = mmCanvas.getContext('2d');
+
+// ── Game state ──
+let state = null;
+let camera = { x: 0, y: 0, zoom: 1.5 };
+let activeTool = 'hoe';
+let selectedSeed = 'tomato';
+let hoveredTile = null;
+let particles = [];
+let notifications = [];
+let lastTime = 0;
+let dayTimer = DAY_LENGTH * 0.35; // start at mid-morning
+let timeOfDay = 0.35;
+let animFrame = 0;
+
+// Keys currently held
+const keys = {};
+
+// Drag state
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+let camDragStart = { x: 0, y: 0 };
+
+// Player animation
+let playerAnimTimer = 0;
+let playerDir = 2; // 0=N,1=E,2=S,3=W
+let playerMoving = false;
+let toolSwingTimer = 0;
+
+// ── Map generation ──
+function createDefaultMap() {
+  const tiles = [];
+  for (let y = 0; y < MAP_SIZE; y++) {
+    tiles[y] = [];
+    for (let x = 0; x < MAP_SIZE; x++) {
+      let type = 'grass';
+      // Pond in corner
+      const dx = x - 12, dy = y - 12;
+      if (dx*dx + dy*dy < 5) type = 'water';
+      // A few trees
+      if ((x === 2 && y === 1) || (x === 14 && y === 3) || (x === 1 && y === 13) ||
+          (x === 3 && y === 3) || (x === 13 && y === 1) || (x === 0 && y === 6)) {
+        type = 'tree';
+      }
+      // Starter tilled area
+      if (x >= 5 && x <= 9 && y >= 5 && y <= 9 && type === 'grass') {
+        type = 'tilled';
+      }
+      // Path from player start to tilled area
+      if (y === 7 && x >= 2 && x <= 4) type = 'path';
+      if (x === 7 && y >= 10 && y <= 12) type = 'path';
+
+      tiles[y][x] = { type, crop: null };
+    }
+  }
+  return tiles;
+}
+
+function createDefaultState() {
+  return {
+    tiles: createDefaultMap(),
+    player: { x: 3, y: 7 },
+    inventory: {
+      seeds: { tomato: 10, carrot: 8, wheat: 6, potato: 5, lettuce: 12, sunflower: 3 },
+      crops: {},
+      coins: 50
+    },
+    day: 1,
+    totalHarvests: 0
+  };
+}
+
+// ── Save / Load ──
+function saveGame() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  } catch(e) { /* quota exceeded — ignore */ }
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Validate
+      if (parsed && parsed.tiles && parsed.player && parsed.inventory) {
+        state = parsed;
+        // Ensure all seed types exist
+        for (const k of Object.keys(CROPS)) {
+          if (state.inventory.seeds[k] === undefined) state.inventory.seeds[k] = 0;
+          if (state.inventory.crops[k] === undefined) state.inventory.crops[k] = 0;
+        }
+        return true;
+      }
+    }
+  } catch(e) { /* corrupt save — ignore */ }
+  return false;
+}
+
+// ── Coordinate conversion ──
+function tileToScreen(tx, ty) {
+  const sx = (tx - ty) * (TILE_W / 2);
+  const sy = (tx + ty) * (TILE_H / 2);
+  return { x: sx, y: sy };
+}
+
+function screenToTile(sx, sy) {
+  // Reverse the iso projection
+  const tx = (sx / (TILE_W / 2) + sy / (TILE_H / 2)) / 2;
+  const ty = (sy / (TILE_H / 2) - sx / (TILE_W / 2)) / 2;
+  return { x: Math.floor(tx), y: Math.floor(ty) };
+}
+
+function worldToCanvas(wx, wy) {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  return {
+    x: (wx - camera.x) * camera.zoom + cx,
+    y: (wy - camera.y) * camera.zoom + cy
+  };
+}
+
+function canvasToWorld(cx, cy) {
+  const hw = canvas.width / 2;
+  const hh = canvas.height / 2;
+  return {
+    x: (cx - hw) / camera.zoom + camera.x,
+    y: (cy - hh) / camera.zoom + camera.y
+  };
+}
+
+// ── Drawing helpers ──
+function drawDiamond(x, y, w, h, fill, stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - h/2);
+  ctx.lineTo(x + w/2, y);
+  ctx.lineTo(x, y + h/2);
+  ctx.lineTo(x - w/2, y);
+  ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+}
+
+function drawDiamondSides(x, y, w, h, topFill, leftFill, rightFill) {
+  // Top face
+  ctx.beginPath();
+  ctx.moveTo(x, y - h/2);
+  ctx.lineTo(x + w/2, y);
+  ctx.lineTo(x, y + h/2);
+  ctx.lineTo(x - w/2, y);
+  ctx.closePath();
+  ctx.fillStyle = topFill;
+  ctx.fill();
+
+  // Left face
+  const depth = h * 0.3;
+  ctx.beginPath();
+  ctx.moveTo(x - w/2, y);
+  ctx.lineTo(x, y + h/2);
+  ctx.lineTo(x, y + h/2 + depth);
+  ctx.lineTo(x - w/2, y + depth);
+  ctx.closePath();
+  ctx.fillStyle = leftFill;
+  ctx.fill();
+
+  // Right face
+  ctx.beginPath();
+  ctx.moveTo(x + w/2, y);
+  ctx.lineTo(x, y + h/2);
+  ctx.lineTo(x, y + h/2 + depth);
+  ctx.lineTo(x + w/2, y + depth);
+  ctx.closePath();
+  ctx.fillStyle = rightFill;
+  ctx.fill();
+}
+
+// ── Tile rendering ──
+function drawTile(tx, ty, tile) {
+  const spos = tileToScreen(tx, ty);
+  const cpos = worldToCanvas(spos.x, spos.y);
+  const w = TILE_W * camera.zoom;
+  const h = TILE_H * camera.zoom;
+
+  // Culling
+  if (cpos.x + w < 0 || cpos.x - w > canvas.width ||
+      cpos.y + h*2 < 0 || cpos.y - h*2 > canvas.height) return;
+
+  const cx = cpos.x;
+  const cy = cpos.y;
+
+  ctx.save();
+
+  switch (tile.type) {
+    case 'grass':
+      drawDiamondSides(cx, cy, w, h, '#3a7d44', '#2d6335', '#347a3e');
+      // Small grass tufts
+      if ((tx + ty) % 3 === 0) {
+        ctx.strokeStyle = '#4a9d54';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - w*0.1, cy);
+        ctx.lineTo(cx - w*0.08, cy - h*0.2);
+        ctx.moveTo(cx + w*0.05, cy + h*0.1);
+        ctx.lineTo(cx + w*0.08, cy - h*0.1);
+        ctx.stroke();
+      }
+      break;
+
+    case 'tilled':
+      drawDiamondSides(cx, cy, w, h, '#5d4037', '#4e342e', '#6d4c41');
+      // Furrow lines
+      ctx.strokeStyle = '#4e342e';
+      ctx.lineWidth = 1;
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx - w*0.3 + i * w*0.12, cy + i * h*0.08);
+        ctx.lineTo(cx + w*0.3 + i * w*0.12, cy + i * h*0.08);
+        ctx.stroke();
+      }
+      break;
+
+    case 'watered':
+      drawDiamondSides(cx, cy, w, h, '#3e2723', '#33211c', '#4a2f27');
+      // Wet sheen
+      ctx.fillStyle = 'rgba(100,180,255,0.12)';
+      drawDiamond(cx, cy, w*0.9, h*0.9, 'rgba(100,180,255,0.12)');
+      break;
+
+    case 'water': {
+      const waveOff = Math.sin(animFrame * 0.03 + tx * 2 + ty) * h * 0.03;
+      drawDiamondSides(cx, cy + waveOff, w, h, '#1565c0', '#0d47a1', '#1976d2');
+      // Ripple highlights
+      ctx.fillStyle = 'rgba(144,202,249,0.3)';
+      const rx = cx + Math.sin(animFrame * 0.02 + tx) * w * 0.15;
+      const ry = cy + Math.cos(animFrame * 0.025 + ty) * h * 0.15 + waveOff;
+      ctx.beginPath();
+      ctx.ellipse(rx, ry, w*0.08, h*0.04, 0, 0, Math.PI*2);
+      ctx.fill();
+      break;
+    }
+
+    case 'tree':
+      drawDiamondSides(cx, cy, w, h, '#3a7d44', '#2d6335', '#347a3e');
+      // Trunk
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(cx - w*0.04, cy - h*1.2, w*0.08, h*0.9);
+      // Canopy (layered triangles)
+      const treeY = cy - h * 1.2;
+      for (let layer = 0; layer < 3; layer++) {
+        const ly = treeY - layer * h * 0.35;
+        const lw = w * (0.5 - layer * 0.08);
+        const lh = h * 0.8;
+        ctx.fillStyle = layer === 0 ? '#2e7d32' : layer === 1 ? '#388e3c' : '#43a047';
+        ctx.beginPath();
+        ctx.moveTo(cx, ly - lh * 0.5);
+        ctx.lineTo(cx + lw * 0.5, ly + lh * 0.2);
+        ctx.lineTo(cx - lw * 0.5, ly + lh * 0.2);
+        ctx.closePath();
+        ctx.fill();
+      }
+      break;
+
+    case 'path':
+      drawDiamondSides(cx, cy, w, h, '#9e9e9e', '#757575', '#bdbdbd');
+      // Stone texture dots
+      ctx.fillStyle = '#757575';
+      ctx.beginPath();
+      ctx.arc(cx - w*0.1, cy - h*0.05, w*0.03, 0, Math.PI*2);
+      ctx.arc(cx + w*0.12, cy + h*0.08, w*0.025, 0, Math.PI*2);
+      ctx.fill();
+      break;
+  }
+
+  // ── Crop rendering ──
+  if (tile.crop) {
+    drawCrop(cx, cy, w, h, tile.crop);
+  }
+
+  // ── Hover highlight ──
+  if (hoveredTile && hoveredTile.x === tx && hoveredTile.y === ty) {
+    drawDiamond(cx, cy, w*0.95, h*0.95, 'rgba(255,136,17,0.15)', 'rgba(255,136,17,0.5)');
+  }
+
+  ctx.restore();
+}
+
+function drawCrop(cx, cy, w, h, crop) {
+  const def = CROPS[crop.type];
+  if (!def) return;
+  const progress = crop.stage / def.stages;
+
+  if (crop.stage === 0) {
+    // Seed - small dot
+    ctx.fillStyle = def.seedColor;
+    ctx.beginPath();
+    ctx.arc(cx, cy - h*0.15, w*0.04, 0, Math.PI*2);
+    ctx.fill();
+  } else if (crop.stage < def.stages) {
+    // Growing stages
+    const stemH = h * (0.3 + progress * 0.8);
+    const leafW = w * (0.05 + progress * 0.12);
+
+    // Stem
+    ctx.strokeStyle = '#4caf50';
+    ctx.lineWidth = Math.max(1, w * 0.02);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy - stemH);
+    ctx.stroke();
+
+    // Leaves
+    const numLeaves = Math.ceil(crop.stage * 1.5);
+    for (let i = 0; i < numLeaves; i++) {
+      const ly = cy - stemH * (0.3 + i * 0.25);
+      const side = i % 2 === 0 ? 1 : -1;
+      ctx.fillStyle = i % 2 === 0 ? '#66bb6a' : '#4caf50';
+      ctx.beginPath();
+      ctx.ellipse(cx + side * leafW * 1.5, ly, leafW, leafW * 0.5, side * 0.3, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Bud if near mature
+    if (crop.stage >= def.stages - 1) {
+      ctx.fillStyle = def.color;
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.arc(cx, cy - stemH - w*0.04, w*0.06, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  } else {
+    // Mature - full fruit/flower visible with gentle bounce
+    const bounce = Math.sin(animFrame * 0.04 + cx) * h * 0.02;
+    const stemH = h * 1.1;
+
+    // Stem
+    ctx.strokeStyle = '#388e3c';
+    ctx.lineWidth = Math.max(1.5, w * 0.025);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.quadraticCurveTo(cx + w*0.05, cy - stemH*0.5, cx, cy - stemH + bounce);
+    ctx.stroke();
+
+    // Leaves
+    for (let i = 0; i < 3; i++) {
+      const ly = cy - stemH * (0.25 + i * 0.22);
+      const side = i % 2 === 0 ? 1 : -1;
+      ctx.fillStyle = '#4caf50';
+      ctx.beginPath();
+      ctx.ellipse(cx + side * w * 0.12, ly, w * 0.1, w * 0.05, side * 0.4, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Fruit/Flower
+    const fy = cy - stemH + bounce;
+    ctx.fillStyle = def.color;
+    ctx.shadowColor = def.color;
+    ctx.shadowBlur = w * 0.1;
+
+    if (crop.type === 'sunflower') {
+      // Petals
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        ctx.fillStyle = '#ffeb3b';
+        ctx.beginPath();
+        ctx.ellipse(
+          cx + Math.cos(angle) * w * 0.1,
+          fy + Math.sin(angle) * w * 0.06,
+          w * 0.06, w * 0.025,
+          angle, 0, Math.PI*2
+        );
+        ctx.fill();
+      }
+      ctx.fillStyle = '#5d4037';
+      ctx.beginPath();
+      ctx.arc(cx, fy, w * 0.06, 0, Math.PI*2);
+      ctx.fill();
+    } else if (crop.type === 'wheat') {
+      // Wheat head
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = '#fdd835';
+        ctx.beginPath();
+        ctx.ellipse(cx, fy - i * w * 0.04, w * 0.04, w * 0.02, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+    } else {
+      // Round fruit
+      ctx.beginPath();
+      ctx.arc(cx, fy, w * 0.08, 0, Math.PI*2);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.beginPath();
+      ctx.arc(cx - w*0.02, fy - w*0.03, w*0.03, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ── Player rendering ──
+function drawPlayer() {
+  const spos = tileToScreen(state.player.x, state.player.y);
+  const cpos = worldToCanvas(spos.x, spos.y);
+  const w = TILE_W * camera.zoom;
+  const h = TILE_H * camera.zoom;
+  const cx = cpos.x;
+  const cy = cpos.y;
+
+  const bobble = playerMoving ? Math.sin(animFrame * 0.15) * h * 0.06 : 0;
+  const bodyH = h * 1.0;
+  const bodyW = w * 0.18;
+
+  ctx.save();
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + h*0.1, w*0.15, h*0.12, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#42a5f5';
+  const bx = cx - bodyW/2;
+  const by = cy - bodyH + bobble;
+  ctx.beginPath();
+  ctx.roundRect(bx, by + bodyH * 0.35, bodyW, bodyH * 0.55, w*0.03);
+  ctx.fill();
+
+  // Arms
+  const swingAngle = toolSwingTimer > 0 ? Math.sin(toolSwingTimer * 8) * 0.5 : 0;
+  ctx.save();
+  ctx.translate(cx, by + bodyH * 0.5);
+  ctx.rotate(swingAngle);
+  ctx.fillStyle = '#ffcc80';
+  ctx.fillRect(-bodyW*0.6, -bodyW*0.15, bodyW*0.3, bodyW*0.3);
+  ctx.fillRect(bodyW*0.3, -bodyW*0.15, bodyW*0.3, bodyW*0.3);
+  ctx.restore();
+
+  // Head
+  ctx.fillStyle = '#ffcc80';
+  ctx.beginPath();
+  ctx.arc(cx, by + bodyH * 0.22, bodyW * 0.55, 0, Math.PI*2);
+  ctx.fill();
+
+  // Hair
+  ctx.fillStyle = '#5d4037';
+  ctx.beginPath();
+  ctx.arc(cx, by + bodyH * 0.15, bodyW * 0.58, Math.PI, Math.PI*2);
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#333';
+  const eyeOff = playerDir === 3 ? -bodyW*0.15 : playerDir === 1 ? bodyW*0.15 : 0;
+  ctx.beginPath();
+  ctx.arc(cx - bodyW*0.15 + eyeOff, by + bodyH*0.22, bodyW*0.07, 0, Math.PI*2);
+  ctx.arc(cx + bodyW*0.15 + eyeOff, by + bodyH*0.22, bodyW*0.07, 0, Math.PI*2);
+  ctx.fill();
+
+  // Tool in hand
+  if (toolSwingTimer > 0) {
+    drawToolSwing(cx, by + bodyH*0.5, w, swingAngle);
+  }
+
+  ctx.restore();
+}
+
+function drawToolSwing(x, y, w, angle) {
+  ctx.save();
+  ctx.translate(x + w*0.15, y);
+  ctx.rotate(angle - 0.3);
+
+  switch (activeTool) {
+    case 'hoe':
+      ctx.strokeStyle = '#8d6e63';
+      ctx.lineWidth = w*0.02;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(w*0.2, -w*0.3);
+      ctx.stroke();
+      ctx.fillStyle = '#757575';
+      ctx.fillRect(w*0.15, -w*0.35, w*0.1, w*0.08);
+      break;
+    case 'water':
+      ctx.fillStyle = '#42a5f5';
+      ctx.beginPath();
+      ctx.arc(w*0.1, -w*0.1, w*0.06, 0, Math.PI*2);
+      ctx.fill();
+      break;
+    case 'scythe':
+      ctx.strokeStyle = '#8d6e63';
+      ctx.lineWidth = w*0.02;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(w*0.22, -w*0.25);
+      ctx.stroke();
+      ctx.strokeStyle = '#bdbdbd';
+      ctx.lineWidth = w*0.015;
+      ctx.beginPath();
+      ctx.arc(w*0.22, -w*0.25, w*0.08, -Math.PI*0.3, Math.PI*0.5);
+      ctx.stroke();
+      break;
+  }
+
+  ctx.restore();
+}
+
+// ── Particles ──
+function spawnParticles(x, y, count, color, type) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 3,
+      vy: -Math.random() * 4 - 1,
+      life: 1,
+      decay: 0.01 + Math.random() * 0.02,
+      color,
+      size: 2 + Math.random() * 3,
+      type: type || 'dot'
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1; // gravity
+    p.life -= p.decay;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const cpos = worldToCanvas(p.x, p.y);
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    if (p.type === 'drop') {
+      ctx.beginPath();
+      ctx.ellipse(cpos.x, cpos.y, p.size * camera.zoom * 0.4, p.size * camera.zoom, 0, 0, Math.PI*2);
+      ctx.fill();
+    } else if (p.type === 'star') {
+      const s = p.size * camera.zoom;
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 - Math.PI/2;
+        const r = i % 2 === 0 ? s : s * 0.4;
+        ctx.lineTo(cpos.x + Math.cos(a) * r, cpos.y + Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cpos.x, cpos.y, p.size * camera.zoom, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Day/Night cycle ──
+function getDayPhase() {
+  if (timeOfDay < 0.2) return 'night';
+  if (timeOfDay < 0.3) return 'dawn';
+  if (timeOfDay < 0.7) return 'day';
+  if (timeOfDay < 0.8) return 'dusk';
+  return 'night';
+}
+
+function drawDayNight() {
+  const phase = getDayPhase();
+  let alpha = 0;
+  let tint = '10, 10, 40';
+
+  if (phase === 'night') {
+    alpha = 0.55;
+  } else if (phase === 'dawn') {
+    const t = (timeOfDay - 0.2) / 0.1;
+    alpha = 0.55 * (1 - t);
+    tint = `${10 + 20*t}, ${10 + 10*t}, ${40 - 20*t}`;
+  } else if (phase === 'day') {
+    alpha = 0;
+  } else if (phase === 'dusk') {
+    const t = (timeOfDay - 0.7) / 0.1;
+    alpha = 0.55 * t;
+    tint = `${30 - 20*t}, ${20 - 10*t}, ${20 + 20*t}`;
+  }
+
+  if (alpha > 0.01) {
+    ctx.fillStyle = `rgba(${tint}, ${alpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Stars at night
+  if (phase === 'night' || phase === 'dawn' || phase === 'dusk') {
+    const starAlpha = phase === 'night' ? 0.7 : 0.2;
+    ctx.fillStyle = `rgba(255,255,255,${starAlpha})`;
+    // Deterministic star positions based on canvas size
+    const seed = 42;
+    for (let i = 0; i < 30; i++) {
+      const sx = ((seed * (i+1) * 7919) % canvas.width);
+      const sy = ((seed * (i+1) * 6271) % (canvas.height * 0.6));
+      const ss = ((i * 3) % 3) + 1;
+      const twinkle = Math.sin(animFrame * 0.02 + i) * 0.3 + 0.7;
+      ctx.globalAlpha = starAlpha * twinkle;
+      ctx.beginPath();
+      ctx.arc(sx, sy, ss, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Minimap ──
+function drawMinimap() {
+  const mw = mmCanvas.width;
+  const mh = mmCanvas.height;
+  mmCtx.clearRect(0, 0, mw, mh);
+  mmCtx.fillStyle = '#111';
+  mmCtx.fillRect(0, 0, mw, mh);
+
+  const tileSize = Math.min(mw, mh) / MAP_SIZE * 0.8;
+  const offX = (mw - MAP_SIZE * tileSize) / 2;
+  const offY = (mh - MAP_SIZE * tileSize) / 2;
+
+  for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < MAP_SIZE; x++) {
+      const tile = state.tiles[y][x];
+      let color = '#3a7d44';
+      switch (tile.type) {
+        case 'tilled': color = tile.crop ? '#8bc34a' : '#5d4037'; break;
+        case 'watered': color = tile.crop ? '#66bb6a' : '#3e2723'; break;
+        case 'water': color = '#1565c0'; break;
+        case 'tree': color = '#1b5e20'; break;
+        case 'path': color = '#9e9e9e'; break;
+      }
+      if (tile.crop && tile.crop.stage >= CROPS[tile.crop.type].stages) {
+        color = CROPS[tile.crop.type].color;
+      }
+      mmCtx.fillStyle = color;
+      mmCtx.fillRect(offX + x * tileSize, offY + y * tileSize, tileSize - 0.5, tileSize - 0.5);
+    }
+  }
+
+  // Player dot
+  mmCtx.fillStyle = '#ff8811';
+  mmCtx.beginPath();
+  mmCtx.arc(offX + state.player.x * tileSize + tileSize/2, offY + state.player.y * tileSize + tileSize/2, tileSize * 0.8, 0, Math.PI*2);
+  mmCtx.fill();
+
+  // Border
+  mmCtx.strokeStyle = 'rgba(255,136,17,0.3)';
+  mmCtx.lineWidth = 1;
+  mmCtx.strokeRect(0, 0, mw, mh);
+}
+
+// ── Notifications ──
+function notify(text) {
+  const el = document.createElement('div');
+  el.className = 'notif';
+  el.textContent = text;
+  document.getElementById('notif-area').appendChild(el);
+  setTimeout(() => el.remove(), 2100);
+}
+
+// ── Tool actions ──
+function useTool(tx, ty) {
+  if (tx < 0 || tx >= MAP_SIZE || ty < 0 || ty >= MAP_SIZE) return;
+  const tile = state.tiles[ty][tx];
+  toolSwingTimer = 0.5;
+
+  switch (activeTool) {
+    case 'hoe':
+      if (tile.type === 'grass') {
+        tile.type = 'tilled';
+        const spos = tileToScreen(tx, ty);
+        spawnParticles(spos.x, spos.y, 6, '#8d6e63', 'dot');
+        notify('Tilled soil!');
+      }
+      break;
+
+    case 'water':
+      if (tile.type === 'tilled' || tile.type === 'watered' || (tile.type === 'tilled' && tile.crop)) {
+        tile.type = 'watered';
+        if (tile.crop) tile.crop.watered = true;
+        const spos = tileToScreen(tx, ty);
+        spawnParticles(spos.x, spos.y - 10, 8, '#64b5f6', 'drop');
+        notify('Watered!');
+      }
+      break;
+
+    case 'seeds':
+      if ((tile.type === 'tilled' || tile.type === 'watered') && !tile.crop) {
+        if (state.inventory.seeds[selectedSeed] > 0) {
+          tile.crop = { type: selectedSeed, stage: 0, watered: tile.type === 'watered', dayPlanted: state.day };
+          state.inventory.seeds[selectedSeed]--;
+          const spos = tileToScreen(tx, ty);
+          spawnParticles(spos.x, spos.y, 4, CROPS[selectedSeed].seedColor, 'dot');
+          notify(`Planted ${CROPS[selectedSeed].name}!`);
+          updateSeedPopup();
+        } else {
+          notify('No seeds left!');
+        }
+      }
+      break;
+
+    case 'scythe':
+      if (tile.crop && tile.crop.stage >= CROPS[tile.crop.type].stages) {
+        const cropDef = CROPS[tile.crop.type];
+        state.inventory.crops[tile.crop.type] = (state.inventory.crops[tile.crop.type] || 0) + 1;
+        state.totalHarvests++;
+        // Bonus coins for harvesting
+        state.inventory.coins += cropDef.price;
+        const spos = tileToScreen(tx, ty);
+        spawnParticles(spos.x, spos.y - 15, 12, cropDef.color, 'star');
+        spawnParticles(spos.x, spos.y - 20, 5, '#ffd700', 'star');
+        notify(`Harvested ${cropDef.name}! +${cropDef.price} coins`);
+        tile.crop = null;
+        tile.type = 'tilled';
+      }
+      break;
+
+    case 'hand':
+      // Show tile info
+      showTileInfo(tx, ty);
+      break;
+  }
+}
+
+// ── Tile info tooltip ──
+function showTileInfo(tx, ty) {
+  const tile = state.tiles[ty][tx];
+  const infoEl = document.getElementById('tile-info');
+  let html = `<div class="ti-title">${tile.type.charAt(0).toUpperCase() + tile.type.slice(1)} (${tx}, ${ty})</div>`;
+
+  if (tile.crop) {
+    const def = CROPS[tile.crop.type];
+    const stageNames = ['Seed', 'Sprout', 'Growing', 'Budding', 'Mature', 'Blooming'];
+    const stageName = tile.crop.stage >= def.stages ? 'Harvestable!' : stageNames[Math.min(tile.crop.stage, stageNames.length-1)];
+    html += `<div class="ti-row"><span class="ti-label">Crop:</span><span>${def.icon} ${def.name}</span></div>`;
+    html += `<div class="ti-row"><span class="ti-label">Stage:</span><span>${stageName} (${tile.crop.stage}/${def.stages})</span></div>`;
+    html += `<div class="ti-row"><span class="ti-label">Watered:</span><span>${tile.crop.watered ? 'Yes' : 'No'}</span></div>`;
+    html += `<div class="ti-row"><span class="ti-label">Value:</span><span>${def.price} coins</span></div>`;
+  }
+
+  infoEl.innerHTML = html;
+  infoEl.style.display = 'block';
+
+  // Position near tile
+  const spos = tileToScreen(tx, ty);
+  const cpos = worldToCanvas(spos.x, spos.y);
+  infoEl.style.left = Math.min(cpos.x + 20, canvas.width - 220) + 'px';
+  infoEl.style.top = Math.max(cpos.y - 60, 10) + 'px';
+
+  clearTimeout(infoEl._hideTimer);
+  infoEl._hideTimer = setTimeout(() => { infoEl.style.display = 'none'; }, 3000);
+}
+
+// ── Day advancement ──
+function advanceDay() {
+  state.day++;
+  dayTimer = 0;
+  timeOfDay = 0.25; // dawn
+
+  // Grow crops
+  for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < MAP_SIZE; x++) {
+      const tile = state.tiles[y][x];
+      if (tile.crop) {
+        const def = CROPS[tile.crop.type];
+        if (tile.crop.watered && tile.crop.stage < def.stages) {
+          // Each day that was watered, advance growth
+          const daysNeeded = def.days;
+          const stagePerDay = def.stages / daysNeeded;
+          tile.crop.stage = Math.min(def.stages, tile.crop.stage + Math.max(1, Math.floor(stagePerDay)));
+        }
+        // Reset watered status
+        tile.crop.watered = false;
+      }
+      // Watered soil dries out
+      if (tile.type === 'watered') {
+        tile.type = 'tilled';
+      }
+    }
+  }
+
+  notify(`Day ${state.day} begins!`);
+  saveGame();
+  updateHUD();
+}
+
+// ── Player movement ──
+function movePlayer(dx, dy) {
+  const nx = state.player.x + dx;
+  const ny = state.player.y + dy;
+  if (nx < 0 || nx >= MAP_SIZE || ny < 0 || ny >= MAP_SIZE) return;
+  const tile = state.tiles[ny][nx];
+  if (tile.type === 'water' || tile.type === 'tree') return;
+
+  state.player.x = nx;
+  state.player.y = ny;
+  playerMoving = true;
+
+  // Direction
+  if (dx > 0 && dy > 0) playerDir = 2;
+  else if (dx < 0 && dy < 0) playerDir = 0;
+  else if (dx > 0 && dy < 0) playerDir = 1;
+  else if (dx < 0 && dy > 0) playerDir = 3;
+  else if (dy > 0) playerDir = 2;
+  else if (dy < 0) playerDir = 0;
+  else if (dx > 0) playerDir = 1;
+  else playerDir = 3;
+}
+
+// ── Camera ──
+function centerCameraOnPlayer() {
+  const spos = tileToScreen(state.player.x, state.player.y);
+  camera.x = spos.x;
+  camera.y = spos.y;
+}
+
+// ── UI updates ──
+function updateHUD() {
+  document.getElementById('day-val').textContent = state.day;
+  document.getElementById('coins-val').textContent = state.inventory.coins;
+
+  const phase = getDayPhase();
+  const phaseNames = { night: 'Night', dawn: 'Dawn', day: 'Day', dusk: 'Dusk' };
+  const phaseIcons = { night: '\u263D', dawn: '\u2600', day: '\u2600', dusk: '\u263D' };
+  document.getElementById('time-val').textContent = phaseNames[phase];
+  document.getElementById('time-icon').textContent = phaseIcons[phase];
+}
+
+function selectTool(tool) {
+  activeTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+
+  const popup = document.getElementById('seed-popup');
+  if (tool === 'seeds') {
+    popup.classList.add('show');
+    updateSeedPopup();
+  } else {
+    popup.classList.remove('show');
+  }
+}
+window.selectTool = selectTool;
+
+function updateSeedPopup() {
+  const popup = document.getElementById('seed-popup');
+  popup.innerHTML = '';
+  for (const [id, def] of Object.entries(CROPS)) {
+    const count = state.inventory.seeds[id] || 0;
+    const opt = document.createElement('div');
+    opt.className = 'seed-opt' + (selectedSeed === id ? ' active' : '');
+    opt.innerHTML = `<span class="seed-icon">${def.icon}</span>${def.name}<span class="seed-count">x${count}</span>`;
+    opt.onclick = () => {
+      selectedSeed = id;
+      updateSeedPopup();
+    };
+    popup.appendChild(opt);
+  }
+}
+
+function toggleInventory() {
+  const panel = document.getElementById('inventory-panel');
+  panel.classList.toggle('show');
+  if (panel.classList.contains('show')) {
+    const grid = document.getElementById('inv-grid');
+    grid.innerHTML = '';
+
+    // Seeds
+    for (const [id, def] of Object.entries(CROPS)) {
+      const count = state.inventory.seeds[id] || 0;
+      if (count > 0) {
+        grid.innerHTML += `<div class="inv-item"><span class="inv-icon">${def.icon}</span><span>${def.name} Seed</span><span class="inv-count">x${count}</span></div>`;
+      }
+    }
+    // Harvested crops
+    for (const [id, def] of Object.entries(CROPS)) {
+      const count = state.inventory.crops[id] || 0;
+      if (count > 0) {
+        grid.innerHTML += `<div class="inv-item"><span class="inv-icon">${def.icon}</span><span>${def.name}</span><span class="inv-count">x${count}</span></div>`;
+      }
+    }
+    if (!grid.innerHTML) {
+      grid.innerHTML = '<div style="color:var(--text-muted);grid-column:1/-1;text-align:center;padding:20px">Empty! Plant and harvest some crops.</div>';
+    }
+  }
+}
+
+function toggleHelp() {
+  document.getElementById('help-overlay').classList.toggle('show');
+}
+window.toggleHelp = toggleHelp;
+
+// ── Input handling ──
+let moveRepeatTimer = 0;
+const MOVE_REPEAT_DELAY = 0.15;
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  keys[e.key.toLowerCase()] = true;
+
+  switch (e.key.toLowerCase()) {
+    case '1': selectTool('hoe'); break;
+    case '2': selectTool('water'); break;
+    case '3': selectTool('seeds'); break;
+    case '4': selectTool('scythe'); break;
+    case '5': selectTool('hand'); break;
+    case 'q': cycleTool(-1); break;
+    case 'e': cycleTool(1); break;
+    case 'i': toggleInventory(); break;
+    case 'c': centerCameraOnPlayer(); break;
+    case 'h': toggleHelp(); break;
+    case ' ':
+      e.preventDefault();
+      advanceDay();
+      break;
+    case 'escape':
+      document.getElementById('inventory-panel').classList.remove('show');
+      document.getElementById('help-overlay').classList.remove('show');
+      document.getElementById('seed-popup').classList.remove('show');
+      document.getElementById('tile-info').style.display = 'none';
+      break;
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  keys[e.key.toLowerCase()] = false;
+  playerMoving = false;
+});
+
+function cycleTool(dir) {
+  const tools = ['hoe', 'water', 'seeds', 'scythe', 'hand'];
+  let idx = tools.indexOf(activeTool) + dir;
+  if (idx < 0) idx = tools.length - 1;
+  if (idx >= tools.length) idx = 0;
+  selectTool(tools[idx]);
+}
+
+// Canvas input
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    // Middle click or shift+click to pan
+    isDragging = true;
+    dragStart = { x: e.clientX, y: e.clientY };
+    camDragStart = { x: camera.x, y: camera.y };
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
+  if (e.button === 0) {
+    const rect = canvas.getBoundingClientRect();
+    const world = canvasToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const tile = screenToTile(world.x, world.y);
+    useTool(tile.x, tile.y);
+  }
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const world = canvasToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const tile = screenToTile(world.x, world.y);
+  if (tile.x >= 0 && tile.x < MAP_SIZE && tile.y >= 0 && tile.y < MAP_SIZE) {
+    showTileInfo(tile.x, tile.y);
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (isDragging) {
+    const dx = (e.clientX - dragStart.x) / camera.zoom;
+    const dy = (e.clientY - dragStart.y) / camera.zoom;
+    camera.x = camDragStart.x - dx;
+    camera.y = camDragStart.y - dy;
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const world = canvasToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const tile = screenToTile(world.x, world.y);
+  if (tile.x >= 0 && tile.x < MAP_SIZE && tile.y >= 0 && tile.y < MAP_SIZE) {
+    hoveredTile = tile;
+  } else {
+    hoveredTile = null;
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  isDragging = false;
+  canvas.style.cursor = 'crosshair';
+});
+
+canvas.addEventListener('mouseleave', () => {
+  isDragging = false;
+  hoveredTile = null;
+  canvas.style.cursor = 'crosshair';
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const zoomSpeed = 0.1;
+  if (e.deltaY < 0) {
+    camera.zoom = Math.min(3, camera.zoom + zoomSpeed);
+  } else {
+    camera.zoom = Math.max(0.5, camera.zoom - zoomSpeed);
+  }
+}, { passive: false });
+
+// Touch support
+let touchStartDist = 0;
+let touchStartZoom = 1;
+canvas.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    touchStartDist = Math.sqrt(dx*dx + dy*dy);
+    touchStartZoom = camera.zoom;
+  } else if (e.touches.length === 1) {
+    isDragging = true;
+    dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    camDragStart = { x: camera.x, y: camera.y };
+  }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    camera.zoom = Math.max(0.5, Math.min(3, touchStartZoom * (dist / touchStartDist)));
+  } else if (e.touches.length === 1 && isDragging) {
+    const dx = (e.touches[0].clientX - dragStart.x) / camera.zoom;
+    const dy = (e.touches[0].clientY - dragStart.y) / camera.zoom;
+    camera.x = camDragStart.x - dx;
+    camera.y = camDragStart.y - dy;
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  if (e.touches.length === 0) {
+    if (!isDragging || (Math.abs(camera.x - camDragStart.x) < 5 && Math.abs(camera.y - camDragStart.y) < 5)) {
+      // Tap - use tool
+      const touch = e.changedTouches[0];
+      const rect = canvas.getBoundingClientRect();
+      const world = canvasToWorld(touch.clientX - rect.left, touch.clientY - rect.top);
+      const tile = screenToTile(world.x, world.y);
+      useTool(tile.x, tile.y);
+    }
+    isDragging = false;
+  }
+});
+
+// ── Resize ──
+function resize() {
+  const wrap = document.getElementById('game-wrap');
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+}
+window.addEventListener('resize', resize);
+
+// ── Main loop ──
+function update(dt) {
+  // Time of day
+  dayTimer += dt;
+  timeOfDay = (dayTimer / DAY_LENGTH) % 1;
+
+  // Player movement with key repeat
+  moveRepeatTimer -= dt;
+  if (moveRepeatTimer <= 0) {
+    let dx = 0, dy = 0;
+    if (keys['w'] || keys['arrowup']) dy = -1;
+    if (keys['s'] || keys['arrowdown']) dy = 1;
+    if (keys['a'] || keys['arrowleft']) dx = -1;
+    if (keys['d'] || keys['arrowright']) dx = 1;
+    if (dx || dy) {
+      movePlayer(dx, dy);
+      moveRepeatTimer = MOVE_REPEAT_DELAY;
+    }
+  }
+
+  // Tool swing decay
+  if (toolSwingTimer > 0) toolSwingTimer = Math.max(0, toolSwingTimer - dt);
+
+  // Smooth camera follow player
+  const target = tileToScreen(state.player.x, state.player.y);
+  camera.x += (target.x - camera.x) * 0.08;
+  camera.y += (target.y - camera.y) * 0.08;
+
+  updateParticles(dt);
+  updateHUD();
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Render tiles back-to-front (iso sort)
+  for (let y = 0; y < MAP_SIZE; y++) {
+    for (let x = 0; x < MAP_SIZE; x++) {
+      drawTile(x, y, state.tiles[y][x]);
+      // Draw player at correct depth
+      if (x === state.player.x && y === state.player.y) {
+        drawPlayer();
+      }
+    }
+  }
+
+  drawParticles();
+  drawDayNight();
+  drawMinimap();
+}
+
+function loop(timestamp) {
+  const dt = Math.min(0.1, (timestamp - lastTime) / 1000);
+  lastTime = timestamp;
+  animFrame++;
+
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ── Init ──
+function init() {
+  if (!loadGame()) {
+    state = createDefaultState();
+  }
+
+  resize();
+  centerCameraOnPlayer();
+  updateSeedPopup();
+  updateHUD();
+
+  // Auto-save on unload
+  window.addEventListener('beforeunload', saveGame);
+
+  // Start loop
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
+
+  notify('Welcome to the Garden! Press H for help.');
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>

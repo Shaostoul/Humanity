@@ -37,6 +37,7 @@ Static HTML served by nginx from /var/www/humanity/
 | `crates/humanity-relay/client/app.js` | Core chat logic (~1700 LOC) |
 | `crates/humanity-relay/client/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
 | `crates/humanity-relay/client/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
+| `shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) — loaded before shell.js on every page |
 | `shared/shell.js` | Nav injection IIFE — loaded first on every page |
 | `shared/settings.js` | Settings panel + gear button (don't call injectGearButton on pages with shell.js) |
 | `desktop/src-tauri/src/main.rs` | Tauri wrapper — loads united-humanity.us |
@@ -48,7 +49,7 @@ Static HTML served by nginx from /var/www/humanity/
 
 ## Script load order (chat)
 
-`crypto.js` → `app.js` → `chat-messages.js` → `chat-dms.js` → `chat-social.js` →
+`crypto.js` → `events.js` → `app.js` → `chat-messages.js` → `chat-dms.js` → `chat-social.js` →
 `chat-ui.js` → `chat-voice.js` → `chat-profile.js` → `qrcode.js` → `chat-p2p.js`
 
 ## All REST routes

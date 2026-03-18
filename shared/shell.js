@@ -5,7 +5,7 @@
  * If omitted, active tab is auto-detected from the current URL.
  *
  * Valid active keys: landing, chat, dashboard, profile, home, gear,
- *   tasks, calendar, notes, home, map, market, web, roadmap, ops, download, dev, settings
+ *   tasks, calendar, notes, home, map, market, web, roadmap, ops, download, dev, settings, garden
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="gear"></script>
@@ -60,6 +60,7 @@
     else if (p.startsWith('/download'))  active = 'download';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
+    else if (p.startsWith('/game/gardening')) active = 'garden';
     else active = '';
   }
 
@@ -429,6 +430,7 @@
       /* Core */
       navTab('/chat',      'network',   'Network',   'chat') +
       navTab('/dashboard', 'games',     'Games',     'dashboard') +
+      navTab('/game/gardening', 'seed',  'Garden',    'garden') +
       '<div class="nav-divider"></div>' +
 
       /* Private — personal pages */
@@ -481,6 +483,7 @@
     '<div class="mobile-hub-group"><h4>Core</h4>' +
       mobileLink('/chat',      'Network') +
       mobileLink('/dashboard', 'Games') +
+      mobileLink('/game/gardening', 'Garden') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Private</h4>' +
       mobileLink('/profile',   'Profile') +
@@ -550,6 +553,7 @@
     if (l.includes('help')) return 'Shows guidance, docs, and available actions.';
     if (l.includes('network')) return 'Chat, voice, and collaboration hub.';
     if (l.includes('games')) return 'Play minigames and launch other games.';
+    if (l.includes('garden')) return 'Tend your garden — plant, water, and harvest crops.';
     if (l.includes('profile')) return 'Your identity, skills, and social links.';
     if (l.includes('gear')) return 'Your inventory and equipment loadouts.';
     if (l.includes('tasks')) return 'Kanban board, quests, and project planning.';

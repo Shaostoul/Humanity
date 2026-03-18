@@ -4,6 +4,12 @@ Comprehensive navigation hub for all Humanity documentation.
 
 ---
 
+## Project History
+
+- [history.md](history.md) -- Project timeline: from Project Universe (2019) to HumanityOS (2026)
+
+---
+
 ## Getting Started (numbered guides)
 
 - [00-START-HERE](00-START-HERE.md) -- First-day orientation: what the project is and how it works
@@ -74,7 +80,8 @@ Authoritative technical law -- foundational constraints that all systems must ob
 High-level design documents for major subsystems.
 
 - [audio-engine.md](design/audio-engine.md) -- Audio engine design
-- [game-engine.md](design/game-engine.md) -- Game engine design
+- [educational-gameplay.md](design/educational-gameplay.md) -- Educational game design philosophy
+- [game-engine.md](design/game-engine.md) -- Game engine design (includes procedural asset philosophy)
 - [gardening-game.md](design/gardening-game.md) -- Gardening game design
 - [graphics-pipeline.md](design/graphics-pipeline.md) -- Graphics pipeline design
 - [maps-multi-scale.md](design/maps-multi-scale.md) -- Multi-scale map system

@@ -245,6 +245,59 @@ These risks are significantly lower than Bevy's risks (API churn, renderer lock-
 
 ---
 
+## Procedural-First Asset Philosophy
+
+The engine prioritizes procedural generation over pre-baked assets to minimize install size and maximize scalability.
+
+### Materials and textures
+
+- **Procedurally generated via WGSL shaders.** Base materials (metal, wood, stone, soil, fabric, etc.) are created at runtime using noise functions (Perlin, Simplex, Worley, FBM) combined with PBR parameters (albedo, roughness, metallic, normal, AO).
+- **Tiny install footprint.** No large DDS/KTX2 texture packs are needed for base materials. A few kilobytes of shader code replaces hundreds of megabytes of pre-baked textures.
+- **Hand-painted assets only where procedural falls short.** UI art, concept art, photographs, and specific artistic elements that require a human touch are stored as traditional image files. Everything else is generated.
+
+### Audio
+
+| Format | Use case | Notes |
+|--------|----------|-------|
+| **OGG Vorbis** | SFX, dialog | Lossy, small files, good quality for short clips |
+| **OGG / FLAC** | Music, ambient | OGG for streaming, FLAC for lossless archival |
+| **WAV** | Development only | Never shipped in release builds — converted to OGG before packaging |
+
+### Models
+
+- **GLB (binary glTF)** is the standard model format. Single-file, includes mesh, materials, animations, and metadata.
+- glTF JSON (`.gltf` + separate `.bin`) is acceptable during development but should be packed to GLB for shipping.
+
+### Scalable quality tiers
+
+The procedural approach naturally supports hardware scaling:
+
+| Tier | Target hardware | Adjustments |
+|------|----------------|-------------|
+| **High** | Modern GPU (RTX 3060+) | Full PBR, raytraced reflections/AO/GI, high-res procedural textures (2048+), full particle budget |
+| **Medium** | Mid-range GPU (GTX 1060 / RX 580) | PBR without raytracing, screen-space reflections, medium-res procedural textures (1024), reduced particles |
+| **Low** | Integrated / older GPU | Simplified shaders, low-res procedural textures (512), minimal particles, baked lighting fallbacks |
+
+- **Older hardware skips raytracing** and uses simpler shader variants with fewer noise octaves and lower-resolution outputs.
+- **Procedural texture resolution scales** with a single quality parameter — the same shader produces 512x512 on low-end and 2048x2048 on high-end hardware.
+
+### Asset categories for selective install
+
+Asset categories can be toggled or excluded entirely to reduce install size on storage-constrained or older hardware:
+
+| Category | Contents | Excludable? |
+|----------|----------|-------------|
+| **Core** | Engine shaders, base procedural materials, essential UI | No — required |
+| **Audio SFX** | Sound effects, UI sounds | Partial — can use reduced set |
+| **Music** | Soundtrack, ambient tracks | Yes — gameplay unaffected |
+| **Voice** | Dialog, narration | Yes — subtitles as fallback |
+| **High-res models** | Detailed GLB models for close-up viewing | Yes — use LOD0 only |
+| **Cinematic assets** | Intro sequences, cutscene-specific assets | Yes — skip or use lower quality |
+
+This modular approach means the base install can be kept small (sub-100 MB for core + procedural shaders), with optional packs downloaded as needed.
+
+---
+
 ## Appendix: Crate versions (as of 2026-03-17)
 
 | Crate | Version | Purpose |
