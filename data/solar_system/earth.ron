@@ -1,0 +1,69 @@
+// HumanityOS Celestial Body: Earth
+// Real planetary data from NASA/ESA/USGS sources.
+
+Planet(
+    name: "Earth",
+
+    physical: (
+        mass_kg: 5.972e24,
+        density_kg_m3: 5514.0,
+        surface_gravity_m_s2: 9.81,
+        escape_velocity_km_s: 11.19,
+        age_billion_years: 4.543,
+        magnetic_field_tesla: 0.000025,
+    ),
+
+    core: (
+        inner: "solid_iron_nickel",
+        outer: "liquid_iron_nickel",
+        mantle: "silicates",
+        crust: "continental_oceanic",
+    ),
+
+    atmosphere: (
+        surface_pressure_pa: 101325.0,
+        scale_height_km: 8.5,
+        greenhouse_effect_k: 33.0,
+        ozone_layer: true,
+        composition: (
+            nitrogen: 0.78084,
+            oxygen: 0.20946,
+            argon: 0.00934,
+            carbon_dioxide: 0.000412,
+            other: 0.00094,
+        ),
+    ),
+
+    hydrosphere: (
+        water_coverage_percent: 71.0,
+        ocean_depth_avg_km: 3.7,
+        ocean_depth_max_km: 11.0,
+        ice_coverage_percent: 10.0,
+        water_cycle_active: true,
+    ),
+
+    habitability: (
+        score: 1.0,                        // 0.0 to 1.0 scale
+        temperature_range_k: (184.0, 331.0),
+        pressure_range_pa: (100.0, 101325.0),
+        radiation_shielding: "magnetic_field_atmosphere",
+        biosphere: true,
+        life_forms: ["microbial", "plant", "animal", "intelligent"],
+        civilization_level: "space_age",
+    ),
+
+    resources: (
+        mineral_abundance: "high",
+        energy_sources: ["fossil_fuels", "nuclear", "renewable"],
+        rare_elements: ["lithium", "rare_earths", "platinum_group"],
+        water_abundance: "abundant",
+        organic_matter: "abundant",
+    ),
+
+    gameplay: (
+        observation_priority: "homeworld",
+        research_topics: ["planetary_science", "biology", "climate_science", "geology"],
+        exploration_status: "fully_explored",
+        colonization_status: "established",
+    ),
+)

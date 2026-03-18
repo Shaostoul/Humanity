@@ -1,0 +1,110 @@
+# HumanityOS Game Items Database
+# All items available in the game world with volumetric physics data
+#
+# Column definitions:
+#   id                - Unique item identifier (snake_case)
+#   name              - Display name shown to player
+#   description       - Short description of the item
+#   type              - Category: weapon, armor, tool, consumable, seed, food, ingredient, material, component
+#   rarity            - Drop/find frequency: common, uncommon, rare, epic, legendary
+#   value             - Base trade value in credits
+#   mass_kg           - Physical mass in kilograms
+#   volume_liters     - Physical volume in liters (for volumetric cargo)
+#   requirements      - Skill requirements (skill:level pairs separated by colons)
+#   stats             - Stat modifiers (stat:value pairs separated by colons)
+#   effects           - Applied effects (effect:value pairs separated by colons)
+#   durability        - Max durability points (empty = indestructible)
+#   stackable         - Whether item stacks in inventory (true/false)
+#   equip_slot        - Equipment slot: head, chest, legs, feet, hands, waist, main_hand, off_hand
+#   animation         - Animation trigger name
+#   particles         - Particle effect (type:color:duration)
+#   sound             - Sound effect filename
+#
+# === WEAPONS ===
+id,name,description,type,rarity,value,mass_kg,volume_liters,requirements,stats,effects,durability,stackable,equip_slot,animation,particles,sound
+iron_sword,Iron Sword,A basic iron sword,weapon,common,50,3.0,1.5,strength:5,damage:10:attack_speed:1.0,,100,false,main_hand,swing,impact:gray:0.3,sword_swing.ogg
+fire_staff,Fire Staff,Channel fire magic,weapon,uncommon,100,2.0,3.0,magic:10,damage:15:magic_power:1.2,fire_damage:5,120,false,main_hand,cast,fire:orange:0.5,staff_cast.ogg
+#
+# === ARMOR ===
+leather_armor,Leather Armor,Basic leather protection,armor,common,30,2.0,4.0,,defense:5:movement:0.9,,80,false,chest,equip,equip:brown:0.2,armor_equip.ogg
+steel_plate,Steel Plate Armor,Heavy plate protection,armor,rare,200,8.0,12.0,strength:15,defense:15:movement:0.8,,150,false,chest,equip,equip:silver:0.3,armor_equip.ogg
+light_jacket,Light Jacket,Water-resistant jacket,armor,common,45,0.8,2.0,,,cold_resistance:0.6,,false,chest,wear,jacket:blue:0.3,zip.ogg
+mid_layer_fleece,Mid Layer Fleece,Insulating fleece jacket,armor,common,65,0.7,2.5,,,cold_resistance:0.8,,false,chest,wear,fleece:navy:0.4,zip.ogg
+outer_shell_rain,Outer Shell Rain,Rain jacket,armor,common,90,0.8,2.0,,,water_resistance:0.95,,false,chest,wear,jacket:yellow:0.5,zip.ogg
+base_layer_top,Base Layer Top,Moisture-wicking undershirt,armor,common,35,0.3,0.8,,,temperature_regulation:0.6,,false,chest,wear,shirt:gray:0.4,pull.ogg
+base_layer_bottom,Base Layer Bottom,Moisture-wicking underwear,armor,common,30,0.25,0.7,,,temperature_regulation:0.5,,false,legs,wear,pants:gray:0.4,pull.ogg
+hiking_pants,Hiking Pants,Durable hiking pants,armor,common,70,0.9,2.5,,,movement:0.05:durability:0.7,,false,legs,wear,pants:khaki:0.4,zip.ogg
+hiking_shoes,Hiking Shoes,Durable hiking footwear,armor,common,80,1.2,3.0,,,foot_protection:0.8:movement:0.1,,false,feet,wear,shoes:brown:0.4,lace.ogg
+hiking_socks,Hiking Socks,Moisture-wicking socks,armor,common,25,0.4,0.3,,,foot_comfort:0.9,,true,,wear,sock:gray:0.4,pull.ogg
+gloves_light,Light Gloves,Thin protective gloves,armor,common,15,0.2,0.3,,,hand_protection:0.4,,false,hands,wear,gloves:gray:0.4,pull.ogg
+hat_sun,Sun Hat,Wide-brimmed sun hat,armor,common,20,0.3,1.5,,,sun_protection:0.5,,false,head,wear,hat:beige:0.4,rustle.ogg
+cap_sun,Sun Cap,Baseball-style sun cap,armor,common,15,0.2,1.0,,,sun_protection:0.4,,false,head,wear,cap:navy:0.4,pull.ogg
+gaiters_light,Light Gaiters,Trail gaiters,armor,common,25,0.4,0.5,,,debris_protection:0.8,,false,legs,fasten,gaiter:black:0.3,velcro.ogg
+belt,Belt,Utility belt,armor,common,20,0.3,0.4,,,utility_slots:4,,false,waist,wear,belt:brown:0.4,buckle.ogg
+#
+# === TOOLS ===
+hoe,Farming Hoe,Basic soil cultivation tool,tool,common,15,2.0,3.0,farming:1,farming_speed:1.2,,100,false,main_hand,dig,soil:brown:0.3,dig.ogg
+watering_can,Watering Can,Tool for watering plants,tool,common,12,1.5,8.0,farming:1,water_efficiency:1.1,,80,false,off_hand,water,water:blue:0.4,water.ogg
+fertilizer,Organic Fertilizer,Nutrient-rich plant food,tool,common,8,1.0,1.0,farming:2,nutrient_bonus:1.3,,50,true,,fertilize,nutrient:green:0.5,fertilize.ogg
+pesticide,Natural Pesticide,Eco-friendly pest control,tool,uncommon,15,0.8,0.8,farming:3,pest_protection:0.8,,30,true,,spray,spray:purple:0.3,spray.ogg
+map_compass,Map and Compass,Navigation tools,tool,common,25,0.5,0.5,,,,,,navigate,compass:blue:0.2,click.ogg
+compass,Compass,Magnetic navigation compass,tool,common,15,0.2,0.1,,,,,,use,compass:black:0.3,click.ogg
+first_aid_kit,First Aid Kit,Emergency medical supplies,tool,common,30,1.2,3.0,,,,,,use,medical:red:0.4,open.ogg
+whistle,Emergency Whistle,Loud signaling device,tool,common,3,0.1,0.02,,,,,,blow,whistle:yellow:0.8,whistle.ogg
+emergency_blanket,Emergency Blanket,Thermal emergency blanket,tool,common,8,0.2,0.3,,,,,,unfold,blanket:silver:0.3,unfold.ogg
+headlamp,Headlamp,Rechargeable LED headlamp,tool,common,20,0.3,0.2,,,,,false,head,light,light:white:0.9,click.ogg
+multi_tool,Multi-Tool,Compact multi-function tool,tool,common,35,0.8,0.3,,,,,,use,tool:gray:0.4,click.ogg
+pocket_knife,Pocket Knife,Compact folding knife,tool,common,18,0.2,0.1,,,,,,open,knife:silver:0.5,click.ogg
+paracord_15m,Paracord 15m,Strong utility cord,tool,common,15,0.6,0.5,,,,,,cut,cord:brown:0.3,snip.ogg
+fire_starter,Fire Starter,Magnesium fire starter,tool,common,12,0.2,0.05,,,,,,strike,fire:orange:0.7,strike.ogg
+water_filter,Water Filter,Portable water purifier,tool,common,40,0.4,0.5,,,,,,filter,filter:blue:0.3,gurgle.ogg
+rain_cover_pack,Rain Cover Pack,Pack rain cover,tool,common,18,0.3,0.4,,,,,,unfold,cover:blue:0.3,unfold.ogg
+bandana,Bandana,Multi-purpose cloth,tool,common,5,0.1,0.1,,,,,,tie,cloth:red:0.6,rustle.ogg
+omnitool,Omnitool,Universal construction and repair tool,tool,uncommon,100,1.5,1.0,,,,200,false,main_hand,use,tool:cyan:0.5,omnitool.ogg
+basic_toolkit,Basic Toolkit,Set of common hand tools,tool,common,40,3.0,5.0,,,,150,false,,use,tool:gray:0.3,toolbox.ogg
+welding_torch,Welding Torch,Portable welding device,tool,uncommon,80,2.5,2.0,,,,100,false,main_hand,weld,spark:orange:0.6,weld.ogg
+multimeter,Multimeter,Electronic diagnostic tool,tool,common,25,0.5,0.3,,,,80,false,,use,tool:yellow:0.2,beep.ogg
+#
+# === CONSUMABLES ===
+health_potion,Health Potion,Restores health,consumable,common,20,0.5,0.5,,,healing:30,,true,,use,heal:red:0.5,potion_use.ogg
+mana_potion,Mana Potion,Restores mana,consumable,common,25,0.5,0.5,,,mana:30,,true,,use,mana:blue:0.5,potion_use.ogg
+water_bottle,Water Bottle,Reusable water container,consumable,common,5,0.3,1.0,,,hydration:500,,false,,drink,water:blue:0.3,bottle.ogg
+energy_bar,Energy Bar,Nutritious snack bar,consumable,common,8,0.2,0.15,,,nutrition:200:energy:100,,true,,eat,energy:orange:0.3,unwrap.ogg
+trail_mix,Trail Mix,Mixed nuts and dried fruits,consumable,common,12,0.4,0.5,,,nutrition:300:hydration:50,,true,,eat,mix:brown:0.3,crunch.ogg
+snack_bar,Snack Bar,Energy snack bar,consumable,common,6,0.15,0.12,,,nutrition:150:energy:75,,true,,eat,energy:orange:0.3,unwrap.ogg
+spare_batteries,Spare Batteries,AA battery pack,consumable,common,10,0.4,0.2,,,,,,insert,battery:silver:0.5,click.ogg
+sunscreen_small,Sunscreen Small,SPF 50 sun protection,consumable,common,6,0.1,0.1,,,sun_protection:0.9,,true,,apply,cream:white:0.2,squish.ogg
+insect_repellent,Insect Repellent,Bug spray repellent,consumable,common,7,0.2,0.2,,,insect_protection:0.8,,true,,spray,spray:green:0.4,spray.ogg
+spare_socks,Spare Socks,Extra hiking socks,consumable,common,12,0.3,0.3,,,,,,wear,sock:gray:0.4,rustle.ogg
+hand_sanitizer,Hand Sanitizer,Alcohol-based sanitizer,consumable,common,4,0.1,0.1,,,hygiene:0.7,,true,,apply,squirt:blue:0.3,squish.ogg
+emergency_ration,Emergency Ration,Long-shelf-life survival food,consumable,common,10,0.5,0.4,,,nutrition:500,,true,,eat,energy:brown:0.3,unwrap.ogg
+#
+# === SEEDS ===
+tomato_seeds,Tomato Seeds,Seeds for growing tomatoes,seed,common,5,0.1,0.05,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
+carrot_seeds,Carrot Seeds,Seeds for growing carrots,seed,common,3,0.1,0.05,farming:1,,,20,true,,plant,plant:orange:0.2,plant.ogg
+potato_seeds,Potato Seeds,Seed potatoes for planting,seed,common,4,0.2,0.15,farming:1,,,20,true,,plant,plant:brown:0.2,plant.ogg
+wheat_seeds,Wheat Seeds,Seeds for growing wheat,seed,common,2,0.1,0.05,farming:2,,,20,true,,plant,plant:gold:0.2,plant.ogg
+lettuce_seeds,Lettuce Seeds,Seeds for growing lettuce,seed,common,2,0.05,0.02,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
+corn_seeds,Corn Seeds,Seeds for growing corn,seed,common,4,0.15,0.1,farming:2,,,20,true,,plant,plant:gold:0.2,plant.ogg
+strawberry_seeds,Strawberry Seeds,Seeds for growing strawberries,seed,uncommon,8,0.05,0.02,farming:2,,,20,true,,plant,plant:red:0.2,plant.ogg
+bean_seeds,Bean Seeds,Seeds for growing beans,seed,common,3,0.1,0.08,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
+cucumber_seeds,Cucumber Seeds,Seeds for growing cucumbers,seed,common,3,0.1,0.05,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
+rice_seeds,Rice Seeds,Seeds for growing rice,seed,uncommon,5,0.1,0.05,farming:3,,,20,true,,plant,plant:green:0.2,plant.ogg
+#
+# === FOOD (harvested crops) ===
+fresh_tomato,Fresh Tomato,Ripe red tomato,food,common,15,0.3,0.25,,nutrition:20:hydration:10,,true,,consume,eat:red:0.3,eat.ogg
+fresh_carrot,Fresh Carrot,Crunchy orange carrot,food,common,8,0.2,0.12,,nutrition:15:vision:5,,true,,consume,eat:orange:0.3,eat.ogg
+fresh_potato,Fresh Potato,Nutritious potato,food,common,12,0.4,0.3,,nutrition:25:energy:15,,true,,consume,eat:brown:0.3,eat.ogg
+wheat_grain,Wheat Grain,Harvested wheat grain,ingredient,common,20,0.1,0.08,,,,true,,process,grain:gold:0.2,grain.ogg
+#
+# === RAW MATERIALS ===
+iron_ore,Iron Ore,Raw iron ore for smelting,material,common,5,4.5,1.0,,,,true,,,,
+copper_ore,Copper Ore,High-grade copper ore,material,common,12,4.2,1.0,,,,true,,,,
+lumber,Lumber,Processed construction lumber,material,common,8,2.5,8.0,,,,true,,,,
+concrete_mix,Concrete Mix,Ready-mix concrete,material,common,3,2.2,1.0,,,,true,,,,
+steel_ingot,Steel Ingot,Refined steel ingot,material,common,20,7.85,0.13,,,,true,,,,
+coal,Coal,Carbon fuel source,material,common,2,1.3,0.8,,,,true,,,,
+glass_panels,Glass Panels,Transparent construction glass,material,common,15,2.5,5.0,,,,true,,,,
+copper_wire,Copper Wire,Insulated copper wire,component,common,8,0.5,0.1,,,,true,,,,
+steel_plate_material,Steel Plate Sheet,Flat steel construction plate,material,common,25,7.8,2.0,,,,true,,,,
+carbon_fiber,Carbon Fiber Sheet,High-strength composite sheet,material,rare,50,1.6,1.0,,,,true,,,,

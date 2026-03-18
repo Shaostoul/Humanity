@@ -1,0 +1,36 @@
+// HumanityOS Ship Room: Reactor
+// Fusion reactor configuration with safety systems and radiation zones.
+
+ReactorConfig(
+    reactor_type: "Fusion",
+    power_output_kw: 2000.0,
+
+    safety_systems: [
+        "magnetic_containment",
+        "emergency_shutdown",
+        "radiation_shielding",
+        "coolant_system",
+        "backup_power",
+    ],
+
+    shielding: (
+        lead_thickness_m: 0.5,
+        titanium_hull_m: 0.2,
+        magnetic_field: true,
+    ),
+
+    maintenance_access: [
+        (name: "primary_access",   position_m: (5.0, 0.0, 5.0),   size_m: (2.0, 2.5)),
+        (name: "emergency_access", position_m: (-5.0, 0.0, -5.0), size_m: (1.5, 2.0)),
+    ],
+
+    // Radiation zones emanate from reactor core at center
+    radiation_zones: [
+        (center_m: (0.0, 4.0, 0.0), radius_m: 3.0,  severity: "High"),
+        (center_m: (0.0, 4.0, 0.0), radius_m: 8.0,  severity: "Moderate"),
+        (center_m: (0.0, 4.0, 0.0), radius_m: 15.0, severity: "Low"),
+    ],
+
+    automated_systems: true,
+    remote_monitoring: true,
+)

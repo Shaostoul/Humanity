@@ -1,0 +1,123 @@
+# HumanityOS Input Bindings
+# Keybindings are hot-reloadable. Key codes follow the Web KeyboardEvent.code standard.
+# Each binding has a primary key and an optional secondary (fallback) key.
+
+[[bindings]]
+action = "move_forward"
+primary = "KeyW"
+secondary = "ArrowUp"
+description = "Move forward"
+
+[[bindings]]
+action = "move_backward"
+primary = "KeyS"
+secondary = "ArrowDown"
+description = "Move backward"
+
+[[bindings]]
+action = "move_left"
+primary = "KeyA"
+secondary = "ArrowLeft"
+description = "Move left"
+
+[[bindings]]
+action = "move_right"
+primary = "KeyD"
+secondary = "ArrowRight"
+description = "Move right"
+
+[[bindings]]
+action = "jump"
+primary = "Space"
+secondary = ""
+description = "Jump"
+
+[[bindings]]
+action = "crouch"
+primary = "ControlLeft"
+secondary = ""
+description = "Crouch / descend"
+
+[[bindings]]
+action = "sprint"
+primary = "ShiftLeft"
+secondary = ""
+description = "Sprint while moving"
+
+[[bindings]]
+action = "pause"
+primary = "Escape"
+secondary = ""
+description = "Open main menu / pause game"
+
+[[bindings]]
+action = "reload_config"
+primary = "F5"
+secondary = ""
+description = "Hot-reload all configuration files"
+
+[[bindings]]
+action = "toggle_cursor"
+primary = "KeyZ"
+secondary = ""
+description = "Toggle cursor lock on/off"
+
+[[bindings]]
+action = "inventory"
+primary = "KeyI"
+secondary = "Tab"
+description = "Open inventory screen"
+
+[[bindings]]
+action = "skills"
+primary = "KeyK"
+secondary = ""
+description = "Open skills screen"
+
+[[bindings]]
+action = "local_map"
+primary = "KeyL"
+secondary = ""
+description = "Open local area map"
+
+[[bindings]]
+action = "system_map"
+primary = "KeyY"
+secondary = ""
+description = "Open solar system map"
+
+[[bindings]]
+action = "galaxy_map"
+primary = "KeyG"
+secondary = ""
+description = "Open galaxy map"
+
+[[bindings]]
+action = "interact"
+primary = "KeyE"
+secondary = ""
+description = "Interact with object / pick up item"
+
+[[bindings]]
+action = "primary_action"
+primary = "Mouse0"
+secondary = ""
+description = "Primary action (attack, use tool, place)"
+
+[[bindings]]
+action = "secondary_action"
+primary = "Mouse1"
+secondary = ""
+description = "Secondary action (block, aim, alternate use)"
+
+[[bindings]]
+action = "chat"
+primary = "Enter"
+secondary = ""
+description = "Open chat input"
+
+[[bindings]]
+action = "screenshot"
+primary = "F12"
+secondary = ""
+description = "Take screenshot"

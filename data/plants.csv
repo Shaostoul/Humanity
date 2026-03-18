@@ -1,0 +1,53 @@
+# HumanityOS Plants Database
+# Growth data based on real agricultural references (USDA, FAO, university extension services)
+#
+# Column definitions:
+#   id                    - Unique plant identifier (snake_case)
+#   name                  - Common display name
+#   description           - Short description
+#   type                  - Category: fruit, vegetable, grain, legume, herb, fiber
+#   growth_days           - Total days from planting to harvest (real-world basis, game may scale)
+#   water_liters_per_day  - Water requirement in liters per plant per day
+#   nutrient_n            - Nitrogen need (kg/hectare equivalent, scaled to single plant)
+#   nutrient_p            - Phosphorus need (kg/hectare equivalent, scaled to single plant)
+#   nutrient_k            - Potassium need (kg/hectare equivalent, scaled to single plant)
+#   ph_min                - Minimum preferred soil pH
+#   ph_max                - Maximum preferred soil pH
+#   temp_min_c            - Minimum growing temperature in Celsius
+#   temp_max_c            - Maximum growing temperature in Celsius
+#   humidity_min          - Minimum relative humidity (0.0-1.0)
+#   humidity_max          - Maximum relative humidity (0.0-1.0)
+#   yield_min             - Minimum harvest yield per plant (units)
+#   yield_max             - Maximum harvest yield per plant (units)
+#   growth_stages         - Colon-separated growth stage names
+#   seasons               - Preferred growing seasons (colon-separated)
+#   seed_value            - Base trade value of seeds (credits)
+#   harvest_value         - Base trade value of harvested crop (credits)
+#   skill_required        - Minimum farming skill level needed
+#   seed_source           - Where seeds can be obtained (colon-separated)
+#   companion_plants      - Plants that grow well nearby (colon-separated ids)
+#   adverse_plants        - Plants that should not be grown nearby (colon-separated ids)
+#
+# Sources: USDA Plant Hardiness, FAO crop water requirements, Purdue/Cornell extension data
+#
+id,name,description,type,growth_days,water_liters_per_day,nutrient_n,nutrient_p,nutrient_k,ph_min,ph_max,temp_min_c,temp_max_c,humidity_min,humidity_max,yield_min,yield_max,growth_stages,seasons,seed_value,harvest_value,skill_required,seed_source,companion_plants,adverse_plants
+tomato,Tomato,Fresh red tomatoes — heavy feeder requiring consistent moisture,fruit,70,1.5,0.15,0.05,0.20,6.0,6.8,18,30,0.50,0.80,2,8,seed:sprout:vegetative:flower:fruit:ripe,spring:summer,5,15,1,store:trade,basil:carrot:parsley,fennel:brassica
+carrot,Carrot,Orange root vegetable — cool-season crop with deep loose soil needs,vegetable,75,0.8,0.05,0.03,0.10,6.0,6.8,7,24,0.40,0.70,3,6,seed:sprout:vegetative:root_fill:mature,spring:fall,3,8,1,store,tomato:lettuce:onion,dill
+potato,Potato,Starchy tuber — planted from seed potatoes in hilled rows,vegetable,90,1.2,0.12,0.06,0.18,5.5,6.5,10,24,0.50,0.75,4,10,seed:sprout:vegetative:flower:tuber_fill:mature,spring:summer,4,12,1,store:trade,bean:corn:horseradish,tomato:squash
+wheat,Wheat,Essential grain — staple cereal crop for bread and flour,grain,120,0.6,0.10,0.04,0.06,6.0,7.5,12,25,0.30,0.60,8,20,seed:sprout:tiller:stem_extension:heading:grain_fill:ripe,spring:fall,2,20,2,store:trade,,
+lettuce,Lettuce,Fresh leafy greens — fast-growing cool-season salad crop,vegetable,45,1.0,0.08,0.03,0.08,6.0,7.0,7,22,0.50,0.80,2,4,seed:sprout:rosette:head_form:mature,spring:fall,2,6,1,store,carrot:radish:strawberry,
+corn,Corn,Sweet corn — warm-season grass requiring heavy nitrogen,grain,90,1.8,0.20,0.06,0.15,5.8,7.0,18,32,0.40,0.70,2,6,seed:sprout:vegetative:tassel:silk:ear_fill:mature,summer,6,25,2,store:trade,bean:squash:cucumber,tomato
+strawberry,Strawberry,Sweet red berries — perennial producing runners for propagation,fruit,90,1.2,0.08,0.04,0.12,5.5,6.5,15,26,0.50,0.80,4,12,seed:sprout:runner:flower:green_fruit:ripe,spring:summer,8,20,2,specialty_vendor,lettuce:spinach:bean,brassica
+bean,Bean,Protein-rich legume — nitrogen-fixing companion plant,legume,60,0.8,0.02,0.04,0.08,6.0,7.0,18,28,0.40,0.70,3,8,seed:sprout:vegetative:flower:pod_fill:mature,spring:summer,4,14,1,store:trade,corn:squash:carrot,onion:garlic
+cucumber,Cucumber,Fresh green vegetable — vining crop needing consistent water,vegetable,55,1.5,0.10,0.04,0.12,6.0,7.0,18,32,0.50,0.80,3,8,seed:sprout:vine:flower:fruit:mature,summer,3,10,1,store,corn:bean:sunflower,potato:herb
+rice,Rice,Essential grain staple — paddy crop requiring flooded conditions,grain,150,3.0,0.12,0.04,0.08,5.5,6.5,20,35,0.70,0.95,6,18,seed:sprout:tiller:stem_extension:heading:grain_fill:ripe,summer,3,18,3,specialty_vendor,,
+onion,Onion,Pungent bulb vegetable — long-day plant with shallow roots,vegetable,100,0.8,0.08,0.04,0.10,6.0,7.0,10,28,0.40,0.70,2,5,seed:sprout:leaf_growth:bulb_swell:mature,spring:summer,3,10,1,store:trade,carrot:lettuce:tomato,bean:pea
+garlic,Garlic,Aromatic bulb — planted from cloves in fall for spring harvest,vegetable,240,0.5,0.06,0.03,0.08,6.0,7.5,5,24,0.30,0.60,6,12,clove:sprout:leaf_growth:scape:bulb_swell:mature,fall:winter:spring,4,15,2,store:trade,tomato:pepper:strawberry,bean:pea
+pepper,Bell Pepper,Sweet bell pepper — warm-season nightshade with colorful fruit,fruit,75,1.2,0.12,0.05,0.15,6.0,6.8,18,32,0.40,0.70,3,8,seed:sprout:vegetative:flower:fruit:color_change:ripe,summer,5,12,1,store:trade,tomato:basil:carrot,fennel
+pumpkin,Pumpkin,Large vining cucurbit — heavy feeder with sprawling growth,fruit,100,2.0,0.15,0.06,0.18,6.0,7.0,18,30,0.50,0.75,1,3,seed:sprout:vine:flower:fruit_set:fill:ripe,summer:fall,5,20,2,store:trade,corn:bean,potato
+spinach,Spinach,Nutrient-dense leafy green — cool-season crop that bolts in heat,vegetable,40,0.8,0.10,0.04,0.08,6.5,7.5,5,20,0.50,0.80,3,6,seed:sprout:rosette:mature,spring:fall,2,8,1,store,strawberry:pea:bean,
+basil,Basil,Aromatic culinary herb — warm-season annual companion to tomatoes,herb,30,0.6,0.06,0.02,0.04,6.0,7.0,18,30,0.40,0.70,4,10,seed:sprout:vegetative:flower:mature,spring:summer,3,10,1,store:trade,tomato:pepper,sage
+sunflower,Sunflower,Tall composite flower — grown for seeds and oil production,fruit,80,1.5,0.08,0.04,0.10,6.0,7.5,18,30,0.30,0.60,50,200,seed:sprout:vegetative:bud:bloom:seed_fill:mature,summer,3,12,1,store:trade,cucumber:corn,potato
+radish,Radish,Fast-growing root vegetable — ready in weeks as trap crop,vegetable,25,0.5,0.04,0.02,0.04,6.0,7.0,8,24,0.40,0.70,3,8,seed:sprout:root_swell:mature,spring:fall,1,4,1,store,lettuce:carrot:pea,
+pea,Pea,Cool-season legume — nitrogen fixer producing edible pods,legume,60,0.6,0.02,0.03,0.06,6.0,7.5,8,22,0.40,0.70,4,10,seed:sprout:tendril:flower:pod_fill:mature,spring:fall,3,10,1,store:trade,carrot:radish:corn,onion:garlic
+cabbage,Cabbage,Dense-headed brassica — heavy feeder cool-season crop,vegetable,70,1.2,0.15,0.05,0.12,6.0,7.5,10,22,0.50,0.80,1,3,seed:sprout:rosette:head_form:solid_head:mature,spring:fall,3,10,2,store:trade,onion:celery,strawberry:tomato

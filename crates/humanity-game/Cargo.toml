@@ -1,0 +1,14 @@
+[package]
+name = "humanity-game"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+humanity-engine = { path = "../humanity-engine" }
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+toml = "0.8"
+csv = "1.3"
+glam = { version = "0.29", features = ["serde"] }
+log = "0.4"
+rand = "0.8"

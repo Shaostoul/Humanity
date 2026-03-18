@@ -1,0 +1,37 @@
+# HumanityOS Player Defaults
+# Default values for a new player character. Overridden by save data.
+
+[character]
+species = "human"
+height_cm = 175                        # Default height in centimeters
+mass_kg = 75                           # Default mass in kilograms
+
+[spawn]
+# Initial spawn position — reference frame defines coordinate origin
+reference_frame = "Earth_L1_Lagrange"
+position = [0.0, 2.0, 0.0]            # 2 meters above floor center
+velocity = [0.0, 0.0, 0.0]
+
+[stats]
+health = 100                           # Hit points
+stamina = 100                          # Sprint/action resource
+hunger = 50                            # Satiation level (0 = starving, 100 = full)
+thirst = 50                            # Hydration level (0 = dehydrated, 100 = full)
+fatigue = 0                            # Tiredness (0 = rested, 100 = exhausted)
+
+[equipment]
+# Default equipment slots — None or item ID
+head = ""
+chest = ""
+legs = ""
+feet = ""
+hands = ""
+tool = "omnitool"                      # Start with construction omnitool
+
+[inventory]
+# Starting inventory items: [item_id, quantity]
+starting_items = [
+    ["omnitool", 1],
+    ["emergency_ration", 3],
+    ["water_bottle", 1],
+]

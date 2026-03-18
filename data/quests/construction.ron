@@ -1,0 +1,94 @@
+// HumanityOS Quest Chain: Construction
+// Advanced building quests unlocked after tutorial completion.
+
+[
+    Quest(
+        id: "construction_advanced_habitat",
+        title: "Advanced Habitat Construction",
+        description: "Expand your habitat with more sophisticated construction techniques and materials.",
+        objectives: [
+            QuestObjective(
+                id: "craft_steel_beams",
+                description: "Craft reinforced steel beams",
+                objective_type: Craft(recipe_id: "steel_beam"),
+                target_count: 10,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "build_workshop",
+                description: "Construct a dedicated workshop room",
+                objective_type: Build(item_type: "room_workshop"),
+                target_count: 1,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "install_ventilation",
+                description: "Add ventilation systems for air quality",
+                objective_type: Build(item_type: "ventilation_system"),
+                target_count: 3,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+        ],
+        rewards: [
+            Experience(200),
+            Items(item_id: "welding_torch", quantity: 1),
+            BlueprintUnlock(blueprint_id: "industrial_construction"),
+        ],
+        prerequisites: ["tutorial_first_habitat", "tutorial_power_grid"],
+        category: Construction,
+        priority: Medium,
+        is_main_quest: false,
+        auto_start: false,
+    ),
+
+    Quest(
+        id: "construction_multi_level",
+        title: "Multi-Level Construction",
+        description: "Learn to build upward with multi-story construction techniques.",
+        objectives: [
+            QuestObjective(
+                id: "build_staircase",
+                description: "Construct a staircase between levels",
+                objective_type: Build(item_type: "staircase"),
+                target_count: 1,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "build_upper_floor",
+                description: "Build a second floor with floor tiles",
+                objective_type: Build(item_type: "floor_tile"),
+                target_count: 20,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "add_upper_rooms",
+                description: "Create walled rooms on the upper level",
+                objective_type: Build(item_type: "wall_basic"),
+                target_count: 16,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+        ],
+        rewards: [
+            Experience(300),
+            Items(item_id: "steel_ingot", quantity: 20),
+            Technology(tech_id: "vertical_construction"),
+        ],
+        prerequisites: ["construction_advanced_habitat"],
+        category: Construction,
+        priority: Low,
+        is_main_quest: false,
+        auto_start: false,
+    ),
+]

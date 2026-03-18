@@ -1,0 +1,34 @@
+# HumanityOS Crafting Recipes
+# Defines all craftable items, their ingredients, requirements, and outputs
+#
+# Column definitions:
+#   id                  - Unique recipe identifier
+#   name                - Display name
+#   description         - Short description of what this recipe produces
+#   category            - Recipe category: smelting, cooking, construction, electronics, chemistry, farming
+#   skill_required      - Required skill name (empty = no skill needed)
+#   skill_level         - Minimum skill level required (0 = none)
+#   ingredients         - Required inputs (item_id:quantity pairs, pipe-separated)
+#   results             - Outputs (item_id:quantity pairs, pipe-separated)
+#   craft_time_sec      - Time in seconds to complete crafting
+#   xp_gained           - Experience points awarded on completion
+#   tool_required       - Tool that must be equipped or nearby (empty = none)
+#   workstation         - Required crafting station (empty = hand-craftable)
+#
+id,name,description,category,skill_required,skill_level,ingredients,results,craft_time_sec,xp_gained,tool_required,workstation
+steel_ingot,Steel Ingot,Smelt iron with carbon to create steel,smelting,smithing,2,iron_ore:2|coal:1,steel_ingot:1,10,15,smelter,furnace
+steel_beam,Steel Beam,Forge steel ingots into structural beam,smelting,smithing,3,steel_ingot:4,steel_beam:1,20,25,,furnace
+bread,Bread,Bake wheat grain into bread,cooking,cooking,1,wheat_grain:3,bread:1,5,10,,oven
+salad,Fresh Salad,Combine fresh vegetables,cooking,,0,fresh_tomato:1|fresh_carrot:1|lettuce:1,salad:1,2,5,,
+tomato_soup,Tomato Soup,Cook tomatoes into soup,cooking,cooking,1,fresh_tomato:3|water_bottle:1,tomato_soup:1,8,12,,stove
+baked_potato,Baked Potato,Simple baked potato,cooking,,0,fresh_potato:1,baked_potato:1,5,5,,oven
+fertilizer_organic,Organic Fertilizer,Compost organic waste into fertilizer,farming,farming,2,wheat_grain:2|fresh_potato:1,fertilizer:2,15,10,,composter
+glass_panel,Glass Panel,Smelt sand into glass,smelting,smithing,2,sand:3|energy:5,glass_panels:1,12,15,,furnace
+circuit_board,Circuit Board,Assemble electronic components,electronics,engineering,3,copper_wire:5|silicon:2,circuit_board:1,30,40,,workbench
+copper_wire_craft,Copper Wire,Draw copper into wire,smelting,smithing,1,copper_ore:1,copper_wire:5,8,10,,furnace
+concrete_block,Concrete Block,Mix and cure concrete,construction,construction,1,concrete_mix:4|water_bottle:1,concrete_block:2,15,10,,
+wood_plank,Wood Plank,Cut lumber into planks,construction,,0,lumber:1,wood_plank:4,5,5,multi_tool,
+emergency_ration_craft,Emergency Ration,Package long-shelf-life food,cooking,cooking,2,wheat_grain:5|energy_bar:2,emergency_ration:3,10,15,,
+bandage,Bandage,Craft basic medical bandage,chemistry,,0,bandana:1,bandage:2,3,5,,
+torch_craft,Improvised Torch,Craft a light source,construction,,0,lumber:1|bandana:1,torch:1,5,5,,
+farm_bot,Farming Robot,Assemble automated farming robot,electronics,engineering,5,circuit_board:3|steel_ingot:5|copper_wire:10,farm_bot:1,120,100,welding_torch,workbench

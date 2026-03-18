@@ -21,6 +21,8 @@ members = [
     "crates/engine-wgpu-shell",
     "crates/core-snapshot-sync",
     "crates/core-planet-icosphere",
+    "crates/humanity-engine",
+    "crates/humanity-game",
 ]
 exclude = [
     "desktop/src-tauri",

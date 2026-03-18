@@ -1,0 +1,209 @@
+// HumanityOS Habitat Definition
+// Fibonacci-spiral habitat layout with room definitions, materials, and lighting.
+// This is the default player home generated for new games.
+
+HabitatDefinition(
+    total_area_m2: 3600.0,             // 60m x 60m total footprint
+
+    rooms: [
+        // F1: Computer Room (1x1x3m) — personal terminal, settings access
+        RoomDefinition(
+            id: "computer",
+            name: "Computer Room",
+            fibonacci_level: 1,
+            position: (-0.5, 0.0, 0.5),
+            dimensions_m: (1.0, 3.0, 1.0),
+            floor_material: "steel",
+            wall_material: "drywall",
+            wall_thickness_m: 0.15,
+            light: (
+                type: "Point",
+                color: (1.0, 0.98, 0.95),
+                intensity: 0.08,
+                range_fraction: 0.33,      // 1/3 of room width
+            ),
+            furniture: ["terminal"],
+            functionality: ["Settings", "Steam_Integration"],
+        ),
+
+        // F2: Network Room (1x1x3m) — multiplayer and comms hub
+        RoomDefinition(
+            id: "network",
+            name: "Network Room",
+            fibonacci_level: 1,
+            position: (0.5, 0.0, 0.5),
+            dimensions_m: (1.0, 3.0, 1.0),
+            floor_material: "steel",
+            wall_material: "drywall",
+            wall_thickness_m: 0.15,
+            light: (
+                type: "Point",
+                color: (0.9, 0.95, 1.0),   // cool blue tint
+                intensity: 0.08,
+                range_fraction: 0.33,
+            ),
+            furniture: ["network_hub"],
+            functionality: ["Multiplayer", "Communications"],
+        ),
+
+        // F3: Bathroom (2x2x3m) — hygiene and medical
+        RoomDefinition(
+            id: "bathroom",
+            name: "Bathroom",
+            fibonacci_level: 2,
+            position: (0.0, 0.0, -1.0),
+            dimensions_m: (2.0, 3.0, 2.0),
+            floor_material: "granite_tile",
+            wall_material: "drywall",
+            wall_thickness_m: 0.15,
+            light: (
+                type: "Point",
+                color: (1.0, 1.0, 1.0),    // pure white for hygiene
+                intensity: 0.10,
+                range_fraction: 0.67,
+            ),
+            furniture: ["hygiene_station"],
+            functionality: ["Hygiene", "Medical"],
+        ),
+
+        // F4: Bedroom (3x3x3m) — sleep and personal storage
+        RoomDefinition(
+            id: "bedroom",
+            name: "Bedroom",
+            fibonacci_level: 3,
+            position: (-2.5, 0.0, -0.5),
+            dimensions_m: (3.0, 3.0, 3.0),
+            floor_material: "plank_wood",
+            wall_material: "drywall",
+            wall_thickness_m: 0.15,
+            light: (
+                type: "Point",
+                color: (1.0, 0.9, 0.7),    // warm amber
+                intensity: 0.12,
+                range_fraction: 1.0,
+            ),
+            furniture: ["bed_standard"],
+            functionality: ["Sleep", "Storage"],
+        ),
+
+        // F5: Kitchen (5x5x3m) — food preparation
+        RoomDefinition(
+            id: "kitchen",
+            name: "Kitchen",
+            fibonacci_level: 4,
+            position: (-1.5, 0.0, -4.5),
+            dimensions_m: (5.0, 3.0, 5.0),
+            floor_material: "granite_tile",
+            wall_material: "hexagon_marble",
+            wall_thickness_m: 0.3,
+            light: (
+                type: "Point",
+                color: (1.0, 0.98, 0.95),
+                intensity: 0.15,
+                range_fraction: 0.33,
+            ),
+            furniture: [],
+            functionality: ["Cooking"],
+        ),
+
+        // F6: Living Room (8x8x3m) — recreation and socializing
+        RoomDefinition(
+            id: "living_room",
+            name: "Living Room",
+            fibonacci_level: 5,
+            position: (4.0, 0.0, -2.5),
+            dimensions_m: (8.0, 3.0, 8.0),
+            floor_material: "plank_wood",
+            wall_material: "plank_wood",
+            wall_thickness_m: 0.3,
+            light: (
+                type: "Point",
+                color: (1.0, 0.9, 0.7),    // warm for relaxation
+                intensity: 0.20,
+                range_fraction: 0.33,
+            ),
+            furniture: [],
+            functionality: ["Recreation"],
+        ),
+
+        // F7: Laboratory (13x13x3m) — research
+        RoomDefinition(
+            id: "laboratory",
+            name: "Laboratory",
+            fibonacci_level: 6,
+            position: (2.5, 0.0, 6.0),
+            dimensions_m: (13.0, 3.0, 13.0),
+            floor_material: "rubber_flooring",
+            wall_material: "steel",
+            wall_thickness_m: 0.5,
+            light: (
+                type: "Point",
+                color: (0.95, 0.98, 1.0),  // cool blue-white for science
+                intensity: 0.25,
+                range_fraction: 0.33,
+            ),
+            furniture: [],
+            functionality: ["Research"],
+        ),
+
+        // F8: Workshop (21x21x6m) — crafting and fabrication
+        RoomDefinition(
+            id: "workshop",
+            name: "Workshop",
+            fibonacci_level: 7,
+            position: (-8.0, 0.0, 4.5),
+            dimensions_m: (21.0, 6.0, 21.0),
+            floor_material: "steel",
+            wall_material: "polished_concrete",
+            wall_thickness_m: 0.5,
+            light: (
+                type: "Point",
+                color: (1.0, 0.98, 0.95),
+                intensity: 0.35,
+                range_fraction: 0.33,
+            ),
+            furniture: [],
+            functionality: ["Crafting", "Fabrication"],
+        ),
+
+        // F9: Garden (34x34x6m) — core farming area
+        RoomDefinition(
+            id: "garden",
+            name: "Garden",
+            fibonacci_level: 9,
+            position: (-5.5, 0.0, -12.5),
+            dimensions_m: (34.0, 6.0, 34.0),
+            floor_material: "astro_turf",
+            wall_material: "hexagon_marble",
+            wall_thickness_m: 0.3,
+            light: (
+                type: "Point",
+                color: (0.9, 0.95, 0.8),   // green tint for plants
+                intensity: 0.30,
+                range_fraction: 0.33,
+            ),
+            furniture: ["farming_plots"],
+            functionality: ["Farming", "Food_Production"],
+        ),
+
+        // F10: Garage (55x55x9m) — vehicles and heavy industry
+        RoomDefinition(
+            id: "garage",
+            name: "Garage",
+            fibonacci_level: 10,
+            position: (21.0, 0.0, -10.0),
+            dimensions_m: (55.0, 9.0, 55.0),
+            floor_material: "polished_concrete",
+            wall_material: "steel",
+            wall_thickness_m: 0.5,
+            light: (
+                type: "Point",
+                color: (1.0, 0.98, 0.95),
+                intensity: 0.45,
+                range_fraction: 0.33,
+            ),
+            furniture: ["vehicle_bay"],
+            functionality: ["Vehicles", "Industry"],
+        ),
+    ],
+)

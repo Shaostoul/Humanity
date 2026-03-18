@@ -1,0 +1,102 @@
+// HumanityOS Quest Chain: Exploration
+// Quests that drive players to explore the surrounding environment.
+
+[
+    Quest(
+        id: "exploration_first_survey",
+        title: "Initial Survey",
+        description: "Explore your immediate surroundings and gather information about the local environment.",
+        objectives: [
+            QuestObjective(
+                id: "explore_north",
+                description: "Survey the northern region",
+                objective_type: Explore(location_id: "region_north"),
+                target_count: 1,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "explore_south",
+                description: "Survey the southern region",
+                objective_type: Explore(location_id: "region_south"),
+                target_count: 1,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "collect_samples",
+                description: "Gather environmental soil samples",
+                objective_type: Collect(item_id: "soil_sample"),
+                target_count: 5,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "find_water_source",
+                description: "Locate a water source",
+                objective_type: Explore(location_id: "water_source"),
+                target_count: 1,
+                current_count: 0,
+                completed: false,
+                optional: true,
+            ),
+        ],
+        rewards: [
+            Experience(120),
+            Items(item_id: "map_compass", quantity: 1),
+        ],
+        prerequisites: ["tutorial_first_habitat"],
+        category: Exploration,
+        priority: Medium,
+        is_main_quest: false,
+        auto_start: false,
+    ),
+
+    Quest(
+        id: "exploration_distant_lands",
+        title: "Distant Expeditions",
+        description: "Venture far from your habitat to discover new resources and locations.",
+        objectives: [
+            QuestObjective(
+                id: "build_vehicle",
+                description: "Construct an exploration rover",
+                objective_type: Build(item_type: "rover"),
+                target_count: 1,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "explore_distant",
+                description: "Explore distant regions",
+                objective_type: Explore(location_id: "distant_region"),
+                target_count: 3,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+            QuestObjective(
+                id: "find_rare_resources",
+                description: "Discover rare mineral deposits",
+                objective_type: Collect(item_id: "rare_mineral"),
+                target_count: 3,
+                current_count: 0,
+                completed: false,
+                optional: false,
+            ),
+        ],
+        rewards: [
+            Experience(300),
+            Items(item_id: "multimeter", quantity: 1),
+            BlueprintUnlock(blueprint_id: "long_range_vehicles"),
+        ],
+        prerequisites: ["exploration_first_survey"],
+        category: Exploration,
+        priority: Low,
+        is_main_quest: false,
+        auto_start: false,
+    ),
+]

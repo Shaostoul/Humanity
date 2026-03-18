@@ -1,0 +1,35 @@
+[package]
+name = "humanity-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Rendering
+wgpu = "24"
+winit = "0.30"
+# ECS
+hecs = "0.10"
+# Physics
+rapier3d = "0.22"
+# Math
+glam = { version = "0.29", features = ["serde"] }
+# Audio
+kira = "0.9"
+# Asset loading
+gltf = "1.4"
+image = "0.25"
+# Hot-reload
+notify = "7"
+# Serialization
+serde = { version = "1", features = ["derive"] }
+ron = "0.8"
+toml = "0.8"
+csv = "1.3"
+# Logging
+log = "0.4"
+env_logger = "0.11"
+# Async
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+# Procedural generation
+noise = "0.9"
+rand = "0.8"
