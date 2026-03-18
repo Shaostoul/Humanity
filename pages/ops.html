@@ -12,7 +12,7 @@
   --bg-panel: #141414;
   --border: #222;
   --accent: #22aa66;
-  --error: #e55;
+  --error: var(--danger, #e55);
 }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     #page-app { flex: 1; overflow-y: auto; padding: var(--space-xl) var(--space-2xl); max-width: 1200px; width: 100%; margin: 0 auto; }
@@ -32,7 +32,7 @@
     .btn-clickable { border-color: #44cc66; border-width: 1px; }
     .btn-channeling { animation: rainbow-border 2s linear infinite; }
     .btn-activated  { border-color: #ee3333; border-width: 5px; }
-    .btn-disabled   { border-color: #222; cursor: not-allowed; opacity: 0.5; }
+    .btn-disabled   { border-color: var(--border); cursor: not-allowed; opacity: 0.5; }
     .btn-cooldown   { border-color: #8844cc; border-width: 7px; }
     .btn-cooldown-timer { position: absolute; font-size: 0.65rem; font-weight: 700; color: #c8a; }
     .btn-cooldown-timer.top { top: 2px; left: 50%; transform: translateX(-50%); }
@@ -44,6 +44,8 @@
 </head>
 <body>
 <script src=/shared/shell.js data-active=debug></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Behind-the-scenes info about how the app is running right now.</div>
@@ -162,12 +164,12 @@
  <!-- ══════════════════════════════════════ -->
  <div class="panel" style="margin-top:var(--space-xl);">
   <h2>⚡ Dev Command Runner (just)</h2>
-  <p style="color:#888;font-size:0.82rem;margin-bottom:var(--space-lg);">Install: <code style="background:#111;padding:2px 6px;border-radius:3px;">winget install Casey.Just</code> — then run from the repo root.</p>
+  <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:var(--space-lg);">Install: <code style="background:var(--bg);padding:2px 6px;border-radius:3px;">winget install Casey.Just</code> — then run from the repo root.</p>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md) var(--space-2xl);">
 
    <div>
-    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:#f0a500;text-transform:uppercase;margin-bottom:var(--space-md);">Daily workflow</div>
-    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:#ccc;">
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Daily workflow</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
      <span style="color:#4af;">just ship "message"</span> &nbsp;— commit + push + sync VPS<br>
      <span style="color:#4af;">just sync</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— force-sync VPS (no commit)<br>
      <span style="color:#4af;">just sync-web</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— HTML/JS/CSS only (fast)<br>
@@ -176,8 +178,8 @@
    </div>
 
    <div>
-    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:#f0a500;text-transform:uppercase;margin-bottom:var(--space-md);">Status &amp; monitoring</div>
-    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:#ccc;">
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Status &amp; monitoring</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
      <span style="color:#4af;">just status</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— git + CI + API health<br>
      <span style="color:#4af;">just ci</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— recent CI deploy runs<br>
      <span style="color:#4af;">just ping</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— is the site alive?<br>
@@ -186,8 +188,8 @@
    </div>
 
    <div>
-    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:#f0a500;text-transform:uppercase;margin-bottom:var(--space-md);">Server &amp; database</div>
-    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:#ccc;">
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Server &amp; database</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
      <span style="color:#4af;">just server</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— SSH into VPS<br>
      <span style="color:#4af;">just restart</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— restart relay (instant)<br>
      <span style="color:#4af;">just db</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— SQLite shell on live DB<br>
@@ -196,8 +198,8 @@
    </div>
 
    <div>
-    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:#f0a500;text-transform:uppercase;margin-bottom:var(--space-md);">Rust &amp; desktop</div>
-    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:#ccc;">
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Rust &amp; desktop</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
      <span style="color:#4af;">just check</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— catch Rust errors fast<br>
      <span style="color:#4af;">just build</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— build relay binary<br>
      <span style="color:#4af;">just dev-desktop</span> &nbsp;&nbsp;&nbsp;— run Tauri app (dev)<br>
@@ -206,8 +208,8 @@
    </div>
 
    <div>
-    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:#f0a500;text-transform:uppercase;margin-bottom:var(--space-md);">Shortcuts</div>
-    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:#ccc;">
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Shortcuts</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
      <span style="color:#4af;">just tasks</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— list tasks from API<br>
      <span style="color:#4af;">just loc</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— lines of code breakdown<br>
      <span style="color:#4af;">just grep "pattern"</span>— search all JS/RS/HTML<br>
@@ -216,12 +218,12 @@
    </div>
 
    <div>
-    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:#f0a500;text-transform:uppercase;margin-bottom:var(--space-md);">App cache (if UI looks wrong)</div>
-    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:#ccc;">
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">App cache (if UI looks wrong)</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
      <span style="color:#fa0;">Ctrl+Shift+Delete</span> — clear cache &amp; reload<br>
      <span style="color:#fa0;">F12</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— open DevTools<br>
      <span style="color:#fa0;">Settings → Advanced</span>— Clear Cache button<br>
-     Manual: delete <code style="font-size:0.75rem;background:#111;padding:1px 4px;border-radius:3px;">%LOCALAPPDATA%\HumanityOS\EBWebView\Default\Cache</code><br>
+     Manual: delete <code style="font-size:0.75rem;background:var(--bg);padding:1px 4px;border-radius:3px;">%LOCALAPPDATA%\HumanityOS\EBWebView\Default\Cache</code><br>
     </div>
    </div>
 
@@ -237,7 +239,7 @@
 (function() {
   // Populate system info
   const el = id => document.getElementById(id);
-  if (el('debug-version')) el('debug-version').textContent = 'v0.5.3';
+  if (el('debug-version')) el('debug-version').textContent = 'v0.6.0';
   if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
   if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
   if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';

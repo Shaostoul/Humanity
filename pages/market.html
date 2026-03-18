@@ -7,11 +7,9 @@
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     :root {
-  --bg: #0d0d0d;
   --bg-panel: #141414;
-  --border: #222;
   --accent: #22aa66;
-  --error: #e55;
+  --error: var(--danger);
 }
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
     a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
@@ -24,6 +22,8 @@
 </head>
 <body>
 <script src=/shared/shell.js data-active=market></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Buy and sell things with other players — like a flea market for everyone.</div>

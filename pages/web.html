@@ -122,7 +122,7 @@
       justify-content: center;
       font-size: 1rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text);
       flex-shrink: 0;
     }
 
@@ -162,7 +162,7 @@
       transition: opacity 0.15s, color 0.15s;
     }
     .site-card:hover .bookmark-delete { opacity: 1; }
-    .site-card .bookmark-delete:hover { color: #e55; }
+    .site-card .bookmark-delete:hover { color: var(--danger); }
 
     /* ── Floating add button ── */
     .fab-add {
@@ -173,7 +173,7 @@
       height: 48px;
       border-radius: 50%;
       background: var(--accent);
-      color: #fff;
+      color: var(--text);
       border: none;
       font-size: 1.5rem;
       font-weight: 700;
@@ -261,7 +261,7 @@
     .btn-cancel:hover { color: var(--text); border-color: var(--text-muted); }
     .btn-save {
       background: var(--accent);
-      color: #fff;
+      color: var(--text);
       border-color: var(--accent);
     }
     .btn-save:hover { opacity: 0.9; }
@@ -283,6 +283,8 @@
 </head>
 <body>
 <script src="/shared/shell.js" data-active="web"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Websites to explore! Click any card to visit. Use the + button to save your own bookmarks.</div>

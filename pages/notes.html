@@ -18,15 +18,15 @@
     #journal-tabs {
       display: flex;
       gap: 0;
-      background: #0d0d0d;
-      border-bottom: 1px solid #1e1e1e;
+      background: var(--bg);
+      border-bottom: 1px solid var(--bg-secondary);
       flex-shrink: 0;
     }
     .journal-tab {
       padding: var(--space-md) var(--space-2xl);
       font-size: 0.85rem;
       font-weight: 600;
-      color: #666;
+      color: var(--text-muted);
       cursor: pointer;
       border-bottom: 2px solid transparent;
       background: none;
@@ -35,8 +35,8 @@
       border-right: none;
       transition: color 0.15s, border-color 0.15s;
     }
-    .journal-tab:hover { color: #aaa; }
-    .journal-tab.active { color: #FF8811; border-bottom-color: #FF8811; }
+    .journal-tab:hover { color: var(--text-muted); }
+    .journal-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
     /* ── Notes content ── */
     #notes-content {
@@ -50,8 +50,8 @@
     #notes-sidebar {
       width: 260px;
       min-width: 200px;
-      background: #111;
-      border-right: 1px solid #1e1e1e;
+      background: var(--bg);
+      border-right: 1px solid var(--bg-secondary);
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
@@ -59,7 +59,7 @@
 
     #sidebar-header {
       padding: var(--space-lg) var(--space-xl);
-      border-bottom: 1px solid #1e1e1e;
+      border-bottom: 1px solid var(--bg-secondary);
       display: flex;
       align-items: center;
       gap: var(--space-md);
@@ -70,12 +70,12 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: #666;
+      color: var(--text-muted);
       flex: 1;
     }
 
     #btn-new-note {
-      background: #FF8811;
+      background: var(--accent);
       color: #000;
       border: none;
       border-radius: var(--radius-sm);
@@ -88,40 +88,40 @@
 
     #note-search {
       padding: var(--space-md) var(--space-lg);
-      border-bottom: 1px solid #1a1a1a;
+      border-bottom: 1px solid var(--bg-secondary);
     }
     #note-search input {
       width: 100%;
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
       border-radius: var(--radius-sm);
       padding: var(--space-sm) var(--space-lg);
-      color: #e0e0e0;
+      color: var(--text);
       font-size: 0.78rem;
       outline: none;
     }
-    #note-search input:focus { border-color: #FF8811; }
+    #note-search input:focus { border-color: var(--accent); }
 
     #note-list {
       flex: 1;
       overflow-y: auto;
       scrollbar-width: thin;
-      scrollbar-color: #222 transparent;
+      scrollbar-color: var(--bg-input) transparent;
     }
 
     .note-item {
       padding: var(--space-lg) var(--space-xl);
       cursor: pointer;
-      border-bottom: 1px solid #141414;
+      border-bottom: 1px solid var(--bg-secondary);
       border-left: 3px solid transparent;
       transition: background 0.12s;
     }
-    .note-item:hover { background: #161616; }
-    .note-item.active { background: #181818; border-left-color: #FF8811; }
+    .note-item:hover { background: var(--bg-card); }
+    .note-item.active { background: var(--bg-card); border-left-color: var(--accent); }
     .note-item-title {
       font-size: 0.82rem;
       font-weight: 600;
-      color: #e0e0e0;
+      color: var(--text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -129,32 +129,32 @@
     }
     .note-item-preview {
       font-size: 0.7rem;
-      color: #555;
+      color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .note-item-date {
       font-size: 0.65rem;
-      color: #444;
+      color: var(--text-muted);
       margin-top: var(--space-xs);
     }
     .note-item-encrypted {
       font-size: 0.6rem;
-      color: #FF8811;
+      color: var(--accent);
       opacity: 0.7;
     }
 
     #sidebar-footer {
       padding: var(--space-lg) var(--space-xl);
-      border-top: 1px solid #1a1a1a;
+      border-top: 1px solid var(--bg-secondary);
       font-size: 0.65rem;
-      color: #444;
+      color: var(--text-muted);
       display: flex;
       align-items: center;
       gap: var(--space-md);
     }
-    .lock-status { color: #FF8811; font-size: 0.7rem; }
+    .lock-status { color: var(--accent); font-size: 0.7rem; }
 
     /* ── Main panel ── */
     #note-panel {
@@ -170,8 +170,8 @@
       align-items: center;
       gap: var(--space-lg);
       padding: var(--space-lg) var(--space-xl);
-      border-bottom: 1px solid #1a1a1a;
-      background: #0f0f0f;
+      border-bottom: 1px solid var(--bg-secondary);
+      background: var(--bg);
       flex-shrink: 0;
     }
 
@@ -179,27 +179,27 @@
       flex: 1;
       background: transparent;
       border: none;
-      color: #e0e0e0;
+      color: var(--text);
       font-size: 1.05rem;
       font-weight: 700;
       outline: none;
       font-family: inherit;
     }
-    #note-title-input::placeholder { color: #333; }
+    #note-title-input::placeholder { color: var(--border); }
 
     .toolbar-btn {
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      color: #888;
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      color: var(--text-muted);
       border-radius: var(--radius-sm);
       padding: 0.28rem var(--space-lg);
       font-size: 0.75rem;
       cursor: pointer;
       white-space: nowrap;
     }
-    .toolbar-btn:hover { color: #e0e0e0; background: #222; }
-    .toolbar-btn.danger:hover { color: #e55; border-color: #500; }
-    .toolbar-btn.encrypt-on { color: #FF8811; border-color: #553300; background: #1a1000; }
+    .toolbar-btn:hover { color: var(--text); background: var(--bg-input); }
+    .toolbar-btn.danger:hover { color: var(--danger); border-color: #500; }
+    .toolbar-btn.encrypt-on { color: var(--accent); border-color: #553300; background: #1a1000; }
 
     #note-body {
       flex: 1;
@@ -220,13 +220,13 @@
       resize: none;
       min-height: 400px;
     }
-    #note-content::placeholder { color: #2a2a2a; }
+    #note-content::placeholder { color: var(--bg-hover); }
 
     #note-status {
       padding: var(--space-sm) var(--space-xl);
-      border-top: 1px solid #1a1a1a;
+      border-top: 1px solid var(--bg-secondary);
       font-size: 0.68rem;
-      color: #444;
+      color: var(--text-muted);
       display: flex;
       align-items: center;
       gap: var(--space-xl);
@@ -240,11 +240,11 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: #333;
+      color: var(--border);
       gap: var(--space-lg);
     }
     #empty-state .big { font-size: 3rem; }
-    #empty-state p { font-size: 0.85rem; color: #444; }
+    #empty-state p { font-size: 0.85rem; color: var(--text-muted); }
 
     /* ── Encrypt unlock overlay ── */
     #unlock-overlay {
@@ -260,30 +260,30 @@
     }
     #unlock-overlay.open { display: flex; }
     #unlock-box {
-      background: #181818;
-      border: 1px solid #2a2a2a;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-hover);
       border-radius: var(--radius-lg);
       padding: var(--space-2xl);
       width: 360px;
       text-align: center;
     }
-    #unlock-box h3 { color: #FF8811; font-size: 0.95rem; margin-bottom: var(--space-md); }
-    #unlock-box p { font-size: 0.78rem; color: #666; margin-bottom: var(--space-xl); }
+    #unlock-box h3 { color: var(--accent); font-size: 0.95rem; margin-bottom: var(--space-md); }
+    #unlock-box p { font-size: 0.78rem; color: var(--text-muted); margin-bottom: var(--space-xl); }
     #unlock-pass {
       width: 100%;
-      background: #111;
-      border: 1px solid #2a2a2a;
+      background: var(--bg);
+      border: 1px solid var(--bg-hover);
       border-radius: var(--radius);
       padding: var(--space-md) var(--space-lg);
-      color: #e0e0e0;
+      color: var(--text);
       font-size: 0.85rem;
       outline: none;
       margin-bottom: var(--space-lg);
     }
-    #unlock-pass:focus { border-color: #FF8811; }
+    #unlock-pass:focus { border-color: var(--accent); }
     #unlock-btn {
       width: 100%;
-      background: #FF8811;
+      background: var(--accent);
       color: #000;
       border: none;
       border-radius: var(--radius);
@@ -292,7 +292,7 @@
       font-weight: 700;
       cursor: pointer;
     }
-    #unlock-err { font-size: 0.75rem; color: #e55; margin-top: var(--space-md); }
+    #unlock-err { font-size: 0.75rem; color: var(--danger); margin-top: var(--space-md); }
 
     @media (max-width: 600px) {
       #notes-sidebar { width: 200px; }
@@ -312,8 +312,8 @@
     #log-sidebar {
       width: 240px;
       min-width: 200px;
-      background: #111;
-      border-right: 1px solid #222;
+      background: var(--bg);
+      border-right: 1px solid var(--bg-input);
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
@@ -321,7 +321,7 @@
     }
     #log-sidebar-header {
       padding: var(--space-lg) var(--space-xl);
-      border-bottom: 1px solid #1e1e1e;
+      border-bottom: 1px solid var(--bg-secondary);
       display: flex;
       flex-direction: column;
       gap: var(--space-md);
@@ -330,23 +330,23 @@
     #log-sidebar-header h2 {
       font-size: 0.95rem;
       font-weight: 700;
-      color: #eee;
+      color: var(--text);
     }
     #log-search {
-      background: #1a1a1a;
-      border: 1px solid #333;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      color: #e0e0e0;
+      color: var(--text);
       padding: var(--space-sm) var(--space-lg);
       font-size: 0.83rem;
       width: 100%;
       outline: none;
     }
-    #log-search:focus { border-color: #2a6; }
+    #log-search:focus { border-color: var(--success); }
     #new-entry-btn {
       background: #1a4a2a;
-      border: 1px solid #2a6;
-      color: #4d9;
+      border: 1px solid var(--success);
+      color: var(--success);
       padding: var(--space-sm);
       border-radius: var(--radius);
       cursor: pointer;
@@ -370,27 +370,27 @@
       border: 1px solid transparent;
       transition: background 0.1s;
     }
-    .log-entry-item:hover { background: #1a1a1a; }
+    .log-entry-item:hover { background: var(--bg-secondary); }
     .log-entry-item.active {
-      background: #141414;
-      border-color: #2a6;
+      background: var(--bg-secondary);
+      border-color: var(--success);
     }
     .log-entry-item .log-item-date {
       font-size: 0.72rem;
-      color: #555;
+      color: var(--text-muted);
       margin-bottom: var(--space-xs);
     }
     .log-entry-item .log-item-title {
       font-size: 0.84rem;
       font-weight: 600;
-      color: #ccc;
+      color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .log-entry-item .log-item-preview {
       font-size: 0.75rem;
-      color: #666;
+      color: var(--text-muted);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -412,57 +412,57 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      background: #0f0f0f;
+      background: var(--bg);
     }
     #log-editor-bar {
       display: flex;
       align-items: center;
       gap: var(--space-md);
       padding: var(--space-lg) var(--space-xl);
-      border-bottom: 1px solid #1a1a1a;
+      border-bottom: 1px solid var(--bg-secondary);
       flex-shrink: 0;
     }
     #log-entry-title-input {
       flex: 1;
       background: transparent;
       border: none;
-      color: #fff;
+      color: var(--text);
       font-size: 1.1rem;
       font-weight: 700;
       outline: none;
       font-family: inherit;
     }
-    #log-entry-title-input::placeholder { color: #444; }
+    #log-entry-title-input::placeholder { color: var(--text-muted); }
     #log-date-display {
       font-size: 0.78rem;
-      color: #555;
+      color: var(--text-muted);
       white-space: nowrap;
     }
     #log-tag-input {
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
       border-radius: var(--radius-sm);
-      color: #aaa;
+      color: var(--text-muted);
       padding: var(--space-xs) var(--space-md);
       font-size: 0.75rem;
       width: 130px;
       outline: none;
     }
-    #log-tag-input:focus { border-color: #2a6; }
+    #log-tag-input:focus { border-color: var(--success); }
     #log-delete-btn {
       background: none;
-      border: 1px solid #2a2a2a;
-      color: #555;
+      border: 1px solid var(--bg-hover);
+      color: var(--text-muted);
       padding: var(--space-xs) var(--space-md);
       border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.8rem;
       transition: color 0.12s, border-color 0.12s;
     }
-    #log-delete-btn:hover { color: #e44; border-color: #e44; }
+    #log-delete-btn:hover { color: var(--danger); border-color: var(--danger); }
     #log-save-indicator {
       font-size: 0.72rem;
-      color: #4d9;
+      color: var(--success);
       opacity: 0;
       transition: opacity 0.3s;
     }
@@ -481,7 +481,7 @@
       font-family: 'Segoe UI', system-ui, sans-serif;
       overflow-y: auto;
     }
-    #log-textarea::placeholder { color: #333; }
+    #log-textarea::placeholder { color: var(--border); }
 
     /* Word count bar */
     #log-footer-bar {
@@ -489,11 +489,11 @@
       align-items: center;
       gap: var(--space-xl);
       padding: var(--space-sm) var(--space-xl);
-      border-top: 1px solid #1a1a1a;
+      border-top: 1px solid var(--bg-secondary);
       flex-shrink: 0;
-      background: #0d0d0d;
+      background: var(--bg);
     }
-    #log-footer-bar span { font-size: 0.72rem; color: #444; }
+    #log-footer-bar span { font-size: 0.72rem; color: var(--text-muted); }
 
     /* Empty / welcome state */
     #log-empty {
@@ -503,7 +503,7 @@
       justify-content: center;
       flex: 1;
       gap: var(--space-lg);
-      color: #444;
+      color: var(--text-muted);
       text-align: center;
       padding: var(--space-3xl);
     }
@@ -513,6 +513,8 @@
 </head>
 <body>
 <script src="/shared/shell.js" data-active="notes"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Write private notes or keep a daily log — everything is encrypted and safe.</div>
@@ -613,7 +615,7 @@
       <div class="empty-icon"><span class="pg-ico" data-icon="edit" data-size="48"></span></div>
       <p>Your personal log.<br>Record thoughts, discoveries, and daily reflections.</p>
       <button class="btn-new" onclick="log_newEntry()"
-        style="background:#1a4a2a;border:1px solid #2a6;color:#4d9;padding:var(--space-md) var(--space-xl);border-radius:6px;cursor:pointer;font-size:0.88rem;font-weight:600;margin-top:var(--space-md);">
+        style="background:#1a4a2a;border:1px solid var(--success);color:var(--success);padding:var(--space-md) var(--space-xl);border-radius:6px;cursor:pointer;font-size:0.88rem;font-weight:600;margin-top:var(--space-md);">
         + Write First Entry
       </button>
     </div>

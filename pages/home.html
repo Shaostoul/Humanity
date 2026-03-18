@@ -123,7 +123,7 @@
       transition: all 0.12s;
       font-family: inherit;
     }
-    .btn-sm:hover { background: var(--bg-hover); color: var(--text); border-color: #444; }
+    .btn-sm:hover { background: var(--bg-hover); color: var(--text); border-color: var(--text-muted); }
     .btn-sm.danger:hover { color: var(--danger); border-color: var(--danger); }
 
     /* ── Card base ── */
@@ -195,7 +195,7 @@
     }
     .status-ok   { background: #0d2e14; color: #4caf50; }
     .status-warn { background: #2e2a0d; color: #f4d68a; }
-    .status-off  { background: #1e1e1e; color: #666; }
+    .status-off  { background: var(--bg-secondary); color: var(--text-muted); }
 
     .item-del {
       background: none;
@@ -259,7 +259,7 @@
       padding: 0.85rem;
       transition: border-color 0.15s;
     }
-    .sys-card:hover { border-color: #444; }
+    .sys-card:hover { border-color: var(--text-muted); }
 
     .sys-card-header {
       display: flex;
@@ -318,7 +318,7 @@
     }
     .sys-ok   { background: #0d2e14; color: #4caf50; }
     .sys-warn { background: #2e2a0d; color: #f4d68a; }
-    .sys-alert { background: #2e0d0d; color: #e55; }
+    .sys-alert { background: #2e0d0d; color: var(--danger); }
 
     /* ── Garden: Aeroponic Tower visualization ── */
     .garden-layout {
@@ -399,7 +399,7 @@
 
     .ground-bed-icon { font-size: 1.2rem; }
     .ground-bed-name { color: var(--text-muted); font-size: 0.68rem; }
-    .ground-bed-status { font-size: 0.58rem; color: #888; }
+    .ground-bed-status { font-size: 0.58rem; color: var(--text-muted); }
 
     .ground-bed-empty {
       border-style: dashed;
@@ -426,7 +426,7 @@
       gap: var(--space-md);
       transition: border-color 0.15s;
     }
-    .plant-card:hover { border-color: #444; }
+    .plant-card:hover { border-color: var(--text-muted); }
 
     .plant-icon { font-size: 1.3rem; flex-shrink: 0; }
     .plant-info { flex: 1; min-width: 0; }
@@ -571,6 +571,8 @@
 </head>
 <body>
 <script src="/shared/shell.js" data-active="home"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 
 <div class="eli5-block">

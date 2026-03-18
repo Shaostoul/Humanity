@@ -113,7 +113,7 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       background: rgba(255,136,17,0.15);
-      color: #FF8811;
+      color: var(--accent);
       padding: var(--space-xs) var(--space-sm);
       border-radius: var(--radius-sm);
       white-space: nowrap;
@@ -153,7 +153,7 @@
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: var(--radius-sm); }
+    ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: var(--radius-sm); }
 
     @media (max-width: 600px) {
       .game-grid { grid-template-columns: 1fr; }
@@ -164,6 +164,8 @@
 </head>
 <body>
 <script src="/shared/shell.js" data-active="dashboard"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Play mini-games and launch other games from here!</div>

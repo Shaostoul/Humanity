@@ -36,6 +36,7 @@
 </head>
 <body>
   <script src="/shared/shell.js?v=3" data-active="chat"></script>
+  <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js?v=3"></script>
 
   <!-- Login Screen -->
@@ -369,7 +370,7 @@
           <p style="margin:.15rem 0 0;font-size:.74rem;color:var(--text-muted)">See the plain-English intro to identities, seed phrases, and how Humanity works.</p>
         </div>
         <button onclick="reopenOnboardingWizard();toggleHelpModal();"
-          style="flex-shrink:0;background:#f0a500;color:#000;border:none;border-radius:7px;padding:.4rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">
+          style="flex-shrink:0;background:var(--accent);color:#000;border:none;border-radius:7px;padding:.4rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap">
           Getting Started
         </button>
       </div>
@@ -589,7 +590,7 @@
       <div style="display:flex;gap:0.5rem;margin-top:0.75rem;flex-wrap:wrap">
         <button onclick="copySystemContext()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">📋 Copy for AI</button>
         <button onclick="syncSystemProfile()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">☁️ Sync to Server</button>
-        <button onclick="saveSystemOverrides()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--accent);border:none;border-radius:4px;color:#fff;cursor:pointer;margin-left:auto">Save</button>
+        <button onclick="saveSystemOverrides()" style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--accent);border:none;border-radius:4px;color:var(--text);cursor:pointer;margin-left:auto">Save</button>
       </div>
     </div>
   </div>

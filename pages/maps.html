@@ -6,11 +6,9 @@
   <title>Maps — HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>:root {
-  --bg: #0d0d0d;
   --bg-panel: #141414;
-  --border: #222;
   --accent: #22aa66;
-  --error: #e55;
+  --error: var(--danger);
 }
 body {
   background: var(--bg);
@@ -41,6 +39,8 @@ button {
 </head>
 <body>
 <script src=/shared/shell.js data-active=map></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Explore maps from your neighborhood to the whole galaxy.</div>

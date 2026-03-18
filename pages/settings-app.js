@@ -1,31 +1,5 @@
-const STORAGE_KEY = 'humanity_settings';
-const DEFAULTS = {
-  theme: 'dark', accent: '#22aa66', 'font-size': 'medium', compact: false,
-  'rgb-nav': true, 'nav-tips': true,
-  'notif-dm': true, 'notif-group': true, 'notif-mention': true,
-  'notif-quests': true, 'notif-cal': true, 'notif-sound': false,
-  'who-dm': 'everyone', 'show-online': true, 'read-receipts': true, 'discoverable': true,
-  'local-only': true, analytics: false,
-  'msg-preview': true, 'enter-send': true, timestamps: 'hover', 'msg-group': true, 'relay-url': '',
-  language: 'en', 'date-fmt': 'mdy', 'time-fmt': '12h', 'launch-chat': false, autosave: '60',
-  'display-name': '', 'debug-panel': false, 'verbose-log': false,
-  // Accessibility
-  'reduce-motion': false, 'no-rgb': false, 'high-contrast': false,
-  'focus-ring': false, 'dyslexia-font': false, 'aria-enhanced': false,
-  // Audio & Video
-  'mic-device': '', 'mic-gain': '100', 'speaker-device': '', 'speaker-vol': '100',
-  'camera-device': '', 'video-quality': '720',
-  // Security
-  'auto-lock': '30',
-  // DND
-  presence: 'online', 'status-text': '', 'quiet-hours': false,
-  'quiet-start': '22:00', 'quiet-end': '08:00', 'dnd-friends': true, 'dnd-mentions': false,
-  // Theme customizer (shared with settings.js)
-  iconWeight: 3, iconSize: 20, fontSizePx: 16, borderRadius: 8,
-  contentWidth: 0, lineHeight: 1.6, spacingScale: 100,
-  fontSize: 'medium', soundEnabled: true, timestampMode: 'relative',
-  successColor: '', dangerColor: '', warningColor: '',
-};
+const DEFAULTS = window.HOS_DEFAULTS || {};
+const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
 let prefs = Object.assign({}, DEFAULTS);
 
@@ -682,7 +656,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.5.3 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.6.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons

@@ -14,17 +14,14 @@
  <link rel="stylesheet" href="/shared/theme.css">
  <style>
   :root {
-   --bg-panel: #141414;
-   --border: #2a2a2a;
-   --success: #4a8;
-   --error: #e55;
-   --warning: #eb4;
+   --bg-panel: var(--bg-secondary);
+   --error: var(--danger);
 
    /* Button state colors */
    --btn-clickable: #44cc66;
    --btn-hover: #4488ff;
    --btn-activated: #ee3333;
-   --btn-disabled: #222222;
+   --btn-disabled: var(--bg-input);
    --btn-cooldown: #8844cc;
   }
 
@@ -368,7 +365,7 @@
   /* ── Catalog System ── */
   .catalog-search-bar {
    display: flex; gap: var(--space-md); margin-bottom: 1.2rem; position: sticky; top: 0; z-index: 10;
-   background: var(--bg, #0a0a0a); padding: var(--space-md) 0;
+   background: var(--bg); padding: var(--space-md) 0;
   }
   .catalog-search-bar input {
    flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text);
@@ -376,7 +373,7 @@
   }
   .catalog-search-bar input:focus { border-color: var(--accent); }
   .catalog-search-results {
-   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: var(--radius);
+   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
    margin-bottom: var(--space-xl); max-height: 300px; overflow-y: auto;
   }
   .catalog-search-results:empty { display: none; }
@@ -385,7 +382,7 @@
    cursor: pointer; font-size: 0.82rem; border-bottom: 1px solid var(--border);
   }
   .catalog-result-item:last-child { border-bottom: none; }
-  .catalog-result-item:hover { background: var(--bg-hover, rgba(255,255,255,0.03)); }
+  .catalog-result-item:hover { background: var(--bg-hover); }
   .catalog-result-badge {
    font-size: 0.6rem; font-weight: 700; padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm);
    text-transform: uppercase; flex-shrink: 0;
@@ -424,7 +421,7 @@
 
   /* Element Detail */
   .element-detail {
-   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: var(--radius-lg);
+   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
    padding: 1.2rem; margin-bottom: var(--space-xl); animation: fadeIn 0.15s ease;
   }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
@@ -476,7 +473,7 @@
   }
   .catalog-modal-overlay.open { display: flex; }
   .catalog-modal {
-   background: var(--bg-card, #1a1a1a); border: 1px solid var(--border); border-radius: var(--radius-lg);
+   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
    padding: var(--space-2xl); max-width: 550px; width: 92%; max-height: 85vh; overflow-y: auto; position: relative;
   }
   .catalog-modal .modal-close {
@@ -501,7 +498,7 @@
    background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted);
    padding: var(--space-xs) var(--space-lg); border-radius: var(--radius-lg); font-size: 0.72rem; cursor: pointer; transition: all 0.15s;
   }
-  .filter-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .filter-pill.active { background: var(--accent); color: var(--text); border-color: var(--accent); }
   .filter-pill:hover { border-color: var(--accent); }
 
   /* ── Mobile ── */
@@ -519,6 +516,7 @@
 </head>
 <body>
  <script src="/shared/shell.js"></script>
+ <script src="/shared/defaults.js"></script>
  <script src="/shared/settings.js"></script>
  <script>
   document.querySelectorAll('.hub-nav .tab[href^="/map"]').forEach(el => el.setAttribute('data-tab', 'map'));
@@ -565,7 +563,7 @@
     </div>
    </div>
    <!-- Info sidebar -->
-   <div id="map-sidebar" style="width:320px;border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;background:var(--bg-card,#141414);">
+   <div id="map-sidebar" style="width:320px;border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;background:var(--bg-card);">
     <div id="map-info-panel" style="padding:0.8rem;font-size:0.82rem;"></div>
    </div>
   </div>
@@ -577,7 +575,7 @@
    <h2 style="color:var(--accent);margin:0;font-size:1.1rem;">🧩 Systems</h2>
    <button class="btn btn-clickable" id="board-create-btn" style="display:none;min-width:auto;min-height:36px;padding:0.3rem 0.8rem;font-size:0.8rem;" onclick="showCreateTaskModal()">+ New Task</button>
   </div>
-  <div id="systems-clean" style="margin-bottom:0.9rem;background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.75rem;">
+  <div id="systems-clean" style="margin-bottom:0.9rem;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.75rem;">
    <div style="display:grid;grid-template-columns:240px minmax(0,1fr) 240px;gap:0.7rem;align-items:start;">
     <aside style="border:1px solid var(--border);border-radius:8px;padding:0.5rem;max-height:320px;overflow:auto;">
      <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:0.35rem;">Systems Tree</div>
@@ -627,7 +625,7 @@
   </script>
 
   <div id="systems-layout" style="display:grid;grid-template-columns:260px minmax(0,1fr) 260px;gap:0.8rem;align-items:start;">
-   <aside id="systems-tree" style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
+   <aside id="systems-tree" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
     <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.45rem;">Folders</div>
     <details open><summary style="cursor:pointer;">Project</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('PU Mission')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mission</button><button onclick="featureWebFocusByTitle('Act I-V Roadmap')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Roadmap</button></div></details>
     <details><summary style="cursor:pointer;">Utilities</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Main Power Grid')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Power</button><button onclick="featureWebFocusByTitle('Water & Waste Loop')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Water</button><button onclick="featureWebFocusByTitle('Network Backbone')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Network</button></div></details>
@@ -635,7 +633,7 @@
     <details><summary style="cursor:pointer;">Earth Twin</summary><div style="padding:0.25rem 0 0.25rem 0.6rem;display:flex;flex-direction:column;gap:0.25rem;"><button onclick="featureWebFocusByTitle('Earth Twin Home Planner')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Home Planner</button><button onclick="featureWebFocusByTitle('Earth/Fleet Mode Switch')" style="text-align:left;background:none;border:none;color:var(--text);cursor:pointer;">Mode Switch</button></div></details>
    </aside>
    <div>
-  <div id="feature-web" role="region" aria-labelledby="feature-web-title" style="margin-bottom:1rem;background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.8rem;">
+  <div id="feature-web" role="region" aria-labelledby="feature-web-title" style="margin-bottom:1rem;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.8rem;">
    <div style="display:flex;justify-content:space-between;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.6rem;">
     <h3 id="feature-web-title" style="margin:0;font-size:0.95rem;color:var(--text);">✨ Feature Showcase</h3>
     <div id="feature-web-meta" aria-live="polite" aria-atomic="true" aria-label="Feature Web node and link counts" style="font-size:0.72rem;color:var(--text-muted);">0 nodes · 0 links</div>
@@ -686,14 +684,14 @@
     <select id="fw-node-status" aria-label="Feature Web node status" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;">
      <option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option>
     </select>
-    <button aria-label="Add Feature Web node" aria-keyshortcuts="Ctrl+Shift+A" onclick="featureWebAddNode()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Add Node</button>
-    <button aria-label="Seed Feature Web with Project Universe map" onclick="featureWebSeedPU()" style="background:#6f49d8;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Seed PU Map</button>
+    <button aria-label="Add Feature Web node" aria-keyshortcuts="Ctrl+Shift+A" onclick="featureWebAddNode()" style="background:var(--accent);color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Add Node</button>
+    <button aria-label="Seed Feature Web with Project Universe map" onclick="featureWebSeedPU()" style="background:#6f49d8;color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Seed PU Map</button>
    </div>
    <div class="fw-pro" role="group" aria-label="Feature Web link creation form" style="display:grid;grid-template-columns:1fr 1fr 0.9fr auto;gap:0.5rem;margin-bottom:0.4rem;">
     <select id="fw-link-from" aria-label="Feature Web link from node" aria-keyshortcuts="Ctrl+L" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('fw-link-to')?.focus();}" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <select id="fw-link-to" aria-label="Feature Web link to node" aria-keyshortcuts="Ctrl+Shift+L" onkeydown="if(event.key==='Enter')featureWebAddEdge()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"></select>
     <select id="fw-link-type" aria-label="Feature Web link relationship type" aria-keyshortcuts="Ctrl+T" onkeydown="if(event.key==='Enter')featureWebAddEdge()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="depends_on">Depends on</option><option value="blocks">Blocks</option><option value="relates_to">Relates to</option><option value="teaches">Teaches</option><option value="enables">Enables</option></select>
-    <button aria-label="Create Feature Web link" aria-keyshortcuts="Ctrl+Enter" onclick="featureWebAddEdge()" style="background:#2f6fed;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
+    <button aria-label="Create Feature Web link" aria-keyshortcuts="Ctrl+Enter" onclick="featureWebAddEdge()" style="background:#2f6fed;color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">+ Link</button>
    </div>
    <div id="fw-quick-list" role="list" aria-live="polite" aria-atomic="true" aria-hidden="false" aria-label="Feature Web quick focus nodes" aria-description="Top ranked visible nodes for quick focus and centering." style="margin-bottom:0.5rem;display:flex;flex-wrap:wrap;gap:0.35rem;"></div>
    <div id="fw-edge-list" class="fw-pro" role="list" aria-live="polite" aria-atomic="true" aria-label="Feature Web visible links" aria-description="Links visible under current search and filter settings." style="margin-bottom:0.6rem;font-size:0.7rem;color:var(--text-muted);"></div>
@@ -703,7 +701,7 @@
     <select id="fw-edit-type" aria-label="Edit Feature Web node type" aria-keyshortcuts=";,'" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="feature">Feature</option><option value="subfeature">Subfeature</option><option value="tech">Tech</option><option value="ux">UX</option><option value="org">Org</option><option value="lore">Lore</option></select>
     <select id="fw-edit-status" aria-label="Edit Feature Web node status" aria-keyshortcuts="Ctrl+Shift+T,[,],Alt+1,Alt+2,Alt+3,Alt+4" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="planned">Planned</option><option value="active">Active</option><option value="blocked">Blocked</option><option value="done">Done</option></select>
     <select id="fw-edit-domain" aria-label="Edit Feature Web node domain" aria-keyshortcuts="Ctrl+Shift+E" onchange="featureWebSaveNodeEdits()" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.35rem;border-radius:6px;font-size:0.78rem;"><option value="vision">Vision</option><option value="business">Business</option><option value="school">School</option><option value="game">Game</option><option value="economy">Economy</option><option value="tech">Tech</option><option value="lore">Lore</option><option value="roadmap">Roadmap</option><option value="community">Community</option><option value="operations">Operations</option></select>
-    <button aria-label="Save Feature Web node edits" aria-keyshortcuts="Ctrl+S" onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:#fff;border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
+    <button aria-label="Save Feature Web node edits" aria-keyshortcuts="Ctrl+S" onclick="featureWebSaveNodeEdits()" style="background:#2f8f4e;color:var(--text);border:none;padding:0.35rem 0.7rem;border-radius:6px;font-size:0.78rem;cursor:pointer;font-weight:600;">Save Node</button>
     <button aria-label="Copy selected Feature Web node title" aria-keyshortcuts="T" onclick="featureWebCopySelectedTitle()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Title</button>
     <button aria-label="Copy selected Feature Web node ID" aria-keyshortcuts="Ctrl+I" onclick="featureWebCopySelectedId()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node ID</button>
     <button aria-label="Copy selected Feature Web node JSON" aria-keyshortcuts="N" onclick="featureWebCopySelectedJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.35rem 0.6rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy Node JSON</button>
@@ -744,14 +742,14 @@
     <button aria-label="Nudge selected node right" aria-keyshortcuts="ArrowRight" onclick="featureWebNudgeSelected(12,0)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">→</button>
     <button aria-label="Nudge selected node down" aria-keyshortcuts="ArrowDown" onclick="featureWebNudgeSelected(0,12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.45rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">↓</button>
     <button aria-label="Snap selected node to grid" aria-keyshortcuts="G" onclick="featureWebNudgeToGrid(12)" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.72rem;cursor:pointer;">Snap Grid</button>
-    <button id="fw-teach-btn" aria-label="Open teaching summary for selected node" aria-controls="fw-teach-panel" aria-expanded="false" aria-keyshortcuts="H" onclick="featureWebTeachMode()" style="background:#2f6fed;color:#fff;border:none;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Teach Mode</button>
+    <button id="fw-teach-btn" aria-label="Open teaching summary for selected node" aria-controls="fw-teach-panel" aria-expanded="false" aria-keyshortcuts="H" onclick="featureWebTeachMode()" style="background:#2f6fed;color:var(--text);border:none;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Teach Mode</button>
     <button aria-label="Export Feature Web as JSON" onclick="featureWebExport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Export JSON</button>
     <button aria-label="Import Feature Web from JSON file" aria-keyshortcuts="I" onclick="featureWebImport()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Import JSON</button>
     <button aria-label="Reset Feature Web nodes and links" aria-keyshortcuts="Z" onclick="featureWebReset()" style="background:none;border:1px solid rgba(229,85,85,0.5);color:#e88;padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Reset Web</button>
     <button aria-label="Copy entire Feature Web JSON" aria-keyshortcuts="J" onclick="featureWebCopyShare()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Copy JSON</button>
     <button aria-label="Paste Feature Web JSON" aria-keyshortcuts="P" onclick="featureWebPasteJson()" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:0.25rem 0.55rem;border-radius:6px;font-size:0.74rem;cursor:pointer;">Paste JSON</button>
    </div>
-   <div id="feature-web-canvas" role="region" tabindex="0" aria-label="Feature Web node graph canvas" aria-describedby="fw-shortcuts-hint" aria-keyshortcuts="Enter,Shift+Enter,Escape" aria-description="Double-click the canvas to place a node using the current add-node fields." ondblclick="featureWebCanvasAdd(event)" onkeydown="featureWebCanvasKeydown(event)" style="position:relative;height:540px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input,#111);overflow:hidden;">
+   <div id="feature-web-canvas" role="region" tabindex="0" aria-label="Feature Web node graph canvas" aria-describedby="fw-shortcuts-hint" aria-keyshortcuts="Enter,Shift+Enter,Escape" aria-description="Double-click the canvas to place a node using the current add-node fields." ondblclick="featureWebCanvasAdd(event)" onkeydown="featureWebCanvasKeydown(event)" style="position:relative;height:540px;border:1px dashed var(--border);border-radius:8px;background:radial-gradient(circle at 20% 20%, rgba(255,136,17,0.08), transparent 35%),var(--bg-input);overflow:hidden;">
     <svg id="feature-web-edges" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
     <div id="feature-web-nodes" role="list" aria-label="Feature Web nodes" style="position:absolute;inset:0;"></div>
    </div>
@@ -759,7 +757,7 @@
 
   <div id="board-columns" style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.8rem;min-height:300px;">
    <div class="board-column" data-status="backlog">
-    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--text-muted);padding:0.4rem 0.5rem;border-bottom:2px solid #555;margin-bottom:0.5rem;">📥 Backlog <span class="board-col-count" data-status="backlog">0</span></div>
+    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--text-muted);padding:0.4rem 0.5rem;border-bottom:2px solid var(--text-muted);margin-bottom:0.5rem;">📥 Backlog <span class="board-col-count" data-status="backlog">0</span></div>
     <div class="board-col-cards" data-status="backlog"></div>
    </div>
    <div class="board-column" data-status="in_progress">
@@ -767,17 +765,17 @@
     <div class="board-col-cards" data-status="in_progress"></div>
    </div>
    <div class="board-column" data-status="testing">
-    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:#eb4;padding:0.4rem 0.5rem;border-bottom:2px solid #eb4;margin-bottom:0.5rem;">🧪 Testing <span class="board-col-count" data-status="testing">0</span></div>
+    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--warning);padding:0.4rem 0.5rem;border-bottom:2px solid var(--warning);margin-bottom:0.5rem;">🧪 Testing <span class="board-col-count" data-status="testing">0</span></div>
     <div class="board-col-cards" data-status="testing"></div>
    </div>
    <div class="board-column" data-status="done">
-    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:#4a8;padding:0.4rem 0.5rem;border-bottom:2px solid #4a8;margin-bottom:0.5rem;">✅ Done <span class="board-col-count" data-status="done">0</span></div>
+    <div class="board-col-header" style="font-size:0.85rem;font-weight:700;color:var(--success);padding:0.4rem 0.5rem;border-bottom:2px solid var(--success);margin-bottom:0.5rem;">✅ Done <span class="board-col-count" data-status="done">0</span></div>
     <div class="board-col-cards" data-status="done"></div>
    </div>
   </div>
   <div id="board-loading" style="text-align:center;color:var(--text-muted);padding:2rem;font-size:0.85rem;">Loading tasks…</div>
    </div>
-   <aside id="systems-right" style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
+   <aside id="systems-right" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.6rem;position:sticky;top:52px;max-height:calc(100vh - 120px);overflow:auto;">
     <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.45rem;">Status</div>
     <div style="font-size:0.74rem;line-height:1.45;color:var(--text);">
      <div><strong>Inventory/Stock</strong></div>
@@ -795,7 +793,7 @@
 
   <!-- Task Modal -->
   <div id="task-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;display:none;align-items:center;justify-content:center;">
-   <div style="background:var(--bg-card,#1a1a1a);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative;">
+   <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative;">
     <button onclick="closeTaskModal()" style="position:absolute;top:0.8rem;right:0.8rem;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;">Close</button>
     <div id="task-modal-content"></div>
    </div>
@@ -884,7 +882,7 @@
    <div class="reality-card-body" id="todo-body">
     <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
      <input type="text" id="todo-input" placeholder="Add a task…" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.4rem 0.6rem;border-radius:6px;font-size:0.85rem;outline:none;font-family:inherit;" onkeydown="if(event.key==='Enter')addTodo()">
-     <button onclick="addTodo()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Add</button>
+     <button onclick="addTodo()" style="background:var(--accent);color:var(--text);border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">Add</button>
     </div>
     <div id="todo-list"></div>
    </div>
@@ -895,7 +893,7 @@
    <h2 class="reality-card-header" onclick="toggleRealityCard('notes')"><span class="pg-ico" data-icon="edit" data-size="18"></span> Notes <span class="collapse-icon" id="notes-collapse">▼</span></h2>
    <div class="reality-card-body" id="notes-body">
     <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;">
-     <button onclick="addNote()" style="background:var(--accent);color:#fff;border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">+ New Note</button>
+     <button onclick="addNote()" style="background:var(--accent);color:var(--text);border:none;padding:0.4rem 0.8rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;">+ New Note</button>
     </div>
     <div id="notes-list" style="margin-bottom:0.6rem;"></div>
     <div id="notes-editor" style="display:none;">
@@ -914,7 +912,7 @@
      <div id="garden-left" style="width:220px;min-width:180px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:rgba(0,0,0,0.15);">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5rem 0.6rem;border-bottom:1px solid var(--border);">
        <span style="font-weight:700;font-size:0.8rem;color:var(--text);">ZONES</span>
-       <button onclick="gardenAddZone()" style="background:var(--accent);color:#fff;border:none;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;font-weight:600;">+ New</button>
+       <button onclick="gardenAddZone()" style="background:var(--accent);color:var(--text);border:none;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;cursor:pointer;font-weight:600;">+ New</button>
       </div>
       <div id="garden-zone-tree" style="flex:1;overflow-y:auto;padding:0.3rem;font-size:0.8rem;"></div>
      </div>
@@ -994,7 +992,7 @@
     <input type="hidden" id="gz-edit-id">
     <div class="modal-actions">
      <button onclick="gardenCloseZoneModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
-     <button onclick="gardenSaveZone()" style="background:var(--accent);color:#fff;">Save</button>
+     <button onclick="gardenSaveZone()" style="background:var(--accent);color:var(--text);">Save</button>
     </div>
    </div>
   </div>
@@ -1034,7 +1032,7 @@
     <label>Notes</label><textarea id="gp-notes" rows="2"></textarea>
     <div class="modal-actions">
      <button onclick="gardenCloseAddPlantModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
-     <button onclick="gardenSavePlant()" style="background:var(--accent);color:#fff;">Save</button>
+     <button onclick="gardenSavePlant()" style="background:var(--accent);color:var(--text);">Save</button>
     </div>
    </div>
   </div>
@@ -1061,7 +1059,7 @@
     </div>
     <div class="modal-actions">
      <button onclick="document.getElementById('garden-reading-modal').classList.remove('open')" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
-     <button onclick="gardenSaveReading()" style="background:var(--accent);color:#fff;">Save</button>
+     <button onclick="gardenSaveReading()" style="background:var(--accent);color:var(--text);">Save</button>
     </div>
    </div>
   </div>
@@ -1156,7 +1154,7 @@
    <div class="reality-card-body" id="inventory-body">
     <div class="inv-privacy-banner"><span class="pg-ico" data-icon="lock" data-size="14"></span> Private — stored only on this device, never uploaded</div>
     <div class="inv-toolbar">
-     <button onclick="openInventoryModal()" style="background:var(--accent);color:#fff;border:none;padding:0.35rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">+ Add Item</button>
+     <button onclick="openInventoryModal()" style="background:var(--accent);color:var(--text);border:none;padding:0.35rem 0.8rem;border-radius:6px;font-size:0.8rem;cursor:pointer;font-weight:600;">+ Add Item</button>
      <select id="inv-category-filter" onchange="renderInventory()" style="min-width:100px;">
       <option value="">All Categories</option>
      </select>
@@ -1194,7 +1192,7 @@
     <label>Tags (comma-separated)</label><input type="text" id="inv-tags" placeholder="daily-use, important">
     <div class="modal-actions">
      <button onclick="closeInventoryModal()" style="background:var(--bg-input);color:var(--text-muted);">Cancel</button>
-     <button onclick="saveInventoryItem()" style="background:var(--accent);color:#fff;">Save</button>
+     <button onclick="saveInventoryItem()" style="background:var(--accent);color:var(--text);">Save</button>
     </div>
    </div>
   </div>
@@ -1309,7 +1307,7 @@
        <option value="Scholar">📚 Scholar</option>
        <option value="Guardian">🛡️ Guardian</option>
       </select>
-      <button onclick="createCharacter()" style="background:var(--fantasy-accent,#9966ff);color:#fff;border:none;padding:0.5rem 1.2rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Create Character</button>
+      <button onclick="createCharacter()" style="background:var(--fantasy-accent,#9966ff);color:var(--text);border:none;padding:0.5rem 1.2rem;border-radius:6px;font-size:0.85rem;cursor:pointer;font-weight:600;width:100%;">Create Character</button>
      </div>
      <div id="char-display" style="display:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
@@ -1391,7 +1389,7 @@
  <style>
  #tab-streams .stream-grid { display:grid; grid-template-columns:1fr 360px; gap:1rem; }
  @media (max-width:768px) { #tab-streams .stream-grid { grid-template-columns:1fr; } }
- #tab-streams .stream-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1rem; }
+ #tab-streams .stream-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:1rem; }
  #tab-streams .stream-preview { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:8px; overflow:hidden; }
  #tab-streams .stream-preview canvas,
  #tab-streams .stream-preview video { width:100%; height:100%; object-fit:contain; }
@@ -1411,18 +1409,18 @@
  #tab-streams .stream-chat-panel { display:flex; flex-direction:column; height:400px; }
  #tab-streams .stream-chat-tabs { display:flex; gap:0.3rem; margin-bottom:0.5rem; flex-wrap:wrap; }
  #tab-streams .stream-chat-tabs button { font-size:0.72rem; padding:0.2rem 0.5rem; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; }
- #tab-streams .stream-chat-tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+ #tab-streams .stream-chat-tabs button.active { background:var(--accent); color:var(--text); border-color:var(--accent); }
  #tab-streams .stream-chat-messages { flex:1; overflow-y:auto; font-size:0.8rem; padding:0.3rem; background:rgba(0,0,0,0.2); border-radius:6px; }
  #tab-streams .stream-chat-msg { padding:0.15rem 0; }
  #tab-streams .stream-chat-msg .src-humanity { color:#f90; }
  #tab-streams .stream-chat-msg .src-twitch { color:#9146ff; }
- #tab-streams .stream-chat-msg .src-youtube { color:#e55; }
+ #tab-streams .stream-chat-msg .src-youtube { color:var(--danger); }
  #tab-streams .stream-chat-msg .src-rumble { color:#6c5; }
  #tab-streams .stream-chat-input { display:flex; gap:0.3rem; margin-top:0.4rem; }
  #tab-streams .stream-chat-input input { flex:1; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:0.3rem 0.5rem; border-radius:5px; font-size:0.8rem; }
  #tab-streams .stream-chat-input button { padding:0.3rem 0.7rem; }
  #tab-streams #stream-live-list { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:0.8rem; }
- #tab-streams .viewer-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; max-width:300px; }
+ #tab-streams .viewer-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0; overflow:hidden; cursor:pointer; transition:border-color 0.2s; max-width:300px; }
  #tab-streams .viewer-card:hover { border-color:var(--accent); }
  #tab-streams .viewer-card .thumb { width:100%; aspect-ratio:16/9; background:#000; display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
  #tab-streams .viewer-card .meta { padding:0.4rem 0.6rem; }
@@ -1435,7 +1433,7 @@
  #tab-streams .streams-layout > .panel { width:100%; }
  #tab-streams .settings-section { margin-bottom:0.8rem; }
  #tab-streams .settings-section-title { font-weight:600; font-size:0.82rem; color:var(--accent); margin-bottom:0.4rem; border-bottom:1px solid var(--border); padding-bottom:0.2rem; }
- #tab-streams .metrics-panel { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; margin-top:0.8rem; overflow:hidden; }
+ #tab-streams .metrics-panel { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; margin-top:0.8rem; overflow:hidden; }
  #tab-streams .metrics-header { padding:0.5rem 1rem; cursor:pointer; font-weight:600; font-size:0.85rem; display:flex; align-items:center; gap:0.4rem; user-select:none; }
  #tab-streams .metrics-header:hover { background:rgba(255,255,255,0.03); }
  #tab-streams .metrics-body { padding:0 1rem 0.8rem; display:none; }
@@ -1779,17 +1777,17 @@
    #tab-info .info-section h2::after { content:' â–¾'; font-size:0.7rem; opacity:0.5; }
    #tab-info .info-section.collapsed h2::after { content:' â–¸'; }
    #tab-info .info-section.collapsed .info-body { display:none; }
-   #tab-info .role-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1rem; margin-bottom:0.75rem; }
+   #tab-info .role-card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:1rem; margin-bottom:0.75rem; }
    #tab-info .role-card h3 { margin:0 0 0.4rem; font-size:0.95rem; }
    #tab-info .role-card .perms { font-size:0.8rem; color:var(--text-muted); line-height:1.6; }
-   #tab-info .role-card .perms .yes { color:#4a8; }
-   #tab-info .role-card .perms .no { color:#e55; }
+   #tab-info .role-card .perms .yes { color:var(--success); }
+   #tab-info .role-card .perms .no { color:var(--danger); }
    #tab-info .cmd-group { margin-bottom:1rem; }
    #tab-info .cmd-group h4 { font-size:0.85rem; color:var(--text); margin:0.6rem 0 0.3rem; }
    #tab-info .cmd-row { font-size:0.8rem; color:var(--text-muted); padding:0.15rem 0; }
    #tab-info .cmd-row code { background:rgba(255,255,255,0.06); padding:0.1rem 0.4rem; border-radius:3px; color:var(--accent); font-size:0.78rem; }
    #tab-info .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:0.8rem; }
-   #tab-info .stat-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
+   #tab-info .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
    #tab-info .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent); }
    #tab-info .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem; }
   </style>
@@ -1799,15 +1797,15 @@
    <div style="font-size:0.72rem;color:var(--text-muted);">Markdown explorer (allowlisted)</div>
   </div>
   <div id="knowledge-layout" style="display:grid;grid-template-columns:240px minmax(0,1fr) 240px;gap:0.7rem;margin-bottom:1rem;">
-   <aside style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
+   <aside style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
     <input id="knowledge-search" type="text" placeholder="Search docs" style="width:100%;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.32rem 0.45rem;border-radius:6px;font-size:0.72rem;margin-bottom:0.45rem;" oninput="knowledgeRenderList()">
     <div id="knowledge-tree" style="display:flex;flex-direction:column;gap:0.2rem;"></div>
    </aside>
-   <main style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.7rem;min-height:420px;">
+   <main style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.7rem;min-height:420px;">
     <h3 id="knowledge-title" style="margin:0 0 0.45rem;font-size:0.9rem;color:var(--text);">Select a document</h3>
     <div id="knowledge-body" style="font-size:0.8rem;color:var(--text-muted);line-height:1.6;white-space:pre-wrap;">Pick a file on the left to view quick context.</div>
    </main>
-   <aside style="background:var(--bg-card,#141414);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
+   <aside style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.55rem;max-height:420px;overflow:auto;">
     <div style="font-size:0.76rem;color:var(--text-muted);margin-bottom:0.35rem;">Doc Info</div>
     <div id="knowledge-meta" style="font-size:0.72rem;color:var(--text);line-height:1.5;">No file selected.</div>
    </aside>
@@ -1979,7 +1977,7 @@
    #tab-source .info-section h2::after { content:' â–¾'; font-size:0.7rem; opacity:0.5; }
    #tab-source .info-section.collapsed h2::after { content:' â–¸'; }
    #tab-source .info-section.collapsed .info-body { display:none; }
-   #tab-source .src-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:10px; padding:1.2rem; margin-bottom:0.75rem; }
+   #tab-source .src-card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; margin-bottom:0.75rem; }
    #tab-source .src-card p { font-size:0.85rem; color:var(--text-muted); line-height:1.6; margin:0.4rem 0; }
    #tab-source .src-card ul { list-style:none; padding:0; margin:0.5rem 0; }
    #tab-source .src-card li { font-size:0.85rem; color:var(--text-muted); padding:0.25rem 0; line-height:1.5; }
@@ -1987,18 +1985,18 @@
    #tab-source .big-statement { font-size:1.2rem; color:var(--text); font-weight:700; text-align:center; margin:1rem 0; }
    #tab-source .sub-statement { font-size:0.9rem; color:var(--text-muted); text-align:center; margin-bottom:1rem; line-height:1.6; }
    #tab-source .btn-row { display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center; margin:1rem 0; }
-   #tab-source .src-btn { display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; color:#fff; transition:opacity 0.15s; }
+   #tab-source .src-btn { display:inline-flex; align-items:center; gap:0.5rem; padding:0.7rem 1.4rem; border-radius:8px; font-size:0.9rem; font-weight:600; text-decoration:none; color:var(--text); transition:opacity 0.15s; }
    #tab-source .src-btn:hover { opacity:0.85; }
-   #tab-source .src-btn.gh { background:#333; }
-   #tab-source .src-btn.donate { background:var(--accent,#e07020); }
+   #tab-source .src-btn.gh { background:var(--border); }
+   #tab-source .src-btn.donate { background:var(--accent); }
    #tab-source .arch-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:0.8rem; margin:0.8rem 0; }
-   #tab-source .arch-box { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0.8rem; }
+   #tab-source .arch-box { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.8rem; }
    #tab-source .arch-box h4 { font-size:0.85rem; color:var(--accent); margin:0 0 0.3rem; }
    #tab-source .arch-box p { font-size:0.78rem; margin:0; }
    #tab-source .tech-tags { display:flex; flex-wrap:wrap; gap:0.4rem; margin:0.6rem 0; }
    #tab-source .tech-tag { background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:4px; padding:0.2rem 0.6rem; font-size:0.75rem; color:var(--text-muted); }
    #tab-source .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:0.8rem; margin:0.8rem 0; }
-   #tab-source .stat-card { background:var(--bg-card,#141414); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
+   #tab-source .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:0.8rem; text-align:center; }
    #tab-source .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent); }
    #tab-source .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:0.2rem; }
   </style>
@@ -2012,7 +2010,7 @@
      <div class="sub-statement">Anyone can use, modify, and distribute this code for any purpose.<br>No permission needed. No strings attached.</div>
      <div class="btn-row">
       <a href="https://github.com/Shaostoul/Humanity" target="_blank" class="src-btn gh">⭐ GitHub — Shaostoul/Humanity</a>
-      <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" class="src-btn" style="background:#555;">📄 CC0 1.0 License</a>
+      <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" class="src-btn" style="background:var(--text-muted);">📄 CC0 1.0 License</a>
      </div>
     </div>
    </div>
@@ -2032,7 +2030,7 @@
       <li>✨ <strong>The 7 heavenly virtues</strong> — Chastity, temperance, charity, diligence, patience, kindness, humility.</li>
      </ul>
      <div class="btn-row">
-      <a href="https://shaostoul.github.io/Humanity" target="_blank" class="src-btn" style="background:#555;">📖 Read the Full Accord</a>
+      <a href="https://shaostoul.github.io/Humanity" target="_blank" class="src-btn" style="background:var(--text-muted);">📖 Read the Full Accord</a>
      </div>
     </div>
    </div>
@@ -2227,8 +2225,8 @@
     <div style="padding:0.5rem;border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
      <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
     </div>
-    <div style="padding:0.5rem;border-left:3px solid #222;background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
-     <strong style="color:#666;">Black 2px</strong> — Disabled / locked
+    <div style="padding:0.5rem;border-left:3px solid var(--bg-input);background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:var(--text-muted);">Black 2px</strong> — Disabled / locked
     </div>
     <div style="padding:0.5rem;border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
      <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
@@ -2374,7 +2372,7 @@
    <div id="browse-directory" style="width:350px;min-width:280px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
     <div style="padding:0.5rem;border-bottom:1px solid var(--border);display:flex;gap:0.4rem;">
      <input type="text" id="browse-search" placeholder="Search sites..." oninput="filterBrowseSites()" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;">
-     <button onclick="showAddSiteModal()" style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;" title="Add site">+</button>
+     <button onclick="showAddSiteModal()" style="background:var(--accent);border:none;border-radius:6px;color:var(--text);padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;" title="Add site">+</button>
     </div>
     <div id="browse-categories" style="padding:0.4rem 0.5rem;display:flex;flex-wrap:wrap;gap:0.3rem;border-bottom:1px solid var(--border);"></div>
     <div id="browse-collections" style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);max-height:120px;overflow-y:auto;"></div>
@@ -2391,7 +2389,7 @@
     <div id="browse-toolbar" style="display:flex;gap:0.4rem;padding:0.4rem 0.6rem;border-bottom:1px solid var(--border);align-items:center;">
      <button onclick="browsePanelBack()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1rem;" title="Back to directory">←</button>
      <input type="text" id="browse-url-bar" placeholder="Enter URL..." onkeydown="if(event.key==='Enter')browseNavigate(this.value)" style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:0.3rem 0.6rem;border-radius:6px;font-size:0.8rem;">
-     <button onclick="browseNavigate(document.getElementById('browse-url-bar').value)" style="background:var(--accent);border:none;border-radius:6px;color:#fff;padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;">Go</button>
+     <button onclick="browseNavigate(document.getElementById('browse-url-bar').value)" style="background:var(--accent);border:none;border-radius:6px;color:var(--text);padding:0.3rem 0.6rem;cursor:pointer;font-size:0.8rem;">Go</button>
      <button onclick="browseOpenExternal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:0.9rem;" title="Open in new tab">↗</button>
     </div>
     <div id="browse-placeholder" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:0.9rem;">

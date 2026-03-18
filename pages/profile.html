@@ -69,7 +69,7 @@
       text-align: center;
       padding: var(--space-sm);
     }
-    #save-status.saved { color: #4a9; }
+    #save-status.saved { color: var(--success); }
 
     /* ── Main Content ── */
     #profile-main {
@@ -188,7 +188,7 @@
     /* ── Save button ── */
     .save-btn {
       background: var(--accent);
-      color: #fff;
+      color: var(--text);
       border: none;
       border-radius: var(--radius);
       padding: var(--space-md) var(--space-2xl);
@@ -350,6 +350,8 @@
 </head>
 <body>
   <script src="/shared/shell.js" data-active="profile"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
   <script src="/shared/eli5.js"></script>
   <div class="eli5-block">
     <div class="eli5-simple">This is you! Set your name, picture, bio, and show off your skills.</div>

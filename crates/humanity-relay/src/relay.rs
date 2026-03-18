@@ -35,10 +35,10 @@ const IDENTIFY_TIMEOUT_SECS: u64 = 30;
 const TYPING_RATE_LIMIT_SECS: u64 = 2;
 
 /// Fibonacci delay sequence in seconds (capped at 21s).
-const FIB_DELAYS: [u64; 8] = [1, 1, 2, 3, 5, 8, 13, 21];
+pub const FIB_DELAYS: [u64; 8] = [1, 1, 2, 3, 5, 8, 13, 21];
 
 /// Duration after which a new identity is no longer considered "new" (10 minutes).
-const NEW_ACCOUNT_WINDOW_SECS: u64 = 600;
+pub const NEW_ACCOUNT_WINDOW_SECS: u64 = 600;
 
 /// Whether registrations should stay open by default even when staff are offline.
 /// Controlled by env REGISTRATION_DEFAULT_OPEN (default: true).
@@ -50,7 +50,7 @@ fn registration_default_open() -> bool {
 }
 
 /// Flat rate limit for new accounts (seconds).
-const NEW_ACCOUNT_DELAY_SECS: u64 = 5;
+pub const NEW_ACCOUNT_DELAY_SECS: u64 = 5;
 
 /// Per-key rate limit tracking state.
 #[derive(Debug, Clone)]
@@ -1560,7 +1560,7 @@ pub struct ListingData {
     pub updated_at: Option<String>,
 }
 
-fn listing_from_db(l: &crate::storage::MarketplaceListing) -> ListingData {
+pub fn listing_from_db(l: &crate::storage::MarketplaceListing) -> ListingData {
     ListingData {
         id: l.id.clone(),
         seller_key: l.seller_key.clone(),
@@ -2262,306 +2262,43 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                     if let Ok(raw) = serde_json::from_str::<serde_json::Value>(&text) {
                         match raw.get("type").and_then(|t| t.as_str()) {
                             Some("sync_save") => {
-                                if let Some(data) = raw.get("data").and_then(|d| d.as_str()) {
-                                    // Validate: must be valid JSON and < 512KB.
-                                    if data.len() > 512 * 1024 {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Sync data too large (max 512KB).".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    } else if serde_json::from_str::<serde_json::Value>(data).is_ok() {
-                                        if let Err(e) = state_clone.db.save_user_data(&my_key_for_recv, data) {
-                                            tracing::error!("Failed to save user data: {e}");
-                                        }
-                                        // Send ack (no broadcast — private to sender via direct ws_tx would be ideal,
-                                        // but we use the Private message pattern for simplicity).
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "sync_ack".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                }
+                                handle_sync_save(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("sync_load") => {
-                                match state_clone.db.load_user_data(&my_key_for_recv) {
-                                    Ok(Some((data, updated_at))) => {
-                                        let resp = serde_json::json!({
-                                            "type": "sync_data",
-                                            "data": data,
-                                            "updated_at": updated_at
-                                        });
-                                        // Send via broadcast with Private pattern — but sync_data isn't a RelayMessage variant.
-                                        // We need to send raw JSON. Use a system message with a special prefix.
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("__sync_data__:{}", resp.to_string()),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                    Ok(None) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "__sync_data__:null".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Failed to load user data: {e}");
-                                    }
-                                }
+                                handle_sync_load(&state_clone, &my_key_for_recv).await;
                                 continue;
                             }
                             Some("key_rotation") => {
-                                // Identity key rotation: old_key → new_key, dual-signed.
-                                // sig_by_old = sign(new_key + "\n" + timestamp, old_private)
-                                // sig_by_new = sign(old_key + "\n" + timestamp, new_private)
-                                // Both sigs required; only the key owner can initiate.
-                                if let (Some(new_key), Some(sig_by_old), Some(sig_by_new), Some(ts)) = (
-                                    raw.get("new_key").and_then(|v| v.as_str()),
-                                    raw.get("sig_by_old").and_then(|v| v.as_str()),
-                                    raw.get("sig_by_new").and_then(|v| v.as_str()),
-                                    raw.get("timestamp").and_then(|v| v.as_u64()),
-                                ) {
-                                    use crate::handlers::broadcast::verify_ed25519_signature;
-                                    let old_key = &my_key_for_recv;
-                                    let now_ms = std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_default().as_millis() as u64;
-                                    let fresh = now_ms.saturating_sub(ts) < 5 * 60 * 1000;
-                                    let ok_old = verify_ed25519_signature(old_key, new_key, ts, sig_by_old);
-                                    let ok_new = verify_ed25519_signature(new_key, old_key, ts, sig_by_new);
-                                    if fresh && ok_old && ok_new {
-                                        match state_clone.db.record_key_rotation(old_key, new_key, sig_by_old, sig_by_new) {
-                                            Ok(()) => {
-                                                // Notify all connected peers of the rotation.
-                                                let notif = serde_json::json!({
-                                                    "type": "key_rotated",
-                                                    "old_key": old_key,
-                                                    "new_key": new_key,
-                                                    "timestamp": ts
-                                                }).to_string();
-                                                let _ = state_clone.broadcast_tx.send(
-                                                    RelayMessage::System { message: notif }
-                                                );
-                                                tracing::info!("Key rotation: {old_key:.16}… → {new_key:.16}…");
-                                            }
-                                            Err(e) => tracing::error!("Key rotation DB error: {e}"),
-                                        }
-                                    } else {
-                                        tracing::warn!("Key rotation rejected for {old_key:.16}… fresh={fresh} ok_old={ok_old} ok_new={ok_new}");
-                                    }
-                                }
+                                handle_key_rotation(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("skill_update") => {
-                                // User is broadcasting a skill update
-                                if let (Some(skill_id), Some(reality_xp), Some(fantasy_xp), Some(level)) = (
-                                    raw.get("skill_id").and_then(|v| v.as_str()),
-                                    raw.get("reality_xp").and_then(|v| v.as_f64()),
-                                    raw.get("fantasy_xp").and_then(|v| v.as_f64()),
-                                    raw.get("level").and_then(|v| v.as_i64()),
-                                ) {
-                                    let _ = state_clone.db.upsert_skill(&my_key_for_recv, skill_id, reality_xp, fantasy_xp, level as i32);
-                                }
+                                handle_skill_update(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("skill_verify_request") => {
-                                // Forward verification request as a DM to target user
-                                if let (Some(skill_id), Some(to_name)) = (
-                                    raw.get("skill_id").and_then(|v| v.as_str()),
-                                    raw.get("to_name").and_then(|v| v.as_str()),
-                                ) {
-                                    let level = raw.get("level").and_then(|v| v.as_i64()).unwrap_or(0);
-                                    let from_name = {
-                                        let peers = state_clone.peers.read().await;
-                                        peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Someone".to_string())
-                                    };
-                                    // Find target key by name
-                                    if let Ok(Some(true)) = state_clone.db.check_name(to_name, "") {
-                                        // Name exists but belongs to someone else — good, find them
-                                    }
-                                    // Send as system DM via Private message
-                                    // Look up the target key from peers
-                                    let target_key = {
-                                        let peers = state_clone.peers.read().await;
-                                        peers.iter().find(|(_, p)| p.display_name.as_deref() == Some(to_name)).map(|(k, _)| k.clone())
-                                    };
-                                    if let Some(tk) = target_key {
-                                        let msg = format!("__skill_verify_req__:{{\"from_key\":\"{}\",\"from_name\":\"{}\",\"skill_id\":\"{}\",\"level\":{}}}", my_key_for_recv, from_name, skill_id, level);
-                                        let private = RelayMessage::Private {
-                                            to: tk,
-                                            message: msg,
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                }
+                                handle_skill_verify_request(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("skill_verify_response") => {
-                                // User is responding to a verification request
-                                if let (Some(skill_id), Some(to_key), Some(approved)) = (
-                                    raw.get("skill_id").and_then(|v| v.as_str()),
-                                    raw.get("to_key").and_then(|v| v.as_str()),
-                                    raw.get("approved").and_then(|v| v.as_bool()),
-                                ) {
-                                    if approved {
-                                        let note = raw.get("note").and_then(|v| v.as_str()).unwrap_or("Verified");
-                                        let _ = state_clone.db.store_skill_verification(skill_id, &my_key_for_recv, to_key, note);
-                                        let from_name = {
-                                            let peers = state_clone.peers.read().await;
-                                            peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Someone".to_string())
-                                        };
-                                        let msg = format!("__skill_verify_resp__:{{\"from_key\":\"{}\",\"from_name\":\"{}\",\"skill_id\":\"{}\",\"approved\":true,\"note\":\"{}\"}}", my_key_for_recv, from_name, skill_id, note);
-                                        let private = RelayMessage::Private {
-                                            to: to_key.to_string(),
-                                            message: msg,
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                }
+                                handle_skill_verify_response(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("skill_endorsements_request") => {
-                                // Client wants to know how many endorsements each of their skills has.
-                                let target_key = raw.get("user_key")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or(&my_key_for_recv)
-                                    .to_string();
-                                if let Ok(counts) = state_clone.db.get_skill_endorsement_counts(&target_key) {
-                                    let entries: Vec<serde_json::Value> = counts.into_iter().map(|(skill_id, count, endorser)| {
-                                        serde_json::json!({ "skill_id": skill_id, "count": count, "last_endorser": endorser })
-                                    }).collect();
-                                    let payload = serde_json::json!({ "type": "skill_endorsements", "user_key": target_key, "endorsements": entries }).to_string();
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: format!("__skill_endorsements__:{}", payload),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                }
+                                handle_skill_endorsements_request(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("task_update") => {
-                                // Any authenticated relay user can update task status/priority.
-                                if let Some(task_id) = raw.get("task_id").and_then(|v| v.as_i64()) {
-                                    let valid_statuses  = ["backlog", "in_progress", "testing", "done"];
-                                    let valid_priorities = ["low", "medium", "high", "critical"];
-                                    let new_status   = raw.get("status").and_then(|v| v.as_str()).filter(|s| valid_statuses.contains(s));
-                                    let new_priority = raw.get("priority").and_then(|v| v.as_str()).filter(|p| valid_priorities.contains(p));
-                                    let new_title    = raw.get("title").and_then(|v| v.as_str());
-                                    // assignee key present (even empty) means "set this value"; absent means "don't change"
-                                    let assignee_present = raw.get("assignee").is_some();
-                                    let new_assignee_str = raw.get("assignee").and_then(|v| v.as_str());
-                                    if let Ok(Some(task)) = state_clone.db.get_task(task_id) {
-                                        // Move to new status if changed
-                                        if let Some(ns) = new_status {
-                                            if ns != task.status.as_str() {
-                                                let _ = state_clone.db.move_task(task_id, ns);
-                                            }
-                                        }
-                                        // Update other fields if any changed
-                                        if new_priority.is_some() || new_title.is_some() || assignee_present {
-                                            let priority = new_priority.unwrap_or(&task.priority);
-                                            let title    = new_title.unwrap_or(&task.title);
-                                            // Empty string → clear (None); absent key → keep existing
-                                            let assignee = if assignee_present {
-                                                new_assignee_str.filter(|s| !s.is_empty())
-                                            } else {
-                                                task.assignee.as_deref()
-                                            };
-                                            let _ = state_clone.db.update_task(task_id, title, &task.description, priority, assignee, &task.labels);
-                                        }
-                                        if let Ok(Some(updated)) = state_clone.db.get_task(task_id) {
-                                            let cc = state_clone.db.get_task_comment_counts().unwrap_or_default();
-                                            let td = TaskData {
-                                                id: updated.id, title: updated.title, description: updated.description,
-                                                status: updated.status, priority: updated.priority, assignee: updated.assignee,
-                                                created_by: updated.created_by, created_at: updated.created_at,
-                                                updated_at: updated.updated_at, position: updated.position,
-                                                labels: updated.labels,
-                                                comment_count: *cc.get(&task_id).unwrap_or(&0),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
-                                        }
-                                    }
-                                }
+                                handle_raw_task_update(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("task_comment") => {
-                                // Any authenticated relay user can comment on a task.
-                                if let (Some(task_id), Some(content)) = (
-                                    raw.get("task_id").and_then(|v| v.as_i64()),
-                                    raw.get("content").and_then(|v| v.as_str()),
-                                ) {
-                                    let content = content.trim().to_string();
-                                    if content.is_empty() || content.len() > 2000 {
-                                        continue;
-                                    }
-                                    let author_name = {
-                                        let peers = state_clone.peers.read().await;
-                                        peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| my_key_for_recv[..8].to_string())
-                                    };
-                                    if let Ok(cid) = state_clone.db.add_task_comment(task_id, &my_key_for_recv, &author_name, &content) {
-                                        // Broadcast comment so all open task boards can refresh.
-                                        let msg = serde_json::json!({
-                                            "type": "task_comment_added",
-                                            "task_id": task_id,
-                                            "comment_id": cid,
-                                            "author_name": author_name,
-                                            "content": content,
-                                            "created_at": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
-                                        }).to_string();
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::System { message: format!("__task_comment__:{}", msg) });
-                                    }
-                                }
+                                handle_raw_task_comment(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             Some("task_create") => {
-                                // Any authenticated relay user can create a task.
-                                let title = raw.get("title").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-                                if title.is_empty() || title.len() > 200 {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Task title must be 1-200 characters.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                let desc    = raw.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                let status  = raw.get("status").and_then(|v| v.as_str()).unwrap_or("backlog");
-                                let prio    = raw.get("priority").and_then(|v| v.as_str()).unwrap_or("medium");
-                                let labels  = raw.get("labels").and_then(|v| v.as_str()).unwrap_or("[]");
-                                let creator_name = {
-                                    let peers = state_clone.peers.read().await;
-                                    peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| my_key_for_recv[..8].to_string())
-                                };
-                                let valid_statuses  = ["backlog", "in_progress", "testing", "done"];
-                                let valid_priorities = ["low", "medium", "high", "critical"];
-                                let status  = if valid_statuses.contains(&status)  { status  } else { "backlog" };
-                                let prio    = if valid_priorities.contains(&prio)  { prio    } else { "medium"  };
-                                match state_clone.db.create_task(&title, &desc, status, prio, None, &creator_name, labels) {
-                                    Ok(id) => {
-                                        if let Ok(Some(task)) = state_clone.db.get_task(id) {
-                                            let td = TaskData {
-                                                id: task.id, title: task.title, description: task.description,
-                                                status: task.status, priority: task.priority, assignee: task.assignee,
-                                                created_by: task.created_by, created_at: task.created_at,
-                                                updated_at: task.updated_at, position: task.position,
-                                                labels: task.labels, comment_count: 0,
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
-                                        }
-                                    }
-                                    Err(e) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("Failed to create task: {e}"),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                }
+                                handle_raw_task_create(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             _ => {} // Fall through to normal RelayMessage handling
@@ -4027,35 +3764,22 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
                                 let ch = if reaction_channel.is_empty() { "general".to_string() } else { reaction_channel };
-                                // Persist the reaction toggle.
                                 let _ = state_clone.db.toggle_reaction(
-                                    &target_from,
-                                    target_timestamp,
-                                    &emoji,
-                                    &my_key_for_recv,
-                                    display.as_deref().unwrap_or(""),
-                                    &ch,
+                                    &target_from, target_timestamp, &emoji,
+                                    &my_key_for_recv, display.as_deref().unwrap_or(""), &ch,
                                 );
                                 let reaction = RelayMessage::Reaction {
-                                    target_from,
-                                    target_timestamp,
-                                    emoji,
-                                    from: my_key_for_recv.clone(),
-                                    from_name: display,
-                                    channel: ch,
+                                    target_from, target_timestamp, emoji,
+                                    from: my_key_for_recv.clone(), from_name: display, channel: ch,
                                 };
                                 let _ = state_clone.broadcast_tx.send(reaction);
                             }
                             // Delete own message — broadcast removal to all peers.
                             RelayMessage::Delete { timestamp, .. } => {
-                                // Only allow deleting your own messages.
                                 if let Err(e) = state_clone.db.delete_message(&my_key_for_recv, timestamp) {
                                     tracing::error!("Failed to delete message: {e}");
                                 }
-                                let del = RelayMessage::Delete {
-                                    from: my_key_for_recv.clone(),
-                                    timestamp,
-                                };
+                                let del = RelayMessage::Delete { from: my_key_for_recv.clone(), timestamp };
                                 let _ = state_clone.broadcast_tx.send(del);
                             }
                             // Edit own message — validate and broadcast.
@@ -4073,10 +3797,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                         Ok(true) => {
                                             let ch = if edit_channel.is_empty() { "general".to_string() } else { edit_channel };
                                             let edit = RelayMessage::Edit {
-                                                from: my_key_for_recv.clone(),
-                                                timestamp,
-                                                new_content,
-                                                channel: ch,
+                                                from: my_key_for_recv.clone(), timestamp, new_content, channel: ch,
                                             };
                                             let _ = state_clone.broadcast_tx.send(edit);
                                         }
@@ -4087,9 +3808,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                             };
                                             let _ = state_clone.broadcast_tx.send(private);
                                         }
-                                        Err(e) => {
-                                            tracing::error!("Failed to edit message: {e}");
-                                        }
+                                        Err(e) => tracing::error!("Failed to edit message: {e}"),
                                     }
                                 }
                             }
@@ -4107,15 +3826,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                     match state_clone.db.pin_message(&ch, &from_key, &from_name, &content, timestamp, &display) {
                                         Ok(true) => {
                                             let pin = PinData {
-                                                from_key,
-                                                from_name: from_name.clone(),
-                                                content: content.clone(),
-                                                original_timestamp: timestamp,
-                                                pinned_by: display.clone(),
+                                                from_key, from_name: from_name.clone(), content: content.clone(),
+                                                original_timestamp: timestamp, pinned_by: display.clone(),
                                                 pinned_at: std::time::SystemTime::now()
                                                     .duration_since(std::time::UNIX_EPOCH)
-                                                    .unwrap_or_default()
-                                                    .as_millis() as u64,
+                                                    .unwrap_or_default().as_millis() as u64,
                                             };
                                             let _ = state_clone.broadcast_tx.send(RelayMessage::PinAdded { channel: ch.clone(), pin });
                                             let sys = RelayMessage::System { message: format!("📌 {} pinned a message by {}.", display, from_name) };
@@ -4135,512 +3850,31 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             // Profile update — validate, save, and broadcast.
                             RelayMessage::ProfileUpdate { bio, socials, avatar_url, banner_url, pronouns, location, website, privacy } => {
-                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
-                                let display = peer.as_ref().and_then(|p| p.display_name.clone());
-                                if let Some(ref name) = display {
-                                    // Rate limit: max 1 profile update per 30 seconds.
-                                    let now = Instant::now();
-                                    if let Some(last) = last_profile_update {
-                                        if now.duration_since(last).as_secs() < 30 {
-                                            let private = RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: "⏳ Profile update rate limited. Please wait 30 seconds between updates.".to_string(),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                            continue;
-                                        }
-                                    }
-
-                                    // Sanitize: strip HTML tags from bio.
-                                    let clean_bio: String = {
-                                        let mut result = String::new();
-                                        let mut in_tag = false;
-                                        for ch in bio.chars() {
-                                            match ch {
-                                                '<' => in_tag = true,
-                                                '>' => { in_tag = false; }
-                                                _ if !in_tag => result.push(ch),
-                                                _ => {}
-                                            }
-                                        }
-                                        result
-                                    };
-
-                                    // Validate bio length.
-                                    if clean_bio.len() > 280 {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Bio too long (max 280 characters).".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-
-                                    // Validate socials JSON.
-                                    if socials.len() > 1024 || serde_json::from_str::<serde_json::Value>(&socials).is_err() {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Invalid socials data.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-
-                                    // Helper: reject dangerous URI schemes.
-                                    let is_dangerous = |s: &str| {
-                                        let l = s.trim().to_lowercase();
-                                        l.starts_with("javascript:") || l.starts_with("data:")
-                                    };
-
-                                    // Validate URLs in socials: reject dangerous URIs,
-                                    // require https:// for URL fields.
-                                    let mut socials_invalid = false;
-                                    if let Ok(socials_obj) = serde_json::from_str::<serde_json::Value>(&socials) {
-                                        if let Some(obj) = socials_obj.as_object() {
-                                            let url_fields = ["website", "youtube"];
-                                            let handle_fields = ["twitter", "github"];
-
-                                            'socials_check: for field in &url_fields {
-                                                if let Some(serde_json::Value::String(val)) = obj.get(*field) {
-                                                    let val = val.trim();
-                                                    if val.is_empty() { continue; }
-                                                    if is_dangerous(val) { socials_invalid = true; break 'socials_check; }
-                                                    if !val.starts_with("https://") {
-                                                        let private = RelayMessage::Private {
-                                                            to: my_key_for_recv.clone(),
-                                                            message: format!("Profile URL for '{}' must start with https://", field),
-                                                        };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                        socials_invalid = true;
-                                                        break 'socials_check;
-                                                    }
-                                                }
-                                            }
-
-                                            if !socials_invalid {
-                                                'handle_check: for field in &handle_fields {
-                                                    if let Some(serde_json::Value::String(val)) = obj.get(*field) {
-                                                        let val = val.trim();
-                                                        if val.is_empty() { continue; }
-                                                        if !val.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-                                                            let private = RelayMessage::Private {
-                                                                to: my_key_for_recv.clone(),
-                                                                message: format!("Profile handle for '{}' can only contain letters, numbers, and underscores.", field),
-                                                            };
-                                                            let _ = state_clone.broadcast_tx.send(private);
-                                                            socials_invalid = true;
-                                                            break 'handle_check;
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            if !socials_invalid {
-                                                for (_k, val) in obj {
-                                                    if let Some(s) = val.as_str() {
-                                                        if is_dangerous(s) { socials_invalid = true; break; }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if socials_invalid { continue; }
-
-                                    // Validate new URL fields (avatar_url, banner_url, website).
-                                    let avatar  = avatar_url.as_deref().unwrap_or("").trim().to_string();
-                                    let banner  = banner_url.as_deref().unwrap_or("").trim().to_string();
-                                    let w_site  = website.as_deref().unwrap_or("").trim().to_string();
-                                    let pronoun = pronouns.as_deref().unwrap_or("").trim().to_string();
-                                    let loc     = location.as_deref().unwrap_or("").trim().to_string();
-                                    let priv_map = privacy.as_deref().unwrap_or("{}").trim().to_string();
-
-                                    for url_val in &[&avatar, &banner, &w_site] {
-                                        if url_val.is_empty() { continue; }
-                                        if is_dangerous(url_val) || (!url_val.starts_with("https://")) {
-                                            let private = RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: "Profile image/website URLs must start with https://".to_string(),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                            continue;
-                                        }
-                                    }
-
-                                    // Validate privacy map is valid JSON.
-                                    if serde_json::from_str::<serde_json::Value>(&priv_map).is_err() {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Invalid privacy map.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-
-                                    // Save all fields to DB via the extended save function.
-                                    match state_clone.db.save_profile_extended(
-                                        name, &clean_bio, &socials, &avatar, &banner, &pronoun, &loc, &w_site, &priv_map,
-                                    ) {
-                                        Ok(()) => {
-                                            last_profile_update = Some(now);
-
-                                            // Broadcast only public fields to all connected peers.
-                                            // Private fields are excluded so non-friends see nothing sensitive.
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
-                                                name: name.clone(),
-                                                bio: clean_bio.clone(),
-                                                socials: socials.clone(),
-                                                avatar_url: if avatar.is_empty() { None } else { Some(avatar.clone()) },
-                                                banner_url: if banner.is_empty() { None } else { Some(banner.clone()) },
-                                                // Pronouns / location are omitted from the broadcast unless public.
-                                                pronouns: None,
-                                                location: None,
-                                                website: None,
-                                                target: None, // None = broadcast to all
-                                            });
-
-                                            // Send the full profile back to the owner so their own view is complete.
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
-                                                name: name.clone(),
-                                                bio: clean_bio,
-                                                socials,
-                                                avatar_url: if avatar.is_empty() { None } else { Some(avatar) },
-                                                banner_url: if banner.is_empty() { None } else { Some(banner) },
-                                                pronouns: if pronoun.is_empty() { None } else { Some(pronoun) },
-                                                location: if loc.is_empty() { None } else { Some(loc) },
-                                                website: if w_site.is_empty() { None } else { Some(w_site) },
-                                                target: Some(my_key_for_recv.clone()),
-                                            });
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("Failed to save profile: {e}");
-                                            let private = RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: "Failed to save profile.".to_string(),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                        }
-                                    }
-                                } else {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You must have a registered name to set a profile.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                }
+                                handle_profile_update(&state_clone, &my_key_for_recv, &mut last_profile_update, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy).await;
                             }
                             // Profile request — look up the profile, apply privacy filter, and unicast to requester.
                             RelayMessage::ProfileRequest { name } => {
-                                // Determine if the requester is friends with the profile owner.
-                                let is_friend = state_clone.db.are_friends(&my_key_for_recv, &{
-                                    // Look up the target's public key hex from their display name.
-                                    let peers = state_clone.peers.read().await;
-                                    peers.values()
-                                        .find(|p| p.display_name.as_deref().map(|n| n.eq_ignore_ascii_case(&name)).unwrap_or(false))
-                                        .map(|p| p.public_key_hex.clone())
-                                        .unwrap_or_default()
-                                }).unwrap_or(false);
-
-                                match state_clone.db.get_public_profile(&name, is_friend) {
-                                    Ok(Some(fields)) => {
-                                        let get = |k: &str| fields.get(k).cloned().filter(|v| !v.is_empty());
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
-                                            name: name.clone(),
-                                            bio: fields.get("bio").cloned().unwrap_or_default(),
-                                            socials: fields.get("socials").cloned().unwrap_or_else(|| "{}".to_string()),
-                                            avatar_url: get("avatar_url"),
-                                            banner_url: get("banner_url"),
-                                            pronouns:   get("pronouns"),
-                                            location:   get("location"),
-                                            website:    get("website"),
-                                            target: Some(my_key_for_recv.clone()), // unicast to requester only
-                                        });
-                                    }
-                                    Ok(None) => {
-                                        // User exists but has no profile row yet — send empty data.
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ProfileData {
-                                            name: name.clone(),
-                                            bio: String::new(),
-                                            socials: "{}".to_string(),
-                                            avatar_url: None,
-                                            banner_url: None,
-                                            pronouns:   None,
-                                            location:   None,
-                                            website:    None,
-                                            target: Some(my_key_for_recv.clone()),
-                                        });
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Failed to get profile: {e}");
-                                    }
-                                }
+                                handle_profile_request(&state_clone, &my_key_for_recv, name).await;
                             }
                             // DM — send a direct message.
                             RelayMessage::Dm { to, content, encrypted, nonce, .. } => {
-                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
-                                let sender_name = peer.as_ref()
-                                    .and_then(|p| p.display_name.clone())
-                                    .unwrap_or_else(|| "Anonymous".to_string());
-
-                                // Validate.
-                                if content.is_empty() {
-                                    continue;
-                                }
-                                let dm_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let dm_char_limit: usize = if dm_role == "admin" { 10_000 } else { 2_000 };
-                                if content.len() > dm_char_limit {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: format!("DM too long (max {} chars).", dm_char_limit),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                if to == my_key_for_recv {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You can't DM yourself.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                // DM permission check: role-based + friendship.
-                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if user_role != "admin" && user_role != "mod" && !my_key_for_recv.starts_with("bot_") {
-                                    if user_role != "verified" && user_role != "donor" {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "🔒 Verify your account to send DMs.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-                                    // Verified/Donor: must be friends with target
-                                    let are_friends = state_clone.db.are_friends(&my_key_for_recv, &to).unwrap_or(false);
-                                    if !are_friends {
-                                        let target_name = state_clone.db.name_for_key(&to).ok().flatten().unwrap_or_else(|| "this user".to_string());
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("🔒 You must be friends to DM {target_name}. Use /follow <name> — if they follow you back, you'll be friends."),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-                                }
-
-                                // Rate limiting (same Fibonacci backoff as chat).
-                                if user_role == "muted" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You are muted and cannot send DMs.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-
-                                // Fibonacci rate limiting for DMs (skip for bots and admins).
-                                if !my_key_for_recv.starts_with("bot_") && user_role != "admin" {
-                                    let now = Instant::now();
-                                    let mut rate_limits = state_clone.rate_limits.write().await;
-                                    let rl = rate_limits.entry(my_key_for_recv.clone()).or_insert_with(|| {
-                                        let unix_now = std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default().as_secs();
-                                        let reg_at = {
-                                            let conn = state_clone.db.conn.lock().unwrap();
-                                            conn.query_row(
-                                                "SELECT MIN(registered_at) FROM registered_names WHERE public_key = ?1",
-                                                rusqlite::params![&my_key_for_recv],
-                                                |row| row.get::<_, Option<i64>>(0),
-                                            ).ok().flatten().unwrap_or(unix_now as i64) as u64
-                                        };
-                                        let account_age = unix_now.saturating_sub(reg_at);
-                                        let first_seen = if account_age >= NEW_ACCOUNT_WINDOW_SECS {
-                                            now - std::time::Duration::from_secs(NEW_ACCOUNT_WINDOW_SECS + 1)
-                                        } else {
-                                            now - std::time::Duration::from_secs(account_age)
-                                        };
-                                        RateLimitState {
-                                            first_seen,
-                                            last_message_time: now - std::time::Duration::from_secs(60),
-                                            fib_index: 0,
-                                        }
-                                    });
-
-                                    let elapsed = now.duration_since(rl.last_message_time).as_secs();
-                                    let fib_delay = FIB_DELAYS[rl.fib_index];
-
-                                    let is_trusted = user_role == "verified" || user_role == "donor" || user_role == "mod" || user_role == "admin";
-                                    let account_age = now.duration_since(rl.first_seen).as_secs();
-                                    let new_account_delay = if !is_trusted && account_age < NEW_ACCOUNT_WINDOW_SECS {
-                                        NEW_ACCOUNT_DELAY_SECS
-                                    } else {
-                                        0
-                                    };
-
-                                    let required_delay = fib_delay.max(new_account_delay);
-
-                                    if elapsed < required_delay {
-                                        let wait = required_delay - elapsed;
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("⏳ Slow down! Please wait {} more second{}.", wait, if wait == 1 { "" } else { "s" }),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        continue;
-                                    }
-
-                                    if elapsed > required_delay {
-                                        rl.fib_index = 0;
-                                    } else {
-                                        rl.fib_index = (rl.fib_index + 1).min(FIB_DELAYS.len() - 1);
-                                    }
-
-                                    rl.last_message_time = now;
-                                }
-
-                                let ts = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_millis() as u64;
-
-                                // Store the DM.
-                                if let Err(e) = state_clone.db.store_dm_e2ee(&my_key_for_recv, &sender_name, &to, &content, ts, encrypted, nonce.as_deref()) {
-                                    tracing::error!("Failed to store DM: {e}");
-                                }
-
-                                // Send to recipient via broadcast (filtered in send loop).
-                                let dm_msg = RelayMessage::Dm {
-                                    from: my_key_for_recv.clone(),
-                                    from_name: Some(sender_name.clone()),
-                                    to: to.clone(),
-                                    content: content.clone(),
-                                    timestamp: ts,
-                                    encrypted,
-                                    nonce: nonce.clone(),
-                                };
-                                let _ = state_clone.broadcast_tx.send(dm_msg);
-
-                                // Push notification if recipient is offline.
-                                let target_online = state_clone.peers.read().await.contains_key(&to);
-                                if !target_online {
-                                    // For encrypted DMs, never leak content in the push payload.
-                                    let push_body = if encrypted {
-                                        "New encrypted message".to_string()
-                                    } else {
-                                        let max = 100.min(content.len());
-                                        content[..max].to_string()
-                                    };
-                                    let tag = format!("dm-{}", &my_key_for_recv[..8.min(my_key_for_recv.len())]);
-                                    state_clone.send_push_notification(
-                                        &to,
-                                        &format!("DM from {}", sender_name),
-                                        &push_body,
-                                        &tag,
-                                        "/chat",
-                                    );
-                                }
-
-                                // Update DM lists for both parties.
-                                send_dm_list_update(&state_clone, &my_key_for_recv);
-                                send_dm_list_update(&state_clone, &to);
+                                handle_dm(&state_clone, &my_key_for_recv, to, content, encrypted, nonce).await;
                             }
                             // DM open — load conversation history.
                             RelayMessage::DmOpen { partner } => {
-                                // Resolve both parties by name for multi-key support.
-                                let my_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten();
-                                let partner_name = state_clone.db.name_for_key(&partner).ok().flatten();
-
-                                // Mark messages from partner as read (by name if possible).
-                                if let (Some(pn), Some(mn)) = (&partner_name, &my_name) {
-                                    let _ = state_clone.db.mark_dms_read_by_name(pn, mn);
-                                } else {
-                                    let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
-                                }
-
-                                // Load conversation by name if possible (merges all keys for each user).
-                                let records = if let (Some(mn), Some(pn)) = (&my_name, &partner_name) {
-                                    state_clone.db.load_dm_conversation_by_name(mn, pn, 100)
-                                } else {
-                                    state_clone.db.load_dm_conversation(&my_key_for_recv, &partner, 100)
-                                };
-
-                                match records {
-                                    Ok(records) => {
-                                        let messages: Vec<DmData> = records.into_iter().map(|r| DmData {
-                                            from: r.from_key,
-                                            from_name: r.from_name,
-                                            to: r.to_key,
-                                            content: r.content,
-                                            timestamp: r.timestamp,
-                                            encrypted: r.encrypted,
-                                            nonce: r.nonce,
-                                        }).collect();
-                                        let history = RelayMessage::DmHistory {
-                                            target: Some(my_key_for_recv.clone()),
-                                            partner,
-                                            messages,
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(history);
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Failed to load DM history: {e}");
-                                    }
-                                }
-                                // Also update DM list (to clear unread count).
-                                send_dm_list_update(&state_clone, &my_key_for_recv);
+                                handle_dm_open(&state_clone, &my_key_for_recv, partner).await;
                             }
                             // Voice call signaling — forward to target peer.
                             RelayMessage::VoiceCall { to, action, .. } => {
-                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
-                                let sender_name = peer.as_ref()
-                                    .and_then(|p| p.display_name.clone());
-                                // Check target is connected.
-                                let target_connected = state_clone.peers.read().await.contains_key(&to);
-                                if !target_connected {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "User is not online.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    let msg = RelayMessage::VoiceCall {
-                                        from: my_key_for_recv.clone(),
-                                        from_name: sender_name,
-                                        to,
-                                        action,
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(msg);
-                                }
+                                handle_voice_call(&state_clone, &my_key_for_recv, to, action).await;
                             }
                             // WebRTC signaling — forward to target peer.
                             RelayMessage::WebrtcSignal { to, signal_type, data, .. } => {
-                                let target_connected = state_clone.peers.read().await.contains_key(&to);
-                                if !target_connected {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "User is not online.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    let msg = RelayMessage::WebrtcSignal {
-                                        from: my_key_for_recv.clone(),
-                                        to,
-                                        signal_type,
-                                        data,
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(msg);
-                                }
+                                handle_webrtc_signal(&state_clone, &my_key_for_recv, to, signal_type, data).await;
                             }
                             // DM read — mark messages from partner as read.
                             RelayMessage::DmRead { partner } => {
-                                let my_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten();
-                                let partner_name = state_clone.db.name_for_key(&partner).ok().flatten();
-                                if let (Some(pn), Some(mn)) = (&partner_name, &my_name) {
-                                    let _ = state_clone.db.mark_dms_read_by_name(pn, mn);
-                                } else {
-                                    let _ = state_clone.db.mark_dms_read(&partner, &my_key_for_recv);
-                                }
-                                send_dm_list_update(&state_clone, &my_key_for_recv);
+                                handle_dm_read(&state_clone, &my_key_for_recv, partner).await;
                             }
                             // ── Search ──
                             RelayMessage::Search { query, channel, from, limit } => {
@@ -4756,1172 +3990,138 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 }
                             }
                             // ── Voice Rooms (Persistent Channels) ──
+                            // ── Voice Rooms (Persistent Channels) ──
                             RelayMessage::VoiceRoom { action, room_id, room_name } => {
-                                let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
-                                let display = peer.as_ref().and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Anonymous".to_string());
-                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                match action.as_str() {
-                                    "create" => {
-                                        // Admin/mod only.
-                                        if user_role != "admin" && user_role != "mod" {
-                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can create voice channels.".to_string() };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                        } else {
-                                            let rname = room_name.unwrap_or_else(|| format!("{}'s Room", display));
-                                            match state_clone.db.create_voice_channel(&rname, &my_key_for_recv) {
-                                                Ok(_id) => {
-                                                    broadcast_voice_channel_list(&state_clone).await;
-                                                }
-                                                Err(e) => {
-                                                    tracing::error!("Failed to create voice channel: {e}");
-                                                }
-                                            }
-                                        }
-                                    }
-                                    "join" => {
-                                        if let Some(rid) = room_id {
-                                            // Verify channel exists in DB.
-                                            let id_num: i64 = rid.parse().unwrap_or(0);
-                                            if id_num == 0 || !state_clone.db.voice_channel_exists(id_num).unwrap_or(false) {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel not found.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                let mut rooms = state_clone.voice_rooms.write().await;
-                                                let room = rooms.entry(rid.clone()).or_insert_with(|| {
-                                                    // Get name from DB.
-                                                    let name = state_clone.db.list_voice_channels().ok()
-                                                        .and_then(|chs| chs.into_iter().find(|c| c.id == id_num).map(|c| c.name))
-                                                        .unwrap_or_else(|| "Voice Channel".to_string());
-                                                    VoiceRoom { name, participants: vec![] }
-                                                });
-                                                if !room.participants.iter().any(|(k, _)| k == &my_key_for_recv) {
-                                                    let existing: Vec<(String, String)> = room.participants.clone();
-                                                    room.participants.push((my_key_for_recv.clone(), display.clone()));
-                                                    drop(rooms);
-                                                    // Send "new_participant" signal to existing members.
-                                                    for (pk, _) in &existing {
-                                                        let _ = state_clone.broadcast_tx.send(RelayMessage::VoiceRoomSignal {
-                                                            from: my_key_for_recv.clone(),
-                                                            to: pk.clone(),
-                                                            room_id: rid.clone(),
-                                                            signal_type: "new_participant".to_string(),
-                                                            data: serde_json::json!({ "key": my_key_for_recv, "name": display }),
-                                                        });
-                                                    }
-                                                    broadcast_voice_channel_list(&state_clone).await;
-                                                } else {
-                                                    drop(rooms);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    "leave" => {
-                                        leave_voice_room(&state_clone, &my_key_for_recv).await;
-                                    }
-                                    "rename" => {
-                                        // Admin/mod only.
-                                        if user_role != "admin" && user_role != "mod" {
-                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can rename voice channels.".to_string() };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                        } else if let Some(rid) = room_id {
-                                            let id_num: i64 = rid.parse().unwrap_or(0);
-                                            let new_name = room_name.unwrap_or_default().trim().to_string();
-                                            if id_num <= 0 {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel not found.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else if new_name.is_empty() || new_name.len() > 48 {
-                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel name must be 1-48 characters.".to_string() };
-                                                let _ = state_clone.broadcast_tx.send(private);
-                                            } else {
-                                                match state_clone.db.rename_voice_channel(id_num, &new_name) {
-                                                    Ok(true) => {
-                                                        if let Some(room) = state_clone.voice_rooms.write().await.get_mut(&rid) {
-                                                            room.name = new_name.clone();
-                                                        }
-                                                        broadcast_voice_channel_list(&state_clone).await;
-                                                    }
-                                                    Ok(false) => {
-                                                        let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Voice channel not found.".to_string() };
-                                                        let _ = state_clone.broadcast_tx.send(private);
-                                                    }
-                                                    Err(e) => tracing::error!("Failed to rename voice channel: {e}"),
-                                                }
-                                            }
-                                        }
-                                    }
-                                    "delete" => {
-                                        // Admin/mod only.
-                                        if user_role != "admin" && user_role != "mod" {
-                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Only admins and mods can delete voice channels.".to_string() };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                        } else if let Some(rid) = room_id {
-                                            let id_num: i64 = rid.parse().unwrap_or(0);
-                                            if id_num > 0 {
-                                                // Remove from DB.
-                                                let _ = state_clone.db.delete_voice_channel(id_num);
-                                                // Remove active room.
-                                                state_clone.voice_rooms.write().await.remove(&rid);
-                                                broadcast_voice_channel_list(&state_clone).await;
-                                            }
-                                        }
-                                    }
-                                    "list" => {
-                                        broadcast_voice_channel_list(&state_clone).await;
-                                    }
-                                    _ => {}
-                                }
+                                handle_voice_room(&state_clone, &my_key_for_recv, action, room_id, room_name).await;
                             }
                             // ── Voice Room WebRTC Signaling ──
                             RelayMessage::VoiceRoomSignal { to, room_id, signal_type, data, .. } => {
-                                // Verify both parties are in the same room.
-                                let rooms = state_clone.voice_rooms.read().await;
-                                let valid = rooms.get(&room_id).map(|r| {
-                                    r.participants.iter().any(|(k, _)| k == &my_key_for_recv) &&
-                                    r.participants.iter().any(|(k, _)| k == &to)
-                                }).unwrap_or(false);
-                                drop(rooms);
-                                if valid {
-                                    let _ = state_clone.broadcast_tx.send(RelayMessage::VoiceRoomSignal {
-                                        from: my_key_for_recv.clone(),
-                                        to,
-                                        room_id,
-                                        signal_type,
-                                        data,
-                                    });
-                                }
+                                handle_voice_room_signal(&state_clone, &my_key_for_recv, to, room_id, signal_type, data).await;
                             }
                             // ── Project Board: Task List ──
                             RelayMessage::TaskList { } => {
-                                let tasks = build_task_list(&state_clone.db);
-                                let _ = state_clone.broadcast_tx.send(RelayMessage::TaskListResponse {
-                                    target: Some(my_key_for_recv.clone()),
-                                    tasks,
-                                });
+                                handle_task_list(&state_clone, &my_key_for_recv).await;
                             }
                             // ── Project Board: Create Task ──
                             RelayMessage::TaskCreate { title, description, status, priority, assignee, labels } => {
-                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" && role != "mod" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Only admins and mods can create tasks.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    let valid_statuses = ["backlog", "in_progress", "testing", "done"];
-                                    let valid_priorities = ["low", "medium", "high", "critical"];
-                                    let s = if valid_statuses.contains(&status.as_str()) { &status } else { "backlog" };
-                                    let p = if valid_priorities.contains(&priority.as_str()) { &priority } else { "medium" };
-                                    if title.trim().is_empty() || title.len() > 200 {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Task title must be 1-200 characters.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    } else if description.len() > 5000 {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Task description too long (max 5000 chars).".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    } else {
-                                        match state_clone.db.create_task(&title, &description, s, p, assignee.as_deref(), &my_key_for_recv, &labels) {
-                                            Ok(id) => {
-                                                if let Ok(Some(task)) = state_clone.db.get_task(id) {
-                                                    let td = TaskData {
-                                                        id: task.id, title: task.title, description: task.description,
-                                                        status: task.status, priority: task.priority, assignee: task.assignee,
-                                                        created_by: task.created_by, created_at: task.created_at,
-                                                        updated_at: task.updated_at, position: task.position, labels: task.labels,
-                                                        comment_count: 0,
-                                                    };
-                                                    let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
-                                                }
-                                            }
-                                            Err(e) => {
-                                                tracing::error!("Failed to create task: {e}");
-                                            }
-                                        }
-                                    }
-                                }
+                                handle_task_create(&state_clone, &my_key_for_recv, title, description, status, priority, assignee, labels).await;
                             }
                             // ── Project Board: Update Task ──
                             RelayMessage::TaskUpdate { id, title, description, priority, assignee, labels } => {
-                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" && role != "mod" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Only admins and mods can edit tasks.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    let valid_priorities = ["low", "medium", "high", "critical"];
-                                    let p = if valid_priorities.contains(&priority.as_str()) { &priority } else { "medium" };
-                                    match state_clone.db.update_task(id, &title, &description, p, assignee.as_deref(), &labels) {
-                                        Ok(true) => {
-                                            if let Ok(Some(task)) = state_clone.db.get_task(id) {
-                                                let cc = state_clone.db.get_task_comment_counts().unwrap_or_default();
-                                                let td = TaskData {
-                                                    id: task.id, title: task.title, description: task.description,
-                                                    status: task.status, priority: task.priority, assignee: task.assignee,
-                                                    created_by: task.created_by, created_at: task.created_at,
-                                                    updated_at: task.updated_at, position: task.position, labels: task.labels,
-                                                    comment_count: *cc.get(&task.id).unwrap_or(&0),
-                                                };
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
-                                            }
-                                        }
-                                        Ok(false) => {
-                                            let private = RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: "Task not found.".to_string(),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                        }
-                                        Err(e) => tracing::error!("Task update error: {e}"),
-                                    }
-                                }
+                                handle_task_update_msg(&state_clone, &my_key_for_recv, id, title, description, priority, assignee, labels).await;
                             }
                             // ── Project Board: Move Task ──
                             RelayMessage::TaskMove { id, status } => {
-                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" && role != "mod" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Only admins and mods can move tasks.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    let valid_statuses = ["backlog", "in_progress", "testing", "done"];
-                                    if !valid_statuses.contains(&status.as_str()) {
-                                        continue;
-                                    }
-                                    match state_clone.db.move_task(id, &status) {
-                                        Ok(true) => {
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskMoved { id, status });
-                                        }
-                                        Ok(false) => {
-                                            let private = RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: "Task not found.".to_string(),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                        }
-                                        Err(e) => tracing::error!("Task move error: {e}"),
-                                    }
-                                }
+                                handle_task_move(&state_clone, &my_key_for_recv, id, status).await;
                             }
                             // ── Project Board: Delete Task ──
                             RelayMessage::TaskDelete { id } => {
-                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" && role != "mod" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Only admins and mods can delete tasks.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    match state_clone.db.delete_task(id) {
-                                        Ok(true) => {
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskDeleted { id });
-                                        }
-                                        Ok(false) => {
-                                            let private = RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: "Task not found.".to_string(),
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(private);
-                                        }
-                                        Err(e) => tracing::error!("Task delete error: {e}"),
-                                    }
-                                }
+                                handle_task_delete(&state_clone, &my_key_for_recv, id).await;
                             }
                             // ── Project Board: Add Comment ──
                             RelayMessage::TaskComment { task_id, content } => {
-                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let can_comment = role == "admin" || role == "mod" || role == "verified" || role == "donor";
-                                if !can_comment {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Only verified users can comment on tasks.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else if content.trim().is_empty() || content.len() > 2000 {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Comment must be 1-2000 characters.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
-                                    let author_name = peer.as_ref()
-                                        .and_then(|p| p.display_name.clone())
-                                        .unwrap_or_else(|| "Anonymous".to_string());
-                                    match state_clone.db.add_task_comment(task_id, &my_key_for_recv, &author_name, &content) {
-                                        Ok(comment_id) => {
-                                            let now = std::time::SystemTime::now()
-                                                .duration_since(std::time::UNIX_EPOCH)
-                                                .unwrap_or_default()
-                                                .as_millis() as i64;
-                                            let comment = TaskCommentData {
-                                                id: comment_id,
-                                                task_id,
-                                                author_key: my_key_for_recv.clone(),
-                                                author_name,
-                                                content,
-                                                created_at: now,
-                                            };
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCommentAdded { task_id, comment });
-                                        }
-                                        Err(e) => tracing::error!("Task comment error: {e}"),
-                                    }
-                                }
+                                handle_task_comment_msg(&state_clone, &my_key_for_recv, task_id, content).await;
                             }
                             // ── Project Board: Request Comments ──
                             RelayMessage::TaskCommentsRequest { task_id } => {
-                                match state_clone.db.get_task_comments(task_id) {
-                                    Ok(records) => {
-                                        let comments: Vec<TaskCommentData> = records.into_iter().map(|r| TaskCommentData {
-                                            id: r.id, task_id: r.task_id, author_key: r.author_key,
-                                            author_name: r.author_name, content: r.content, created_at: r.created_at,
-                                        }).collect();
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::TaskCommentsResponse {
-                                            target: Some(my_key_for_recv.clone()),
-                                            task_id,
-                                            comments,
-                                        });
-                                    }
-                                    Err(e) => tracing::error!("Task comments load error: {e}"),
-                                }
+                                handle_task_comments_request(&state_clone, &my_key_for_recv, task_id).await;
                             }
                             // ── Follow/Unfollow ──
                             RelayMessage::Follow { target_key } => {
-                                if target_key == my_key_for_recv {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You can't follow yourself.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                // Check target is registered
-                                let target_name = state_clone.db.name_for_key(&target_key).ok().flatten();
-                                if target_name.is_none() {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "User not found.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                match state_clone.db.add_follow(&my_key_for_recv, &target_key) {
-                                    Ok(true) => {
-                                        let my_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten().unwrap_or_else(|| "Someone".to_string());
-                                        let tname = target_name.unwrap();
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("✅ You are now following {tname}."),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        // Broadcast follow update
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FollowUpdate {
-                                            follower_key: my_key_for_recv.clone(),
-                                            followed_key: target_key.clone(),
-                                            action: "follow".to_string(),
-                                        });
-                                        // Notify the followed user if online
-                                        let private2 = RelayMessage::Private {
-                                            to: target_key.clone(),
-                                            message: format!("👁️ {my_name} is now following you."),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private2);
-                                    }
-                                    Ok(false) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "You are already following this user.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                    Err(e) => tracing::error!("Follow error: {e}"),
-                                }
+                                handle_follow(&state_clone, &my_key_for_recv, target_key).await;
                             }
                             RelayMessage::Unfollow { target_key } => {
-                                match state_clone.db.remove_follow(&my_key_for_recv, &target_key) {
-                                    Ok(true) => {
-                                        let tname = state_clone.db.name_for_key(&target_key).ok().flatten().unwrap_or_else(|| "user".to_string());
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("✅ You unfollowed {tname}."),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FollowUpdate {
-                                            follower_key: my_key_for_recv.clone(),
-                                            followed_key: target_key,
-                                            action: "unfollow".to_string(),
-                                        });
-                                    }
-                                    Ok(false) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "You are not following this user.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                    Err(e) => tracing::error!("Unfollow error: {e}"),
-                                }
+                                handle_unfollow(&state_clone, &my_key_for_recv, target_key).await;
                             }
-
                             // ── Friend Codes ──
                             RelayMessage::FriendCodeRequest {} => {
-                                let now_ms = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_millis() as u64;
-                                let expires = now_ms + 24 * 60 * 60 * 1000; // 24 hours
-                                match state_clone.db.create_friend_code(&my_key_for_recv, expires, 1) {
-                                    Ok(code) => {
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResponse {
-                                            code,
-                                            target: Some(my_key_for_recv.clone()),
-                                        });
-                                    }
-                                    Err(e) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("❌ {e}"),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                }
+                                handle_friend_code_request(&state_clone, &my_key_for_recv).await;
                             }
                             RelayMessage::FriendCodeRedeem { code } => {
-                                match state_clone.db.redeem_friend_code(&code) {
-                                    Ok(Some((owner_key, owner_name))) => {
-                                        if owner_key == my_key_for_recv {
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
-                                                success: false,
-                                                name: None,
-                                                message: "You can't redeem your own friend code.".to_string(),
-                                                target: Some(my_key_for_recv.clone()),
-                                            });
-                                            continue;
-                                        }
-                                        let my_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten().unwrap_or_else(|| "Someone".to_string());
-                                        let oname = owner_name.clone().unwrap_or_else(|| "Unknown".to_string());
-
-                                        // Auto-mutual-follow: both directions.
-                                        let _ = state_clone.db.add_follow(&my_key_for_recv, &owner_key);
-                                        let _ = state_clone.db.add_follow(&owner_key, &my_key_for_recv);
-
-                                        // Broadcast follow updates.
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FollowUpdate {
-                                            follower_key: my_key_for_recv.clone(),
-                                            followed_key: owner_key.clone(),
-                                            action: "follow".to_string(),
-                                        });
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FollowUpdate {
-                                            follower_key: owner_key.clone(),
-                                            followed_key: my_key_for_recv.clone(),
-                                            action: "follow".to_string(),
-                                        });
-
-                                        // Notify redeemer.
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
-                                            success: true,
-                                            name: owner_name.clone(),
-                                            message: format!("🎉 You are now friends with {oname}!"),
-                                            target: Some(my_key_for_recv.clone()),
-                                        });
-
-                                        // Notify the code owner if online.
-                                        let private = RelayMessage::Private {
-                                            to: owner_key.clone(),
-                                            message: format!("🎉 {my_name} redeemed your friend code! You are now friends."),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                    Ok(None) => {
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
-                                            success: false,
-                                            name: None,
-                                            message: "Invalid or expired friend code.".to_string(),
-                                            target: Some(my_key_for_recv.clone()),
-                                        });
-                                    }
-                                    Err(e) => {
-                                        tracing::error!("Friend code redeem error: {e}");
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::FriendCodeResult {
-                                            success: false,
-                                            name: None,
-                                            message: "Server error while redeeming code.".to_string(),
-                                            target: Some(my_key_for_recv.clone()),
-                                        });
-                                    }
-                                }
+                                handle_friend_code_redeem(&state_clone, &my_key_for_recv, code).await;
                             }
-
                             // ── Marketplace ──
                             RelayMessage::ListingBrowse {} => {
-                                let listings = state_clone.db.get_listings(None, None, 200).unwrap_or_default();
-                                let data: Vec<ListingData> = listings.iter().map(listing_from_db).collect();
-                                let _ = state_clone.broadcast_tx.send(RelayMessage::ListingList {
-                                    target: Some(my_key_for_recv.clone()),
-                                    listings: data,
-                                });
+                                handle_listing_browse(&state_clone, &my_key_for_recv).await;
                             }
                             RelayMessage::ListingCreate { id, title, description, category, condition, price, payment_methods, location } => {
-                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if user_role != "verified" && user_role != "donor" && user_role != "mod" && user_role != "admin" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You must be verified to create listings.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                if title.trim().is_empty() || title.len() > 100 {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Listing title must be 1-100 characters.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                let seller_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
-                                if let Err(e) = state_clone.db.create_listing(&id, &my_key_for_recv, &seller_name, title.trim(), &description, &category, &condition, &price, &payment_methods, &location) {
-                                    tracing::error!("Failed to create listing: {e}");
-                                    continue;
-                                }
-                                if let Ok(Some(listing)) = state_clone.db.get_listing_by_id(&id) {
-                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ListingNew {
-                                        listing: listing_from_db(&listing),
-                                    });
-                                }
+                                handle_listing_create(&state_clone, &my_key_for_recv, id, title, description, category, condition, price, payment_methods, location).await;
                             }
                             RelayMessage::ListingUpdate { id, title, description, category, condition, price, payment_methods, location, status } => {
-                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let is_admin = user_role == "admin" || user_role == "mod";
-                                if let Ok(true) = state_clone.db.update_listing(&id, &my_key_for_recv, title.trim(), &description, &category, &condition, &price, &payment_methods, &location, status.as_deref(), is_admin) {
-                                    if let Ok(Some(listing)) = state_clone.db.get_listing_by_id(&id) {
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::ListingUpdated {
-                                            listing: listing_from_db(&listing),
-                                        });
-                                    }
-                                }
+                                handle_listing_update(&state_clone, &my_key_for_recv, id, title, description, category, condition, price, payment_methods, location, status).await;
                             }
                             RelayMessage::ListingDelete { id } => {
-                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                let is_admin = user_role == "admin" || user_role == "mod";
-                                if let Ok(true) = state_clone.db.delete_listing(&id, &my_key_for_recv, is_admin) {
-                                    let _ = state_clone.broadcast_tx.send(RelayMessage::ListingDeleted { id });
-                                }
+                                handle_listing_delete(&state_clone, &my_key_for_recv, id).await;
                             }
-
                             // ── Group System ──
                             RelayMessage::GroupCreate { name } => {
-                                let user_role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if user_role != "verified" && user_role != "donor" && user_role != "mod" && user_role != "admin" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You must be verified to create groups.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                if name.trim().is_empty() || name.len() > 50 {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Group name must be 1-50 characters.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                match state_clone.db.create_group(name.trim(), &my_key_for_recv) {
-                                    Ok((id, invite_code)) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("✅ Group '{}' created! Invite code: {invite_code}", name.trim()),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        // Send updated group list
-                                        if let Ok(user_groups) = state_clone.db.get_user_groups(&my_key_for_recv) {
-                                            let groups: Vec<GroupData> = user_groups.into_iter().map(|(id, name, invite_code, role)| {
-                                                GroupData { id, name, invite_code, role }
-                                            }).collect();
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::GroupList {
-                                                target: Some(my_key_for_recv.clone()),
-                                                groups,
-                                            });
-                                        }
-                                    }
-                                    Err(e) => tracing::error!("Group create error: {e}"),
-                                }
+                                handle_group_create(&state_clone, &my_key_for_recv, name).await;
                             }
                             RelayMessage::GroupJoin { invite_code } => {
-                                match state_clone.db.join_group_by_invite(&invite_code, &my_key_for_recv) {
-                                    Ok(Some((gid, gname))) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: format!("✅ Joined group '{gname}'."),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        // Send updated group list
-                                        if let Ok(user_groups) = state_clone.db.get_user_groups(&my_key_for_recv) {
-                                            let groups: Vec<GroupData> = user_groups.into_iter().map(|(id, name, invite_code, role)| {
-                                                GroupData { id, name, invite_code, role }
-                                            }).collect();
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::GroupList {
-                                                target: Some(my_key_for_recv.clone()),
-                                                groups,
-                                            });
-                                        }
-                                    }
-                                    Ok(None) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Invalid invite code.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                    Err(e) => tracing::error!("Group join error: {e}"),
-                                }
+                                handle_group_join(&state_clone, &my_key_for_recv, invite_code).await;
                             }
                             RelayMessage::GroupLeave { group_id } => {
-                                match state_clone.db.leave_group(&group_id, &my_key_for_recv) {
-                                    Ok(true) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "✅ Left the group.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                        // Send updated group list
-                                        if let Ok(user_groups) = state_clone.db.get_user_groups(&my_key_for_recv) {
-                                            let groups: Vec<GroupData> = user_groups.into_iter().map(|(id, name, invite_code, role)| {
-                                                GroupData { id, name, invite_code, role }
-                                            }).collect();
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::GroupList {
-                                                target: Some(my_key_for_recv.clone()),
-                                                groups,
-                                            });
-                                        }
-                                    }
-                                    Ok(false) => {
-                                        let private = RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "You are not in this group.".to_string(),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(private);
-                                    }
-                                    Err(e) => tracing::error!("Group leave error: {e}"),
-                                }
+                                handle_group_leave(&state_clone, &my_key_for_recv, group_id).await;
                             }
                             RelayMessage::GroupHistoryRequest { group_id } => {
-                                let is_member = state_clone.db.is_group_member(&group_id, &my_key_for_recv).unwrap_or(false);
-                                if !is_member {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You are not a member of this group.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-
-                                match state_clone.db.load_group_messages(&group_id, 200) {
-                                    Ok(rows) => {
-                                        let messages: Vec<GroupMessageData> = rows
-                                            .into_iter()
-                                            .map(|(from, from_name, content, timestamp)| GroupMessageData {
-                                                from,
-                                                from_name,
-                                                content,
-                                                timestamp,
-                                            })
-                                            .collect();
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::GroupHistory {
-                                            target: Some(my_key_for_recv.clone()),
-                                            group_id,
-                                            messages,
-                                        });
-                                    }
-                                    Err(e) => tracing::error!("Group history error: {e}"),
-                                }
+                                handle_group_history_request(&state_clone, &my_key_for_recv, group_id).await;
                             }
                             RelayMessage::GroupMembersRequest { group_id } => {
-                                let is_member = state_clone.db.is_group_member(&group_id, &my_key_for_recv).unwrap_or(false);
-                                if !is_member {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You are not a member of this group.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-
-                                match state_clone.db.get_group_members(&group_id) {
-                                    Ok(members) => {
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::GroupMembers {
-                                            target: Some(my_key_for_recv.clone()),
-                                            group_id,
-                                            members,
-                                        });
-                                    }
-                                    Err(e) => tracing::error!("Group members error: {e}"),
-                                }
+                                handle_group_members_request(&state_clone, &my_key_for_recv, group_id).await;
                             }
                             RelayMessage::GroupMsg { group_id, content } => {
-                                // Verify membership
-                                let is_member = state_clone.db.is_group_member(&group_id, &my_key_for_recv).unwrap_or(false);
-                                if !is_member {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "You are not a member of this group.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                    continue;
-                                }
-                                if content.is_empty() || content.len() > 2000 {
-                                    continue;
-                                }
-                                let sender_name = state_clone.db.name_for_key(&my_key_for_recv).ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
-                                let ts = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_millis() as u64;
-                                let _ = state_clone.db.store_group_message(&group_id, &my_key_for_recv, &sender_name, &content, ts);
-
-                                // H-5 fix: Send group messages only to group members
-                                if let Ok(members) = state_clone.db.get_group_members(&group_id) {
-                                    for (member_key, _role) in members {
-                                        let gm = RelayMessage::GroupMessage {
-                                            group_id: group_id.clone(),
-                                            from: my_key_for_recv.clone(),
-                                            from_name: Some(sender_name.clone()),
-                                            content: content.clone(),
-                                            timestamp: ts,
-                                            target: Some(member_key),
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(gm);
-                                    }
-                                }
+                                handle_group_msg(&state_clone, &my_key_for_recv, group_id, content).await;
                             }
-
                             // ── Device management ──
                             RelayMessage::DeviceListRequest {} => {
-                                if let Ok(Some(name)) = state_clone.db.name_for_key(&my_key_for_recv) {
-                                    match state_clone.db.keys_for_name_detailed(&name) {
-                                        Ok(keys) => {
-                                            let peers = state_clone.peers.read().await;
-                                            let devices: Vec<DeviceInfo> = keys.into_iter().map(|(key, label, reg_at)| {
-                                                let is_online = peers.values().any(|p| p.public_key_hex == key);
-                                                DeviceInfo {
-                                                    is_current: key == my_key_for_recv,
-                                                    public_key: key,
-                                                    label,
-                                                    registered_at: reg_at as u64,
-                                                    is_online,
-                                                }
-                                            }).collect();
-                                            drop(peers);
-                                            let resp = RelayMessage::DeviceList { devices, target: Some(my_key_for_recv.clone()) };
-                                            let _ = state_clone.broadcast_tx.send(resp);
-                                        }
-                                        Err(e) => {
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: format!("Failed to load devices: {e}"),
-                                            });
-                                        }
-                                    }
-                                }
+                                handle_device_list_request(&state_clone, &my_key_for_recv).await;
                             }
-
                             RelayMessage::DeviceLabel { public_key, label } => {
-                                if let Ok(Some(name)) = state_clone.db.name_for_key(&my_key_for_recv) {
-                                    let keys = state_clone.db.keys_for_name(&name).unwrap_or_default();
-                                    if keys.contains(&public_key) {
-                                        let label_trimmed = label.trim();
-                                        if label_trimmed.len() > 32 {
-                                            let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                to: my_key_for_recv.clone(),
-                                                message: "Label must be 32 characters or less.".to_string(),
-                                            });
-                                        } else {
-                                            let _ = state_clone.db.label_key(&name, &public_key, label_trimmed);
-                                            // Send updated device list
-                                            if let Ok(keys) = state_clone.db.keys_for_name_detailed(&name) {
-                                                let peers = state_clone.peers.read().await;
-                                                let devices: Vec<DeviceInfo> = keys.into_iter().map(|(key, label, reg_at)| {
-                                                    let is_online = peers.values().any(|p| p.public_key_hex == key);
-                                                    DeviceInfo {
-                                                        is_current: key == my_key_for_recv,
-                                                        public_key: key,
-                                                        label,
-                                                        registered_at: reg_at as u64,
-                                                        is_online,
-                                                    }
-                                                }).collect();
-                                                drop(peers);
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::DeviceList { devices, target: Some(my_key_for_recv.clone()) });
-                                            }
-                                        }
-                                    } else {
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "That key doesn't belong to you.".to_string(),
-                                        });
-                                    }
-                                }
+                                handle_device_label(&state_clone, &my_key_for_recv, public_key, label).await;
                             }
-
                             RelayMessage::DeviceRevoke { key_prefix } => {
-                                if let Ok(Some(name)) = state_clone.db.name_for_key(&my_key_for_recv) {
-                                    if my_key_for_recv.starts_with(&key_prefix) {
-                                        let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                            to: my_key_for_recv.clone(),
-                                            message: "Cannot revoke your current device. Use another device to revoke this one.".to_string(),
-                                        });
-                                    } else {
-                                        match state_clone.db.revoke_device(&name, &key_prefix) {
-                                            Ok(revoked_keys) if !revoked_keys.is_empty() => {
-                                                let first = &revoked_keys[0];
-                                                let short: String = first.chars().take(16).collect();
-                                                let notice = format!("Device revoked: {}…", short);
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                    to: my_key_for_recv.clone(),
-                                                    message: notice,
-                                                });
-                                                // Send updated device list
-                                                if let Ok(keys) = state_clone.db.keys_for_name_detailed(&name) {
-                                                    let peers = state_clone.peers.read().await;
-                                                    let devices: Vec<DeviceInfo> = keys.into_iter().map(|(key, label, reg_at)| {
-                                                        let is_online = peers.values().any(|p| p.public_key_hex == key);
-                                                        DeviceInfo {
-                                                            is_current: key == my_key_for_recv,
-                                                            public_key: key,
-                                                            label,
-                                                            registered_at: reg_at as u64,
-                                                            is_online,
-                                                        }
-                                                    }).collect();
-                                                    drop(peers);
-                                                    let _ = state_clone.broadcast_tx.send(RelayMessage::DeviceList { devices, target: Some(my_key_for_recv.clone()) });
-                                                }
-                                            }
-                                            Ok(_) => {
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                    to: my_key_for_recv.clone(),
-                                                    message: "No matching key found for your account.".to_string(),
-                                                });
-                                            }
-                                            Err(e) => {
-                                                let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
-                                                    to: my_key_for_recv.clone(),
-                                                    message: format!("Revoke failed: {e}"),
-                                                });
-                                            }
-                                        }
-                                    }
-                                }
+                                handle_device_revoke(&state_clone, &my_key_for_recv, key_prefix).await;
                             }
-
                             // ── Federation Phase 2: incoming federation messages ──
                             RelayMessage::FederationHello { server_id, public_key, name, version, timestamp, signature } => {
-                                // Verify this server is in our registry and trusted.
-                                if let Ok(servers) = state_clone.db.list_federated_servers() {
-                                    if let Some(server) = servers.iter().find(|s| s.server_id == server_id || s.url == server_id) {
-                                        if server.trust_tier >= 2 {
-                                            // Verify signature if we have their public key.
-                                            let sig_valid = if let Some(ref stored_pk) = server.public_key {
-                                                verify_ed25519_signature(stored_pk, &timestamp.to_string(), timestamp, &signature)
-                                            } else {
-                                                // First contact — accept and store their key.
-                                                let _ = state_clone.db.update_federated_server_info(&server_id, &name, Some(&public_key), false);
-                                                true
-                                            };
-                                            if sig_valid {
-                                                // Respond with welcome.
-                                                let fed_channels = state_clone.db.get_federated_channels().unwrap_or_default();
-                                                let welcome = RelayMessage::FederationWelcome {
-                                                    server_id: state_clone.db.get_or_create_server_keypair().map(|(pk, _)| pk).unwrap_or_default(),
-                                                    name: std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string()),
-                                                    channels: fed_channels,
-                                                };
-                                                // Broadcast the welcome — the connecting server will receive it.
-                                                let _ = state_clone.broadcast_tx.send(welcome);
-                                                let _ = state_clone.db.update_federated_server_status(&server_id, "online");
-                                                tracing::info!("Federation: accepted hello from {} ({})", name, server_id);
-                                            } else {
-                                                tracing::warn!("Federation: invalid signature from {}", server_id);
-                                            }
-                                        } else {
-                                            tracing::warn!("Federation: rejected hello from {} — trust tier {} < 2", name, server.trust_tier);
-                                        }
-                                    }
-                                }
+                                handle_federation_hello(&state_clone, &my_key_for_recv, server_id, public_key, name, version, timestamp, signature).await;
                             }
                             RelayMessage::FederatedChat { server_id, server_name, from_name, content, timestamp, channel, signature } => {
-                                // Only accept from known, trusted servers.
-                                let accepted = if let Ok(servers) = state_clone.db.list_federated_servers() {
-                                    servers.iter().any(|s| (s.server_id == server_id || s.url == server_id) && s.trust_tier >= 2)
-                                } else { false };
-
-                                if accepted {
-                                    // Only deliver to channels that are federated locally.
-                                    if state_clone.db.is_channel_federated(&channel).unwrap_or(false) {
-                                        // Broadcast to local clients (don't store — lives on origin server).
-                                        let federated_msg = RelayMessage::FederatedChat {
-                                            server_id, server_name, from_name, content, timestamp, channel, signature,
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(federated_msg);
-                                    }
-                                }
+                                handle_federated_chat(&state_clone, server_id, server_name, from_name, content, timestamp, channel, signature).await;
                             }
                             RelayMessage::FederationWelcome { server_id, name, channels } => {
-                                tracing::info!("Federation: welcome from {} — federated channels: {:?}", name, channels);
-                                let _ = state_clone.db.update_federated_server_status(&server_id, "online");
+                                handle_federation_welcome(&state_clone, server_id, name, channels).await;
                             }
-
                             // ── Streaming ──
-
                             RelayMessage::StreamStart { title, category } => {
-                                // Admin-only check.
-                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role != "admin" {
-                                    let private = RelayMessage::Private {
-                                        to: my_key_for_recv.clone(),
-                                        message: "Only admins can stream to the relay.".to_string(),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(private);
-                                } else {
-                                    let now = std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_millis() as u64;
-                                    let streamer_name = {
-                                        let peers = state_clone.peers.read().await;
-                                        peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone()).unwrap_or_else(|| "Unknown".to_string())
-                                    };
-                                    // Store in DB.
-                                    let db_id = state_clone.db.create_stream(&my_key_for_recv, &title, &category).ok();
-                                    let stream = ActiveStream {
-                                        streamer_key: my_key_for_recv.clone(),
-                                        streamer_name: streamer_name.clone(),
-                                        title: title.clone(),
-                                        category: category.clone(),
-                                        started_at: now,
-                                        viewer_keys: HashSet::new(),
-                                        external_urls: Vec::new(),
-                                        db_id,
-                                    };
-                                    *state_clone.active_stream.write().await = Some(stream);
-                                    info!("Stream started by {} ({}): {}", streamer_name, my_key_for_recv, title);
-                                    // Broadcast stream info.
-                                    let info_msg = RelayMessage::StreamInfo {
-                                        active: true,
-                                        streamer_name: Some(streamer_name),
-                                        streamer_key: Some(my_key_for_recv.clone()),
-                                        title: Some(title),
-                                        category: Some(category),
-                                        viewer_count: 0,
-                                        started_at: Some(now),
-                                        external_urls: None,
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(info_msg);
-                                }
+                                handle_stream_start(&state_clone, &my_key_for_recv, title, category).await;
                             }
-
                             RelayMessage::StreamStop {} => {
-                                let mut stream_lock = state_clone.active_stream.write().await;
-                                if let Some(ref stream) = *stream_lock {
-                                    // Only the streamer or an admin can stop.
-                                    let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                    if stream.streamer_key == my_key_for_recv || role == "admin" {
-                                        let viewer_peak = stream.viewer_keys.len() as i64;
-                                        if let Some(db_id) = stream.db_id {
-                                            let _ = state_clone.db.end_stream(db_id, viewer_peak);
-                                        }
-                                        info!("Stream stopped by {}", my_key_for_recv);
-                                        *stream_lock = None;
-                                        drop(stream_lock);
-                                        let info_msg = RelayMessage::StreamInfo {
-                                            active: false,
-                                            streamer_name: None,
-                                            streamer_key: None,
-                                            title: None,
-                                            category: None,
-                                            viewer_count: 0,
-                                            started_at: None,
-                                            external_urls: None,
-                                        };
-                                        let _ = state_clone.broadcast_tx.send(info_msg);
-                                    }
-                                }
+                                handle_stream_stop(&state_clone, &my_key_for_recv).await;
                             }
-
                             RelayMessage::StreamOffer { to, data, .. } => {
-                                info!("StreamOffer from {} to {}", &my_key_for_recv[..8], &to[..8]);
-                                let _ = state_clone.broadcast_tx.send(RelayMessage::StreamOffer {
-                                    from: my_key_for_recv.clone(),
-                                    to,
-                                    data,
-                                });
+                                handle_stream_offer(&state_clone, &my_key_for_recv, to, data).await;
                             }
-
                             RelayMessage::StreamAnswer { to, data, .. } => {
-                                info!("StreamAnswer from {} to {}", &my_key_for_recv[..8], &to[..8]);
-                                let _ = state_clone.broadcast_tx.send(RelayMessage::StreamAnswer {
-                                    from: my_key_for_recv.clone(),
-                                    to,
-                                    data,
-                                });
+                                handle_stream_answer(&state_clone, &my_key_for_recv, to, data).await;
                             }
-
                             RelayMessage::StreamIce { to, data, .. } => {
-                                info!("StreamIce from {} to {}", &my_key_for_recv[..8], &to[..8]);
-                                let _ = state_clone.broadcast_tx.send(RelayMessage::StreamIce {
-                                    from: my_key_for_recv.clone(),
-                                    to,
-                                    data,
-                                });
+                                handle_stream_ice(&state_clone, &my_key_for_recv, to, data).await;
                             }
-
                             RelayMessage::StreamViewerJoin { .. } => {
-                                info!("Stream viewer join from {}", my_key_for_recv);
-                                let mut stream_lock = state_clone.active_stream.write().await;
-                                if let Some(ref mut stream) = *stream_lock {
-                                    stream.viewer_keys.insert(my_key_for_recv.clone());
-                                    let count = stream.viewer_keys.len() as u32;
-                                    let streamer_key = stream.streamer_key.clone();
-                                    let info_msg = RelayMessage::StreamInfo {
-                                        active: true,
-                                        streamer_name: Some(stream.streamer_name.clone()),
-                                        streamer_key: Some(stream.streamer_key.clone()),
-                                        title: Some(stream.title.clone()),
-                                        category: Some(stream.category.clone()),
-                                        viewer_count: count,
-                                        started_at: Some(stream.started_at),
-                                        external_urls: Some(stream.external_urls.clone()),
-                                    };
-                                    drop(stream_lock);
-                                    let _ = state_clone.broadcast_tx.send(info_msg);
-                                    // Notify streamer about the new viewer so they can create a WebRTC offer
-                                    info!("Sending __stream_viewer_ready__ to streamer {} for viewer {}", streamer_key, my_key_for_recv);
-                                    let notify = RelayMessage::Private {
-                                        to: streamer_key,
-                                        message: format!("__stream_viewer_ready__:{}", my_key_for_recv),
-                                    };
-                                    let _ = state_clone.broadcast_tx.send(notify);
-                                }
+                                handle_stream_viewer_join(&state_clone, &my_key_for_recv).await;
                             }
-
                             RelayMessage::StreamViewerLeave { .. } => {
-                                let mut stream_lock = state_clone.active_stream.write().await;
-                                if let Some(ref mut stream) = *stream_lock {
-                                    stream.viewer_keys.remove(&my_key_for_recv);
-                                    let count = stream.viewer_keys.len() as u32;
-                                    let peak = stream.viewer_keys.len() as i64;
-                                    if let Some(db_id) = stream.db_id {
-                                        let _ = state_clone.db.update_stream_viewer_peak(db_id, peak);
-                                    }
-                                    let info_msg = RelayMessage::StreamInfo {
-                                        active: true,
-                                        streamer_name: Some(stream.streamer_name.clone()),
-                                        streamer_key: Some(stream.streamer_key.clone()),
-                                        title: Some(stream.title.clone()),
-                                        category: Some(stream.category.clone()),
-                                        viewer_count: count,
-                                        started_at: Some(stream.started_at),
-                                        external_urls: Some(stream.external_urls.clone()),
-                                    };
-                                    drop(stream_lock);
-                                    let _ = state_clone.broadcast_tx.send(info_msg);
-                                }
+                                handle_stream_viewer_leave(&state_clone, &my_key_for_recv).await;
                             }
-
                             RelayMessage::StreamChat { content, source, source_user, .. } => {
-                                let now = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_millis() as u64;
-                                let from_name = {
-                                    let peers = state_clone.peers.read().await;
-                                    peers.get(&my_key_for_recv).and_then(|p| p.display_name.clone())
-                                };
-                                // Store in DB if stream is active.
-                                {
-                                    let stream = state_clone.active_stream.read().await;
-                                    if let Some(ref s) = *stream {
-                                        if let Some(db_id) = s.db_id {
-                                            let _ = state_clone.db.store_stream_chat(
-                                                db_id, &content,
-                                                from_name.as_deref().unwrap_or("Unknown"),
-                                                &source,
-                                            );
-                                        }
-                                    }
-                                }
-                                let chat_msg = RelayMessage::StreamChat {
-                                    content,
-                                    source,
-                                    source_user,
-                                    from: Some(my_key_for_recv.clone()),
-                                    from_name,
-                                    timestamp: now,
-                                };
-                                let _ = state_clone.broadcast_tx.send(chat_msg);
+                                handle_stream_chat(&state_clone, &my_key_for_recv, content, source, source_user).await;
                             }
-
                             RelayMessage::StreamInfoRequest {} => {
-                                let stream = state_clone.active_stream.read().await;
-                                let info_msg = if let Some(ref s) = *stream {
-                                    RelayMessage::StreamInfo {
-                                        active: true,
-                                        streamer_name: Some(s.streamer_name.clone()),
-                                        streamer_key: Some(s.streamer_key.clone()),
-                                        title: Some(s.title.clone()),
-                                        category: Some(s.category.clone()),
-                                        viewer_count: s.viewer_keys.len() as u32,
-                                        started_at: Some(s.started_at),
-                                        external_urls: Some(s.external_urls.clone()),
-                                    }
-                                } else {
-                                    RelayMessage::StreamInfo {
-                                        active: false,
-                                        streamer_name: None,
-                                        streamer_key: None,
-                                        title: None,
-                                        category: None,
-                                        viewer_count: 0,
-                                        started_at: None,
-                                        external_urls: None,
-                                    }
-                                };
-                                // Send only to requester (use Private-style targeting via broadcast + from filter in send loop).
-                                // For simplicity, broadcast it — clients will update their UI.
-                                let _ = state_clone.broadcast_tx.send(info_msg);
+                                handle_stream_info_request(&state_clone).await;
                             }
-
                             RelayMessage::StreamSetExternal { urls } => {
-                                let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
-                                if role == "admin" {
-                                    let mut stream_lock = state_clone.active_stream.write().await;
-                                    if let Some(ref mut stream) = *stream_lock {
-                                        stream.external_urls = urls;
-                                        let info_msg = RelayMessage::StreamInfo {
-                                            active: true,
-                                            streamer_name: Some(stream.streamer_name.clone()),
-                                            streamer_key: Some(stream.streamer_key.clone()),
-                                            title: Some(stream.title.clone()),
-                                            category: Some(stream.category.clone()),
-                                            viewer_count: stream.viewer_keys.len() as u32,
-                                            started_at: Some(stream.started_at),
-                                            external_urls: Some(stream.external_urls.clone()),
-                                        };
-                                        drop(stream_lock);
-                                        let _ = state_clone.broadcast_tx.send(info_msg);
-                                    }
-                                }
+                                handle_stream_set_external(&state_clone, &my_key_for_recv, urls).await;
                             }
 
                             _ => {

@@ -26,8 +26,8 @@
     #settings-sidebar {
       width: 200px;
       min-width: 170px;
-      background: #111;
-      border-right: 1px solid #222;
+      background: var(--bg);
+      border-right: 1px solid var(--bg-input);
       overflow-y: auto;
       padding: var(--space-md) var(--space-md);
       flex-shrink: 0;
@@ -35,7 +35,7 @@
     #settings-sidebar h2 {
       font-size: 0.68rem;
       font-weight: 700;
-      color: #555;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.1em;
       padding: var(--space-md) var(--space-md) var(--space-sm);
@@ -48,13 +48,13 @@
       cursor: pointer;
       border-radius: var(--radius);
       font-size: 0.86rem;
-      color: #aaa;
+      color: var(--text-muted);
       transition: background 0.1s, color 0.1s;
       border: 1px solid transparent;
       margin-bottom: var(--space-xs);
     }
-    .s-nav:hover { background: #1a1a1a; color: #eee; }
-    .s-nav.active { background: #141414; color: #fff; border-color: #2a6; }
+    .s-nav:hover { background: var(--bg-secondary); color: var(--text); }
+    .s-nav.active { background: var(--bg-secondary); color: var(--text); border-color: var(--success); }
 
     /* ── Main panel ── */
     #settings-main {
@@ -70,19 +70,19 @@
     .settings-section h1 {
       font-size: 1.15rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text);
       margin-bottom: var(--space-sm);
     }
     .settings-section .section-desc {
       font-size: 0.83rem;
-      color: #666;
+      color: var(--text-muted);
       margin-bottom: var(--space-2xl);
       line-height: 1.5;
     }
 
     .settings-group {
-      background: #111;
-      border: 1px solid #1e1e1e;
+      background: var(--bg);
+      border: 1px solid var(--bg-secondary);
       border-radius: var(--radius-lg);
       margin-bottom: var(--space-xl);
       overflow: hidden;
@@ -90,7 +90,7 @@
     .settings-group-title {
       font-size: 0.72rem;
       font-weight: 700;
-      color: #555;
+      color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.1em;
       padding: var(--space-lg) var(--space-xl) var(--space-md);
@@ -101,13 +101,13 @@
       align-items: center;
       gap: var(--space-lg);
       padding: var(--space-lg) var(--space-xl);
-      border-bottom: 1px solid #181818;
+      border-bottom: 1px solid var(--bg-card);
     }
     .setting-row:last-child { border-bottom: none; }
 
     .setting-label { flex: 1; }
     .setting-label strong { display: block; font-size: 0.88rem; color: #ddd; font-weight: 600; }
-    .setting-label span { display: block; font-size: 0.78rem; color: #666; margin-top: 2px; }
+    .setting-label span { display: block; font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
 
     /* Toggle switch */
     .toggle {
@@ -120,12 +120,12 @@
     .toggle-track {
       position: absolute;
       inset: 0;
-      background: #333;
+      background: var(--border);
       border-radius: 20px;
       cursor: pointer;
       transition: background 0.2s;
     }
-    .toggle input:checked + .toggle-track { background: #2a6; }
+    .toggle input:checked + .toggle-track { background: var(--success); }
     .toggle-track::after {
       content: '';
       position: absolute;
@@ -141,8 +141,8 @@
 
     /* Select */
     .setting-select {
-      background: #1a1a1a;
-      border: 1px solid #333;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
       color: #ddd;
       padding: var(--space-sm) var(--space-lg);
@@ -152,13 +152,13 @@
       cursor: pointer;
       min-width: 130px;
     }
-    .setting-select:focus { border-color: #2a6; }
+    .setting-select:focus { border-color: var(--success); }
 
     /* Color input */
     .setting-color {
       width: 36px;
       height: 28px;
-      border: 1px solid #333;
+      border: 1px solid var(--border);
       border-radius: var(--radius);
       cursor: pointer;
       background: none;
@@ -166,12 +166,12 @@
     }
 
     /* Range */
-    .setting-range { width: 120px; accent-color: #2a6; cursor: pointer; }
+    .setting-range { width: 120px; accent-color: var(--success); cursor: pointer; }
 
     /* Text input */
     .setting-input {
-      background: #1a1a1a;
-      border: 1px solid #333;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
       border-radius: var(--radius);
       color: #ddd;
       padding: var(--space-sm) var(--space-lg);
@@ -180,7 +180,7 @@
       outline: none;
       min-width: 160px;
     }
-    .setting-input:focus { border-color: #2a6; }
+    .setting-input:focus { border-color: var(--success); }
 
     /* Fixed bottom action bar */
     #settings-action-bar {
@@ -214,8 +214,8 @@
     #settings-action-bar .btn-reset:hover { background: rgba(204,68,68,0.1); }
     #settings-save {
       background: #1a4a2a;
-      border: 1px solid #2a6;
-      color: #4d9;
+      border: 1px solid var(--success);
+      color: var(--success);
       padding: var(--space-sm) var(--space-xl);
       border-radius: var(--radius);
       cursor: pointer;
@@ -229,11 +229,11 @@
     #settings-save:hover { background: #1f5a32; }
 
     /* Danger zone */
-    .danger-row .setting-label strong { color: #e44; }
+    .danger-row .setting-label strong { color: var(--danger); }
     .btn-danger {
       background: transparent;
-      border: 1px solid #e44;
-      color: #e44;
+      border: 1px solid var(--danger);
+      color: var(--danger);
       padding: var(--space-sm) var(--space-lg);
       border-radius: var(--radius);
       cursor: pointer;
@@ -245,19 +245,19 @@
     /* Theme customizer reset buttons */
     .tc-reset {
       background: transparent;
-      border: 1px solid #333;
-      color: #888;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
       padding: 2px 8px;
       border-radius: var(--radius-sm);
       cursor: pointer;
       font-size: 0.72rem;
       transition: color 0.1s, border-color 0.1s;
     }
-    .tc-reset:hover { color: #ddd; border-color: #555; }
+    .tc-reset:hover { color: var(--text); border-color: var(--text-muted); }
 
     .version-tag {
       font-size: 0.75rem;
-      color: #444;
+      color: var(--text-muted);
       margin-top: var(--space-md);
       padding: 0 var(--space-xs);
     }
@@ -269,23 +269,23 @@
 
     /* ── Server Info section (from knowledge.html) ── */
     #sec-server-info .info-section { margin-bottom:var(--space-2xl); }
-    #sec-server-info .info-section h2 { font-size:1.1rem; color:var(--accent,#2a6); margin-bottom:var(--space-xl); border-bottom:1px solid #222; padding-bottom:var(--space-md); cursor:pointer; user-select:none; }
+    #sec-server-info .info-section h2 { font-size:1.1rem; color:var(--accent,#2a6); margin-bottom:var(--space-xl); border-bottom:1px solid var(--bg-input); padding-bottom:var(--space-md); cursor:pointer; user-select:none; }
     #sec-server-info .info-section h2::after { content:' \25BE'; font-size:0.7rem; opacity:0.5; }
     #sec-server-info .info-section.collapsed h2::after { content:' \25B8'; }
     #sec-server-info .info-section.collapsed .info-body { display:none; }
-    #sec-server-info .role-card { background:#141414; border:1px solid #1e1e1e; border-radius:10px; padding:var(--space-xl); margin-bottom:var(--space-lg); }
+    #sec-server-info .role-card { background:var(--bg-secondary); border:1px solid var(--bg-secondary); border-radius:10px; padding:var(--space-xl); margin-bottom:var(--space-lg); }
     #sec-server-info .role-card h3 { margin:0 0 var(--space-md); font-size:0.95rem; }
-    #sec-server-info .role-card .perms { font-size:0.8rem; color:#888; line-height:1.6; }
+    #sec-server-info .role-card .perms { font-size:0.8rem; color:var(--text-muted); line-height:1.6; }
     #sec-server-info .role-card .perms .yes { color:#4a8; }
-    #sec-server-info .role-card .perms .no { color:#e55; }
+    #sec-server-info .role-card .perms .no { color:var(--danger); }
     #sec-server-info .cmd-group { margin-bottom:var(--space-xl); }
     #sec-server-info .cmd-group h4 { font-size:0.85rem; color:var(--text,#ddd); margin:var(--space-lg) 0 var(--space-sm); }
-    #sec-server-info .cmd-row { font-size:0.8rem; color:#888; padding:var(--space-xs) 0; }
+    #sec-server-info .cmd-row { font-size:0.8rem; color:var(--text-muted); padding:var(--space-xs) 0; }
     #sec-server-info .cmd-row code { background:rgba(255,255,255,0.06); padding:var(--space-xs) var(--space-md); border-radius:3px; color:var(--accent,#2a6); font-size:0.78rem; }
     #sec-server-info .stat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:var(--space-xl); }
-    #sec-server-info .stat-card { background:#141414; border:1px solid #1e1e1e; border-radius:8px; padding:var(--space-xl); text-align:center; }
+    #sec-server-info .stat-card { background:var(--bg-secondary); border:1px solid var(--bg-secondary); border-radius:8px; padding:var(--space-xl); text-align:center; }
     #sec-server-info .stat-card .stat-val { font-size:1.4rem; font-weight:700; color:var(--accent,#2a6); }
-    #sec-server-info .stat-card .stat-label { font-size:0.7rem; color:#888; margin-top:var(--space-xs); }
+    #sec-server-info .stat-card .stat-label { font-size:0.7rem; color:var(--text-muted); margin-top:var(--space-xs); }
 
     /* ── Vault section (from vault.html) ── */
     #sec-vault .vault-screen { display: none; }
@@ -299,8 +299,8 @@
     }
 
     #sec-vault .lock-card {
-      background: #111;
-      border: 1px solid #1e1e1e;
+      background: var(--bg);
+      border: 1px solid var(--bg-secondary);
       border-radius: 18px;
       padding: var(--space-3xl) var(--space-3xl);
       width: 100%;
@@ -309,36 +309,36 @@
     #sec-vault .lock-card h1 {
       font-size: 1.5rem;
       font-weight: 800;
-      color: #f0a500;
+      color: var(--accent);
       margin-bottom: var(--space-sm);
     }
     #sec-vault .lock-card .subtitle {
       font-size: .82rem;
-      color: #666;
+      color: var(--text-muted);
       line-height: 1.6;
       margin-bottom: var(--space-2xl);
     }
 
     #sec-vault .eli5-box {
       background: #0a0a0a;
-      border: 1px solid #1a1a1a;
+      border: 1px solid var(--bg-secondary);
       border-radius: var(--radius-lg);
       padding: var(--space-xl) 1.1rem;
       margin-bottom: var(--space-2xl);
     }
-    #sec-vault .eli5-box p { font-size: .8rem; color: #888; line-height: 1.65; margin: 0; }
+    #sec-vault .eli5-box p { font-size: .8rem; color: var(--text-muted); line-height: 1.65; margin: 0; }
     #sec-vault .eli5-box p + p { margin-top: var(--space-md); }
-    #sec-vault .eli5-box strong { color: #ccc; }
+    #sec-vault .eli5-box strong { color: var(--text-muted); }
 
     #sec-vault .vault-field-group { margin-bottom: var(--space-xl); }
     #sec-vault .vault-field-group label {
       display: block; font-size: .7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .06em; color: #555; margin-bottom: var(--space-sm);
+      text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: var(--space-sm);
     }
     #sec-vault .vault-field-group input {
       width: 100%;
-      background: #0d0d0d;
-      border: 1px solid #222;
+      background: var(--bg);
+      border: 1px solid var(--bg-input);
       border-radius: var(--radius);
       padding: var(--space-md) var(--space-xl);
       color: var(--text, #e0e0e0);
@@ -346,11 +346,11 @@
       outline: none;
       transition: border-color .15s;
     }
-    #sec-vault .vault-field-group input:focus { border-color: #f0a500; }
+    #sec-vault .vault-field-group input:focus { border-color: var(--accent); }
 
     #sec-vault .vault-btn-primary {
       width: 100%;
-      background: #f0a500;
+      background: var(--accent);
       color: #000;
       border: none;
       border-radius: var(--radius);
@@ -380,8 +380,8 @@
     #vault-sec-sidebar {
       width: 260px;
       min-width: 220px;
-      background: #111;
-      border-right: 1px solid #1a1a1a;
+      background: var(--bg);
+      border-right: 1px solid var(--bg-secondary);
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
@@ -389,22 +389,22 @@
 
     #vault-sec-sidebar-header {
       padding: var(--space-lg) .85rem;
-      border-bottom: 1px solid #1a1a1a;
+      border-bottom: 1px solid var(--bg-secondary);
       display: flex;
       align-items: center;
       gap: var(--space-md);
     }
     #vault-sec-sidebar-header h2 {
       font-size: .72rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .08em; color: #555; flex: 1;
+      text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); flex: 1;
     }
 
-    #vault-sec-search { padding: var(--space-md) var(--space-lg); border-bottom: 1px solid #1a1a1a; }
+    #vault-sec-search { padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--bg-secondary); }
     #vault-sec-search input {
-      width: 100%; background: #0d0d0d; border: 1px solid #1e1e1e;
-      border-radius: var(--radius); padding: var(--space-sm) var(--space-lg); color: #e0e0e0; font-size: .8rem; outline: none;
+      width: 100%; background: var(--bg); border: 1px solid var(--bg-secondary);
+      border-radius: var(--radius); padding: var(--space-sm) var(--space-lg); color: var(--text); font-size: .8rem; outline: none;
     }
-    #vault-sec-search input:focus { border-color: #333; }
+    #vault-sec-search input:focus { border-color: var(--border); }
 
     #vault-sec-entry-list { flex: 1; overflow-y: auto; padding: var(--space-md) 0; }
 
@@ -412,27 +412,27 @@
       display: flex; align-items: center; gap: var(--space-lg);
       padding: var(--space-md) .85rem; cursor: pointer; border-radius: 0; transition: background .1s;
     }
-    #sec-vault .entry-item:hover { background: #181818; }
-    #sec-vault .entry-item.active { background: #1a1a0a; border-left: 2px solid #f0a500; }
+    #sec-vault .entry-item:hover { background: var(--bg-card); }
+    #sec-vault .entry-item.active { background: #1a1a0a; border-left: 2px solid var(--accent); }
     #sec-vault .entry-item-icon { font-size: 1.1rem; flex-shrink: 0; }
     #sec-vault .entry-item-info { overflow: hidden; }
     #sec-vault .entry-item-title {
-      font-size: .82rem; font-weight: 600; color: #e0e0e0;
+      font-size: .82rem; font-weight: 600; color: var(--text);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    #sec-vault .entry-item-type { font-size: .66rem; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+    #sec-vault .entry-item-type { font-size: .66rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
 
     #vault-sec-sidebar-footer {
-      padding: var(--space-md) .85rem; border-top: 1px solid #1a1a1a;
+      padding: var(--space-md) .85rem; border-top: 1px solid var(--bg-secondary);
       display: flex; align-items: center; gap: var(--space-md);
     }
-    #vault-sec-sidebar-footer span { font-size: .68rem; color: #444; }
+    #vault-sec-sidebar-footer span { font-size: .68rem; color: var(--text-muted); }
     #vault-sec-lock-countdown { font-size: .62rem; color: #3a3a3a; flex: 1; text-align: center; }
     #sec-vault .btn-lock {
-      background: none; border: 1px solid #2a2a2a; color: #555;
+      background: none; border: 1px solid var(--bg-hover); color: var(--text-muted);
       border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-md); font-size: .72rem; cursor: pointer;
     }
-    #sec-vault .btn-lock:hover { border-color: #555; color: #888; }
+    #sec-vault .btn-lock:hover { border-color: var(--text-muted); color: var(--text-muted); }
 
     #vault-sec-main {
       flex: 1; overflow-y: auto; padding: var(--space-2xl) var(--space-3xl);
@@ -440,33 +440,33 @@
     }
 
     #vault-sec-welcome { max-width: 640px; margin: 0 auto; }
-    #vault-sec-welcome h2 { font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: var(--space-sm); }
-    #vault-sec-welcome p { font-size: .83rem; color: #666; line-height: 1.65; margin-bottom: var(--space-2xl); }
+    #vault-sec-welcome h2 { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: var(--space-sm); }
+    #vault-sec-welcome p { font-size: .83rem; color: var(--text-muted); line-height: 1.65; margin-bottom: var(--space-2xl); }
 
     #sec-vault .quick-add-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
       gap: var(--space-lg); margin-bottom: var(--space-2xl);
     }
     #sec-vault .quick-add-btn {
-      background: #111; border: 1px solid #1e1e1e; border-radius: var(--radius-lg);
+      background: var(--bg); border: 1px solid var(--bg-secondary); border-radius: var(--radius-lg);
       padding: var(--space-xl); cursor: pointer; text-align: left;
       transition: border-color .15s, background .15s;
     }
-    #sec-vault .quick-add-btn:hover { background: #181818; border-color: #2a2a2a; }
+    #sec-vault .quick-add-btn:hover { background: var(--bg-card); border-color: var(--bg-hover); }
     #sec-vault .quick-add-btn .qa-icon { font-size: 1.4rem; margin-bottom: var(--space-sm); display: block; }
-    #sec-vault .quick-add-btn .qa-title { font-size: .82rem; font-weight: 700; color: #e0e0e0; display: block; }
-    #sec-vault .quick-add-btn .qa-desc { font-size: .72rem; color: #555; margin-top: var(--space-xs); display: block; line-height: 1.4; }
+    #sec-vault .quick-add-btn .qa-title { font-size: .82rem; font-weight: 700; color: var(--text); display: block; }
+    #sec-vault .quick-add-btn .qa-desc { font-size: .72rem; color: var(--text-muted); margin-top: var(--space-xs); display: block; line-height: 1.4; }
 
     #sec-vault .eli5-section {
-      background: #111; border: 1px solid #1a1a1a; border-radius: var(--radius-lg);
+      background: var(--bg); border: 1px solid var(--bg-secondary); border-radius: var(--radius-lg);
       padding: var(--space-2xl) 1.4rem; margin-bottom: var(--space-xl);
     }
-    #sec-vault .eli5-section h3 { font-size: .85rem; font-weight: 700; color: #ccc; margin-bottom: var(--space-lg); }
+    #sec-vault .eli5-section h3 { font-size: .85rem; font-weight: 700; color: var(--text-muted); margin-bottom: var(--space-lg); }
     #sec-vault .eli5-row { display: flex; gap: var(--space-lg); margin-bottom: var(--space-lg); align-items: flex-start; }
     #sec-vault .eli5-row:last-child { margin-bottom: 0; }
     #sec-vault .eli5-row .eli5-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
     #sec-vault .eli5-row p { font-size: .8rem; color: #777; line-height: 1.55; }
-    #sec-vault .eli5-row strong { color: #aaa; }
+    #sec-vault .eli5-row strong { color: var(--text-muted); }
 
     #vault-sec-detail { display: none; max-width: 580px; }
     #vault-sec-detail.visible { display: block; }
@@ -477,39 +477,39 @@
     #vault-sec-detail-icon { font-size: 2rem; }
     #vault-sec-detail-title-block { flex: 1; }
     #vault-sec-detail-title {
-      font-size: 1.1rem; font-weight: 700; color: #e0e0e0; margin-bottom: var(--space-xs); word-break: break-word;
+      font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: var(--space-xs); word-break: break-word;
     }
-    #vault-sec-detail-type { font-size: .7rem; color: #555; text-transform: uppercase; letter-spacing: .05em; }
+    #vault-sec-detail-type { font-size: .7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
 
     #sec-vault .detail-actions { display: flex; gap: var(--space-md); flex-shrink: 0; }
     #sec-vault .btn-detail-edit, #sec-vault .btn-detail-delete {
-      background: none; border: 1px solid #2a2a2a; border-radius: var(--radius);
+      background: none; border: 1px solid var(--bg-hover); border-radius: var(--radius);
       padding: var(--space-sm) var(--space-lg); font-size: .76rem; cursor: pointer;
     }
-    #sec-vault .btn-detail-edit { color: #aaa; }
-    #sec-vault .btn-detail-edit:hover { border-color: #555; color: #e0e0e0; }
-    #sec-vault .btn-detail-delete { color: #c44; border-color: #3a1515; }
+    #sec-vault .btn-detail-edit { color: var(--text-muted); }
+    #sec-vault .btn-detail-edit:hover { border-color: var(--text-muted); color: var(--text); }
+    #sec-vault .btn-detail-delete { color: var(--danger); border-color: #3a1515; }
     #sec-vault .btn-detail-delete:hover { background: #1a0505; }
 
     #sec-vault .field-display { margin-bottom: var(--space-xl); }
     #sec-vault .field-display-label {
       font-size: .68rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .06em; color: #444; margin-bottom: var(--space-sm);
+      letter-spacing: .06em; color: var(--text-muted); margin-bottom: var(--space-sm);
     }
     #sec-vault .field-display-value {
-      background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: var(--radius);
-      padding: var(--space-md) var(--space-lg); font-size: .85rem; color: #e0e0e0;
+      background: var(--bg); border: 1px solid var(--bg-secondary); border-radius: var(--radius);
+      padding: var(--space-md) var(--space-lg); font-size: .85rem; color: var(--text);
       word-break: break-word; white-space: pre-wrap; line-height: 1.5; position: relative;
     }
-    #sec-vault .field-display-value.secret { color: transparent; text-shadow: 0 0 8px #888; user-select: none; cursor: pointer; }
-    #sec-vault .field-display-value.secret.revealed { color: #e0e0e0; text-shadow: none; user-select: text; }
+    #sec-vault .field-display-value.secret { color: transparent; text-shadow: 0 0 8px var(--text-muted); user-select: none; cursor: pointer; }
+    #sec-vault .field-display-value.secret.revealed { color: var(--text); text-shadow: none; user-select: text; }
 
     #sec-vault .field-copy-row { display: flex; align-items: center; gap: var(--space-md); margin-top: var(--space-sm); }
     #sec-vault .btn-copy-field, #sec-vault .btn-reveal {
-      background: none; border: 1px solid #222; border-radius: var(--radius-sm);
-      padding: var(--space-xs) var(--space-lg); font-size: .7rem; color: #666; cursor: pointer;
+      background: none; border: 1px solid var(--bg-input); border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-lg); font-size: .7rem; color: var(--text-muted); cursor: pointer;
     }
-    #sec-vault .btn-copy-field:hover, #sec-vault .btn-reveal:hover { border-color: #444; color: #aaa; }
+    #sec-vault .btn-copy-field:hover, #sec-vault .btn-reveal:hover { border-color: var(--text-muted); color: var(--text-muted); }
     #sec-vault .copy-confirm { font-size: .68rem; color: #4ec87a; }
 
     /* Vault entry modal */
@@ -520,29 +520,29 @@
     }
     #vault-sec-entry-modal-overlay.open { display: flex; }
     #vault-sec-entry-modal {
-      background: #111; border: 1px solid #222; border-radius: 14px;
+      background: var(--bg); border: 1px solid var(--bg-input); border-radius: 14px;
       padding: 1.75rem; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto;
     }
-    #vault-sec-entry-modal h3 { font-size: .95rem; font-weight: 700; color: #e0e0e0; margin-bottom: 1.1rem; }
+    #vault-sec-entry-modal h3 { font-size: .95rem; font-weight: 700; color: var(--text); margin-bottom: 1.1rem; }
     #sec-vault .modal-field { margin-bottom: .85rem; }
     #sec-vault .modal-field label {
       display: block; font-size: .7rem; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .05em; color: #555; margin-bottom: var(--space-sm);
+      text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); margin-bottom: var(--space-sm);
     }
     #sec-vault .modal-field input, #sec-vault .modal-field textarea, #sec-vault .modal-field select {
-      width: 100%; background: #0d0d0d; border: 1px solid #222; border-radius: var(--radius);
-      padding: var(--space-md) var(--space-lg); color: #e0e0e0; font-size: .85rem; outline: none; font-family: inherit;
+      width: 100%; background: var(--bg); border: 1px solid var(--bg-input); border-radius: var(--radius);
+      padding: var(--space-md) var(--space-lg); color: var(--text); font-size: .85rem; outline: none; font-family: inherit;
     }
-    #sec-vault .modal-field input:focus, #sec-vault .modal-field textarea:focus, #sec-vault .modal-field select:focus { border-color: #f0a500; }
+    #sec-vault .modal-field input:focus, #sec-vault .modal-field textarea:focus, #sec-vault .modal-field select:focus { border-color: var(--accent); }
     #sec-vault .modal-field textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
     #vault-sec-modal-msg { font-size: .75rem; min-height: 1.2em; margin-bottom: var(--space-md); }
     #sec-vault .modal-actions { display: flex; gap: var(--space-lg); justify-content: flex-end; }
     #sec-vault .btn-cancel {
-      background: none; border: 1px solid #2a2a2a; color: #666;
+      background: none; border: 1px solid var(--bg-hover); color: var(--text-muted);
       border-radius: var(--radius); padding: var(--space-md) var(--space-xl); font-size: .82rem; cursor: pointer;
     }
     #sec-vault .btn-save {
-      background: #f0a500; color: #000; border: none; border-radius: var(--radius);
+      background: var(--accent); color: #000; border: none; border-radius: var(--radius);
       padding: var(--space-md) 1.2rem; font-size: .82rem; font-weight: 700; cursor: pointer;
     }
     #sec-vault .btn-save:disabled { opacity: .5; cursor: default; }
@@ -551,14 +551,14 @@
       display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: var(--space-md); margin-bottom: var(--space-xl);
     }
     #sec-vault .type-chip {
-      border: 1px solid #222; border-radius: var(--radius); padding: var(--space-md) var(--space-lg);
+      border: 1px solid var(--bg-input); border-radius: var(--radius); padding: var(--space-md) var(--space-lg);
       display: flex; align-items: center; gap: var(--space-md); cursor: pointer;
-      font-size: .78rem; color: #888; background: #0d0d0d; transition: border-color .12s;
+      font-size: .78rem; color: var(--text-muted); background: var(--bg); transition: border-color .12s;
     }
-    #sec-vault .type-chip:hover { border-color: #444; color: #ccc; }
-    #sec-vault .type-chip.selected { border-color: #f0a500; color: #f0a500; background: #1a1000; }
+    #sec-vault .type-chip:hover { border-color: var(--text-muted); color: var(--text-muted); }
+    #sec-vault .type-chip.selected { border-color: var(--accent); color: var(--accent); background: #1a1000; }
     #sec-vault .type-chip .chip-icon { font-size: 1rem; }
-    #sec-vault .no-entries { padding: var(--space-2xl) .85rem; font-size: .78rem; color: #444; text-align: center; }
+    #sec-vault .no-entries { padding: var(--space-2xl) .85rem; font-size: .78rem; color: var(--text-muted); text-align: center; }
 
     @media (max-width: 600px) {
       #vault-sec-sidebar { width: 200px; min-width: 160px; }
@@ -623,7 +623,7 @@
         <div style="padding:var(--space-lg) var(--space-xl)">
           <div id="theme-preview" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
             <div id="tp-icons" style="display:flex;gap:6px;align-items:center"></div>
-            <button style="padding:4px 12px;border-radius:var(--radius);background:var(--accent);color:#fff;border:none;font-size:0.8rem;cursor:default">Button</button>
+            <button style="padding:4px 12px;border-radius:var(--radius);background:var(--accent);color:var(--text);border:none;font-size:0.8rem;cursor:default">Button</button>
             <span style="color:var(--success);font-size:0.8rem;font-weight:600">Success</span>
             <span style="color:var(--danger);font-size:0.8rem;font-weight:600">Danger</span>
             <span style="color:var(--warning);font-size:0.8rem;font-weight:600">Warning</span>
@@ -1027,8 +1027,8 @@
             <span>Hold this key while in PTT mode to transmit</span>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
-            <kbd id="ptt-key-display" style="background:#111;border:1px solid #46f;color:#aaf;padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.9rem;min-width:48px;text-align:center;">V</kbd>
-            <button onclick="beginPttRebind()" id="ptt-rebind-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Rebind</button>
+            <kbd id="ptt-key-display" style="background:var(--bg);border:1px solid #46f;color:#aaf;padding:0.22rem var(--space-lg);border-radius:5px;font-family:monospace;font-size:0.9rem;min-width:48px;text-align:center;">V</kbd>
+            <button onclick="beginPttRebind()" id="ptt-rebind-btn" style="background:#1a1a2a;border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Rebind</button>
           </div>
         </div>
       </div>
@@ -1120,7 +1120,7 @@
             <strong>Public Key</strong>
             <span>Your Ed25519 identity key (read-only)</span>
           </div>
-          <span id="pubkey-display" style="font-family:monospace;font-size:0.72rem;color:#555;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not connected</span>
+          <span id="pubkey-display" style="font-family:monospace;font-size:0.72rem;color:var(--text-muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not connected</span>
         </div>
       </div>
 
@@ -1136,7 +1136,7 @@
       </div>
 
       <div class="settings-group danger-row">
-        <div class="settings-group-title" style="color:#e44;">Danger Zone</div>
+        <div class="settings-group-title" style="color:var(--danger);">Danger Zone</div>
         <div class="setting-row danger-row">
           <div class="setting-label">
             <strong>Clear All Local Data</strong>
@@ -1191,7 +1191,7 @@
             <strong>Export All Data</strong>
             <span>Download a JSON backup of all local HumanityOS data</span>
           </div>
-          <button onclick="exportData()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Export JSON</button>
+          <button onclick="exportData()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Export JSON</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1199,7 +1199,7 @@
             <span>Restore from a previously exported JSON backup</span>
           </div>
           <input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)">
-          <button onclick="document.getElementById('import-file').click()" style="background:#1a1a1a;border:1px solid #333;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
+          <button onclick="document.getElementById('import-file').click()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;">Import JSON</button>
         </div>
       </div>
 
@@ -1208,7 +1208,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Clear App Cache &amp; Reload</strong>
-            <span>Forces every page to re-download fresh — use when an update isn't showing up. Keyboard shortcut: <kbd style="background:#222;border:1px solid #444;border-radius:3px;padding:1px 5px;font-size:0.78rem;">Ctrl+Shift+Delete</kbd></span>
+            <span>Forces every page to re-download fresh — use when an update isn't showing up. Keyboard shortcut: <kbd style="background:var(--bg-input);border:1px solid var(--text-muted);border-radius:3px;padding:1px 5px;font-size:0.78rem;">Ctrl+Shift+Delete</kbd></span>
           </div>
           <button onclick="clearAppCache()" style="background:#1a1a2a;border:1px solid #46f;color:#68f;padding:var(--space-sm) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.84rem;font-weight:600;">Clear Cache</button>
         </div>
@@ -1307,10 +1307,10 @@
             <strong>Input Level</strong>
             <span>Visual meter showing mic volume right now</span>
           </div>
-          <div style="flex:1;max-width:200px;height:8px;background:#222;border-radius:4px;overflow:hidden;">
-            <div id="mic-level-bar" style="width:0%;height:100%;background:#2a6;transition:width 0.1s;border-radius:4px;"></div>
+          <div style="flex:1;max-width:200px;height:8px;background:var(--bg-input);border-radius:4px;overflow:hidden;">
+            <div id="mic-level-bar" style="width:0%;height:100%;background:var(--success);transition:width 0.1s;border-radius:4px;"></div>
           </div>
-          <button onclick="testMic()" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;" id="mic-test-btn">Test Mic</button>
+          <button onclick="testMic()" style="background:#1a1a2a;border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;" id="mic-test-btn">Test Mic</button>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1318,7 +1318,7 @@
             <span>Boost or reduce your mic volume</span>
           </div>
           <input type="range" class="setting-range" id="pref-mic-gain" min="0" max="200" value="100" oninput="savePref()">
-          <span id="mic-gain-label" style="font-size:0.8rem;color:#888;min-width:36px;text-align:right;">100%</span>
+          <span id="mic-gain-label" style="font-size:0.8rem;color:var(--text-muted);min-width:36px;text-align:right;">100%</span>
         </div>
       </div>
 
@@ -1339,7 +1339,7 @@
             <span>Master volume for all incoming audio</span>
           </div>
           <input type="range" class="setting-range" id="pref-speaker-vol" min="0" max="100" value="100" oninput="savePref()">
-          <span id="speaker-vol-label" style="font-size:0.8rem;color:#888;min-width:36px;text-align:right;">100%</span>
+          <span id="speaker-vol-label" style="font-size:0.8rem;color:var(--text-muted);min-width:36px;text-align:right;">100%</span>
         </div>
       </div>
 
@@ -1371,10 +1371,10 @@
             <strong>Camera Preview</strong>
             <span>Check how you look before going live</span>
           </div>
-          <button onclick="toggleCameraPreview()" id="cam-preview-btn" style="background:#1a1a2a;border:1px solid #555;color:#aaa;padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Preview</button>
+          <button onclick="toggleCameraPreview()" id="cam-preview-btn" style="background:#1a1a2a;border:1px solid var(--text-muted);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:5px;cursor:pointer;font-size:0.8rem;">Preview</button>
         </div>
       </div>
-      <video id="settings-cam-preview" autoplay muted playsinline style="display:none;width:100%;max-width:320px;border-radius:8px;margin-top:var(--space-md);border:1px solid #333;"></video>
+      <video id="settings-cam-preview" autoplay muted playsinline style="display:none;width:100%;max-width:320px;border-radius:8px;margin-top:var(--space-md);border:1px solid var(--border);"></video>
     </section>
 
     <!-- Security -->
@@ -1386,7 +1386,7 @@
         <div style="display:flex;align-items:flex-start;gap:var(--space-lg);">
           <span style="font-size:1.4rem;flex-shrink:0;">⚠️</span>
           <div>
-            <strong style="color:#e55;font-size:0.95rem;">Your identity is NOT backed up</strong>
+            <strong style="color:var(--danger);font-size:0.95rem;">Your identity is NOT backed up</strong>
             <p style="color:var(--text-muted);font-size:0.82rem;line-height:1.6;margin:var(--space-md) 0 0;">
               Your private key lives only in this browser's storage. If you clear your browser data, reinstall, or lose this device,
               <strong style="color:var(--text);">your identity is gone forever</strong> — no one can recover it for you.
@@ -1403,7 +1403,7 @@
         <div style="display:flex;align-items:center;gap:var(--space-lg);">
           <span style="font-size:1.4rem;">✅</span>
           <div>
-            <strong style="color:#2a6;font-size:0.95rem;">Identity backed up</strong>
+            <strong style="color:var(--success);font-size:0.95rem;">Identity backed up</strong>
             <p style="color:var(--text-muted);font-size:0.82rem;margin:var(--space-sm) 0 0;">
               You have at least one backup method active. Your identity can be recovered if this browser's data is lost.
             </p>
@@ -1418,7 +1418,7 @@
             <strong>Passphrase Lock</strong>
             <span>Encrypt your private key in this browser with a passphrase so no one else can use it</span>
           </div>
-          <span id="key-protection-status" style="font-size:0.8rem;color:#888;">Checking…</span>
+          <span id="key-protection-status" style="font-size:0.8rem;color:var(--text-muted);">Checking…</span>
         </div>
         <div class="setting-row">
           <div class="setting-label">
@@ -1557,7 +1557,7 @@
       <div class="settings-group">
         <div class="settings-group-title">Local Storage Usage</div>
         <div id="storage-breakdown" style="padding:var(--space-md) var(--space-xl);">
-          <p style="font-size:0.8rem;color:#666;">Calculating…</p>
+          <p style="font-size:0.8rem;color:var(--text-muted);">Calculating…</p>
         </div>
       </div>
 
@@ -1568,19 +1568,19 @@
             <strong>Vault Sync</strong>
             <span>Encrypted vault blob backed up to the relay server</span>
           </div>
-          <span id="vault-sync-status" style="font-size:0.8rem;color:#888;">Unknown</span>
+          <span id="vault-sync-status" style="font-size:0.8rem;color:var(--text-muted);">Unknown</span>
         </div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>System Profile Sync</strong>
             <span>Hardware info backed up to the relay server</span>
           </div>
-          <span id="system-sync-status" style="font-size:0.8rem;color:#888;">Unknown</span>
+          <span id="system-sync-status" style="font-size:0.8rem;color:var(--text-muted);">Unknown</span>
         </div>
       </div>
 
       <div class="settings-group danger-row">
-        <div class="settings-group-title" style="color:#e44;">Clear Individual Modules</div>
+        <div class="settings-group-title" style="color:var(--danger);">Clear Individual Modules</div>
         <div class="setting-row danger-row">
           <div class="setting-label">
             <strong>Clear Notes</strong>
@@ -1797,7 +1797,7 @@
           </div>
           <div class="eli5-box" style="margin-bottom:var(--space-2xl);border-color:#3a3000;background:#100e00">
             <p>
-              <strong style="color:#f0a500">⚠ Choose a passphrase you'll remember.</strong>
+              <strong style="color:var(--accent)">⚠ Choose a passphrase you'll remember.</strong>
               If you forget your vault passphrase, everything inside is gone —
               there is no "forgot password" because only you hold the key.
               Make it long and memorable: a phrase or three words you won't forget.
@@ -1832,7 +1832,7 @@
           <div id="vault-sec-lock-msg" class="vault-screen-msg"></div>
           <button class="vault-btn-primary" id="vault-sec-lock-btn" onclick="vault_doUnlock()">Unlock Vault</button>
           <p style="font-size:.72rem;color:#3a3a3a;margin-top:1.1rem;line-height:1.5">
-            💡 Don't have a vault yet? <a href="#" onclick="vault_showScreen('setup');return false;" style="color:#f0a500">Create one.</a>
+            💡 Don't have a vault yet? <a href="#" onclick="vault_showScreen('setup');return false;" style="color:var(--accent)">Create one.</a>
           </p>
         </div>
       </div>
@@ -1843,15 +1843,15 @@
           <div id="vault-sec-sidebar-header">
             <h2>Vault</h2>
             <button id="vault-sec-cloud-sync-btn" onclick="vault_syncToCloud()" title="Sync encrypted vault to Humanity relay (requires chat identity)"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁ Sync</button>
+              style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁ Sync</button>
             <button onclick="vault_restoreFromCloud()" title="Restore vault from Humanity relay cloud backup"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁⬇</button>
+              style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">☁⬇</button>
             <button onclick="vault_export()" title="Download an encrypted backup file of your vault"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬇</button>
+              style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬇</button>
             <button onclick="vault_openImportUI()" title="Restore vault from a backup file"
-              style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬆</button>
+              style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.72rem;cursor:pointer">⬆</button>
             <button onclick="vault_openNewEntryModal()" title="Add a new entry (Ctrl+N)"
-              style="background:#f0a500;color:#000;border:none;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
+              style="background:var(--accent);color:#000;border:none;border-radius:5px;padding:var(--space-sm) var(--space-md);font-size:.78rem;font-weight:700;cursor:pointer">+ New</button>
           </div>
           <div id="vault-sec-search">
             <input type="text" id="vault-sec-search-input" placeholder="Search…" oninput="vault_renderEntryList()">
@@ -1871,18 +1871,18 @@
                padding:var(--space-xl) 1.1rem;margin-bottom:var(--space-2xl);max-width:640px">
             <span style="font-size:1.4rem;flex-shrink:0">🌱</span>
             <div style="flex:1">
-              <div style="font-size:.85rem;font-weight:700;color:#f0a500;margin-bottom:var(--space-sm)">Your Humanity identity isn't backed up here yet</div>
-              <div style="font-size:.78rem;color:#888;line-height:1.55;margin-bottom:var(--space-lg)">
+              <div style="font-size:.85rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">Your Humanity identity isn't backed up here yet</div>
+              <div style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:var(--space-lg)">
                 Your chat identity has a 24-word seed phrase — like a master key written in plain English.
                 Save it here and you can always recover your account, even if your device is lost or your browser is wiped.
               </div>
               <div style="display:flex;gap:var(--space-lg);flex-wrap:wrap">
-                <a href="/chat" style="background:#f0a500;color:#000;border:none;border-radius:6px;
+                <a href="/chat" style="background:var(--accent);color:#000;border:none;border-radius:6px;
                    padding:var(--space-sm) var(--space-xl);font-size:.78rem;font-weight:700;cursor:pointer;text-decoration:none">
                   Go to Chat → Get Seed Phrase
                 </a>
                 <button onclick="vault_dismissSeedNudge()"
-                  style="background:none;border:1px solid #2a2a2a;color:#555;border-radius:6px;
+                  style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:6px;
                          padding:var(--space-sm) var(--space-lg);font-size:.78rem;cursor:pointer">
                   Don't show again
                 </button>
@@ -1974,8 +1974,8 @@
          align-items:center;justify-content:center;flex-direction:column;gap:var(--space-lg);cursor:pointer"
   onclick="document.getElementById('vault-sec-blur-overlay').style.display='none'">
   <div style="font-size:2.5rem">🔒</div>
-  <div style="font-size:.95rem;color:#888">Vault hidden while you were away</div>
-  <div style="font-size:.75rem;color:#444">Click to continue — or wait for auto-lock</div>
+  <div style="font-size:.95rem;color:var(--text-muted)">Vault hidden while you were away</div>
+  <div style="font-size:.75rem;color:var(--text-muted)">Click to continue — or wait for auto-lock</div>
 </div>
 
 <!-- Vault import modal -->
@@ -1983,28 +1983,28 @@
   style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;
          align-items:center;justify-content:center;padding:var(--space-xl)"
   onclick="if(event.target===this)this.style.display='none'">
-  <div style="background:#111;border:1px solid #222;border-radius:14px;padding:1.75rem;width:100%;max-width:460px;color:#e0e0e0">
-    <h3 style="font-size:.95rem;font-weight:700;color:#e0e0e0;margin-bottom:var(--space-md)">⬆ Import Vault Backup</h3>
-    <p style="font-size:.78rem;color:#666;line-height:1.5;margin-bottom:var(--space-xl)">
+  <div style="background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:1.75rem;width:100%;max-width:460px;color:var(--text)">
+    <h3 style="font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:var(--space-md)">⬆ Import Vault Backup</h3>
+    <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin-bottom:var(--space-xl)">
       Select a <code>humanity-vault-backup.json</code> file and enter the passphrase you used when you exported it.
       Entries will be merged — nothing gets overwritten.
     </p>
     <div style="margin-bottom:var(--space-xl)">
-      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:var(--space-sm)">Backup File</label>
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:var(--space-sm)">Backup File</label>
       <input type="file" id="vault-sec-import-file" accept=".json,application/json"
-        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.82rem;cursor:pointer">
+        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.82rem;cursor:pointer">
     </div>
     <div style="margin-bottom:var(--space-xl)">
-      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:var(--space-sm)">Vault Passphrase</label>
+      <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:var(--space-sm)">Vault Passphrase</label>
       <input type="password" id="vault-sec-import-pass" placeholder="The passphrase used when this backup was created…"
-        style="width:100%;background:#0d0d0d;border:1px solid #222;border-radius:7px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none">
+        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;outline:none">
     </div>
     <div id="vault-sec-import-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
     <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
       <button onclick="document.getElementById('vault-sec-import-overlay').style.display='none'"
-        style="background:none;border:1px solid #2a2a2a;color:#666;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
+        style="background:none;border:1px solid var(--bg-hover);color:var(--text-muted);border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
       <button id="vault-sec-import-btn" onclick="vault_doImport()"
-        style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import &amp; Merge</button>
+        style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Import &amp; Merge</button>
     </div>
   </div>
 </div>
@@ -2014,7 +2014,7 @@
   <div id="vault-sec-entry-modal">
     <h3 id="vault-sec-modal-title">New Entry</h3>
     <div id="vault-sec-type-selector-row">
-      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#555;margin-bottom:var(--space-md)">Type</div>
+      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:var(--space-md)">Type</div>
       <div class="type-selector">
         <div class="type-chip selected" data-type="seed_phrase" onclick="vault_selectEntryType('seed_phrase')">
           <span class="chip-icon">🌱</span> Seed Phrase
@@ -2052,6 +2052,7 @@
 </div>
 
 <script src="/chat/crypto.js?v=4"></script>
+<script src="/shared/defaults.js"></script>
 <script src="/pages/settings-app.js"></script>
 </body>
 </html>

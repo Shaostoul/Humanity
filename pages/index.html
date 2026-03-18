@@ -172,7 +172,7 @@
     .pulse {
       width: 8px; height: 8px;
       border-radius: 50%;
-      background: #2a6;
+      background: var(--success);
       display: inline-block;
       animation: pulse 2s ease-in-out infinite;
     }
@@ -189,7 +189,7 @@
       margin: 20px 0 28px;
     }
     .live-features span {
-      background: var(--bg-input, #1a1a2e);
+      background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 20px;
       padding: 4px 12px;
@@ -225,7 +225,7 @@
     }
     .status-dot.live { background: #2a6; }
     .status-dot.building { background: #f90; }
-    .status-dot.stub { background: #444; }
+    .status-dot.stub { background: var(--text-muted); }
 
     /* ── How it differs ── */
     .diff-grid {
@@ -281,6 +281,7 @@
 <body>
   <script src="/shared/shell.js"></script>
   <script src="/shared/eli5.js"></script>
+  <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
   <div class="eli5-block" style="max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px;">
     <div class="eli5-simple">Welcome to HumanityOS — a free app where everyone works together to end poverty.</div>
@@ -395,9 +396,9 @@
         <a href="/ops"       class="page-link"><span class="status-dot live"></span> Ops</a>
       </div>
       <p style="margin-top: 12px; font-size: 0.82rem;">
-        <span style="color: #2a6;">●</span> Live &nbsp;
+        <span style="color: var(--success);">●</span> Live &nbsp;
         <span style="color: #f90;">●</span> In active development &nbsp;
-        <span style="color: #444;">●</span> Stub
+        <span style="color: var(--text-muted);">●</span> Stub
       </p>
     </div>
   </section>

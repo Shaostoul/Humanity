@@ -4,44 +4,8 @@
  * Applies CSS variable overrides on load.
  */
 (function () {
-  const STORAGE_KEY = 'humanity_settings';
-  const DEFAULTS = {
-    accent: '#FF8811',
-    fontSize: 'medium',
-    fontSizePx: 16,
-    theme: 'dark',
-    soundEnabled: true,
-    timestampMode: 'relative',
-    // Theme customizer
-    iconWeight: 3,
-    iconSize: 20,
-    borderRadius: 8,
-    contentWidth: 0,
-    lineHeight: 1.6,
-    spacingScale: 100,
-    // Color overrides (empty string = use theme default)
-    successColor: '',
-    dangerColor: '',
-    warningColor: '',
-    // Settings page prefs (unified from former hos_settings_v1)
-    compact: false,
-    'font-size': 'medium',
-    'rgb-nav': true, 'nav-tips': true,
-    'notif-dm': true, 'notif-group': true, 'notif-mention': true,
-    'notif-quests': true, 'notif-cal': true, 'notif-sound': false,
-    'who-dm': 'everyone', 'show-online': true, 'read-receipts': true, 'discoverable': true,
-    'local-only': true, analytics: false,
-    'msg-preview': true, 'enter-send': true, timestamps: 'hover', 'msg-group': true, 'relay-url': '',
-    language: 'en', 'date-fmt': 'mdy', 'time-fmt': '12h', 'launch-chat': false, autosave: '60',
-    'display-name': '', 'debug-panel': false, 'verbose-log': false,
-    'reduce-motion': false, 'no-rgb': false, 'high-contrast': false,
-    'focus-ring': false, 'dyslexia-font': false, 'aria-enhanced': false,
-    'mic-device': '', 'mic-gain': '100', 'speaker-device': '', 'speaker-vol': '100',
-    'camera-device': '', 'video-quality': '720',
-    'auto-lock': '30',
-    presence: 'online', 'status-text': '', 'quiet-hours': false,
-    'quiet-start': '22:00', 'quiet-end': '08:00', 'dnd-friends': true, 'dnd-mentions': false,
-  };
+  const DEFAULTS = window.HOS_DEFAULTS || {};
+  const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
   const ACCENT_PRESETS = [
     { name: 'Orange', color: '#FF8811' },
