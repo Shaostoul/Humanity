@@ -61,6 +61,7 @@
       flex: 1;
       overflow-y: auto;
       padding: var(--space-2xl) var(--space-3xl);
+      padding-bottom: 4rem;
     }
 
     .settings-section { display: none; }
@@ -181,22 +182,49 @@
     }
     .setting-input:focus { border-color: #2a6; }
 
-    /* Save button */
-    #settings-save {
+    /* Fixed bottom action bar */
+    #settings-action-bar {
       position: fixed;
-      bottom: 28px;
-      right: 24px;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-md) var(--space-xl);
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      z-index: 100;
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.3);
+    }
+    #settings-action-bar .btn-reset {
+      background: transparent;
+      border: 1px solid var(--danger);
+      color: var(--danger);
+      padding: var(--space-sm) var(--space-lg);
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 0.84rem;
+      font-weight: 600;
+      transition: background 0.12s;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+    #settings-action-bar .btn-reset:hover { background: rgba(204,68,68,0.1); }
+    #settings-save {
       background: #1a4a2a;
       border: 1px solid #2a6;
       color: #4d9;
-      padding: var(--space-md) 1.4rem;
+      padding: var(--space-sm) var(--space-xl);
       border-radius: var(--radius);
       cursor: pointer;
       font-size: 0.92rem;
       font-weight: 700;
-      z-index: 100;
       transition: background 0.12s;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
     }
     #settings-save:hover { background: #1f5a32; }
 
@@ -810,9 +838,6 @@
         </div>
       </div>
 
-      <div style="margin-top:var(--space-md)">
-        <button class="btn-danger" onclick="resetThemeDefaults()" style="font-size:0.78rem;padding:var(--space-sm) var(--space-xl)">Reset All to Defaults</button>
-      </div>
     </section>
 
     <!-- Notifications -->
@@ -2021,7 +2046,10 @@
   </div>
 </div>
 
-<button id="settings-save" onclick="showSaved()">💾 Settings Saved</button>
+<div id="settings-action-bar">
+  <button class="btn-reset" onclick="resetThemeDefaults()"><span id="reset-icon"></span> Reset to Defaults</button>
+  <button id="settings-save" onclick="showSaved()"><span id="save-icon"></span> Save Settings</button>
+</div>
 
 <script>
 const STORAGE_KEY = 'hos_settings_v1';
@@ -2289,9 +2317,14 @@ function renderIconPreview() {
 
 function showSaved() {
   const btn = document.getElementById('settings-save');
-  btn.textContent = '✓ Saved!';
+  var saveIcon = window.hosIcon ? hosIcon('check', 16) : '✓';
+  btn.innerHTML = saveIcon + ' Saved!';
   btn.style.background = '#1a5a3a';
-  setTimeout(() => { btn.textContent = '💾 Save Settings'; btn.style.background = ''; }, 1800);
+  setTimeout(() => {
+    var icon = window.hosIcon ? hosIcon('save', 16) : '';
+    btn.innerHTML = icon + ' Save Settings';
+    btn.style.background = '';
+  }, 1800);
   savePref();
 }
 
@@ -2719,8 +2752,13 @@ try {
   if (vEl) vEl.textContent = 'HumanityOS — v0.5.2 · ' + new Date().getFullYear();
 } catch(e) {}
 
-// Update the button label to just say Save Settings
-document.getElementById('settings-save').textContent = '💾 Save Settings';
+// Inject hosIcon SVGs into action bar buttons
+if (window.hosIcon) {
+  document.getElementById('save-icon').innerHTML = hosIcon('save', 16);
+  document.getElementById('reset-icon').innerHTML = hosIcon('refresh', 14);
+} else {
+  document.getElementById('settings-save').textContent = 'Save Settings';
+}
 
 loadPrefs();
 applyPrefs();
