@@ -88,23 +88,38 @@
     .all-icon-cell.copied .icon-label { color: var(--success); }
 
     /* ── Asset Browser ── */
-    .asset-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 8px; margin-bottom: 24px;
+    .asset-toolbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 16px; padding: 12px 16px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
     }
-    .asset-card {
-      border: 1px solid var(--border); border-radius: var(--radius);
-      overflow: hidden; background: var(--bg-card); transition: border-color 0.15s;
+    .asset-toolbar input[type="text"] {
+      flex: 1; min-width: 160px; padding: 6px 12px; font-size: 0.82rem;
+      background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-family: inherit;
     }
-    .asset-card:hover { border-color: var(--accent); }
-    .asset-preview {
-      height: 80px; display: flex; align-items: center; justify-content: center;
-      background: var(--bg-secondary); padding: 8px;
+    .asset-toolbar input[type="text"]:focus { outline: none; border-color: var(--accent); }
+    .asset-toolbar input[type="range"] { width: 100px; accent-color: var(--accent); }
+    .asset-toolbar .val { font-size: 0.75rem; color: var(--accent); font-weight: 700; min-width: 32px; }
+    .asset-toolbar label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); }
+    .asset-toolbar .tb-sep { width: 1px; height: 24px; background: var(--border); }
+    .asset-view-btn {
+      padding: 4px 8px; background: none; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); cursor: pointer; color: var(--text-muted);
+      font-family: inherit; transition: all 0.15s; display: inline-flex; align-items: center;
     }
-    .asset-preview img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
-    .asset-info { padding: 6px 8px; font-size: 0.65rem; }
-    .asset-name { font-weight: 600; color: var(--text); word-break: break-all; }
-    .asset-path { color: var(--text-muted); margin-top: 2px; }
+    .asset-view-btn:hover { border-color: var(--accent); color: var(--text); }
+    .asset-view-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+    .asset-upload-btn {
+      padding: 6px 14px; font-size: 0.78rem; font-weight: 600;
+      background: var(--accent); color: #000; border: none; border-radius: var(--radius-sm);
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .asset-upload-btn:hover { background: var(--accent-hover); }
+    .asset-stats {
+      font-size: 0.72rem; color: var(--text-muted); margin-left: auto; white-space: nowrap;
+    }
     .asset-filter {
       display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
     }
@@ -116,6 +131,92 @@
     }
     .filter-pill:hover { border-color: var(--accent); color: var(--text); }
     .filter-pill.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+    .filter-pill .pill-count { font-size: 0.65rem; opacity: 0.7; margin-left: 2px; }
+
+    .asset-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px; margin-bottom: 24px;
+    }
+    .asset-card {
+      border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; background: var(--bg-card); transition: border-color 0.15s;
+      position: relative; cursor: pointer;
+    }
+    .asset-card:hover { border-color: var(--accent); }
+    .asset-card:hover .asset-actions { opacity: 1; }
+    .asset-preview {
+      display: flex; align-items: center; justify-content: center;
+      background: var(--bg-secondary); padding: 8px; overflow: hidden;
+    }
+    .asset-preview img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
+    .asset-info { padding: 6px 8px; font-size: 0.65rem; }
+    .asset-name { font-weight: 600; color: var(--text); word-break: break-all; }
+    .asset-meta { color: var(--text-muted); margin-top: 2px; display: flex; justify-content: space-between; }
+    .asset-actions {
+      position: absolute; top: 4px; right: 4px; display: flex; gap: 2px;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .asset-act-btn {
+      width: 24px; height: 24px; border-radius: var(--radius-sm);
+      border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; transition: all 0.15s; padding: 0;
+      background: rgba(0,0,0,0.7); color: #fff;
+    }
+    .asset-act-btn:hover { background: var(--accent); color: #000; }
+    .asset-act-btn.del:hover { background: var(--danger); color: #fff; }
+
+    /* List view */
+    .asset-grid.list-view {
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .asset-grid.list-view .asset-card {
+      display: flex; flex-direction: row; align-items: center; border-radius: var(--radius-sm);
+    }
+    .asset-grid.list-view .asset-preview {
+      width: 48px; height: 48px; min-width: 48px; padding: 4px;
+    }
+    .asset-grid.list-view .asset-info {
+      flex: 1; display: flex; align-items: center; gap: 16px; padding: 4px 12px;
+    }
+    .asset-grid.list-view .asset-name { min-width: 160px; }
+    .asset-grid.list-view .asset-meta { margin-top: 0; }
+    .asset-grid.list-view .asset-actions { position: static; opacity: 1; margin-left: auto; }
+
+    /* Upload drop zone */
+    .upload-zone {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 32px; text-align: center; margin-bottom: 16px;
+      transition: all 0.2s; display: none; cursor: pointer;
+    }
+    .upload-zone.visible { display: block; }
+    .upload-zone.dragover { border-color: var(--accent); background: var(--accent-dim); }
+    .upload-zone p { margin: 8px 0; font-size: 0.85rem; color: var(--text-muted); }
+    .upload-zone .upload-icon { font-size: 2rem; color: var(--accent); }
+
+    /* Detail panel */
+    .asset-detail-overlay {
+      display: none; position: fixed; inset: 0; z-index: 1000;
+      background: rgba(0,0,0,0.6); align-items: center; justify-content: center;
+    }
+    .asset-detail-overlay.open { display: flex; }
+    .asset-detail-panel {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      max-width: 600px; width: 90vw; max-height: 85vh; overflow-y: auto; padding: 24px;
+    }
+    .asset-detail-panel .detail-preview {
+      background: var(--bg-secondary); border-radius: var(--radius-sm);
+      padding: 16px; text-align: center; margin-bottom: 16px; max-height: 300px; overflow: hidden;
+    }
+    .asset-detail-panel .detail-preview img { max-width: 100%; max-height: 260px; object-fit: contain; }
+    .asset-detail-panel .detail-row {
+      display: flex; gap: 8px; align-items: baseline; margin-bottom: 8px; font-size: 0.82rem;
+    }
+    .asset-detail-panel .detail-label {
+      font-weight: 600; color: var(--text-muted); min-width: 80px; font-size: 0.75rem;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .asset-detail-panel .detail-val { color: var(--text); word-break: break-all; }
+    .asset-detail-panel .detail-actions { display: flex; gap: 8px; margin-top: 16px; }
 
     /* ── File Tree ── */
     .file-tree {
@@ -127,6 +228,15 @@
     .tree-folder:hover { text-decoration: underline; }
     .tree-file { color: var(--text-muted); padding-left: 20px; }
     .tree-count { color: var(--text-muted); font-size: 0.7rem; font-weight: 400; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--bg-card); color: var(--text); border: 1px solid var(--accent);
+      padding: 8px 20px; border-radius: var(--radius); font-size: 0.82rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2000;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
 
     /* ── Button Showcase ── */
     .btn-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -259,17 +369,58 @@
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <div class="tab-panel" id="tab-assets">
 
-      <div class="section-label">Asset Browser</div>
+      <div class="section-label">Asset Management</div>
       <h2>Project Assets</h2>
-      <p class="section-desc">All image files in the repository. Filter by category. Click to view full size.</p>
+      <p class="section-desc">All 190 image files in the repository. Search, filter, upload, and manage assets.</p>
 
+      <!-- Action Toolbar -->
+      <div class="asset-toolbar" id="asset-toolbar">
+        <input type="text" id="asset-search" placeholder="Search files..." autocomplete="off">
+        <div class="tb-sep"></div>
+        <button class="asset-view-btn active" id="view-grid" title="Grid view">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        </button>
+        <button class="asset-view-btn" id="view-list" title="List view">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><rect x="1" y="2" width="14" height="3" rx="1"/><rect x="1" y="7" width="14" height="3" rx="1"/><rect x="1" y="12" width="14" height="3" rx="1"/></svg>
+        </button>
+        <div class="tb-sep"></div>
+        <label>Size</label>
+        <input type="range" id="asset-size-slider" min="48" max="256" step="16" value="120">
+        <span class="val" id="asset-size-val">120</span>
+        <div class="tb-sep"></div>
+        <button class="asset-upload-btn" id="asset-upload-btn" title="Upload new asset">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><path d="M8 1L4 5h3v6h2V5h3L8 1zM2 12v2h12v-2H2z"/></svg>
+          Upload
+        </button>
+        <span class="asset-stats" id="asset-stats"></span>
+      </div>
+
+      <!-- Upload Drop Zone (hidden by default) -->
+      <div class="upload-zone" id="upload-zone">
+        <div class="upload-icon"><svg viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M24 32V8M16 16l8-8 8 8M8 36h32M8 40h32"/></svg></div>
+        <p>Drop files here or click to browse</p>
+        <p style="font-size:0.72rem">Supported: PNG, SVG, JPG, ICO, WebP</p>
+        <input type="file" id="upload-file-input" multiple accept="image/*,.svg,.ico" style="display:none">
+      </div>
+
+      <!-- Category Filter Pills -->
       <div class="asset-filter" id="asset-filter"></div>
+
+      <!-- Asset Grid / List -->
       <div class="asset-grid" id="asset-grid"></div>
+
+      <!-- Detail Overlay -->
+      <div class="asset-detail-overlay" id="asset-detail-overlay">
+        <div class="asset-detail-panel" id="asset-detail-panel"></div>
+      </div>
 
       <div class="section-label" style="margin-top:32px">File Tree</div>
       <h2>Asset Directory Structure</h2>
       <div class="file-tree" id="file-tree"></div>
     </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
 
     <!-- ════════════════════════════════════════════════════════════════════ -->
     <!-- TAB: COMPONENTS                                                     -->
@@ -422,124 +573,523 @@
     renderWeightRows();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // ASSETS TAB — Browse all project images
+    // ASSETS TAB — Full asset management suite
     // ═══════════════════════════════════════════════════════════════════════
     (function() {
-      /* Asset manifest — generated from repo file listing.
-         Categories: icons (assets/ui/icons/), concepts (assets/concepts/),
-         app-icons (shared/icons/, desktop/), favicon */
+      /* Complete manifest of all 190 image assets in the repo.
+         Generated by: node scripts/generate-asset-manifest.js
+         Categories: icons-png, icons-svg, concepts, app-icons */
       var ASSETS = [
-        // ── UI Icons (PNG) ──
-        { cat: 'icons', name: 'accessibility.png', path: '/assets/ui/icons/accessibility.png' },
-        { cat: 'icons', name: 'actions.png', path: '/assets/ui/icons/actions.png' },
-        { cat: 'icons', name: 'ammo.png', path: '/assets/ui/icons/ammo.png' },
-        { cat: 'icons', name: 'armor.png', path: '/assets/ui/icons/armor.png' },
-        { cat: 'icons', name: 'audio.png', path: '/assets/ui/icons/audio.png' },
-        { cat: 'icons', name: 'boots.png', path: '/assets/ui/icons/boots.png' },
-        { cat: 'icons', name: 'build.png', path: '/assets/ui/icons/build.png' },
-        { cat: 'icons', name: 'building_components.png', path: '/assets/ui/icons/building_components.png' },
-        { cat: 'icons', name: 'cable.png', path: '/assets/ui/icons/cable.png' },
-        { cat: 'icons', name: 'caduceus.png', path: '/assets/ui/icons/caduceus.png' },
-        { cat: 'icons', name: 'calendar.png', path: '/assets/ui/icons/calendar.png' },
-        { cat: 'icons', name: 'cancel.png', path: '/assets/ui/icons/cancel.png' },
-        { cat: 'icons', name: 'cart.png', path: '/assets/ui/icons/cart.png' },
-        { cat: 'icons', name: 'chat.png', path: '/assets/ui/icons/chat.png' },
-        { cat: 'icons', name: 'check.png', path: '/assets/ui/icons/check.png' },
-        { cat: 'icons', name: 'civilizations.png', path: '/assets/ui/icons/civilizations.png' },
-        { cat: 'icons', name: 'clothing.png', path: '/assets/ui/icons/clothing.png' },
-        { cat: 'icons', name: 'coat.png', path: '/assets/ui/icons/coat.png' },
-        { cat: 'icons', name: 'codex.png', path: '/assets/ui/icons/codex.png' },
-        { cat: 'icons', name: 'collapse.png', path: '/assets/ui/icons/collapse.png' },
-        { cat: 'icons', name: 'community.png', path: '/assets/ui/icons/community.png' },
-        { cat: 'icons', name: 'compass.png', path: '/assets/ui/icons/compass.png' },
-        { cat: 'icons', name: 'components.png', path: '/assets/ui/icons/components.png' },
-        { cat: 'icons', name: 'continue.png', path: '/assets/ui/icons/continue.png' },
-        { cat: 'icons', name: 'controls.png', path: '/assets/ui/icons/controls.png' },
-        { cat: 'icons', name: 'copy.png', path: '/assets/ui/icons/copy.png' },
-        { cat: 'icons', name: 'credits.png', path: '/assets/ui/icons/credits.png' },
-        { cat: 'icons', name: 'crown.png', path: '/assets/ui/icons/crown.png' },
-        { cat: 'icons', name: 'dashboard.png', path: '/assets/ui/icons/dashboard.png' },
-        { cat: 'icons', name: 'depot.png', path: '/assets/ui/icons/depot.png' },
-        { cat: 'icons', name: 'dev.png', path: '/assets/ui/icons/dev.png' },
-        { cat: 'icons', name: 'discord.png', path: '/assets/ui/icons/discord.png' },
-        { cat: 'icons', name: 'down.png', path: '/assets/ui/icons/down.png' },
-        { cat: 'icons', name: 'download.png', path: '/assets/ui/icons/download.png' },
-        { cat: 'icons', name: 'exit.png', path: '/assets/ui/icons/exit.png' },
-        { cat: 'icons', name: 'expand.png', path: '/assets/ui/icons/expand.png' },
-        { cat: 'icons', name: 'farming.png', path: '/assets/ui/icons/farming.png' },
-        { cat: 'icons', name: 'favorites.png', path: '/assets/ui/icons/favorites.png' },
-        // ── UI Icons (SVG) ──
-        { cat: 'icons-svg', name: 'calendar.svg', path: '/assets/ui/icons/calendar.svg' },
-        { cat: 'icons-svg', name: 'cart.svg', path: '/assets/ui/icons/cart.svg' },
-        { cat: 'icons-svg', name: 'chat.svg', path: '/assets/ui/icons/chat.svg' },
-        { cat: 'icons-svg', name: 'dashboard.svg', path: '/assets/ui/icons/dashboard.svg' },
-        { cat: 'icons-svg', name: 'dev.svg', path: '/assets/ui/icons/dev.svg' },
-        { cat: 'icons-svg', name: 'download.svg', path: '/assets/ui/icons/download.svg' },
-        { cat: 'icons-svg', name: 'epic.svg', path: '/assets/ui/icons/epic.svg' },
-        // ── Concept Art ──
-        { cat: 'concepts', name: 'grand-interior-sketch.png', path: '/assets/concepts/grand-interior-sketch.png' },
-        { cat: 'concepts', name: 'kiosk-models.png', path: '/assets/concepts/kiosk-models.png' },
-        { cat: 'concepts', name: 'mall-floorplan.png', path: '/assets/concepts/mall-floorplan.png' },
-        { cat: 'concepts', name: 'residential-tower.png', path: '/assets/concepts/residential-tower.png' },
-        // ── App Icons ──
-        { cat: 'app', name: 'icon-192.png', path: '/shared/icons/icon-192.png' },
-        { cat: 'app', name: 'icon-512.png', path: '/shared/icons/icon-512.png' },
-        { cat: 'app', name: 'icon-maskable-192.png', path: '/shared/icons/icon-maskable-192.png' },
-        { cat: 'app', name: 'icon-maskable-512.png', path: '/shared/icons/icon-maskable-512.png' },
-        { cat: 'app', name: 'favicon.png', path: '/favicon.png' },
-        { cat: 'app', name: 'favicon.svg', path: '/favicon.svg' },
+        {c:"icons-png",n:"accessibility.png",p:"/assets/ui/icons/accessibility.png",s:163805},
+        {c:"icons-png",n:"actions.png",p:"/assets/ui/icons/actions.png",s:143201},
+        {c:"icons-png",n:"ammo.png",p:"/assets/ui/icons/ammo.png",s:132380},
+        {c:"icons-png",n:"armor.png",p:"/assets/ui/icons/armor.png",s:67144},
+        {c:"icons-png",n:"audio.png",p:"/assets/ui/icons/audio.png",s:110282},
+        {c:"icons-png",n:"boots.png",p:"/assets/ui/icons/boots.png",s:159199},
+        {c:"icons-png",n:"build.png",p:"/assets/ui/icons/build.png",s:192009},
+        {c:"icons-png",n:"building_components.png",p:"/assets/ui/icons/building_components.png",s:154344},
+        {c:"icons-png",n:"cable.png",p:"/assets/ui/icons/cable.png",s:113553},
+        {c:"icons-png",n:"caduceus.png",p:"/assets/ui/icons/caduceus.png",s:110019},
+        {c:"icons-png",n:"calendar.png",p:"/assets/ui/icons/calendar.png",s:4936},
+        {c:"icons-png",n:"cancel.png",p:"/assets/ui/icons/cancel.png",s:157270},
+        {c:"icons-png",n:"cart.png",p:"/assets/ui/icons/cart.png",s:5042},
+        {c:"icons-png",n:"chat.png",p:"/assets/ui/icons/chat.png",s:3205},
+        {c:"icons-png",n:"check.png",p:"/assets/ui/icons/check.png",s:70802},
+        {c:"icons-png",n:"civilizations.png",p:"/assets/ui/icons/civilizations.png",s:186962},
+        {c:"icons-png",n:"clothing.png",p:"/assets/ui/icons/clothing.png",s:89028},
+        {c:"icons-png",n:"coat.png",p:"/assets/ui/icons/coat.png",s:155399},
+        {c:"icons-png",n:"codex.png",p:"/assets/ui/icons/codex.png",s:169295},
+        {c:"icons-png",n:"collapse.png",p:"/assets/ui/icons/collapse.png",s:38352},
+        {c:"icons-png",n:"community.png",p:"/assets/ui/icons/community.png",s:169509},
+        {c:"icons-png",n:"compass.png",p:"/assets/ui/icons/compass.png",s:22224},
+        {c:"icons-png",n:"components.png",p:"/assets/ui/icons/components.png",s:122634},
+        {c:"icons-png",n:"continue.png",p:"/assets/ui/icons/continue.png",s:158418},
+        {c:"icons-png",n:"controls.png",p:"/assets/ui/icons/controls.png",s:232470},
+        {c:"icons-png",n:"copy.png",p:"/assets/ui/icons/copy.png",s:100167},
+        {c:"icons-png",n:"credits.png",p:"/assets/ui/icons/credits.png",s:139390},
+        {c:"icons-png",n:"crown.png",p:"/assets/ui/icons/crown.png",s:99364},
+        {c:"icons-png",n:"dashboard.png",p:"/assets/ui/icons/dashboard.png",s:4501},
+        {c:"icons-png",n:"depot.png",p:"/assets/ui/icons/depot.png",s:149572},
+        {c:"icons-png",n:"dev.png",p:"/assets/ui/icons/dev.png",s:8230},
+        {c:"icons-png",n:"discord.png",p:"/assets/ui/icons/discord.png",s:12590},
+        {c:"icons-png",n:"down.png",p:"/assets/ui/icons/down.png",s:43166},
+        {c:"icons-png",n:"download.png",p:"/assets/ui/icons/download.png",s:3211},
+        {c:"icons-png",n:"epic.png",p:"/assets/ui/icons/epic.png",s:12304},
+        {c:"icons-png",n:"exit.png",p:"/assets/ui/icons/exit.png",s:179007},
+        {c:"icons-png",n:"expand.png",p:"/assets/ui/icons/expand.png",s:35808},
+        {c:"icons-png",n:"farming.png",p:"/assets/ui/icons/farming.png",s:179588},
+        {c:"icons-png",n:"favorites.png",p:"/assets/ui/icons/favorites.png",s:112505},
+        {c:"icons-png",n:"friends.png",p:"/assets/ui/icons/friends.png",s:105301},
+        {c:"icons-png",n:"galaxies.png",p:"/assets/ui/icons/galaxies.png",s:147777},
+        {c:"icons-png",n:"galaxy.png",p:"/assets/ui/icons/galaxy.png",s:147777},
+        {c:"icons-png",n:"gameplay.png",p:"/assets/ui/icons/gameplay.png",s:191704},
+        {c:"icons-png",n:"games.png",p:"/assets/ui/icons/games.png",s:9213},
+        {c:"icons-png",n:"garage.png",p:"/assets/ui/icons/garage.png",s:125149},
+        {c:"icons-png",n:"gems.png",p:"/assets/ui/icons/gems.png",s:134062},
+        {c:"icons-png",n:"globe.png",p:"/assets/ui/icons/globe.png",s:18637},
+        {c:"icons-png",n:"gloves.png",p:"/assets/ui/icons/gloves.png",s:132382},
+        {c:"icons-png",n:"gog.png",p:"/assets/ui/icons/gog.png",s:16862},
+        {c:"icons-png",n:"graphics.png",p:"/assets/ui/icons/graphics.png",s:142651},
+        {c:"icons-png",n:"gravel.png",p:"/assets/ui/icons/gravel.png",s:101712},
+        {c:"icons-png",n:"hammer.png",p:"/assets/ui/icons/hammer.png",s:2976},
+        {c:"icons-png",n:"hard_armor.png",p:"/assets/ui/icons/hard_armor.png",s:94659},
+        {c:"icons-png",n:"helmet.png",p:"/assets/ui/icons/helmet.png",s:75923},
+        {c:"icons-png",n:"home.png",p:"/assets/ui/icons/home.png",s:7400},
+        {c:"icons-png",n:"interface.png",p:"/assets/ui/icons/interface.png",s:174919},
+        {c:"icons-png",n:"inventory.png",p:"/assets/ui/icons/inventory.png",s:6782},
+        {c:"icons-png",n:"items.png",p:"/assets/ui/icons/items.png",s:139159},
+        {c:"icons-png",n:"journal.png",p:"/assets/ui/icons/journal.png",s:7450},
+        {c:"icons-png",n:"laptop.png",p:"/assets/ui/icons/laptop.png",s:3239},
+        {c:"icons-png",n:"large_backpack.png",p:"/assets/ui/icons/large_backpack.png",s:113844},
+        {c:"icons-png",n:"left.png",p:"/assets/ui/icons/left.png",s:43765},
+        {c:"icons-png",n:"lifeforms.png",p:"/assets/ui/icons/lifeforms.png",s:158913},
+        {c:"icons-png",n:"load.png",p:"/assets/ui/icons/load.png",s:189128},
+        {c:"icons-png",n:"local.png",p:"/assets/ui/icons/local.png",s:22224},
+        {c:"icons-png",n:"logs.png",p:"/assets/ui/icons/logs.png",s:149321},
+        {c:"icons-png",n:"map.png",p:"/assets/ui/icons/map.png",s:6819},
+        {c:"icons-png",n:"mappin.png",p:"/assets/ui/icons/mappin.png",s:12980},
+        {c:"icons-png",n:"market.png",p:"/assets/ui/icons/market.png",s:4827},
+        {c:"icons-png",n:"materials.png",p:"/assets/ui/icons/materials.png",s:130145},
+        {c:"icons-png",n:"me.png",p:"/assets/ui/icons/me.png",s:217841},
+        {c:"icons-png",n:"medical_cross.png",p:"/assets/ui/icons/medical_cross.png",s:70371},
+        {c:"icons-png",n:"medium_backpack.png",p:"/assets/ui/icons/medium_backpack.png",s:141284},
+        {c:"icons-png",n:"melee_weapons.png",p:"/assets/ui/icons/melee_weapons.png",s:115156},
+        {c:"icons-png",n:"mine.png",p:"/assets/ui/icons/mine.png",s:139390},
+        {c:"icons-png",n:"mods.png",p:"/assets/ui/icons/mods.png",s:133768},
+        {c:"icons-png",n:"monitor.png",p:"/assets/ui/icons/monitor.png",s:3525},
+        {c:"icons-png",n:"move.png",p:"/assets/ui/icons/move.png",s:119237},
+        {c:"icons-png",n:"network.png",p:"/assets/ui/icons/network.png",s:4323},
+        {c:"icons-png",n:"new_game.png",p:"/assets/ui/icons/new_game.png",s:107400},
+        {c:"icons-png",n:"ops.png",p:"/assets/ui/icons/ops.png",s:10341},
+        {c:"icons-png",n:"ore.png",p:"/assets/ui/icons/ore.png",s:118550},
+        {c:"icons-png",n:"pants.png",p:"/assets/ui/icons/pants.png",s:98199},
+        {c:"icons-png",n:"penguin.png",p:"/assets/ui/icons/penguin.png",s:14592},
+        {c:"icons-png",n:"phone.png",p:"/assets/ui/icons/phone.png",s:3930},
+        {c:"icons-png",n:"pin.png",p:"/assets/ui/icons/pin.png",s:91358},
+        {c:"icons-png",n:"planks.png",p:"/assets/ui/icons/planks.png",s:82440},
+        {c:"icons-png",n:"plants.png",p:"/assets/ui/icons/plants.png",s:109701},
+        {c:"icons-png",n:"plate_carrier.png",p:"/assets/ui/icons/plate_carrier.png",s:89025},
+        {c:"icons-png",n:"play.png",p:"/assets/ui/icons/play.png",s:107400},
+        {c:"icons-png",n:"playstation.png",p:"/assets/ui/icons/playstation.png",s:14718},
+        {c:"icons-png",n:"processes.png",p:"/assets/ui/icons/processes.png",s:187478},
+        {c:"icons-png",n:"profile.png",p:"/assets/ui/icons/profile.png",s:10075},
+        {c:"icons-png",n:"puzzle.png",p:"/assets/ui/icons/puzzle.png",s:6729},
+        {c:"icons-png",n:"ranged_weapons.png",p:"/assets/ui/icons/ranged_weapons.png",s:110732},
+        {c:"icons-png",n:"recipes.png",p:"/assets/ui/icons/recipes.png",s:131412},
+        {c:"icons-png",n:"refresh.png",p:"/assets/ui/icons/refresh.png",s:7172},
+        {c:"icons-png",n:"remove.png",p:"/assets/ui/icons/remove.png",s:157270},
+        {c:"icons-png",n:"right.png",p:"/assets/ui/icons/right.png",s:43620},
+        {c:"icons-png",n:"robot.png",p:"/assets/ui/icons/robot.png",s:6220},
+        {c:"icons-png",n:"rocket.png",p:"/assets/ui/icons/rocket.png",s:10872},
+        {c:"icons-png",n:"rod_of_asclepius.png",p:"/assets/ui/icons/rod_of_asclepius.png",s:70065},
+        {c:"icons-png",n:"sand.png",p:"/assets/ui/icons/sand.png",s:69506},
+        {c:"icons-png",n:"save.png",p:"/assets/ui/icons/save.png",s:189128},
+        {c:"icons-png",n:"science.png",p:"/assets/ui/icons/science.png",s:160696},
+        {c:"icons-png",n:"seeds.png",p:"/assets/ui/icons/seeds.png",s:148807},
+        {c:"icons-png",n:"settings.png",p:"/assets/ui/icons/settings.png",s:13077},
+        {c:"icons-png",n:"skills.png",p:"/assets/ui/icons/skills.png",s:130078},
+        {c:"icons-png",n:"skin_layer.png",p:"/assets/ui/icons/skin_layer.png",s:175989},
+        {c:"icons-png",n:"small_backpack.png",p:"/assets/ui/icons/small_backpack.png",s:148455},
+        {c:"icons-png",n:"soft_armor.png",p:"/assets/ui/icons/soft_armor.png",s:99186},
+        {c:"icons-png",n:"spaceships.png",p:"/assets/ui/icons/spaceships.png",s:148722},
+        {c:"icons-png",n:"spools.png",p:"/assets/ui/icons/spools.png",s:129934},
+        {c:"icons-png",n:"stations.png",p:"/assets/ui/icons/stations.png",s:98253},
+        {c:"icons-png",n:"steam.png",p:"/assets/ui/icons/steam.png",s:14659},
+        {c:"icons-png",n:"stone.png",p:"/assets/ui/icons/stone.png",s:55743},
+        {c:"icons-png",n:"storefront.png",p:"/assets/ui/icons/storefront.png",s:5205},
+        {c:"icons-png",n:"system.png",p:"/assets/ui/icons/system.png",s:120072},
+        {c:"icons-png",n:"systems.png",p:"/assets/ui/icons/systems.png",s:120072},
+        {c:"icons-png",n:"tasklist.png",p:"/assets/ui/icons/tasklist.png",s:7436},
+        {c:"icons-png",n:"tools.png",p:"/assets/ui/icons/tools.png",s:119893},
+        {c:"icons-png",n:"top.png",p:"/assets/ui/icons/top.png",s:38352},
+        {c:"icons-png",n:"toys.png",p:"/assets/ui/icons/toys.png",s:100378},
+        {c:"icons-png",n:"tshirt.png",p:"/assets/ui/icons/tshirt.png",s:79376},
+        {c:"icons-png",n:"underwear.png",p:"/assets/ui/icons/underwear.png",s:103993},
+        {c:"icons-png",n:"up.png",p:"/assets/ui/icons/up.png",s:38352},
+        {c:"icons-png",n:"us.png",p:"/assets/ui/icons/us.png",s:179046},
+        {c:"icons-png",n:"utility_pouch.png",p:"/assets/ui/icons/utility_pouch.png",s:94625},
+        {c:"icons-png",n:"warning.png",p:"/assets/ui/icons/warning.png",s:139390},
+        {c:"icons-png",n:"website.png",p:"/assets/ui/icons/website.png",s:15066},
+        {c:"icons-png",n:"welcome.png",p:"/assets/ui/icons/welcome.png",s:108632},
+        {c:"icons-png",n:"workshop.png",p:"/assets/ui/icons/workshop.png",s:143527},
+        {c:"icons-png",n:"worlds.png",p:"/assets/ui/icons/worlds.png",s:127657},
+        {c:"icons-png",n:"xbox.png",p:"/assets/ui/icons/xbox.png",s:12645},
+        {c:"icons-svg",n:"calendar.svg",p:"/assets/ui/icons/calendar.svg",s:600},
+        {c:"icons-svg",n:"cart.svg",p:"/assets/ui/icons/cart.svg",s:350},
+        {c:"icons-svg",n:"chat.svg",p:"/assets/ui/icons/chat.svg",s:358},
+        {c:"icons-svg",n:"dashboard.svg",p:"/assets/ui/icons/dashboard.svg",s:428},
+        {c:"icons-svg",n:"dev.svg",p:"/assets/ui/icons/dev.svg",s:350},
+        {c:"icons-svg",n:"download.svg",p:"/assets/ui/icons/download.svg",s:359},
+        {c:"icons-svg",n:"epic.svg",p:"/assets/ui/icons/epic.svg",s:349},
+        {c:"icons-svg",n:"games.svg",p:"/assets/ui/icons/games.svg",s:538},
+        {c:"icons-svg",n:"globe.svg",p:"/assets/ui/icons/globe.svg",s:449},
+        {c:"icons-svg",n:"gog.svg",p:"/assets/ui/icons/gog.svg",s:343},
+        {c:"icons-svg",n:"hammer.svg",p:"/assets/ui/icons/hammer.svg",s:360},
+        {c:"icons-svg",n:"home.svg",p:"/assets/ui/icons/home.svg",s:367},
+        {c:"icons-svg",n:"inventory.svg",p:"/assets/ui/icons/inventory.svg",s:430},
+        {c:"icons-svg",n:"journal.svg",p:"/assets/ui/icons/journal.svg",s:662},
+        {c:"icons-svg",n:"laptop.svg",p:"/assets/ui/icons/laptop.svg",s:335},
+        {c:"icons-svg",n:"map.svg",p:"/assets/ui/icons/map.svg",s:451},
+        {c:"icons-svg",n:"mappin.svg",p:"/assets/ui/icons/mappin.svg",s:352},
+        {c:"icons-svg",n:"market.svg",p:"/assets/ui/icons/market.svg",s:479},
+        {c:"icons-svg",n:"monitor.svg",p:"/assets/ui/icons/monitor.svg",s:359},
+        {c:"icons-svg",n:"network.svg",p:"/assets/ui/icons/network.svg",s:418},
+        {c:"icons-svg",n:"ops.svg",p:"/assets/ui/icons/ops.svg",s:412},
+        {c:"icons-svg",n:"penguin.svg",p:"/assets/ui/icons/penguin.svg",s:768},
+        {c:"icons-svg",n:"phone.svg",p:"/assets/ui/icons/phone.svg",s:311},
+        {c:"icons-svg",n:"playstation.svg",p:"/assets/ui/icons/playstation.svg",s:385},
+        {c:"icons-svg",n:"profile.svg",p:"/assets/ui/icons/profile.svg",s:290},
+        {c:"icons-svg",n:"puzzle.svg",p:"/assets/ui/icons/puzzle.svg",s:504},
+        {c:"icons-svg",n:"refresh.svg",p:"/assets/ui/icons/refresh.svg",s:313},
+        {c:"icons-svg",n:"robot.svg",p:"/assets/ui/icons/robot.svg",s:684},
+        {c:"icons-svg",n:"rocket.svg",p:"/assets/ui/icons/rocket.svg",s:497},
+        {c:"icons-svg",n:"settings.svg",p:"/assets/ui/icons/settings.svg",s:650},
+        {c:"icons-svg",n:"steam.svg",p:"/assets/ui/icons/steam.svg",s:420},
+        {c:"icons-svg",n:"storefront.svg",p:"/assets/ui/icons/storefront.svg",s:466},
+        {c:"icons-svg",n:"tasklist.svg",p:"/assets/ui/icons/tasklist.svg",s:611},
+        {c:"icons-svg",n:"website.svg",p:"/assets/ui/icons/website.svg",s:549},
+        {c:"icons-svg",n:"xbox.svg",p:"/assets/ui/icons/xbox.svg",s:340},
+        {c:"concepts",n:"grand-interior-sketch.png",p:"/assets/concepts/grand-interior-sketch.png",s:996165},
+        {c:"concepts",n:"kiosk-models.png",p:"/assets/concepts/kiosk-models.png",s:845982},
+        {c:"concepts",n:"mall-floorplan.png",p:"/assets/concepts/mall-floorplan.png",s:737065},
+        {c:"concepts",n:"residential-tower.png",p:"/assets/concepts/residential-tower.png",s:1123594},
+        {c:"app-icons",n:"icon-192.png",p:"/shared/icons/icon-192.png",s:2207},
+        {c:"app-icons",n:"icon-192.svg",p:"/shared/icons/icon-192.svg",s:268},
+        {c:"app-icons",n:"icon-512.png",p:"/shared/icons/icon-512.png",s:10421},
+        {c:"app-icons",n:"icon-512.svg",p:"/shared/icons/icon-512.svg",s:268},
+        {c:"app-icons",n:"icon-maskable-192.png",p:"/shared/icons/icon-maskable-192.png",s:1379},
+        {c:"app-icons",n:"icon-maskable-192.svg",p:"/shared/icons/icon-maskable-192.svg",s:332},
+        {c:"app-icons",n:"icon-maskable-512.png",p:"/shared/icons/icon-maskable-512.png",s:7754},
+        {c:"app-icons",n:"icon-maskable-512.svg",p:"/shared/icons/icon-maskable-512.svg",s:332},
+        {c:"app-icons",n:"128x128.png",p:"/desktop/src-tauri/icons/128x128.png",s:641},
+        {c:"app-icons",n:"128x128@2x.png",p:"/desktop/src-tauri/icons/128x128@2x.png",s:1314},
+        {c:"app-icons",n:"32x32.png",p:"/desktop/src-tauri/icons/32x32.png",s:204},
+        {c:"app-icons",n:"icon.icns",p:"/desktop/src-tauri/icons/icon.icns",s:32316},
+        {c:"app-icons",n:"icon.ico",p:"/desktop/src-tauri/icons/icon.ico",s:182},
+        {c:"app-icons",n:"icon.png",p:"/desktop/src-tauri/icons/icon.png",s:8162},
+        {c:"app-icons",n:"favicon.ico",p:"/crates/humanity-relay/client/favicon.ico",s:1532},
+        {c:"app-icons",n:"favicon.png",p:"/crates/humanity-relay/client/favicon.png",s:348},
+        {c:"app-icons",n:"favicon.svg",p:"/crates/humanity-relay/client/favicon.svg",s:243},
       ];
 
+      // ── Category definitions ──
+      var CATEGORIES = [
+        { id: 'all', label: 'All' },
+        { id: 'icons-png', label: 'PNG Icons' },
+        { id: 'icons-svg', label: 'SVG Icons' },
+        { id: 'concepts', label: 'Concepts' },
+        { id: 'app-icons', label: 'App Icons' },
+      ];
+
+      // ── State ──
+      var activeCat = 'all';
+      var searchQuery = '';
+      var viewMode = 'grid';  // 'grid' or 'list'
+      var thumbSize = 120;
+
+      // ── Helpers ──
+      function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
+      }
+
+      function getExt(name) {
+        return name.split('.').pop().toLowerCase();
+      }
+
+      function showToast(msg) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        setTimeout(function() { t.classList.remove('show'); }, 2000);
+      }
+
+      function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(function() {
+          showToast('Copied: ' + text);
+        });
+      }
+
+      // ── Counts per category ──
+      function catCounts() {
+        var counts = { all: ASSETS.length };
+        ASSETS.forEach(function(a) {
+          counts[a.c] = (counts[a.c] || 0) + 1;
+        });
+        return counts;
+      }
+
+      // ── Filter logic ──
+      function getFiltered() {
+        var q = searchQuery.toLowerCase();
+        return ASSETS.filter(function(a) {
+          var catMatch = activeCat === 'all' || a.c === activeCat;
+          var searchMatch = !q || a.n.toLowerCase().indexOf(q) !== -1 || a.p.toLowerCase().indexOf(q) !== -1;
+          return catMatch && searchMatch;
+        });
+      }
+
+      // ── Total size of filtered set ──
+      function totalSize(list) {
+        var sum = 0;
+        list.forEach(function(a) { sum += a.s; });
+        return sum;
+      }
+
+      // ── Update tab count ──
       document.getElementById('asset-count').textContent = '(' + ASSETS.length + ')';
 
-      var categories = [
-        { id: 'all', label: 'All' },
-        { id: 'icons', label: 'PNG Icons' },
-        { id: 'icons-svg', label: 'SVG Icons' },
-        { id: 'concepts', label: 'Concept Art' },
-        { id: 'app', label: 'App Icons' },
-      ];
+      // ── Render filter pills ──
+      function renderFilters() {
+        var counts = catCounts();
+        var filterEl = document.getElementById('asset-filter');
+        var html = '';
+        CATEGORIES.forEach(function(cat) {
+          var cnt = counts[cat.id] || 0;
+          html += '<button class="filter-pill' + (cat.id === activeCat ? ' active' : '') +
+            '" data-cat="' + cat.id + '">' + cat.label +
+            ' <span class="pill-count">' + cnt + '</span></button>';
+        });
+        filterEl.innerHTML = html;
+      }
 
-      var filterEl = document.getElementById('asset-filter');
-      var filterHTML = '';
-      categories.forEach(function(c) {
-        filterHTML += '<button class="filter-pill' + (c.id === 'all' ? ' active' : '') + '" data-cat="' + c.id + '">' + c.label + '</button>';
-      });
-      filterEl.innerHTML = filterHTML;
+      // ── Render asset grid/list ──
+      function renderAssets() {
+        var grid = document.getElementById('asset-grid');
+        var filtered = getFiltered();
 
-      var activeCat = 'all';
-      filterEl.addEventListener('click', function(e) {
+        // Update stats
+        document.getElementById('asset-stats').textContent =
+          filtered.length + ' assets / ' + formatSize(totalSize(filtered));
+
+        // Set view class and grid sizing
+        grid.className = 'asset-grid' + (viewMode === 'list' ? ' list-view' : '');
+        if (viewMode === 'grid') {
+          grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(' + thumbSize + 'px, 1fr))';
+        } else {
+          grid.style.gridTemplateColumns = '';
+        }
+
+        var previewH = viewMode === 'list' ? 48 : Math.round(thumbSize * 0.7);
+
+        var html = '';
+        filtered.forEach(function(a, idx) {
+          var ext = getExt(a.n);
+          var isImage = ['png','jpg','jpeg','gif','webp','svg','ico','icns'].indexOf(ext) !== -1;
+
+          html += '<div class="asset-card" data-idx="' + idx + '" data-path="' + a.p + '">';
+
+          // Actions overlay
+          html += '<div class="asset-actions">' +
+            '<button class="asset-act-btn" data-action="copy" title="Copy path">C</button>' +
+            '<button class="asset-act-btn" data-action="download" title="Download">D</button>' +
+            '<button class="asset-act-btn del" data-action="delete" title="Delete">X</button>' +
+            '</div>';
+
+          // Preview
+          html += '<div class="asset-preview" style="height:' + previewH + 'px">';
+          if (isImage && ext !== 'icns') {
+            html += '<img src="' + a.p + '" alt="' + a.n + '" loading="lazy">';
+          } else {
+            html += '<span style="font-size:0.7rem;color:var(--text-muted)">' + ext.toUpperCase() + '</span>';
+          }
+          html += '</div>';
+
+          // Info
+          html += '<div class="asset-info">' +
+            '<div class="asset-name">' + a.n + '</div>' +
+            '<div class="asset-meta">' +
+            '<span>' + a.c + '</span>' +
+            '<span>' + formatSize(a.s) + '</span>' +
+            '</div></div></div>';
+        });
+
+        grid.innerHTML = html || '<p style="color:var(--text-muted);font-size:0.85rem;padding:16px">No assets match your search.</p>';
+      }
+
+      // ── Detail panel ──
+      function showDetail(asset) {
+        var overlay = document.getElementById('asset-detail-overlay');
+        var panel = document.getElementById('asset-detail-panel');
+        var ext = getExt(asset.n);
+        var isImage = ['png','jpg','jpeg','gif','webp','svg','ico'].indexOf(ext) !== -1;
+
+        var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+          '<h2 style="margin:0;font-size:1.1rem">' + asset.n + '</h2>' +
+          '<button class="demo-btn" onclick="document.getElementById(\'asset-detail-overlay\').classList.remove(\'open\')" style="padding:4px 12px;font-size:0.8rem">Close</button>' +
+          '</div>';
+
+        if (isImage) {
+          html += '<div class="detail-preview"><img src="' + asset.p + '" alt="' + asset.n + '"></div>';
+        }
+
+        html += '<div class="detail-row"><span class="detail-label">Filename</span><span class="detail-val">' + asset.n + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Path</span><span class="detail-val" style="cursor:pointer;color:var(--accent)" onclick="navigator.clipboard.writeText(\'' + asset.p + '\');this.textContent=\'Copied!\';var el=this;setTimeout(function(){el.textContent=\'' + asset.p + '\'},1200)">' + asset.p + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Category</span><span class="detail-val">' + asset.c + '</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">File Size</span><span class="detail-val">' + formatSize(asset.s) + ' (' + asset.s.toLocaleString() + ' bytes)</span></div>';
+        html += '<div class="detail-row"><span class="detail-label">Type</span><span class="detail-val">' + ext.toUpperCase() + '</span></div>';
+
+        html += '<div class="detail-actions">' +
+          '<button class="demo-btn primary" onclick="window.open(\'' + asset.p + '\',\'_blank\')">Open Full Size</button>' +
+          '<a class="demo-btn" href="' + asset.p + '" download="' + asset.n + '">Download</a>' +
+          '<button class="demo-btn" onclick="navigator.clipboard.writeText(\'' + asset.p + '\');this.textContent=\'Copied!\'">Copy Path</button>' +
+          '</div>';
+
+        panel.innerHTML = html;
+        overlay.classList.add('open');
+      }
+
+      // ── Wire up filter pills ──
+      document.getElementById('asset-filter').addEventListener('click', function(e) {
         var pill = e.target.closest('.filter-pill');
         if (!pill) return;
         activeCat = pill.dataset.cat;
-        filterEl.querySelectorAll('.filter-pill').forEach(function(p) { p.classList.remove('active'); });
-        pill.classList.add('active');
+        renderFilters();
         renderAssets();
       });
 
-      function renderAssets() {
-        var grid = document.getElementById('asset-grid');
-        var filtered = activeCat === 'all' ? ASSETS : ASSETS.filter(function(a) { return a.cat === activeCat; });
-        var html = '';
-        filtered.forEach(function(a) {
-          html += '<div class="asset-card" onclick="window.open(\'' + a.path + '\',\'_blank\')">' +
-            '<div class="asset-preview"><img src="' + a.path + '" alt="' + a.name + '" loading="lazy"></div>' +
-            '<div class="asset-info"><div class="asset-name">' + a.name + '</div>' +
-            '<div class="asset-path">' + a.cat + '</div></div></div>';
+      // ── Wire up search ──
+      document.getElementById('asset-search').addEventListener('input', function(e) {
+        searchQuery = e.target.value;
+        renderAssets();
+      });
+
+      // ── Wire up view toggle ──
+      document.getElementById('view-grid').addEventListener('click', function() {
+        viewMode = 'grid';
+        this.classList.add('active');
+        document.getElementById('view-list').classList.remove('active');
+        renderAssets();
+      });
+      document.getElementById('view-list').addEventListener('click', function() {
+        viewMode = 'list';
+        this.classList.add('active');
+        document.getElementById('view-grid').classList.remove('active');
+        renderAssets();
+      });
+
+      // ── Wire up size slider ──
+      var sizeSlider = document.getElementById('asset-size-slider');
+      var sizeVal = document.getElementById('asset-size-val');
+      sizeSlider.addEventListener('input', function() {
+        thumbSize = parseInt(this.value);
+        sizeVal.textContent = thumbSize;
+        renderAssets();
+      });
+
+      // ── Wire up upload toggle ──
+      var uploadZone = document.getElementById('upload-zone');
+      document.getElementById('asset-upload-btn').addEventListener('click', function() {
+        uploadZone.classList.toggle('visible');
+      });
+
+      // ── Upload drop zone interactions ──
+      uploadZone.addEventListener('click', function() {
+        document.getElementById('upload-file-input').click();
+      });
+      uploadZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+      });
+      uploadZone.addEventListener('dragleave', function() {
+        this.classList.remove('dragover');
+      });
+      uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        handleUpload(e.dataTransfer.files);
+      });
+      document.getElementById('upload-file-input').addEventListener('change', function(e) {
+        handleUpload(e.target.files);
+        e.target.value = '';
+      });
+
+      function handleUpload(files) {
+        if (!files || !files.length) return;
+        Array.from(files).forEach(function(file) {
+          var formData = new FormData();
+          formData.append('file', file);
+          showToast('Uploading ' + file.name + '...');
+          fetch('/api/upload', { method: 'POST', body: formData })
+            .then(function(r) {
+              if (!r.ok) throw new Error('Upload failed: ' + r.status);
+              return r.json();
+            })
+            .then(function(data) {
+              showToast('Uploaded: ' + file.name);
+            })
+            .catch(function(err) {
+              showToast('Upload failed: ' + err.message);
+            });
         });
-        grid.innerHTML = html || '<p style="color:var(--text-muted);font-size:0.85rem">No assets in this category yet.</p>';
       }
+
+      // ── Wire up asset grid clicks (detail, copy, download, delete) ──
+      document.getElementById('asset-grid').addEventListener('click', function(e) {
+        var actBtn = e.target.closest('.asset-act-btn');
+        if (actBtn) {
+          e.stopPropagation();
+          var card = actBtn.closest('.asset-card');
+          var assetPath = card.dataset.path;
+          var asset = ASSETS.find(function(a) { return a.p === assetPath; });
+          if (!asset) return;
+
+          var action = actBtn.dataset.action;
+          if (action === 'copy') {
+            copyToClipboard(asset.p);
+          } else if (action === 'download') {
+            var a = document.createElement('a');
+            a.href = asset.p;
+            a.download = asset.n;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else if (action === 'delete') {
+            if (confirm('Delete ' + asset.n + '? This removes the asset record from the server.')) {
+              fetch('/api/assets/' + encodeURIComponent(asset.n) + '?key=local', { method: 'DELETE' })
+                .then(function(r) {
+                  if (r.ok) showToast('Deleted: ' + asset.n);
+                  else showToast('Delete failed (may need auth)');
+                })
+                .catch(function() { showToast('Delete failed'); });
+            }
+          }
+          return;
+        }
+
+        var card = e.target.closest('.asset-card');
+        if (card) {
+          var assetPath = card.dataset.path;
+          var asset = ASSETS.find(function(a) { return a.p === assetPath; });
+          if (asset) showDetail(asset);
+        }
+      });
+
+      // ── Close detail overlay on background click or Escape ──
+      document.getElementById('asset-detail-overlay').addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('open');
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          document.getElementById('asset-detail-overlay').classList.remove('open');
+        }
+      });
+
+      // ── Initial render ──
+      renderFilters();
       renderAssets();
 
-      // File tree
+      // ── File tree ──
       var tree = document.getElementById('file-tree');
       var treeData = {
         'assets/': {
-          'concepts/': ['grand-interior-sketch.png', 'kiosk-models.png', 'mall-floorplan.png', 'residential-tower.png'],
-          'ui/icons/': ASSETS.filter(function(a) { return a.cat === 'icons' || a.cat === 'icons-svg'; }).map(function(a) { return a.name; }),
+          'concepts/': ASSETS.filter(function(a) { return a.c === 'concepts'; }).map(function(a) { return a.n; }),
+          'ui/icons/': ASSETS.filter(function(a) { return a.c === 'icons-png' || a.c === 'icons-svg'; }).map(function(a) { return a.n; }),
         },
-        'shared/icons/': ['icon-192.png', 'icon-192.svg', 'icon-512.png', 'icon-512.svg', 'icon-maskable-192.png', 'icon-maskable-192.svg', 'icon-maskable-512.png', 'icon-maskable-512.svg'],
-        'desktop/src-tauri/icons/': ['128x128.png', '128x128@2x.png', '32x32.png', 'icon.png'],
+        'shared/icons/': ASSETS.filter(function(a) { return a.c === 'app-icons' && a.p.indexOf('/shared/') !== -1; }).map(function(a) { return a.n; }),
+        'desktop/src-tauri/icons/': ASSETS.filter(function(a) { return a.c === 'app-icons' && a.p.indexOf('/desktop/') !== -1; }).map(function(a) { return a.n; }),
+        'crates/.../client/': ASSETS.filter(function(a) { return a.c === 'app-icons' && a.p.indexOf('/crates/') !== -1; }).map(function(a) { return a.n; }),
       };
 
       var treeHTML = '';
