@@ -160,56 +160,88 @@ Bevy scores highest overall, but its weak spots (hybrid UI, API churn) align wit
 
 ---
 
-## Recommendation: Hybrid approach — wgpu + cherry-picked Bevy crates
+## Decision: Custom engine on wgpu — no Bevy dependency
 
-Don't buy into full Bevy. Don't build everything from scratch. Take the middle path:
+**Status: DECIDED (2026-03-17)**
 
-### Phase 1: Foundation (Months 1-3)
+Build a fully custom game engine on wgpu. No Bevy, no half-measures.
 
-Use **wgpu** directly for rendering. Pull in individual Bevy crates without the full engine:
+### Rationale
 
-- **bevy_ecs** — The ECS is Bevy's best piece. Use it standalone for game state, entity management, and system scheduling. It compiles independently.
-- **bevy_asset** — Asset loading, hot-reload, handle-based references. No reason to rewrite this.
-- **bevy_input** — Unified input handling across platforms.
+1. **AI-accelerated development changes the calculus.** The "years of solo work" argument against custom engines assumes human typing speed and single-threaded thinking. With Claude spinning parallel agents across dozens of files simultaneously, the custom engine becomes viable in days/weeks, not years.
+2. **Zero upstream dependency risk.** Bevy is pre-1.0 with breaking changes every release. A custom engine means we never get stuck behind someone else's API churn, deprecation cycle, or architectural decisions that don't fit our use case.
+3. **No bloat.** We build exactly what we need — nothing more. No unused subsystems, no framework overhead, no fighting an engine's assumptions about window ownership.
+4. **The hybrid UI is our unique constraint.** Tauri webview overlay + native GPU window is not a pattern any existing engine supports. We'd be fighting Bevy's renderer to make this work. Building our own means the composition layer is designed for this from day one.
+5. **Full understanding.** Every line of engine code is code we wrote and understand. No black boxes, no "it works but I don't know why."
 
-Build your own:
-- **Renderer** on wgpu, designed from the start for the Tauri webview overlay architecture. You control the swap chain, the render passes, and how the 3D viewport composites with the HTML layer.
-- **Window management** via raw-window-handle, integrated with Tauri's window.
+### Architecture
 
-### Phase 2: Game systems (Months 3-6)
+```
+┌─────────────────────────────────────────────┐
+│ HumanityOS Desktop App (Tauri)              │
+├─────────────┬───────────────────────────────┤
+│ HTML/JS UI  │ Native GPU Window             │
+│ (WebView2)  │ (wgpu renderer)               │
+│             │                               │
+│ Chat, menus │ 3D world, terrain, entities   │
+│ Settings    │ PBR materials, RT reflections  │
+│ Inventory   │ Particles, weather, sky       │
+│ HUD overlay │ Physics (Rapier)              │
+├─────────────┴───────────────────────────────┤
+│ Shared Layer (Tauri IPC)                    │
+│ Game state, input routing, audio (kira)     │
+├─────────────────────────────────────────────┤
+│ Relay Server (Rust/axum) — multiplayer sync │
+└─────────────────────────────────────────────┘
+```
 
-Add crates as needed:
-- **Rapier** for physics (works standalone, doesn't need Bevy).
-- **kira** for audio (ditto).
-- **glam** for math (Bevy uses this internally anyway).
-- **gltf** crate for model loading.
+### Crate stack (standalone, no engine framework)
 
-Evaluate at this point: Is the custom renderer worth maintaining, or has Bevy's renderer caught up enough to switch?
+| Layer | Crate | Purpose |
+|-------|-------|---------|
+| GPU | **wgpu** | Cross-platform GPU (Vulkan/DX12/Metal), RT via extensions |
+| Math | **glam** | Fast SIMD vec/mat/quat |
+| Physics | **rapier3d** | Rigid body, collision, raycasting |
+| Audio | **kira** | Lock-free mixing, 256+ voices, spatial |
+| Spatial audio | **steam-audio** (FFI) | HRTF, occlusion, reverb |
+| Models | **gltf** | glTF 2.0 loading |
+| Images | **image** | Texture loading (PNG, JPEG, HDR) |
+| Windowing | **winit** | Window creation, input events |
+| VR | **openxr** | Headset rendering, tracking |
+| ECS | **Custom** | Simple archetypal ECS tailored to our needs |
+| Shaders | **WGSL** | Hand-written, no transpilation |
 
-### Phase 3: Decision point (Month 6)
+### Why custom ECS instead of bevy_ecs
 
-Two paths forward:
+- bevy_ecs pulls in 15+ transitive deps and has breaking changes each Bevy release
+- Our ECS needs are straightforward: entities, components, system scheduling
+- A minimal archetypal ECS is ~500 lines of Rust — Claude can write it in one pass
+- No version drift, no integration glue, no "standalone bevy_ecs" gotchas
 
-**Path A — Stay custom.** The hybrid renderer works well, you understand every line, and Bevy's renderer still doesn't support the overlay architecture cleanly. Keep building.
+### Build phases
 
-**Path B — Graduate to full Bevy.** The custom renderer is becoming a maintenance burden, Bevy's API has stabilized (0.16+?), and someone has solved the Tauri integration. Migrate to full Bevy, keeping the ECS code you've already written (since it's bevy_ecs anyway).
+**Phase 1 — Window + Triangle (Week 1):**
+Tauri app spawns a native wgpu window alongside the webview. Render a triangle with PBR. Prove the dual-window IPC works.
 
-Either path is a valid outcome. The Phase 1-2 work is not wasted in either case because bevy_ecs code is bevy_ecs code whether you run it inside full Bevy or standalone.
+**Phase 2 — Scene graph + ECS (Week 2):**
+Custom ECS, transform hierarchy, camera, mesh rendering, glTF loading. Render a textured model.
 
-### Why this works for HumanityOS specifically
+**Phase 3 — World systems (Weeks 3-4):**
+Terrain, sky/atmosphere, day-night cycle, basic physics (Rapier), player controller. Audio via kira.
 
-1. **The hybrid UI is the hardest problem.** No engine solves it out of the box. A custom wgpu renderer lets you design the composition layer (3D world + HTML overlay) without fighting an engine's assumptions.
-2. **bevy_ecs is the best Rust ECS.** Using it standalone gives you the architectural pattern without the renderer lock-in.
-3. **Compile times stay manageable.** Cherry-picked crates compile faster than full Bevy. Incremental builds stay under 10 seconds.
-4. **You keep optionality.** If Bevy hits 1.0 with a great Tauri story, migration is straightforward. If not, you haven't painted yourself into a corner.
+**Phase 4 — RT + polish (Weeks 5-6):**
+Deferred rendering pipeline, hardware raytraced reflections/AO/GI, PBR materials, particle system, post-processing.
 
-### Risks of this approach
+**Phase 5 — Multiplayer + VR (Weeks 7-8):**
+Entity sync via existing WebSocket relay, OpenXR integration for VR headsets.
 
-- **Integration tax.** Making standalone Bevy crates play together without the full engine requires some glue code. Not hard, but not zero.
-- **Version drift.** If you pin bevy_ecs to 0.15 and Bevy ships 0.16 with breaking ECS changes, you have to decide when to upgrade.
-- **Less community help.** "I'm using bevy_ecs standalone with wgpu" is a less common setup than "I'm using Bevy." Fewer blog posts, fewer examples.
+### Risks
 
-These risks are manageable and preferable to the risks of full engine commitment (either Bevy's churn or custom engine's time sink).
+- **Scope creep.** Engines are rabbit holes. Mitigate by building only what the game needs, not a general-purpose engine.
+- **Shader complexity.** PBR + RT + deferred requires serious WGSL. Mitigate by starting with reference implementations and iterating.
+- **Testing.** GPU code is hard to unit test. Mitigate with visual regression tests (screenshot comparison).
+
+These risks are significantly lower than Bevy's risks (API churn, renderer lock-in, bloat) given the AI-accelerated development model.
 
 ---
 
