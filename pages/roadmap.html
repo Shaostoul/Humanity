@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width,initial-scale=1.0">
+  <title>Roadmap — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    main { flex: 1; max-width: 960px; width: 100%; margin: 0 auto; padding: var(--space-xl) var(--space-xl) var(--space-3xl); }
+
+    /* ── Header ── */
+    .roadmap-header { margin-bottom: var(--space-2xl); }
+    .roadmap-header h1 { font-size: var(--text-3xl); font-weight: 800; margin-bottom: var(--space-sm); }
+    .roadmap-header p { color: var(--text-muted); font-size: var(--text-sm); }
+    .overview-bar {
+      display: flex; align-items: center; gap: var(--space-lg);
+      margin-top: var(--space-lg); padding: var(--space-md) var(--space-lg);
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    }
+    .overview-bar .progress-wrap { flex: 1; height: 10px; background: var(--bg-input); border-radius: 5px; overflow: hidden; }
+    .overview-bar .progress-fill { height: 100%; background: var(--success); border-radius: 5px; transition: width 0.4s ease; }
+    .overview-stat { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
+    .overview-stat strong { color: var(--text); }
+
+    /* ── Filters ── */
+    .filter-bar { display: flex; gap: var(--space-sm); margin-bottom: var(--space-xl); flex-wrap: wrap; }
+    .filter-btn {
+      padding: var(--space-sm) var(--space-lg); border-radius: var(--radius);
+      border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted);
+      font-size: var(--text-sm); cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+    .filter-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+    /* ── Tier sections ── */
+    .tier-section { margin-bottom: var(--space-2xl); }
+    .tier-header {
+      display: flex; align-items: center; gap: var(--space-lg);
+      margin-bottom: var(--space-md); cursor: pointer; user-select: none;
+    }
+    .tier-header h2 { font-size: var(--text-xl); font-weight: 700; }
+    .tier-header .tier-badge {
+      font-size: var(--text-xs); font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-sm); background: var(--accent-dim); color: var(--accent);
+    }
+    .tier-progress { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-md); }
+    .tier-progress .progress-wrap { flex: 1; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
+    .tier-progress .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+    .tier-progress .tier-count { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
+    .tier-chevron {
+      display: inline-flex; transition: transform 0.2s; color: var(--text-muted);
+    }
+    .tier-chevron.collapsed { transform: rotate(-90deg); }
+
+    /* ── Task cards ── */
+    .tier-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-md); }
+    .task-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: var(--space-lg); cursor: pointer; transition: all 0.15s;
+    }
+    .task-card:hover { background: var(--bg-card-hover); border-color: var(--accent-dim); }
+    .task-card-top { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-sm); }
+    .task-card-title { font-size: var(--text-base); font-weight: 600; flex: 1; }
+    .status-badge {
+      font-size: var(--text-xs); font-weight: 700; padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-sm); text-transform: capitalize; white-space: nowrap;
+    }
+    .status-badge.done { background: rgba(68,170,153,0.15); color: var(--success); }
+    .status-badge.in-progress { background: rgba(255,170,50,0.15); color: var(--warning); }
+    .status-badge.backlog { background: rgba(136,136,136,0.15); color: var(--text-muted); }
+    .status-badge.testing { background: rgba(33,150,243,0.15); color: #2196f3; }
+    .task-card-labels { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin-top: var(--space-sm); }
+    .label-tag {
+      font-size: var(--text-xs); color: var(--text-muted); background: var(--bg-hover);
+      padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-sm);
+    }
+    .task-card-priority {
+      font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .task-card-priority.critical { color: #e53935; }
+    .task-card-priority.high { color: #f0a500; }
+    .task-card-priority.medium { color: #2196f3; }
+    .task-card-priority.low { color: var(--text-muted); }
+
+    /* ── Expanded detail ── */
+    .task-detail { display: none; margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border); }
+    .task-card.expanded .task-detail { display: block; }
+    .task-detail-desc { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5; margin-bottom: var(--space-md); white-space: pre-wrap; }
+    .task-detail-comments { font-size: var(--text-sm); }
+    .task-detail-comments h4 { font-size: var(--text-sm); color: var(--text); margin-bottom: var(--space-sm); }
+    .comment-item { padding: var(--space-sm) 0; border-bottom: 1px solid var(--border); }
+    .comment-item:last-child { border-bottom: none; }
+    .comment-author { font-weight: 600; font-size: var(--text-xs); color: var(--accent); }
+    .comment-text { font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-xs); }
+
+    /* ── Empty state ── */
+    .tier-empty { font-size: var(--text-sm); color: var(--text-muted); padding: var(--space-lg); font-style: italic; }
+
+    /* ── Minigames section ── */
+    .minigames-section { margin-top: var(--space-3xl); }
+    .minigames-section h2 { font-size: var(--text-2xl); font-weight: 700; margin-bottom: var(--space-md); }
+    .minigames-section > p { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-xl); }
+    .minigame-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-lg); }
+    .minigame-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+      padding: var(--space-xl); transition: all 0.2s;
+    }
+    .minigame-card:hover { border-color: var(--accent-dim); background: var(--bg-card-hover); }
+    .minigame-icon { font-size: 2rem; margin-bottom: var(--space-md); }
+    .minigame-card h3 { font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-sm); }
+    .minigame-card .genre { font-size: var(--text-xs); color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-md); }
+    .minigame-card p { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5; margin-bottom: var(--space-md); }
+    .minigame-card .controls { font-size: var(--text-xs); color: var(--text-muted); }
+    .minigame-card .controls strong { color: var(--text); }
+    .minigame-card .teaches {
+      font-size: var(--text-xs); color: var(--success); margin-top: var(--space-md);
+      padding-top: var(--space-md); border-top: 1px solid var(--border);
+    }
+    .minigame-status {
+      display: inline-block; font-size: var(--text-xs); font-weight: 700;
+      padding: var(--space-xs) var(--space-md); border-radius: var(--radius-sm);
+      background: rgba(136,136,136,0.15); color: var(--text-muted); margin-bottom: var(--space-md);
+    }
+
+    /* ── Loading ── */
+    .loading { text-align: center; padding: var(--space-3xl); color: var(--text-muted); font-size: var(--text-sm); }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      main { padding: var(--space-md); }
+      .tier-cards, .minigame-grid { grid-template-columns: 1fr; }
+      .overview-bar { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/shell.js" data-active="roadmap"></script>
+<script src="/shared/settings.js"></script>
+
+<main>
+  <div class="roadmap-header">
+    <h1>Roadmap</h1>
+    <p>Track progress across every layer of HumanityOS — from infrastructure to civilization-scale systems.</p>
+    <div class="overview-bar" id="overview-bar">
+      <div class="overview-stat"><strong id="overview-done">0</strong> done</div>
+      <div class="progress-wrap"><div class="progress-fill" id="overview-fill" style="width:0"></div></div>
+      <div class="overview-stat"><strong id="overview-total">0</strong> total</div>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="done">Done</button>
+    <button class="filter-btn" data-filter="in_progress">In Progress</button>
+    <button class="filter-btn" data-filter="testing">Testing</button>
+    <button class="filter-btn" data-filter="backlog">Backlog</button>
+  </div>
+
+  <div id="tiers-container"><div class="loading">Loading tasks...</div></div>
+
+  <!-- Proposed Minigames -->
+  <section class="minigames-section">
+    <h2>Proposed Minigames</h2>
+    <p>Starter games that teach HumanityOS concepts through play. These are in the design phase.</p>
+    <div class="minigame-grid">
+
+      <div class="minigame-card">
+        <div class="minigame-icon">&#x1F5D1;</div>
+        <h3>Trash Collector</h3>
+        <div class="genre">Action / Cleanup</div>
+        <span class="minigame-status">Proposed</span>
+        <p>Simple 2D game where you pick up litter on a map. Ties into Sponsor-A-Can. Arrow keys to move, collect trash items, avoid obstacles. Score = items collected.</p>
+        <div class="controls"><strong>Controls:</strong> Arrow keys to move, spacebar to pick up</div>
+        <div class="teaches">Teaches: The recycling mission and community cleanup</div>
+      </div>
+
+      <div class="minigame-card">
+        <div class="minigame-icon">&#x1F4E6;</div>
+        <h3>Resource Rush</h3>
+        <div class="genre">Puzzle / Sorting</div>
+        <span class="minigame-status">Proposed</span>
+        <p>Tetris-like puzzle where falling resource blocks (wood, metal, food) must be sorted into correct community bins. Speed increases over time.</p>
+        <div class="controls"><strong>Controls:</strong> Left/Right to move, Down to drop, Up to rotate</div>
+        <div class="teaches">Teaches: Resource management and community allocation</div>
+      </div>
+
+      <div class="minigame-card">
+        <div class="minigame-icon">&#x1F4E1;</div>
+        <h3>Signal Tower</h3>
+        <div class="genre">Tower Defense / Strategy</div>
+        <span class="minigame-status">Proposed</span>
+        <p>Tower defense where you place relay servers to connect communities. Waves of "disconnection" threats. Each tower extends the network.</p>
+        <div class="controls"><strong>Controls:</strong> Click to place towers, drag to aim</div>
+        <div class="teaches">Teaches: The federation concept and network resilience</div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<script src="/pages/roadmap-app.js"></script>
+</body>
+</html>

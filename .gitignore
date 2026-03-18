@@ -1,4 +1,5 @@
 /target/
+node_modules/
 desktop/node_modules/
 local-heron-admin.json
 

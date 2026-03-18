@@ -22,7 +22,25 @@
     // Color overrides (empty string = use theme default)
     successColor: '',
     dangerColor: '',
-    warningColor: ''
+    warningColor: '',
+    // Settings page prefs (unified from former hos_settings_v1)
+    compact: false,
+    'font-size': 'medium',
+    'rgb-nav': true, 'nav-tips': true,
+    'notif-dm': true, 'notif-group': true, 'notif-mention': true,
+    'notif-quests': true, 'notif-cal': true, 'notif-sound': false,
+    'who-dm': 'everyone', 'show-online': true, 'read-receipts': true, 'discoverable': true,
+    'local-only': true, analytics: false,
+    'msg-preview': true, 'enter-send': true, timestamps: 'hover', 'msg-group': true, 'relay-url': '',
+    language: 'en', 'date-fmt': 'mdy', 'time-fmt': '12h', 'launch-chat': false, autosave: '60',
+    'display-name': '', 'debug-panel': false, 'verbose-log': false,
+    'reduce-motion': false, 'no-rgb': false, 'high-contrast': false,
+    'focus-ring': false, 'dyslexia-font': false, 'aria-enhanced': false,
+    'mic-device': '', 'mic-gain': '100', 'speaker-device': '', 'speaker-vol': '100',
+    'camera-device': '', 'video-quality': '720',
+    'auto-lock': '30',
+    presence: 'online', 'status-text': '', 'quiet-hours': false,
+    'quiet-start': '22:00', 'quiet-end': '08:00', 'dnd-friends': true, 'dnd-mentions': false,
   };
 
   const ACCENT_PRESETS = [
@@ -509,6 +527,21 @@
     observeChatSoundToggle();
     if (document.getElementById('sound-enabled')) clearInterval(_syncInterval);
   }, 2000);
+
+  // ── Migration: merge old hos_settings_v1 into humanity_settings ──
+  (function() {
+    try {
+      var old = localStorage.getItem('hos_settings_v1');
+      if (!old) return;
+      var oldData = JSON.parse(old);
+      var current = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      Object.keys(oldData).forEach(function(k) {
+        if (current[k] === undefined) current[k] = oldData[k];
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+      localStorage.removeItem('hos_settings_v1');
+    } catch(e) {}
+  })();
 
   // ── Init ──
   applySettings(load());

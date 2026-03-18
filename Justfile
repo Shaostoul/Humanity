@@ -11,6 +11,7 @@
 #   just ping           Is the site alive?
 #   just tasks          List tasks from live API
 #   just check          Catch Rust errors before shipping
+#   just bump           Bump version (patch/minor/major)
 # ─────────────────────────────────────────────────────────────────────────────
 
 set shell := ["bash", "-c"]
@@ -20,11 +21,23 @@ default:
     @just --list
 
 # ══════════════════════════════════════════════════════════════════════════════
+# VERSION — automated version bumping
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Bump version across all 6 locations (patch/minor/major, default: patch)
+# Usage: just bump          → 0.5.2 → 0.5.3
+#        just bump minor    → 0.5.2 → 0.6.0
+#        just bump major    → 0.5.2 → 1.0.0
+bump kind="patch":
+    node scripts/bump-version.js {{kind}}
+
+# ══════════════════════════════════════════════════════════════════════════════
 # DEPLOY — getting code to production
 # ══════════════════════════════════════════════════════════════════════════════
 
-# THE ONE COMMAND: commit + push + immediately force-sync VPS (bypasses CI wait)
+# THE ONE COMMAND: bump version + commit + push + immediately force-sync VPS
 ship msg="chore: update":
+    @just bump
     @just _commit "{{msg}}"
     @just sync
 

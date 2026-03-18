@@ -5,7 +5,7 @@
  * If omitted, active tab is auto-detected from the current URL.
  *
  * Valid active keys: landing, chat, dashboard, profile, home, gear,
- *   tasks, calendar, notes, home, map, market, web, ops, download, dev, settings
+ *   tasks, calendar, notes, home, map, market, web, roadmap, ops, download, dev, settings
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="gear"></script>
@@ -59,6 +59,7 @@
     else if (p.startsWith('/ops'))       active = 'ops';
     else if (p.startsWith('/download'))  active = 'download';
     else if (p.startsWith('/dev'))       active = 'dev';
+    else if (p.startsWith('/roadmap'))   active = 'roadmap';
     else active = '';
   }
 
@@ -443,6 +444,7 @@
       navTab('/maps',      'map',       'Maps',      'map') +
       navTab('/market',    'market',    'Market',    'market') +
       navTab('/web',       'website',   'Web',       'web') +
+      navTab('/roadmap',   'map',       'Roadmap',   'roadmap') +
 
       /* Spacer pushes utility tabs to the right */
       '<div class="spacer"></div>' +
@@ -492,6 +494,7 @@
       mobileLink('/maps',      'Maps') +
       mobileLink('/market',    'Market') +
       mobileLink('/web',       'Web') +
+      mobileLink('/roadmap',   'Roadmap') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Config</h4>' +
       mobileLink('/settings', 'Settings') +
