@@ -15,15 +15,19 @@ const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'app', 'web');
 
 // Source directories to bundle: [src relative to ROOT, dest relative to OUT, extensions]
+// IMPORTANT: dest paths must mirror the VPS nginx layout so nav links work in both
+// browser (nginx rewrites) and Tauri (static file serving).
 const SOURCES = [
   { src: 'ui/shared',                        dest: 'shared',           exts: ['.js', '.css', '.json'] },
   { src: 'ui/shared/icons',                  dest: 'shared/icons',     exts: ['.png', '.svg', '.ico'] },
-  { src: 'ui/pages',                         dest: 'pages',            exts: ['.html', '.js', '.css'] },
-  { src: 'ui/activities',                    dest: 'game',             exts: ['.html'] },
-  { src: 'ui/activities/js',                 dest: 'game/js',          exts: ['.js'] },
-  { src: 'ui/chat',                          dest: 'client',           exts: ['.html', '.js', '.css', '.ico', '.png', '.svg'] },
-  { src: 'assets/icons',                      dest: 'assets/icons',     exts: ['.png', '.svg'] },
+  { src: 'ui/chat',                          dest: 'chat',             exts: ['.html', '.js', '.css', '.ico', '.png', '.svg'] },
+  { src: 'ui/activities',                    dest: 'activities',       exts: ['.html', '.js'] },
+  { src: 'assets/icons',                     dest: 'assets/icons',     exts: ['.png', '.svg'] },
 ];
+
+// Pages get special treatment: HTML goes to root (nginx serves /tasks → /tasks.html),
+// JS companion files go to pages/ subfolder (loaded via <script src="/pages/tasks-app.js">).
+const PAGES_SRC = path.join(ROOT, 'ui/pages');
 
 function sha256(buffer) {
   return 'sha256:' + crypto.createHash('sha256').update(buffer).digest('hex');
@@ -88,6 +92,49 @@ for (const { src, dest, exts } of SOURCES) {
   }
 }
 
+// Pages: HTML → root level (so /tasks resolves to /tasks.html), JS → pages/ subfolder
+if (fs.existsSync(PAGES_SRC)) {
+  let htmlCount = 0, jsCount = 0;
+  const entries = fs.readdirSync(PAGES_SRC, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const ext = path.extname(entry.name).toLowerCase();
+    const srcPath = path.join(PAGES_SRC, entry.name);
+
+    if (ext === '.html') {
+      // HTML pages go to root so /tasks → /tasks.html works
+      const destPath = path.join(OUT, entry.name);
+      fs.copyFileSync(srcPath, destPath);
+      const content = fs.readFileSync(destPath);
+      const stat = fs.statSync(destPath);
+      allFiles.push({
+        path: '/' + entry.name,
+        hash: sha256(content),
+        size: stat.size,
+        modified: Math.floor(stat.mtimeMs / 1000),
+      });
+      htmlCount++;
+    } else if (ext === '.js' || ext === '.css') {
+      // JS/CSS companion files go to pages/ subfolder
+      const destDir = path.join(OUT, 'pages');
+      ensureDir(destDir);
+      const destPath = path.join(destDir, entry.name);
+      fs.copyFileSync(srcPath, destPath);
+      const content = fs.readFileSync(destPath);
+      const stat = fs.statSync(destPath);
+      allFiles.push({
+        path: '/pages/' + entry.name,
+        hash: sha256(content),
+        size: stat.size,
+        modified: Math.floor(stat.mtimeMs / 1000),
+      });
+      jsCount++;
+    }
+  }
+  console.log(`  (root)  ${htmlCount} page HTML files`);
+  if (jsCount > 0) console.log(`  pages/  ${jsCount} JS/CSS files`);
+}
+
 // Sort by path for deterministic output.
 allFiles.sort((a, b) => a.path.localeCompare(b.path));
 
@@ -100,11 +147,11 @@ try {
   version = conf.version || version;
 } catch { /* use fallback */ }
 
-// Create index.html redirect.
+// Create index.html redirect → chat (mirrors VPS nginx default).
 const indexHtml = `<!DOCTYPE html>
 <html>
-<head><meta http-equiv="refresh" content="0;url=/client/index.html"><title>Redirecting...</title></head>
-<body><p>Redirecting to <a href="/client/index.html">chat</a>...</p></body>
+<head><meta http-equiv="refresh" content="0;url=/chat/index.html"><title>Redirecting...</title></head>
+<body><p>Redirecting to <a href="/chat/index.html">chat</a>...</p></body>
 </html>
 `;
 fs.writeFileSync(path.join(OUT, 'index.html'), indexHtml);

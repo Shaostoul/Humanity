@@ -96,7 +96,24 @@ const INIT_SCRIPT: &str = r#"
         }
     });
 
-    // Intercept ALL clicks on external links — open in system browser
+    // Rewrite extensionless paths to .html for Tauri static file serving.
+    // Nginx does this automatically on the VPS, but Tauri serves files literally.
+    // e.g. /tasks → /tasks.html, /chat → /chat/index.html (already has index.html)
+    function rewriteForTauri(href) {
+        try {
+            var url = new URL(href, location.origin);
+            var p = url.pathname;
+            // Skip if already has extension, is root, or ends with /
+            if (p === '/' || p.indexOf('.') !== -1 || p.endsWith('/')) return href;
+            // Skip known directory routes (they have index.html inside)
+            if (p === '/chat') return href + '/index.html';
+            // All other extensionless paths → append .html
+            url.pathname = p + '.html';
+            return url.href;
+        } catch(_) { return href; }
+    }
+
+    // Intercept ALL clicks on links — rewrite paths + open external in system browser
     document.addEventListener('click', function (e) {
         var link = e.target.closest('a[href]');
         if (!link) return;
@@ -113,6 +130,14 @@ const INIT_SCRIPT: &str = r#"
             e.stopPropagation();
             e.stopImmediatePropagation();
             openExternal(fullUrl);
+            return false;
+        }
+
+        // Rewrite extensionless internal links for Tauri static serving
+        var rewritten = rewriteForTauri(fullUrl);
+        if (rewritten !== fullUrl) {
+            e.preventDefault();
+            location.href = rewritten;
             return false;
         }
 
