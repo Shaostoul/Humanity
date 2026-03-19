@@ -164,6 +164,25 @@ pub(crate) fn now_millis() -> u64 {
 }
 
 impl Storage {
+    /// Execute a closure with a locked database connection.
+    /// Panics if the mutex is poisoned (same as current unwrap behavior).
+    pub(crate) fn with_conn<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&Connection) -> T,
+    {
+        let conn = self.conn.lock().unwrap();
+        f(&conn)
+    }
+
+    /// Like `with_conn` but provides a mutable reference (needed for transactions).
+    pub(crate) fn with_conn_mut<F, T>(&self, f: F) -> T
+    where
+        F: FnOnce(&mut Connection) -> T,
+    {
+        let mut conn = self.conn.lock().unwrap();
+        f(&mut conn)
+    }
+
     /// Open or create the database at the given path.
     pub fn open(path: &Path) -> Result<Self, rusqlite::Error> {
         let conn = Connection::open(path)?;
@@ -760,24 +779,40 @@ impl Storage {
         // Uses a content table (content=messages) so we don't duplicate data.
         // Triggers keep the index in sync with every insert/update/delete.
         // Falls back silently if FTS5 is not compiled into this SQLite build.
+        //
+        // Migration: drop old 2-column FTS table if it exists (was: content, from_name).
+        // The new table adds channel_id for column-scoped search.
+        let has_fts_channel: bool = conn
+            .prepare("SELECT channel_id FROM messages_fts LIMIT 0")
+            .is_ok();
+        if !has_fts_channel {
+            let _ = conn.execute_batch("
+                DROP TRIGGER IF EXISTS messages_fts_ai;
+                DROP TRIGGER IF EXISTS messages_fts_ad;
+                DROP TRIGGER IF EXISTS messages_fts_au;
+                DROP TABLE IF EXISTS messages_fts;
+            ");
+            info!("Migration: rebuilding FTS5 index with channel_id column");
+        }
+
         let fts_ok = conn.execute_batch("
             CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts
-            USING fts5(content, from_name, content='messages', content_rowid='id');
+            USING fts5(content, from_name, channel_id, content='messages', content_rowid='id');
 
             -- Keep FTS index up to date automatically
             CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
-                INSERT INTO messages_fts(rowid, content, from_name)
-                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''));
+                INSERT INTO messages_fts(rowid, content, from_name, channel_id)
+                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''), COALESCE(new.channel_id,'general'));
             END;
             CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
-                INSERT INTO messages_fts(messages_fts, rowid, content, from_name)
-                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''));
+                INSERT INTO messages_fts(messages_fts, rowid, content, from_name, channel_id)
+                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''), COALESCE(old.channel_id,'general'));
             END;
             CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
-                INSERT INTO messages_fts(messages_fts, rowid, content, from_name)
-                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''));
-                INSERT INTO messages_fts(rowid, content, from_name)
-                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''));
+                INSERT INTO messages_fts(messages_fts, rowid, content, from_name, channel_id)
+                VALUES ('delete', old.id, COALESCE(old.content,''), COALESCE(old.from_name,''), COALESCE(old.channel_id,'general'));
+                INSERT INTO messages_fts(rowid, content, from_name, channel_id)
+                VALUES (new.id, COALESCE(new.content,''), COALESCE(new.from_name,''), COALESCE(new.channel_id,'general'));
             END;
         ");
 

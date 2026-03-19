@@ -222,6 +222,19 @@
     .hub-nav .tab.tab-update-ready .tab-icon svg {
       opacity: 1;
     }
+    /* Notification badge on download tab when update is available */
+    .hub-nav .tab .tab-update-badge {
+      position: absolute; top: 2px; right: 2px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #e33; color: #fff; font-size: 9px;
+      font-weight: 700; line-height: 14px; text-align: center;
+      pointer-events: none; z-index: 2;
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+    @keyframes badgePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
 
     [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
     [data-theme="light"] .hub-nav .tab { color: var(--text-muted); box-shadow: inset 0 0 0 1px #2a6; }
@@ -1000,7 +1013,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.11.0';
+    var CURRENT_VERSION = '0.12.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -1052,21 +1065,41 @@
     }
 
     // Desktop app: Tauri injects __HOS_UPDATE_READY after its background check.
-    // When detected, override the download button to invoke the Tauri install command.
+    // When detected, override the download button to invoke the Tauri install command
+    // directly from the nav bar (no navigation to /download needed).
     function markDesktopUpdate(version) {
       var dlTab = document.querySelector('a.tab[href="/download"]');
       if (!dlTab || dlTab.classList.contains('tab-update-ready')) return;
       dlTab.classList.add('tab-update-ready');
-      dlTab.setAttribute('data-tip', 'Install v' + version);
+      dlTab.setAttribute('data-tip', 'Update available — v' + version + ' (click to install)');
+
+      // Add notification badge dot
+      var badge = document.createElement('span');
+      badge.className = 'tab-update-badge';
+      badge.textContent = '!';
+      dlTab.style.position = 'relative';
+      dlTab.appendChild(badge);
+
       dlTab.addEventListener('click', function(e) {
         e.preventDefault();
-        dlTab.setAttribute('data-tip', 'Installing…');
-        if (window.__TAURI__?.core?.invoke) {
-          window.__TAURI__.core.invoke('install_update').catch(function(err) {
-            dlTab.setAttribute('data-tip', 'Update failed');
+        if (!window.__TAURI__?.core?.invoke) {
+          window.location.href = '/download';
+          return;
+        }
+        dlTab.setAttribute('data-tip', 'Downloading v' + version + '...');
+        // Remove badge during install
+        var b = dlTab.querySelector('.tab-update-badge');
+        if (b) b.remove();
+
+        window.__TAURI__.core.invoke('install_update')
+          .then(function(v) {
+            dlTab.setAttribute('data-tip', 'Installed v' + v + '! Restarting...');
+            dlTab.classList.remove('tab-update-ready');
+          })
+          .catch(function(err) {
+            dlTab.setAttribute('data-tip', 'Update failed — click to retry');
             console.error('Update install failed:', err);
           });
-        }
       });
     }
 

@@ -1184,6 +1184,16 @@ pub async fn search_messages(
                 "query": params.q,
                 "results": search_results,
                 "total": total,
+                "syntax": {
+                    "description": "FTS5 full-text search",
+                    "examples": {
+                        "boolean": "hello AND world",
+                        "phrase": "\"exact phrase\"",
+                        "prefix": "hel*",
+                        "exclude": "hello NOT goodbye",
+                        "or": "hello OR hi",
+                    }
+                }
             })))
         }
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Search error: {e}"))),

@@ -1495,7 +1495,7 @@ dependencies = [
  "env_logger",
  "glam",
  "log",
- "pollster",
+ "pollster 0.3.0",
  "wgpu 0.20.1",
  "winit 0.29.15",
 ]
@@ -2293,6 +2293,7 @@ dependencies = [
 name = "humanity-engine"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "csv",
  "env_logger",
  "glam",
@@ -2303,6 +2304,7 @@ dependencies = [
  "log",
  "noise",
  "notify",
+ "pollster 0.4.0",
  "rand 0.8.5",
  "rapier3d",
  "ron",
@@ -4040,6 +4042,12 @@ name = "pollster"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
+
+[[package]]
+name = "pollster"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "polyval"

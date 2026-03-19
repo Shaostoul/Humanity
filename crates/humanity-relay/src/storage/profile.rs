@@ -16,46 +16,49 @@ impl Storage {
         if socials.len() > 1024 || serde_json::from_str::<serde_json::Value>(socials).is_err() {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT INTO profiles (name, bio, socials) VALUES (?1, ?2, ?3)
-             ON CONFLICT(name) DO UPDATE SET bio = ?2, socials = ?3",
-            params![name, bio, socials],
-        )?;
-        Ok(())
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO profiles (name, bio, socials) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(name) DO UPDATE SET bio = ?2, socials = ?3",
+                params![name, bio, socials],
+            )?;
+            Ok(())
+        })
     }
 
     /// Get a user's profile. Returns (bio, socials) or None.
     pub fn get_profile(&self, name: &str) -> Result<Option<(String, String)>, rusqlite::Error> {
-        let conn = self.conn.lock().unwrap();
-        match conn.query_row(
-            "SELECT bio, socials FROM profiles WHERE name = ?1 COLLATE NOCASE",
-            params![name],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-        ) {
-            Ok(profile) => Ok(Some(profile)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e),
-        }
+        self.with_conn(|conn| {
+            match conn.query_row(
+                "SELECT bio, socials FROM profiles WHERE name = ?1 COLLATE NOCASE",
+                params![name],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            ) {
+                Ok(profile) => Ok(Some(profile)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e),
+            }
+        })
     }
 
     /// Bulk fetch profiles for a list of names.
     pub fn get_profiles_batch(&self, names: &[String]) -> Result<HashMap<String, (String, String)>, rusqlite::Error> {
-        let conn = self.conn.lock().unwrap();
-        let mut result = HashMap::new();
-        // SQLite doesn't support array params, so we query one at a time.
-        // For typical user counts (<1000) this is fine.
-        let mut stmt = conn.prepare(
-            "SELECT name, bio, socials FROM profiles WHERE name = ?1 COLLATE NOCASE"
-        )?;
-        for name in names {
-            if let Ok(row) = stmt.query_row(params![name], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-            }) {
-                result.insert(row.0.to_lowercase(), (row.1, row.2));
+        self.with_conn(|conn| {
+            let mut result = HashMap::new();
+            // SQLite doesn't support array params, so we query one at a time.
+            // For typical user counts (<1000) this is fine.
+            let mut stmt = conn.prepare(
+                "SELECT name, bio, socials FROM profiles WHERE name = ?1 COLLATE NOCASE"
+            )?;
+            for name in names {
+                if let Ok(row) = stmt.query_row(params![name], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                }) {
+                    result.insert(row.0.to_lowercase(), (row.1, row.2));
+                }
             }
-        }
-        Ok(result)
+            Ok(result)
+        })
     }
 
     /// Upsert the full extended profile (all fields including new columns).
@@ -84,16 +87,17 @@ impl Storage {
         if privacy.len() > 512 || serde_json::from_str::<serde_json::Value>(privacy).is_err() {
             return Err(rusqlite::Error::QueryReturnedNoRows);
         }
-        let conn = self.conn.lock().unwrap();
-        conn.execute(
-            "INSERT INTO profiles (name, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-             ON CONFLICT(name) DO UPDATE SET
-               bio = ?2, socials = ?3, avatar_url = ?4, banner_url = ?5,
-               pronouns = ?6, location = ?7, website = ?8, privacy = ?9",
-            params![name, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy],
-        )?;
-        Ok(())
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO profiles (name, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT(name) DO UPDATE SET
+                   bio = ?2, socials = ?3, avatar_url = ?4, banner_url = ?5,
+                   pronouns = ?6, location = ?7, website = ?8, privacy = ?9",
+                params![name, bio, socials, avatar_url, banner_url, pronouns, location, website, privacy],
+            )?;
+            Ok(())
+        })
     }
 
     /// Fetch the full extended profile row for internal use (all fields, no privacy filtering).
@@ -102,30 +106,31 @@ impl Storage {
         name: &str,
     ) -> Result<Option<(String, String, String, String, String, String, String, String)>, rusqlite::Error> {
         // Returns (bio, socials, avatar_url, banner_url, pronouns, location, website, privacy).
-        let conn = self.conn.lock().unwrap();
-        match conn.query_row(
-            "SELECT bio, socials, avatar_url, banner_url, pronouns, location, website, privacy
-             FROM profiles WHERE name = ?1 COLLATE NOCASE",
-            params![name],
-            |row| Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, String>(4)?,
-                row.get::<_, String>(5)?,
-                row.get::<_, String>(6)?,
-                row.get::<_, String>(7)?,
-            )),
-        ) {
-            Ok(p) => Ok(Some(p)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e),
-        }
+        self.with_conn(|conn| {
+            match conn.query_row(
+                "SELECT bio, socials, avatar_url, banner_url, pronouns, location, website, privacy
+                 FROM profiles WHERE name = ?1 COLLATE NOCASE",
+                params![name],
+                |row| Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                )),
+            ) {
+                Ok(p) => Ok(Some(p)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e),
+            }
+        })
     }
 
     /// Fetch a profile, filtering out private fields unless the requester is a friend.
-    /// Returns a map of field name → value for only the fields the requester may see.
+    /// Returns a map of field name -> value for only the fields the requester may see.
     /// Fields omitted from the map should not be rendered on the client side.
     pub fn get_public_profile(
         &self,
