@@ -1,11 +1,35 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::Manager as _;
 use tauri_plugin_updater::UpdaterExt;
 
-/// Tracks whether an update is available (version string).
+// ── State types ──────────────────────────────────────────────────────────────
+
+/// Tracks whether a binary (Tauri) update is available.
 struct UpdateState(Mutex<Option<String>>);
+
+/// Tracks whether a web asset sync found changes (triggers "reload?" prompt).
+struct WebSyncState(Mutex<bool>);
+
+// ── Web manifest schema ──────────────────────────────────────────────────────
+
+/// Manifest listing every web asset with its SHA-256 hash.
+/// Served by the relay at /api/web-manifest and stored locally as manifest.json.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct WebManifest {
+    /// Semver string for the web assets (e.g. "0.10.0")
+    version: String,
+    /// Map of relative path → hex-encoded SHA-256 hash
+    files: HashMap<String, String>,
+}
+
+// ── Init script ──────────────────────────────────────────────────────────────
 
 /// JS injected before every page runs.
 /// - F12            → open DevTools
@@ -22,7 +46,6 @@ const INIT_SCRIPT: &str = r#"
 
     // Helper: open URL in system browser via Tauri command
     function openExternal(url) {
-        // Try Tauri invoke first
         if (window.__TAURI__?.core?.invoke) {
             window.__TAURI__.core.invoke('open_external_url', { url: url }).catch(function(err) {
                 console.error('Tauri open_external_url failed:', err);
@@ -32,14 +55,16 @@ const INIT_SCRIPT: &str = r#"
         return false;
     }
 
-    // Check if URL is external (not our app domain)
+    // Check if URL is external (not our app — local protocol or united-humanity.us)
     function isExternal(href) {
         try {
             var url = new URL(href, location.origin);
             return url.hostname &&
                    url.hostname !== 'united-humanity.us' &&
                    url.hostname !== 'localhost' &&
-                   url.hostname !== '127.0.0.1';
+                   url.hostname !== '127.0.0.1' &&
+                   url.hostname !== 'tauri.localhost' &&
+                   url.protocol !== 'tauri:';
         } catch (_) {
             return false;
         }
@@ -87,10 +112,9 @@ const INIT_SCRIPT: &str = r#"
         // Also catch target="_blank" links to our own domain (prevent new window)
         if (link.target === '_blank') {
             e.preventDefault();
-            // Navigate in same webview instead of trying to open new window
             location.href = fullUrl;
         }
-    }, true); // Capture phase = runs before any other click handlers
+    }, true);
 
     // Override window.open to redirect external URLs to system browser
     var originalOpen = window.open;
@@ -99,12 +123,13 @@ const INIT_SCRIPT: &str = r#"
             openExternal(url);
             return null;
         }
-        // Internal URLs: navigate in place instead of opening new window
         if (url) location.href = url;
         return null;
     };
 })();
 "#;
+
+// ── Tauri commands ───────────────────────────────────────────────────────────
 
 /// Called from JS (F12) to open the WebView DevTools panel.
 #[tauri::command]
@@ -123,31 +148,242 @@ fn open_external_url(url: String) -> Result<(), String> {
 #[tauri::command]
 async fn install_update(app: tauri::AppHandle) -> Result<String, String> {
     let updater = app.updater().map_err(|e| format!("Updater error: {e}"))?;
-    let update = updater.check().await
+    let update = updater
+        .check()
+        .await
         .map_err(|e| format!("Check failed: {e}"))?
         .ok_or_else(|| "No update available".to_string())?;
 
     let version = update.version.clone();
-    update.download_and_install(|_, _| {}, || {}).await
+    update
+        .download_and_install(|_, _| {}, || {})
+        .await
         .map_err(|e| format!("Install failed: {e}"))?;
 
     Ok(version)
 }
+
+// ── Web sync logic ───────────────────────────────────────────────────────────
+
+const MANIFEST_URL: &str = "https://united-humanity.us/api/web-manifest";
+const ASSET_BASE_URL: &str = "https://united-humanity.us";
+
+/// Returns the writable directory where synced web assets are stored.
+/// Falls under the app's local data dir so it survives updates.
+fn sync_dir(app: &tauri::AppHandle) -> PathBuf {
+    app.path()
+        .app_local_data_dir()
+        .expect("failed to resolve app local data dir")
+        .join("web-sync")
+}
+
+/// Reads the local manifest.json from the sync directory, if it exists.
+fn read_local_manifest(sync_path: &std::path::Path) -> Option<WebManifest> {
+    let manifest_path = sync_path.join("manifest.json");
+    let data = std::fs::read_to_string(manifest_path).ok()?;
+    serde_json::from_str(&data).ok()
+}
+
+/// Writes the manifest to the sync directory.
+fn write_local_manifest(sync_path: &std::path::Path, manifest: &WebManifest) {
+    let manifest_path = sync_path.join("manifest.json");
+    if let Ok(json) = serde_json::to_string_pretty(manifest) {
+        let _ = std::fs::write(manifest_path, json);
+    }
+}
+
+/// Compute SHA-256 of a byte slice, return hex string.
+fn sha256_hex(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hex::encode(hasher.finalize())
+}
+
+/// One round of web asset sync. Returns the number of files updated, or an error.
+async fn sync_web_assets(sync_path: &std::path::Path) -> Result<(usize, WebManifest), String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("HTTP client error: {e}"))?;
+
+    // 1. Fetch remote manifest
+    let remote_manifest: WebManifest = client
+        .get(MANIFEST_URL)
+        .send()
+        .await
+        .map_err(|e| format!("Manifest fetch failed: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("Manifest parse failed: {e}"))?;
+
+    // 2. Load local manifest (if any)
+    let local_manifest = read_local_manifest(sync_path);
+
+    // 3. Diff: find files that are new or changed
+    let local_files = local_manifest
+        .as_ref()
+        .map(|m| &m.files)
+        .cloned()
+        .unwrap_or_default();
+
+    let mut changed: Vec<(&String, &String)> = Vec::new();
+    for (path, remote_hash) in &remote_manifest.files {
+        match local_files.get(path) {
+            Some(local_hash) if local_hash == remote_hash => {
+                // Also verify the file actually exists on disk
+                if sync_path.join(path).exists() {
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        changed.push((path, remote_hash));
+    }
+
+    if changed.is_empty() {
+        return Ok((0, remote_manifest));
+    }
+
+    // 4. Download changed files
+    let mut updated = 0;
+    for (path, expected_hash) in &changed {
+        let url = format!("{}/{}", ASSET_BASE_URL, path);
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("Download {path} failed: {e}"))?;
+
+        if !response.status().is_success() {
+            eprintln!("web-sync: HTTP {} for {}", response.status(), path);
+            continue;
+        }
+
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| format!("Read {path} failed: {e}"))?;
+
+        // Verify hash
+        let actual_hash = sha256_hex(&bytes);
+        if &actual_hash != *expected_hash {
+            eprintln!(
+                "web-sync: hash mismatch for {path} (expected {expected_hash}, got {actual_hash})"
+            );
+            continue;
+        }
+
+        // Write to sync directory
+        let dest = sync_path.join(path);
+        if let Some(parent) = dest.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(&dest, &bytes)
+            .map_err(|e| format!("Write {path} failed: {e}"))?;
+        updated += 1;
+    }
+
+    // 5. Also remove files that are no longer in the remote manifest
+    if let Some(ref local) = local_manifest {
+        for old_path in local.files.keys() {
+            if !remote_manifest.files.contains_key(old_path) {
+                let _ = std::fs::remove_file(sync_path.join(old_path));
+            }
+        }
+    }
+
+    // 6. Save updated manifest
+    write_local_manifest(sync_path, &remote_manifest);
+
+    Ok((updated, remote_manifest))
+}
+
+/// Spawns the periodic web sync task. Runs first check after `initial_delay`,
+/// then every `interval`.
+fn spawn_web_sync(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
+    let handle = app.clone();
+    let win = window.clone();
+    let sync_path = sync_dir(app);
+    let _ = std::fs::create_dir_all(&sync_path);
+
+    tauri::async_runtime::spawn(async move {
+        let initial_delay = std::time::Duration::from_secs(30);
+        let interval = std::time::Duration::from_secs(30 * 60); // 30 minutes
+
+        tokio::time::sleep(initial_delay).await;
+
+        loop {
+            eprintln!("web-sync: Checking for updates...");
+
+            match sync_web_assets(&sync_path).await {
+                Ok((0, manifest)) => {
+                    eprintln!("web-sync: Up to date (v{})", manifest.version);
+                    // Inject web version even if no changes
+                    let js = format!(
+                        "window.__HOS_WEB_VERSION = '{}';",
+                        manifest.version
+                    );
+                    let _ = win.eval(&js);
+                }
+                Ok((count, manifest)) => {
+                    eprintln!("web-sync: {} files updated (v{})", count, manifest.version);
+
+                    // Store sync-ready state
+                    if let Some(state) = handle.try_state::<WebSyncState>() {
+                        *state.0.lock().unwrap() = true;
+                    }
+
+                    // Notify webview
+                    let js = format!(
+                        "window.__HOS_WEB_VERSION = '{}'; \
+                         window.__HOS_WEB_UPDATE_READY = true; \
+                         window.__HOS_WEB_UPDATED_COUNT = {}; \
+                         if (typeof window.__hosWebUpdateReady === 'function') window.__hosWebUpdateReady({});",
+                        manifest.version, count, count
+                    );
+                    let _ = win.eval(&js);
+
+                    // Update title bar
+                    let app_ver = handle.config().version.clone().unwrap_or_default();
+                    let _ = win.set_title(&format!(
+                        "Humanity — v{app_ver} (update ready)"
+                    ));
+                }
+                Err(e) => {
+                    eprintln!("web-sync: {e}");
+                }
+            }
+
+            tokio::time::sleep(interval).await;
+        }
+    });
+}
+
+// ── Entry point ──────────────────────────────────────────────────────────────
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .manage(UpdateState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![open_devtools, install_update, open_external_url])
+        .manage(WebSyncState(Mutex::new(false)))
+        .invoke_handler(tauri::generate_handler![
+            open_devtools,
+            install_update,
+            open_external_url
+        ])
         .setup(|app| {
-            let version = app.config().version.clone().unwrap_or_else(|| "dev".to_string());
+            let version = app
+                .config()
+                .version
+                .clone()
+                .unwrap_or_else(|| "dev".to_string());
 
-            // Build the main window — loads united-humanity.us, injects keyboard shortcuts
+            // ── Build the main window — loads from local files ──
             let window = tauri::WebviewWindowBuilder::new(
                 app,
                 "main",
-                tauri::WebviewUrl::External("https://united-humanity.us".parse().unwrap()),
+                tauri::WebviewUrl::App("index.html".into()),
             )
             .title(format!("Humanity — v{version}"))
             .inner_size(1200.0, 800.0)
@@ -156,47 +392,59 @@ fn main() {
             .initialization_script(INIT_SCRIPT)
             .build()?;
 
-            // Inject the app binary version into the webview for display
-            let ver_js = format!("window.__HOS_APP_VERSION = '{}';", version);
+            // Inject app version + desktop flag into the webview
+            let ver_js = format!(
+                "window.__HOS_APP_VERSION = '{}'; window.__HOS_DESKTOP__ = true;",
+                version
+            );
             let _ = window.eval(&ver_js);
 
-            // ── Background update check: notify webview if update exists ──
-            let handle = app.handle().clone();
-            let win_clone = window.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                match handle.updater() {
-                    Ok(updater) => {
-                        match updater.check().await {
+            // ── Inject web version from local manifest (if already synced) ──
+            let sync_path = sync_dir(&app.handle());
+            if let Some(manifest) = read_local_manifest(&sync_path) {
+                let js = format!("window.__HOS_WEB_VERSION = '{}';", manifest.version);
+                let _ = window.eval(&js);
+            }
+
+            // ── Background binary update check ──
+            {
+                let handle = app.handle().clone();
+                let win_clone = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    match handle.updater() {
+                        Ok(updater) => match updater.check().await {
                             Ok(Some(update)) => {
                                 let new_version = update.version.clone();
                                 eprintln!("Update available: v{new_version}");
 
-                                // Store version in state.
                                 if let Some(state) = handle.try_state::<UpdateState>() {
                                     *state.0.lock().unwrap() = Some(new_version.clone());
                                 }
 
-                                // Notify webview — shell.js will light up the download button.
                                 let js = format!(
-                                    "window.__HOS_UPDATE_READY = true; window.__HOS_UPDATE_VERSION = '{}';",
+                                    "window.__HOS_UPDATE_READY = true; \
+                                     window.__HOS_UPDATE_VERSION = '{}';",
                                     new_version
                                 );
                                 let _ = win_clone.eval(&js);
 
-                                // Update title bar with both versions.
-                                let current = handle.config().version.clone().unwrap_or_default();
+                                let current =
+                                    handle.config().version.clone().unwrap_or_default();
                                 let _ = win_clone.set_title(&format!(
                                     "Humanity — v{current} (v{new_version} ready)"
                                 ));
                             }
                             Ok(None) => eprintln!("App is up to date"),
                             Err(e) => eprintln!("Update check failed: {e}"),
-                        }
+                        },
+                        Err(e) => eprintln!("Updater init error: {e}"),
                     }
-                    Err(e) => eprintln!("Updater init error: {e}"),
-                }
-            });
+                });
+            }
+
+            // ── Background web asset sync ──
+            spawn_web_sync(&app.handle(), &window);
 
             Ok(())
         })

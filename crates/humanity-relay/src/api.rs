@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use rand::Rng;
+use sha2::{Sha256, Digest};
 use crate::relay::{RelayMessage, RelayState, Peer, PeerInfo, SearchResultData};
 
 /// Constant-time byte comparison (M-2: prevent timing attacks on HMAC).
@@ -1755,4 +1756,170 @@ pub async fn get_asset_manifest() -> Json<serde_json::Value> {
         "categories": categories,
         "total": total,
     }))
+}
+
+// ── Web Manifest API ────────────────────────────────────────────────────────
+// Returns a hashed manifest of all web-servable files so the desktop app can
+// compare local vs remote and sync only changed files.
+
+use std::sync::Mutex;
+
+/// Directories to include in the web manifest, relative to WEB_ROOT.
+/// Each entry: (dir path, allowed extensions, recursive).
+const WEB_MANIFEST_DIRS: &[(&str, &[&str], bool)] = &[
+    ("shared",                        &["js", "css", "json"],           false),
+    ("shared/icons",                  &["png", "svg", "ico"],           false),
+    ("pages",                         &["html", "js", "css"],           false),
+    ("game",                          &["html"],                        false),
+    ("game/js",                       &["js"],                          false),
+    ("crates/humanity-relay/client",  &["html", "js", "css", "ico", "png", "svg"], false),
+    ("assets/ui/icons",               &["png", "svg"],                  false),
+];
+
+#[derive(Serialize, Clone)]
+pub struct WebManifestFile {
+    pub path: String,
+    pub hash: String,
+    pub size: u64,
+    pub modified: u64,
+}
+
+#[derive(Serialize, Clone)]
+pub struct WebManifest {
+    pub version: String,
+    pub files: Vec<WebManifestFile>,
+    pub total_size: u64,
+    pub file_count: usize,
+}
+
+/// Cached web manifest with expiry timestamp.
+struct CachedWebManifest {
+    manifest: WebManifest,
+    expires_at: std::time::Instant,
+}
+
+static WEB_MANIFEST_CACHE: std::sync::LazyLock<Mutex<Option<CachedWebManifest>>> =
+    std::sync::LazyLock::new(|| Mutex::new(None));
+
+/// Scan directories and build the web manifest.
+fn build_web_manifest() -> WebManifest {
+    let web_root = std::env::var("WEB_ROOT").unwrap_or_else(|_| ".".to_string());
+    let base = std::path::Path::new(&web_root);
+
+    let mut files: Vec<WebManifestFile> = Vec::new();
+    let mut total_size: u64 = 0;
+
+    for &(dir_rel, extensions, _recursive) in WEB_MANIFEST_DIRS {
+        let dir_path = base.join(dir_rel);
+        let entries = match std::fs::read_dir(&dir_path) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        for entry in entries.flatten() {
+            let file_path = entry.path();
+            if !file_path.is_file() {
+                continue;
+            }
+
+            let file_name = match file_path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+
+            let ext = file_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            if !extensions.iter().any(|&allowed| allowed == ext) {
+                continue;
+            }
+
+            let meta = match std::fs::metadata(&file_path) {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+
+            let size = meta.len();
+            let modified = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+
+            // Compute SHA-256 hash of file contents.
+            let hash = match std::fs::read(&file_path) {
+                Ok(contents) => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(&contents);
+                    format!("sha256:{}", hex::encode(hasher.finalize()))
+                }
+                Err(_) => continue,
+            };
+
+            // Map crates/humanity-relay/client/ → /client/ for URL paths.
+            let url_dir = if dir_rel == "crates/humanity-relay/client" {
+                "client".to_string()
+            } else {
+                dir_rel.replace('\\', "/")
+            };
+            let url_path = format!("/{}/{}", url_dir, file_name);
+
+            total_size += size;
+            files.push(WebManifestFile {
+                path: url_path,
+                hash,
+                size,
+                modified,
+            });
+        }
+    }
+
+    // Sort by path for deterministic output.
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let file_count = files.len();
+
+    // Read version from tauri.conf.json or fall back.
+    let version = std::fs::read_to_string(base.join("desktop/src-tauri/tauri.conf.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get("version")?.as_str().map(String::from))
+        .unwrap_or_else(|| "0.0.0".to_string());
+
+    WebManifest {
+        version,
+        files,
+        total_size,
+        file_count,
+    }
+}
+
+/// GET /api/web-manifest — Hashed manifest of all web files for desktop sync.
+pub async fn get_web_manifest() -> Json<WebManifest> {
+    // Return cached manifest if still valid (60s TTL).
+    {
+        let cache = WEB_MANIFEST_CACHE.lock().unwrap();
+        if let Some(ref cached) = *cache {
+            if cached.expires_at > std::time::Instant::now() {
+                return Json(cached.manifest.clone());
+            }
+        }
+    }
+
+    let manifest = build_web_manifest();
+
+    // Store in cache.
+    {
+        let mut cache = WEB_MANIFEST_CACHE.lock().unwrap();
+        *cache = Some(CachedWebManifest {
+            manifest: manifest.clone(),
+            expires_at: std::time::Instant::now() + std::time::Duration::from_secs(60),
+        });
+    }
+
+    Json(manifest)
 }

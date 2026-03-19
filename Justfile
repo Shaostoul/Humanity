@@ -35,9 +35,10 @@ bump kind="patch":
 # DEPLOY — getting code to production
 # ══════════════════════════════════════════════════════════════════════════════
 
-# THE ONE COMMAND: bump version + commit + push + immediately force-sync VPS
+# THE ONE COMMAND: bump version + bundle web + commit + push + immediately force-sync VPS
 ship msg="chore: update":
     @just bump
+    @just bundle-web
     @just _commit "{{msg}}"
     @just sync
 
@@ -209,20 +210,32 @@ clippy:
     cargo clippy --bin humanity-relay -- -D warnings
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DESKTOP APP — Tauri wrapper
+# DESKTOP APP — local-first Tauri wrapper
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Build the desktop app (release)
-build-desktop:
-    cd desktop && cargo tauri build
+# Bundle web files into desktop/src-tauri/web/ (run before tauri build)
+bundle-web:
+    node scripts/bundle-web.js
+
+# Build the desktop app (bundles web + compiles Tauri)
+build-desktop: bundle-web
+    cd desktop && npx tauri build
 
 # Run the desktop app in dev mode (hot reload)
 dev-desktop:
-    cd desktop && cargo tauri dev
+    cd desktop && npx tauri dev
 
 # Check desktop app for Rust errors
 check-desktop:
     cd desktop/src-tauri && cargo check
+
+# Full release: bump version, bundle, build, ship
+# Usage: just release          → patch bump + build + ship
+#        just release minor    → minor bump + build + ship
+release kind="patch":
+    node scripts/bump-version.js {{kind}}
+    node scripts/bundle-web.js
+    just ship "Release v$(node -p \"require('./desktop/src-tauri/tauri.conf.json').version\")"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SHORTCUTS — convenience

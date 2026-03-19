@@ -98,4 +98,19 @@ if (dlUpdated === dlContent) {
   console.log(`  updated game/download.html  (${count} occurrence${count > 1 ? 's' : ''})`);
 }
 
+// 9. desktop/src-tauri/web/manifest.json — version field (if file exists)
+const manifestPath = path.join(ROOT, 'desktop/src-tauri/web/manifest.json');
+if (fs.existsSync(manifestPath)) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.version = newVersion;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
+    console.log('  updated desktop/src-tauri/web/manifest.json');
+  } catch (e) {
+    console.error(`  WARNING: could not update manifest.json: ${e.message}`);
+  }
+} else {
+  console.log('  skipped desktop/src-tauri/web/manifest.json (not found — run bundle-web first)');
+}
+
 console.log(`\nVersion bumped: ${oldVersion} -> ${newVersion}`);

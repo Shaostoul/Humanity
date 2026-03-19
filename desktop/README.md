@@ -1,16 +1,9 @@
-# HumanityOS Desktop App (HOS)
+# HumanityOS Desktop App
 
-A native desktop wrapper for [united-humanity.us](https://united-humanity.us) built with [Tauri v2](https://tauri.app/).
+Native desktop wrapper built with [Tauri v2](https://tauri.app/). Uses a local-first architecture: web assets are bundled into the binary so the app works offline, then syncs with the server when connected.
 
-The app loads the web client directly — updates to the web platform are instant, no app update needed.
+## Prerequisites
 
-## Download
-
-Pre-built binaries for Windows, macOS, and Linux are available on the [Releases page](https://github.com/Shaostoul/Humanity/releases/latest).
-
-## Building from Source
-
-### Prerequisites
 - [Rust](https://rustup.rs/) (stable)
 - [Node.js](https://nodejs.org/) 20+
 - Platform-specific dependencies:
@@ -18,15 +11,25 @@ Pre-built binaries for Windows, macOS, and Linux are available on the [Releases 
   - **macOS:** Xcode Command Line Tools
   - **Windows:** Visual Studio Build Tools with C++ workload
 
-### Build
+## Building
+
+From the repo root:
 
 ```bash
+just bundle-web          # copies web assets into desktop/src-tauri/web/
+just build-desktop       # runs bundle-web then compiles Tauri (release)
+```
+
+Or manually:
+
+```bash
+node scripts/bundle-web.js
 cd desktop
 npm install
 npx tauri build
 ```
 
-The built binary will be in `src-tauri/target/release/bundle/`.
+The built binary is in `src-tauri/target/release/bundle/`.
 
 ## Development
 
@@ -34,6 +37,37 @@ The built binary will be in `src-tauri/target/release/bundle/`.
 cd desktop
 npm install
 npx tauri dev
+```
+
+## How It Works
+
+### Local-first architecture
+
+The desktop app ships with all web assets (HTML, JS, CSS, images) bundled directly into the binary. This means:
+
+- **Offline-capable** -- the app loads instantly from local files, no network required.
+- **Deterministic** -- the exact version of the UI is pinned to the release, no CDN surprises.
+- **Syncable** -- when online, the app connects to `united-humanity.us` via WebSocket to sync data (messages, tasks, vault, etc.).
+
+### Build pipeline
+
+1. `scripts/bundle-web.js` copies all web assets (chat client, shared files, pages, etc.) into `desktop/src-tauri/web/`.
+2. Tauri's `frontendDist` in `tauri.conf.json` points to `../web`, so the bundled assets become the app's UI.
+3. The `web/` directory is gitignored -- it's regenerated on every build.
+
+### Web sync
+
+The app connects to the relay server (`united-humanity.us/ws`) for real-time data. If the server is unreachable, the app continues working with cached local data. When connectivity returns, it reconnects and syncs automatically.
+
+### Version management
+
+`just bump` (or `node scripts/bump-version.js`) updates version strings across all locations, including the local manifest in `web/manifest.json` if it exists.
+
+## Full Release
+
+```bash
+just release             # patch bump + bundle + build + ship
+just release minor       # minor bump + bundle + build + ship
 ```
 
 ## Icons
@@ -45,14 +79,6 @@ cd desktop
 npx tauri icon ../crates/humanity-relay/client/favicon.svg
 ```
 
-This requires the SVG to be converted to a 1024x1024 PNG first. You can use:
-
-```bash
-# Install rsvg-convert if needed: sudo apt install librsvg2-bin
-rsvg-convert -w 1024 -h 1024 ../crates/humanity-relay/client/favicon.svg > /tmp/icon.png
-npx tauri icon /tmp/icon.png
-```
-
 ## License
 
-CC0 — Public Domain
+CC0 -- Public Domain
