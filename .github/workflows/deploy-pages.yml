@@ -33,8 +33,9 @@ jobs:
           mkdir -p docs/website/_includes/canon
           rsync -a --delete docs/accord/ docs/website/_includes/canon/accord/
           rsync -a --delete docs/ --exclude=website/ --exclude=accord/ docs/website/_includes/canon/docs/
-          # Symlink docs as design for backward-compat with existing wrapper pages
-          ln -s docs docs/website/_includes/canon/design
+          # Copy docs as design/ too — backward-compat with existing wrapper pages
+          # (symlinks are forbidden in Jekyll safe mode)
+          rsync -a --delete docs/ --exclude=website/ --exclude=accord/ docs/website/_includes/canon/design/
           # Copy select root .md files as reference docs
           mkdir -p docs/website/_includes/canon/reference
           for f in SECURITY_AUDIT.md CONTRIBUTING.md README.md; do
