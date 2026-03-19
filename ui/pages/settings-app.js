@@ -3,6 +3,20 @@ const STORAGE_KEY = window.HOS_STORAGE_KEY || 'humanity_settings';
 
 let prefs = Object.assign({}, DEFAULTS);
 
+// crypto.js functions reference myIdentity/myName globals (set by app.js on the chat page).
+// Settings loads crypto.js but not app.js, so we initialize them here from stored keys.
+var myIdentity = null;
+var myName = localStorage.getItem('humanity_name') || 'identity';
+(async function initSettingsIdentity() {
+  if (typeof getOrCreateIdentity === 'function') {
+    try {
+      myIdentity = await getOrCreateIdentity();
+    } catch(e) {
+      console.warn('Settings: could not load identity:', e);
+    }
+  }
+})();
+
 function loadPrefs() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -656,7 +670,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.15.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.15.1 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
