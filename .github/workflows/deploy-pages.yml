@@ -29,16 +29,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf website/_includes/canon
-          mkdir -p website/_includes/canon
-          rsync -a --delete accord/ website/_includes/canon/accord/
-          rsync -a --delete docs/ website/_includes/canon/docs/
+          rm -rf docs/website/_includes/canon
+          mkdir -p docs/website/_includes/canon
+          rsync -a --delete docs/accord/ docs/website/_includes/canon/accord/
+          rsync -a --delete docs/ --exclude=website/ --exclude=accord/ docs/website/_includes/canon/docs/
           # Symlink docs as design for backward-compat with existing wrapper pages
-          ln -s docs website/_includes/canon/design
+          ln -s docs docs/website/_includes/canon/design
           # Copy select root .md files as reference docs
-          mkdir -p website/_includes/canon/reference
+          mkdir -p docs/website/_includes/canon/reference
           for f in SECURITY_AUDIT.md CONTRIBUTING.md README.md; do
-            [ -f "$f" ] && cp "$f" website/_includes/canon/reference/
+            [ -f "$f" ] && cp "$f" docs/website/_includes/canon/reference/
           done
 
       # Hard fail early if the expected include targets are missing.
@@ -46,10 +46,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f website/_includes/canon/accord/humanity_accord.md
-          test -f website/_includes/canon/docs/core/architecture.md
-          test -f website/_includes/canon/docs/00-START-HERE.md
-          test -f website/_includes/canon/reference/README.md
+          test -f docs/website/_includes/canon/accord/humanity_accord.md
+          test -f docs/website/_includes/canon/docs/core/architecture.md
+          test -f docs/website/_includes/canon/docs/00-START-HERE.md
+          test -f docs/website/_includes/canon/reference/README.md
 
 
       # Debug dump: if the build fails, you can see what Jekyll actually had.
@@ -57,19 +57,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== website/_layouts ==="
-          ls -la website/_layouts || true
-          echo "=== website root ==="
-          ls -la website
-          echo "=== website/_includes/canon ==="
-          find website/_includes/canon -maxdepth 3 -type f -print
+          echo "=== docs/website/_layouts ==="
+          ls -la docs/website/_layouts || true
+          echo "=== docs/website root ==="
+          ls -la docs/website
+          echo "=== docs/website/_includes/canon ==="
+          find docs/website/_includes/canon -maxdepth 3 -type f -print
 
 
       # Official GitHub Pages Jekyll build action
       - name: Build with Jekyll (Pages)
         uses: actions/jekyll-build-pages@v1
         with:
-          source: website
+          source: docs/website
           destination: ./_site
 
       - name: Upload artifact
