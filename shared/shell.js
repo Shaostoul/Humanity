@@ -723,7 +723,7 @@
   footerEl.innerHTML =
     '<button class="footer-toggle" id="footer-toggle" aria-label="Toggle footer">▲</button>' +
     '<div class="footer-content" id="footer-content">' +
-      '<span>HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
+      '<span id="hos-footer-label">HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
       '<div class="footer-links">' +
         '<a href="https://github.com/Shaostoul/Humanity" target="_blank">' + ghIcon + ' GitHub</a>' +
       '</div>' +
@@ -1000,7 +1000,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.8.1';
+    var CURRENT_VERSION = '0.9.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -1068,6 +1068,14 @@
           });
         }
       });
+    }
+
+    // Show version info in footer when running in desktop app
+    var footerLabel = document.getElementById('hos-footer-label');
+    if (footerLabel && window.__HOS_APP_VERSION) {
+      footerLabel.innerHTML = 'HumanityOS — App v' + window.__HOS_APP_VERSION +
+        ' · Web v' + CURRENT_VERSION +
+        ' — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a>';
     }
 
     // Delay the check so it doesn't compete with page load.

@@ -7,13 +7,21 @@ use tauri_plugin_updater::UpdaterExt;
 /// Tracks whether an update is available (version string).
 struct UpdateState(Mutex<Option<String>>);
 
+/// The app's own domain — all navigation here stays in the webview.
+const APP_HOST: &str = "united-humanity.us";
+
 /// JS injected before every page runs.
-/// F12            → open DevTools
-/// Ctrl+Shift+Del → clear all SW caches and hard-reload (fixes stale pages after a deploy)
+/// - F12            → open DevTools
+/// - Ctrl+Shift+Del → clear all SW caches and hard-reload
+/// - Intercepts link clicks to external sites → opens in system browser
 const INIT_SCRIPT: &str = r#"
 (function () {
     if (window.__HOS_APP_INIT__) return;
     window.__HOS_APP_INIT__ = true;
+
+    // Mark that we're running inside the desktop app
+    window.__HOS_DESKTOP__ = true;
+
     document.addEventListener('keydown', async function (e) {
         // F12 — open DevTools
         if (e.key === 'F12') {
@@ -32,6 +40,29 @@ const INIT_SCRIPT: &str = r#"
             location.reload(true);
         }
     });
+
+    // Intercept clicks on external links — open in system browser instead of webview
+    document.addEventListener('click', function (e) {
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+
+        var href = link.href;
+        if (!href) return;
+
+        try {
+            var url = new URL(href);
+            // If it's an external domain (not our app), open in system browser
+            if (url.hostname && url.hostname !== 'united-humanity.us' && url.hostname !== 'localhost') {
+                e.preventDefault();
+                e.stopPropagation();
+                window.__TAURI__?.core?.invoke('open_external_url', { url: href }).catch(function(err) {
+                    console.error('Failed to open external URL:', err);
+                });
+            }
+        } catch (_) {
+            // Not a valid URL, let default handling proceed
+        }
+    }, true); // Use capture phase to intercept before other handlers
 })();
 "#;
 
@@ -39,6 +70,12 @@ const INIT_SCRIPT: &str = r#"
 #[tauri::command]
 fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
+}
+
+/// Called from JS to open a URL in the system's default browser.
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    open::that(&url).map_err(|e| format!("Failed to open URL: {e}"))
 }
 
 /// Called from JS when user clicks the download/update button.
@@ -60,8 +97,9 @@ async fn install_update(app: tauri::AppHandle) -> Result<String, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
         .manage(UpdateState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![open_devtools, install_update])
+        .invoke_handler(tauri::generate_handler![open_devtools, install_update, open_external_url])
         .setup(|app| {
             let version = app.config().version.clone().unwrap_or_else(|| "dev".to_string());
 
@@ -77,6 +115,10 @@ fn main() {
             .devtools(true)
             .initialization_script(INIT_SCRIPT)
             .build()?;
+
+            // Inject the app binary version into the webview for display
+            let ver_js = format!("window.__HOS_APP_VERSION = '{}';", version);
+            let _ = window.eval(&ver_js);
 
             // ── Background update check: notify webview if update exists ──
             let handle = app.handle().clone();
@@ -102,7 +144,7 @@ fn main() {
                                 );
                                 let _ = win_clone.eval(&js);
 
-                                // Update title bar.
+                                // Update title bar with both versions.
                                 let current = handle.config().version.clone().unwrap_or_default();
                                 let _ = win_clone.set_title(&format!(
                                     "Humanity — v{current} (v{new_version} ready)"
