@@ -167,7 +167,7 @@
     <div class="dl-hero">
       <h1>Download <em>Humanity</em></h1>
       <p>Your launcher for the civilization operating system. Download once — modules extend it with games, tools, and integrations.</p>
-      <span class="version-badge" id="version-badge">Desktop: v0.8.0 · Web: always latest</span>
+      <span class="version-badge" id="version-badge">Desktop: v0.8.1 · Web: always latest</span>
     </div>
 
     <!-- Auto-detected platform -->
@@ -525,7 +525,7 @@ npx tauri build</code></pre>
       if (['windows', 'macos', 'linux'].includes(os)) {
         btn.textContent = 'Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
-        sub.textContent = 'Downloads from GitHub Releases · v0.8.0';
+        sub.textContent = 'Downloads from GitHub Releases · v0.8.1';
       } else if (['android', 'ios'].includes(os)) {
         btn.textContent = 'Install as PWA';
         btn.href = '/chat';
@@ -539,20 +539,77 @@ npx tauri build</code></pre>
 
     detectPlatform();
 
-    // ── Fetch latest version from GitHub Releases ──
-    fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
-      .then(function(r) { return r.json(); })
-      .then(function(d) {
-        if (d && d.tag_name) {
-          var v = d.tag_name.replace(/^v/, '');
-          document.getElementById('version-badge').textContent = 'Desktop: v' + v + ' · Web: always latest';
-          var sub = document.getElementById('detected-sub');
-          if (sub && sub.textContent.includes('v0.5.1')) {
-            sub.textContent = sub.textContent.replace('v0.5.1', 'v' + v);
-          }
+    // ── Tauri desktop app: override download button to use built-in updater ──
+    (function tauriUpdateIntegration() {
+      var isTauri = !!(window.__TAURI__?.core?.invoke);
+      if (!isTauri) return;
+
+      var btn = document.getElementById('detected-download');
+      var sub = document.getElementById('detected-sub');
+      if (!btn) return;
+
+      // Check if update is ready (set by main.rs background check)
+      function setupUpdate() {
+        if (window.__HOS_UPDATE_READY) {
+          var ver = window.__HOS_UPDATE_VERSION || 'new version';
+          btn.textContent = 'Install v' + ver;
+          btn.href = '#';
+          btn.removeAttribute('target');
+          if (sub) sub.textContent = 'Click to download and install automatically';
+
+          btn.onclick = function(e) {
+            e.preventDefault();
+            btn.textContent = 'Downloading...';
+            btn.style.opacity = '0.7';
+            btn.style.pointerEvents = 'none';
+            if (sub) sub.textContent = 'Installing update — app will restart when done';
+
+            window.__TAURI__.core.invoke('install_update')
+              .then(function(v) {
+                btn.textContent = 'Installed v' + v + '!';
+                if (sub) sub.textContent = 'Restarting...';
+              })
+              .catch(function(err) {
+                btn.textContent = 'Update failed — retry?';
+                btn.style.opacity = '1';
+                btn.style.pointerEvents = 'auto';
+                if (sub) sub.textContent = err || 'Unknown error';
+                console.error('Update install failed:', err);
+              });
+          };
+        } else {
+          btn.textContent = 'App is up to date';
+          btn.href = '#';
+          btn.removeAttribute('target');
+          btn.style.opacity = '0.6';
+          if (sub) sub.textContent = 'Updates are checked automatically on launch';
         }
-      })
-      .catch(function() { /* use fallback version */ });
+      }
+
+      // Poll for Tauri's background update check (fires ~5s after launch)
+      var attempts = 0;
+      var poll = setInterval(function() {
+        attempts++;
+        if (window.__HOS_UPDATE_READY || attempts > 15) {
+          clearInterval(poll);
+          setupUpdate();
+        }
+      }, 1000);
+      setupUpdate(); // Try immediately too
+    })();
+
+    // ── Fetch latest version from GitHub Releases (web only) ──
+    if (!window.__TAURI__) {
+      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d && d.tag_name) {
+            var v = d.tag_name.replace(/^v/, '');
+            document.getElementById('version-badge').textContent = 'Desktop: v' + v + ' · Web: always latest';
+          }
+        })
+        .catch(function() { /* use fallback version */ });
+    }
   </script>
 </body>
 </html>

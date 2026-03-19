@@ -79,7 +79,14 @@ replaceInFile(
   `'v${newVersion}'`
 );
 
-// 7. game/download.html — version badge and subtitle (two locations)
+// 7. shared/shell.js — CURRENT_VERSION = 'X.Y.Z'
+replaceInFile(
+  'shared/shell.js',
+  `var CURRENT_VERSION = '${oldVersion}'`,
+  `var CURRENT_VERSION = '${newVersion}'`
+);
+
+// 8. game/download.html — version badge and subtitle (two locations)
 const dlPath = path.join(ROOT, 'game/download.html');
 let dlContent = fs.readFileSync(dlPath, 'utf8');
 const dlUpdated = dlContent.split(`v${oldVersion}`).join(`v${newVersion}`);

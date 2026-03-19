@@ -1000,7 +1000,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.5.0';
+    var CURRENT_VERSION = '0.8.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -1021,10 +1021,10 @@
       dlTab.classList.add('tab-update-ready');
       dlTab.setAttribute('data-tip', 'Update Available! v' + latestTag.replace(/^v/, ''));
 
-      // Override click: go to GitHub release directly instead of /download page.
+      // Override click: navigate to download page where the update flow lives.
       dlTab.addEventListener('click', function(e) {
         e.preventDefault();
-        window.open('https://github.com/Shaostoul/Humanity/releases/latest', '_blank');
+        window.location.href = '/download';
       });
     }
 
