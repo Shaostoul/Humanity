@@ -28,14 +28,14 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        working-directory: desktop
+        working-directory: app
         run: npm install
 
       - name: Bundle web assets for local-first desktop
         run: node scripts/bundle-web.js
 
       - name: Build Tauri app (Windows)
-        working-directory: desktop
+        working-directory: app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: humanity-windows-x64
-          path: desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*
+          path: app/target/x86_64-pc-windows-msvc/release/bundle/**/*
 
       - name: Publish Windows to Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -54,10 +54,10 @@ jobs:
           draft: false
           generate_release_notes: false
           files: |
-            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
-            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe.sig
-            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi
-            desktop/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi.sig
+            app/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe
+            app/target/x86_64-pc-windows-msvc/release/bundle/**/*.exe.sig
+            app/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi
+            app/target/x86_64-pc-windows-msvc/release/bundle/**/*.msi.sig
 
   # ── Other platforms only run if Windows gate passed ─────────────────────────
   build-others:
@@ -99,14 +99,14 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
-        working-directory: desktop
+        working-directory: app
         run: npm install
 
       - name: Bundle web assets for local-first desktop
         run: node scripts/bundle-web.js
 
       - name: Build Tauri app
-        working-directory: desktop
+        working-directory: app
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -116,7 +116,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: humanity-${{ matrix.label }}
-          path: desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*
+          path: app/target/${{ matrix.target }}/release/bundle/**/*
 
       - name: Publish to Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -125,12 +125,12 @@ jobs:
           draft: false
           generate_release_notes: false
           files: |
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.tar.gz
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.tar.gz.sig
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage.sig
-            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            app/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            app/target/${{ matrix.target }}/release/bundle/**/*.tar.gz
+            app/target/${{ matrix.target }}/release/bundle/**/*.tar.gz.sig
+            app/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            app/target/${{ matrix.target }}/release/bundle/**/*.AppImage.sig
+            app/target/${{ matrix.target }}/release/bundle/**/*.deb
 
   # ── Generate latest.json for auto-updater ───────────────────────────────────
   publish-update:

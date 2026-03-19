@@ -47,21 +47,20 @@ Broad areas that always need help:
 
 ```
 Humanity/
-├── ui/
-│   ├── shared/
-│   │   ├── shell.js        ← Nav bar shared by every page — edit here to add nav items
-│   │   ├── settings.js     ← Theme/font persistence
-│   │   └── theme.css       ← CSS variables (colors, fonts, spacing)
-│   ├── chat/               ← Chat page + all chat JS/CSS
+├── ui/                 ← Application interface (browser + Tauri WebView + in-game GUI)
+│   ├── chat/           ← Chat page + all chat JS/CSS
 │   │   ├── index.html
 │   │   ├── app.js          ← Core: state, connect, handleMessage, sendMessage
 │   │   ├── chat-*.js       ← Feature modules (messages, dms, social, ui, voice, profile, p2p)
 │   │   ├── crypto.js       ← Ed25519/ECDH/AES
 │   │   └── *.css           ← 7 component CSS files (base, layout, sidebar, messages, etc.)
-│   ├── pages/              ← Standalone pages (tasks, maps, settings, etc.)
-│   └── activities/         ← Game + real-world tools (gardening, download, etc.)
-│       ├── js/             ← Game JS modules (core, reality, fantasy, celestial, streams, browse, map)
-├── server/                 ← Rust relay server
+│   ├── pages/          ← Standalone pages (tasks, maps, settings, etc.)
+│   ├── activities/     ← Game + real-world tools (gardening, download, etc.)
+│   └── shared/
+│       ├── shell.js        ← Nav bar shared by every page — edit here to add nav items
+│       ├── settings.js     ← Theme/font persistence
+│       └── theme.css       ← CSS variables (colors, fonts, spacing)
+├── server/             ← Rust relay server
 │   └── src/
 │       ├── main.rs         ← Router, startup, axum
 │       ├── relay.rs        ← WebSocket message handling (~5600 lines)
@@ -71,13 +70,14 @@ Humanity/
 │       │   └── utils.rs
 │       ├── storage/        ← SQLite domain modules (14 files)
 │       └── api.rs          ← HTTP REST API
-├── engine/                 ← Game engine (renderer, ECS, physics, etc.)
-├── data/                   ← Static JSON data (solar system, stars, cities, etc.)
-├── assets/                 ← All shared media (icons, shaders, models, textures, audio)
-├── docs/
-│   └── accord/             ← Humanity Accord — civilizational principles (highest authority)
-│   └── design/             ← Architecture and design docs
-└── app/                    ← Tauri v2 desktop app
+├── engine/             ← Rust game engine + systems
+│   ├── src/            ← Renderer, ECS, physics, audio, input, hot-reload
+│   ├── crates/         ← 19 sub-crates (core, modules, persistence)
+│   └── src/systems/    ← Game systems (farming, construction, inventory, etc.)
+├── data/               ← Hot-reloadable game data (CSV, TOML, RON, JSON)
+├── assets/             ← All shared media (icons, shaders, models, textures, audio)
+├── docs/               ← All docs (design, accord, history, website)
+└── app/                ← Tauri v2 desktop app
 ```
 
 ---
@@ -94,7 +94,7 @@ Every page follows the same pattern. Copy an existing simple page (like `logbook
    ```
    The `data-active` value is a short identifier used to highlight the nav button.
 
-2. **Add the nav button** in `ui/shared/shell.js` (two places):
+2. **Add the nav button** in `shared/shell.js` (two places):
    ```js
    // Desktop nav (around line 394):
    navTab('/yourpage', 'icon.png', 'Your Page', 'yourkey') +
@@ -182,11 +182,11 @@ cargo run -p humanity-relay
 
 This repo follows a layered authority model. Lower layers cannot contradict higher layers:
 
-1. **`docs/accord/`** — Civilizational principles. The highest authority. Changes require deep justification.
-2. **`docs/design/`** — Technical architecture and system constraints. Changes need design rationale.
+1. **`accord/`** — Civilizational principles. The highest authority. Changes require deep justification.
+2. **`design/`** — Technical architecture and system constraints. Changes need design rationale.
 3. **Code and content** — Implementation. Must conform to the layers above.
 
-In practice: if you're adding a feature, check `docs/design/` for relevant specs. If you're changing something that might conflict with the Accord, read it first.
+In practice: if you're adding a feature, check `design/` for relevant specs. If you're changing something that might conflict with the Accord, read it first.
 
 ---
 

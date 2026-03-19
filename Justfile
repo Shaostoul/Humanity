@@ -66,12 +66,18 @@ sync:
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
         cargo build --release --bin humanity-relay 2>&1 | tail -4 && \
-        rsync -a --delete /opt/Humanity/crates/humanity-relay/client/ /var/www/humanity/chat/ && \
-        rsync -a /opt/Humanity/shared/ /var/www/humanity/shared/ && \
+        rsync -a --delete /opt/Humanity/ui/chat/ /var/www/humanity/chat/ && \
+        rsync -a /opt/Humanity/ui/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
-        for f in /opt/Humanity/*.html; do \
+        mkdir -p /var/www/humanity/pages /var/www/humanity/activities /var/www/humanity/data && \
+        for f in /opt/Humanity/ui/pages/*.html; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
         done && \
+        for f in /opt/Humanity/ui/pages/*.js; do \
+            [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/pages/\$(basename \"\$f\")\"; \
+        done && \
+        rsync -a /opt/Humanity/ui/activities/ /var/www/humanity/activities/ && \
+        rsync -a --include='*.json' --exclude='*' /opt/Humanity/data/ /var/www/humanity/data/ && \
         systemctl restart humanity-relay && \
         sleep 2 && systemctl is-active humanity-relay \
     "
@@ -86,12 +92,18 @@ sync-web:
         git fetch origin main && \
         git reset --hard origin/main && \
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
-        rsync -a --delete /opt/Humanity/crates/humanity-relay/client/ /var/www/humanity/chat/ && \
-        rsync -a /opt/Humanity/shared/ /var/www/humanity/shared/ && \
+        rsync -a --delete /opt/Humanity/ui/chat/ /var/www/humanity/chat/ && \
+        rsync -a /opt/Humanity/ui/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
-        for f in /opt/Humanity/*.html; do \
+        mkdir -p /var/www/humanity/pages /var/www/humanity/activities /var/www/humanity/data && \
+        for f in /opt/Humanity/ui/pages/*.html; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
-        done \
+        done && \
+        for f in /opt/Humanity/ui/pages/*.js; do \
+            [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/pages/\$(basename \"\$f\")\"; \
+        done && \
+        rsync -a /opt/Humanity/ui/activities/ /var/www/humanity/activities/ && \
+        rsync -a --include='*.json' --exclude='*' /opt/Humanity/data/ /var/www/humanity/data/ \
     "
     @echo "✓ Web assets synced (relay not restarted)."
 
@@ -213,21 +225,21 @@ clippy:
 # DESKTOP APP — local-first Tauri wrapper
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Bundle web files into desktop/src-tauri/web/ (run before tauri build)
+# Bundle web files into app/web/ (run before tauri build)
 bundle-web:
     node scripts/bundle-web.js
 
 # Build the desktop app (bundles web + compiles Tauri)
 build-desktop: bundle-web
-    cd desktop && npx tauri build
+    cd app && npx tauri build
 
 # Run the desktop app in dev mode (hot reload)
 dev-desktop:
-    cd desktop && npx tauri dev
+    cd app && npx tauri dev
 
 # Check desktop app for Rust errors
 check-desktop:
-    cd desktop/src-tauri && cargo check
+    cd app && cargo check
 
 # Full release: bump version, bundle, build, ship
 # Usage: just release          → patch bump + build + ship
@@ -235,7 +247,7 @@ check-desktop:
 release kind="patch":
     node scripts/bump-version.js {{kind}}
     node scripts/bundle-web.js
-    just ship "Release v$(node -p \"require('./desktop/src-tauri/tauri.conf.json').version\")"
+    just ship "Release v$(node -p \"require('./app/tauri.conf.json').version\")"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SHORTCUTS — convenience

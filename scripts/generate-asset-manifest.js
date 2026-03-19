@@ -5,10 +5,10 @@
  * Usage: node scripts/generate-asset-manifest.js > asset-manifest.json
  *
  * Categories:
- *   icons-png  — assets/ui/icons/*.png
- *   icons-svg  — assets/ui/icons/*.svg
+ *   icons-png  — assets/icons/*.png
+ *   icons-svg  — assets/icons/*.svg
  *   concepts   — assets/concepts/*
- *   app-icons  — shared/icons/*, desktop/src-tauri/icons/*, client favicons
+ *   app-icons  — ui/shared/icons/*, app/icons/*, client favicons
  */
 
 const fs = require('fs');
@@ -40,13 +40,13 @@ const manifest = {
   categories: {
     'icons-png': {
       label: 'PNG Icons',
-      dir: 'assets/ui/icons',
-      assets: scanDir('assets/ui/icons', f => f.endsWith('.png')),
+      dir: 'assets/icons',
+      assets: scanDir('assets/icons', f => f.endsWith('.png')),
     },
     'icons-svg': {
       label: 'SVG Icons',
-      dir: 'assets/ui/icons',
-      assets: scanDir('assets/ui/icons', f => f.endsWith('.svg')),
+      dir: 'assets/icons',
+      assets: scanDir('assets/icons', f => f.endsWith('.svg')),
     },
     'concepts': {
       label: 'Concept Art',
@@ -55,11 +55,11 @@ const manifest = {
     },
     'app-icons': {
       label: 'App Icons',
-      dirs: ['shared/icons', 'desktop/src-tauri/icons', 'crates/humanity-relay/client'],
+      dirs: ['ui/shared/icons', 'app/icons', 'ui/chat'],
       assets: [
-        ...scanDir('shared/icons'),
-        ...scanDir('desktop/src-tauri/icons'),
-        ...scanDir('crates/humanity-relay/client', f => /^favicon\./i.test(f)),
+        ...scanDir('ui/shared/icons'),
+        ...scanDir('app/icons'),
+        ...scanDir('ui/chat', f => /^favicon\./i.test(f)),
       ],
     },
   },

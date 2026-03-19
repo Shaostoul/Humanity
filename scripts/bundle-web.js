@@ -2,7 +2,7 @@
 /**
  * bundle-web.js — Build a local web bundle for desktop offline mode.
  *
- * Copies all web-servable files into desktop/src-tauri/web/ and generates
+ * Copies all web-servable files into app/web/ and generates
  * a manifest.json with SHA-256 hashes so the desktop app can compare
  * local vs remote for background sync.
  */
@@ -12,17 +12,17 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ROOT = path.resolve(__dirname, '..');
-const OUT = path.join(ROOT, 'desktop', 'src-tauri', 'web');
+const OUT = path.join(ROOT, 'app', 'web');
 
 // Source directories to bundle: [src relative to ROOT, dest relative to OUT, extensions]
 const SOURCES = [
-  { src: 'shared',                          dest: 'shared',           exts: ['.js', '.css', '.json'] },
-  { src: 'shared/icons',                    dest: 'shared/icons',     exts: ['.png', '.svg', '.ico'] },
-  { src: 'pages',                           dest: 'pages',            exts: ['.html', '.js', '.css'] },
-  { src: 'game',                            dest: 'game',             exts: ['.html'] },
-  { src: 'game/js',                         dest: 'game/js',          exts: ['.js'] },
-  { src: 'crates/humanity-relay/client',    dest: 'client',           exts: ['.html', '.js', '.css', '.ico', '.png', '.svg'] },
-  { src: 'assets/ui/icons',                 dest: 'assets/ui/icons',  exts: ['.png', '.svg'] },
+  { src: 'ui/shared',                        dest: 'shared',           exts: ['.js', '.css', '.json'] },
+  { src: 'ui/shared/icons',                  dest: 'shared/icons',     exts: ['.png', '.svg', '.ico'] },
+  { src: 'ui/pages',                         dest: 'pages',            exts: ['.html', '.js', '.css'] },
+  { src: 'ui/activities',                    dest: 'game',             exts: ['.html'] },
+  { src: 'ui/activities/js',                 dest: 'game/js',          exts: ['.js'] },
+  { src: 'ui/chat',                          dest: 'client',           exts: ['.html', '.js', '.css', '.ico', '.png', '.svg'] },
+  { src: 'assets/icons',                      dest: 'assets/icons',     exts: ['.png', '.svg'] },
 ];
 
 function sha256(buffer) {
@@ -96,7 +96,7 @@ const totalSize = allFiles.reduce((sum, f) => sum + f.size, 0);
 // Read version from tauri.conf.json.
 let version = '0.0.0';
 try {
-  const conf = JSON.parse(fs.readFileSync(path.join(ROOT, 'desktop', 'src-tauri', 'tauri.conf.json'), 'utf8'));
+  const conf = JSON.parse(fs.readFileSync(path.join(ROOT, 'app', 'tauri.conf.json'), 'utf8'));
   version = conf.version || version;
 } catch { /* use fallback */ }
 

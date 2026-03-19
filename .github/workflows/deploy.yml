@@ -38,10 +38,10 @@ jobs:
 
             # Sync web assets
             rsync -a --delete \
-              /opt/Humanity/crates/humanity-relay/client/ \
+              /opt/Humanity/ui/chat/ \
               /var/www/humanity/chat/
             rsync -a \
-              /opt/Humanity/shared/ \
+              /opt/Humanity/ui/shared/ \
               /var/www/humanity/shared/
             rsync -a \
               /opt/Humanity/assets/ \
@@ -52,18 +52,25 @@ jobs:
               rm -f "/var/www/humanity/${old}.html"
             done
 
-            # Copy all standalone pages from pages/ folder
-            for f in /opt/Humanity/pages/*.html; do
+            # Copy all standalone pages (HTML + JS) from pages/ folder
+            mkdir -p /var/www/humanity/pages
+            for f in /opt/Humanity/ui/pages/*.html; do
               [ -f "$f" ] && cp "$f" "/var/www/humanity/$(basename "$f")"
             done
+            for f in /opt/Humanity/ui/pages/*.js; do
+              [ -f "$f" ] && cp "$f" "/var/www/humanity/pages/$(basename "$f")"
+            done
 
-            # Sync subdirectory pages (game/, etc.)
-            for dir in game; do
-              if [ -d "/opt/Humanity/$dir" ]; then
+            # Sync activities and data directories
+            for dir in activities; do
+              if [ -d "/opt/Humanity/ui/$dir" ]; then
                 mkdir -p "/var/www/humanity/$dir"
-                rsync -a /opt/Humanity/$dir/ /var/www/humanity/$dir/
+                rsync -a /opt/Humanity/ui/$dir/ /var/www/humanity/$dir/
               fi
             done
+            mkdir -p /var/www/humanity/data
+            rsync -a --include='*.json' --exclude='*' \
+              /opt/Humanity/data/ /var/www/humanity/data/
 
             # Graceful restart
             systemctl restart humanity-relay

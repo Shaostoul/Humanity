@@ -48,7 +48,7 @@ What's solid and working:
 What's actively being built:
 - The standalone pages (home, profile, skills, etc.) — most exist as stubs that need content
 - Federation Phase 2 — cross-server identity and room directory
-- The game layer — game mechanics exist in `ui/activities/` and `engine/` but need more development
+- The game layer — game mechanics exist in `engine/` but need more development
 - Better onboarding for new users (which is why this document exists)
 
 What just happened (this session):
@@ -200,7 +200,7 @@ Pick the thing that matches your skills:
 - Mobile responsiveness is a constant need
 
 **For writers:**
-- The `docs/design/` directory has architecture docs that need updating
+- The `design/docs/` directory has architecture docs that need updating
 - Every page could use better help text and tooltips
 - The Knowledge page (`knowledge.html`) needs actual content
 
@@ -229,6 +229,6 @@ The best way to get your idea implemented is to implement it and submit a PR. Go
 - **Chat** — [united-humanity.us/chat](https://united-humanity.us/chat) — real-time, best for quick questions
 - **Discord** — [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC) — more structured discussion
 - **GitHub Issues** — for bugs and feature proposals
-- **This repo** — most architecture questions are answered in `docs/design/`
+- **This repo** — most architecture questions are answered in `design/docs/`
 
 Don't overthink it. Show up, ask questions, start somewhere small. The codebase is large but the concepts are straightforward once you see the patterns.

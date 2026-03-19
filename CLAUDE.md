@@ -29,22 +29,28 @@ Static HTML served by nginx from /var/www/humanity/
 
 | Path | Role |
 |------|------|
-| `crates/humanity-relay/src/relay.rs` | WS message routing, rate limiting, auth |
-| `crates/humanity-relay/src/api.rs` | REST API handlers |
-| `crates/humanity-relay/src/main.rs` | Router setup, CSP middleware, axum config |
-| `crates/humanity-relay/src/storage/` | 14 domain modules (messages, channels, tasks…) |
-| `crates/humanity-relay/src/handlers/` | broadcast.rs, federation.rs, utils.rs |
-| `crates/humanity-relay/client/app.js` | Core chat logic (~1700 LOC) |
-| `crates/humanity-relay/client/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
-| `crates/humanity-relay/client/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
-| `shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) — loaded before shell.js on every page |
-| `shared/shell.js` | Nav injection IIFE — loaded first on every page |
-| `shared/settings.js` | Settings panel + gear button (don't call injectGearButton on pages with shell.js) |
-| `desktop/src-tauri/src/main.rs` | Tauri wrapper — loads united-humanity.us |
-| `pages/*.html` | Standalone feature pages — vault, tasks, studio, etc. |
-| `docs/` | ALL documentation — design specs, guides, operations, schemas |
-| `accord/` | Humanity Accord governance docs (21 files) |
-| `website/` | Jekyll source for GitHub Pages (.io site) |
+| `server/src/relay.rs` | WS message routing, rate limiting, auth |
+| `server/src/api.rs` | REST API handlers |
+| `server/src/main.rs` | Router setup, CSP middleware, axum config |
+| `server/src/storage/` | 14 domain modules (messages, channels, tasks…) |
+| `server/src/handlers/` | broadcast.rs, federation.rs, msg_handlers.rs, utils.rs |
+| `engine/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload |
+| `engine/src/systems/` | Game systems: farming, construction, inventory, combat, etc. |
+| `engine/crates/` | 19 sub-crates (core, modules, persistence, etc.) |
+| `app/src/main.rs` | Tauri shell — local-first + background sync |
+| `app/src/storage.rs` | Local-first data persistence (saves, backups, USB detection, sync config) |
+| `ui/chat/app.js` | Core chat logic (~1700 LOC) |
+| `ui/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
+| `ui/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
+| `ui/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
+| `ui/shared/shell.js` | Nav injection IIFE — loaded first on every page |
+| `ui/shared/settings.js` | Settings panel + gear button |
+| `ui/pages/*.html` | Standalone feature pages — tasks, maps, settings, etc. |
+| `ui/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
+| `ui/activities/` | Game/real-world activities — gardening, download, etc. |
+| `assets/` | All shared media — icons, shaders, models, textures, audio |
+| `data/` | Hot-reloadable game data — CSV, TOML, RON, JSON |
+| `docs/` | ALL documentation — design, accord, history, website |
 | `Justfile` | Dev command runner — `just --list` for all recipes |
 
 ## Script load order (chat)
@@ -110,6 +116,15 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 
 **Multiple `impl Storage` blocks** across `storage/*.rs` — Rust allows this within one crate
 
+**Local-first storage** (app/src/storage.rs):
+OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
+- `identity/` — encrypted Ed25519 keys
+- `saves/` — named save slots (profile, inventory, farm, quests, skills, world)
+- `settings/` — preferences, sync config, display state
+- `cache/` — offline messages, avatars, manifests
+- `backups/` — timestamped snapshots (auto-rotate, keep last 5)
+Tauri commands: list_saves, create_save, delete_save, export_save, import_save, detect_drives, get_sync_config, set_sync_config, get_data_dir, get_storage_stats, create_backup, relocate_data
+
 ## Version SOP (MANDATORY before every push)
 
 **Semver rules:**
@@ -121,12 +136,13 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 1. Check current version: `gh release view --repo Shaostoul/Humanity --json tagName`
 2. Bump the patch (Y) for non-Rust changes, minor (X) for Rust changes
 3. Update ALL version strings (they MUST stay in sync):
-   - `desktop/src-tauri/tauri.conf.json` → `"version"`
-   - `desktop/src-tauri/Cargo.toml` → `version`
-   - `shared/sw.js` → `CACHE_NAME` (bump number)
-   - `pages/settings.html` → version tag text
-   - `pages/ops.html` → debug version text
-   - `game/download.html` → fallback version badge + subtitle
+   - `app/tauri.conf.json` → `"version"`
+   - `app/Cargo.toml` → `version`
+   - `ui/shared/sw.js` → `CACHE_NAME` (bump number)
+   - `ui/pages/settings-app.js` → version tag text
+   - `ui/pages/ops.html` → debug version text
+   - `ui/activities/download.html` → fallback version badge + subtitle
+   - `ui/shared/shell.js` → version string
 4. Commit the version bump IN the same commit (not separate)
 5. After push: `git tag vX.Y.Z && git push origin vX.Y.Z` (only if Rust changed or desktop release needed)
 

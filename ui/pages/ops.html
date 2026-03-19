@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width, initial-scale=1.0>
+  <title>Ops — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+
+    :root {
+  --bg: #0d0d0d;
+  --bg-panel: #141414;
+  --border: #222;
+  --accent: #22aa66;
+  --error: var(--danger, #e55);
+}
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; overflow-y: auto; padding: var(--space-xl) var(--space-2xl); max-width: 1200px; width: 100%; margin: 0 auto; }
+    .panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-2xl) var(--space-2xl); margin-bottom: var(--space-2xl); }
+    .panel h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: var(--space-md); }
+    .panel p { font-size: 0.85rem; color: var(--text-muted); margin-bottom: var(--space-lg); line-height: 1.5; }
+    a { color: var(--accent); }
+
+    .debug-info { display: grid; grid-template-columns: 140px 1fr; gap: var(--space-sm) var(--space-xl); font-size: 0.82rem; margin: var(--space-lg) 0; }
+    .debug-info dt { color: var(--text-muted); font-weight: 600; }
+    .debug-info dd { color: var(--text); font-family: monospace; word-break: break-all; }
+    .btn-grid { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin: var(--space-lg) 0 var(--space-xl); }
+    .btn-demo { display: flex; flex-direction: column; align-items: center; gap: var(--space-sm); }
+    .btn-label { font-size: 0.7rem; color: var(--text-muted); text-align: center; max-width: 110px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; min-width: 100px; min-height: 40px; padding: var(--space-md) var(--space-xl); font-size: 0.82rem; font-weight: 600; color: var(--text); background: var(--bg-panel); border: 1px solid var(--btn-clickable,#44cc66); border-radius: var(--radius); cursor: pointer; position: relative; transition: border-color 0.1s; }
+    .btn:hover { border-color: #4488ff; border-width: 2px; }
+    .btn-clickable { border-color: #44cc66; border-width: 1px; }
+    .btn-channeling { animation: rainbow-border 2s linear infinite; }
+    .btn-activated  { border-color: #ee3333; border-width: 5px; }
+    .btn-disabled   { border-color: var(--border); cursor: not-allowed; opacity: 0.5; }
+    .btn-cooldown   { border-color: #8844cc; border-width: 7px; }
+    .btn-cooldown-timer { position: absolute; font-size: 0.65rem; font-weight: 700; color: #c8a; }
+    .btn-cooldown-timer.top { top: 2px; left: 50%; transform: translateX(-50%); }
+    .btn-cooldown-timer.bottom { bottom: 2px; left: 50%; transform: translateX(-50%); }
+    @keyframes rainbow-border { 0%{border-color:#f44}16%{border-color:#f80}33%{border-color:#ff0}50%{border-color:#0f4}66%{border-color:#08f}83%{border-color:#80f}100%{border-color:#f44} }
+    h3 { font-size: 0.9rem; color: var(--text); margin: var(--space-xl) 0 var(--space-sm); }
+
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active=debug></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/eli5.js"></script>
+<div class="eli5-block">
+  <div class="eli5-simple">Behind-the-scenes info about how the app is running right now.</div>
+  <div class="eli5-expert">Diagnostic dashboard showing client state: identity keys, WebSocket connection status, localStorage usage, service worker version, cached assets, and browser capabilities. Useful for debugging connectivity and cache issues.</div>
+</div>
+<div id=page-app>
+<div class="panel">
+   <h2>🔧 System Information</h2>
+   <p>Version, connection status, and system diagnostics.</p>
+   <dl class="debug-info">
+    <dt>Client Version</dt>
+    <dd id="debug-version">—</dd>
+    <dt>Server</dt>
+    <dd id="debug-server">—</dd>
+    <dt>Connection</dt>
+    <dd id="debug-connection">Checking…</dd>
+    <dt>User Agent</dt>
+    <dd id="debug-ua">—</dd>
+    <dt>Screen</dt>
+    <dd id="debug-screen">—</dd>
+    <dt>Page Loaded</dt>
+    <dd id="debug-loaded">—</dd>
+   </dl>
+  </div>
+
+  <div class="panel">
+   <h2>🎨 Button Design System</h2>
+   <p>Interactive preview of all button states. These are the standard interaction patterns for the entire game UI.</p>
+
+   <h3>All States (static preview)</h3>
+   <div class="btn-grid">
+    <div class="btn-demo">
+     <button class="btn btn-clickable">Clickable</button>
+     <span class="btn-label">Default · 1px green</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-channeling">Channeling</button>
+     <span class="btn-label">Active/looping · 1px rainbow</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-activated">Activated</button>
+     <span class="btn-label">Pressed · 5px red</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-disabled">Disabled</button>
+     <span class="btn-label">Unclickable · 2px black</span>
+    </div>
+    <div class="btn-demo">
+     <button class="btn btn-cooldown">
+      Cooldown
+      <span class="btn-cooldown-timer top">3.2s</span>
+      <span class="btn-cooldown-timer bottom">3.2s</span>
+     </button>
+     <span class="btn-label">Waiting · 7px purple + timer</span>
+    </div>
+   </div>
+
+   <h3>Interactive Test — Hover &amp; Click</h3>
+   <p>Hover to see the blue border. Click and hold to see the red activated state.</p>
+   <div class="btn-grid">
+    <button class="btn" onclick="testBtnClick(this)">Hover / Click Me</button>
+    <button class="btn" onclick="testBtnClick(this)">Another Button</button>
+    <button class="btn" onclick="testBtnClick(this)">And Another</button>
+   </div>
+
+   <h3>Toggle Test — Click to Cycle States</h3>
+   <p>Click to cycle: clickable → channeling → activated → cooldown → clickable</p>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me</button>
+    <button class="btn btn-clickable" onclick="cycleState(this)">Cycle Me Too</button>
+    <button class="btn btn-clickable" onclick="cycleState(this)">And Me</button>
+   </div>
+
+   <h3>Cooldown Test — Click to Start Cooldown</h3>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="startCooldown(this, 5)">5s Cooldown</button>
+    <button class="btn btn-clickable" onclick="startCooldown(this, 10)">10s Cooldown</button>
+    <button class="btn btn-clickable" onclick="startCooldown(this, 3)">3s Cooldown</button>
+   </div>
+
+   <h3>Channeling Test — Click to Start/Stop</h3>
+   <div class="btn-grid">
+    <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel Me</button>
+    <button class="btn btn-clickable" onclick="toggleChannel(this)">Channel This</button>
+   </div>
+  </div>
+
+  <div class="panel">
+   <h2>🎨 Color Reference</h2>
+   <p>The visual language for button borders:</p>
+   <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-xl); margin-top: var(--space-md);">
+    <div style="padding:var(--space-md);border-left:3px solid #44cc66;background:rgba(68,204,102,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#44cc66;">Green 1px</strong> — Clickable / ready
+    </div>
+    <div style="padding:var(--space-md);border-left:3px solid #4488ff;background:rgba(68,136,255,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#4488ff;">Blue 3px</strong> — Hovered / focused
+    </div>
+    <div style="padding:var(--space-md);border-left:3px solid #ee3333;background:rgba(238,51,51,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#ee3333;">Red 5px</strong> — Activated / pressed
+    </div>
+    <div style="padding:var(--space-md);border-left:3px solid #222;background:rgba(0,0,0,0.1);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#666;">Black 2px</strong> — Disabled / locked
+    </div>
+    <div style="padding:var(--space-md);border-left:3px solid #8844cc;background:rgba(136,68,204,0.05);border-radius:4px;font-size:0.8rem;">
+     <strong style="color:#8844cc;">Purple 7px</strong> — Cooldown + timer
+    </div>
+    <div style="padding:var(--space-md);border-left:3px solid;border-image:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00) 1;background:rgba(255,255,255,0.03);border-radius:0 4px 4px 0;font-size:0.8rem;">
+     <strong style="background:linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Rainbow 1px</strong> — Channeling / active
+    </div>
+   </div>
+  </div>
+ </div>
+
+ <!-- ══════════════════════════════════════ -->
+ <!-- Dev Tools Reference -->
+ <!-- ══════════════════════════════════════ -->
+ <div class="panel" style="margin-top:var(--space-xl);">
+  <h2>⚡ Dev Command Runner (just)</h2>
+  <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:var(--space-lg);">Install: <code style="background:var(--bg);padding:2px 6px;border-radius:3px;">winget install Casey.Just</code> — then run from the repo root.</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md) var(--space-2xl);">
+
+   <div>
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Daily workflow</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
+     <span style="color:#4af;">just ship "message"</span> &nbsp;— commit + push + sync VPS<br>
+     <span style="color:#4af;">just sync</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— force-sync VPS (no commit)<br>
+     <span style="color:#4af;">just sync-web</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— HTML/JS/CSS only (fast)<br>
+     <span style="color:#4af;">just deploy "msg"</span> &nbsp;&nbsp;— push only, wait for CI<br>
+    </div>
+   </div>
+
+   <div>
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Status &amp; monitoring</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
+     <span style="color:#4af;">just status</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— git + CI + API health<br>
+     <span style="color:#4af;">just ci</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— recent CI deploy runs<br>
+     <span style="color:#4af;">just ping</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— is the site alive?<br>
+     <span style="color:#4af;">just logs</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— tail live server logs<br>
+    </div>
+   </div>
+
+   <div>
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Server &amp; database</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
+     <span style="color:#4af;">just server</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— SSH into VPS<br>
+     <span style="color:#4af;">just restart</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— restart relay (instant)<br>
+     <span style="color:#4af;">just db</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— SQLite shell on live DB<br>
+     <span style="color:#4af;">just sql "SELECT…"</span> — run query on live DB<br>
+    </div>
+   </div>
+
+   <div>
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Rust &amp; desktop</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
+     <span style="color:#4af;">just check</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— catch Rust errors fast<br>
+     <span style="color:#4af;">just build</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— build relay binary<br>
+     <span style="color:#4af;">just dev-desktop</span> &nbsp;&nbsp;&nbsp;— run Tauri app (dev)<br>
+     <span style="color:#4af;">just build-desktop</span> &nbsp;— build .exe installer<br>
+    </div>
+   </div>
+
+   <div>
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">Shortcuts</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
+     <span style="color:#4af;">just tasks</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— list tasks from API<br>
+     <span style="color:#4af;">just loc</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— lines of code breakdown<br>
+     <span style="color:#4af;">just grep "pattern"</span>— search all JS/RS/HTML<br>
+     <span style="color:#4af;">just open</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— open site in browser<br>
+    </div>
+   </div>
+
+   <div>
+    <div style="font-size:0.7rem;font-weight:700;letter-spacing:0.1em;color:var(--accent);text-transform:uppercase;margin-bottom:var(--space-md);">App cache (if UI looks wrong)</div>
+    <div style="font-family:monospace;font-size:0.82rem;line-height:1.9;color:var(--text-muted);">
+     <span style="color:#fa0;">Ctrl+Shift+Delete</span> — clear cache &amp; reload<br>
+     <span style="color:#fa0;">F12</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;— open DevTools<br>
+     <span style="color:#fa0;">Settings → Advanced</span>— Clear Cache button<br>
+     Manual: delete <code style="font-size:0.75rem;background:var(--bg);padding:1px 4px;border-radius:3px;">%LOCALAPPDATA%\HumanityOS\EBWebView\Default\Cache</code><br>
+    </div>
+   </div>
+
+  </div>
+ </div>
+
+ <!-- ══════════════════════════════════════ -->
+ <!-- Market Tab -->
+ <!-- ══════════════════════════════════════ -->
+</div>
+<script>
+
+(function() {
+  // Populate system info
+  const el = id => document.getElementById(id);
+  if (el('debug-version')) el('debug-version').textContent = 'v0.13.0';
+  if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
+  if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
+  if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';
+  if (el('debug-loaded'))  el('debug-loaded').textContent  = new Date().toISOString();
+  fetch('/api/stats').then(r => r.ok ? r.json() : null).then(data => {
+    if (!data) { if(el('debug-connection')) el('debug-connection').textContent = '⚠️ Server unreachable'; return; }
+    if(el('debug-connection')) el('debug-connection').textContent = '✅ Connected — ' + (data.online_users||0) + ' online';
+    if(el('debug-version') && data.version) el('debug-version').textContent = data.version;
+  }).catch(() => { if(el('debug-connection')) el('debug-connection').textContent = '❌ Cannot reach server'; });
+})();
+
+  const states = ['btn-clickable','btn-channeling','btn-activated','btn-cooldown'];
+
+  function testBtnClick(btn) {
+   const orig = btn.textContent;
+   btn.textContent = '✓ Clicked!';
+   setTimeout(() => { btn.textContent = orig; }, 800);
+  }
+  function cycleState(btn) {
+   const current = states.find(s => btn.classList.contains(s)) || 'btn-clickable';
+   const idx = states.indexOf(current);
+   const next = states[(idx + 1) % states.length];
+   states.forEach(s => btn.classList.remove(s));
+   btn.classList.add(next);
+   btn.querySelectorAll('.btn-cooldown-timer').forEach(t => t.remove());
+   if (next === 'btn-cooldown') {
+    btn.innerHTML = btn.textContent.replace(/[\d.]+s/g, '').trim();
+    const topT = document.createElement('span');
+    topT.className = 'btn-cooldown-timer top';
+    topT.textContent = '∞';
+    const botT = document.createElement('span');
+    botT.className = 'btn-cooldown-timer bottom';
+    botT.textContent = '∞';
+    btn.appendChild(topT);
+    btn.appendChild(botT);
+   }
+  }
+  function toggleChannel(btn) {
+   if (btn.classList.contains('btn-channeling')) {
+    btn.classList.remove('btn-channeling');
+    btn.classList.add('btn-clickable');
+   } else {
+    btn.classList.remove('btn-clickable');
+    btn.classList.add('btn-channeling');
+   }
+  }
+
+  function startCooldown(btn, seconds) {
+   if (btn.classList.contains('btn-cooldown')) return;
+   const originalText = btn.textContent;
+   btn.classList.remove('btn-clickable');
+   btn.classList.add('btn-cooldown');
+
+   const topT = document.createElement('span');
+   topT.className = 'btn-cooldown-timer top';
+   const botT = document.createElement('span');
+   botT.className = 'btn-cooldown-timer bottom';
+   btn.appendChild(topT);
+   btn.appendChild(botT);
+
+   let remaining = seconds;
+   const update = () => {
+    topT.textContent = remaining.toFixed(1) + 's';
+    botT.textContent = remaining.toFixed(1) + 's';
+   };
+   update();
+
+   const interval = setInterval(() => {
+    remaining -= 0.1;
+    if (remaining <= 0) {
+     clearInterval(interval);
+     btn.classList.remove('btn-cooldown');
+     btn.classList.add('btn-clickable');
+     topT.remove();
+     botT.remove();
+     btn.textContent = originalText;
+    } else {
+     update();
+    }
+   }, 100);
+  }
+</script>
+</body>
+</html>

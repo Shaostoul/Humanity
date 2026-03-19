@@ -2316,20 +2316,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "humanity-game"
-version = "0.1.0"
-dependencies = [
- "csv",
- "glam",
- "humanity-engine",
- "log",
- "rand 0.8.5",
- "ron",
- "serde",
- "toml",
-]
-
-[[package]]
 name = "humanity-relay"
 version = "0.1.0"
 dependencies = [

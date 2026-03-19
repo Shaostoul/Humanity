@@ -4,7 +4,7 @@
 **Author:** Shaostoul + Claude
 **Date:** 2026-03-18
 **Scope:** Civilization-scale platform design — the master reference for how HumanityOS operates as infrastructure for all of humanity.
-**Companion docs:** [engine-architecture.md](engine-architecture.md) (game engine), [../network/server_federation.md](../network/server_federation.md) (federation), [../01-VISION.md](../01-VISION.md) (mission), [../../accord/humanity_accord.md](../../accord/humanity_accord.md) (governance)
+**Companion docs:** [engine-architecture.md](engine-architecture.md) (game engine), [../network/server_federation.md](../network/server_federation.md) (federation), [../01-VISION.md](../01-VISION.md) (mission), [../accord/humanity_accord.md](../accord/humanity_accord.md) (governance)
 
 ---
 
@@ -319,7 +319,7 @@ The desktop app can host a local AI via Ollama, llama.cpp, or similar runtimes:
 
 ### Same Codebase, No Build Step
 
-The web app IS the desktop app's UI layer. The files in `crates/humanity-relay/client/` and `pages/` are served directly by nginx. There is no webpack, no vite, no npm, no transpilation. Plain HTML, plain JavaScript, plain CSS.
+The web app IS the desktop app's UI layer. The files in `ui/chat/` and `ui/pages/` are served directly by nginx. There is no webpack, no vite, no npm, no transpilation. Plain HTML, plain JavaScript, plain CSS.
 
 ```
 Browser
@@ -328,9 +328,9 @@ Browser
   │           crypto.js → events.js → app.js → chat-messages.js
   │           → chat-dms.js → chat-social.js → chat-ui.js
   │           → chat-voice.js → chat-profile.js → chat-p2p.js
-  ├── pages/*.html (standalone feature pages)
+  ├── ui/pages/*.html (standalone feature pages)
   │     └── Each page loads: events.js → shell.js → page-specific.js
-  └── shared/ (shell.js, events.js, settings.js — loaded on every page)
+  └── ui/shared/ (shell.js, events.js, settings.js — loaded on every page)
 ```
 
 ### Why No Build Step
@@ -648,7 +648,7 @@ Key Accord documents:
 - **Transparency Guarantees** — what must be visible and auditable
 - **Governance Models** — how communities make decisions
 
-See [accord/](../../accord/) for the complete text.
+See [accord/](../accord/) for the complete text.
 
 ### Reputation System
 
@@ -726,13 +726,13 @@ Semver with strict rules:
 
 Automated bump script (`node scripts/bump-version.js [patch|minor|major]`) updates all 7 locations:
 
-1. `desktop/src-tauri/tauri.conf.json` — `"version"`
-2. `desktop/src-tauri/Cargo.toml` — `version`
-3. `shared/sw.js` — `CACHE_NAME`
-4. `shared/settings-app.js` — version display
-5. `pages/ops.html` — debug version
-6. `shared/shell.js` — version reference
-7. `game/download.html` — fallback badge
+1. `app/tauri.conf.json` — `"version"`
+2. `app/Cargo.toml` — `version`
+3. `ui/shared/sw.js` — `CACHE_NAME`
+4. `ui/pages/settings-app.js` — version display
+5. `ui/pages/ops.html` — debug version
+6. `ui/shared/shell.js` — version reference
+7. `ui/activities/download.html` — fallback badge
 
 ### Scaling the Relay
 
@@ -899,7 +899,7 @@ This document is the top-level architectural reference. It connects to:
 | [../01-VISION.md](../01-VISION.md) | Mission statement and design doctrine |
 | [../02-ARCHITECTURE.md](../02-ARCHITECTURE.md) | Cargo workspace layout and crate layers |
 | [../roadmap.md](../roadmap.md) | Current feature priority list |
-| [../../accord/humanity_accord.md](../../accord/humanity_accord.md) | Governance principles |
+| [../accord/humanity_accord.md](../accord/humanity_accord.md) | Governance principles |
 | [../security/security_and_privacy_architecture.md](../security/security_and_privacy_architecture.md) | Threat model and encryption details |
 | [../network/offline_first_sync.md](../network/offline_first_sync.md) | Offline-first sync strategy |
 | [../economy/crypto_exchange.md](../economy/crypto_exchange.md) | Crypto payment layer design |

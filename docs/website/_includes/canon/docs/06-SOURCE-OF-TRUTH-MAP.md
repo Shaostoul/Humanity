@@ -8,11 +8,11 @@ Last updated: 2026-03-09
 
 When files disagree, use this precedence:
 
-1. `docs/accord/` (principles, governance, constraints)
-2. `docs/design/` (architecture/system behavior and contracts)
+1. `accord/` (principles, governance, constraints)
+2. `design/` (architecture/system behavior and contracts)
 3. `data/` (structured runtime/canonical datasets)
-4. `server/`, `engine/`, `app/`, `ui/` (implementation layers)
-5. `docs/website/` content is presentation; canonical meaning stays upstream
+4. `server/`, `engine/`, `app/`, `ui/`, `docs/website/` (implementation layers)
+5. `website/` content is presentation; canonical meaning stays upstream
 
 See also: `docs/website/README.md`.
 
@@ -21,7 +21,7 @@ See also: `docs/website/README.md`.
 ### Rust workspace (currently compiled members)
 
 - `server/` (relay server)
-- `engine/` (game engine + systems)
+- `engine/` (game engine + crates)
 
 ### Other implemented runtime surfaces
 
@@ -32,17 +32,17 @@ See also: `docs/website/README.md`.
 
 ### Important gap
 
-Most domain systems are already documented in `docs/design/`, but many are not yet split into dedicated Rust crates/modules.
+Most domain systems are already documented in `design/`, but many are not yet split into dedicated Rust crates/modules.
 
 ## 3) Design-to-implementation map
 
 ## A) Ecosystem vision and product direction
 
 - Design sources:
-  - `docs/design/product/vision.md`
-  - `docs/design/product/ecosystem_architecture.md`
-  - `docs/design/product/project_universe_integration.md`
-  - `docs/design/product/product_roadmap.md`
+  - `design/product/vision.md`
+  - `design/product/ecosystem_architecture.md`
+  - `design/product/project_universe_integration.md`
+  - `design/product/product_roadmap.md`
 - Implementation now:
   - Partially reflected in relay + web experience + desktop wrapper
 - Status:
@@ -52,9 +52,9 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## B) Identity, cryptography, signed object model
 
 - Design sources:
-  - `docs/design/architecture_decisions/client_side_identity_keys.md`
-  - `docs/design/architecture_decisions/canonical_encoding_and_hashing.md`
-  - `docs/design/network/object_format.md`
+  - `design/architecture_decisions/client_side_identity_keys.md`
+  - `design/architecture_decisions/canonical_encoding_and_hashing.md`
+  - `design/network/object_format.md`
 - Implementation now:
   - `engine/crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
 - Status:
@@ -64,9 +64,9 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## C) Relay/server, realtime transport, API surface
 
 - Design sources:
-  - `docs/design/network/realtime_transport.md`
-  - `docs/design/network/realtime_relay_protocol.md`
-  - `docs/design/network/server_federation.md`
+  - `design/network/realtime_transport.md`
+  - `design/network/realtime_relay_protocol.md`
+  - `design/network/server_federation.md`
 - Implementation now:
   - `server/src/{main,relay,api,storage}.rs`
 - Status:
@@ -76,10 +76,10 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## D) Systems domains (construction, farming, education loops, etc.)
 
 - Design sources:
-  - `docs/design/systems/`
-  - `docs/design/core/`
-  - `docs/design/gameplay/`
-  - `docs/design/pages/`
+  - `design/systems/`
+  - `design/core/`
+  - `design/gameplay/`
+  - `design/pages/`
 - Implementation now:
   - Mostly design/spec stage
   - No dedicated Rust module crates yet for most domains
@@ -90,12 +90,12 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## E) Game/immersive integration
 
 - Design sources:
-  - `docs/design/game/`
-  - `docs/design/game_integration/`
-  - `docs/design/engine/`
+  - `design/game/`
+  - `design/game_integration/`
+  - `design/engine/`
 - Implementation now:
-  - `ui/activities/` has web assets/pages
-  - `engine/` contains the Rust game engine and systems
+  - `engine/` has game systems and crates
+  - `ui/activities/` has web-based game activities
 - Status:
   - **Documented: medium-strong**
   - **Implemented: early/planned**
@@ -103,7 +103,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## F) Desktop app distribution
 
 - Design sources:
-  - `docs/design/runtime/update_distribution_architecture.md`
+  - `design/runtime/update_distribution_architecture.md`
 - Implementation now:
   - `app/` (Tauri v2 wrapper around web app)
 - Status:
@@ -113,7 +113,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## G) Website/docs publishing
 
 - Design sources:
-  - `docs/design/docs/md_information_architecture_plan.md`
+  - `design/docs/md_information_architecture_plan.md`
 - Implementation now:
   - `docs/website/` + mirrored/public docs strategy
 - Status:
@@ -134,5 +134,5 @@ Create one pilot domain crate (example: `module-orbital` or `module-carpentry`) 
 
 - consumes `humanity-core` where appropriate,
 - has clear inputs/outputs and tests,
-- maps directly to one existing `docs/design/systems/*` doc,
+- maps directly to one existing `design/systems/*` doc,
 - ships with a short README proving zero-context onboarding works.

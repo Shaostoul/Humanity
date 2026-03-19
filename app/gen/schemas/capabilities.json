@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capabilities for the Humanity desktop app","remote":{"urls":["https://united-humanity.us/*","https://*.united-humanity.us/*"]},"local":true,"windows":["main"],"permissions":["core:default","core:window:allow-set-title","core:webview:allow-internal-toggle-devtools","updater:default"]}}

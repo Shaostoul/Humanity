@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #data-app {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 42px);
+      overflow: hidden;
+      font-size: 15px !important;
+    }
+
+    /* ── Sidebar ── */
+    #data-sidebar {
+      width: 200px;
+      min-width: 170px;
+      background: var(--bg);
+      border-right: 1px solid var(--bg-input);
+      overflow-y: auto;
+      padding: var(--space-md) var(--space-md);
+      flex-shrink: 0;
+    }
+    #data-sidebar h2 {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: var(--space-md) var(--space-md) var(--space-sm);
+    }
+    .d-nav {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
+      cursor: pointer;
+      border-radius: var(--radius);
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      transition: background 0.1s, color 0.1s;
+      border: 1px solid transparent;
+      margin-bottom: var(--space-xs);
+    }
+    .d-nav:hover { background: var(--bg-secondary); color: var(--text); }
+    .d-nav.active { background: var(--bg-secondary); color: var(--text); border-color: var(--accent); }
+    .d-nav-icon { width: 18px; height: 18px; opacity: 0.7; flex-shrink: 0; }
+    .d-nav.active .d-nav-icon { opacity: 1; }
+
+    /* ── Main panel ── */
+    #data-main {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-2xl) var(--space-3xl);
+      padding-bottom: 4rem;
+    }
+
+    .data-section { display: none; }
+    .data-section.active { display: block; }
+
+    .data-section h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: var(--space-sm);
+    }
+    .data-section .section-desc {
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      margin-bottom: var(--space-2xl);
+      line-height: 1.5;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-2xl);
+      margin-bottom: var(--space-xl);
+    }
+    .card h3 {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: var(--space-lg);
+    }
+    .card p {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ── Stats grid ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-xl);
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: var(--space-xs);
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Path display ── */
+    .path-display {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-lg) var(--space-xl);
+      margin-bottom: var(--space-xl);
+      font-family: monospace;
+      font-size: 0.84rem;
+      color: var(--text);
+      word-break: break-all;
+    }
+    .path-label {
+      font-family: inherit;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-xl);
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      font-family: inherit;
+    }
+    .btn:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .btn-primary { border-color: var(--accent); color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-dim); }
+    .btn-danger { border-color: var(--danger); color: var(--danger); }
+    .btn-danger:hover { background: rgba(204,68,68,0.12); }
+    .btn-sm { padding: var(--space-sm) var(--space-lg); font-size: 0.78rem; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: var(--space-lg); margin-top: var(--space-lg); }
+
+    /* ── Toggle switch ── */
+    .toggle {
+      position: relative;
+      width: 38px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle input:checked + .toggle-track { background: var(--success); }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 14px;
+      height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-track::after { transform: translateX(18px); }
+    .toggle input:disabled + .toggle-track { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Save list ── */
+    .item-list { list-style: none; }
+    .item-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--bg-secondary);
+      transition: background 0.1s;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row:hover { background: var(--bg-hover); }
+    .item-info { flex: 1; min-width: 0; }
+    .item-name { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+    .item-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .item-actions { display: flex; gap: var(--space-md); flex-shrink: 0; }
+
+    /* ── Sync table ── */
+    .sync-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+    .sync-table th {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: var(--space-lg) var(--space-md);
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .sync-table th:first-child { text-align: left; }
+    .sync-table td {
+      padding: var(--space-lg) var(--space-md);
+      border-bottom: 1px solid var(--bg-secondary);
+      text-align: center;
+      vertical-align: middle;
+    }
+    .sync-table td:first-child {
+      text-align: left;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .sync-table tr:nth-child(even) { background: var(--bg-card); }
+    .sync-table tr:nth-child(odd) { background: var(--bg); }
+    .sync-table tr:hover { background: var(--bg-hover); }
+
+    .sync-checkbox {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .sync-checkbox:disabled { cursor: not-allowed; opacity: 0.35; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      border-radius: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge-e2e { background: rgba(74,153,153,0.18); color: var(--success); }
+    .badge-locked { background: rgba(204,68,68,0.12); color: var(--danger); }
+
+    .locked-tooltip {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ── Server input ── */
+    .server-input-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      margin-top: var(--space-xl);
+    }
+    .server-input-row label {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .text-input {
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: var(--space-md) var(--space-lg);
+      font-size: 0.84rem;
+      font-family: monospace;
+      outline: none;
+      max-width: 400px;
+    }
+    .text-input:focus { border-color: var(--accent); }
+
+    /* ── Trusted server list ── */
+    .trusted-list {
+      list-style: none;
+      margin-top: var(--space-lg);
+    }
+    .trusted-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--bg-secondary);
+      font-size: 0.84rem;
+      font-family: monospace;
+      color: var(--text);
+    }
+    .trusted-item:last-child { border-bottom: none; }
+    .trusted-remove {
+      color: var(--danger);
+      cursor: pointer;
+      font-size: 0.78rem;
+      background: none;
+      border: none;
+      font-family: inherit;
+    }
+    .trusted-remove:hover { text-decoration: underline; }
+
+    /* ── Backup settings row ── */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+      padding: var(--space-lg) 0;
+      border-bottom: 1px solid var(--bg-secondary);
+    }
+    .setting-row:last-child { border-bottom: none; }
+    .setting-label { flex: 1; }
+    .setting-label strong { display: block; font-size: 0.88rem; color: var(--text); font-weight: 600; }
+    .setting-label span { display: block; font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+
+    .setting-select {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: 0.84rem;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+    }
+    .setting-select:focus { border-color: var(--accent); }
+
+    /* ── USB drive cards ── */
+    .drive-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xl);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-xl);
+      margin-bottom: var(--space-lg);
+    }
+    .drive-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--accent-dim);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .drive-info { flex: 1; min-width: 0; }
+    .drive-name { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+    .drive-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      padding: var(--space-3xl) var(--space-xl);
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .empty-state-icon {
+      font-size: 2rem;
+      margin-bottom: var(--space-lg);
+      opacity: 0.4;
+    }
+
+    /* ── Browser fallback banner ── */
+    .browser-banner {
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      padding: var(--space-xl) var(--space-2xl);
+      margin-bottom: var(--space-xl);
+      font-size: 0.86rem;
+      line-height: 1.5;
+    }
+    .browser-banner a { color: var(--accent); font-weight: 600; }
+
+    /* ── Status indicator ── */
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: var(--space-sm);
+    }
+    .status-dot.green { background: var(--success); }
+    .status-dot.yellow { background: var(--warning); }
+    .status-dot.red { background: var(--danger); }
+
+    /* ── Responsive ── */
+    @media (max-width: 700px) {
+      #data-app { flex-direction: column; height: auto; }
+      #data-sidebar {
+        width: 100%;
+        min-width: 0;
+        border-right: none;
+        border-bottom: 1px solid var(--bg-input);
+        display: flex;
+        overflow-x: auto;
+        padding: var(--space-sm) var(--space-md);
+        gap: var(--space-sm);
+      }
+      #data-sidebar h2 { display: none; }
+      .d-nav { white-space: nowrap; padding: var(--space-sm) var(--space-lg); }
+      #data-main { padding: var(--space-xl); height: calc(100vh - 90px); overflow-y: auto; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .sync-table { font-size: 0.75rem; }
+      .sync-table th, .sync-table td { padding: var(--space-md) var(--space-sm); }
+    }
+
+    @media (max-width: 450px) {
+      .stats-grid { grid-template-columns: 1fr; }
+      .btn-row { flex-direction: column; }
+      .btn-row .btn { width: 100%; }
+      .path-display { flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
+    }
+
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="data"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div id="data-app">
+  <!-- Sidebar -->
+  <nav id="data-sidebar">
+    <h2>Data</h2>
+    <div class="d-nav active" data-tab="overview">
+      <svg class="d-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      Overview
+    </div>
+    <div class="d-nav" data-tab="saves">
+      <svg class="d-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Saves
+    </div>
+    <div class="d-nav" data-tab="backups">
+      <svg class="d-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Backups
+    </div>
+    <div class="d-nav" data-tab="sync">
+      <svg class="d-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Sync
+    </div>
+    <div class="d-nav" data-tab="usb">
+      <svg class="d-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 8h6M9 12h6M9 16h2"/></svg>
+      USB / Portable
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <div id="data-main">
+
+    <!-- ─── OVERVIEW ─── -->
+    <section class="data-section active" id="sec-overview">
+      <h1>Data Overview</h1>
+      <p class="section-desc">View your local data directory, storage usage, and quick stats.</p>
+
+      <div id="browser-fallback" class="browser-banner" style="display:none">
+        Local data management requires the desktop app. In your browser, data is stored in browser storage (localStorage/IndexedDB) and cannot be moved or backed up to files.
+        <a href="/activities/download.html">Download the desktop app</a> for full data control.
+      </div>
+
+      <div class="card" id="card-path">
+        <h3>Data Directory</h3>
+        <div class="path-display">
+          <span class="path-label">Path</span>
+          <span id="data-path">Detecting...</span>
+        </div>
+        <div class="btn-row" id="path-buttons">
+          <button class="btn btn-primary" id="btn-open-folder" onclick="openDataFolder()">Open Data Folder</button>
+          <button class="btn" id="btn-change-location" onclick="changeDataLocation()">Change Data Location</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="stat-storage">--</div>
+          <div class="stat-label">Total Storage</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-saves">--</div>
+          <div class="stat-label">Save Slots</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-last-backup">--</div>
+          <div class="stat-label">Last Backup</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="stat-sync-status">
+            <span class="status-dot yellow"></span>Unknown
+          </div>
+          <div class="stat-label">Sync Status</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── SAVES ─── -->
+    <section class="data-section" id="sec-saves">
+      <h1>Save Slots</h1>
+      <p class="section-desc">Manage your game saves. Export saves for backup or transfer between devices.</p>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-xl)">
+          <h3 style="margin-bottom:0">Your Saves</h3>
+          <div class="btn-row" style="margin-top:0">
+            <button class="btn btn-primary btn-sm" onclick="createNewSave()">+ New Save</button>
+            <button class="btn btn-sm" onclick="importSave()">Import Save</button>
+          </div>
+        </div>
+        <ul class="item-list" id="saves-list">
+          <li class="empty-state" id="saves-empty">
+            <div class="empty-state-icon">&#128190;</div>
+            <p>No saves found. Start a new game to create your first save.</p>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card" id="usb-saves-card" style="display:none">
+        <h3>USB Drives Detected</h3>
+        <p>Saves found on external drives can be imported directly.</p>
+        <div id="usb-saves-drives"></div>
+      </div>
+    </section>
+
+    <!-- ─── BACKUPS ─── -->
+    <section class="data-section" id="sec-backups">
+      <h1>Backups</h1>
+      <p class="section-desc">Create and manage backups of your data. Backups include saves, settings, and profile information.</p>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-xl)">
+          <h3 style="margin-bottom:0">Backup Controls</h3>
+          <button class="btn btn-primary" onclick="createBackup()">Create Backup Now</button>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Auto-backup</strong>
+            <span>Automatically back up your data on a schedule</span>
+          </div>
+          <select class="setting-select" id="auto-backup-freq" onchange="saveBackupSettings()">
+            <option value="off">Off</option>
+            <option value="daily">Daily</option>
+            <option value="weekly" selected>Weekly</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Keep backups</strong>
+            <span>Number of recent backups to retain before oldest are deleted</span>
+          </div>
+          <select class="setting-select" id="backup-keep-count" onchange="saveBackupSettings()">
+            <option value="3">Last 3</option>
+            <option value="5" selected>Last 5</option>
+            <option value="10">Last 10</option>
+            <option value="20">Last 20</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Existing Backups</h3>
+        <ul class="item-list" id="backups-list">
+          <li class="empty-state" id="backups-empty">
+            <div class="empty-state-icon">&#128230;</div>
+            <p>No backups yet. Create your first backup above.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ─── SYNC ─── -->
+    <section class="data-section" id="sec-sync">
+      <h1>Sync Settings</h1>
+      <p class="section-desc">Control what data syncs and where. Your identity keys never leave your device. All vault data is end-to-end encrypted.</p>
+
+      <div class="card">
+        <h3>Data Sync Matrix</h3>
+        <p style="margin-bottom:var(--space-xl)">Choose where each data type is stored. Local storage is always enabled.</p>
+
+        <div style="overflow-x:auto">
+          <table class="sync-table">
+            <thead>
+              <tr>
+                <th>Data Type</th>
+                <th>Local</th>
+                <th>Your Server</th>
+                <th>Trusted Server</th>
+                <th>Public (Recovery)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  Identity Keys
+                  <span class="badge badge-locked" style="margin-left:6px">Local Only</span>
+                </td>
+                <td><input type="checkbox" class="sync-checkbox" checked disabled></td>
+                <td><input type="checkbox" class="sync-checkbox" disabled title="Keys never leave your device"></td>
+                <td><input type="checkbox" class="sync-checkbox" disabled title="Keys never leave your device"></td>
+                <td><input type="checkbox" class="sync-checkbox" disabled title="Keys never leave your device"></td>
+              </tr>
+              <tr>
+                <td>Game Saves</td>
+                <td><input type="checkbox" class="sync-checkbox" checked disabled></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="saves-own"></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="saves-trusted"></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="saves-public"></td>
+              </tr>
+              <tr>
+                <td>Settings</td>
+                <td><input type="checkbox" class="sync-checkbox" checked disabled></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="settings-own" checked></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="settings-trusted"></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="settings-public"></td>
+              </tr>
+              <tr>
+                <td>Message History</td>
+                <td><input type="checkbox" class="sync-checkbox" checked disabled></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="messages-own" checked></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="messages-trusted"></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="messages-public"></td>
+              </tr>
+              <tr>
+                <td>
+                  Vault (Encrypted Notes)
+                  <span class="badge badge-e2e" style="margin-left:6px">E2E Encrypted</span>
+                </td>
+                <td><input type="checkbox" class="sync-checkbox" checked disabled></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="vault-own" checked></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="vault-trusted" checked></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="vault-public"></td>
+              </tr>
+              <tr>
+                <td>Profile Info</td>
+                <td><input type="checkbox" class="sync-checkbox" checked disabled></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="profile-own" checked></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="profile-trusted" checked></td>
+                <td><input type="checkbox" class="sync-checkbox" data-sync="profile-public" checked></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="server-input-row">
+          <label for="own-server-url">Your Server</label>
+          <input type="text" class="text-input" id="own-server-url" placeholder="https://my-server.example.com" spellcheck="false">
+        </div>
+
+        <div style="margin-top:var(--space-xl)">
+          <div style="display:flex; justify-content:space-between; align-items:center">
+            <label style="font-size:0.84rem; font-weight:600; color:var(--text)">Trusted Servers</label>
+            <button class="btn btn-sm" onclick="addTrustedServer()">+ Add Server</button>
+          </div>
+          <ul class="trusted-list" id="trusted-servers">
+            <li class="empty-state" style="padding:var(--space-xl)">
+              <p style="font-size:0.82rem">No trusted servers configured. Add a friend's server or a community relay.</p>
+            </li>
+          </ul>
+        </div>
+
+        <div class="btn-row" style="margin-top:var(--space-2xl); justify-content:flex-end">
+          <button class="btn btn-primary" onclick="saveSyncSettings()">Save Sync Settings</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── USB / PORTABLE ─── -->
+    <section class="data-section" id="sec-usb">
+      <h1>USB / Portable</h1>
+      <p class="section-desc">Transfer saves via USB, or create a portable copy of HumanityOS that runs from any drive.</p>
+
+      <div class="card">
+        <h3>Detected Drives</h3>
+        <div id="usb-drives-list">
+          <div class="empty-state">
+            <div class="empty-state-icon">&#128268;</div>
+            <p>Scanning for USB drives...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Export to USB</h3>
+        <p style="margin-bottom:var(--space-xl)">Copy a save and optionally the app itself to a USB drive for transfer or portable play.</p>
+        <div style="display:flex; gap:var(--space-lg); flex-wrap:wrap; align-items:flex-end">
+          <div>
+            <label style="font-size:0.78rem; color:var(--text-muted); display:block; margin-bottom:var(--space-sm)">Save</label>
+            <select class="setting-select" id="usb-export-save">
+              <option value="">Select a save...</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.78rem; color:var(--text-muted); display:block; margin-bottom:var(--space-sm)">Destination</label>
+            <select class="setting-select" id="usb-export-drive">
+              <option value="">Select a drive...</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="exportToUsb()" id="btn-export-usb">Export</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Import from USB</h3>
+        <p style="margin-bottom:var(--space-xl)">Browse a USB drive for HumanityOS saves to import.</p>
+        <div id="usb-import-preview">
+          <div class="empty-state">
+            <div class="empty-state-icon">&#128194;</div>
+            <p>Select a drive above to preview importable saves.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Make Portable</h3>
+        <p style="margin-bottom:var(--space-xl)">Create a self-contained copy of HumanityOS on a USB drive. Includes the app, your selected save, and all settings. Plug it into any Windows PC and play with zero installation.</p>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="makePortable()" id="btn-make-portable">Create Portable Copy</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const tauri = window.__TAURI__?.core;
+  const isDesktop = !!tauri;
+
+  // ── Tab navigation ──
+  const tabs = document.querySelectorAll('.d-nav[data-tab]');
+  const sections = document.querySelectorAll('.data-section');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.getAttribute('data-tab');
+      tabs.forEach(t => t.classList.remove('active'));
+      sections.forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('sec-' + target).classList.add('active');
+    });
+  });
+
+  // ── Browser fallback ──
+  if (!isDesktop) {
+    document.getElementById('browser-fallback').style.display = 'block';
+    document.getElementById('path-buttons').style.display = 'none';
+    document.getElementById('data-path').textContent = 'Browser storage (localStorage / IndexedDB)';
+
+    // Estimate browser storage
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(est => {
+        const used = formatBytes(est.usage || 0);
+        document.getElementById('stat-storage').textContent = used;
+      });
+    } else {
+      document.getElementById('stat-storage').textContent = 'N/A';
+    }
+    document.getElementById('stat-saves').textContent = 'N/A';
+    document.getElementById('stat-last-backup').textContent = 'N/A';
+    document.getElementById('stat-sync-status').innerHTML = '<span class="status-dot yellow"></span>Browser';
+    return; // Skip all Tauri-dependent initialization
+  }
+
+  // ── Desktop initialization ──
+  init();
+
+  async function init() {
+    try {
+      await loadOverview();
+      await loadSaves();
+      await loadBackups();
+      await loadDrives();
+      loadSyncConfig();
+    } catch (e) {
+      console.error('[data] init error:', e);
+    }
+  }
+
+  async function loadOverview() {
+    try {
+      const dataDir = await tauri.invoke('get_data_dir');
+      document.getElementById('data-path').textContent = dataDir || 'Unknown';
+    } catch {
+      document.getElementById('data-path').textContent = 'Could not determine data directory';
+    }
+
+    try {
+      const stats = await tauri.invoke('get_storage_stats');
+      document.getElementById('stat-storage').textContent = formatBytes(stats.total_bytes || 0);
+      document.getElementById('stat-saves').textContent = String(stats.save_count || 0);
+      document.getElementById('stat-last-backup').textContent = stats.last_backup
+        ? formatRelativeDate(stats.last_backup)
+        : 'Never';
+      const syncOk = stats.sync_connected;
+      document.getElementById('stat-sync-status').innerHTML = syncOk
+        ? '<span class="status-dot green"></span>Connected'
+        : '<span class="status-dot red"></span>Offline';
+    } catch {
+      document.getElementById('stat-storage').textContent = '--';
+      document.getElementById('stat-saves').textContent = '--';
+      document.getElementById('stat-last-backup').textContent = '--';
+      document.getElementById('stat-sync-status').innerHTML = '<span class="status-dot yellow"></span>Unknown';
+    }
+  }
+
+  async function loadSaves() {
+    try {
+      const saves = await tauri.invoke('list_saves');
+      const list = document.getElementById('saves-list');
+      const exportSelect = document.getElementById('usb-export-save');
+
+      if (!saves || saves.length === 0) return;
+
+      document.getElementById('saves-empty').style.display = 'none';
+      list.innerHTML = '';
+      exportSelect.innerHTML = '<option value="">Select a save...</option>';
+
+      saves.forEach(save => {
+        const li = document.createElement('li');
+        li.className = 'item-row';
+        li.innerHTML = `
+          <div class="item-info">
+            <div class="item-name">${escHtml(save.name)}</div>
+            <div class="item-meta">${formatDate(save.modified)} &middot; ${formatBytes(save.size)}</div>
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-sm" onclick="exportSave('${escAttr(save.id)}')">Export</button>
+            <button class="btn btn-sm" onclick="renameSave('${escAttr(save.id)}', '${escAttr(save.name)}')">Rename</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteSave('${escAttr(save.id)}', '${escAttr(save.name)}')">Delete</button>
+          </div>`;
+        list.appendChild(li);
+
+        const opt = document.createElement('option');
+        opt.value = save.id;
+        opt.textContent = save.name;
+        exportSelect.appendChild(opt);
+      });
+    } catch (e) {
+      console.warn('[data] Could not load saves:', e);
+    }
+  }
+
+  async function loadBackups() {
+    try {
+      const backups = await tauri.invoke('list_backups');
+      const list = document.getElementById('backups-list');
+
+      if (!backups || backups.length === 0) return;
+
+      document.getElementById('backups-empty').style.display = 'none';
+      list.innerHTML = '';
+
+      backups.forEach(backup => {
+        const li = document.createElement('li');
+        li.className = 'item-row';
+        li.innerHTML = `
+          <div class="item-info">
+            <div class="item-name">${formatDate(backup.timestamp)}</div>
+            <div class="item-meta">${formatBytes(backup.size)}</div>
+          </div>
+          <div class="item-actions">
+            <button class="btn btn-sm" onclick="restoreBackup('${escAttr(backup.id)}')">Restore</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteBackup('${escAttr(backup.id)}')">Delete</button>
+          </div>`;
+        list.appendChild(li);
+      });
+    } catch (e) {
+      console.warn('[data] Could not load backups:', e);
+    }
+  }
+
+  async function loadDrives() {
+    try {
+      const drives = await tauri.invoke('detect_drives');
+      const container = document.getElementById('usb-drives-list');
+      const driveSelect = document.getElementById('usb-export-drive');
+
+      if (!drives || drives.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128268;</div><p>No USB drives detected. Insert a drive and refresh.</p></div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      driveSelect.innerHTML = '<option value="">Select a drive...</option>';
+
+      drives.forEach(drive => {
+        const card = document.createElement('div');
+        card.className = 'drive-card';
+        const hasData = drive.has_humanity_data;
+        card.innerHTML = `
+          <div class="drive-icon">${hasData ? '&#9989;' : '&#128190;'}</div>
+          <div class="drive-info">
+            <div class="drive-name">${escHtml(drive.label || drive.letter)}</div>
+            <div class="drive-meta">${escHtml(drive.letter)} &middot; ${formatBytes(drive.free)} free${hasData ? ' &middot; HumanityOS data found' : ''}</div>
+          </div>
+          ${hasData ? '<button class="btn btn-sm btn-primary" onclick="importFromDrive(\'' + escAttr(drive.letter) + '\')">Import</button>' : ''}`;
+        container.appendChild(card);
+
+        const opt = document.createElement('option');
+        opt.value = drive.letter;
+        opt.textContent = (drive.label || drive.letter) + ' (' + formatBytes(drive.free) + ' free)';
+        driveSelect.appendChild(opt);
+      });
+    } catch (e) {
+      document.getElementById('usb-drives-list').innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#128268;</div><p>Could not detect drives. This feature requires the desktop app.</p></div>';
+    }
+  }
+
+  /** Load sync config from localStorage (synced via Tauri commands when saved) */
+  function loadSyncConfig() {
+    try {
+      const config = JSON.parse(localStorage.getItem('hos_sync_config') || '{}');
+      if (config.own_server) document.getElementById('own-server-url').value = config.own_server;
+      if (config.toggles) {
+        Object.entries(config.toggles).forEach(([key, val]) => {
+          const cb = document.querySelector(`[data-sync="${key}"]`);
+          if (cb) cb.checked = !!val;
+        });
+      }
+      if (config.trusted_servers && config.trusted_servers.length > 0) {
+        renderTrustedServers(config.trusted_servers);
+      }
+      if (config.auto_backup) document.getElementById('auto-backup-freq').value = config.auto_backup;
+      if (config.keep_backups) document.getElementById('backup-keep-count').value = String(config.keep_backups);
+    } catch {
+      // Use defaults
+    }
+  }
+
+  function renderTrustedServers(servers) {
+    const list = document.getElementById('trusted-servers');
+    if (!servers || servers.length === 0) {
+      list.innerHTML = '<li class="empty-state" style="padding:var(--space-xl)"><p style="font-size:0.82rem">No trusted servers configured.</p></li>';
+      return;
+    }
+    list.innerHTML = '';
+    servers.forEach((url, i) => {
+      const li = document.createElement('li');
+      li.className = 'trusted-item';
+      li.innerHTML = `<span style="flex:1">${escHtml(url)}</span><button class="trusted-remove" onclick="removeTrustedServer(${i})">Remove</button>`;
+      list.appendChild(li);
+    });
+  }
+
+  // ── Global action handlers ──
+
+  window.openDataFolder = async function () {
+    try { await tauri.invoke('open_data_folder'); }
+    catch (e) { alert('Could not open folder: ' + e); }
+  };
+
+  window.changeDataLocation = async function () {
+    try {
+      const newPath = await tauri.invoke('relocate_data');
+      if (newPath) {
+        document.getElementById('data-path').textContent = newPath;
+        await loadOverview();
+      }
+    } catch (e) { alert('Could not change location: ' + e); }
+  };
+
+  window.createNewSave = async function () {
+    const name = prompt('Save name:');
+    if (!name) return;
+    try {
+      await tauri.invoke('create_save', { name });
+      await loadSaves();
+    } catch (e) { alert('Error creating save: ' + e); }
+  };
+
+  window.importSave = async function () {
+    try {
+      await tauri.invoke('import_save');
+      await loadSaves();
+    } catch (e) { alert('Error importing save: ' + e); }
+  };
+
+  window.exportSave = async function (id) {
+    try {
+      await tauri.invoke('export_save', { id });
+    } catch (e) { alert('Error exporting save: ' + e); }
+  };
+
+  window.renameSave = async function (id, currentName) {
+    const name = prompt('New name:', currentName);
+    if (!name || name === currentName) return;
+    try {
+      await tauri.invoke('rename_save', { id, name });
+      await loadSaves();
+    } catch (e) { alert('Error renaming save: ' + e); }
+  };
+
+  window.deleteSave = async function (id, name) {
+    if (!confirm('Delete save "' + name + '"? This cannot be undone.')) return;
+    try {
+      await tauri.invoke('delete_save', { id });
+      await loadSaves();
+    } catch (e) { alert('Error deleting save: ' + e); }
+  };
+
+  window.createBackup = async function () {
+    try {
+      await tauri.invoke('create_backup');
+      await loadBackups();
+      await loadOverview();
+    } catch (e) { alert('Error creating backup: ' + e); }
+  };
+
+  window.restoreBackup = async function (id) {
+    if (!confirm('Restore this backup? Current data will be overwritten.')) return;
+    try {
+      await tauri.invoke('restore_backup', { id });
+      await loadSaves();
+      await loadOverview();
+    } catch (e) { alert('Error restoring backup: ' + e); }
+  };
+
+  window.deleteBackup = async function (id) {
+    if (!confirm('Delete this backup?')) return;
+    try {
+      await tauri.invoke('delete_backup', { id });
+      await loadBackups();
+    } catch (e) { alert('Error deleting backup: ' + e); }
+  };
+
+  window.saveBackupSettings = function () {
+    const config = JSON.parse(localStorage.getItem('hos_sync_config') || '{}');
+    config.auto_backup = document.getElementById('auto-backup-freq').value;
+    config.keep_backups = parseInt(document.getElementById('backup-keep-count').value, 10);
+    localStorage.setItem('hos_sync_config', JSON.stringify(config));
+    if (isDesktop) {
+      tauri.invoke('update_backup_settings', {
+        frequency: config.auto_backup,
+        keepCount: config.keep_backups
+      }).catch(e => console.warn('[data] backup settings sync failed:', e));
+    }
+  };
+
+  window.saveSyncSettings = function () {
+    const toggles = {};
+    document.querySelectorAll('[data-sync]').forEach(cb => {
+      toggles[cb.getAttribute('data-sync')] = cb.checked;
+    });
+    const config = JSON.parse(localStorage.getItem('hos_sync_config') || '{}');
+    config.own_server = document.getElementById('own-server-url').value.trim();
+    config.toggles = toggles;
+    localStorage.setItem('hos_sync_config', JSON.stringify(config));
+    if (isDesktop) {
+      tauri.invoke('update_sync_config', { config }).catch(e => console.warn('[data] sync config save failed:', e));
+    }
+    // Brief visual feedback
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = 'Saved';
+    btn.style.borderColor = 'var(--success)';
+    setTimeout(() => { btn.textContent = orig; btn.style.borderColor = ''; }, 1500);
+  };
+
+  window.addTrustedServer = function () {
+    const url = prompt('Trusted server URL (e.g. https://relay.friend.com):');
+    if (!url) return;
+    const config = JSON.parse(localStorage.getItem('hos_sync_config') || '{}');
+    if (!config.trusted_servers) config.trusted_servers = [];
+    config.trusted_servers.push(url.trim());
+    localStorage.setItem('hos_sync_config', JSON.stringify(config));
+    renderTrustedServers(config.trusted_servers);
+  };
+
+  window.removeTrustedServer = function (index) {
+    const config = JSON.parse(localStorage.getItem('hos_sync_config') || '{}');
+    if (config.trusted_servers) {
+      config.trusted_servers.splice(index, 1);
+      localStorage.setItem('hos_sync_config', JSON.stringify(config));
+      renderTrustedServers(config.trusted_servers);
+    }
+  };
+
+  window.exportToUsb = async function () {
+    const saveId = document.getElementById('usb-export-save').value;
+    const drive = document.getElementById('usb-export-drive').value;
+    if (!saveId || !drive) { alert('Select both a save and a destination drive.'); return; }
+    try {
+      await tauri.invoke('export_to_usb', { saveId, driveLetter: drive });
+      alert('Export complete!');
+    } catch (e) { alert('Export failed: ' + e); }
+  };
+
+  window.importFromDrive = async function (letter) {
+    try {
+      await tauri.invoke('import_from_drive', { driveLetter: letter });
+      await loadSaves();
+      alert('Import complete!');
+    } catch (e) { alert('Import failed: ' + e); }
+  };
+
+  window.makePortable = async function () {
+    const drive = document.getElementById('usb-export-drive').value;
+    if (!drive) { alert('Select a destination drive first in the Export section above.'); return; }
+    if (!confirm('Create a portable copy on ' + drive + '? This may take a few minutes.')) return;
+    try {
+      await tauri.invoke('make_portable', { driveLetter: drive });
+      alert('Portable copy created on ' + drive);
+    } catch (e) { alert('Make portable failed: ' + e); }
+  };
+
+  // ── Utilities ──
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+  }
+
+  function formatDate(ts) {
+    if (!ts) return '--';
+    const d = new Date(typeof ts === 'number' ? ts * 1000 : ts);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function formatRelativeDate(ts) {
+    const d = new Date(typeof ts === 'number' ? ts * 1000 : ts);
+    const diff = Date.now() - d.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return days + 'd ago';
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function escAttr(s) { return String(s).replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+})();
+</script>
+</body>
+</html>
