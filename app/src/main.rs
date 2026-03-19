@@ -51,6 +51,35 @@ const INIT_SCRIPT: &str = r#"
     // Local-first storage is available via Tauri commands
     window.__HOS_HAS_LOCAL_STORAGE = true;
 
+    // Remote server base URL — all API/WebSocket calls route here
+    // since Tauri serves local files, not a web server
+    var SERVER = 'https://united-humanity.us';
+    window.__HOS_SERVER = SERVER;
+
+    // Override fetch() to rewrite /api/ and /ws paths to the remote server.
+    // Without this, fetch('/api/tasks') would hit tauri://localhost/api/tasks (404).
+    var _origFetch = window.fetch;
+    window.fetch = function(input, init) {
+        if (typeof input === 'string' && input.startsWith('/api')) {
+            input = SERVER + input;
+        }
+        return _origFetch.call(this, input, init);
+    };
+
+    // Override WebSocket to rewrite relative /ws paths to the remote server.
+    var _origWS = window.WebSocket;
+    window.WebSocket = function(url, protocols) {
+        if (url && (url.indexOf('tauri.localhost') !== -1 || url.indexOf('localhost') !== -1)) {
+            url = url.replace(/wss?:\/\/[^\/]+/, 'wss://united-humanity.us');
+        }
+        return new _origWS(url, protocols);
+    };
+    window.WebSocket.prototype = _origWS.prototype;
+    window.WebSocket.CONNECTING = _origWS.CONNECTING;
+    window.WebSocket.OPEN = _origWS.OPEN;
+    window.WebSocket.CLOSING = _origWS.CLOSING;
+    window.WebSocket.CLOSED = _origWS.CLOSED;
+
     // Helper: open URL in system browser via Tauri command
     function openExternal(url) {
         if (window.__TAURI__?.core?.invoke) {
