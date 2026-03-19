@@ -29,13 +29,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf docs/website/_includes/canon
-          mkdir -p docs/website/_includes/canon
-          rsync -a --delete docs/accord/ docs/website/_includes/canon/accord/
-          rsync -a --delete docs/ --exclude=website/ --exclude=accord/ docs/website/_includes/canon/docs/
-          # Copy docs as design/ too — backward-compat with existing wrapper pages
-          # (symlinks are forbidden in Jekyll safe mode)
-          rsync -a --delete docs/ --exclude=website/ --exclude=accord/ docs/website/_includes/canon/design/
+          # Start from the committed _includes/canon/ (has hand-maintained files
+          # like design/pages/*.md that don't exist elsewhere in the tree).
+          # Then overlay fresh copies of docs that DO have canonical sources.
+          mkdir -p docs/website/_includes/canon/accord
+          mkdir -p docs/website/_includes/canon/docs
+          mkdir -p docs/website/_includes/canon/design
+          rsync -a docs/accord/ docs/website/_includes/canon/accord/
+          rsync -a docs/ --exclude=website/ --exclude=accord/ docs/website/_includes/canon/docs/
+          # Mirror docs into design/ too — backward-compat with wrapper pages
+          # that use {% include canon/design/... %} paths
+          rsync -a docs/ --exclude=website/ --exclude=accord/ docs/website/_includes/canon/design/
+          # Also copy page-specs into design/pages/ where wrappers expect them
+          if [ -d docs/page-specs ]; then
+            mkdir -p docs/website/_includes/canon/design/pages
+            rsync -a docs/page-specs/ docs/website/_includes/canon/design/pages/
+          fi
           # Copy select root .md files as reference docs
           mkdir -p docs/website/_includes/canon/reference
           for f in SECURITY_AUDIT.md CONTRIBUTING.md README.md; do
