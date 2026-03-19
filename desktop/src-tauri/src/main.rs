@@ -7,13 +7,11 @@ use tauri_plugin_updater::UpdaterExt;
 /// Tracks whether an update is available (version string).
 struct UpdateState(Mutex<Option<String>>);
 
-/// The app's own domain — all navigation here stays in the webview.
-const APP_HOST: &str = "united-humanity.us";
-
 /// JS injected before every page runs.
 /// - F12            → open DevTools
 /// - Ctrl+Shift+Del → clear all SW caches and hard-reload
-/// - Intercepts link clicks to external sites → opens in system browser
+/// - Intercepts ALL external link clicks → opens in system browser
+/// - window.open() override → opens in system browser
 const INIT_SCRIPT: &str = r#"
 (function () {
     if (window.__HOS_APP_INIT__) return;
@@ -21,6 +19,31 @@ const INIT_SCRIPT: &str = r#"
 
     // Mark that we're running inside the desktop app
     window.__HOS_DESKTOP__ = true;
+
+    // Helper: open URL in system browser via Tauri command
+    function openExternal(url) {
+        // Try Tauri invoke first
+        if (window.__TAURI__?.core?.invoke) {
+            window.__TAURI__.core.invoke('open_external_url', { url: url }).catch(function(err) {
+                console.error('Tauri open_external_url failed:', err);
+            });
+            return true;
+        }
+        return false;
+    }
+
+    // Check if URL is external (not our app domain)
+    function isExternal(href) {
+        try {
+            var url = new URL(href, location.origin);
+            return url.hostname &&
+                   url.hostname !== 'united-humanity.us' &&
+                   url.hostname !== 'localhost' &&
+                   url.hostname !== '127.0.0.1';
+        } catch (_) {
+            return false;
+        }
+    }
 
     document.addEventListener('keydown', async function (e) {
         // F12 — open DevTools
@@ -41,28 +64,45 @@ const INIT_SCRIPT: &str = r#"
         }
     });
 
-    // Intercept clicks on external links — open in system browser instead of webview
+    // Intercept ALL clicks on external links — open in system browser
     document.addEventListener('click', function (e) {
         var link = e.target.closest('a[href]');
         if (!link) return;
 
-        var href = link.href;
-        if (!href) return;
+        var href = link.getAttribute('href');
+        if (!href || href === '#' || href.startsWith('javascript:')) return;
 
-        try {
-            var url = new URL(href);
-            // If it's an external domain (not our app), open in system browser
-            if (url.hostname && url.hostname !== 'united-humanity.us' && url.hostname !== 'localhost') {
-                e.preventDefault();
-                e.stopPropagation();
-                window.__TAURI__?.core?.invoke('open_external_url', { url: href }).catch(function(err) {
-                    console.error('Failed to open external URL:', err);
-                });
-            }
-        } catch (_) {
-            // Not a valid URL, let default handling proceed
+        // Resolve relative URLs
+        var fullUrl;
+        try { fullUrl = new URL(href, location.origin).href; } catch(_) { return; }
+
+        if (isExternal(fullUrl)) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            openExternal(fullUrl);
+            return false;
         }
-    }, true); // Use capture phase to intercept before other handlers
+
+        // Also catch target="_blank" links to our own domain (prevent new window)
+        if (link.target === '_blank') {
+            e.preventDefault();
+            // Navigate in same webview instead of trying to open new window
+            location.href = fullUrl;
+        }
+    }, true); // Capture phase = runs before any other click handlers
+
+    // Override window.open to redirect external URLs to system browser
+    var originalOpen = window.open;
+    window.open = function(url) {
+        if (url && isExternal(url)) {
+            openExternal(url);
+            return null;
+        }
+        // Internal URLs: navigate in place instead of opening new window
+        if (url) location.href = url;
+        return null;
+    };
 })();
 "#;
 

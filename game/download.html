@@ -167,7 +167,7 @@
     <div class="dl-hero">
       <h1>Download <em>Humanity</em></h1>
       <p>Your launcher for the civilization operating system. Download once — modules extend it with games, tools, and integrations.</p>
-      <span class="version-badge" id="version-badge">Desktop: v0.9.0 · Web: always latest</span>
+      <span class="version-badge" id="version-badge">Desktop: v0.10.0 · Web: always latest</span>
     </div>
 
     <!-- Auto-detected platform -->
@@ -525,7 +525,7 @@ npx tauri build</code></pre>
       if (['windows', 'macos', 'linux'].includes(os)) {
         btn.textContent = 'Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
-        sub.textContent = 'Downloads from GitHub Releases · v0.9.0';
+        sub.textContent = 'Downloads from GitHub Releases · v0.10.0';
       } else if (['android', 'ios'].includes(os)) {
         btn.textContent = 'Install as PWA';
         btn.href = '/chat';
@@ -578,11 +578,14 @@ npx tauri build</code></pre>
               });
           };
         } else {
-          btn.textContent = 'App is up to date';
+          var appVer = window.__HOS_APP_VERSION || '?';
+          btn.textContent = '\u2713 You\'re on v' + appVer;
           btn.href = '#';
           btn.removeAttribute('target');
-          btn.style.opacity = '0.6';
-          if (sub) sub.textContent = 'Updates are checked automatically on launch';
+          btn.style.opacity = '0.8';
+          btn.style.background = 'var(--success, #2a6)';
+          btn.onclick = function(e) { e.preventDefault(); };
+          if (sub) sub.textContent = 'Updates are checked automatically on launch · no action needed';
         }
       }
 
