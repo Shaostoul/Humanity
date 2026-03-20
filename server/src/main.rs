@@ -180,7 +180,8 @@ async fn main() {
                 .allow_origin([
                     "https://chat.united-humanity.us".parse::<http::HeaderValue>().unwrap(),
                     "https://united-humanity.us".parse::<http::HeaderValue>().unwrap(),
-                    // Tauri 2 desktop app origins (custom-protocol serves from these)
+                    // Tauri 2 desktop app — actual origin is http://tauri.localhost
+                    "http://tauri.localhost".parse::<http::HeaderValue>().unwrap(),
                     "https://tauri.localhost".parse::<http::HeaderValue>().unwrap(),
                     "tauri://localhost".parse::<http::HeaderValue>().unwrap(),
                 ])
