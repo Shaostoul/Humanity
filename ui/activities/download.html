@@ -167,7 +167,7 @@
     <div class="dl-hero">
       <h1>Download <em>Humanity</em></h1>
       <p>Your launcher for the civilization operating system. Download once — modules extend it with games, tools, and integrations.</p>
-      <span class="version-badge" id="version-badge">Desktop: v0.23.0 · Web: always latest</span>
+      <span class="version-badge" id="version-badge">Desktop: v0.24.0 · Web: always latest</span>
     </div>
 
     <!-- Auto-detected platform -->
@@ -525,7 +525,7 @@ npx tauri build</code></pre>
       if (['windows', 'macos', 'linux'].includes(os)) {
         btn.textContent = 'Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
-        sub.textContent = 'Downloads from GitHub Releases · v0.23.0';
+        sub.textContent = 'Downloads from GitHub Releases · v0.24.0';
         // Fetch direct download URL from GitHub API so clicks download the file
         fetchDirectDownload(os, arch, btn, sub);
       } else if (['android', 'ios'].includes(os)) {
@@ -572,7 +572,7 @@ npx tauri build</code></pre>
 
     detectPlatform();
 
-    // ── Tauri desktop app: override download button to use built-in updater ──
+    // ── Tauri desktop app: check for updates via GitHub API ──
     (function tauriUpdateIntegration() {
       if (!window.__HOS_DESKTOP__) return;
 
@@ -580,85 +580,74 @@ npx tauri build</code></pre>
       var sub = document.getElementById('detected-sub');
       if (!btn) return;
 
-      // Prevent default link behavior for all Tauri states
-      btn.href = '#';
-      btn.removeAttribute('target');
+      var appVer = window.__HOS_APP_VERSION || '0.24.0';
+      btn.textContent = 'Checking for updates...';
+      btn.style.opacity = '0.7';
+      if (sub) sub.textContent = 'Currently running v' + appVer;
 
-      var appVer = window.__HOS_APP_VERSION || '0.23.0';
+      // Check GitHub for latest release
+      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d || !d.tag_name) throw new Error('No release data');
+          var latestVer = d.tag_name.replace(/^v/, '');
 
-      /** Run the install_update Tauri command with progress feedback */
-      function doInstall() {
-        btn.textContent = 'Checking for updates...';
-        btn.style.opacity = '0.7';
-        btn.style.pointerEvents = 'none';
-        if (sub) sub.textContent = 'Contacting update server...';
-
-        window.__TAURI__.core.invoke('install_update')
-          .then(function(v) {
-            btn.textContent = 'Update complete! Restarting...';
-            btn.style.background = 'var(--success, #2a6)';
-            if (sub) sub.textContent = 'Installed v' + v + ' — the app will restart momentarily';
-          })
-          .catch(function(err) {
-            var msg = String(err || '');
-            // Tauri returns specific error when no update is available
-            if (msg.indexOf('up-to-date') !== -1 || msg.indexOf('no update') !== -1 || msg.indexOf('UpToDate') !== -1) {
-              btn.textContent = "You're up to date! (v" + appVer + ')';
-              btn.style.opacity = '0.8';
-              btn.style.background = 'var(--success, #2a6)';
-              btn.style.pointerEvents = 'none';
-              if (sub) sub.textContent = 'Running the latest version — no action needed';
-            } else {
-              btn.textContent = 'Update failed — click to retry';
-              btn.style.opacity = '1';
-              btn.style.pointerEvents = 'auto';
-              if (sub) sub.textContent = msg || 'Unknown error — check your connection';
-              console.error('Update install failed:', err);
+          // Find the Windows installer asset
+          var asset = null;
+          if (d.assets) {
+            for (var i = 0; i < d.assets.length; i++) {
+              if (/\.exe$/i.test(d.assets[i].name)) { asset = d.assets[i]; break; }
             }
-          });
-      }
+          }
 
-      function setupUpdate() {
-        if (window.__HOS_UPDATE_READY) {
-          var ver = window.__HOS_UPDATE_VERSION || 'new version';
-          btn.textContent = 'Install Update (v' + ver + ')';
-          btn.style.opacity = '1';
-          btn.style.pointerEvents = 'auto';
-          if (sub) sub.textContent = 'A new version is ready — click to download and install';
+          // Compare versions
+          function versionNewer(a, b) {
+            var pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+            for (var i = 0; i < 3; i++) { if ((pa[i]||0) > (pb[i]||0)) return true; if ((pa[i]||0) < (pb[i]||0)) return false; }
+            return false;
+          }
 
-          btn.onclick = function(e) {
-            e.preventDefault();
-            var ver2 = window.__HOS_UPDATE_VERSION || ver;
-            btn.textContent = 'Downloading v' + ver2 + '...';
-            btn.style.opacity = '0.7';
+          if (versionNewer(latestVer, appVer) && asset) {
+            // Newer version available — download directly
+            btn.textContent = 'Download v' + latestVer;
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+            btn.onclick = function(e) {
+              e.preventDefault();
+              // Open the direct download URL in the system browser
+              if (window.__TAURI__ && window.__TAURI__.core) {
+                window.__TAURI__.core.invoke('open_external_url', { url: asset.browser_download_url });
+              }
+              btn.textContent = 'Download started!';
+              btn.style.background = 'var(--success, #2a6)';
+              if (sub) sub.textContent = 'Check your browser downloads for the installer';
+            };
+            if (sub) sub.textContent = 'v' + latestVer + ' available · You have v' + appVer;
+          } else {
+            // Up to date
+            btn.textContent = "You're up to date! (v" + appVer + ')';
+            btn.style.opacity = '0.8';
+            btn.style.background = 'var(--success, #2a6)';
             btn.style.pointerEvents = 'none';
-            if (sub) sub.textContent = 'Installing update — the app will restart when done';
-            doInstall();
-          };
-        } else {
-          // No update detected yet — offer manual check
-          btn.textContent = 'Check for Updates';
+            if (sub) sub.textContent = 'Running the latest version';
+          }
+
+          btn.href = '#';
+          btn.removeAttribute('target');
+        })
+        .catch(function(err) {
+          // Can't check — show manual download link
+          btn.textContent = 'Download Latest';
           btn.style.opacity = '1';
           btn.style.pointerEvents = 'auto';
-          if (sub) sub.textContent = 'Currently running v' + appVer;
-
           btn.onclick = function(e) {
             e.preventDefault();
-            doInstall();
+            if (window.__TAURI__ && window.__TAURI__.core) {
+              window.__TAURI__.core.invoke('open_external_url', { url: 'https://github.com/Shaostoul/Humanity/releases/latest' });
+            }
           };
-        }
-      }
-
-      // Poll for Tauri's background update check (fires ~5s after launch)
-      var attempts = 0;
-      var poll = setInterval(function() {
-        attempts++;
-        if (window.__HOS_UPDATE_READY || attempts > 15) {
-          clearInterval(poll);
-          setupUpdate();
-        }
-      }, 1000);
-      setupUpdate(); // Try immediately too
+          if (sub) sub.textContent = 'Currently running v' + appVer + ' · Could not check for updates';
+        });
     })();
 
     // ── Fetch latest version from GitHub Releases (web only) ──

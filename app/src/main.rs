@@ -205,12 +205,7 @@ const INIT_SCRIPT: &str = r#"
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
-            // Open in native webview panel (in-app browser)
-            if (window.openWebviewTab) {
-                openWebviewTab(fullUrl, link.textContent || fullUrl);
-            } else {
-                openExternal(fullUrl);
-            }
+            openExternal(fullUrl);
             return false;
         }
 
@@ -229,15 +224,11 @@ const INIT_SCRIPT: &str = r#"
         }
     }, true);
 
-    // Override window.open to use in-app browser for external URLs
+    // Override window.open to open external URLs in system browser
     var originalOpen = window.open;
     window.open = function(url) {
         if (url && isExternal(url)) {
-            if (window.openWebviewTab) {
-                openWebviewTab(url);
-            } else {
-                openExternal(url);
-            }
+            openExternal(url);
             return null;
         }
         if (url) location.href = url;
@@ -255,9 +246,13 @@ fn open_devtools(window: tauri::WebviewWindow) {
 }
 
 /// Called from JS to open a URL in the system's default browser.
+/// Uses the tauri-plugin-shell which is more reliable than the open crate.
 #[tauri::command]
-fn open_external_url(url: String) -> Result<(), String> {
-    open::that(&url).map_err(|e| format!("Failed to open URL: {e}"))
+fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
+    app.shell()
+        .open(&url, None)
+        .map_err(|e| format!("Failed to open URL: {e}"))
 }
 
 /// Open a URL in a native webview panel inside the app window.
