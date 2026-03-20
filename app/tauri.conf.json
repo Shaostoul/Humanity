@@ -1,13 +1,13 @@
 {
   "productName": "HumanityOS",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "identifier": "us.united-humanity.hos",
   "build": {
     "frontendDist": "./web"
   },
   "app": {
     "security": {
-      "csp": null
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https://united-humanity.us wss://united-humanity.us; connect-src 'self' https://united-humanity.us wss://united-humanity.us https://*.united-humanity.us blob: data:; img-src 'self' https://united-humanity.us https://*.united-humanity.us data: blob:; media-src 'self' blob: data:; font-src 'self' data:; style-src 'self' 'unsafe-inline';"
     }
   },
   "bundle": {

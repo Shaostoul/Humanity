@@ -8,8 +8,5 @@
     "core:webview:allow-internal-toggle-devtools",
     "updater:default",
     "shell:allow-open"
-  ],
-  "remote": {
-    "urls": ["https://united-humanity.us/*", "https://*.united-humanity.us/*"]
-  }
+  ]
 }
