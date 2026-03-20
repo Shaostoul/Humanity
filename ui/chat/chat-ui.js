@@ -585,26 +585,13 @@ async function handleImportFile(event) {
     const text = await file.text();
     const jsonData = JSON.parse(text);
 
-    let identity;
     if (jsonData.encrypted) {
-      // Encrypted backup — prompt for passphrase
-      const passphrase = prompt('This backup is encrypted. Enter your passphrase:');
-      if (!passphrase) {
-        event.target.value = '';
-        return;
-      }
-      identity = await importIdentityBackup(jsonData, passphrase);
+      // Show passphrase modal for encrypted backups
+      showPassphraseModal(jsonData);
     } else {
-      identity = await importIdentityFromJSON(jsonData);
+      const identity = await importIdentityFromJSON(jsonData);
+      finishImport(identity);
     }
-
-    // Update state and connect
-    document.getElementById('name-input').value = identity.name;
-    myIdentity = identity;
-    myKey = identity.publicKeyHex;
-    myName = identity.name;
-    addSystemMessage('✅ Identity imported successfully! Connecting...');
-    connect();
   } catch (e) {
     const errEl = document.getElementById('login-error');
     errEl.textContent = '❌ Import failed: ' + e.message;
@@ -612,6 +599,74 @@ async function handleImportFile(event) {
   }
   // Reset file input so the same file can be re-selected
   event.target.value = '';
+}
+
+/** Complete import: update state and connect. */
+function finishImport(identity) {
+  document.getElementById('name-input').value = identity.name;
+  myIdentity = identity;
+  myKey = identity.publicKeyHex;
+  myName = identity.name;
+  addSystemMessage('✅ Identity imported successfully! Connecting...');
+  connect();
+}
+
+/** Modal for entering passphrase to decrypt an encrypted backup. */
+function showPassphraseModal(jsonData) {
+  const overlay = document.createElement('div');
+  overlay.id = 'passphrase-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+  overlay.innerHTML = `
+    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;width:100%;max-width:420px;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent,#f80);margin:0 0 .5rem">🔒 Encrypted Backup</h2>
+      <p style="font-size:.82rem;color:#888;line-height:1.5;margin:0 0 1rem">Enter the passphrase you used when creating this backup.</p>
+      <div style="position:relative;margin-bottom:.75rem">
+        <input id="pp-input" type="password" placeholder="Passphrase" autocomplete="current-password"
+          style="width:100%;background:#111;border:1px solid #333;border-radius:6px;padding:.5rem .75rem;padding-right:2.5rem;color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box">
+        <button id="pp-toggle" type="button" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#666;cursor:pointer;font-size:.75rem;padding:4px 6px" title="Show/hide passphrase">Show</button>
+      </div>
+      <div id="pp-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.75rem"></div>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end">
+        <button id="pp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:6px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
+        <button id="pp-submit" style="background:var(--accent,#f80);color:#000;border:none;border-radius:6px;padding:.4rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer">Decrypt & Import</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const input = document.getElementById('pp-input');
+  const toggle = document.getElementById('pp-toggle');
+  const msg = document.getElementById('pp-msg');
+  const submit = document.getElementById('pp-submit');
+
+  // Show/hide passphrase toggle
+  toggle.addEventListener('click', () => {
+    const isPassword = input.type === 'password';
+    input.type = isPassword ? 'text' : 'password';
+    toggle.textContent = isPassword ? 'Hide' : 'Show';
+  });
+
+  // Cancel
+  document.getElementById('pp-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  // Submit
+  async function doSubmit() {
+    const pass = input.value;
+    if (!pass) { msg.innerHTML = '<span style="color:#e55">Enter your passphrase.</span>'; return; }
+    submit.disabled = true; submit.textContent = 'Decrypting…';
+    msg.innerHTML = '';
+    try {
+      const identity = await importIdentityBackup(jsonData, pass);
+      overlay.remove();
+      finishImport(identity);
+    } catch (e) {
+      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Decryption failed') + '</span>';
+      submit.disabled = false; submit.textContent = 'Decrypt & Import';
+    }
+  }
+  submit.addEventListener('click', doSubmit);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSubmit(); });
+  input.focus();
 }
 
 // Handle /profile, /block, /unblock, /blocklist commands.

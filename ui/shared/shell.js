@@ -57,7 +57,7 @@
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops'))       active = 'ops';
-    else if (p.startsWith('/download'))  active = 'download';
+    else if (p.startsWith('/download') || p.startsWith('/activities/download'))  active = 'download';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
     else if (p.startsWith('/activities/gardening')) active = 'garden';
@@ -468,7 +468,7 @@
       /* Utility — right-aligned */
       navTab('/data',     'storage',   'Data',      'data') +
       navTab('/settings', 'settings',  'Settings',  'settings') +
-      navTab('/download', 'download',  'Download',  'download') +
+      navTab('/activities/download', 'download',  'Download',  'download') +
       navTab('/ops',      'ops',       'Ops',       'ops') +
       navTab('/dev',      'dev',       'Dev',       'dev') +
 
@@ -517,7 +517,7 @@
     '<div class="mobile-hub-group"><h4>Config</h4>' +
       mobileLink('/data',     'Data') +
       mobileLink('/settings', 'Settings') +
-      mobileLink('/download', 'Download') +
+      mobileLink('/activities/download', 'Download') +
       mobileLink('/ops',      'Ops') +
       mobileLink('/dev',      '</> Dev') +
     '</div>';
@@ -1016,7 +1016,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.20.0';
+    var CURRENT_VERSION = '0.21.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
