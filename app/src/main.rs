@@ -119,15 +119,23 @@ const INIT_SCRIPT: &str = r#"
     window.WebSocket.CLOSING = _origWS.CLOSING;
     window.WebSocket.CLOSED = _origWS.CLOSED;
 
-    // Helper: open URL in system browser via Tauri command
+    // Helper: open URL in system browser via Tauri command.
+    // Always returns true in the desktop app — callers should preventDefault().
     function openExternal(url) {
-        if (window.__TAURI__?.core?.invoke) {
-            window.__TAURI__.core.invoke('open_external_url', { url: url }).catch(function(err) {
-                console.error('Tauri open_external_url failed:', err);
-            });
-            return true;
+        try {
+            if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+                window.__TAURI__.core.invoke('open_external_url', { url: url }).catch(function(err) {
+                    console.error('Tauri open_external_url failed:', err);
+                    // Last resort: try open crate directly
+                });
+            } else {
+                // __TAURI__ not ready yet — retry after a tick
+                setTimeout(function() { openExternal(url); }, 100);
+            }
+        } catch (err) {
+            console.error('openExternal error:', err);
         }
-        return false;
+        return true;
     }
 
     // Check if URL is external (not our app — local protocol or united-humanity.us)

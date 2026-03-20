@@ -167,7 +167,7 @@
     <div class="dl-hero">
       <h1>Download <em>Humanity</em></h1>
       <p>Your launcher for the civilization operating system. Download once — modules extend it with games, tools, and integrations.</p>
-      <span class="version-badge" id="version-badge">Desktop: v0.21.0 · Web: always latest</span>
+      <span class="version-badge" id="version-badge">Desktop: v0.22.0 · Web: always latest</span>
     </div>
 
     <!-- Auto-detected platform -->
@@ -525,7 +525,9 @@ npx tauri build</code></pre>
       if (['windows', 'macos', 'linux'].includes(os)) {
         btn.textContent = 'Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
-        sub.textContent = 'Downloads from GitHub Releases · v0.21.0';
+        sub.textContent = 'Downloads from GitHub Releases · v0.22.0';
+        // Fetch direct download URL from GitHub API so clicks download the file
+        fetchDirectDownload(os, arch, btn, sub);
       } else if (['android', 'ios'].includes(os)) {
         btn.textContent = 'Install as PWA';
         btn.href = '/chat';
@@ -535,6 +537,37 @@ npx tauri build</code></pre>
         btn.href = '/chat';
         sub.textContent = 'Works in any modern browser — no download needed';
       }
+    }
+
+    /** Fetch direct download URL from GitHub releases API so the button downloads the installer. */
+    function fetchDirectDownload(os, arch, btn, sub) {
+      fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (!d || !d.assets) return;
+          var ver = (d.tag_name || '').replace(/^v/, '');
+          // Match the right asset for the detected platform
+          var patterns = {
+            windows: /\.exe$/i,
+            macos:   arch === 'arm64' ? /aarch64.*\.dmg$/i : /x64.*\.dmg$/i,
+            linux:   arch === 'arm64' ? /aarch64.*\.AppImage$/i : /amd64.*\.AppImage$|x86_64.*\.AppImage$/i,
+          };
+          var pat = patterns[os];
+          if (!pat) return;
+          var asset = null;
+          for (var i = 0; i < d.assets.length; i++) {
+            if (pat.test(d.assets[i].name)) { asset = d.assets[i]; break; }
+          }
+          if (asset) {
+            btn.href = asset.browser_download_url;
+            // browser_download_url is a direct download link — browser auto-downloads
+            sub.textContent = 'Downloads from GitHub Releases · v' + ver;
+          } else {
+            // No matching asset — fall back to releases page
+            sub.textContent = 'Downloads from GitHub Releases · v' + ver;
+          }
+        })
+        .catch(function() { /* use fallback link to releases page */ });
     }
 
     detectPlatform();
@@ -551,7 +584,7 @@ npx tauri build</code></pre>
       btn.href = '#';
       btn.removeAttribute('target');
 
-      var appVer = window.__HOS_APP_VERSION || '0.11.0';
+      var appVer = window.__HOS_APP_VERSION || '0.22.0';
 
       /** Run the install_update Tauri command with progress feedback */
       function doInstall() {

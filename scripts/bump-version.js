@@ -86,15 +86,18 @@ replaceInFile(
   `var CURRENT_VERSION = '${newVersion}'`
 );
 
-// 8. ui/activities/download.html — version badge and subtitle
+// 8. ui/activities/download.html — version badge, subtitle, and JS fallback
 const dlPath = path.join(ROOT, 'ui/activities/download.html');
 let dlContent = fs.readFileSync(dlPath, 'utf8');
-const dlUpdated = dlContent.split(`v${oldVersion}`).join(`v${newVersion}`);
+// Replace both "v0.X.Y" (badge/subtitle) and "'0.X.Y'" (JS fallback) patterns
+let dlUpdated = dlContent.split(`v${oldVersion}`).join(`v${newVersion}`);
+dlUpdated = dlUpdated.split(`'${oldVersion}'`).join(`'${newVersion}'`);
 if (dlUpdated === dlContent) {
   console.error('  WARNING: no match in ui/activities/download.html');
 } else {
+  const count = (dlContent.length - dlUpdated.length === 0) ? 0 :
+    (dlContent.split(`v${oldVersion}`).length - 1) + (dlContent.split(`'${oldVersion}'`).length - 1);
   fs.writeFileSync(dlPath, dlUpdated, 'utf8');
-  const count = dlContent.split(`v${oldVersion}`).length - 1;
   console.log(`  updated ui/activities/download.html  (${count} occurrence${count > 1 ? 's' : ''})`);
 }
 
