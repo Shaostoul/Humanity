@@ -66,32 +66,38 @@ const INIT_SCRIPT: &str = r#"
             var isApi = url && (url.startsWith('/api') ||
                 ((url.startsWith('tauri://') || url.startsWith('https://tauri.localhost')) && url.indexOf('/api') !== -1));
 
-            if (isApi && window.__TAURI__ && window.__TAURI__.core) {
+            if (isApi) {
                 var apiPath = url.startsWith('/api') ? url : url.substring(url.indexOf('/api'));
+                var fullUrl = SERVER + apiPath;
                 var method = (init && init.method) ? init.method : 'GET';
-                var body = (init && init.body) ? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body)) : null;
-                var headers = {};
-                if (init && init.headers) {
-                    try {
-                        if (init.headers instanceof Headers) {
-                            init.headers.forEach(function(v, k) { headers[k] = v; });
-                        } else if (typeof init.headers === 'object') {
-                            headers = init.headers;
-                        }
-                    } catch(_) {}
-                }
-                return window.__TAURI__.core.invoke('api_proxy', {
-                    path: apiPath, method: method, body: body, headers: headers
-                }).then(function(result) {
-                    return new Response(result.body, {
-                        status: result.status,
-                        headers: { 'Content-Type': result.content_type || 'application/json' }
+
+                // Try Tauri proxy first (bypasses CORS), fall back to direct fetch
+                if (window.__TAURI__ && window.__TAURI__.core) {
+                    var body = (init && init.body) ? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body)) : null;
+                    var headers = {};
+                    if (init && init.headers) {
+                        try {
+                            if (init.headers instanceof Headers) {
+                                init.headers.forEach(function(v, k) { headers[k] = v; });
+                            } else if (typeof init.headers === 'object') {
+                                headers = init.headers;
+                            }
+                        } catch(_) {}
+                    }
+                    return window.__TAURI__.core.invoke('api_proxy', {
+                        path: apiPath, method: method, body: body, headers: headers
+                    }).then(function(result) {
+                        return new Response(result.body, {
+                            status: result.status,
+                            headers: { 'Content-Type': result.content_type || 'application/json' }
+                        });
+                    }).catch(function(err) {
+                        console.warn('[HOS] api_proxy failed, falling back to direct fetch:', err);
+                        return _origFetch(fullUrl, init);
                     });
-                });
-            } else if (isApi) {
-                // Tauri IPC not ready — fall back to direct fetch via remote server
-                var fallbackPath = url.startsWith('/api') ? url : url.substring(url.indexOf('/api'));
-                return _origFetch(SERVER + fallbackPath, init);
+                }
+                // Tauri IPC not ready — direct fetch to remote server
+                return _origFetch(fullUrl, init);
             }
         } catch(err) {
             console.error('[HOS] fetch override error:', err);

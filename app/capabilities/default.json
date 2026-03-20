@@ -4,8 +4,12 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:default",
     "core:window:allow-set-title",
+    "core:webview:default",
     "core:webview:allow-internal-toggle-devtools",
+    "core:webview:allow-webview-close",
+    "core:app:default",
     "updater:default",
     "shell:allow-open"
   ]
