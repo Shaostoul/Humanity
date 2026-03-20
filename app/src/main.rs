@@ -205,7 +205,12 @@ const INIT_SCRIPT: &str = r#"
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
-            openExternal(fullUrl);
+            // Open in native webview panel (in-app browser)
+            if (window.openWebviewTab) {
+                openWebviewTab(fullUrl, link.textContent || fullUrl);
+            } else {
+                openExternal(fullUrl);
+            }
             return false;
         }
 
@@ -224,11 +229,15 @@ const INIT_SCRIPT: &str = r#"
         }
     }, true);
 
-    // Override window.open to redirect external URLs to system browser
+    // Override window.open to use in-app browser for external URLs
     var originalOpen = window.open;
     window.open = function(url) {
         if (url && isExternal(url)) {
-            openExternal(url);
+            if (window.openWebviewTab) {
+                openWebviewTab(url);
+            } else {
+                openExternal(url);
+            }
             return null;
         }
         if (url) location.href = url;
@@ -249,6 +258,100 @@ fn open_devtools(window: tauri::WebviewWindow) {
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("Failed to open URL: {e}"))
+}
+
+/// Open a URL in a native webview panel inside the app window.
+/// Creates a child webview that overlays the content area (below the nav bar).
+#[tauri::command]
+fn open_browser_webview(
+    app: tauri::AppHandle,
+    label: String,
+    url: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    use tauri::webview::WebviewBuilder;
+
+    // Close existing webview with this label if it exists
+    if let Some(existing) = app.get_webview(&label) {
+        let _ = existing.close();
+    }
+
+    let parsed_url: url::Url = url
+        .parse()
+        .map_err(|e| format!("Invalid URL: {e}"))?;
+
+    let main_window = app
+        .get_window("main")
+        .ok_or("Main window not found")?;
+
+    let webview = WebviewBuilder::new(&label, tauri::WebviewUrl::External(parsed_url))
+        .auto_resize()
+        .devtools(true);
+
+    main_window
+        .add_child(
+            webview,
+            tauri::LogicalPosition::new(x, y),
+            tauri::LogicalSize::new(width, height),
+        )
+        .map_err(|e| format!("Failed to create webview: {e}"))?;
+
+    Ok(())
+}
+
+/// Navigate an existing browser webview to a new URL.
+#[tauri::command]
+fn navigate_browser_webview(
+    app: tauri::AppHandle,
+    label: String,
+    url: String,
+) -> Result<(), String> {
+    let webview = app
+        .get_webview(&label)
+        .ok_or("Browser webview not found")?;
+
+    let parsed_url: url::Url = url
+        .parse()
+        .map_err(|e| format!("Invalid URL: {e}"))?;
+
+    webview
+        .navigate(parsed_url)
+        .map_err(|e| format!("Navigate failed: {e}"))
+}
+
+/// Close a browser webview panel.
+#[tauri::command]
+fn close_browser_webview(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(&label) {
+        webview.close().map_err(|e| format!("Close failed: {e}"))
+    } else {
+        Ok(()) // Already closed
+    }
+}
+
+/// Resize/reposition a browser webview.
+#[tauri::command]
+fn resize_browser_webview(
+    app: tauri::AppHandle,
+    label: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let webview = app
+        .get_webview(&label)
+        .ok_or("Browser webview not found")?;
+
+    webview
+        .set_position(tauri::LogicalPosition::new(x, y))
+        .map_err(|e| format!("Set position failed: {e}"))?;
+    webview
+        .set_size(tauri::LogicalSize::new(width, height))
+        .map_err(|e| format!("Set size failed: {e}"))
 }
 
 /// Proxy API response from Rust back to JS.
@@ -641,6 +744,10 @@ fn main() {
             open_devtools,
             install_update,
             open_external_url,
+            open_browser_webview,
+            navigate_browser_webview,
+            close_browser_webview,
+            resize_browser_webview,
             api_proxy,
             list_saves,
             create_save,

@@ -747,74 +747,105 @@
   document.body.appendChild(footerEl);
 
   // ── Webview Tab System ──
+  // Desktop app: uses native Tauri webview panels (real browser, no iframe restrictions)
+  // Web browser: opens external links in new tabs (iframes blocked by most sites)
   var webviewTabs = {};
   var webviewCounter = 0;
   var activeWebviewTab = null;
+  var NAV_HEIGHT = 42; // px — height of the hub-nav bar
+
+  /** Check if Tauri native webview API is available. */
+  function hasTauriWebview() {
+    return !!(window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke);
+  }
 
   window.openWebviewTab = function(url, title) {
     // Check if already open with this URL
     for (var id in webviewTabs) {
       if (webviewTabs[id].url === url) { switchWebviewTab(id); return; }
     }
-    var tabId = 'wv-' + (++webviewCounter);
-    webviewTabs[tabId] = { url: url, title: title || url };
 
-    // Create content container
-    var content = document.createElement('div');
-    content.id = 'webview-content-' + tabId;
-    content.className = 'webview-tab-content';
-    content.style.cssText = 'display:none;flex-direction:column;height:calc(100vh - 80px);position:fixed;top:0;left:0;right:0;bottom:0;z-index:150;background:var(--bg,#0a0a0a);';
-    content.innerHTML =
-      '<div style="display:flex;gap:var(--space-sm);padding:var(--space-sm) var(--space-xl);border-bottom:1px solid var(--border);align-items:center;background:rgba(13,13,13,0.95);height:36px;flex-shrink:0;">' +
-        '<button onclick="webviewBack(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">←</button>' +
-        '<button onclick="webviewForward(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">→</button>' +
-        '<button onclick="webviewRefresh(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">↻</button>' +
-        '<input type="text" readonly value="' + url.replace(/"/g, '&quot;') + '" style="flex:1;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-sm) var(--space-lg);border-radius:var(--radius-sm);font-size:0.78rem;font-family:monospace;">' +
-        '<button onclick="closeWebviewTab(\'' + tabId + '\')" style="background:none;border:1px solid var(--border);color:var(--danger,#e55);padding:var(--space-xs) var(--space-xl);border-radius:var(--radius-sm);cursor:pointer;font-size:0.85rem;">✕</button>' +
-      '</div>' +
-      '<iframe src="' + url.replace(/"/g, '&quot;') + '" style="flex:1;border:none;width:100%;" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>';
-    document.body.appendChild(content);
+    // Web browser fallback: open in new tab
+    if (!hasTauriWebview()) {
+      window.open(url, '_blank');
+      return;
+    }
 
-    switchWebviewTab(tabId);
-    renderWebviewTabBar();
+    var tabId = 'browser-' + (++webviewCounter);
+    webviewTabs[tabId] = { url: url, title: title || new URL(url).hostname || url };
+
+    // Create the native webview via Tauri command
+    var w = window.innerWidth;
+    var h = window.innerHeight - NAV_HEIGHT;
+
+    window.__TAURI__.core.invoke('open_browser_webview', {
+      label: tabId,
+      url: url,
+      x: 0,
+      y: NAV_HEIGHT,
+      width: w,
+      height: h
+    }).then(function() {
+      activeWebviewTab = tabId;
+      // Hide the main page content so the webview is visible
+      var pageApp = document.getElementById('page-app') || document.getElementById('chat-screen');
+      if (pageApp) pageApp.style.display = 'none';
+      renderWebviewTabBar();
+    }).catch(function(err) {
+      console.error('Failed to open browser webview:', err);
+      delete webviewTabs[tabId];
+      // Fallback: open in system browser
+      window.__TAURI__.core.invoke('open_external_url', { url: url }).catch(function() {});
+    });
   };
 
   function switchWebviewTab(tabId) {
-    // Hide all webview contents
-    for (var id in webviewTabs) {
-      var el = document.getElementById('webview-content-' + id);
-      if (el) el.style.display = 'none';
-    }
-    var el = document.getElementById('webview-content-' + tabId);
-    if (el) el.style.display = 'flex';
+    if (!hasTauriWebview()) return;
+    // For native webviews, we just track which is active — Tauri handles visibility
+    // TODO: when multi-tab is fully supported, hide/show webviews here
     activeWebviewTab = tabId;
     renderWebviewTabBar();
   }
 
   window.closeWebviewTab = function(tabId) {
-    var el = document.getElementById('webview-content-' + tabId);
-    if (el) el.remove();
+    if (hasTauriWebview()) {
+      window.__TAURI__.core.invoke('close_browser_webview', { label: tabId }).catch(function(err) {
+        console.warn('close_browser_webview failed:', err);
+      });
+    }
     delete webviewTabs[tabId];
     if (activeWebviewTab === tabId) {
       var keys = Object.keys(webviewTabs);
       activeWebviewTab = keys.length > 0 ? keys[keys.length - 1] : null;
-      if (activeWebviewTab) switchWebviewTab(activeWebviewTab);
+    }
+    // If no more tabs, show the main content again
+    if (Object.keys(webviewTabs).length === 0) {
+      var pageApp = document.getElementById('page-app') || document.getElementById('chat-screen');
+      if (pageApp) pageApp.style.display = '';
     }
     renderWebviewTabBar();
   };
 
-  window.webviewBack = function(tabId) {
-    var el = document.getElementById('webview-content-' + tabId);
-    if (el) { var iframe = el.querySelector('iframe'); try { iframe.contentWindow.history.back(); } catch(e){} }
+  window.webviewNavigate = function(tabId, url) {
+    if (!hasTauriWebview()) return;
+    webviewTabs[tabId].url = url;
+    window.__TAURI__.core.invoke('navigate_browser_webview', { label: tabId, url: url }).catch(function(err) {
+      console.error('navigate failed:', err);
+    });
+    renderWebviewTabBar();
   };
-  window.webviewForward = function(tabId) {
-    var el = document.getElementById('webview-content-' + tabId);
-    if (el) { var iframe = el.querySelector('iframe'); try { iframe.contentWindow.history.forward(); } catch(e){} }
-  };
-  window.webviewRefresh = function(tabId) {
-    var el = document.getElementById('webview-content-' + tabId);
-    if (el) { var iframe = el.querySelector('iframe'); iframe.src = iframe.src; }
-  };
+
+  // Resize browser webviews when window resizes
+  window.addEventListener('resize', function() {
+    if (!hasTauriWebview()) return;
+    var w = window.innerWidth;
+    var h = window.innerHeight - NAV_HEIGHT;
+    for (var id in webviewTabs) {
+      window.__TAURI__.core.invoke('resize_browser_webview', {
+        label: id, x: 0, y: NAV_HEIGHT, width: w, height: h
+      }).catch(function() {});
+    }
+  });
 
   function renderWebviewTabBar() {
     var bar = document.getElementById('webview-tabs-bar');
@@ -826,8 +857,10 @@
     keys.forEach(function(id) {
       var tab = webviewTabs[id];
       var btn = document.createElement('button');
-      btn.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) var(--space-lg);border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;';
-      btn.innerHTML = '<span onclick="switchWebviewTab(\'' + id + '\')">' + (tab.title||'Tab').substring(0,20) + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;">✕</span>';
+      btn.style.cssText = 'display:flex;align-items:center;gap:var(--space-sm);padding:var(--space-xs) var(--space-lg);border-radius:var(--radius-sm);border:1px solid ' + (id===activeWebviewTab?'var(--accent)':'var(--border)') + ';background:' + (id===activeWebviewTab?'var(--accent-dim)':'transparent') + ';color:' + (id===activeWebviewTab?'var(--accent)':'var(--text-muted)') + ';font-size:0.72rem;cursor:pointer;white-space:nowrap;font-family:inherit;';
+      var titleText = (tab.title||'Tab');
+      if (titleText.length > 24) titleText = titleText.substring(0, 24) + '…';
+      btn.innerHTML = '<span>' + titleText + '</span><span onclick="event.stopPropagation();closeWebviewTab(\'' + id + '\')" style="margin-left:var(--space-sm);color:var(--danger,#e55);font-weight:700;cursor:pointer;">✕</span>';
       btn.onclick = function() { switchWebviewTab(id); };
       bar.appendChild(btn);
     });
@@ -1016,7 +1049,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.22.0';
+    var CURRENT_VERSION = '0.23.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

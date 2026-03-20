@@ -1,6 +1,6 @@
 [package]
 name = "humanity-desktop"
-version = "0.22.0"
+version = "0.23.0"
 description = "HumanityOS desktop app (HOS) — native wrapper for united-humanity.us"
 edition = "2021"
 license = "CC0-1.0"
@@ -9,7 +9,7 @@ license = "CC0-1.0"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["devtools"] }
+tauri = { version = "2", features = ["devtools", "unstable"] }
 tauri-plugin-updater = "2"
 tauri-plugin-shell = "2"
 open = "5"
@@ -20,6 +20,7 @@ reqwest = { version = "0.12", features = ["json"] }
 sha2 = "0.10"
 hex = "0.4"
 log = "0.4"
+url = "2.5.8"
 
 [features]
 default = ["custom-protocol"]
