@@ -223,7 +223,13 @@ async fn ws_handler(
     // Non-browser clients (native apps, bots) typically don't send Origin,
     // so we only reject when Origin is present but not in the allow-list.
     if let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) {
-        let allowed = ["https://chat.united-humanity.us", "https://united-humanity.us"];
+        let allowed = [
+            "https://chat.united-humanity.us",
+            "https://united-humanity.us",
+            "http://tauri.localhost",
+            "https://tauri.localhost",
+            "tauri://localhost",
+        ];
         if !allowed.iter().any(|&a| a == origin) {
             return (StatusCode::FORBIDDEN, "Origin not allowed").into_response();
         }
