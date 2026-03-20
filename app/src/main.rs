@@ -678,6 +678,10 @@ fn main() {
             .initialization_script(INIT_SCRIPT)
             .build()?;
 
+            // Auto-open DevTools so we can diagnose issues
+            // TODO: remove or gate behind a flag once desktop app is stable
+            window.open_devtools();
+
             // Inject app version + desktop flag into the webview
             let ver_js = format!(
                 "window.__HOS_APP_VERSION = '{}'; window.__HOS_DESKTOP__ = true;",
