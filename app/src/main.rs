@@ -58,32 +58,43 @@ const INIT_SCRIPT: &str = r#"
 
     // Override fetch() so /api/ calls go through a Tauri command (Rust-side HTTP).
     // This completely bypasses CORS — the browser never makes a cross-origin request.
+    // Falls back to direct fetch if Tauri IPC isn't ready yet (early page init).
     var _origFetch = window.fetch.bind(window);
     window.fetch = function(input, init) {
-        var url = (typeof input === 'string') ? input : (input && input.url) ? input.url : null;
-        var isApi = url && (url.startsWith('/api') ||
-            ((url.startsWith('tauri://') || url.startsWith('https://tauri.localhost')) && url.indexOf('/api') !== -1));
+        try {
+            var url = (typeof input === 'string') ? input : (input && input.url) ? input.url : null;
+            var isApi = url && (url.startsWith('/api') ||
+                ((url.startsWith('tauri://') || url.startsWith('https://tauri.localhost')) && url.indexOf('/api') !== -1));
 
-        if (isApi) {
-            var apiPath = url.startsWith('/api') ? url : url.substring(url.indexOf('/api'));
-            var method = (init && init.method) ? init.method : 'GET';
-            var body = (init && init.body) ? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body)) : null;
-            var headers = {};
-            if (init && init.headers) {
-                if (init.headers instanceof Headers) {
-                    init.headers.forEach(function(v, k) { headers[k] = v; });
-                } else if (typeof init.headers === 'object') {
-                    headers = init.headers;
+            if (isApi && window.__TAURI__ && window.__TAURI__.core) {
+                var apiPath = url.startsWith('/api') ? url : url.substring(url.indexOf('/api'));
+                var method = (init && init.method) ? init.method : 'GET';
+                var body = (init && init.body) ? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body)) : null;
+                var headers = {};
+                if (init && init.headers) {
+                    try {
+                        if (init.headers instanceof Headers) {
+                            init.headers.forEach(function(v, k) { headers[k] = v; });
+                        } else if (typeof init.headers === 'object') {
+                            headers = init.headers;
+                        }
+                    } catch(_) {}
                 }
-            }
-            return window.__TAURI__.core.invoke('api_proxy', {
-                path: apiPath, method: method, body: body, headers: headers
-            }).then(function(result) {
-                return new Response(result.body, {
-                    status: result.status,
-                    headers: { 'Content-Type': result.content_type || 'application/json' }
+                return window.__TAURI__.core.invoke('api_proxy', {
+                    path: apiPath, method: method, body: body, headers: headers
+                }).then(function(result) {
+                    return new Response(result.body, {
+                        status: result.status,
+                        headers: { 'Content-Type': result.content_type || 'application/json' }
+                    });
                 });
-            });
+            } else if (isApi) {
+                // Tauri IPC not ready — fall back to direct fetch via remote server
+                var fallbackPath = url.startsWith('/api') ? url : url.substring(url.indexOf('/api'));
+                return _origFetch(SERVER + fallbackPath, init);
+            }
+        } catch(err) {
+            console.error('[HOS] fetch override error:', err);
         }
         return _origFetch(input, init);
     };
