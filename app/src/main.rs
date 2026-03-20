@@ -56,14 +56,26 @@ const INIT_SCRIPT: &str = r#"
     var SERVER = 'https://united-humanity.us';
     window.__HOS_SERVER = SERVER;
 
-    // Override fetch() to rewrite /api/ and /ws paths to the remote server.
+    // Override fetch() to rewrite /api/ paths to the remote server.
     // Without this, fetch('/api/tasks') would hit tauri://localhost/api/tasks (404).
-    var _origFetch = window.fetch;
+    var _origFetch = window.fetch.bind(window);
     window.fetch = function(input, init) {
-        if (typeof input === 'string' && input.startsWith('/api')) {
-            input = SERVER + input;
+        var url = input;
+        if (typeof input === 'string') {
+            url = input;
+        } else if (input && input.url) {
+            url = input.url;
         }
-        return _origFetch.call(this, input, init);
+        if (typeof url === 'string' && url.startsWith('/api')) {
+            console.log('[HOS] fetch rewrite:', url, '->', SERVER + url);
+            return _origFetch(SERVER + url, init);
+        }
+        if (typeof url === 'string' && (url.startsWith('tauri://') || url.startsWith('https://tauri.localhost')) && url.indexOf('/api') !== -1) {
+            var apiPath = url.substring(url.indexOf('/api'));
+            console.log('[HOS] fetch rewrite (abs):', url, '->', SERVER + apiPath);
+            return _origFetch(SERVER + apiPath, init);
+        }
+        return _origFetch(input, init);
     };
 
     // Override WebSocket to rewrite relative /ws paths to the remote server.
