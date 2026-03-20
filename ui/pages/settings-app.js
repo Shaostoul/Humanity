@@ -670,7 +670,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.19.1 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.19.2 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1552,14 +1552,16 @@ function settingsOpenRestore() {
     var pass = overlay.querySelector('#set-rst-pass').value.trim();
     var msg = overlay.querySelector('#set-rst-msg');
     if (!file) { msg.innerHTML = '<span style="color:#e55">Select a backup file first.</span>'; return; }
-    if (!pass) { msg.innerHTML = '<span style="color:#e55">Enter the passphrase.</span>'; return; }
     this.disabled = true; this.textContent = 'Restoring…';
     try {
       var text = await file.text();
       var data = JSON.parse(text);
-      if (typeof restoreFromEncryptedBackup === 'function') {
-        await restoreFromEncryptedBackup(data, pass);
-        msg.innerHTML = '<span style="color:#4ec87a">✓ Identity restored. Reloading…</span>';
+      if (data.encrypted && !pass) { msg.innerHTML = '<span style="color:#e55">This backup is encrypted. Enter the passphrase.</span>'; this.disabled = false; this.textContent = 'Restore'; return; }
+      if (typeof importIdentityBackup === 'function') {
+        var result = await importIdentityBackup(data, pass || undefined);
+        localStorage.setItem('humanity_name', result.name);
+        localStorage.setItem('humanity_pubkey', result.publicKeyHex);
+        msg.innerHTML = '<span style="color:#4ec87a">✓ Identity restored for ' + result.name + '. Reloading…</span>';
         setTimeout(function() { location.reload(); }, 1500);
       } else {
         msg.innerHTML = '<span style="color:#e55">Restore function not available. Try from the Network page.</span>';

@@ -1,6 +1,6 @@
 {
   "productName": "HumanityOS",
-  "version": "0.19.1",
+  "version": "0.19.2",
   "identifier": "us.united-humanity.hos",
   "build": {
     "frontendDist": "./web"

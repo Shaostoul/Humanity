@@ -859,8 +859,8 @@
     });
   }, 0);
 
-  // ── PWA Service Worker registration ──
-  if ('serviceWorker' in navigator) {
+  // ── PWA Service Worker registration (skip in Tauri — local files, no caching) ──
+  if ('serviceWorker' in navigator && !window.__TAURI__) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('/shared/sw.js').then(function (reg) {
         console.log('[SW] Registered, scope:', reg.scope);
@@ -1016,7 +1016,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.19.1';
+    var CURRENT_VERSION = '0.19.2';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

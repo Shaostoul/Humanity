@@ -577,13 +577,27 @@ document.getElementById('peer-list').addEventListener('contextmenu', function(e)
 // Profile system, block list -> see chat-profile.js
 
 // ── Import file handler (login screen) ──
+// Handles both plain JSON backups and passphrase-encrypted backups.
 async function handleImportFile(event) {
   const file = event.target.files[0];
   if (!file) return;
   try {
     const text = await file.text();
     const jsonData = JSON.parse(text);
-    const identity = await importIdentityFromJSON(jsonData);
+
+    let identity;
+    if (jsonData.encrypted) {
+      // Encrypted backup — prompt for passphrase
+      const passphrase = prompt('This backup is encrypted. Enter your passphrase:');
+      if (!passphrase) {
+        event.target.value = '';
+        return;
+      }
+      identity = await importIdentityBackup(jsonData, passphrase);
+    } else {
+      identity = await importIdentityFromJSON(jsonData);
+    }
+
     // Update state and connect
     document.getElementById('name-input').value = identity.name;
     myIdentity = identity;
@@ -1605,7 +1619,9 @@ if (e.key === 'Escape') {
 }
 }, true);
 
-if ('serviceWorker' in navigator) {
+// Skip SW in Tauri desktop — files are local, no caching needed, and
+// Tauri serves missing files as text/html (the SPA fallback).
+if ('serviceWorker' in navigator && !window.__TAURI__) {
 navigator.serviceWorker.register('/sw.js')
   .then(reg => console.log('SW registered:', reg.scope))
   .catch(err => console.error('SW failed:', err));
