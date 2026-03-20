@@ -56,24 +56,34 @@ const INIT_SCRIPT: &str = r#"
     var SERVER = 'https://united-humanity.us';
     window.__HOS_SERVER = SERVER;
 
-    // Override fetch() to rewrite /api/ paths to the remote server.
-    // Without this, fetch('/api/tasks') would hit tauri://localhost/api/tasks (404).
+    // Override fetch() so /api/ calls go through a Tauri command (Rust-side HTTP).
+    // This completely bypasses CORS — the browser never makes a cross-origin request.
     var _origFetch = window.fetch.bind(window);
     window.fetch = function(input, init) {
-        var url = input;
-        if (typeof input === 'string') {
-            url = input;
-        } else if (input && input.url) {
-            url = input.url;
-        }
-        if (typeof url === 'string' && url.startsWith('/api')) {
-            console.log('[HOS] fetch rewrite:', url, '->', SERVER + url);
-            return _origFetch(SERVER + url, init);
-        }
-        if (typeof url === 'string' && (url.startsWith('tauri://') || url.startsWith('https://tauri.localhost')) && url.indexOf('/api') !== -1) {
-            var apiPath = url.substring(url.indexOf('/api'));
-            console.log('[HOS] fetch rewrite (abs):', url, '->', SERVER + apiPath);
-            return _origFetch(SERVER + apiPath, init);
+        var url = (typeof input === 'string') ? input : (input && input.url) ? input.url : null;
+        var isApi = url && (url.startsWith('/api') ||
+            ((url.startsWith('tauri://') || url.startsWith('https://tauri.localhost')) && url.indexOf('/api') !== -1));
+
+        if (isApi) {
+            var apiPath = url.startsWith('/api') ? url : url.substring(url.indexOf('/api'));
+            var method = (init && init.method) ? init.method : 'GET';
+            var body = (init && init.body) ? (typeof init.body === 'string' ? init.body : JSON.stringify(init.body)) : null;
+            var headers = {};
+            if (init && init.headers) {
+                if (init.headers instanceof Headers) {
+                    init.headers.forEach(function(v, k) { headers[k] = v; });
+                } else if (typeof init.headers === 'object') {
+                    headers = init.headers;
+                }
+            }
+            return window.__TAURI__.core.invoke('api_proxy', {
+                path: apiPath, method: method, body: body, headers: headers
+            }).then(function(result) {
+                return new Response(result.body, {
+                    status: result.status,
+                    headers: { 'Content-Type': result.content_type || 'application/json' }
+                });
+            });
         }
         return _origFetch(input, init);
     };
@@ -214,6 +224,67 @@ fn open_devtools(window: tauri::WebviewWindow) {
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     open::that(&url).map_err(|e| format!("Failed to open URL: {e}"))
+}
+
+/// Proxy API response from Rust back to JS.
+#[derive(Serialize)]
+struct ApiProxyResponse {
+    status: u16,
+    body: String,
+    content_type: String,
+}
+
+/// Proxies HTTP requests from the WebView through Rust, completely bypassing
+/// CORS. The browser never makes a cross-origin request — Rust's reqwest
+/// handles the HTTP call and returns the response body as a string.
+#[tauri::command]
+async fn api_proxy(
+    path: String,
+    method: String,
+    body: Option<String>,
+    headers: Option<HashMap<String, String>>,
+) -> Result<ApiProxyResponse, String> {
+    let url = format!("https://united-humanity.us{}", path);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("HTTP client error: {e}"))?;
+
+    let mut req = match method.to_uppercase().as_str() {
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "PATCH" => client.patch(&url),
+        "DELETE" => client.delete(&url),
+        _ => client.get(&url),
+    };
+
+    // Forward headers from JS (e.g. Content-Type, Authorization)
+    if let Some(hdrs) = headers {
+        for (k, v) in hdrs {
+            req = req.header(&k, &v);
+        }
+    }
+
+    // Attach body for POST/PUT/PATCH
+    if let Some(b) = body {
+        req = req.body(b);
+    }
+
+    let resp = req.send().await.map_err(|e| format!("Request failed: {e}"))?;
+    let status = resp.status().as_u16();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/json")
+        .to_string();
+    let body_text = resp.text().await.map_err(|e| format!("Read body failed: {e}"))?;
+
+    Ok(ApiProxyResponse {
+        status,
+        body: body_text,
+        content_type,
+    })
 }
 
 /// Called from JS when user clicks the download/update button.
@@ -545,6 +616,7 @@ fn main() {
             open_devtools,
             install_update,
             open_external_url,
+            api_proxy,
             list_saves,
             create_save,
             delete_save,
