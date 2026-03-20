@@ -678,9 +678,10 @@ fn main() {
             .initialization_script(INIT_SCRIPT)
             .build()?;
 
-            // Auto-open DevTools so we can diagnose issues
-            // TODO: remove or gate behind a flag once desktop app is stable
-            window.open_devtools();
+            // Open DevTools only if HOS_DEVTOOLS env var is set (for development)
+            if std::env::var("HOS_DEVTOOLS").is_ok() {
+                window.open_devtools();
+            }
 
             // Inject app version + desktop flag into the webview
             let ver_js = format!(
