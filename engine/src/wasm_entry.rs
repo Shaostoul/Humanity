@@ -2,7 +2,7 @@
 //!
 //! Compiled only with the `wasm` feature flag. Creates a wgpu surface from a
 //! canvas element, sets up the render pipeline, and drives the render loop
-//! via requestAnimationFrame.
+//! via requestAnimationFrame. Wires keyboard/mouse input to the camera controller.
 
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use glam::{Quat, Vec3};
-use crate::renderer::camera::Camera;
+use crate::renderer::camera::{Camera, CameraController, CameraMode};
 use crate::renderer::mesh::Mesh;
 use crate::renderer::{RenderObject, Renderer};
 
@@ -54,35 +54,46 @@ pub async fn main() {
     let mut renderer = Renderer::new_wasm(canvas.clone()).await;
     log::info!("GPU adapter acquired, renderer initialized.");
 
-    // Create meshes
+    // Create meshes — a scene with multiple objects to navigate around
     let cube_mesh = renderer.add_mesh(Mesh::cube(&renderer.device));
     let plane_mesh = renderer.add_mesh(Mesh::plane(&renderer.device));
 
     // Create materials
     let cube_material = renderer.add_material([0.8, 0.3, 0.2, 1.0], 0.0, 0.5);
-    let plane_material = renderer.add_material([0.3, 0.5, 0.3, 1.0], 0.0, 0.8);
+    let green_material = renderer.add_material([0.3, 0.5, 0.3, 1.0], 0.0, 0.8);
+    let blue_material = renderer.add_material([0.2, 0.4, 0.8, 1.0], 0.3, 0.4);
+    let yellow_material = renderer.add_material([0.9, 0.8, 0.2, 1.0], 0.0, 0.6);
 
-    // Set up camera at a 3/4 angle to see the cube
+    // Set up camera
     let mut camera = Camera::new();
-    camera.position = Vec3::new(3.0, 3.0, 5.0);
-    camera.yaw = -0.5;    // rotate slightly left to face the cube
-    camera.pitch = -0.4;  // look down at the cube
+    camera.position = Vec3::new(0.0, 2.0, 5.0);
+    camera.yaw = 0.0;
+    camera.pitch = -0.2;
     camera.aspect = renderer.aspect_ratio();
 
-    log::info!("Scene ready: spinning cube + ground plane. Starting render loop.");
+    let controller = CameraController::new(5.0, 3.0);
 
-    // Bundle state for the render loop (single-threaded WASM, no Send/Sync needed)
+    log::info!("Scene ready. Controls: WASD=move, Mouse=look, Tab=cycle mode, F=FP/TP, M=orbit, O=ortho, Scroll=zoom");
+
+    // Bundle state for the render loop
     let state = Rc::new(RefCell::new(WasmEngineState {
         renderer,
         camera,
+        controller,
         cube_mesh,
         plane_mesh,
         cube_material,
-        plane_material,
-        canvas,
+        green_material,
+        blue_material,
+        yellow_material,
+        canvas: canvas.clone(),
+        last_timestamp: 0.0,
     }));
 
-    // Start the requestAnimationFrame render loop
+    // Wire up input events
+    setup_input_handlers(&canvas, &state);
+
+    // Start the render loop
     start_render_loop(state);
 }
 
@@ -90,33 +101,150 @@ pub async fn main() {
 struct WasmEngineState {
     renderer: Renderer,
     camera: Camera,
+    controller: CameraController,
     cube_mesh: usize,
     plane_mesh: usize,
     cube_material: usize,
-    plane_material: usize,
+    green_material: usize,
+    blue_material: usize,
+    yellow_material: usize,
     canvas: HtmlCanvasElement,
+    last_timestamp: f64,
+}
+
+/// Attach keyboard, mouse, and wheel event listeners to drive the camera.
+fn setup_input_handlers(
+    canvas: &HtmlCanvasElement,
+    state: &Rc<RefCell<WasmEngineState>>,
+) {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+
+    // Keyboard down
+    {
+        let state = state.clone();
+        let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| {
+            // Prevent default for game keys to avoid scrolling
+            let code = event.code();
+            match code.as_str() {
+                "KeyW" | "KeyA" | "KeyS" | "KeyD" | "Space" | "Tab" => {
+                    event.prevent_default();
+                }
+                _ => {}
+            }
+            state.borrow_mut().controller.process_key(&code, true);
+        });
+        document
+            .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    // Keyboard up
+    {
+        let state = state.clone();
+        let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| {
+            let code = event.code();
+            state.borrow_mut().controller.process_key(&code, false);
+        });
+        document
+            .add_event_listener_with_callback("keyup", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    // Mouse down on canvas
+    {
+        let state = state.clone();
+        let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::MouseEvent| {
+            event.prevent_default();
+            state
+                .borrow_mut()
+                .controller
+                .set_mouse_button(event.button() as i32, true);
+        });
+        canvas
+            .add_event_listener_with_callback("mousedown", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    // Mouse up (on document, to catch releases outside canvas)
+    {
+        let state = state.clone();
+        let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::MouseEvent| {
+            state
+                .borrow_mut()
+                .controller
+                .set_mouse_button(event.button() as i32, false);
+        });
+        document
+            .add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    // Mouse move
+    {
+        let state = state.clone();
+        let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::MouseEvent| {
+            let dx = event.movement_x() as f64;
+            let dy = event.movement_y() as f64;
+            state.borrow_mut().controller.process_mouse_motion(dx, dy);
+        });
+        canvas
+            .add_event_listener_with_callback("mousemove", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    // Scroll wheel
+    {
+        let state = state.clone();
+        let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::WheelEvent| {
+            event.prevent_default();
+            // Normalize: positive delta_y = scroll down = zoom out → negative scroll value
+            let delta = -event.delta_y() as f32 / 100.0;
+            state.borrow_mut().controller.process_scroll(delta);
+        });
+        canvas
+            .add_event_listener_with_callback("wheel", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+
+    // Prevent context menu on right-click
+    {
+        let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::MouseEvent| {
+            event.prevent_default();
+        });
+        canvas
+            .add_event_listener_with_callback("contextmenu", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
 }
 
 /// Drive the render loop via requestAnimationFrame.
-/// The closure captures shared state and re-registers itself each frame.
 fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
-    // Shared closure reference for self-registration
     let f: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
     let g = f.clone();
 
-    let start_time = web_sys::window()
-        .unwrap()
-        .performance()
-        .unwrap()
-        .now();
-
     *g.borrow_mut() = Some(Closure::new(move |timestamp_ms: f64| {
-        // elapsed time in seconds since start
-        let elapsed = (timestamp_ms - start_time) / 1000.0;
-
         let mut s = state.borrow_mut();
 
-        // Handle canvas resize (CSS may change size at any time)
+        // Calculate dt
+        let dt = if s.last_timestamp > 0.0 {
+            ((timestamp_ms - s.last_timestamp) / 1000.0) as f32
+        } else {
+            1.0 / 60.0
+        };
+        s.last_timestamp = timestamp_ms;
+
+        // Clamp dt to avoid huge jumps on tab-switch
+        let dt = dt.min(0.1);
+
+        // Handle canvas resize
         let window = web_sys::window().unwrap();
         let dpr = window.device_pixel_ratio();
         let new_width = (s.canvas.client_width() as f64 * dpr) as u32;
@@ -128,16 +256,23 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
             s.camera.aspect = s.renderer.aspect_ratio();
         }
 
-        // Spinning cube rotation based on elapsed time
+        // Update camera from input
+        // Destructure to get separate mutable references (satisfies borrow checker)
+        let WasmEngineState { ref mut controller, ref mut camera, .. } = *s;
+        controller.update_camera(camera, dt);
+
+        // Spinning cube rotation
+        let elapsed = (timestamp_ms / 1000.0) as f32;
         let cube_rotation = Quat::from_euler(
             glam::EulerRot::YXZ,
-            elapsed as f32 * 0.7,
-            elapsed as f32 * 0.5,
+            elapsed * 0.7,
+            elapsed * 0.5,
             0.0,
         );
 
+        // Scene objects — several cubes to give spatial reference
         let objects = [
-            // Cube floating above the ground
+            // Center cube (spinning, red)
             RenderObject {
                 position: Vec3::new(0.0, 1.0, 0.0),
                 rotation: cube_rotation,
@@ -145,13 +280,29 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
                 mesh: s.cube_mesh,
                 material: s.cube_material,
             },
+            // Blue cube at +X
+            RenderObject {
+                position: Vec3::new(4.0, 0.5, 0.0),
+                rotation: Quat::IDENTITY,
+                scale: Vec3::ONE,
+                mesh: s.cube_mesh,
+                material: s.blue_material,
+            },
+            // Yellow cube at -Z
+            RenderObject {
+                position: Vec3::new(0.0, 0.5, -4.0),
+                rotation: Quat::from_rotation_y(0.5),
+                scale: Vec3::splat(0.7),
+                mesh: s.cube_mesh,
+                material: s.yellow_material,
+            },
             // Ground plane
             RenderObject {
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
                 scale: Vec3::ONE,
                 mesh: s.plane_mesh,
-                material: s.plane_material,
+                material: s.green_material,
             },
         ];
 
@@ -165,7 +316,7 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
             }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 log::error!("Out of GPU memory");
-                return; // Stop the render loop
+                return;
             }
             Err(e) => {
                 log::warn!("Render error: {:?}", e);

@@ -34,7 +34,8 @@ mod native_app {
     use winit::keyboard::PhysicalKey;
     use winit::window::{Window, WindowId};
 
-    /// Run the engine standalone — opens a window, renders a spinning cube on a ground plane.
+    /// Run the engine standalone — opens a window, renders a test scene.
+    /// Supports three camera modes (Tab to cycle, F to toggle FP/TP, M for orbit).
     pub fn run() {
         env_logger::init();
         let event_loop = EventLoop::new().expect("Failed to create event loop");
@@ -60,7 +61,9 @@ mod native_app {
         cube_mesh: usize,
         plane_mesh: usize,
         cube_material: usize,
-        plane_material: usize,
+        green_material: usize,
+        blue_material: usize,
+        yellow_material: usize,
         start_time: Instant,
         last_frame: Instant,
     }
@@ -90,9 +93,13 @@ mod native_app {
 
             // Create materials
             let cube_material =
-                renderer.add_material([0.8, 0.3, 0.2, 1.0], 0.0, 0.5); // red-orange, non-metallic
-            let plane_material =
-                renderer.add_material([0.3, 0.5, 0.3, 1.0], 0.0, 0.8); // green-ish ground
+                renderer.add_material([0.8, 0.3, 0.2, 1.0], 0.0, 0.5);
+            let green_material =
+                renderer.add_material([0.3, 0.5, 0.3, 1.0], 0.0, 0.8);
+            let blue_material =
+                renderer.add_material([0.2, 0.4, 0.8, 1.0], 0.3, 0.4);
+            let yellow_material =
+                renderer.add_material([0.9, 0.8, 0.2, 1.0], 0.0, 0.6);
 
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
@@ -107,7 +114,9 @@ mod native_app {
                 cube_mesh,
                 plane_mesh,
                 cube_material,
-                plane_material,
+                green_material,
+                blue_material,
+                yellow_material,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
             });
@@ -144,12 +153,19 @@ mod native_app {
                 WindowEvent::MouseInput { button, state: btn_state, .. } => {
                     state.controller.process_mouse_button(button, btn_state);
                 }
+                WindowEvent::MouseWheel { delta, .. } => {
+                    let scroll = match delta {
+                        winit::event::MouseScrollDelta::LineDelta(_, y) => y,
+                        winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
+                    };
+                    state.controller.process_scroll(scroll);
+                }
                 WindowEvent::RedrawRequested => {
                     let now = Instant::now();
-                    let dt = (now - state.last_frame).as_secs_f32();
+                    let dt = (now - state.last_frame).as_secs_f32().min(0.1);
                     state.last_frame = now;
 
-                    // Update camera
+                    // Update camera from input
                     state.controller.update_camera(&mut state.camera, dt);
 
                     // Spinning cube
@@ -158,7 +174,7 @@ mod native_app {
                         Quat::from_euler(glam::EulerRot::YXZ, elapsed * 0.7, elapsed * 0.5, 0.0);
 
                     let objects = [
-                        // Cube floating above the ground
+                        // Center cube (spinning, red)
                         RenderObject {
                             position: Vec3::new(0.0, 1.0, 0.0),
                             rotation: cube_rotation,
@@ -166,13 +182,29 @@ mod native_app {
                             mesh: state.cube_mesh,
                             material: state.cube_material,
                         },
+                        // Blue cube at +X
+                        RenderObject {
+                            position: Vec3::new(4.0, 0.5, 0.0),
+                            rotation: Quat::IDENTITY,
+                            scale: Vec3::ONE,
+                            mesh: state.cube_mesh,
+                            material: state.blue_material,
+                        },
+                        // Yellow cube at -Z
+                        RenderObject {
+                            position: Vec3::new(0.0, 0.5, -4.0),
+                            rotation: Quat::from_rotation_y(0.5),
+                            scale: Vec3::splat(0.7),
+                            mesh: state.cube_mesh,
+                            material: state.yellow_material,
+                        },
                         // Ground plane
                         RenderObject {
                             position: Vec3::ZERO,
                             rotation: Quat::IDENTITY,
                             scale: Vec3::ONE,
                             mesh: state.plane_mesh,
-                            material: state.plane_material,
+                            material: state.green_material,
                         },
                     ];
 

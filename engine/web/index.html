@@ -15,6 +15,7 @@
             width: 100vw;
             height: 100vh;
             display: block;
+            cursor: crosshair;
         }
         #loading {
             position: fixed;
@@ -33,6 +34,32 @@
             font-size: 0.9rem;
         }
         #loading.hidden { display: none; }
+        #controls {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            font-size: 0.75rem;
+            color: #aaa;
+            z-index: 10;
+            background: rgba(0,0,0,0.6);
+            padding: 8px 12px;
+            border-radius: 6px;
+            line-height: 1.6;
+            pointer-events: none;
+        }
+        #controls strong {
+            color: #fff;
+            font-size: 0.85rem;
+        }
+        #controls kbd {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 3px;
+            padding: 1px 5px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #ddd;
+        }
         #info {
             position: fixed;
             bottom: 12px;
@@ -63,8 +90,17 @@
         <h1>WebGPU Not Available</h1>
         <p>This demo requires a browser with WebGPU support (Chrome 113+, Edge 113+, or Firefox Nightly with WebGPU enabled).</p>
     </div>
+    <div id="controls">
+        <strong>Camera Controls</strong><br>
+        <kbd>WASD</kbd> Move &nbsp; <kbd>Space</kbd>/<kbd>Shift</kbd> Up/Down<br>
+        <kbd>Mouse</kbd> Look (hold left or right click)<br>
+        <kbd>Scroll</kbd> Zoom (third-person/orbit)<br>
+        <kbd>Tab</kbd> Cycle mode &nbsp; <kbd>F</kbd> Toggle FP/TP<br>
+        <kbd>M</kbd> Orbit mode &nbsp; <kbd>O</kbd> Toggle ortho<br>
+        <kbd>Q</kbd> Swap shoulder (third-person)
+    </div>
     <canvas id="game-canvas"></canvas>
-    <div id="info">HumanityOS Engine WASM Demo — Phase 1</div>
+    <div id="info">HumanityOS Engine — Phase 2: Three-Mode Camera</div>
 
     <script type="module">
         // Quick WebGPU feature check before loading WASM
