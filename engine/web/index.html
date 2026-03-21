@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>HumanityOS Engine — WASM Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #111;
+            overflow: hidden;
+            font-family: system-ui, sans-serif;
+            color: #eee;
+        }
+        canvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 10;
+        }
+        #loading h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        #loading p {
+            color: #888;
+            font-size: 0.9rem;
+        }
+        #loading.hidden { display: none; }
+        #info {
+            position: fixed;
+            bottom: 12px;
+            left: 12px;
+            font-size: 0.75rem;
+            color: #666;
+            z-index: 10;
+        }
+        #no-webgpu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            z-index: 20;
+        }
+        #no-webgpu h1 { color: #f44; margin-bottom: 0.5rem; }
+        #no-webgpu p { color: #aaa; max-width: 400px; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <h1>HumanityOS Engine</h1>
+        <p>Initializing WebGPU...</p>
+    </div>
+    <div id="no-webgpu">
+        <h1>WebGPU Not Available</h1>
+        <p>This demo requires a browser with WebGPU support (Chrome 113+, Edge 113+, or Firefox Nightly with WebGPU enabled).</p>
+    </div>
+    <canvas id="game-canvas"></canvas>
+    <div id="info">HumanityOS Engine WASM Demo — Phase 1</div>
+
+    <script type="module">
+        // Quick WebGPU feature check before loading WASM
+        if (!navigator.gpu) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('no-webgpu').style.display = 'block';
+            console.error('WebGPU is not available in this browser.');
+        } else {
+            // Load the WASM module — wasm_bindgen(start) triggers automatically
+            import('./pkg/humanity_engine.js').then(mod => {
+                return mod.default();
+            }).then(() => {
+                document.getElementById('loading').classList.add('hidden');
+                console.log('WASM module loaded and engine started.');
+            }).catch(err => {
+                console.error('Failed to load WASM module:', err);
+                document.getElementById('loading').querySelector('p').textContent =
+                    'Failed to load engine: ' + err.message;
+            });
+        }
+    </script>
+</body>
+</html>

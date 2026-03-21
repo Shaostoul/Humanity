@@ -3,12 +3,19 @@ name = "humanity-engine"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["native"]
+native = ["winit", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio"]
+wasm = [
+    "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
+    "dep:console_error_panic_hook", "dep:console_log",
+    "getrandom/js",
+]
+
 [dependencies]
 # Rendering
 wgpu = "24"
-winit = "0.30"
 bytemuck = { version = "1", features = ["derive"] }
-pollster = "0.4"
 # ECS
 hecs = "0.10"
 # Physics
@@ -20,8 +27,6 @@ kira = "0.9"
 # Asset loading
 gltf = "1.4"
 image = "0.25"
-# Hot-reload
-notify = "7"
 # Serialization
 serde = { version = "1", features = ["derive"] }
 ron = "0.8"
@@ -29,9 +34,29 @@ toml = "0.8"
 csv = "1.3"
 # Logging
 log = "0.4"
-env_logger = "0.11"
-# Async
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 # Procedural generation
 noise = "0.9"
 rand = "0.8"
+# getrandom needs "js" feature on wasm32 (activated by `wasm` feature flag above)
+getrandom = "0.2"
+
+# === Platform: Native ===
+winit = { version = "0.30", optional = true }
+notify = { version = "7", optional = true }
+pollster = { version = "0.4", optional = true }
+env_logger = { version = "0.11", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"], optional = true }
+
+# === Platform: WASM ===
+web-sys = { version = "0.3", optional = true, features = [
+    "Document", "Window", "Element", "HtmlCanvasElement",
+    "KeyboardEvent", "MouseEvent", "WheelEvent", "PointerEvent",
+    "Performance", "console",
+    "Request", "RequestInit", "RequestMode", "Response",
+    "Headers",
+] }
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+console_log = { version = "0.2", optional = true }

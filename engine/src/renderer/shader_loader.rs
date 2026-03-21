@@ -1,34 +1,47 @@
-//! WGSL shader hot-reload via notify file watcher.
+//! WGSL shader loading with optional hot-reload (native only).
 //!
 //! Shaders live in `assets/shaders/*.wgsl` and are reloaded on change.
+//! The embedded fallback shader works on all platforms (native + WASM).
 
+#[cfg(feature = "native")]
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::path::PathBuf;
 
 /// Embedded fallback shader used when the on-disk shader can't be loaded.
 const FALLBACK_SHADER: &str = include_str!("../../../assets/shaders/pbr_simple.wgsl");
 
-/// Loads and caches WGSL shader modules, recompiling on file change.
+/// Loads and caches WGSL shader modules, recompiling on file change (native only).
 pub struct ShaderLoader {
     shaders: HashMap<PathBuf, wgpu::ShaderModule>,
+    #[cfg(feature = "native")]
     _watcher: Option<RecommendedWatcher>,
-    change_rx: mpsc::Receiver<PathBuf>,
+    #[cfg(feature = "native")]
+    change_rx: std::sync::mpsc::Receiver<PathBuf>,
 }
 
 impl ShaderLoader {
     pub fn new() -> Self {
-        let (_tx, rx) = mpsc::channel();
+        #[cfg(feature = "native")]
+        let (_tx, rx) = std::sync::mpsc::channel();
+
         Self {
             shaders: HashMap::new(),
+            #[cfg(feature = "native")]
             _watcher: None,
+            #[cfg(feature = "native")]
             change_rx: rx,
         }
     }
 
     /// Load a .wgsl shader from disk. Falls back to embedded shader on error.
-    pub fn load(&mut self, device: &wgpu::Device, path: &Path) -> &wgpu::ShaderModule {
+    /// Only available on native (WASM loads shaders via include_str or fetch).
+    #[cfg(feature = "native")]
+    pub fn load(
+        &mut self,
+        device: &wgpu::Device,
+        path: &std::path::Path,
+    ) -> &wgpu::ShaderModule {
         let canonical = path.to_path_buf();
         if !self.shaders.contains_key(&canonical) {
             let source = std::fs::read_to_string(path).unwrap_or_else(|e| {
@@ -45,6 +58,7 @@ impl ShaderLoader {
     }
 
     /// Load the embedded PBR-lite shader directly (no disk path needed).
+    /// Works on all platforms.
     pub fn load_embedded_pbr(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("pbr_simple (embedded)"),
@@ -52,10 +66,11 @@ impl ShaderLoader {
         })
     }
 
-    /// Start watching a directory for .wgsl file changes.
+    /// Start watching a directory for .wgsl file changes (native only).
     /// Changed paths are queued and can be polled with `poll_changes()`.
-    pub fn watch(&mut self, dir: &Path) {
-        let (tx, rx) = mpsc::channel::<PathBuf>();
+    #[cfg(feature = "native")]
+    pub fn watch(&mut self, dir: &std::path::Path) {
+        let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
         self.change_rx = rx;
 
         let sender = tx;
@@ -76,7 +91,8 @@ impl ShaderLoader {
         self._watcher = Some(watcher);
     }
 
-    /// Poll for changed shader files. Returns paths that need recompilation.
+    /// Poll for changed shader files. Returns paths that need recompilation (native only).
+    #[cfg(feature = "native")]
     pub fn poll_changes(&mut self) -> Vec<PathBuf> {
         let mut changed = Vec::new();
         while let Ok(path) = self.change_rx.try_recv() {
@@ -85,9 +101,10 @@ impl ShaderLoader {
         changed
     }
 
-    /// Recompile a shader from disk, replacing the cached module.
+    /// Recompile a shader from disk, replacing the cached module (native only).
     /// Returns true if recompilation succeeded.
-    pub fn recompile(&mut self, device: &wgpu::Device, path: &Path) -> bool {
+    #[cfg(feature = "native")]
+    pub fn recompile(&mut self, device: &wgpu::Device, path: &std::path::Path) -> bool {
         match std::fs::read_to_string(path) {
             Ok(source) => {
                 let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {

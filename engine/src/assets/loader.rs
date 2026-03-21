@@ -10,19 +10,25 @@ pub enum AssetType {
     Data,    // .ron, .csv, .toml
 }
 
-/// Loads a raw asset from disk and identifies its type.
-pub fn load_asset_bytes(path: &std::path::Path) -> Result<(AssetType, Vec<u8>), std::io::Error> {
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
-    let asset_type = match ext {
+/// Identify asset type from a file extension string.
+pub fn asset_type_from_ext(ext: &str) -> AssetType {
+    match ext {
         "glb" | "gltf" => AssetType::Mesh,
         "png" | "jpg" | "ktx2" => AssetType::Texture,
         "wgsl" => AssetType::Shader,
         "ogg" | "wav" => AssetType::Audio,
         _ => AssetType::Data,
-    };
+    }
+}
+
+/// Loads a raw asset from disk and identifies its type (native only).
+#[cfg(feature = "native")]
+pub fn load_asset_bytes(path: &std::path::Path) -> Result<(AssetType, Vec<u8>), std::io::Error> {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
+    let asset_type = asset_type_from_ext(ext);
     let bytes = std::fs::read(path)?;
     Ok((asset_type, bytes))
 }

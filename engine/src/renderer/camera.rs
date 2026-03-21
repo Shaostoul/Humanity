@@ -1,11 +1,11 @@
 //! Camera controller — first-person and third-person modes.
 //!
 //! Camera settings loaded from `config/camera.toml`.
+//! The Camera struct is platform-agnostic (pure math).
+//! CameraController uses winit types on native, raw input on WASM.
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
-use winit::event::{ElementState, MouseButton};
-use winit::keyboard::KeyCode;
 
 /// GPU-side camera uniform data (matches shader CameraUniforms).
 #[repr(C)]
@@ -87,6 +87,7 @@ impl Camera {
 }
 
 /// FPS-style camera controller: WASD movement + mouse look.
+/// On native, feed winit events. On WASM, feed raw key/mouse data.
 pub struct CameraController {
     pub speed: f32,
     pub mouse_sensitivity: f32,
@@ -118,8 +119,16 @@ impl CameraController {
         }
     }
 
-    /// Process a keyboard event.
-    pub fn process_keyboard(&mut self, key: KeyCode, state: ElementState) {
+    /// Process a keyboard event from winit.
+    #[cfg(feature = "native")]
+    pub fn process_keyboard(
+        &mut self,
+        key: winit::keyboard::KeyCode,
+        state: winit::event::ElementState,
+    ) {
+        use winit::keyboard::KeyCode;
+        use winit::event::ElementState;
+
         let pressed = state == ElementState::Pressed;
         match key {
             KeyCode::KeyW => self.forward = pressed,
@@ -132,11 +141,35 @@ impl CameraController {
         }
     }
 
-    /// Process a mouse button event (right-click to look).
-    pub fn process_mouse_button(&mut self, button: MouseButton, state: ElementState) {
-        if button == MouseButton::Right {
-            self.mouse_pressed = state == ElementState::Pressed;
+    /// Process a mouse button event from winit.
+    #[cfg(feature = "native")]
+    pub fn process_mouse_button(
+        &mut self,
+        button: winit::event::MouseButton,
+        state: winit::event::ElementState,
+    ) {
+        if button == winit::event::MouseButton::Right {
+            self.mouse_pressed = state == winit::event::ElementState::Pressed;
         }
+    }
+
+    /// Process a keyboard event from string key names (WASM-friendly).
+    /// key_code: "KeyW", "KeyA", "KeyS", "KeyD", "Space", "ShiftLeft", etc.
+    pub fn process_key(&mut self, key_code: &str, pressed: bool) {
+        match key_code {
+            "KeyW" => self.forward = pressed,
+            "KeyS" => self.backward = pressed,
+            "KeyA" => self.left = pressed,
+            "KeyD" => self.right = pressed,
+            "Space" => self.ascend = pressed,
+            "ShiftLeft" | "ShiftRight" => self.descend = pressed,
+            _ => {}
+        }
+    }
+
+    /// Set whether the mouse look button is pressed (WASM-friendly).
+    pub fn set_mouse_pressed(&mut self, pressed: bool) {
+        self.mouse_pressed = pressed;
     }
 
     /// Accumulate mouse motion delta.

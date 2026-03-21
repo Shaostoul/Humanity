@@ -1,6 +1,7 @@
 //! Renderer — wgpu device/surface setup and render loop.
 //!
 //! Configuration loaded from `config/renderer.toml`.
+//! Supports both native (winit window) and WASM (canvas) targets.
 
 pub mod camera;
 pub mod mesh;
@@ -8,7 +9,6 @@ pub mod multi_scale;
 pub mod pipeline;
 pub mod shader_loader;
 
-use bytemuck::Pod;
 use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};
 use mesh::Mesh;
@@ -50,13 +50,13 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    /// Create a new renderer attached to the given window.
-    pub async fn new(window: std::sync::Arc<winit::window::Window>) -> Self {
+    /// Create a new renderer attached to a native winit window.
+    #[cfg(feature = "native")]
+    pub async fn new_native(window: std::sync::Arc<winit::window::Window>) -> Self {
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
 
-        // wgpu instance → surface → adapter → device
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -64,6 +64,34 @@ impl Renderer {
 
         let surface = instance.create_surface(window).expect("Failed to create surface");
 
+        Self::init(instance, surface, width, height).await
+    }
+
+    /// Create a new renderer attached to a WASM canvas element.
+    #[cfg(feature = "wasm")]
+    pub async fn new_wasm(canvas: web_sys::HtmlCanvasElement) -> Self {
+        let width = canvas.width().max(1);
+        let height = canvas.height().max(1);
+
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
+            ..Default::default()
+        });
+
+        let surface = instance
+            .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
+            .expect("Failed to create surface from canvas");
+
+        Self::init(instance, surface, width, height).await
+    }
+
+    /// Shared initialization: adapter, device, pipeline, depth buffer.
+    async fn init(
+        instance: wgpu::Instance,
+        surface: wgpu::Surface<'static>,
+        width: u32,
+        height: u32,
+    ) -> Self {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -78,7 +106,8 @@ impl Renderer {
                 &wgpu::DeviceDescriptor {
                     label: Some("HumanityOS Renderer"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
+                    required_limits: wgpu::Limits::downlevel_webgl2_defaults()
+                        .using_resolution(adapter.limits()),
                     ..Default::default()
                 },
                 None,
@@ -149,7 +178,7 @@ impl Renderer {
         }
     }
 
-    /// Handle window resize.
+    /// Handle window/canvas resize.
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;

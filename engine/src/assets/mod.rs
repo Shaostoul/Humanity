@@ -2,6 +2,7 @@
 //!
 //! Supported formats: GLB, KTX2, OGG, WGSL, RON, CSV, TOML.
 
+#[cfg(feature = "native")]
 pub mod watcher;
 pub mod loader;
 
