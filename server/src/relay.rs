@@ -1384,6 +1384,23 @@ pub enum RelayMessage {
         servers: Vec<FederationServerStatus>,
     },
 
+    /// Profile gossip between federated servers — signed profiles replicate everywhere.
+    /// No home server: the signature is the authority. Latest timestamp wins.
+    #[serde(rename = "profile_gossip")]
+    ProfileGossip {
+        public_key: String,
+        name: String,
+        bio: String,
+        avatar_url: String,
+        banner_url: String,
+        socials: String,
+        pronouns: String,
+        location: String,
+        website: String,
+        timestamp: u64,
+        signature: String,
+    },
+
     // ── Streaming messages ──
 
     /// Admin starts a stream session.
@@ -4359,6 +4376,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             RelayMessage::FederationWelcome { server_id, name, channels } => {
                                 handle_federation_welcome(&state_clone, server_id, name, channels).await;
+                            }
+                            // Profile gossip from a federated server connecting to us.
+                            RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
+                                tracing::debug!("Profile gossip received for {} via direct WS", &name);
+                                let _ = state_clone.db.store_signed_profile(
+                                    &public_key, &name, &bio, &avatar_url, &banner_url, &socials, &pronouns, &location, &website, timestamp, &signature,
+                                );
                             }
                             // ── Streaming ──
                             RelayMessage::StreamStart { title, category } => {

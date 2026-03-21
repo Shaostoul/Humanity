@@ -4,6 +4,8 @@
 
 Define how multiple independently-operated servers form the Humanity Network. Servers are meeting places, not gatekeepers. Identity is portable — the same Ed25519 key works on any server. Users choose which servers to join; servers choose which servers to trust.
 
+**Key principle: No home servers.** Identity lives in the cryptographic key, not on any server. Signed profiles replicate across every server a user touches. See `docs/design/identity.md` for the full identity architecture.
+
 ---
 
 ## Core Principles
@@ -14,6 +16,7 @@ Define how multiple independently-operated servers form the Humanity Network. Se
 4. **Trust is earned, not assumed.** A tiered trust model signals reliability to users.
 5. **The Accord is voluntary.** Adopting it publicly signals alignment with shared values.
 6. **Federation is opt-in.** Servers can operate in isolation or join the network.
+7. **Profiles replicate, not centralize.** Signed profiles cached on every server touched; latest timestamp wins.
 
 ---
 
@@ -28,10 +31,10 @@ This produces four trust levels:
 
 | Tier | Label | Verified | Accord | Display |
 |------|-------|----------|--------|---------|
-| 3 | Verified + Accord | ✅ | ✅ | 🟢 Green shield |
-| 2 | Verified | ✅ | ❌ | 🟡 Yellow shield |
-| 1 | Unverified + Accord | ❌ | ✅ | 🔵 Blue circle |
-| 0 | Unverified | ❌ | ❌ | ⚪ Grey circle |
+| 3 | Verified + Accord | ✅ | ✅ | Green shield |
+| 2 | Verified | ✅ | ❌ | Yellow shield |
+| 1 | Unverified + Accord | ❌ | ✅ | Blue circle |
+| 0 | Unverified | ❌ | ❌ | Grey circle |
 
 **Display order**: Tier 3 → Tier 2 → Tier 1 → Tier 0, then alphabetical within tiers.
 
@@ -65,14 +68,6 @@ humanity-verify:<random-32-hex>:<issued-timestamp>:<server-domain>
 - One-time use, expires in 7 days.
 - Bound to the requesting domain.
 - Stored in the root registry after redemption.
-
-### Accord Verification
-
-Accord adoption is verified by the root authority checking:
-1. The operator's main website displays a link to the Humanity Accord with explicit acceptance language.
-2. At least one major social account (X, YouTube, etc.) references the Accord.
-
-This is a human-reviewed process, not automated.
 
 ---
 
@@ -125,6 +120,50 @@ Unverified servers are stored locally in the client's IndexedDB.
 
 ---
 
+## Signed Profile Replication
+
+Profiles are NOT owned by any server. They are signed objects that replicate to every server the user connects to.
+
+### Protocol
+
+1. **On connect**: Client sends `ProfileUpdate` with signed profile data
+2. **Server validates**: Verify Ed25519 signature over canonical payload
+3. **Server stores**: Cache in `signed_profiles` table with timestamp
+4. **Server gossips**: Forward to all federated peers via `ProfileGossip` message
+5. **Receiving server validates**: Verify signature, store if newer than existing
+6. **Lookup**: Any server can serve any profile it has cached
+
+### Message Format
+
+```json
+{
+  "type": "ProfileUpdate",
+  "public_key": "abc123...",
+  "name": "Shaostoul",
+  "bio": "Building HumanityOS",
+  "avatar_url": "https://...",
+  "socials": {},
+  "timestamp": 1711036800000,
+  "signature": "<ed25519-sig-over-canonical-payload>"
+}
+```
+
+### Gossip Rules
+
+- Only gossip profiles from users who have been seen on this server (anti-spam)
+- Only gossip to Tier 2+ federated servers
+- Rate limit: max 100 profile gossips per minute per server
+- Receiving servers accept profile only if:
+  - Signature is valid
+  - Timestamp is newer than currently cached version
+  - Payload size is within limits (< 10KB)
+
+### Federated Message Persistence
+
+Incoming `FederatedChat` messages are persisted in the local `messages` table, tagged with `origin_server` to distinguish from local messages. Messages are never lost on server restart.
+
+---
+
 ## Client Behavior
 
 ### Server List UI
@@ -151,8 +190,8 @@ Clicking a server switches the WebSocket connection and loads that server's chan
 ### Identity Across Servers
 
 - Same Ed25519 keypair used everywhere.
-- Name registration is per-server (you could be "Alice" on one server and find the name taken on another).
-- Profile data (bio, socials) synced from client on each connect.
+- Signed profile sent on each connect — server caches and gossips it.
+- Name uniqueness: per-server reservation + optional on-chain global names (see `docs/design/identity.md`).
 - Block list is client-side and applies across all servers.
 
 ---
@@ -190,16 +229,17 @@ accord_url = ""
 
 ---
 
-## Federation Protocol (Future)
+## Federation Protocol Phases
 
-### Phase 1: Server Switching (MVP — current target)
+### Phase 1: Server Switching (MVP — complete)
 - Client knows about multiple servers.
 - Connects to one at a time.
 - Server list with trust tiers.
 
-### Phase 2: Cross-Server Identity
-- Name reservation across verified servers (optional, cooperative).
-- Profile portability — server forwards profile to peers.
+### Phase 2: Profile Gossip + Message Persistence (current)
+- Signed profile replication across federated servers.
+- Federated messages persisted in storage.
+- Profile lookup from any server that has cached it.
 
 ### Phase 3: Cross-Server Messaging
 - Relay messages between federated servers.
@@ -210,6 +250,11 @@ accord_url = ""
 - Bridged channels that span multiple servers.
 - Shared moderation for bridged channels.
 
+### Phase 5: Optional On-Chain Names
+- Solana name registry for globally unique names.
+- Any server verifies ownership by querying the chain.
+- Not required — opt-in for users who want it.
+
 ---
 
 ## Security Considerations
@@ -218,23 +263,15 @@ accord_url = ""
 - **Key theft**: If a server operator modifies the client JS to exfiltrate private keys, users on that server are compromised. Verified servers reduce this risk. Long-term: native apps eliminate it.
 - **Registry tampering**: The server registry is signed. Clients verify the signature before trusting it.
 - **Sybil servers**: An attacker could spin up many unverified servers. Trust tiers and the verification process mitigate this.
-
----
-
-## Migration Path
-
-1. Write server registry JSON with chat.united-humanity.us as the sole Tier 3 server.
-2. Add "Servers" section to client UI with server list, trust badges, and "Add Server" button.
-3. Add server switching (close/open WebSocket).
-4. Add verification code flow to relay binary.
-5. Document the process for new server operators.
-6. First external server: whoever asks first.
+- **Profile spam**: Gossip rules prevent amplification — only profiles from seen users are forwarded, rate-limited.
 
 ---
 
 ## Relationship to Other Specs
 
+- **Identity** (`design/identity.md`): Identity is the key, not the server. Profiles replicate everywhere.
 - **Social Graph** (`social_graph.md`): Follows/friends are client-side and work across servers. DMs route P2P regardless of server.
 - **Voice/Video** (`voice_video_streaming.md`): WebRTC signaling goes through the current server. Cross-server calls require Phase 3.
 - **File Sharing** (`file_sharing.md`): P2P file transfer works across servers since it's direct between clients.
 - **Realtime Protocol** (`realtime_relay_protocol.md`): Each server runs the same protocol independently.
+- **Wallet** (`design/wallet.md`): Same Ed25519 key is both identity and Solana wallet.

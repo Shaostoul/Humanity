@@ -118,6 +118,9 @@ pub use reviews::ReviewRecord;
 /// A server member record (re-exported from members.rs).
 pub use members::MemberRecord;
 
+/// A signed profile record (re-exported from signed_profiles.rs).
+pub use signed_profiles::SignedProfileRecord;
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -877,6 +880,36 @@ impl Storage {
             "CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project);"
         )?;
 
+        // Signed profiles: cryptographically signed, replicated across servers.
+        // No home server — the signature is the authority. Latest timestamp wins.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS signed_profiles (
+                public_key  TEXT PRIMARY KEY,
+                name        TEXT NOT NULL DEFAULT '',
+                bio         TEXT NOT NULL DEFAULT '',
+                avatar_url  TEXT NOT NULL DEFAULT '',
+                banner_url  TEXT NOT NULL DEFAULT '',
+                socials     TEXT NOT NULL DEFAULT '{}',
+                pronouns    TEXT NOT NULL DEFAULT '',
+                location    TEXT NOT NULL DEFAULT '',
+                website     TEXT NOT NULL DEFAULT '',
+                timestamp   INTEGER NOT NULL DEFAULT 0,
+                signature   TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_signed_profiles_timestamp
+                ON signed_profiles(timestamp);"
+        )?;
+
+        // Migration: add origin_server column to messages for federated message persistence.
+        if conn.prepare("SELECT origin_server FROM messages LIMIT 0").is_err() {
+            let _ = conn.execute(
+                "ALTER TABLE messages ADD COLUMN origin_server TEXT DEFAULT NULL",
+                [],
+            );
+            info!("Migration: added origin_server column to messages");
+        }
+
         // Server members table (membership tiers: member, contributor, mod, admin).
         // Guests have no row — they're just connected WebSocket peers.
         // Owner is stored in server-config.json, not this table.
@@ -969,4 +1002,5 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+mod signed_profiles;
 mod vault_sync;

@@ -216,6 +216,28 @@ impl Storage {
         })
     }
 
+    /// Store a federated chat message with origin server tag.
+    /// These persist across restarts so federated history isn't lost.
+    pub fn store_federated_message(
+        &self,
+        channel: &str,
+        from_name: &str,
+        from_key: &str,
+        content: &str,
+        timestamp: u64,
+        raw_json: &str,
+        origin_server: &str,
+    ) -> Result<i64, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO messages (msg_type, from_key, from_name, content, timestamp, signature, raw_json, channel_id, origin_server)
+                 VALUES ('federated_chat', ?1, ?2, ?3, ?4, NULL, ?5, ?6, ?7)",
+                params![from_key, from_name, content, timestamp as i64, raw_json, channel, origin_server],
+            )?;
+            Ok(conn.last_insert_rowid())
+        })
+    }
+
     /// Rebuild the FTS5 full-text index from the messages table.
     /// Idempotent — safe to call on every startup or after bulk imports.
     pub fn rebuild_fts_index(&self) -> Result<(), rusqlite::Error> {

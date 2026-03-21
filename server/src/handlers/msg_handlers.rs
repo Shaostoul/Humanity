@@ -507,15 +507,36 @@ pub async fn handle_profile_update(
 
                 let _ = state.broadcast_tx.send(RelayMessage::ProfileData {
                     name: name.clone(),
-                    bio: clean_bio,
-                    socials,
-                    avatar_url: if avatar.is_empty() { None } else { Some(avatar) },
-                    banner_url: if banner.is_empty() { None } else { Some(banner) },
-                    pronouns: if pronoun.is_empty() { None } else { Some(pronoun) },
-                    location: if loc.is_empty() { None } else { Some(loc) },
-                    website: if w_site.is_empty() { None } else { Some(w_site) },
+                    bio: clean_bio.clone(),
+                    socials: socials.clone(),
+                    avatar_url: if avatar.is_empty() { None } else { Some(avatar.clone()) },
+                    banner_url: if banner.is_empty() { None } else { Some(banner.clone()) },
+                    pronouns: if pronoun.is_empty() { None } else { Some(pronoun.clone()) },
+                    location: if loc.is_empty() { None } else { Some(loc.clone()) },
+                    website: if w_site.is_empty() { None } else { Some(w_site.clone()) },
                     target: Some(my_key.to_string()),
                 });
+
+                // Also cache as a signed profile (key-based, for federation replication).
+                // The signature here is just a placeholder — real Ed25519 verification
+                // will be added when clients send signed profile objects.
+                let ts = crate::storage::now_millis();
+                let _ = state.db.store_signed_profile(
+                    my_key,
+                    name,
+                    &clean_bio,
+                    &avatar,
+                    &banner,
+                    &socials,
+                    &pronoun,
+                    &loc,
+                    &w_site,
+                    ts,
+                    "", // signature — populated when client signs profiles
+                );
+
+                // Gossip the profile update to federated servers.
+                crate::handlers::federation::gossip_profile(state, my_key, name, &clean_bio, &avatar, &banner, &socials, &pronoun, &loc, &w_site, ts).await;
             }
             Err(e) => {
                 tracing::error!("Failed to save profile: {e}");

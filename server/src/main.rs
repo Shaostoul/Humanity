@@ -150,6 +150,7 @@ async fn main() {
         .route("/api/members/count", get(api::get_member_count))
         .route("/api/members/{key}", get(api::get_member_by_key))
         .route("/api/server-info", get(api::get_server_info))
+        .route("/api/profile/{key}", get(api::get_signed_profile))
         .route("/api/assets", get(api::get_assets).post(api::create_asset))
         .route("/api/assets/{id}", delete(api::delete_asset))
         .route("/api/projects", get(api::get_projects).post(api::create_project))

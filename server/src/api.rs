@@ -10,8 +10,9 @@
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{StatusCode, HeaderMap},
+    response::IntoResponse,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -2505,4 +2506,43 @@ pub async fn get_web_manifest() -> Json<WebManifest> {
     }
 
     Json(manifest)
+}
+
+// ── Signed Profile Lookup ──
+
+/// GET /api/profile/{key} — Look up a signed profile by public key.
+/// Returns the cached signed profile if available. Any server that has
+/// seen the user can serve their profile — no home server needed.
+pub async fn get_signed_profile(
+    State(state): State<Arc<RelayState>>,
+    Path(key): Path<String>,
+) -> impl IntoResponse {
+    match state.db.get_signed_profile(&key) {
+        Ok(Some(profile)) => {
+            let body = serde_json::json!({
+                "public_key": profile.public_key,
+                "name": profile.name,
+                "bio": profile.bio,
+                "avatar_url": profile.avatar_url,
+                "banner_url": profile.banner_url,
+                "socials": serde_json::from_str::<serde_json::Value>(&profile.socials).unwrap_or_default(),
+                "pronouns": profile.pronouns,
+                "location": profile.location,
+                "website": profile.website,
+                "timestamp": profile.timestamp,
+                "signature": profile.signature,
+            });
+            (StatusCode::OK, Json(body)).into_response()
+        }
+        Ok(None) => {
+            (StatusCode::NOT_FOUND, Json(serde_json::json!({
+                "error": "Profile not found"
+            }))).into_response()
+        }
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("Database error: {}", e)
+            }))).into_response()
+        }
+    }
 }

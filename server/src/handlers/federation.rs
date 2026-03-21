@@ -183,6 +183,26 @@ pub async fn federation_connect_loop(
                                     RelayMessage::FederatedChat { server_id, server_name, from_name, content, timestamp, channel, signature } => {
                                         // Only deliver to locally federated channels.
                                         if state_for_read.db.is_channel_federated(&channel).unwrap_or(false) {
+                                            // Persist the federated message so it survives restarts.
+                                            let msg_json = serde_json::json!({
+                                                "type": "federated_chat",
+                                                "server_id": &server_id,
+                                                "server_name": &server_name,
+                                                "from_name": &from_name,
+                                                "content": &content,
+                                                "timestamp": timestamp,
+                                                "channel": &channel,
+                                            });
+                                            let _ = state_for_read.db.store_federated_message(
+                                                &channel,
+                                                &from_name,
+                                                &server_id,
+                                                &content,
+                                                timestamp,
+                                                &msg_json.to_string(),
+                                                &server_id,
+                                            );
+
                                             let _ = state_for_read.broadcast_tx.send(RelayMessage::FederatedChat {
                                                 server_id, server_name, from_name, content, timestamp, channel, signature,
                                             });
@@ -191,6 +211,24 @@ pub async fn federation_connect_loop(
                                     RelayMessage::FederationWelcome { server_id, name, channels } => {
                                         tracing::info!("Federation: welcome from {} — channels: {:?}", name, channels);
                                         let _ = state_for_read.db.update_federated_server_status(&server_id, "online");
+                                    }
+                                    // Profile gossip from federated server — cache if newer.
+                                    RelayMessage::ProfileGossip { public_key, name, bio, avatar_url, banner_url, socials, pronouns, location, website, timestamp, signature } => {
+                                        tracing::debug!("Federation: received profile gossip for {}", &name);
+                                        // TODO: verify Ed25519 signature once clients sign profiles
+                                        let _ = state_for_read.db.store_signed_profile(
+                                            &public_key,
+                                            &name,
+                                            &bio,
+                                            &avatar_url,
+                                            &banner_url,
+                                            &socials,
+                                            &pronouns,
+                                            &location,
+                                            &website,
+                                            timestamp,
+                                            &signature,
+                                        );
                                     }
                                     _ => {} // Ignore other message types from federation.
                                 }
@@ -243,4 +281,44 @@ pub async fn broadcast_federation_status(state: &Arc<RelayState>) {
     }).collect();
 
     let _ = state.broadcast_tx.send(RelayMessage::FederationStatus { servers: statuses });
+}
+
+/// Gossip a profile update to all connected federated servers.
+/// Called after a local user updates their profile.
+pub async fn gossip_profile(
+    state: &Arc<RelayState>,
+    public_key: &str,
+    name: &str,
+    bio: &str,
+    avatar_url: &str,
+    banner_url: &str,
+    socials: &str,
+    pronouns: &str,
+    location: &str,
+    website: &str,
+    timestamp: u64,
+) {
+    let gossip_msg = RelayMessage::ProfileGossip {
+        public_key: public_key.to_string(),
+        name: name.to_string(),
+        bio: bio.to_string(),
+        avatar_url: avatar_url.to_string(),
+        banner_url: banner_url.to_string(),
+        socials: socials.to_string(),
+        pronouns: pronouns.to_string(),
+        location: location.to_string(),
+        website: website.to_string(),
+        timestamp,
+        signature: String::new(), // TODO: client-signed profiles
+    };
+
+    let json = match serde_json::to_string(&gossip_msg) {
+        Ok(j) => j,
+        Err(_) => return,
+    };
+
+    let connections = state.federation_connections.read().await;
+    for conn in connections.values() {
+        let _ = conn.tx.send(json.clone());
+    }
 }
