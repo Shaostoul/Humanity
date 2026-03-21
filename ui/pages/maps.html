@@ -841,6 +841,14 @@ function renderSystem(ctx, alpha) {
     planet._sr = planetR;
   }
 
+  // Hint: click a planet to explore it
+  if (!state.focusPlanet) {
+    ctx.fillStyle = 'rgba(255,180,60,0.7)';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Click a planet to explore it', W / 2, H - 30);
+  }
+
   // Scale indicator
   ctx.fillStyle = 'rgba(200,200,220,0.4)';
   ctx.font = '9px sans-serif';
@@ -1248,19 +1256,17 @@ function resetView() {
   animateZoomTo(0);
 }
 
-/** When zooming in past a threshold without a focus, auto-select Sol / Earth */
+/** When zooming in past a threshold without a focus, auto-select Sol.
+ *  Planets are NOT auto-selected — the user must click one in the system view. */
 function autoFocusOnZoom() {
   if (state.zoomLevel >= ZOOM_SYSTEM_MIN && !state.focusStar) {
-    state.focusStar = STARS[0]; // Sol
+    state.focusStar = STARS[0]; // Sol (only star system available)
     state.panX = 0;
     state.panY = 0;
   }
+  // Clamp zoom if no planet selected — can't go past system view without picking one
   if (state.zoomLevel >= ZOOM_GLOBE_MIN && !state.focusPlanet) {
-    state.focusPlanet = PLANETS[2]; // Earth
-    state.tileLat = 20;
-    state.tileLng = 0;
-    state.panX = 0;
-    state.panY = 0;
+    state.zoomLevel = ZOOM_GLOBE_MIN - 0.5;
   }
 }
 
@@ -1502,14 +1508,16 @@ function handleClick(mx, my) {
     }
   }
 
-  // System view: click planets
-  if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) {
+  // System view: click planets to select, double-click to zoom
+  if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX + 2 && state.focusStar) {
     for (const planet of PLANETS) {
       if (planet._sx === undefined) continue;
       const dx = mx - planet._sx, dy = my - planet._sy;
-      const hitR = Math.max(10, planet._sr);
-      if (dx * dx + dy * dy < hitR * hitR * 4) {
+      const hitR = Math.max(14, planet._sr * 1.5);
+      if (dx * dx + dy * dy < hitR * hitR) {
         showInfo(planet);
+        // Auto-zoom to the planet on click (like clicking a star zooms to its system)
+        zoomToPlanet(planet);
         return;
       }
     }
