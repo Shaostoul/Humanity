@@ -689,6 +689,7 @@ pub async fn get_pins(
 #[derive(Debug, Deserialize)]
 pub struct TasksQuery {
     pub status: Option<String>,
+    pub project: Option<String>,
 }
 
 /// Response for GET /api/tasks.
@@ -710,6 +711,7 @@ pub struct TaskEntry {
     pub updated_at: i64,
     pub labels: String,
     pub comment_count: i64,
+    pub project: String,
 }
 
 /// Request body for POST /api/tasks.
@@ -725,18 +727,25 @@ pub struct CreateTaskRequest {
     pub assignee: Option<String>,
     #[serde(default = "default_empty_labels")]
     pub labels: String,
+    #[serde(default = "default_project")]
+    pub project: String,
 }
 
 fn default_backlog() -> String { "backlog".to_string() }
 fn default_medium() -> String { "medium".to_string() }
 fn default_empty_labels() -> String { "[]".to_string() }
+fn default_project() -> String { "default".to_string() }
 
 /// GET /api/tasks — list all project board tasks.
 pub async fn get_tasks(
     State(state): State<Arc<RelayState>>,
     Query(params): Query<TasksQuery>,
 ) -> Json<TasksResponse> {
-    let tasks = state.db.list_tasks().unwrap_or_default();
+    let tasks = if let Some(ref proj) = params.project {
+        state.db.list_tasks_by_project(proj).unwrap_or_default()
+    } else {
+        state.db.list_tasks().unwrap_or_default()
+    };
     let counts = state.db.get_task_comment_counts().unwrap_or_default();
     let entries: Vec<TaskEntry> = tasks.into_iter()
         .filter(|t| params.status.as_ref().map_or(true, |s| &t.status == s))
@@ -747,6 +756,7 @@ pub async fn get_tasks(
                 status: t.status, priority: t.priority, assignee: t.assignee,
                 created_by: t.created_by, created_at: t.created_at,
                 updated_at: t.updated_at, labels: t.labels, comment_count: cc,
+                project: t.project,
             }
         }).collect();
     Json(TasksResponse { tasks: entries })
@@ -769,7 +779,8 @@ pub async fn create_task(
     let status = if valid_statuses.contains(&req.status.as_str()) { &req.status } else { "backlog" };
     let priority = if valid_priorities.contains(&req.priority.as_str()) { &req.priority } else { "medium" };
 
-    match state.db.create_task(&req.title, &req.description, status, priority, req.assignee.as_deref(), "bot_api", &req.labels) {
+    let proj = if req.project.is_empty() { "default" } else { &req.project };
+    match state.db.create_task_in_project(&req.title, &req.description, status, priority, req.assignee.as_deref(), "bot_api", &req.labels, proj) {
         Ok(id) => {
             // Broadcast to WebSocket clients.
             if let Ok(Some(task)) = state.db.get_task(id) {
@@ -778,7 +789,7 @@ pub async fn create_task(
                     status: task.status, priority: task.priority, assignee: task.assignee,
                     created_by: task.created_by, created_at: task.created_at,
                     updated_at: task.updated_at, position: task.position, labels: task.labels,
-                    comment_count: 0,
+                    comment_count: 0, project: task.project,
                 };
                 let _ = state.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
             }
@@ -797,6 +808,7 @@ pub struct UpdateTaskRequest {
     pub priority: Option<String>,
     pub assignee: Option<String>,
     pub labels: Option<String>,
+    pub project: Option<String>,
 }
 
 /// PATCH /api/tasks/:id — update a task via bot API (requires API_SECRET auth).
@@ -831,6 +843,7 @@ pub async fn update_task(
     let priority = req.priority.as_deref().unwrap_or(&existing.priority);
     let assignee = req.assignee.as_deref().or(existing.assignee.as_deref());
     let labels = req.labels.as_deref().unwrap_or(&existing.labels);
+    let project = req.project.as_deref().unwrap_or(&existing.project);
 
     if title.is_empty() || title.len() > 200 {
         return Err((StatusCode::BAD_REQUEST, "Title must be 1-200 characters.".into()));
@@ -842,9 +855,9 @@ pub async fn update_task(
     }
 
     // Only call update if non-status fields changed.
-    let fields_changed = req.title.is_some() || req.description.is_some() || req.priority.is_some() || req.assignee.is_some() || req.labels.is_some();
+    let fields_changed = req.title.is_some() || req.description.is_some() || req.priority.is_some() || req.assignee.is_some() || req.labels.is_some() || req.project.is_some();
     if fields_changed {
-        state.db.update_task(task_id, title, description, priority, assignee, labels)
+        state.db.update_task_with_project(task_id, title, description, priority, assignee, labels, project)
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update task: {e}")))?;
     }
 
@@ -861,7 +874,7 @@ pub async fn update_task(
         status: updated.status.clone(), priority: updated.priority.clone(), assignee: updated.assignee.clone(),
         created_by: updated.created_by.clone(), created_at: updated.created_at,
         updated_at: updated.updated_at, position: updated.position, labels: updated.labels.clone(),
-        comment_count: cc,
+        comment_count: cc, project: updated.project.clone(),
     };
     let _ = state.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
 
@@ -873,6 +886,7 @@ pub async fn update_task(
         "priority": updated.priority,
         "assignee": updated.assignee,
         "labels": updated.labels,
+        "project": updated.project,
         "updated_at": updated.updated_at,
     })))
 }
@@ -942,6 +956,179 @@ pub async fn create_task_comment(
     }
 }
 
+// ── Projects API ──
+
+/// Query params for GET /api/projects.
+#[derive(Debug, Deserialize)]
+pub struct ProjectsQuery {
+    pub owner_key: Option<String>,
+    pub visibility: Option<String>,
+}
+
+/// GET /api/projects — list visible projects.
+pub async fn get_projects(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<ProjectsQuery>,
+) -> Json<serde_json::Value> {
+    let projects = state.db.get_projects(
+        params.visibility.as_deref(),
+        params.owner_key.as_deref(),
+    ).unwrap_or_default();
+    let list: Vec<serde_json::Value> = projects.into_iter().map(|(p, tc)| {
+        serde_json::json!({
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "owner_key": p.owner_key,
+            "visibility": p.visibility,
+            "color": p.color,
+            "icon": p.icon,
+            "created_at": p.created_at,
+            "task_count": tc,
+        })
+    }).collect();
+    Json(serde_json::json!(list))
+}
+
+/// Request body for POST /api/projects.
+#[derive(Debug, Deserialize)]
+pub struct CreateProjectRequest {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default = "default_public")]
+    pub visibility: String,
+    #[serde(default = "default_color")]
+    pub color: String,
+    #[serde(default = "default_icon")]
+    pub icon: String,
+}
+
+fn default_public() -> String { "public".to_string() }
+fn default_color() -> String { "#4488ff".to_string() }
+fn default_icon() -> String { "\u{1F4CB}".to_string() }
+
+/// POST /api/projects — create a project (requires API_SECRET auth).
+pub async fn create_project(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreateProjectRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+
+    if req.name.trim().is_empty() || req.name.len() > 100 {
+        return Err((StatusCode::BAD_REQUEST, "Project name must be 1-100 characters.".into()));
+    }
+    if req.description.len() > 2000 {
+        return Err((StatusCode::BAD_REQUEST, "Description too long (max 2000 chars).".into()));
+    }
+
+    let valid_vis = ["public", "private", "members-only"];
+    let vis = if valid_vis.contains(&req.visibility.as_str()) { &req.visibility } else { "public" };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    match state.db.create_project(&id, &req.name, &req.description, "bot_api", vis, &req.color, &req.icon) {
+        Ok(()) => {
+            // Broadcast to WebSocket clients.
+            if let Ok(Some(rec)) = state.db.get_project_by_id(&id) {
+                let pd = crate::relay::ProjectData {
+                    id: rec.id, name: rec.name, description: rec.description,
+                    owner_key: rec.owner_key, visibility: rec.visibility,
+                    color: rec.color, icon: rec.icon, created_at: rec.created_at,
+                    task_count: 0,
+                };
+                let _ = state.broadcast_tx.send(RelayMessage::ProjectCreated { project: pd });
+            }
+            Ok(Json(serde_json::json!({ "id": id, "status": "created" })))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create project: {e}"))),
+    }
+}
+
+/// Request body for PATCH /api/projects/:id.
+#[derive(Debug, Deserialize)]
+pub struct UpdateProjectRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub visibility: Option<String>,
+    pub color: Option<String>,
+    pub icon: Option<String>,
+}
+
+/// PATCH /api/projects/:id — update a project (requires API_SECRET auth).
+pub async fn update_project(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    axum::extract::Path(project_id): axum::extract::Path<String>,
+    Json(req): Json<UpdateProjectRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+
+    if project_id == "default" {
+        return Err((StatusCode::BAD_REQUEST, "Cannot modify the default project.".into()));
+    }
+
+    let existing = state.db.get_project_by_id(&project_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Project '{}' not found.", project_id)))?;
+
+    let name = req.name.as_deref().unwrap_or(&existing.name);
+    let description = req.description.as_deref().unwrap_or(&existing.description);
+    let visibility = req.visibility.as_deref().unwrap_or(&existing.visibility);
+    let color = req.color.as_deref().unwrap_or(&existing.color);
+    let icon = req.icon.as_deref().unwrap_or(&existing.icon);
+
+    if name.is_empty() || name.len() > 100 {
+        return Err((StatusCode::BAD_REQUEST, "Project name must be 1-100 characters.".into()));
+    }
+
+    let valid_vis = ["public", "private", "members-only"];
+    if !valid_vis.contains(&visibility) {
+        return Err((StatusCode::BAD_REQUEST, format!("Invalid visibility '{}'.", visibility)));
+    }
+
+    // Bot API acts as admin.
+    state.db.update_project(&project_id, &existing.owner_key, name, description, visibility, color, icon, true)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update project: {e}")))?;
+
+    // Broadcast.
+    let projects = state.db.get_projects(None, None).unwrap_or_default();
+    if let Some((rec, tc)) = projects.iter().find(|(r, _)| r.id == project_id) {
+        let pd = crate::relay::ProjectData {
+            id: rec.id.clone(), name: rec.name.clone(), description: rec.description.clone(),
+            owner_key: rec.owner_key.clone(), visibility: rec.visibility.clone(),
+            color: rec.color.clone(), icon: rec.icon.clone(), created_at: rec.created_at.clone(),
+            task_count: *tc,
+        };
+        let _ = state.broadcast_tx.send(RelayMessage::ProjectUpdated { project: pd });
+    }
+
+    Ok(Json(serde_json::json!({ "id": project_id, "status": "updated" })))
+}
+
+/// DELETE /api/projects/:id — delete a project (requires API_SECRET auth).
+pub async fn delete_project(
+    State(state): State<Arc<RelayState>>,
+    headers: HeaderMap,
+    axum::extract::Path(project_id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    check_api_auth(&headers)?;
+
+    if project_id == "default" {
+        return Err((StatusCode::BAD_REQUEST, "Cannot delete the default project.".into()));
+    }
+
+    // Bot API acts as admin.
+    match state.db.delete_project(&project_id, "bot_api", true) {
+        Ok(true) => {
+            let _ = state.broadcast_tx.send(RelayMessage::ProjectDeleted { id: project_id.clone() });
+            Ok(Json(serde_json::json!({ "status": "deleted", "id": project_id })))
+        }
+        Ok(false) => Err((StatusCode::NOT_FOUND, format!("Project '{}' not found.", project_id))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete project: {e}"))),
+    }
+}
+
 /// GET /api/peers — list connected peers.
 pub async fn get_peers(
     State(state): State<Arc<RelayState>>,
@@ -965,6 +1152,92 @@ pub async fn get_peers(
     Json(list)
 }
 
+// ── Members API ──
+
+/// Query params for GET /api/members.
+#[derive(Debug, Deserialize)]
+pub struct MembersQuery {
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+    pub search: Option<String>,
+}
+
+/// Response entry for a server member.
+#[derive(Debug, Serialize)]
+pub struct MemberEntry {
+    pub public_key: String,
+    pub name: Option<String>,
+    pub role: String,
+    pub joined_at: String,
+    pub last_seen: Option<String>,
+}
+
+/// Response for GET /api/members.
+#[derive(Debug, Serialize)]
+pub struct MembersResponse {
+    pub members: Vec<MemberEntry>,
+    pub total: i64,
+}
+
+/// GET /api/members — paginated server member directory (public).
+pub async fn get_members(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<MembersQuery>,
+) -> Json<MembersResponse> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
+    let search = params.search.as_deref();
+    let members = state.db.get_members(limit, offset, search).unwrap_or_default();
+    let total = state.db.get_member_count(search).unwrap_or(0);
+    let entries: Vec<MemberEntry> = members.into_iter().map(|m| MemberEntry {
+        public_key: m.public_key,
+        name: m.name,
+        role: m.role,
+        joined_at: m.joined_at,
+        last_seen: m.last_seen,
+    }).collect();
+    Json(MembersResponse { members: entries, total })
+}
+
+/// GET /api/members/{key} — single member profile with listing count and seller rating.
+pub async fn get_member_by_key(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(key): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let member = state.db.get_member(&key)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let listing_count = state.db.get_seller_listing_count(&key).unwrap_or(0);
+    let (avg_rating, review_count) = state.db.get_seller_rating(&key);
+    // Get profile data if available.
+    let profile = state.db.get_profile_extended(
+        member.name.as_deref().unwrap_or("")
+    ).ok().flatten();
+    let (bio, _socials, avatar_url, _banner_url, _pronouns, location, _website, _privacy) =
+        profile.unwrap_or_default();
+    Ok(Json(serde_json::json!({
+        "public_key": member.public_key,
+        "name": member.name,
+        "role": member.role,
+        "joined_at": member.joined_at,
+        "last_seen": member.last_seen,
+        "listing_count": listing_count,
+        "avg_rating": avg_rating,
+        "review_count": review_count,
+        "bio": bio,
+        "avatar_url": avatar_url,
+        "location": location,
+    })))
+}
+
+/// GET /api/members/count — total member count.
+pub async fn get_member_count(
+    State(state): State<Arc<RelayState>>,
+) -> Json<serde_json::Value> {
+    let count = state.db.get_member_count(None).unwrap_or(0);
+    Json(serde_json::json!({ "count": count }))
+}
+
 // ── Federation API ──
 
 /// Response for GET /api/server-info.
@@ -972,11 +1245,16 @@ pub async fn get_peers(
 pub struct ServerInfoResponse {
     pub server_id: String,
     pub name: String,
+    pub description: String,
     pub version: &'static str,
     pub channels: Vec<String>,
     pub users_online: usize,
     pub accord_compliant: bool,
     pub public_key: String,
+    pub owner_key: String,
+    pub member_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub funding: Option<serde_json::Value>,
 }
 
 /// GET /api/server-info — public server metadata for federation discovery.
@@ -990,17 +1268,43 @@ pub async fn get_server_info(
         .map(|(id, _, _, _)| id)
         .collect();
     let users_online = state.peers.read().await.len();
-    let server_name = std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string());
+    let member_count = state.db.get_member_count(None).unwrap_or(0);
+
+    // Pull server name/description from config, fall back to env then defaults.
+    let config = &state.server_config;
+    let server_name = config.get("server_name")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| {
+            std::env::var("SERVER_NAME").unwrap_or_else(|_| "Humanity Relay".to_string())
+        });
+    let server_description = config.get("server_description")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let owner_key = config.get("owner_key")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let accord = std::env::var("ACCORD_COMPLIANT").unwrap_or_default() == "true";
+
+    // Include funding config if enabled.
+    let funding = config.get("funding").cloned().filter(|f| {
+        f.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false)
+    });
 
     Json(ServerInfoResponse {
         server_id: pk.clone(),
         name: server_name,
+        description: server_description,
         version: env!("BUILD_VERSION"),
         channels,
         users_online,
         accord_compliant: accord,
         public_key: pk,
+        owner_key,
+        member_count,
+        funding,
     })
 }
 
@@ -1025,6 +1329,8 @@ pub struct ListingsQuery {
     pub category: Option<String>,
     pub status: Option<String>,
     pub limit: Option<usize>,
+    /// Full-text search query (uses FTS5 when available, LIKE fallback).
+    pub q: Option<String>,
 }
 
 /// Response for GET /api/listings.
@@ -1045,27 +1351,49 @@ pub struct ListingEntry {
     pub price: Option<String>,
     pub payment_methods: Option<String>,
     pub location: Option<String>,
+    pub images: Option<String>,
     pub status: String,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
 
+/// Image entry in API responses.
+#[derive(Debug, Serialize)]
+pub struct ListingImageEntry {
+    pub id: i64,
+    pub url: String,
+    pub position: i32,
+}
+
 /// GET /api/listings — browse marketplace listings (public).
+/// When `q` is provided, uses FTS5 full-text search (falls back to LIKE).
 pub async fn get_listings(
     State(state): State<Arc<RelayState>>,
     Query(params): Query<ListingsQuery>,
 ) -> Json<ListingsResponse> {
     let limit = params.limit.unwrap_or(50).min(200);
-    let listings = state.db.get_listings(
-        params.category.as_deref(),
-        params.status.as_deref().or(Some("active")),
-        limit,
-    ).unwrap_or_default();
+    let listings = if let Some(ref q) = params.q {
+        if q.trim().is_empty() {
+            state.db.get_listings(
+                params.category.as_deref(),
+                params.status.as_deref().or(Some("active")),
+                limit,
+            ).unwrap_or_default()
+        } else {
+            state.db.search_listings(q.trim(), limit).unwrap_or_default()
+        }
+    } else {
+        state.db.get_listings(
+            params.category.as_deref(),
+            params.status.as_deref().or(Some("active")),
+            limit,
+        ).unwrap_or_default()
+    };
     let entries: Vec<ListingEntry> = listings.into_iter().map(|l| ListingEntry {
         id: l.id, seller_key: l.seller_key, seller_name: l.seller_name,
         title: l.title, description: l.description, category: l.category,
         condition: l.condition, price: l.price, payment_methods: l.payment_methods,
-        location: l.location, status: l.status, created_at: l.created_at,
+        location: l.location, images: l.images, status: l.status, created_at: l.created_at,
         updated_at: l.updated_at,
     }).collect();
     Json(ListingsResponse { listings: entries })
@@ -1117,6 +1445,252 @@ pub async fn create_listing(
         }
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed: {e}"))),
     }
+}
+
+/// POST /api/listings/{id}/images — upload an image to a listing.
+/// Reuses the existing upload infrastructure: caller uploads via /api/upload first,
+/// then registers the resulting URL here.
+pub async fn add_listing_image(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(listing_id): axum::extract::Path<String>,
+    Query(query): Query<UploadQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Auth: resolve upload token or key to public key.
+    let public_key = resolve_upload_key(&state, &query).await?;
+
+    // Verify the caller owns this listing (or is admin).
+    let seller_key = state.db.get_listing_seller_key(&listing_id)
+        .ok_or((StatusCode::NOT_FOUND, "Listing not found.".into()))?;
+    let role = state.db.get_role(&public_key).unwrap_or_default();
+    let is_admin = role == "admin" || role == "mod";
+    if seller_key != public_key && !is_admin {
+        return Err((StatusCode::FORBIDDEN, "You can only add images to your own listings.".into()));
+    }
+
+    let url = body.get("url").and_then(|v| v.as_str()).unwrap_or("");
+    if url.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Missing 'url' field.".into()));
+    }
+    let position = body.get("position").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+
+    match state.db.add_listing_image(&listing_id, url, position) {
+        Ok(image_id) => Ok(Json(serde_json::json!({
+            "id": image_id,
+            "listing_id": listing_id,
+            "url": url,
+            "position": position,
+            "status": "created"
+        }))),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e)),
+    }
+}
+
+/// GET /api/listings/{id}/images — get images for a listing.
+pub async fn get_listing_images(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(listing_id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let images = state.db.get_listing_images(&listing_id);
+    let entries: Vec<ListingImageEntry> = images.into_iter().map(|img| ListingImageEntry {
+        id: img.id,
+        url: img.url,
+        position: img.position,
+    }).collect();
+    Json(serde_json::json!({ "images": entries }))
+}
+
+/// DELETE /api/listings/{listing_id}/images/{image_id} — remove an image from a listing.
+pub async fn delete_listing_image(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path((listing_id, image_id)): axum::extract::Path<(String, i64)>,
+    Query(query): Query<UploadQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let public_key = resolve_upload_key(&state, &query).await?;
+
+    let seller_key = state.db.get_listing_seller_key(&listing_id)
+        .ok_or((StatusCode::NOT_FOUND, "Listing not found.".into()))?;
+    let role = state.db.get_role(&public_key).unwrap_or_default();
+    let is_admin = role == "admin" || role == "mod";
+    if seller_key != public_key && !is_admin {
+        return Err((StatusCode::FORBIDDEN, "You can only delete images from your own listings.".into()));
+    }
+
+    match state.db.delete_listing_image(image_id, &listing_id) {
+        Ok(true) => Ok(Json(serde_json::json!({ "status": "deleted" }))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, "Image not found.".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
+    }
+}
+
+/// Resolve upload token/key to a public key (shared helper for listing image endpoints).
+async fn resolve_upload_key(state: &Arc<RelayState>, query: &UploadQuery) -> Result<String, (StatusCode, String)> {
+    if let Some(ref token) = query.token {
+        if token.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "Empty upload token.".into()));
+        }
+        let tokens = state.upload_tokens.read().await;
+        match tokens.get(token) {
+            Some(key) => Ok(key.clone()),
+            None => Err((StatusCode::FORBIDDEN, "Invalid upload token.".into())),
+        }
+    } else if let Some(ref k) = query.key {
+        if k.is_empty() {
+            return Err((StatusCode::BAD_REQUEST, "Missing upload token or key.".into()));
+        }
+        let peers = state.peers.read().await;
+        if !peers.contains_key(k) {
+            return Err((StatusCode::FORBIDDEN, "Key is not connected.".into()));
+        }
+        Ok(k.clone())
+    } else {
+        Err((StatusCode::BAD_REQUEST, "Missing required 'token' or 'key' query parameter.".into()))
+    }
+}
+
+// ── Reviews API ────────────────────────────────────────────────────────────
+
+/// Query params for GET /api/listings/{id}/reviews.
+#[derive(Debug, Deserialize)]
+pub struct ReviewsQuery {
+    pub limit: Option<usize>,
+    pub sort: Option<String>,
+}
+
+/// GET /api/listings/{id}/reviews — get reviews for a listing (public).
+pub async fn get_listing_reviews(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(listing_id): axum::extract::Path<String>,
+    Query(params): Query<ReviewsQuery>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let reviews = state.db.get_reviews(&listing_id, limit).unwrap_or_default();
+    let data: Vec<serde_json::Value> = reviews.iter().map(|r| {
+        serde_json::json!({
+            "id": r.id,
+            "listing_id": r.listing_id,
+            "reviewer_key": r.reviewer_key,
+            "reviewer_name": r.reviewer_name,
+            "rating": r.rating,
+            "comment": r.comment,
+            "created_at": r.created_at,
+        })
+    }).collect();
+
+    // Also return aggregate info.
+    let listing = state.db.get_listing_by_id(&listing_id);
+    let (avg, count) = if let Ok(Some(ref l)) = listing {
+        state.db.get_seller_rating(&l.seller_key)
+    } else {
+        (0.0, 0)
+    };
+
+    Json(serde_json::json!({
+        "reviews": data,
+        "avg_rating": avg,
+        "review_count": count,
+    }))
+}
+
+/// Request body for POST /api/listings/{id}/reviews.
+#[derive(Debug, Deserialize)]
+pub struct CreateReviewRequest {
+    pub rating: i32,
+    #[serde(default)]
+    pub comment: String,
+    pub public_key: String,
+    pub timestamp: u64,
+    pub signature: String,
+}
+
+/// POST /api/listings/{id}/reviews — create a review (authenticated via Ed25519 sig).
+pub async fn create_listing_review(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(listing_id): axum::extract::Path<String>,
+    Json(body): Json<CreateReviewRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    // Reject requests older than 5 minutes.
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
+    }
+
+    // Verify signature over "review\n" + listing_id + "\n" + timestamp.
+    let sig_content = format!("review\n{}", listing_id);
+    if !verify_ed25519_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    let reviewer_name = state.db.name_for_key(&body.public_key)
+        .ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
+
+    match state.db.create_review(&listing_id, &body.public_key, &reviewer_name, body.rating, &body.comment) {
+        Ok(review_id) => {
+            // Broadcast via WebSocket.
+            if let Ok(Some(review)) = state.db.get_review_by_id(review_id) {
+                let _ = state.broadcast_tx.send(crate::relay::RelayMessage::ReviewCreated {
+                    review: crate::relay::review_from_db(&review),
+                });
+            }
+            Ok(Json(serde_json::json!({ "id": review_id, "status": "created" })))
+        }
+        Err(e) => Err((StatusCode::BAD_REQUEST, e)),
+    }
+}
+
+/// DELETE /api/listings/{id}/reviews/{review_id} — delete a review.
+pub async fn delete_listing_review(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path((listing_id, review_id)): axum::extract::Path<(String, i64)>,
+    Query(q): Query<VaultSyncQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+
+    let sig_content = format!("review_delete\n{}", review_id);
+    if !verify_ed25519_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    let user_role = state.db.get_role(&q.key).unwrap_or_default();
+    let is_admin = user_role == "admin" || user_role == "mod";
+
+    match state.db.delete_review(review_id, &q.key, is_admin) {
+        Ok(true) => {
+            let _ = state.broadcast_tx.send(crate::relay::RelayMessage::ReviewDeleted {
+                listing_id,
+                review_id,
+            });
+            Ok(Json(serde_json::json!({ "status": "deleted" })))
+        }
+        Ok(false) => Err((StatusCode::NOT_FOUND, "Review not found.".into())),
+        Err(e) => Err((StatusCode::FORBIDDEN, e)),
+    }
+}
+
+/// GET /api/sellers/{key}/rating — get aggregate seller rating.
+pub async fn get_seller_rating(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(seller_key): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let (avg, count) = state.db.get_seller_rating(&seller_key);
+    Json(serde_json::json!({
+        "seller_key": seller_key,
+        "avg_rating": avg,
+        "review_count": count,
+    }))
 }
 
 /// GET /api/federation/servers — list federated servers (public).

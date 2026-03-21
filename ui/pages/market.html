@@ -81,6 +81,13 @@
    <div id="my-listings-empty" style="text-align:center;color:var(--text-muted);font-style:italic;padding:3rem var(--space-xl);display:none;">You haven't listed anything yet.</div>
   </div>
 
+  <!-- Seller Profile Modal -->
+  <div id="seller-profile-modal" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeSellerProfile()">
+   <div style="max-width:520px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
+    <div id="seller-profile-content"></div>
+   </div>
+  </div>
+
   <!-- Listing Detail Modal -->
   <div id="listing-detail-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
    <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
@@ -126,6 +133,7 @@
        <option>Weapons</option><option>Nature</option><option>Sci-Fi</option><option>Other</option>
       </select>
      </div>
+     <div id="listing-images-area"></div>
      <div>
       <label style="font-size:0.75rem;color:var(--text-muted);">Price</label>
       <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">

@@ -249,6 +249,7 @@ pub async fn handle_raw_task_update(
                     updated_at: updated.updated_at, position: updated.position,
                     labels: updated.labels,
                     comment_count: *cc.get(&task_id).unwrap_or(&0),
+                    project: updated.project,
                 };
                 let _ = state.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
             }
@@ -321,7 +322,7 @@ pub async fn handle_raw_task_create(
                     status: task.status, priority: task.priority, assignee: task.assignee,
                     created_by: task.created_by, created_at: task.created_at,
                     updated_at: task.updated_at, position: task.position,
-                    labels: task.labels, comment_count: 0,
+                    labels: task.labels, comment_count: 0, project: task.project,
                 };
                 let _ = state.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
             }
@@ -1026,6 +1027,7 @@ pub async fn handle_task_create(
     priority: String,
     assignee: Option<String>,
     labels: String,
+    project: String,
 ) {
     let role = state.db.get_role(my_key).unwrap_or_default();
     if role != "admin" && role != "mod" {
@@ -1039,6 +1041,7 @@ pub async fn handle_task_create(
         let valid_priorities = ["low", "medium", "high", "critical"];
         let s = if valid_statuses.contains(&status.as_str()) { &status } else { "backlog" };
         let p = if valid_priorities.contains(&priority.as_str()) { &priority } else { "medium" };
+        let proj = if project.is_empty() { "default" } else { &project };
         if title.trim().is_empty() || title.len() > 200 {
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
@@ -1052,7 +1055,7 @@ pub async fn handle_task_create(
             };
             let _ = state.broadcast_tx.send(private);
         } else {
-            match state.db.create_task(&title, &description, s, p, assignee.as_deref(), my_key, &labels) {
+            match state.db.create_task_in_project(&title, &description, s, p, assignee.as_deref(), my_key, &labels, proj) {
                 Ok(id) => {
                     if let Ok(Some(task)) = state.db.get_task(id) {
                         let td = TaskData {
@@ -1060,7 +1063,7 @@ pub async fn handle_task_create(
                             status: task.status, priority: task.priority, assignee: task.assignee,
                             created_by: task.created_by, created_at: task.created_at,
                             updated_at: task.updated_at, position: task.position, labels: task.labels,
-                            comment_count: 0,
+                            comment_count: 0, project: task.project,
                         };
                         let _ = state.broadcast_tx.send(RelayMessage::TaskCreated { task: td });
                     }
@@ -1082,6 +1085,7 @@ pub async fn handle_task_update_msg(
     priority: String,
     assignee: Option<String>,
     labels: String,
+    project: String,
 ) {
     let role = state.db.get_role(my_key).unwrap_or_default();
     if role != "admin" && role != "mod" {
@@ -1093,7 +1097,8 @@ pub async fn handle_task_update_msg(
     } else {
         let valid_priorities = ["low", "medium", "high", "critical"];
         let p = if valid_priorities.contains(&priority.as_str()) { &priority } else { "medium" };
-        match state.db.update_task(id, &title, &description, p, assignee.as_deref(), &labels) {
+        let proj = if project.is_empty() { "default" } else { &project };
+        match state.db.update_task_with_project(id, &title, &description, p, assignee.as_deref(), &labels, proj) {
             Ok(true) => {
                 if let Ok(Some(task)) = state.db.get_task(id) {
                     let cc = state.db.get_task_comment_counts().unwrap_or_default();
@@ -1102,7 +1107,7 @@ pub async fn handle_task_update_msg(
                         status: task.status, priority: task.priority, assignee: task.assignee,
                         created_by: task.created_by, created_at: task.created_at,
                         updated_at: task.updated_at, position: task.position, labels: task.labels,
-                        comment_count: *cc.get(&task.id).unwrap_or(&0),
+                        comment_count: *cc.get(&task.id).unwrap_or(&0), project: task.project,
                     };
                     let _ = state.broadcast_tx.send(RelayMessage::TaskUpdated { task: td });
                 }
@@ -1637,6 +1642,34 @@ pub async fn handle_group_msg(
     }
 }
 
+// ── Server Membership handlers ──
+
+pub async fn handle_member_list_request(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    limit: Option<usize>,
+    offset: Option<usize>,
+    search: Option<String>,
+) {
+    let limit = limit.unwrap_or(50).min(200);
+    let offset = offset.unwrap_or(0);
+    let search_ref = search.as_deref();
+    let members = state.db.get_members(limit, offset, search_ref).unwrap_or_default();
+    let total = state.db.get_member_count(search_ref).unwrap_or(0);
+    let data: Vec<MemberData> = members.into_iter().map(|m| MemberData {
+        public_key: m.public_key,
+        name: m.name,
+        role: m.role,
+        joined_at: m.joined_at,
+        last_seen: m.last_seen,
+    }).collect();
+    let _ = state.broadcast_tx.send(RelayMessage::MemberListResponse {
+        target: Some(my_key.to_string()),
+        members: data,
+        total,
+    });
+}
+
 // ── Marketplace handlers ──
 
 pub async fn handle_listing_browse(
@@ -1725,6 +1758,83 @@ pub async fn handle_listing_delete(
     let is_admin = user_role == "admin" || user_role == "mod";
     if let Ok(true) = state.db.delete_listing(&id, my_key, is_admin) {
         let _ = state.broadcast_tx.send(RelayMessage::ListingDeleted { id });
+    }
+}
+
+// ── Review handlers ──
+
+pub async fn handle_review_create(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    listing_id: String,
+    rating: i32,
+    comment: String,
+) {
+    // Validate rating range.
+    if !(1..=5).contains(&rating) {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Rating must be between 1 and 5.".to_string(),
+        });
+        return;
+    }
+
+    // Limit comment length.
+    if comment.len() > 2000 {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Review comment must be under 2000 characters.".to_string(),
+        });
+        return;
+    }
+
+    let reviewer_name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
+
+    match state.db.create_review(&listing_id, my_key, &reviewer_name, rating, &comment) {
+        Ok(review_id) => {
+            if let Ok(Some(review)) = state.db.get_review_by_id(review_id) {
+                let _ = state.broadcast_tx.send(RelayMessage::ReviewCreated {
+                    review: review_from_db(&review),
+                });
+            }
+        }
+        Err(e) => {
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
+                to: my_key.to_string(),
+                message: e,
+            });
+        }
+    }
+}
+
+pub async fn handle_review_delete(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    listing_id: String,
+    review_id: i64,
+) {
+    let user_role = state.db.get_role(my_key).unwrap_or_default();
+    let is_admin = user_role == "admin" || user_role == "mod";
+
+    match state.db.delete_review(review_id, my_key, is_admin) {
+        Ok(true) => {
+            let _ = state.broadcast_tx.send(RelayMessage::ReviewDeleted {
+                listing_id,
+                review_id,
+            });
+        }
+        Ok(false) => {
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Review not found.".to_string(),
+            });
+        }
+        Err(e) => {
+            let _ = state.broadcast_tx.send(RelayMessage::Private {
+                to: my_key.to_string(),
+                message: e,
+            });
+        }
     }
 }
 
@@ -2205,5 +2315,164 @@ pub async fn handle_stream_set_external(
             drop(stream_lock);
             let _ = state.broadcast_tx.send(info_msg);
         }
+    }
+}
+
+// ── Project handlers ──
+
+/// Build a ProjectData from a storage record + task count.
+fn project_record_to_data(
+    rec: &crate::storage::ProjectRecord,
+    task_count: i64,
+) -> ProjectData {
+    ProjectData {
+        id: rec.id.clone(),
+        name: rec.name.clone(),
+        description: rec.description.clone(),
+        owner_key: rec.owner_key.clone(),
+        visibility: rec.visibility.clone(),
+        color: rec.color.clone(),
+        icon: rec.icon.clone(),
+        created_at: rec.created_at.clone(),
+        task_count,
+    }
+}
+
+pub async fn handle_project_list(
+    state: &Arc<RelayState>,
+    my_key: &str,
+) {
+    let projects_with_counts = state.db.get_projects_visible_to(my_key).unwrap_or_default();
+    let projects: Vec<ProjectData> = projects_with_counts
+        .iter()
+        .map(|(rec, tc)| project_record_to_data(rec, *tc))
+        .collect();
+    let _ = state.broadcast_tx.send(RelayMessage::ProjectListResponse {
+        target: Some(my_key.to_string()),
+        projects,
+    });
+}
+
+pub async fn handle_project_create(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    name: String,
+    description: String,
+    visibility: String,
+    color: String,
+    icon: String,
+) {
+    // Validate name.
+    if name.trim().is_empty() || name.len() > 100 {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Project name must be 1-100 characters.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+    if description.len() > 2000 {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Project description too long (max 2000 chars).".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+
+    let valid_vis = ["public", "private", "members-only"];
+    let vis = if valid_vis.contains(&visibility.as_str()) { &visibility } else { "public" };
+
+    let id = uuid::Uuid::new_v4().to_string();
+    match state.db.create_project(&id, &name, &description, my_key, vis, &color, &icon) {
+        Ok(()) => {
+            if let Ok(Some(rec)) = state.db.get_project_by_id(&id) {
+                let pd = project_record_to_data(&rec, 0);
+                let _ = state.broadcast_tx.send(RelayMessage::ProjectCreated { project: pd });
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to create project: {e}");
+        }
+    }
+}
+
+pub async fn handle_project_update(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    id: String,
+    name: String,
+    description: String,
+    visibility: String,
+    color: String,
+    icon: String,
+) {
+    if id == "default" {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Cannot modify the default project.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+    if name.trim().is_empty() || name.len() > 100 {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Project name must be 1-100 characters.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+
+    let valid_vis = ["public", "private", "members-only"];
+    let vis = if valid_vis.contains(&visibility.as_str()) { &visibility } else { "public" };
+    let is_admin = state.db.get_role(my_key).unwrap_or_default() == "admin";
+
+    match state.db.update_project(&id, my_key, &name, &description, vis, &color, &icon, is_admin) {
+        Ok(true) => {
+            // Fetch updated record with task count.
+            let projects = state.db.get_projects_visible_to(my_key).unwrap_or_default();
+            if let Some((rec, tc)) = projects.iter().find(|(r, _)| r.id == id) {
+                let pd = project_record_to_data(rec, *tc);
+                let _ = state.broadcast_tx.send(RelayMessage::ProjectUpdated { project: pd });
+            }
+        }
+        Ok(false) => {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Project not found or you don't have permission.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        Err(e) => tracing::error!("Project update error: {e}"),
+    }
+}
+
+pub async fn handle_project_delete(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    id: String,
+) {
+    if id == "default" {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Cannot delete the default project.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+    let is_admin = state.db.get_role(my_key).unwrap_or_default() == "admin";
+    match state.db.delete_project(&id, my_key, is_admin) {
+        Ok(true) => {
+            let _ = state.broadcast_tx.send(RelayMessage::ProjectDeleted { id });
+        }
+        Ok(false) => {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Project not found or you don't have permission.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        Err(e) => tracing::error!("Project delete error: {e}"),
     }
 }

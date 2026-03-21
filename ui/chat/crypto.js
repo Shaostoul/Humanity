@@ -172,6 +172,36 @@ async function verifyMessage(publicKeyHex, signatureHex, content, timestamp) {
   } catch (e) { console.error('Verification failed:', e); return false; }
 }
 
+// ── Solana Keypair Extraction ──
+
+/**
+ * Extract raw 64-byte Solana keypair from Web Crypto API Ed25519 key pair.
+ * Solana format: [32-byte private key | 32-byte public key]
+ * @param {CryptoKey} privateKey - Ed25519 private key from Web Crypto API
+ * @param {string} publicKeyHex - 64-char hex string of public key
+ * @returns {Promise<Uint8Array>} 64-byte keypair
+ */
+async function extractSolanaKeypair(privateKey, publicKeyHex) {
+  // Export private key as PKCS8
+  var pkcs8 = await crypto.subtle.exportKey('pkcs8', privateKey);
+  var pkcs8Bytes = new Uint8Array(pkcs8);
+
+  // PKCS8 Ed25519 format:
+  // 30 2e 02 01 00 30 05 06 03 2b 65 70 04 22 04 20 [32 bytes private key]
+  // The raw 32-byte private key starts at offset 16
+  var rawPrivate = pkcs8Bytes.slice(16, 48);
+
+  // Public key from hex
+  var rawPublic = hexToBuf(publicKeyHex);
+
+  // Concatenate: [private(32) | public(32)]
+  var keypair = new Uint8Array(64);
+  keypair.set(rawPrivate, 0);
+  keypair.set(rawPublic, 32);
+
+  return keypair;
+}
+
 // ── Identity Export/Import ──
 
 /** Extract the 32-byte Ed25519 seed from a PKCS8 export. */

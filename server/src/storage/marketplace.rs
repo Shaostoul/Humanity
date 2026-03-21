@@ -1,5 +1,5 @@
 use super::Storage;
-use super::MarketplaceListing;
+use super::{MarketplaceListing, ListingImage};
 use rusqlite::params;
 
 fn map_listing_row(row: &rusqlite::Row) -> rusqlite::Result<MarketplaceListing> {
@@ -24,7 +24,7 @@ fn map_listing_row(row: &rusqlite::Row) -> rusqlite::Result<MarketplaceListing> 
 impl Storage {
     // ── Marketplace methods ──
 
-    /// Create a marketplace listing.
+    /// Create a marketplace listing and index it in FTS5.
     pub fn create_listing(
         &self,
         id: &str,
@@ -44,6 +44,11 @@ impl Storage {
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'active', datetime('now'))",
                 params![id, seller_key, seller_name, title, description, category, condition, price, payment_methods, location],
             )?;
+            // Sync FTS5 index (best-effort — ignore if FTS5 unavailable).
+            let _ = conn.execute(
+                "INSERT INTO marketplace_fts (listing_id, title, description, category) VALUES (?1, ?2, ?3, ?4)",
+                params![id, title, description, category],
+            );
             Ok(())
         })
     }
@@ -75,6 +80,17 @@ impl Storage {
                     params![title, description, category, condition, price, payment_methods, location, status, id, seller_key],
                 )?
             };
+            if rows > 0 {
+                // Sync FTS5 index: delete old entry, insert updated one.
+                let _ = conn.execute(
+                    "DELETE FROM marketplace_fts WHERE listing_id = ?1",
+                    params![id],
+                );
+                let _ = conn.execute(
+                    "INSERT INTO marketplace_fts (listing_id, title, description, category) VALUES (?1, ?2, ?3, ?4)",
+                    params![id, title, description, category],
+                );
+            }
             Ok(rows > 0)
         })
     }
@@ -87,6 +103,19 @@ impl Storage {
             } else {
                 conn.execute("DELETE FROM marketplace_listings WHERE id=?1 AND seller_key=?2", params![id, seller_key])?
             };
+            if rows > 0 {
+                // Sync FTS5 index.
+                let _ = conn.execute(
+                    "DELETE FROM marketplace_fts WHERE listing_id = ?1",
+                    params![id],
+                );
+                // Cascade deletes listing_images via FK, but SQLite requires PRAGMA foreign_keys=ON.
+                // Explicitly delete to be safe.
+                let _ = conn.execute(
+                    "DELETE FROM listing_images WHERE listing_id = ?1",
+                    params![id],
+                );
+            }
             Ok(rows > 0)
         })
     }
@@ -146,6 +175,168 @@ impl Storage {
                 .filter_map(|r| r.ok())
                 .collect();
             Ok(listings)
+        })
+    }
+
+    /// Full-text search marketplace listings using FTS5, with LIKE fallback.
+    pub fn search_listings(&self, query: &str, limit: usize) -> Result<Vec<MarketplaceListing>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let limit = limit.min(200);
+
+            // Try FTS5 first.
+            let fts_sql =
+                "SELECT l.id, l.seller_key, l.seller_name, l.title, l.description, l.category, \
+                        l.condition, l.price, l.payment_methods, l.location, l.images, l.status, \
+                        l.created_at, l.updated_at \
+                 FROM marketplace_fts f \
+                 JOIN marketplace_listings l ON f.listing_id = l.id \
+                 WHERE marketplace_fts MATCH ?1 \
+                 ORDER BY rank \
+                 LIMIT ?2";
+
+            match conn.prepare(fts_sql).and_then(|mut s| {
+                let results: Vec<MarketplaceListing> = s.query_map(params![query, limit], map_listing_row)?
+                    .filter_map(|r| r.ok())
+                    .collect();
+                Ok(results)
+            }) {
+                Ok(v) if !v.is_empty() || query.contains('"') || query.contains('*') => Ok(v),
+                _ => {
+                    // Fallback: LIKE search across title, description, category.
+                    let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+                    let pattern = format!("%{}%", escaped);
+                    let mut stmt = conn.prepare(
+                        "SELECT id, seller_key, seller_name, title, description, category, \
+                                condition, price, payment_methods, location, images, status, \
+                                created_at, updated_at \
+                         FROM marketplace_listings \
+                         WHERE (title LIKE ?1 ESCAPE '\\' OR description LIKE ?1 ESCAPE '\\' OR category LIKE ?1 ESCAPE '\\') \
+                         ORDER BY created_at DESC \
+                         LIMIT ?2"
+                    )?;
+                    let listings = stmt.query_map(params![pattern, limit], map_listing_row)?
+                        .filter_map(|r| r.ok())
+                        .collect();
+                    Ok(listings)
+                }
+            }
+        })
+    }
+
+    // ── Listing Images ──
+
+    /// Add an image to a listing. Max 5 images per listing enforced.
+    pub fn add_listing_image(&self, listing_id: &str, url: &str, position: i32) -> Result<i64, String> {
+        self.with_conn(|conn| {
+            // Enforce max 5 images per listing.
+            let count: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM listing_images WHERE listing_id = ?1",
+                params![listing_id],
+                |row| row.get(0),
+            ).unwrap_or(0);
+            if count >= 5 {
+                return Err("Maximum 5 images per listing.".to_string());
+            }
+
+            conn.execute(
+                "INSERT INTO listing_images (listing_id, url, position, created_at) VALUES (?1, ?2, ?3, datetime('now'))",
+                params![listing_id, url, position],
+            ).map_err(|e| format!("DB error: {e}"))?;
+
+            let image_id = conn.last_insert_rowid();
+
+            // Update the images JSON field on the listing for backwards compatibility.
+            Self::update_listing_images_json(conn, listing_id);
+
+            Ok(image_id)
+        })
+    }
+
+    /// Get all images for a listing, ordered by position.
+    pub fn get_listing_images(&self, listing_id: &str) -> Vec<ListingImage> {
+        self.with_conn(|conn| {
+            let mut stmt = match conn.prepare(
+                "SELECT id, listing_id, url, position, created_at FROM listing_images WHERE listing_id = ?1 ORDER BY position, id"
+            ) {
+                Ok(s) => s,
+                Err(_) => return Vec::new(),
+            };
+            stmt.query_map(params![listing_id], |row| {
+                Ok(ListingImage {
+                    id: row.get(0)?,
+                    listing_id: row.get(1)?,
+                    url: row.get(2)?,
+                    position: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default()
+        })
+    }
+
+    /// Delete an image from a listing. Returns true if deleted.
+    pub fn delete_listing_image(&self, image_id: i64, listing_id: &str) -> Result<bool, String> {
+        self.with_conn(|conn| {
+            let rows = conn.execute(
+                "DELETE FROM listing_images WHERE id = ?1 AND listing_id = ?2",
+                params![image_id, listing_id],
+            ).map_err(|e| format!("DB error: {e}"))?;
+
+            if rows > 0 {
+                Self::update_listing_images_json(conn, listing_id);
+            }
+
+            Ok(rows > 0)
+        })
+    }
+
+    /// Reorder images for a listing by updating their positions.
+    pub fn reorder_listing_images(&self, listing_id: &str, image_ids: &[i64]) -> Result<(), String> {
+        self.with_conn(|conn| {
+            for (pos, &img_id) in image_ids.iter().enumerate() {
+                conn.execute(
+                    "UPDATE listing_images SET position = ?1 WHERE id = ?2 AND listing_id = ?3",
+                    params![pos as i32, img_id, listing_id],
+                ).map_err(|e| format!("DB error: {e}"))?;
+            }
+            Self::update_listing_images_json(conn, listing_id);
+            Ok(())
+        })
+    }
+
+    /// Update the legacy `images` JSON field on the listing from the listing_images table.
+    fn update_listing_images_json(conn: &rusqlite::Connection, listing_id: &str) {
+        let urls: Vec<String> = conn.prepare(
+            "SELECT url FROM listing_images WHERE listing_id = ?1 ORDER BY position, id"
+        )
+        .and_then(|mut s| {
+            let v: Vec<String> = s.query_map(params![listing_id], |row| row.get(0))?
+                .filter_map(|r| r.ok())
+                .collect();
+            Ok(v)
+        })
+        .unwrap_or_default();
+
+        let json = if urls.is_empty() {
+            None
+        } else {
+            Some(serde_json::to_string(&urls).unwrap_or_default())
+        };
+        let _ = conn.execute(
+            "UPDATE marketplace_listings SET images = ?1 WHERE id = ?2",
+            params![json, listing_id],
+        );
+    }
+
+    /// Get the seller_key for a listing (used for auth checks on image endpoints).
+    pub fn get_listing_seller_key(&self, listing_id: &str) -> Option<String> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT seller_key FROM marketplace_listings WHERE id = ?1",
+                params![listing_id],
+                |row| row.get(0),
+            ).ok()
         })
     }
 

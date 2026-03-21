@@ -669,6 +669,109 @@ function showPassphraseModal(jsonData) {
   input.focus();
 }
 
+// ── Login-screen seed phrase recovery ──
+// Shows a modal with a textarea for 24 words + a name input, then restores
+// the identity and connects to the network without a page reload.
+function openLoginSeedRecovery() {
+  const overlay = document.createElement('div');
+  overlay.id = 'login-seed-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+
+  overlay.innerHTML = `
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Recover from Seed Phrase</h2>
+      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-xl)">
+        Enter the 24-word recovery phrase and choose a display name to rejoin the network.
+      </p>
+
+      <div style="margin-bottom:var(--space-lg)">
+        <label for="lsr-name" style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:var(--space-sm)">Display name</label>
+        <input id="lsr-name" type="text" placeholder="Choose a name" autocomplete="off" maxlength="24"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;outline:none;box-sizing:border-box">
+      </div>
+
+      <div style="margin-bottom:var(--space-lg)">
+        <label for="lsr-words" style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:var(--space-sm)">Recovery phrase (24 words)</label>
+        <textarea id="lsr-words" rows="3" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
+        <div id="lsr-word-count" style="font-size:.7rem;color:var(--text-muted);margin:var(--space-sm) 0 0">0 / 24 words</div>
+      </div>
+
+      <div id="lsr-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
+      <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
+        <button id="lsr-cancel"
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
+        <button id="lsr-submit"
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;font-weight:700;cursor:pointer">Recover & Connect</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  // Close on overlay click or Cancel
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.getElementById('lsr-cancel').addEventListener('click', () => overlay.remove());
+
+  // Word counter
+  const ta = document.getElementById('lsr-words');
+  const counter = document.getElementById('lsr-word-count');
+  ta.addEventListener('input', () => {
+    const count = ta.value.trim().split(/\s+/).filter(Boolean).length;
+    counter.textContent = `${count} / 24 words`;
+    counter.style.color = count === 24 ? 'var(--success)' : 'var(--text-muted)';
+  });
+
+  // Pre-fill name from login input if user already typed one
+  const loginName = document.getElementById('name-input');
+  if (loginName && loginName.value.trim()) {
+    document.getElementById('lsr-name').value = loginName.value.trim();
+  }
+
+  // Submit handler
+  const submitBtn = document.getElementById('lsr-submit');
+  const msgEl = document.getElementById('lsr-msg');
+
+  async function doRecover() {
+    const name = document.getElementById('lsr-name').value.trim();
+    const mnemonic = ta.value.trim().toLowerCase().replace(/\s+/g, ' ');
+    const wordCount = mnemonic.split(' ').filter(Boolean).length;
+
+    if (!name || !/^[A-Za-z0-9_-]{1,24}$/.test(name)) {
+      msgEl.innerHTML = '<span style="color:var(--danger)">Enter a valid name (letters, numbers, underscores, dashes — max 24 chars).</span>';
+      return;
+    }
+    if (wordCount !== 24) {
+      msgEl.innerHTML = `<span style="color:var(--danger)">Expected 24 words, got ${wordCount}. Check for extra spaces or missing words.</span>`;
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Recovering…';
+    msgEl.innerHTML = '';
+
+    try {
+      // Validate checksum and restore identity
+      await restoreIdentityFromMnemonic(mnemonic);
+
+      // Set name and populate login input so connect() picks it up
+      localStorage.setItem('humanity_name', name);
+      document.getElementById('name-input').value = name;
+
+      overlay.remove();
+      connect();
+    } catch (e) {
+      const isChecksum = /checksum/i.test(e.message);
+      msgEl.innerHTML = `<span style="color:var(--danger)">${isChecksum ? 'Invalid recovery phrase — check your words and try again.' : e.message}</span>`;
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Recover & Connect';
+    }
+  }
+
+  submitBtn.addEventListener('click', doRecover);
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) doRecover(); });
+  document.getElementById('lsr-name').focus();
+}
+
 // Handle /profile, /block, /unblock, /blocklist commands.
 // Patching into the existing sendMessage to intercept client-side commands.
 const _origSendMessage2 = sendMessage;

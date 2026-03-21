@@ -48,7 +48,15 @@
     <input type="text" id="link-code-input" placeholder="Link code (optional)" style="margin-top:0.5rem; display:block;">
     <input type="text" id="invite-code-input" placeholder="Invite code (optional)" style="margin-top:0.5rem; display:block;">
     <button onclick="connect()">Enter</button>
-    <button onclick="document.getElementById('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;margin-top:0.3rem;"><span class="pg-ico" data-icon="download" data-size="16"></span> Import Identity Backup</button>
+    <div style="display:flex;align-items:center;gap:0.5rem;margin:0.6rem 0 0.3rem;width:100%;max-width:280px;">
+      <hr style="flex:1;border:none;border-top:1px solid var(--border);margin:0">
+      <span style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap">or recover</span>
+      <hr style="flex:1;border:none;border-top:1px solid var(--border);margin:0">
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:0.4rem;">
+      <button onclick="document.getElementById('import-file-input').click()" style="background:var(--bg-input);color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;"><span class="pg-ico" data-icon="download" data-size="16"></span> Import Identity Backup</button>
+      <button onclick="openLoginSeedRecovery()" style="background:none;color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;">🌱 Recover from Seed Phrase</button>
+    </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="handleImportFile(event)">
     <p class="subtitle" id="login-error" style="color:#e74c3c; display:none;"></p>
     <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>

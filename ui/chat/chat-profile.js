@@ -347,6 +347,22 @@ function showViewProfileCard(name, publicKey, profile) {
     html += '<div class="profile-card-key" id="profile-pk-copy" title="Click to copy full key">🔑 ' + esc(shortPk) + '</div>';
   }
 
+  // Wallet section — show Solana address and balances if HosWallet is available
+  if (window.HosWallet && publicKey) {
+    var solAddress = HosWallet.publicKeyToSolanaAddress(publicKey);
+    var shortAddr = solAddress.length > 8 ? solAddress.substring(0, 4) + '...' + solAddress.substring(solAddress.length - 4) : solAddress;
+    html += '<div style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid var(--border);">';
+    html += '<div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-sm);">Wallet</div>';
+    html += '<div style="display:flex;align-items:center;gap:var(--space-md);font-size:0.8rem;">';
+    html += '<span style="color:var(--text-muted);">SOL</span> ';
+    html += '<span id="profile-wallet-addr" title="' + esc(solAddress) + '" style="font-family:monospace;color:var(--text);">' + esc(shortAddr) + '</span>';
+    html += '<button id="profile-wallet-copy" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:2px 6px;font-size:0.68rem;color:var(--text-muted);cursor:pointer;" title="Copy Solana address">Copy</button>';
+    html += '</div>';
+    html += '<div id="profile-wallet-balances" style="font-size:0.78rem;color:var(--text-muted);margin-top:var(--space-sm);">Loading balances...</div>';
+    html += '<a href="/wallet" style="font-size:0.72rem;color:var(--accent);text-decoration:none;margin-top:var(--space-sm);display:inline-block;">View Wallet</a>';
+    html += '</div>';
+  }
+
   // Follow/friend status + button
   if (publicKey && publicKey !== myKey) {
     const friend = isFriend(publicKey);
@@ -374,6 +390,37 @@ function showViewProfileCard(name, publicKey, profile) {
       pkEl.addEventListener('click', () => {
         navigator.clipboard.writeText(publicKey).then(() => addSystemMessage('Public key copied.'));
       });
+    }
+  }
+  // Wallet copy button + async balance loading
+  if (window.HosWallet && publicKey) {
+    var walletCopyBtn = document.getElementById('profile-wallet-copy');
+    if (walletCopyBtn) {
+      var _solAddr = HosWallet.publicKeyToSolanaAddress(publicKey);
+      walletCopyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(_solAddr).then(function() {
+          walletCopyBtn.textContent = 'Copied!';
+          setTimeout(function() { walletCopyBtn.textContent = 'Copy'; }, 2000);
+        });
+      });
+    }
+    // Async load balances
+    var balEl = document.getElementById('profile-wallet-balances');
+    if (balEl && typeof HosWallet.getBalance === 'function') {
+      var _addr = HosWallet.publicKeyToSolanaAddress(publicKey);
+      HosWallet.getBalance(_addr).then(function(sol) {
+        var text = sol !== null ? (sol + ' SOL') : 'Balance unavailable';
+        if (typeof HosWallet.getTokenBalance === 'function') {
+          HosWallet.getTokenBalance(_addr, 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v').then(function(usdc) {
+            if (usdc !== null) text += ' | $' + usdc + ' USDC';
+            balEl.textContent = text;
+          }).catch(function() { balEl.textContent = text; });
+        } else {
+          balEl.textContent = text;
+        }
+      }).catch(function() { balEl.textContent = 'Balance unavailable'; });
+    } else if (balEl) {
+      balEl.textContent = '';
     }
   }
   // Follow button handler
@@ -404,6 +451,49 @@ function showViewProfileCard(name, publicKey, profile) {
       });
     }
   }
+  // Funding section — shown only on server owner's profile card
+  if (publicKey) {
+    fetch('/api/server-info').then(function(r) { return r.json(); }).then(function(info) {
+      if (!info.owner_key || info.owner_key !== publicKey || !info.funding || !info.funding.enabled) return;
+      var funding = info.funding;
+      var sources = funding.sources || [];
+      var fhtml = '<div id="profile-funding-section" style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:1px solid var(--border);">';
+      fhtml += '<div style="font-size:0.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-sm);">Support This Project</div>';
+      for (var i = 0; i < sources.length; i++) {
+        var src = sources[i];
+        fhtml += '<div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);padding:var(--space-xs) 0;font-size:0.8rem;">';
+        if (src.type === 'github_sponsors' && src.url) {
+          fhtml += '<span style="color:var(--text);">\uD83D\uDC9C ' + esc(src.label || 'GitHub Sponsors') + '</span>';
+          fhtml += '<a href="' + esc(src.url) + '" target="_blank" rel="noopener" style="color:var(--accent);font-size:0.72rem;text-decoration:none;">Sponsor \u2192</a>';
+        } else if (src.address) {
+          var shortAddr = src.address.length > 12 ? src.address.substring(0, 4) + '...' + src.address.substring(src.address.length - 4) : src.address;
+          var icon = src.type === 'solana' ? '\u25CE' : src.type === 'bitcoin' ? '\u20BF' : '\uD83D\uDCB0';
+          fhtml += '<span style="color:var(--text);">' + icon + ' ' + esc(src.label || src.type) + ': <span style="font-family:monospace;font-size:0.72rem;">' + esc(shortAddr) + '</span></span>';
+          fhtml += '<button class="profile-funding-copy" data-addr="' + esc(src.address) + '" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:2px 6px;font-size:0.68rem;color:var(--text-muted);cursor:pointer;">Copy</button>';
+        }
+        fhtml += '</div>';
+      }
+      fhtml += '<a href="/donate" style="font-size:0.72rem;color:var(--accent);text-decoration:none;margin-top:var(--space-sm);display:inline-block;">View Funding Page \u2192</a>';
+      fhtml += '</div>';
+      var contentEl = document.getElementById('view-profile-content');
+      if (contentEl) {
+        contentEl.insertAdjacentHTML('beforeend', fhtml);
+        // Attach copy handlers
+        var copyBtns = contentEl.querySelectorAll('.profile-funding-copy');
+        for (var j = 0; j < copyBtns.length; j++) {
+          (function(btn) {
+            btn.addEventListener('click', function() {
+              navigator.clipboard.writeText(btn.getAttribute('data-addr')).then(function() {
+                btn.textContent = 'Copied!';
+                setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+              });
+            });
+          })(copyBtns[j]);
+        }
+      }
+    }).catch(function() { /* server-info unavailable — skip funding section */ });
+  }
+
   if (window.twemoji) twemoji.parse(document.getElementById('view-profile-content'));
   document.getElementById('view-profile-overlay').classList.add('open');
 }
@@ -632,8 +722,7 @@ function openRestoreFromMnemonicModal() {
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>
       <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-xl)">
-        <strong style="color:var(--danger)">This will permanently replace your current identity on this device.</strong>
-        Use one of the two methods below:
+        ${myIdentity && myIdentity.canSign ? '<strong style="color:var(--danger)">This will permanently replace your current identity on this device.</strong>' : 'Restore your identity using one of the two methods below:'}
       </p>
 
       <!-- Tab: type words -->

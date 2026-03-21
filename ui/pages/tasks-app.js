@@ -16,11 +16,26 @@ let allTasks = [];
 let activeScope = 'cosmos';
 let openDetailId = null; // track currently open detail drawer for real-time updates
 
+/* ── Project state ── */
+let activeProject = null;  // null = all projects, 'default' = uncategorized
+let projects = [];
+let editingProjectId = null; // non-null when editing an existing project
+
+const PROJECT_COLORS = [
+  '#4488ff', '#e53935', '#f0a500', '#4ec87a', '#a29bfe',
+  '#0fbcf9', '#ff6b6b', '#ff9f43', '#ffd32a', '#05c46b',
+  '#7f8fa6', '#e85d04', '#c8f', '#fa4', '#4cf',
+];
+const PROJECT_ICONS = ['📋', '🚀', '🏠', '🔧', '🎯', '🌍', '💡', '🎨', '📦', '🔬', '🏗️', '⚡', '🛡️', '📊', '🎮', '🌱'];
+
 /* ── Init ── */
 function init() {
   buildScopeTabs();
   buildScopeSelect();
+  buildProjectColorPicker();
+  buildProjectIconPicker();
   loadTasks();
+  loadProjects();
   // Connect to relay for real-time updates if user has an identity
   setTimeout(ensureTaskWs, 1000);
 }
@@ -61,6 +76,7 @@ async function loadTasks() {
     allTasks = data.tasks || [];
     renderBoard();
     renderControls();
+    renderProjectSelectorBtn();
   } catch (e) {
     console.error('[tasks] load error:', e);
     document.getElementById('col-backlog').innerHTML = `<div class="empty-col">⚠️ Could not load tasks<br><small>${e.message}</small></div>`;
@@ -84,6 +100,11 @@ function getNonScopeLabels(task) {
 function scopedTasks() {
   const q = (document.getElementById('task-search')?.value || '').trim().toLowerCase();
   return allTasks.filter(t => {
+    // Project filter
+    if (activeProject !== null) {
+      const taskProject = t.project || 'default';
+      if (taskProject !== activeProject) return false;
+    }
     if (getTaskScope(t) !== activeScope) return false;
     if (!q) return true;
     return t.title.toLowerCase().includes(q) ||
@@ -115,11 +136,13 @@ function renderControls() {
   document.getElementById('scope-desc').innerHTML =
     `<strong style="color:${scope.color}">${scope.n}·${scope.label}</strong> &mdash; ${scope.desc}`;
   const tasks = scopedTasks();
-  const bp = allTasks.filter(t => t.status === 'backlog').length;
   const ip = allTasks.filter(t => t.status === 'in_progress').length;
+  const projLabel = activeProject === null ? 'all projects'
+    : activeProject === 'default' ? 'General'
+    : (projects.find(p => p.id === activeProject)?.name || activeProject);
   document.getElementById('stats-bar').innerHTML =
     `<span class="stat-pill"><span>${allTasks.length}</span> total</span>` +
-    `<span class="stat-pill"><span>${tasks.length}</span> this scope</span>` +
+    `<span class="stat-pill"><span>${tasks.length}</span> visible</span>` +
     `<span class="stat-pill"><span>${ip}</span> active</span>`;
 }
 
@@ -158,6 +181,7 @@ function openModal() {
   document.getElementById('f-title').focus();
   document.getElementById('form-msg').innerHTML = '';
   document.getElementById('f-scope').value = activeScope;
+  buildProjectSelect();
 }
 
 function closeModal() {
@@ -181,6 +205,8 @@ function ensureTaskWs() {
   taskWs = new WebSocket(`${proto}//${location.host}/ws`);
   taskWs.addEventListener('open', () => {
     taskWs.send(JSON.stringify({ type: 'identify', public_key: pub, display_name: name }));
+    // Request project list after identifying
+    setTimeout(requestProjectList, 300);
   });
   taskWs.addEventListener('message', e => {
     try {
@@ -206,6 +232,33 @@ function ensureTaskWs() {
         allTasks = allTasks.filter(t => t.id !== m.id);
         renderBoard();
         if (openDetailId === m.id) closeDetail();
+      }
+      // Project real-time updates
+      if (m.type === 'project_list') {
+        projects = m.projects || [];
+        renderProjectDropdown();
+        renderProjectSelectorBtn();
+      }
+      if (m.type === 'project_created') {
+        if (m.project && !projects.find(p => p.id === m.project.id)) {
+          projects.push(m.project);
+          renderProjectDropdown();
+        }
+      }
+      if (m.type === 'project_updated') {
+        if (m.project) {
+          const idx = projects.findIndex(p => p.id === m.project.id);
+          if (idx >= 0) projects[idx] = { ...projects[idx], ...m.project };
+          else projects.push(m.project);
+          renderProjectDropdown();
+          renderProjectSelectorBtn();
+        }
+      }
+      if (m.type === 'project_deleted') {
+        projects = projects.filter(p => p.id !== m.id);
+        if (activeProject === m.id) { activeProject = null; renderBoard(); renderControls(); }
+        renderProjectDropdown();
+        renderProjectSelectorBtn();
       }
       // Decode task_comment_added system messages
       if (m.type === 'system' && m.message && m.message.startsWith('__task_comment__:')) {
@@ -242,6 +295,7 @@ async function submitTask() {
     priority: document.getElementById('f-priority').value,
     status: document.getElementById('f-status').value,
     labels: JSON.stringify(labelArr),
+    project: document.getElementById('f-project').value || 'default',
   };
   const assignee = document.getElementById('f-assignee').value.trim();
   if (assignee) body.assignee = assignee;
@@ -644,6 +698,359 @@ function changeTaskAssignee(taskId) {
   if (t) { t.assignee = assignee || null; renderBoard(); }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Projects — project selector, CRUD, filtering
+   ═══════════════════════════════════════════════════════════════ */
+
+/** Fetch projects from REST API */
+async function loadProjects() {
+  try {
+    const res = await fetch('/api/projects');
+    if (!res.ok) { console.warn('[projects] HTTP', res.status); return; }
+    const data = await res.json();
+    projects = data || [];
+    renderProjectDropdown();
+    renderProjectSelectorBtn();
+  } catch (e) {
+    console.warn('[projects] load error:', e);
+  }
+}
+
+/** Also request project_list via WS on connect */
+function requestProjectList() {
+  if (taskWs && taskWs.readyState === WebSocket.OPEN) {
+    taskWs.send(JSON.stringify({ type: 'project_list' }));
+  }
+}
+
+/** Build the project select in the task create modal */
+function buildProjectSelect() {
+  const sel = document.getElementById('f-project');
+  if (!sel) return;
+  let html = '<option value="default">General (default)</option>';
+  projects.forEach(p => {
+    const icon = p.icon || '📋';
+    const selected = activeProject === p.id ? ' selected' : '';
+    html += `<option value="${esc(p.id)}"${selected}>${icon} ${esc(p.name)}</option>`;
+  });
+  sel.innerHTML = html;
+  // Pre-select active project if set
+  if (activeProject && activeProject !== 'default') {
+    sel.value = activeProject;
+  }
+}
+
+/** Render the project selector button text/icon */
+function renderProjectSelectorBtn() {
+  const iconEl = document.getElementById('proj-btn-icon');
+  const dotEl = document.getElementById('proj-btn-dot');
+  const labelEl = document.getElementById('proj-btn-label');
+  const countEl = document.getElementById('project-task-count');
+  if (!iconEl || !dotEl || !labelEl) return;
+
+  if (activeProject === null) {
+    iconEl.textContent = '📋';
+    dotEl.style.background = '#4488ff';
+    labelEl.textContent = 'All Projects';
+    if (countEl) countEl.textContent = allTasks.length + ' tasks';
+  } else if (activeProject === 'default') {
+    iconEl.textContent = '📋';
+    dotEl.style.background = '#888';
+    labelEl.textContent = 'General';
+    const cnt = allTasks.filter(t => !t.project || t.project === 'default').length;
+    if (countEl) countEl.textContent = cnt + ' tasks';
+  } else {
+    const proj = projects.find(p => p.id === activeProject);
+    if (proj) {
+      iconEl.textContent = proj.icon || '📋';
+      dotEl.style.background = proj.color || '#4488ff';
+      labelEl.textContent = proj.name;
+      const cnt = allTasks.filter(t => t.project === proj.id).length;
+      if (countEl) countEl.textContent = cnt + ' tasks';
+    }
+  }
+}
+
+/** Render the project dropdown menu */
+function renderProjectDropdown() {
+  const dd = document.getElementById('project-dropdown');
+  if (!dd) return;
+  let html = '';
+
+  // All Projects option
+  html += `<button class="project-dropdown-item${activeProject === null ? ' active' : ''}"
+    onclick="setActiveProject(null)">
+    <span class="proj-icon">📋</span>
+    <span>All Projects</span>
+  </button>`;
+
+  html += '<div class="project-dropdown-sep"></div>';
+
+  // Default / General project
+  const defaultCount = allTasks.filter(t => !t.project || t.project === 'default').length;
+  html += `<button class="project-dropdown-item${activeProject === 'default' ? ' active' : ''}"
+    onclick="setActiveProject('default')">
+    <span class="proj-icon">📋</span>
+    <span class="proj-dot" style="background:#888"></span>
+    <span>General</span>
+    <span class="proj-vis">${defaultCount}</span>
+  </button>`;
+
+  // User projects
+  projects.forEach(p => {
+    const icon = p.icon || '📋';
+    const color = p.color || '#4488ff';
+    const vis = p.visibility === 'private' ? '🔒' : p.visibility === 'members-only' ? '👥' : '';
+    const cnt = p.task_count != null ? p.task_count : allTasks.filter(t => t.project === p.id).length;
+    html += `<button class="project-dropdown-item${activeProject === p.id ? ' active' : ''}"
+      onclick="setActiveProject('${esc(p.id)}')" oncontextmenu="event.preventDefault();openProjectSettings('${esc(p.id)}')">
+      <span class="proj-icon">${icon}</span>
+      <span class="proj-dot" style="background:${color}"></span>
+      <span>${esc(p.name)}</span>
+      <span class="proj-vis">${vis} ${cnt}</span>
+    </button>`;
+  });
+
+  html += '<div class="project-dropdown-sep"></div>';
+
+  // Create new project
+  html += `<button class="project-dropdown-item create-item" onclick="closeProjectDropdown();openProjectModal()">
+    <span class="proj-icon">+</span>
+    <span>Create New Project</span>
+  </button>`;
+
+  dd.innerHTML = html;
+}
+
+function toggleProjectDropdown() {
+  const dd = document.getElementById('project-dropdown');
+  if (!dd) return;
+  const isOpen = dd.classList.contains('open');
+  if (isOpen) {
+    closeProjectDropdown();
+  } else {
+    renderProjectDropdown();
+    dd.classList.add('open');
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', _closeDropdownOutside, { once: true, capture: true });
+    }, 0);
+  }
+}
+
+function closeProjectDropdown() {
+  const dd = document.getElementById('project-dropdown');
+  if (dd) dd.classList.remove('open');
+}
+
+function _closeDropdownOutside(e) {
+  const sel = document.getElementById('project-selector');
+  if (sel && !sel.contains(e.target)) {
+    closeProjectDropdown();
+  } else {
+    // Re-add listener if click was inside
+    setTimeout(() => {
+      document.addEventListener('click', _closeDropdownOutside, { once: true, capture: true });
+    }, 0);
+  }
+}
+
+/** Set active project and re-render */
+function setActiveProject(id) {
+  activeProject = id;
+  closeProjectDropdown();
+  renderProjectSelectorBtn();
+  renderBoard();
+  renderControls();
+}
+
+/** Build color picker swatches in the project modal */
+function buildProjectColorPicker() {
+  const container = document.getElementById('pf-colors');
+  if (!container) return;
+  container.innerHTML = PROJECT_COLORS.map((c, i) =>
+    `<div class="color-swatch${i === 0 ? ' selected' : ''}" style="background:${c}"
+      data-color="${c}" onclick="selectProjectColor(this)"></div>`
+  ).join('') + `<input type="color" value="#4488ff" id="pf-color-custom"
+    style="width:28px;height:28px;border:none;padding:0;cursor:pointer;background:transparent;border-radius:50%;"
+    onchange="selectProjectColorCustom(this.value)" title="Custom color">`;
+}
+
+/** Build icon picker in the project modal */
+function buildProjectIconPicker() {
+  const container = document.getElementById('pf-icons');
+  if (!container) return;
+  container.innerHTML = PROJECT_ICONS.map((ic, i) =>
+    `<div class="icon-option${i === 0 ? ' selected' : ''}" data-icon="${ic}" onclick="selectProjectIcon(this)">${ic}</div>`
+  ).join('');
+}
+
+function selectProjectColor(el) {
+  document.querySelectorAll('#pf-colors .color-swatch').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function selectProjectColorCustom(color) {
+  document.querySelectorAll('#pf-colors .color-swatch').forEach(s => s.classList.remove('selected'));
+  document.getElementById('pf-color-custom').value = color;
+}
+
+function selectProjectIcon(el) {
+  document.querySelectorAll('#pf-icons .icon-option').forEach(s => s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function getSelectedProjectColor() {
+  const selected = document.querySelector('#pf-colors .color-swatch.selected');
+  if (selected) return selected.dataset.color;
+  return document.getElementById('pf-color-custom').value || '#4488ff';
+}
+
+function getSelectedProjectIcon() {
+  const selected = document.querySelector('#pf-icons .icon-option.selected');
+  return selected ? selected.dataset.icon : '📋';
+}
+
+/** Open the create/edit project modal */
+function openProjectModal(existingId) {
+  editingProjectId = existingId || null;
+  const modal = document.getElementById('project-modal-overlay');
+  const title = document.getElementById('project-modal-title');
+  const btn = document.getElementById('btn-project-submit');
+  const msg = document.getElementById('project-form-msg');
+  if (msg) msg.innerHTML = '';
+
+  if (editingProjectId) {
+    const p = projects.find(x => x.id === editingProjectId);
+    title.textContent = 'Edit Project';
+    btn.textContent = 'Save Changes';
+    if (p) {
+      document.getElementById('pf-name').value = p.name;
+      document.getElementById('pf-desc').value = p.description || '';
+      // Select color
+      document.querySelectorAll('#pf-colors .color-swatch').forEach(s => {
+        s.classList.toggle('selected', s.dataset.color === p.color);
+      });
+      if (!document.querySelector('#pf-colors .color-swatch.selected')) {
+        document.getElementById('pf-color-custom').value = p.color || '#4488ff';
+      }
+      // Select icon
+      document.querySelectorAll('#pf-icons .icon-option').forEach(s => {
+        s.classList.toggle('selected', s.dataset.icon === (p.icon || '📋'));
+      });
+      // Visibility
+      const vis = p.visibility || 'public';
+      document.querySelectorAll('input[name="pf-visibility"]').forEach(r => { r.checked = r.value === vis; });
+    }
+  } else {
+    title.textContent = 'New Project';
+    btn.textContent = 'Create Project';
+    document.getElementById('pf-name').value = '';
+    document.getElementById('pf-desc').value = '';
+    buildProjectColorPicker();
+    buildProjectIconPicker();
+    document.querySelector('input[name="pf-visibility"][value="public"]').checked = true;
+  }
+
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('pf-name').focus(), 50);
+}
+
+function closeProjectModal() {
+  document.getElementById('project-modal-overlay').classList.remove('open');
+  editingProjectId = null;
+}
+
+/** Submit create or update project via REST API */
+async function submitProject() {
+  const name = document.getElementById('pf-name').value.trim();
+  const msg = document.getElementById('project-form-msg');
+  const btn = document.getElementById('btn-project-submit');
+
+  if (!name) { msg.innerHTML = '<div class="msg-error">Name is required.</div>'; return; }
+
+  const body = {
+    name,
+    description: document.getElementById('pf-desc').value.trim(),
+    color: getSelectedProjectColor(),
+    icon: getSelectedProjectIcon(),
+    visibility: document.querySelector('input[name="pf-visibility"]:checked')?.value || 'public',
+  };
+
+  btn.disabled = true;
+
+  try {
+    if (editingProjectId) {
+      // Update via REST
+      const res = await fetch('/api/projects/' + editingProjectId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'HTTP ' + res.status);
+      }
+      const updated = await res.json().catch(() => body);
+      const idx = projects.findIndex(p => p.id === editingProjectId);
+      if (idx >= 0) projects[idx] = { ...projects[idx], ...body, ...updated };
+      msg.innerHTML = '<div class="msg-success">Project updated.</div>';
+    } else {
+      // Create via WS if available, else REST
+      if (taskWs && taskWs.readyState === WebSocket.OPEN) {
+        taskWs.send(JSON.stringify({ type: 'project_create', ...body }));
+        msg.innerHTML = '<div class="msg-success">Project created.</div>';
+      } else {
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'HTTP ' + res.status);
+        }
+        const created = await res.json();
+        if (created && created.id) projects.push(created);
+        msg.innerHTML = '<div class="msg-success">Project created.</div>';
+      }
+    }
+    renderProjectDropdown();
+    renderProjectSelectorBtn();
+    setTimeout(closeProjectModal, 600);
+  } catch (e) {
+    msg.innerHTML = `<div class="msg-error">Error: ${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Open project settings (edit) — triggered by right-click on dropdown item */
+function openProjectSettings(id) {
+  closeProjectDropdown();
+  openProjectModal(id);
+}
+
+/** Delete a project via REST API */
+async function deleteProject(id) {
+  if (!confirm('Delete this project? Its tasks will be moved to General.')) return;
+  try {
+    const res = await fetch('/api/projects/' + id, { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    projects = projects.filter(p => p.id !== id);
+    if (activeProject === id) activeProject = null;
+    // Reassign tasks locally
+    allTasks.forEach(t => { if (t.project === id) t.project = 'default'; });
+    renderProjectDropdown();
+    renderProjectSelectorBtn();
+    renderBoard();
+    renderControls();
+    closeProjectModal();
+  } catch (e) {
+    alert('Failed to delete project: ' + e.message);
+  }
+}
+
 /* ── Helpers ── */
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -668,7 +1075,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 /* Escape key */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeDetail(); closeModal(); quest_closeModal(); }
+  if (e.key === 'Escape') { closeDetail(); closeModal(); closeProjectModal(); closeProjectDropdown(); quest_closeModal(); }
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') quest_saveQuest();
 });
 

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>Wallet — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+    a{color:var(--accent)} button{cursor:pointer;font-family:inherit}
+    input,select{font-family:inherit;color:var(--text);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:var(--space-sm) var(--space-lg);outline:none}
+    input:focus,select:focus{border-color:var(--accent)}
+    .panel{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);margin-bottom:var(--space-xl)}
+
+    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:1100px;width:100%;margin:0 auto}
+
+    /* Warning banner */
+    .wallet-warning{background:rgba(202,170,51,0.15);border:1px solid var(--warning);border-radius:8px;padding:var(--space-md) var(--space-xl);margin-bottom:var(--space-xl);display:flex;align-items:center;gap:var(--space-md);flex-wrap:wrap;font-size:0.85rem;line-height:1.5}
+    .wallet-warning strong{color:var(--warning)}
+    .wallet-warning .dismiss-btn{margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.75rem}
+    .wallet-warning .dismiss-btn:hover{border-color:var(--text-muted)}
+
+    /* No identity state */
+    .wallet-no-identity{text-align:center;padding:4rem var(--space-2xl);color:var(--text-muted)}
+    .wallet-no-identity h2{color:var(--text);margin-bottom:var(--space-lg);font-size:1.2rem}
+
+    /* Tab bar */
+    .wallet-tabs{display:flex;gap:var(--space-sm);margin-bottom:var(--space-xl);flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:var(--space-sm)}
+    .wallet-tab{background:none;border:none;color:var(--text-muted);padding:var(--space-sm) var(--space-lg);font-size:0.85rem;border-radius:6px 6px 0 0;transition:color 0.2s,background 0.2s}
+    .wallet-tab:hover{color:var(--text);background:var(--bg-card)}
+    .wallet-tab.active{color:var(--accent);background:var(--bg-card);border-bottom:2px solid var(--accent)}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+
+    /* Address display */
+    .address-row{display:flex;align-items:center;gap:var(--space-md);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:var(--space-sm) var(--space-md);font-family:monospace;font-size:0.85rem;word-break:break-all}
+    .address-row .copy-btn{flex-shrink:0;background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.75rem;white-space:nowrap}
+    .address-row .copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+    /* Balance display */
+    .balance-main{font-size:2rem;font-weight:700;color:var(--text);line-height:1.2}
+    .balance-usd{font-size:1rem;color:var(--text-muted);margin-top:var(--space-xs)}
+    .balance-row{display:flex;justify-content:space-between;align-items:center;padding:var(--space-md) 0;border-bottom:1px solid var(--border)}
+    .balance-row:last-child{border-bottom:none}
+    .balance-token{font-weight:600;font-size:0.9rem}
+    .balance-amount{text-align:right}
+    .balance-amount .amt{font-size:0.95rem;font-weight:600}
+    .balance-amount .usd{font-size:0.8rem;color:var(--text-muted)}
+
+    /* Action buttons */
+    .action-row{display:flex;gap:var(--space-md);margin:var(--space-xl) 0;flex-wrap:wrap}
+    .btn-action{padding:var(--space-md) var(--space-2xl);border:none;border-radius:8px;font-size:0.85rem;font-weight:600;transition:opacity 0.2s}
+    .btn-action:hover{opacity:0.85}
+    .btn-send{background:var(--accent);color:#fff}
+    .btn-receive{background:var(--bg-card);color:var(--accent);border:1px solid var(--accent)}
+
+    /* Transaction list */
+    .tx-list{list-style:none;padding:0;margin:0}
+    .tx-item{display:flex;align-items:center;gap:var(--space-md);padding:var(--space-md) var(--space-lg);border-radius:6px;font-size:0.85rem}
+    .tx-item:nth-child(odd){background:var(--bg-card)}
+    .tx-item:nth-child(even){background:var(--bg-secondary,var(--bg-input))}
+    .tx-dir{font-weight:700;min-width:50px}
+    .tx-dir.sent{color:var(--danger)}
+    .tx-dir.received{color:var(--success)}
+    .tx-addr{flex:1;font-family:monospace;font-size:0.8rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tx-amount{font-weight:600;white-space:nowrap}
+    .tx-time{color:var(--text-muted);font-size:0.75rem;white-space:nowrap}
+    .tx-link{color:var(--accent);font-size:0.75rem;text-decoration:none}
+    .tx-link:hover{text-decoration:underline}
+
+    /* QR code container */
+    .qr-container{display:flex;flex-direction:column;align-items:center;gap:var(--space-md);margin:var(--space-xl) 0}
+    .qr-container canvas,.qr-container img{border-radius:8px;background:#fff;padding:12px}
+
+    /* Send form */
+    .send-form{max-width:480px}
+    .send-form label{display:block;font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-xs);margin-top:var(--space-lg)}
+    .send-form label:first-child{margin-top:0}
+    .send-form input,.send-form select{width:100%;box-sizing:border-box}
+    .input-row{display:flex;gap:var(--space-sm);align-items:center}
+    .input-row input{flex:1}
+    .input-row select{width:auto;min-width:90px}
+    .input-row .btn-small{flex-shrink:0;background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.75rem}
+    .input-row .btn-small:hover{border-color:var(--accent);color:var(--accent)}
+    .send-estimate{font-size:0.8rem;color:var(--text-muted);margin-top:var(--space-sm)}
+    .send-fee{font-size:0.8rem;color:var(--text-muted);margin-top:var(--space-xs)}
+    .btn-confirm{margin-top:var(--space-xl);padding:var(--space-md) var(--space-2xl);background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:0.9rem;font-weight:600;width:100%}
+    .btn-confirm:hover{background:var(--accent-hover)}
+    .btn-confirm:disabled{opacity:0.5;cursor:not-allowed}
+
+    /* Swap card */
+    .swap-card{max-width:480px;margin:0 auto;background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:var(--space-2xl)}
+    .swap-box{background:var(--bg-input);border:1px solid var(--border);border-radius:12px;padding:var(--space-lg)}
+    .swap-box label{font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:var(--space-sm)}
+    .swap-box .input-row{margin-top:var(--space-sm)}
+    .swap-box input{font-size:1.2rem;font-weight:600;background:none;border:none;flex:1;padding:var(--space-sm);min-width:0}
+    .swap-box input:focus{outline:none}
+    .swap-box select{font-size:0.9rem;font-weight:600;background:var(--bg-card);min-width:90px}
+    .swap-flip{display:flex;justify-content:center;margin:calc(var(--space-md) * -1) 0;position:relative;z-index:1}
+    .swap-flip button{background:var(--bg-card);border:2px solid var(--border);border-radius:50%;width:36px;height:36px;font-size:1.1rem;display:flex;align-items:center;justify-content:center;color:var(--text)}
+    .swap-flip button:hover{border-color:var(--accent);color:var(--accent)}
+    .swap-rate{text-align:center;font-size:0.8rem;color:var(--text-muted);margin:var(--space-md) 0}
+    .swap-slippage{display:flex;gap:var(--space-sm);align-items:center;font-size:0.8rem;color:var(--text-muted);margin:var(--space-md) 0;flex-wrap:wrap}
+    .swap-slippage button{background:none;border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.75rem}
+    .swap-slippage button.active{border-color:var(--accent);color:var(--accent)}
+    .swap-slippage button:hover{border-color:var(--accent);color:var(--accent)}
+    .swap-slippage input{width:60px;font-size:0.75rem;text-align:center}
+    .price-impact-warn{color:var(--warning);font-size:0.8rem;margin:var(--space-sm) 0}
+    .swap-attribution{text-align:center;font-size:0.7rem;color:var(--text-muted);margin-top:var(--space-lg)}
+
+    /* Stake section */
+    .stake-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-lg);margin-bottom:var(--space-xl)}
+    .stake-stat{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:var(--space-lg);text-align:center}
+    .stake-stat .label{font-size:0.75rem;color:var(--text-muted)}
+    .stake-stat .value{font-size:1.3rem;font-weight:700;margin-top:var(--space-xs)}
+    .validator-list{margin-top:var(--space-xl)}
+    .validator-item{display:flex;align-items:center;gap:var(--space-md);padding:var(--space-md) var(--space-lg);border-radius:6px;cursor:pointer;font-size:0.85rem}
+    .validator-item:nth-child(odd){background:var(--bg-card)}
+    .validator-item:nth-child(even){background:var(--bg-secondary,var(--bg-input))}
+    .validator-item:hover{outline:1px solid var(--accent)}
+    .validator-item .v-name{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .validator-item .v-commission{color:var(--text-muted);min-width:60px;text-align:right}
+    .validator-item .v-stake{color:var(--text-muted);min-width:80px;text-align:right}
+    .stake-accounts{margin-top:var(--space-xl)}
+    .stake-account{display:flex;align-items:center;gap:var(--space-md);padding:var(--space-md) var(--space-lg);background:var(--bg-card);border:1px solid var(--border);border-radius:8px;margin-bottom:var(--space-md);font-size:0.85rem;flex-wrap:wrap}
+    .stake-account .sa-status{padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.7rem;font-weight:600;text-transform:uppercase}
+    .sa-status.active{background:rgba(68,170,153,0.15);color:var(--success)}
+    .sa-status.activating{background:rgba(202,170,51,0.15);color:var(--warning)}
+    .sa-status.deactivating{background:rgba(204,68,68,0.15);color:var(--danger)}
+
+    /* NFT grid */
+    .nft-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-lg)}
+    .nft-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color 0.2s}
+    .nft-card:hover{border-color:var(--accent)}
+    .nft-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+    .nft-card .nft-name{padding:var(--space-md);font-size:0.85rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .nft-empty{text-align:center;padding:3rem var(--space-xl);color:var(--text-muted);font-style:italic}
+
+    /* Modal */
+    .wallet-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;display:none}
+    .wallet-modal-overlay.open{display:flex;align-items:center;justify-content:center}
+    .wallet-modal{max-width:500px;width:calc(100% - 2rem);background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);margin:2rem}
+    .wallet-modal h3{margin:0 0 var(--space-xl);color:var(--accent);font-size:1rem}
+    .modal-row{display:flex;justify-content:space-between;padding:var(--space-sm) 0;font-size:0.85rem;border-bottom:1px solid var(--border)}
+    .modal-row:last-of-type{border-bottom:none}
+    .modal-row .label{color:var(--text-muted)}
+    .modal-row .value{font-weight:600;text-align:right;word-break:break-all;max-width:60%}
+    .modal-actions{display:flex;gap:var(--space-md);margin-top:var(--space-xl)}
+    .modal-actions button{flex:1;padding:var(--space-md);border-radius:8px;font-size:0.85rem;font-weight:600}
+    .btn-cancel{background:var(--bg-input);border:1px solid var(--border);color:var(--text)}
+    .btn-cancel:hover{border-color:var(--text-muted)}
+
+    /* Tx status */
+    .tx-status{text-align:center;padding:var(--space-xl);font-size:0.9rem}
+    .tx-status.pending{color:var(--warning)}
+    .tx-status.confirmed{color:var(--success)}
+    .tx-status.error{color:var(--danger)}
+
+    /* Spinner */
+    .spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:var(--space-sm)}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* Responsive */
+    @media(max-width:600px){
+      #page-app{padding:var(--space-md)}
+      .balance-main{font-size:1.5rem}
+      .stake-summary{grid-template-columns:1fr}
+      .nft-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+      .swap-card{padding:var(--space-lg)}
+      .action-row{flex-direction:column}
+      .btn-action{width:100%;text-align:center}
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="wallet"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/eli5.js"></script>
+<div class="eli5-block">
+  <div class="eli5-simple">Your digital wallet for sending, receiving, and managing crypto on Solana.</div>
+  <div class="eli5-expert">Self-custody Solana wallet derived from your Ed25519 identity key. Supports SOL, SPL tokens (USDC), swaps via Jupiter, native staking, and NFTs. All signing happens client-side; private keys never leave the device.</div>
+</div>
+<p class="page-hint">Manage your Solana wallet. Send and receive SOL and tokens, swap between assets, stake for rewards, and view your NFTs.</p>
+
+<div id="page-app">
+  <!-- No identity state -->
+  <div id="wallet-no-identity" class="wallet-no-identity" style="display:none;">
+    <h2>Connect to the network first</h2>
+    <p>Visit the <a href="/chat">Network</a> page to create or import your identity.<br>
+    Your identity key doubles as your Solana wallet — no extra setup needed.</p>
+  </div>
+
+  <!-- Main wallet UI (hidden until identity confirmed) -->
+  <div id="wallet-main" style="display:none;">
+    <!-- Warning banner -->
+    <div class="wallet-warning" id="wallet-warning">
+      <span>&#9888;&#65039; HumanityOS is pre-v1.0 software. Your wallet keys are stored locally. We cannot recover lost keys or reverse transactions. <strong>Back up your 24-word seed phrase.</strong></span>
+      <button class="dismiss-btn" onclick="dismissWarning()">Dismiss</button>
+    </div>
+
+    <!-- Tabs -->
+    <div class="wallet-tabs" id="wallet-tabs">
+      <button class="wallet-tab active" data-tab="overview" onclick="switchTab('overview')">Overview</button>
+      <button class="wallet-tab" data-tab="send" onclick="switchTab('send')">Send</button>
+      <button class="wallet-tab" data-tab="swap" onclick="switchTab('swap')">Swap</button>
+      <button class="wallet-tab" data-tab="stake" onclick="switchTab('stake')">Stake</button>
+      <button class="wallet-tab" data-tab="nfts" onclick="switchTab('nfts')">NFTs</button>
+    </div>
+
+    <!-- ═══════════════════ OVERVIEW TAB ═══════════════════ -->
+    <div id="tab-overview" class="tab-panel active">
+      <div class="panel">
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:var(--space-sm)">Solana Address</div>
+        <div class="address-row">
+          <span id="sol-address">—</span>
+          <button class="copy-btn" onclick="copyAddress()">Copy</button>
+        </div>
+        <div id="address-qr" class="qr-container" style="margin-top:var(--space-lg)"></div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;align-items:baseline;gap:var(--space-md);flex-wrap:wrap">
+          <div>
+            <div class="balance-main" id="balance-sol">— SOL</div>
+            <div class="balance-usd" id="balance-sol-usd"></div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-size:0.75rem;color:var(--text-muted)">Total Value</div>
+            <div style="font-size:1.3rem;font-weight:700" id="portfolio-total">—</div>
+          </div>
+        </div>
+        <div style="margin-top:var(--space-lg);border-top:1px solid var(--border);padding-top:var(--space-md)">
+          <div class="balance-row" id="balance-usdc-row">
+            <span class="balance-token">USDC</span>
+            <span class="balance-amount"><span class="amt" id="balance-usdc">—</span></span>
+          </div>
+          <div id="other-tokens"></div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn-action btn-send" onclick="switchTab('send')">Send</button>
+        <button class="btn-action btn-receive" onclick="showReceiveModal()">Receive</button>
+      </div>
+
+      <div class="panel">
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)">Recent Transactions</h3>
+        <div id="tx-loading" style="text-align:center;padding:var(--space-xl);color:var(--text-muted)">
+          <span class="spinner"></span> Loading transactions...
+        </div>
+        <ul class="tx-list" id="tx-list"></ul>
+        <div id="tx-empty" style="display:none;text-align:center;padding:var(--space-xl);color:var(--text-muted);font-style:italic">No transactions yet.</div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════ SEND TAB ═══════════════════ -->
+    <div id="tab-send" class="tab-panel">
+      <div class="panel">
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg)">Send Tokens</h3>
+        <div class="send-form">
+          <label>Recipient Address</label>
+          <div class="input-row">
+            <input type="text" id="send-to" placeholder="Solana address (base58)..." autocomplete="off">
+            <button class="btn-small" onclick="pasteAddress()">Paste</button>
+          </div>
+
+          <label>Amount</label>
+          <div class="input-row">
+            <input type="number" id="send-amount" placeholder="0.00" min="0" step="any" oninput="updateSendEstimate()">
+            <select id="send-token" onchange="updateSendEstimate()">
+              <option value="SOL">SOL</option>
+              <option value="USDC">USDC</option>
+            </select>
+            <button class="btn-small" onclick="fillMaxBalance()">Max</button>
+          </div>
+          <div class="send-estimate" id="send-estimate"></div>
+          <div class="send-fee">Estimated fee: ~$0.00025 (5000 lamports)</div>
+
+          <button class="btn-confirm" id="btn-review-send" onclick="prepareSend()">Review Send</button>
+        </div>
+      </div>
+
+      <div id="send-status" class="tx-status" style="display:none"></div>
+    </div>
+
+    <!-- ═══════════════════ SWAP TAB ═══════════════════ -->
+    <div id="tab-swap" class="tab-panel">
+      <div class="swap-card">
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);text-align:center">Swap Tokens</h3>
+
+        <div class="swap-box" id="swap-input-box">
+          <label>You pay</label>
+          <div class="input-row">
+            <input type="number" id="swap-input-amount" placeholder="0.00" min="0" step="any" oninput="onSwapInputChange()">
+            <select id="swap-input-token" onchange="onSwapInputChange()">
+              <option value="SOL">SOL</option>
+              <option value="USDC">USDC</option>
+              <option value="USDT">USDT</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="swap-flip">
+          <button onclick="flipSwapDirection()" title="Swap direction">&#8597;</button>
+        </div>
+
+        <div class="swap-box" id="swap-output-box">
+          <label>You receive</label>
+          <div class="input-row">
+            <input type="text" id="swap-output-amount" placeholder="0.00" readonly>
+            <select id="swap-output-token" onchange="onSwapInputChange()">
+              <option value="USDC">USDC</option>
+              <option value="SOL">SOL</option>
+              <option value="USDT">USDT</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="swap-rate" id="swap-rate"></div>
+        <div class="price-impact-warn" id="swap-impact" style="display:none"></div>
+
+        <div class="swap-slippage">
+          <span>Slippage:</span>
+          <button class="active" onclick="setSlippage(0.5,this)">0.5%</button>
+          <button onclick="setSlippage(1,this)">1%</button>
+          <button onclick="setSlippage(2,this)">2%</button>
+          <input type="number" id="swap-custom-slippage" placeholder="Custom" min="0.01" max="50" step="0.01" onchange="setSlippage(parseFloat(this.value)||0.5,this)">
+        </div>
+
+        <button class="btn-confirm" id="btn-swap" onclick="prepareSwap()" disabled>Swap</button>
+        <div class="swap-attribution">Powered by Jupiter</div>
+      </div>
+
+      <div id="swap-status" class="tx-status" style="display:none"></div>
+    </div>
+
+    <!-- ═══════════════════ STAKE TAB ═══════════════════ -->
+    <div id="tab-stake" class="tab-panel">
+      <div class="stake-summary">
+        <div class="stake-stat">
+          <div class="label">Staked SOL</div>
+          <div class="value" id="staked-amount">—</div>
+        </div>
+        <div class="stake-stat">
+          <div class="label">Rewards Earned</div>
+          <div class="value" id="staked-rewards">—</div>
+        </div>
+        <div class="stake-stat">
+          <div class="label">Estimated APY</div>
+          <div class="value">~7%</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg)">Stake SOL</h3>
+        <div class="send-form">
+          <label>Amount to Stake</label>
+          <div class="input-row">
+            <input type="number" id="stake-amount" placeholder="0.00" min="0.01" step="any">
+            <span style="color:var(--text-muted);font-size:0.85rem">SOL</span>
+          </div>
+
+          <label>Select Validator</label>
+          <select id="stake-validator" style="width:100%">
+            <option value="">Loading validators...</option>
+          </select>
+
+          <button class="btn-confirm" onclick="stakeSOL()" style="margin-top:var(--space-lg)">Stake SOL</button>
+        </div>
+      </div>
+
+      <div class="stake-accounts" id="stake-accounts">
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)">Active Stake Accounts</h3>
+        <div id="stake-accounts-list"></div>
+        <div id="stake-accounts-empty" style="display:none;text-align:center;padding:var(--space-xl);color:var(--text-muted);font-style:italic">No active stakes.</div>
+      </div>
+
+      <div class="validator-list" id="validator-list-section">
+        <h3 style="font-size:0.9rem;margin:0 0 var(--space-lg);color:var(--text-muted)">
+          Validators
+          <select id="validator-sort" onchange="sortValidators()" style="margin-left:var(--space-md);font-size:0.75rem;padding:var(--space-xs) var(--space-sm)">
+            <option value="commission">Sort: Commission</option>
+            <option value="stake">Sort: Active Stake</option>
+          </select>
+        </h3>
+        <div id="validator-list"></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════ NFTS TAB ═══════════════════ -->
+    <div id="tab-nfts" class="tab-panel">
+      <div id="nft-loading" style="text-align:center;padding:var(--space-xl);color:var(--text-muted)">
+        <span class="spinner"></span> Loading NFTs...
+      </div>
+      <div class="nft-grid" id="nft-grid"></div>
+      <div id="nft-empty" class="nft-empty" style="display:none;">
+        <h3 style="color:var(--text);font-size:1rem;margin-bottom:var(--space-md)">No NFTs yet</h3>
+        <p>NFTs are unique digital items stored on the Solana blockchain. They can represent game items, art, certificates, and more.</p>
+        <p style="margin-top:var(--space-md);font-size:0.8rem">Future: Mint your own NFTs directly from HumanityOS.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Receive Modal -->
+<div class="wallet-modal-overlay" id="receive-modal" onclick="if(event.target===this)closeReceiveModal()">
+  <div class="wallet-modal">
+    <h3>Receive</h3>
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-lg)">Share your Solana address to receive SOL, USDC, or other tokens.</p>
+    <div class="address-row" style="margin-bottom:var(--space-lg)">
+      <span id="receive-address">—</span>
+      <button class="copy-btn" onclick="copyAddress()">Copy</button>
+    </div>
+    <div id="receive-qr" class="qr-container"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeReceiveModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Send Confirmation Modal -->
+<div class="wallet-modal-overlay" id="send-confirm-modal" onclick="if(event.target===this)closeSendModal()">
+  <div class="wallet-modal">
+    <h3>Confirm Send</h3>
+    <div class="modal-row"><span class="label">From</span><span class="value" id="confirm-from">—</span></div>
+    <div class="modal-row"><span class="label">To</span><span class="value" id="confirm-to">—</span></div>
+    <div class="modal-row"><span class="label">Amount</span><span class="value" id="confirm-amount">—</span></div>
+    <div class="modal-row"><span class="label">Fee</span><span class="value" id="confirm-fee">~0.000005 SOL</span></div>
+    <div class="modal-row"><span class="label">USD Value</span><span class="value" id="confirm-usd">—</span></div>
+    <div id="send-high-value-warn" style="display:none;color:var(--warning);font-size:0.8rem;margin-top:var(--space-md);text-align:center">
+      &#9888; Large transaction. Please double-check the recipient address.
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSendModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmSend()" style="margin-top:0;width:auto;flex:1">Confirm Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Swap Confirmation Modal -->
+<div class="wallet-modal-overlay" id="swap-confirm-modal" onclick="if(event.target===this)closeSwapModal()">
+  <div class="wallet-modal">
+    <h3>Confirm Swap</h3>
+    <div class="modal-row"><span class="label">You pay</span><span class="value" id="confirm-swap-input">—</span></div>
+    <div class="modal-row"><span class="label">You receive</span><span class="value" id="confirm-swap-output">—</span></div>
+    <div class="modal-row"><span class="label">Rate</span><span class="value" id="confirm-swap-rate">—</span></div>
+    <div class="modal-row"><span class="label">Slippage</span><span class="value" id="confirm-swap-slippage">—</span></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeSwapModal()">Cancel</button>
+      <button class="btn-confirm" onclick="confirmSwap()" style="margin-top:0;width:auto;flex:1">Confirm Swap</button>
+    </div>
+  </div>
+</div>
+
+<!-- NFT Detail Modal -->
+<div class="wallet-modal-overlay" id="nft-detail-modal" onclick="if(event.target===this)closeNFTModal()">
+  <div class="wallet-modal" style="max-width:550px">
+    <div id="nft-detail-content"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeNFTModal()">Close</button>
+      <button class="btn-confirm" id="btn-send-nft" onclick="promptSendNFT()" style="margin-top:0;width:auto;flex:1">Send NFT</button>
+    </div>
+  </div>
+</div>
+
+<script src="/shared/wallet.js"></script>
+<script>
+  /* Load qrcode.js if available (non-blocking) */
+  (function() {
+    var s = document.createElement('script');
+    s.src = '/chat/qrcode.js';
+    s.onerror = function() { console.log('qrcode.js not available, QR codes disabled'); };
+    document.head.appendChild(s);
+  })();
+</script>
+<script src="/pages/wallet-app.js"></script>
+</body>
+</html>

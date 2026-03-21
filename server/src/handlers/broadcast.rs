@@ -27,6 +27,7 @@ pub fn build_task_list(db: &crate::storage::Storage) -> Vec<TaskData> {
         priority: t.priority, assignee: t.assignee, created_by: t.created_by,
         created_at: t.created_at, updated_at: t.updated_at, position: t.position,
         labels: t.labels, comment_count: *counts.get(&t.id).unwrap_or(&0),
+        project: t.project,
     }).collect()
 }
 

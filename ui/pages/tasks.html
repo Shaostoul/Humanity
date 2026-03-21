@@ -228,6 +228,113 @@
     .assignee-row button { padding: 0.28rem var(--space-lg); border-radius: var(--radius-sm); border: 1px solid var(--border-bright); background: var(--bg-input); color: var(--text-muted); font-size: 0.72rem; cursor: pointer; }
     .assignee-row button:hover { color: var(--text); }
 
+    /* ── Project selector ── */
+    .project-bar {
+      display: flex; align-items: center; gap: var(--space-lg);
+      padding: var(--space-md) var(--space-xl);
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #0e0e0e 0%, #0a0a0a 100%);
+      flex-shrink: 0;
+    }
+    .project-selector {
+      position: relative;
+    }
+    .project-selector-btn {
+      display: flex; align-items: center; gap: var(--space-md);
+      background: var(--bg-panel); border: 1px solid var(--border-bright);
+      border-radius: var(--radius); padding: var(--space-sm) var(--space-lg);
+      color: var(--text); font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; min-width: 180px; font-family: inherit;
+      transition: border-color 0.15s;
+    }
+    .project-selector-btn:hover { border-color: var(--text-muted); }
+    .project-selector-btn .proj-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .project-selector-btn .proj-icon {
+      font-size: 0.9rem; flex-shrink: 0;
+    }
+    .project-selector-btn .proj-chevron {
+      margin-left: auto; font-size: 0.65rem; color: var(--text-muted);
+    }
+    .project-dropdown {
+      display: none; position: absolute; top: calc(100% + 4px); left: 0;
+      min-width: 240px; background: var(--bg-panel); border: 1px solid var(--border-bright);
+      border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 500; overflow: hidden;
+    }
+    .project-dropdown.open { display: block; }
+    .project-dropdown-item {
+      display: flex; align-items: center; gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg); cursor: pointer;
+      font-size: 0.8rem; color: var(--text-muted);
+      transition: background 0.1s, color 0.1s; border: none;
+      background: transparent; width: 100%; text-align: left; font-family: inherit;
+    }
+    .project-dropdown-item:hover { background: var(--bg-secondary); color: var(--text); }
+    .project-dropdown-item.active { color: var(--accent); font-weight: 600; }
+    .project-dropdown-item .proj-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .project-dropdown-item .proj-icon {
+      font-size: 0.85rem; flex-shrink: 0;
+    }
+    .project-dropdown-item .proj-vis {
+      margin-left: auto; font-size: 0.65rem; color: var(--text-dim);
+    }
+    .project-dropdown-sep {
+      height: 1px; background: var(--border); margin: var(--space-xs) 0;
+    }
+    .project-dropdown-item.create-item {
+      color: var(--accent); font-weight: 600;
+      border-top: 1px solid var(--border);
+    }
+    .btn-new-project {
+      display: flex; align-items: center; gap: var(--space-sm);
+      background: transparent; border: 1px solid var(--border-bright);
+      border-radius: var(--radius); padding: var(--space-sm) var(--space-lg);
+      color: var(--text-muted); font-size: 0.78rem; cursor: pointer;
+      font-family: inherit; transition: color 0.15s, border-color 0.15s;
+    }
+    .btn-new-project:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Project modal ── */
+    .project-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+    .project-modal-overlay.open { display: flex; }
+    .project-modal { background: var(--bg-secondary); border: 1px solid var(--bg-hover); border-radius: 14px; padding: var(--space-2xl); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+    .project-modal h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: var(--space-xl); display: flex; align-items: center; gap: var(--space-md); }
+    .color-picker-row {
+      display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center;
+    }
+    .color-swatch {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+      cursor: pointer; transition: border-color 0.15s, transform 0.1s;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.selected { border-color: var(--text); transform: scale(1.15); }
+    .icon-picker-row {
+      display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center;
+    }
+    .icon-option {
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      cursor: pointer; font-size: 1rem; background: var(--bg-input);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .icon-option:hover { border-color: var(--text-muted); }
+    .icon-option.selected { border-color: var(--accent); background: var(--bg-secondary); }
+    .visibility-options { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .visibility-option {
+      display: flex; align-items: center; gap: var(--space-md);
+      cursor: pointer; font-size: 0.82rem; color: var(--text-muted);
+    }
+    .visibility-option input[type=radio] { accent-color: var(--accent); }
+    .visibility-option .vis-label { font-weight: 600; color: var(--text); }
+    .visibility-option .vis-desc { font-size: 0.72rem; color: var(--text-dim); }
+    .project-task-count {
+      font-size: 0.68rem; color: var(--text-dim); margin-left: auto;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 800px) {
       .kanban { grid-template-columns: 1fr 1fr; }
@@ -235,6 +342,7 @@
     @media (max-width: 500px) {
       .kanban { grid-template-columns: 1fr; }
       .stats { display: none; }
+      .project-bar { flex-wrap: wrap; }
     }
 
     /* ── Top-level view tabs (Kanban / Quests) ── */
@@ -568,6 +676,21 @@
 
   <div id="kanban-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
 
+  <!-- Project selector -->
+  <div class="project-bar" id="project-bar">
+    <div class="project-selector" id="project-selector">
+      <button class="project-selector-btn" id="project-selector-btn" onclick="toggleProjectDropdown()">
+        <span class="proj-icon" id="proj-btn-icon">📋</span>
+        <span class="proj-dot" id="proj-btn-dot" style="background:#4488ff"></span>
+        <span id="proj-btn-label">All Projects</span>
+        <span class="proj-chevron">▾</span>
+      </button>
+      <div class="project-dropdown" id="project-dropdown"></div>
+    </div>
+    <button class="btn-new-project" onclick="openProjectModal()">+ New Project</button>
+    <span id="project-task-count" class="project-task-count"></span>
+  </div>
+
   <!-- Scope selector -->
   <div class="scope-bar">
     <div class="scope-header">
@@ -765,6 +888,10 @@
         <select id=f-scope></select>
       </div>
     </div>
+    <div class="form-group">
+      <label>Project</label>
+      <select id="f-project"></select>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label>Status</label>
@@ -793,6 +920,51 @@
     <div class="modal-footer">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-submit" id=btn-submit onclick="submitTask()">Create Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Project create/edit modal -->
+<div class="project-modal-overlay" id="project-modal-overlay" onclick="if(event.target===this)closeProjectModal()">
+  <div class="project-modal">
+    <h2 id="project-modal-title">New Project</h2>
+    <div class="form-group">
+      <label>Name *</label>
+      <input type="text" id="pf-name" placeholder="Project name" maxlength="100">
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="pf-desc" placeholder="What is this project about?"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Color</label>
+      <div class="color-picker-row" id="pf-colors"></div>
+    </div>
+    <div class="form-group">
+      <label>Icon</label>
+      <div class="icon-picker-row" id="pf-icons"></div>
+    </div>
+    <div class="form-group">
+      <label>Visibility</label>
+      <div class="visibility-options">
+        <label class="visibility-option">
+          <input type="radio" name="pf-visibility" value="public" checked>
+          <div><div class="vis-label">Public</div><div class="vis-desc">Anyone on the server can see this project</div></div>
+        </label>
+        <label class="visibility-option">
+          <input type="radio" name="pf-visibility" value="private">
+          <div><div class="vis-label">Private</div><div class="vis-desc">Only you can see this project and its tasks</div></div>
+        </label>
+        <label class="visibility-option">
+          <input type="radio" name="pf-visibility" value="members-only">
+          <div><div class="vis-label">Members Only</div><div class="vis-desc">Only invited members can see this project</div></div>
+        </label>
+      </div>
+    </div>
+    <div id="project-form-msg"></div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeProjectModal()">Cancel</button>
+      <button class="btn-submit" id="btn-project-submit" onclick="submitProject()">Create Project</button>
     </div>
   </div>
 </div>

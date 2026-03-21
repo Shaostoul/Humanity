@@ -4,6 +4,8 @@ Open-source cooperative platform. Goal: end poverty, unite humanity.
 Live: https://united-humanity.us | GitHub: https://github.com/Shaostoul/Humanity
 SSH alias: `humanity-vps` (server1.shaostoul.com)
 
+> **⚠️ START HERE:** Read `docs/STATUS.md` for comprehensive feature inventory (what's built, what's not, what's next). Prevents re-researching existing features.
+
 ## Quick orientation
 
 ```

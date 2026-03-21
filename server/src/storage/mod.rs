@@ -74,6 +74,7 @@ pub struct TaskRecord {
     pub updated_at: i64,
     pub position: i64,
     pub labels: String,
+    pub project: String,
 }
 
 /// A task comment record from the database.
@@ -108,6 +109,15 @@ pub struct VoiceChannelRecord {
     pub created_at: i64,
 }
 
+/// A project record from the database (re-exported from projects.rs).
+pub use projects::ProjectRecord;
+
+/// A listing review record (re-exported from reviews.rs).
+pub use reviews::ReviewRecord;
+
+/// A server member record (re-exported from members.rs).
+pub use members::MemberRecord;
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -125,6 +135,16 @@ pub struct MarketplaceListing {
     pub status: String,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+}
+
+/// A listing image record from the database.
+#[derive(Debug, Clone)]
+pub struct ListingImage {
+    pub id: i64,
+    pub listing_id: String,
+    pub url: String,
+    pub position: i32,
+    pub created_at: String,
 }
 
 /// A federated server record from the database.
@@ -653,7 +673,58 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_marketplace_status
                 ON marketplace_listings(status);
             CREATE INDEX IF NOT EXISTS idx_marketplace_category
-                ON marketplace_listings(category);"
+                ON marketplace_listings(category);
+
+            CREATE TABLE IF NOT EXISTS listing_images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                listing_id TEXT NOT NULL,
+                url TEXT NOT NULL,
+                position INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (listing_id) REFERENCES marketplace_listings(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_listing_images_listing
+                ON listing_images(listing_id, position);"
+        )?;
+
+        // FTS5 full-text search over marketplace listings.
+        // Falls back silently if FTS5 is not compiled into this SQLite build.
+        let marketplace_fts_ok = conn.execute_batch("
+            CREATE VIRTUAL TABLE IF NOT EXISTS marketplace_fts
+            USING fts5(listing_id UNINDEXED, title, description, category);
+        ");
+
+        if marketplace_fts_ok.is_ok() {
+            info!("Marketplace FTS5 search index ready");
+        } else {
+            info!("Marketplace FTS5 not available — falling back to LIKE search");
+        }
+
+        // Listing reviews and seller aggregate ratings.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS listing_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                listing_id TEXT NOT NULL,
+                reviewer_key TEXT NOT NULL,
+                reviewer_name TEXT,
+                rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+                comment TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (listing_id) REFERENCES marketplace_listings(id) ON DELETE CASCADE,
+                UNIQUE(listing_id, reviewer_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_reviews_listing
+                ON listing_reviews(listing_id);
+            CREATE INDEX IF NOT EXISTS idx_reviews_reviewer
+                ON listing_reviews(reviewer_key);
+
+            CREATE TABLE IF NOT EXISTS seller_ratings (
+                seller_key TEXT PRIMARY KEY,
+                avg_rating REAL DEFAULT 0,
+                review_count INTEGER DEFAULT 0
+            );"
         )?;
 
         // Assets table for the Asset Library.
@@ -775,6 +846,50 @@ impl Storage {
             );"
         )?;
 
+        // Projects table for grouping tasks.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS projects (
+                id          TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                owner_key   TEXT NOT NULL,
+                visibility  TEXT DEFAULT 'public',
+                color       TEXT DEFAULT '#4488ff',
+                icon        TEXT DEFAULT '📋',
+                created_at  TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_key);
+
+            -- Seed the default project so the system works immediately.
+            INSERT OR IGNORE INTO projects (id, name, description, owner_key, visibility, created_at)
+            VALUES ('default', 'General', 'Default project', 'system', 'public', datetime('now'));"
+        )?;
+
+        // Migration: add project column to project_tasks if missing.
+        if conn.prepare("SELECT project FROM project_tasks LIMIT 0").is_err() {
+            conn.execute_batch(
+                "ALTER TABLE project_tasks ADD COLUMN project TEXT DEFAULT 'default';"
+            )?;
+            info!("Migration: added project column to project_tasks");
+        }
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_project_tasks_project ON project_tasks(project);"
+        )?;
+
+        // Server members table (membership tiers: member, contributor, mod, admin).
+        // Guests have no row — they're just connected WebSocket peers.
+        // Owner is stored in server-config.json, not this table.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS server_members (
+                public_key TEXT PRIMARY KEY,
+                name       TEXT,
+                role       TEXT NOT NULL DEFAULT 'member',
+                joined_at  TEXT NOT NULL,
+                last_seen  TEXT
+            );"
+        )?;
+
         // FTS5 full-text search over chat messages.
         // Uses a content table (content=messages) so we don't duplicate data.
         // Triggers keep the index in sync with every insert/update/delete.
@@ -844,6 +959,7 @@ mod messages;
 mod misc;
 mod pins;
 mod profile;
+mod projects;
 mod push;
 mod reactions;
 mod skill_dna;
@@ -851,4 +967,6 @@ mod social;
 mod streams;
 mod system;
 mod uploads;
+mod reviews;
+mod members;
 mod vault_sync;

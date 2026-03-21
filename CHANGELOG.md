@@ -201,6 +201,154 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 - **Emoji replaced** with SVG icons across all pages and JS files
 - **Dev workbench page** — icon thickness comparison, component gallery, color palette
 
+## v0.5.0 — Push Notifications & Auto-Updater (2026-03-16)
+
+- **Push notifications** — service worker notification support
+- **Silent auto-updater** — desktop app checks for updates without interrupting
+- **Icon tooling** — build pipeline for generating icons at multiple sizes
+- **Seed/backup buttons moved** from Network to Settings page
+- **Identity backup guidance** — clearer prompts for key backup
+- **SPA navigation bug fixed** — pages now do full reload instead of broken SPA routing
+- **Web bookmarks** — save/manage bookmarks in Home tab
+- **ELI5/Expert system** — dual-audience explanations on all pages, toggle in Settings
+- **Nav consolidation** — 21 pages trimmed to 12, 9 orphaned pages deleted
+- **Major repo cleanup** — unified history docs, consolidated icons, clean root directory
+
+## v0.4.1 — Deploy Fix (2026-03-15)
+
+- Fix deploy missing `game/` directory
+- Sync all version strings across codebase
+
+## v0.4.0 — Settings & Studio (2026-03-15)
+
+- **Download page overhaul** — module management, platform detection
+- **Complete settings page** — all preferences in one place
+- **Feature-complete studio panel** — camera/screen controls, stream management
+- **ELI5 purpose hints** on all 13 standalone pages
+- **System context awareness** — detect, store, and share hardware specs
+- **Context-tinted messages** — background color matches chat context (DM/channel/group)
+- **Monochromatic pinned icons** + studio pill controls + AFK RGB button
+- **Admin sidebar** — flat icon-based user list, deduplication
+- **CI improvements** — Windows-first build gate, chat notification on build complete
+- Fixed: message history loads most recent (not oldest), rate-limit false positives, group persistence
+
+## v0.3.1 — First Auto-Update Release (2026-03-14)
+
+- **First auto-update capable desktop release**
+- Fixed debug overlay width + service worker version string
+
+## v0.3.0 — Voice, Vault & Feature Web (2026-03-14)
+
+This was the largest pre-tag release — ~870 commits covering the full platform build-out.
+
+### Communication
+- **WebRTC voice calling** — 1-on-1 audio, group voice rooms, TURN server
+- **Video calls** — camera selection, PiP overlay, gallery view
+- **Screen sharing** — concurrent camera+screen layers with draggable PiP
+- **Streaming system** — streamer dashboard, WebRTC relay, scenes/presets, chat overlay
+- **DMs** — @mentions, notifications, E2E encrypted via ECDH P-256 + AES-256-GCM
+- **Threaded replies** — thread view panel with reply indicators
+- **Follow/friend system** — social graph, group foundation, friend codes
+- **Federation Phase 1+2** — server registry, discovery, server-to-server WebSocket
+
+### Identity & Security
+- **Ed25519 message signing** — full client-side signature verification
+- **Key rotation** — dual-signed certificates for key migration
+- **Vault sync** — encrypted cross-device vault with auto-lock, clipboard clear
+- **BIP39 seed phrase** — 24-word backup & restore, paper backup option
+- **Device management** — list, label, revoke linked keys, QR code linking
+- **Security audits** — XSS fixes, API auth, CORS restrictions, WS size limits, HSTS
+- **Rate limiting** — Fibonacci backoff, DM rate limiting, typing throttle
+
+### Task Board & Feature Web
+- **Kanban task board** — create/edit/move/delete tasks, real-time WebSocket updates
+- **Task comments** — API endpoints + WebSocket handler + detail drawer UI
+- **Feature Web** — interactive node graph for project planning with:
+  - Canvas-based visualization with drag, zoom, search, filters
+  - Node types/statuses/domains with teach mode
+  - Board-to-graph sync (linked nodes mirror task status)
+  - Import/export JSON, seed packs, constellation/orbit layouts
+  - 100+ keyboard shortcuts with help panel
+  - Full accessibility: ARIA labels, live regions, keyboard navigation
+
+### Pages & Navigation
+- **13 standalone pages** — tasks, maps, skills, inventory, calendar, home, quests, logbook, learn, settings, profile, data, download
+- **Hub navigation** — shell.js with nav bar, theme toggle, keyboard shortcuts
+- **Mobile nav** — touch drawer menus, fixed overlay dropdowns
+- **Dashboard** — weather widget, active tasks, recent DMs
+- **Skill DNA** — living skill trees with Reality/Fantasy XP, peer verification
+- **Maps** — Earth surface, weather, GPS/icosphere coords, celestial navigation
+- **Marketplace** — P2P listings, store directory, inventory bridge
+
+### Server & API
+- **SQLite persistence** — messages, channels, profiles, tasks, follows, vault, uploads
+- **REST API** — 20+ endpoints for messages, tasks, search, assets, federation, vault
+- **Channels** — read-only, invite codes, auto-lockdown, channel ordering
+- **Admin system** — roles, verify, lockdown, wipe, GC, user registry
+- **Bot API** — HTTP endpoints for AI integration, webhook notifications
+- **GitHub webhook** — deploy bot announces pushes to chat
+
+### Engine & Game
+- **19 engine sub-crates** — core, modules, persistence, renderer, audio, input, physics
+- **30 WGSL shaders** — planets, PBR, procedural materials, atmosphere, water, terrain
+- **Game data pipeline** — CSV/TOML/RON for items, plants, recipes, quests, blueprints
+- **Game systems** — farming, construction, inventory, combat, crafting, trading
+- **3D terrain rendering** — capsule stand-in, third-person camera, scenic scenes
+- **Offline gameplay** — non-combat milestone loop, desync recovery sync core
+
+### Client Polish
+- **PWA support** — manifest, service worker, installable on mobile
+- **Emoji reactions** — persistent, cross-platform via Twemoji
+- **Message editing + pins** — server-side + client UI
+- **Identicons** — unique visual identity per user
+- **Markdown rendering** — in messages with collapsible quotes
+- **Encrypted user data sync** — AES-256-GCM client-side encryption
+- **Periodic table** — 118 elements + 40 materials catalog
+- **FTS5 search** — full-text message search with LIKE fallback
+- **Light/dark theme toggle** — CSS custom properties throughout
+
+## v0.2.0 — Version Display & Data Sync (2026-02-12)
+
+- **Version in title bar** — desktop app shows current version
+- **User data sync** — resolves by name so all devices share data
+
+## v0.1.0 — First Desktop Release (2026-02-12)
+
+- **Tauri v2 desktop app** — Windows installer with GitHub Actions CI
+- **Auto-updater** — Tauri updater plugin for seamless updates
+- **Ed25519 identity** — cryptographic identity system
+- **WebSocket relay** — real-time message routing with SQLite persistence
+- **Chat client** — channels, DMs, replies, reactions, markdown, search
+- **Admin tools** — roles, lockdown, verify, wipe
+- **Voice calling** — WebRTC P2P audio
+- **Device linking** — QR code device pairing
+
+## Pre-release — Foundation (2026-01-16 → 2026-02-12)
+
+### Documentation & Governance
+- **Humanity Accord** — v4.0 governing document covering rights, responsibilities, atrocities, censorship
+- **Design docs** — encryption, security, abuse handling, social communication
+- **Website** — Jekyll-based GitHub Pages with dark theme
+- **Contributing guide** + onboarding documentation
+
+### Server Infrastructure
+- **humanity-core crate** — canonical CBOR, BLAKE3, Ed25519
+- **humanity-relay** — WebSocket relay server with web client
+- **SQLite persistence** — message storage, channels, profiles
+- **Bot HTTP API** — for AI integration
+- **Webhook notifications** — for relay chat messages
+- **nginx + VPS deploy pipeline** — GitHub Actions → SSH → build → rsync → restart
+
+### Chat Platform (pre-Tauri, web-only)
+- **Login + identity** — name registration, auto-login, key persistence
+- **Channels** — create, switch, ordering, read-only, invite codes
+- **Messaging** — markdown, replies, quoting, editing, pins, typing indicators
+- **Notifications** — chime sounds, notification selector, auto-reload on update
+- **Image upload** — with per-user FIFO, admin size limits
+- **Emoji reactions** — persistent via Twemoji
+- **User blocking** — server-side block list
+- **Identicons** — unique visual identity per public key
+
 ---
 
-*53 commits, 18 minor versions, 5 patch versions across 4 days of development.*
+*1144 commits from initial commit to v0.24.0, spanning 2026-01-16 to 2026-03-20.*

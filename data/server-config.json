@@ -1,0 +1,30 @@
+{
+  "server_name": "United Humanity",
+  "server_description": "Open-source cooperative platform to end poverty and unite humanity.",
+  "owner_key": "",
+  "funding": {
+    "enabled": true,
+    "goal_usd": 100000,
+    "goal_label": "Full-time development for 1 year",
+    "sources": [
+      {
+        "type": "github_sponsors",
+        "label": "GitHub Sponsors",
+        "url": "https://github.com/sponsors/Shaostoul",
+        "description": "Recurring monthly support. 0% fees."
+      },
+      {
+        "type": "solana",
+        "label": "Solana (SOL/USDC)",
+        "address": "",
+        "description": "Near-zero fees (~$0.00025 per transaction)"
+      },
+      {
+        "type": "bitcoin",
+        "label": "Bitcoin",
+        "address": "",
+        "description": "Largest cryptocurrency network"
+      }
+    ]
+  }
+}

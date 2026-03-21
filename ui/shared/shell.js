@@ -5,7 +5,7 @@
  * If omitted, active tab is auto-detected from the current URL.
  *
  * Valid active keys: landing, chat, dashboard, profile, home, gear,
- *   tasks, calendar, notes, home, map, market, web, roadmap, ops, download, dev, settings, garden, data
+ *   tasks, calendar, notes, home, map, market, wallet, web, roadmap, donate, ops, download, dev, settings, garden, data
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="gear"></script>
@@ -54,6 +54,7 @@
     else if (p.startsWith('/systems'))   active = 'home';
     else if (p.startsWith('/maps'))      active = 'map';
     else if (p.startsWith('/market'))    active = 'market';
+    else if (p.startsWith('/wallet'))    active = 'wallet';
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops'))       active = 'ops';
@@ -61,6 +62,7 @@
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
     else if (p.startsWith('/activities/gardening')) active = 'garden';
+    else if (p.startsWith('/donate'))    active = 'donate';
     else if (p.startsWith('/data'))     active = 'data';
     else active = '';
   }
@@ -459,8 +461,10 @@
       /* Public — community pages */
       navTab('/maps',      'map',       'Maps',      'map') +
       navTab('/market',    'market',    'Market',    'market') +
+      navTab('/wallet',    'coin',      'Wallet',    'wallet') +
       navTab('/web',       'website',   'Web',       'web') +
       navTab('/roadmap',   'map',       'Roadmap',   'roadmap') +
+      navTab('/donate',    'heart',     'Donate',    'donate') +
 
       /* Spacer pushes utility tabs to the right */
       '<div class="spacer"></div>' +
@@ -511,8 +515,10 @@
     '<div class="mobile-hub-group"><h4>Public</h4>' +
       mobileLink('/maps',      'Maps') +
       mobileLink('/market',    'Market') +
+      mobileLink('/wallet',    'Wallet') +
       mobileLink('/web',       'Web') +
       mobileLink('/roadmap',   'Roadmap') +
+      mobileLink('/donate',    'Donate') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Config</h4>' +
       mobileLink('/data',     'Data') +
@@ -578,6 +584,7 @@
     if (l.includes('systems')) return 'Game systems and infrastructure overview.';
     if (l.includes('maps')) return 'Interactive maps from local to galactic scale.';
     if (l.includes('market')) return 'Buy, sell, and trade with other users.';
+    if (l.includes('wallet')) return 'Solana wallet: send, receive, swap, and stake crypto.';
     if (l.includes('calendar')) return 'Events, schedules, and recurring plans.';
     if (l.includes('home')) return 'Manage your homes, rooms, and property.';
     return 'Tap or click to use this control.';
@@ -742,6 +749,7 @@
       '<span id="hos-footer-label">HumanityOS — Public domain · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank">CC0 1.0</a></span>' +
       '<div class="footer-links">' +
         '<a href="https://github.com/Shaostoul/Humanity" target="_blank">' + ghIcon + ' GitHub</a>' +
+        '<a href="#" id="hos-take-tour" style="margin-left:var(--space-lg, 12px);font-size:0.72rem;">Take Tour</a>' +
       '</div>' +
     '</div>';
   document.body.appendChild(footerEl);
@@ -1049,7 +1057,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.24.0';
+    var CURRENT_VERSION = '0.25.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -1165,5 +1173,22 @@
     }, 2000);
     setTimeout(function() { clearInterval(_hosUpdatePoll); }, 30000);
   })();
+
+  // ── Onboarding Tour ──
+  // Load the tour script; it auto-starts for first-time users.
+  var tourScript = document.createElement('script');
+  tourScript.src = '/shared/onboarding-tour.js';
+  document.head.appendChild(tourScript);
+
+  // "Take Tour" footer link
+  var takeTourLink = document.getElementById('hos-take-tour');
+  if (takeTourLink) {
+    takeTourLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (typeof window.startOnboardingTour === 'function') {
+        window.startOnboardingTour();
+      }
+    });
+  }
 
 })();

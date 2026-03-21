@@ -132,6 +132,8 @@ pub struct RelayState {
     pub federation_rate: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
     /// VAPID keypair for WebPush notifications (P-256/ES256).
     pub vapid_key: Option<ES256KeyPair>,
+    /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
+    pub server_config: serde_json::Value,
 }
 
 impl RelayState {
@@ -178,6 +180,21 @@ impl RelayState {
             info!("Restored lockdown state from database: locked");
         }
 
+        // Load server config from data/server-config.json (or use defaults).
+        let server_config = std::fs::read_to_string("data/server-config.json")
+            .ok()
+            .and_then(|contents| serde_json::from_str::<serde_json::Value>(&contents).ok())
+            .unwrap_or_else(|| {
+                info!("data/server-config.json not found or invalid, using defaults");
+                serde_json::json!({
+                    "server_name": "Humanity Relay",
+                    "server_description": "",
+                    "owner_key": "",
+                    "funding": { "enabled": false }
+                })
+            });
+        info!("Server config loaded: {}", server_config.get("server_name").and_then(|v| v.as_str()).unwrap_or("unknown"));
+
         let (broadcast_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         Self {
             peers: RwLock::new(HashMap::new()),
@@ -201,6 +218,7 @@ impl RelayState {
             federation_connections: RwLock::new(HashMap::new()),
             federation_rate: std::sync::Mutex::new(HashMap::new()),
             vapid_key: None,
+            server_config,
         }
     }
 
@@ -848,6 +866,8 @@ pub enum RelayMessage {
         assignee: Option<String>,
         #[serde(default = "default_empty_labels")]
         labels: String,
+        #[serde(default = "default_project")]
+        project: String,
     },
 
     /// Server broadcasts a task was created.
@@ -869,6 +889,8 @@ pub enum RelayMessage {
         assignee: Option<String>,
         #[serde(default = "default_empty_labels")]
         labels: String,
+        #[serde(default = "default_project")]
+        project: String,
     },
 
     /// Server broadcasts a task was updated.
@@ -932,6 +954,74 @@ pub enum RelayMessage {
         comments: Vec<TaskCommentData>,
     },
 
+    // ── Projects ──
+
+    /// Client requests the project list.
+    #[serde(rename = "project_list")]
+    ProjectList {},
+
+    /// Server responds with the project list.
+    #[serde(rename = "project_list_response")]
+    ProjectListResponse {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        projects: Vec<ProjectData>,
+    },
+
+    /// Client creates a new project.
+    #[serde(rename = "project_create")]
+    ProjectCreate {
+        name: String,
+        #[serde(default)]
+        description: String,
+        #[serde(default = "default_public")]
+        visibility: String,
+        #[serde(default = "default_color")]
+        color: String,
+        #[serde(default = "default_icon")]
+        icon: String,
+    },
+
+    /// Server broadcasts a project was created.
+    #[serde(rename = "project_created")]
+    ProjectCreated {
+        project: ProjectData,
+    },
+
+    /// Client updates a project.
+    #[serde(rename = "project_update")]
+    ProjectUpdate {
+        id: String,
+        #[serde(default)]
+        name: String,
+        #[serde(default)]
+        description: String,
+        #[serde(default = "default_public")]
+        visibility: String,
+        #[serde(default = "default_color")]
+        color: String,
+        #[serde(default = "default_icon")]
+        icon: String,
+    },
+
+    /// Server broadcasts a project was updated.
+    #[serde(rename = "project_updated")]
+    ProjectUpdated {
+        project: ProjectData,
+    },
+
+    /// Client deletes a project.
+    #[serde(rename = "project_delete")]
+    ProjectDelete {
+        id: String,
+    },
+
+    /// Server broadcasts a project was deleted.
+    #[serde(rename = "project_deleted")]
+    ProjectDeleted {
+        id: String,
+    },
+
     // ── Follow/Friend System ──
 
     /// Client requests to follow a user.
@@ -991,6 +1081,36 @@ pub enum RelayMessage {
         message: String,
         #[serde(skip_serializing_if = "Option::is_none", default)]
         target: Option<String>,
+    },
+
+    // ── Server Membership messages ──
+
+    /// Client requests paginated member list.
+    #[serde(rename = "member_list")]
+    MemberListRequest {
+        #[serde(default)]
+        limit: Option<usize>,
+        #[serde(default)]
+        offset: Option<usize>,
+        #[serde(default)]
+        search: Option<String>,
+    },
+
+    /// Server responds with member list (unicast to requester).
+    #[serde(rename = "member_list_response")]
+    MemberListResponse {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        members: Vec<MemberData>,
+        total: i64,
+    },
+
+    /// Server broadcasts when a new member joins.
+    #[serde(rename = "member_joined")]
+    MemberJoined {
+        public_key: String,
+        name: Option<String>,
+        role: String,
     },
 
     // ── Group System ──
@@ -1069,6 +1189,37 @@ pub enum RelayMessage {
     #[serde(rename = "listing_deleted")]
     ListingDeleted {
         id: String,
+    },
+
+    // ── Review messages ──
+
+    /// Client creates a review for a listing.
+    #[serde(rename = "review_create")]
+    ReviewCreate {
+        listing_id: String,
+        rating: i32,
+        #[serde(default)]
+        comment: String,
+    },
+
+    /// Client deletes a review.
+    #[serde(rename = "review_delete")]
+    ReviewDelete {
+        listing_id: String,
+        review_id: i64,
+    },
+
+    /// Server broadcasts a new review.
+    #[serde(rename = "review_created")]
+    ReviewCreated {
+        review: ReviewData,
+    },
+
+    /// Server broadcasts that a review was deleted.
+    #[serde(rename = "review_deleted")]
+    ReviewDeleted {
+        listing_id: String,
+        review_id: i64,
     },
 
     /// Client requests to create a group.
@@ -1377,6 +1528,10 @@ pub struct FederatedConnection {
 fn default_backlog() -> String { "backlog".to_string() }
 fn default_medium() -> String { "medium".to_string() }
 fn default_empty_labels() -> String { "[]".to_string() }
+fn default_project() -> String { "default".to_string() }
+fn default_public() -> String { "public".to_string() }
+fn default_color() -> String { "#4488ff".to_string() }
+fn default_icon() -> String { "\u{1F4CB}".to_string() }
 
 /// Task data sent to clients.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1393,6 +1548,22 @@ pub struct TaskData {
     pub position: i64,
     pub labels: String,
     pub comment_count: i64,
+    #[serde(default = "default_project")]
+    pub project: String,
+}
+
+/// Project data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectData {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub owner_key: String,
+    pub visibility: String,
+    pub color: String,
+    pub icon: String,
+    pub created_at: String,
+    pub task_count: i64,
 }
 
 /// Task comment data sent to clients.
@@ -1542,6 +1713,16 @@ pub struct GroupMessageData {
 }
 
 /// Listing data sent to clients.
+/// Server member data for WebSocket responses.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemberData {
+    pub public_key: String,
+    pub name: Option<String>,
+    pub role: String,
+    pub joined_at: String,
+    pub last_seen: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListingData {
     pub id: String,
@@ -1558,6 +1739,30 @@ pub struct ListingData {
     pub status: String,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+}
+
+/// Review data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReviewData {
+    pub id: i64,
+    pub listing_id: String,
+    pub reviewer_key: String,
+    pub reviewer_name: Option<String>,
+    pub rating: i32,
+    pub comment: String,
+    pub created_at: String,
+}
+
+pub fn review_from_db(r: &crate::storage::ReviewRecord) -> ReviewData {
+    ReviewData {
+        id: r.id,
+        listing_id: r.listing_id.clone(),
+        reviewer_key: r.reviewer_key.clone(),
+        reviewer_name: r.reviewer_name.clone(),
+        rating: r.rating,
+        comment: r.comment.clone(),
+        created_at: r.created_at.clone(),
+    }
 }
 
 pub fn listing_from_db(l: &crate::storage::MarketplaceListing) -> ListingData {
@@ -1790,6 +1995,27 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
 
                 info!("Peer connected: {public_key} ({:?})", final_name);
+
+                // Auto-join server membership: if user has a name and isn't a bot,
+                // auto-register them as a member (open server model).
+                if !public_key.starts_with("bot_") && !public_key.starts_with("viewer_") {
+                    let member_name = final_name.as_deref().unwrap_or("Anonymous");
+                    if state.db.is_member(&public_key) {
+                        // Already a member — update last_seen and name.
+                        let _ = state.db.update_last_seen(&public_key);
+                        let _ = state.db.update_member_name(&public_key, member_name);
+                    } else {
+                        // New member — auto-join and broadcast.
+                        if let Ok(true) = state.db.join_server(&public_key, member_name) {
+                            info!("Auto-joined member: {public_key} as '{member_name}'");
+                            let _ = state.broadcast_tx.send(RelayMessage::MemberJoined {
+                                public_key: public_key.clone(),
+                                name: final_name.clone(),
+                                role: "member".to_string(),
+                            });
+                        }
+                    }
+                }
 
                 // Send current peer list to the new peer (with their upload_token).
                 let peers_raw: Vec<Peer> = state
@@ -2117,6 +2343,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 }
             }
 
+            // ProjectListResponse: only deliver to the target client.
+            if let RelayMessage::ProjectListResponse { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // H-5: GroupMessage — only deliver to targeted group member.
             if let RelayMessage::GroupMessage { ref target, .. } = msg {
                 match target {
@@ -2191,6 +2426,15 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
             // ListingList: only deliver to the target client.
             if let RelayMessage::ListingList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // MemberListResponse: only deliver to the target client.
+            if let RelayMessage::MemberListResponse { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -4003,12 +4247,12 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                 handle_task_list(&state_clone, &my_key_for_recv).await;
                             }
                             // ── Project Board: Create Task ──
-                            RelayMessage::TaskCreate { title, description, status, priority, assignee, labels } => {
-                                handle_task_create(&state_clone, &my_key_for_recv, title, description, status, priority, assignee, labels).await;
+                            RelayMessage::TaskCreate { title, description, status, priority, assignee, labels, project } => {
+                                handle_task_create(&state_clone, &my_key_for_recv, title, description, status, priority, assignee, labels, project).await;
                             }
                             // ── Project Board: Update Task ──
-                            RelayMessage::TaskUpdate { id, title, description, priority, assignee, labels } => {
-                                handle_task_update_msg(&state_clone, &my_key_for_recv, id, title, description, priority, assignee, labels).await;
+                            RelayMessage::TaskUpdate { id, title, description, priority, assignee, labels, project } => {
+                                handle_task_update_msg(&state_clone, &my_key_for_recv, id, title, description, priority, assignee, labels, project).await;
                             }
                             // ── Project Board: Move Task ──
                             RelayMessage::TaskMove { id, status } => {
@@ -4026,6 +4270,19 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             RelayMessage::TaskCommentsRequest { task_id } => {
                                 handle_task_comments_request(&state_clone, &my_key_for_recv, task_id).await;
                             }
+                            // ── Projects ──
+                            RelayMessage::ProjectList {} => {
+                                handle_project_list(&state_clone, &my_key_for_recv).await;
+                            }
+                            RelayMessage::ProjectCreate { name, description, visibility, color, icon } => {
+                                handle_project_create(&state_clone, &my_key_for_recv, name, description, visibility, color, icon).await;
+                            }
+                            RelayMessage::ProjectUpdate { id, name, description, visibility, color, icon } => {
+                                handle_project_update(&state_clone, &my_key_for_recv, id, name, description, visibility, color, icon).await;
+                            }
+                            RelayMessage::ProjectDelete { id } => {
+                                handle_project_delete(&state_clone, &my_key_for_recv, id).await;
+                            }
                             // ── Follow/Unfollow ──
                             RelayMessage::Follow { target_key } => {
                                 handle_follow(&state_clone, &my_key_for_recv, target_key).await;
@@ -4040,6 +4297,10 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             RelayMessage::FriendCodeRedeem { code } => {
                                 handle_friend_code_redeem(&state_clone, &my_key_for_recv, code).await;
                             }
+                            // ── Server Membership ──
+                            RelayMessage::MemberListRequest { limit, offset, search } => {
+                                handle_member_list_request(&state_clone, &my_key_for_recv, limit, offset, search).await;
+                            }
                             // ── Marketplace ──
                             RelayMessage::ListingBrowse {} => {
                                 handle_listing_browse(&state_clone, &my_key_for_recv).await;
@@ -4052,6 +4313,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             RelayMessage::ListingDelete { id } => {
                                 handle_listing_delete(&state_clone, &my_key_for_recv, id).await;
+                            }
+                            // ── Reviews ──
+                            RelayMessage::ReviewCreate { listing_id, rating, comment } => {
+                                handle_review_create(&state_clone, &my_key_for_recv, listing_id, rating, comment).await;
+                            }
+                            RelayMessage::ReviewDelete { listing_id, review_id } => {
+                                handle_review_delete(&state_clone, &my_key_for_recv, listing_id, review_id).await;
                             }
                             // ── Group System ──
                             RelayMessage::GroupCreate { name } => {

@@ -600,6 +600,7 @@
     <div class="s-nav" data-sec="security" onclick="showSection('security')"><span class="s-ico" data-icon="shield"></span> Security</div>
     <div class="s-nav" data-sec="dnd" onclick="showSection('dnd')"><span class="s-ico" data-icon="minus"></span> Do Not Disturb</div>
     <div class="s-nav" data-sec="storage" onclick="showSection('storage')"><span class="s-ico" data-icon="save"></span> Storage</div>
+    <div class="s-nav" data-sec="wallet" onclick="showSection('wallet')"><span class="s-ico" data-icon="key"></span> Wallet</div>
     <div class="s-nav" data-sec="vault" onclick="showSection('vault')"><span class="s-ico" data-icon="key"></span> Vault</div>
     <div class="s-nav" data-sec="server-info" onclick="showSection('server-info')"><span class="s-ico" data-icon="monitor"></span> Server Info</div>
   </nav>
@@ -847,52 +848,127 @@
       <p class="section-desc">Control when and how HumanityOS alerts you.</p>
 
       <div class="settings-group">
-        <div class="settings-group-title">Messages</div>
+        <div class="settings-group-title">Push Notifications</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Direct Messages</strong>
-            <span>Notify when you receive a direct message</span>
+            <strong>Push Notifications</strong>
+            <span>Enable browser push notifications when the app is closed</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-notif-dm" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-push-enabled" onchange="togglePushNotifications(this.checked)"><span class="toggle-track"></span></label>
         </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Group Messages</strong>
-            <span>Notify when someone posts in a group you're in</span>
+        <div id="push-status-msg" style="font-size:0.78rem;color:var(--text-muted);padding:0 0 var(--space-md) var(--space-lg);display:none;"></div>
+        <div id="push-sub-toggles">
+          <div class="setting-row" style="padding-left:var(--space-2xl);">
+            <div class="setting-label">
+              <strong>Direct Messages</strong>
+              <span>Notify when you receive a direct message</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="pref-push-dms" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-notif-group" checked onchange="savePref()"><span class="toggle-track"></span></label>
-        </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Mentions</strong>
-            <span>Notify when someone @mentions you</span>
+          <div class="setting-row" style="padding-left:var(--space-2xl);">
+            <div class="setting-label">
+              <strong>@Mentions</strong>
+              <span>Notify when someone mentions you in a channel</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="pref-push-mentions" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-notif-mention" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <div class="setting-row" style="padding-left:var(--space-2xl);">
+            <div class="setting-label">
+              <strong>Task Updates</strong>
+              <span>Notify when tasks assigned to you are updated</span>
+            </div>
+            <label class="toggle"><input type="checkbox" id="pref-push-tasks" checked onchange="savePushPref()"><span class="toggle-track"></span></label>
+          </div>
         </div>
       </div>
 
       <div class="settings-group">
-        <div class="settings-group-title">System</div>
+        <div class="settings-group-title">Do Not Disturb</div>
         <div class="setting-row">
           <div class="setting-label">
-            <strong>Quest Reminders</strong>
-            <span>Remind you about overdue quests</span>
+            <strong>Quiet Hours</strong>
+            <span>Suppress push notifications during a scheduled time window</span>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-notif-quests" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <label class="toggle"><input type="checkbox" id="pref-push-dnd" onchange="savePushDnd()"><span class="toggle-track"></span></label>
         </div>
-        <div class="setting-row">
-          <div class="setting-label">
-            <strong>Calendar Events</strong>
-            <span>Alert before scheduled calendar events</span>
+        <div id="push-dnd-times" style="padding-left:var(--space-2xl);">
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong>From</strong>
+            </div>
+            <select class="setting-select" id="pref-dnd-start" onchange="savePushDnd()" style="min-width:110px;"></select>
           </div>
-          <label class="toggle"><input type="checkbox" id="pref-notif-cal" checked onchange="savePref()"><span class="toggle-track"></span></label>
+          <div class="setting-row">
+            <div class="setting-label">
+              <strong>To</strong>
+            </div>
+            <select class="setting-select" id="pref-dnd-end" onchange="savePushDnd()" style="min-width:110px;"></select>
+          </div>
         </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">In-App</div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Notification Sound</strong>
             <span>Play a sound when notifications arrive</span>
           </div>
           <label class="toggle"><input type="checkbox" id="pref-notif-sound" onchange="savePref()"><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </section>
+
+    <!-- Wallet -->
+    <section class="settings-section" id="sec-wallet">
+      <h1>Wallet</h1>
+      <p class="section-desc">Your Solana wallet is derived from your identity key. Same key, same seed phrase, zero extra setup.</p>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Address</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Solana Address</strong>
+            <span>Derived from your Ed25519 identity key</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:var(--space-md);">
+            <span id="wallet-sol-address" style="font-family:monospace;font-size:0.82rem;color:var(--text);">—</span>
+            <button id="wallet-copy-btn" style="background:none;border:1px solid var(--border);border-radius:var(--radius);padding:2px 8px;font-size:0.72rem;color:var(--text-muted);cursor:pointer;">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Network</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Network</strong>
+            <span>Which Solana cluster to connect to</span>
+          </div>
+          <select class="setting-select" id="wallet-network" onchange="walletNetworkChanged()" style="min-width:130px;">
+            <option value="mainnet">Mainnet</option>
+            <option value="devnet">Devnet</option>
+            <option value="testnet">Testnet</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="setting-row" id="wallet-custom-rpc-row" style="display:none;">
+          <div class="setting-label">
+            <strong>Custom RPC URL</strong>
+            <span>Enter a custom Solana RPC endpoint</span>
+          </div>
+          <input type="text" id="wallet-custom-rpc" placeholder="https://..." style="flex:1;max-width:320px;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-sm) var(--space-md);color:var(--text);font-size:0.82rem;" onchange="walletSaveRpc()">
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-group-title">Display</div>
+        <div class="setting-row">
+          <div class="setting-label">
+            <strong>Show balance in nav</strong>
+            <span>Display your SOL balance in the navigation bar</span>
+          </div>
+          <label class="toggle"><input type="checkbox" id="wallet-show-nav-balance" onchange="walletSaveNavBalance()"><span class="toggle-track"></span></label>
         </div>
       </div>
     </section>

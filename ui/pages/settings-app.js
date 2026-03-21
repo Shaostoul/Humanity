@@ -670,7 +670,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.24.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.25.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -697,6 +697,184 @@ if (window.hosIcon) {
   } catch(e) {}
 })();
 
+// ── Push Notification Preferences ──
+
+/** Populate DND hour dropdowns with 12-hour labels */
+function initDndDropdowns() {
+  var startSel = document.getElementById('pref-dnd-start');
+  var endSel = document.getElementById('pref-dnd-end');
+  if (!startSel || !endSel) return;
+  var hours = [];
+  for (var h = 0; h < 24; h++) {
+    var label = h === 0 ? '12 AM' : h < 12 ? h + ' AM' : h === 12 ? '12 PM' : (h - 12) + ' PM';
+    hours.push('<option value="' + h + '">' + label + '</option>');
+  }
+  startSel.innerHTML = hours.join('');
+  endSel.innerHTML = hours.join('');
+}
+
+/** Read push prefs from localStorage and apply to UI */
+function loadPushPrefs() {
+  var enabled = localStorage.getItem('hos_notify_enabled') === 'true';
+  var dms = localStorage.getItem('hos_notify_dms') !== 'false'; // default true
+  var mentions = localStorage.getItem('hos_notify_mentions') !== 'false';
+  var tasks = localStorage.getItem('hos_notify_tasks') !== 'false';
+  var dndEnabled = localStorage.getItem('hos_dnd_start') !== null && localStorage.getItem('hos_dnd_end') !== null;
+  var dndStart = parseInt(localStorage.getItem('hos_dnd_start')) || 22;
+  var dndEnd = parseInt(localStorage.getItem('hos_dnd_end')) || 7;
+
+  var elEnabled = document.getElementById('pref-push-enabled');
+  var elDms = document.getElementById('pref-push-dms');
+  var elMentions = document.getElementById('pref-push-mentions');
+  var elTasks = document.getElementById('pref-push-tasks');
+  var elDnd = document.getElementById('pref-push-dnd');
+  var elDndStart = document.getElementById('pref-dnd-start');
+  var elDndEnd = document.getElementById('pref-dnd-end');
+
+  if (elEnabled) elEnabled.checked = enabled;
+  if (elDms) elDms.checked = dms;
+  if (elMentions) elMentions.checked = mentions;
+  if (elTasks) elTasks.checked = tasks;
+  if (elDnd) elDnd.checked = dndEnabled;
+  if (elDndStart) elDndStart.value = dndStart;
+  if (elDndEnd) elDndEnd.value = dndEnd;
+
+  updatePushSubToggles(enabled);
+  updateDndTimes(dndEnabled);
+}
+
+/** Enable/disable sub-toggles based on master toggle state */
+function updatePushSubToggles(enabled) {
+  var container = document.getElementById('push-sub-toggles');
+  if (!container) return;
+  var inputs = container.querySelectorAll('input[type="checkbox"]');
+  inputs.forEach(function(inp) { inp.disabled = !enabled; });
+  container.style.opacity = enabled ? '1' : '0.4';
+  container.style.pointerEvents = enabled ? 'auto' : 'none';
+}
+
+/** Show/hide DND time selectors */
+function updateDndTimes(enabled) {
+  var container = document.getElementById('push-dnd-times');
+  if (!container) return;
+  container.style.opacity = enabled ? '1' : '0.4';
+  container.style.pointerEvents = enabled ? 'auto' : 'none';
+}
+
+/** Master push toggle — subscribe or unsubscribe */
+async function togglePushNotifications(enabled) {
+  var statusEl = document.getElementById('push-status-msg');
+  localStorage.setItem('hos_notify_enabled', enabled ? 'true' : 'false');
+  updatePushSubToggles(enabled);
+
+  if (enabled) {
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      var perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        localStorage.setItem('hos_notify_enabled', 'false');
+        var el = document.getElementById('pref-push-enabled');
+        if (el) el.checked = false;
+        updatePushSubToggles(false);
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.textContent = 'Notification permission denied. Enable in browser settings.';
+          statusEl.style.color = 'var(--danger)';
+        }
+        return;
+      }
+    }
+    if ('Notification' in window && Notification.permission === 'denied') {
+      localStorage.setItem('hos_notify_enabled', 'false');
+      var el2 = document.getElementById('pref-push-enabled');
+      if (el2) el2.checked = false;
+      updatePushSubToggles(false);
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.textContent = 'Notifications blocked by browser. Check site permissions.';
+        statusEl.style.color = 'var(--danger)';
+      }
+      return;
+    }
+
+    // Try subscribing via chat-ui.js helper or direct push manager
+    if (typeof window.subscribeToPush === 'function') {
+      try {
+        await window.subscribeToPush();
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.textContent = 'Push notifications enabled.';
+          statusEl.style.color = 'var(--success)';
+        }
+      } catch (e) {
+        console.warn('Push subscribe failed:', e);
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.textContent = 'Could not subscribe: ' + (e.message || e);
+          statusEl.style.color = 'var(--warning)';
+        }
+      }
+    } else {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.textContent = 'Push enabled. Open chat to complete subscription.';
+        statusEl.style.color = 'var(--text-muted)';
+      }
+    }
+  } else {
+    // Unsubscribe
+    try {
+      if ('serviceWorker' in navigator) {
+        var reg = await navigator.serviceWorker.ready;
+        var sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await sub.unsubscribe();
+          // Notify server
+          fetch('/api/push/unsubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ endpoint: sub.endpoint })
+          }).catch(function() {});
+        }
+      }
+    } catch (e) {
+      console.warn('Push unsubscribe error:', e);
+    }
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.textContent = 'Push notifications disabled.';
+      statusEl.style.color = 'var(--text-muted)';
+    }
+  }
+}
+
+/** Save category preferences to localStorage */
+function savePushPref() {
+  var elDms = document.getElementById('pref-push-dms');
+  var elMentions = document.getElementById('pref-push-mentions');
+  var elTasks = document.getElementById('pref-push-tasks');
+  if (elDms) localStorage.setItem('hos_notify_dms', elDms.checked ? 'true' : 'false');
+  if (elMentions) localStorage.setItem('hos_notify_mentions', elMentions.checked ? 'true' : 'false');
+  if (elTasks) localStorage.setItem('hos_notify_tasks', elTasks.checked ? 'true' : 'false');
+}
+
+/** Save DND schedule to localStorage */
+function savePushDnd() {
+  var elDnd = document.getElementById('pref-push-dnd');
+  var elStart = document.getElementById('pref-dnd-start');
+  var elEnd = document.getElementById('pref-dnd-end');
+  var enabled = elDnd && elDnd.checked;
+  updateDndTimes(enabled);
+
+  if (enabled) {
+    localStorage.setItem('hos_dnd_start', elStart ? elStart.value : '22');
+    localStorage.setItem('hos_dnd_end', elEnd ? elEnd.value : '7');
+  } else {
+    localStorage.removeItem('hos_dnd_start');
+    localStorage.removeItem('hos_dnd_end');
+  }
+}
+
 loadPrefs();
 applyPrefs();
 loadVoicePrefs();
@@ -707,6 +885,97 @@ checkKeyProtection();
 checkBackupStatus();
 calculateStorage();
 updateRangeLabels();
+initDndDropdowns();
+loadPushPrefs();
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Wallet Settings ──
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Initialize wallet settings from localStorage and identity */
+(function initWalletSettings() {
+  // Load saved network preference
+  var network = localStorage.getItem('hos_solana_network') || 'mainnet';
+  var networkEl = document.getElementById('wallet-network');
+  if (networkEl) networkEl.value = network;
+
+  // Show/hide custom RPC row
+  var customRow = document.getElementById('wallet-custom-rpc-row');
+  if (customRow) customRow.style.display = network === 'custom' ? '' : 'none';
+
+  // Load custom RPC URL
+  var rpcEl = document.getElementById('wallet-custom-rpc');
+  if (rpcEl) rpcEl.value = localStorage.getItem('hos_solana_rpc') || '';
+
+  // Load nav balance toggle
+  var navBalEl = document.getElementById('wallet-show-nav-balance');
+  if (navBalEl) navBalEl.checked = localStorage.getItem('hos_wallet_show_nav_balance') === 'true';
+
+  // Derive and display Solana address from identity
+  walletDisplayAddress();
+})();
+
+/** Derive Solana address from identity public key and display it */
+function walletDisplayAddress() {
+  var addrEl = document.getElementById('wallet-sol-address');
+  var copyBtn = document.getElementById('wallet-copy-btn');
+  if (!addrEl) return;
+
+  if (window.HosWallet && window.myIdentity && myIdentity.publicKeyHex) {
+    var fullAddr = HosWallet.publicKeyToSolanaAddress(myIdentity.publicKeyHex);
+    var shortAddr = fullAddr.length > 8 ? fullAddr.substring(0, 4) + '...' + fullAddr.substring(fullAddr.length - 4) : fullAddr;
+    addrEl.textContent = shortAddr;
+    addrEl.title = fullAddr;
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(fullAddr).then(function() {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+        });
+      });
+    }
+  } else if (window.myIdentity && myIdentity.publicKeyHex && typeof hexToBuf === 'function') {
+    // Fallback: show hex public key if wallet.js not loaded
+    var pk = myIdentity.publicKeyHex;
+    var shortPk = pk.length > 8 ? pk.substring(0, 4) + '...' + pk.substring(pk.length - 4) : pk;
+    addrEl.textContent = shortPk;
+    addrEl.title = pk + ' (wallet.js not loaded — install to see Solana address)';
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(pk).then(function() {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function() { copyBtn.textContent = 'Copy'; }, 2000);
+        });
+      });
+    }
+  } else {
+    addrEl.textContent = 'No identity loaded';
+    addrEl.title = '';
+  }
+}
+
+/** Handle network dropdown change */
+function walletNetworkChanged() {
+  var networkEl = document.getElementById('wallet-network');
+  if (!networkEl) return;
+  var network = networkEl.value;
+  localStorage.setItem('hos_solana_network', network);
+
+  var customRow = document.getElementById('wallet-custom-rpc-row');
+  if (customRow) customRow.style.display = network === 'custom' ? '' : 'none';
+}
+
+/** Save custom RPC URL */
+function walletSaveRpc() {
+  var rpcEl = document.getElementById('wallet-custom-rpc');
+  if (rpcEl) localStorage.setItem('hos_solana_rpc', rpcEl.value.trim());
+}
+
+/** Save nav balance toggle */
+function walletSaveNavBalance() {
+  var navBalEl = document.getElementById('wallet-show-nav-balance');
+  if (navBalEl) localStorage.setItem('hos_wallet_show_nav_balance', navBalEl.checked ? 'true' : 'false');
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── Merge A: Server Info (from knowledge.html) ──

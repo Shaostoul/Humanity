@@ -17,6 +17,21 @@ impl Storage {
         created_by: &str,
         labels: &str,
     ) -> Result<i64, rusqlite::Error> {
+        self.create_task_in_project(title, description, status, priority, assignee, created_by, labels, "default")
+    }
+
+    /// Create a new task in a specific project. Returns the new task ID.
+    pub fn create_task_in_project(
+        &self,
+        title: &str,
+        description: &str,
+        status: &str,
+        priority: &str,
+        assignee: Option<&str>,
+        created_by: &str,
+        labels: &str,
+        project: &str,
+    ) -> Result<i64, rusqlite::Error> {
         self.with_conn(|conn| {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -29,15 +44,15 @@ impl Storage {
                 |row| row.get(0),
             ).unwrap_or(0);
             conn.execute(
-                "INSERT INTO project_tasks (title, description, status, priority, assignee, created_by, created_at, updated_at, position, labels)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9)",
-                params![title, description, status, priority, assignee, created_by, now, max_pos + 1, labels],
+                "INSERT INTO project_tasks (title, description, status, priority, assignee, created_by, created_at, updated_at, position, labels, project)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, ?9, ?10)",
+                params![title, description, status, priority, assignee, created_by, now, max_pos + 1, labels, project],
             )?;
             Ok(conn.last_insert_rowid())
         })
     }
 
-    /// Update an existing task.
+    /// Update an existing task (including project assignment).
     pub fn update_task(
         &self,
         id: i64,
@@ -55,6 +70,30 @@ impl Storage {
             let rows = conn.execute(
                 "UPDATE project_tasks SET title = ?1, description = ?2, priority = ?3, assignee = ?4, labels = ?5, updated_at = ?6 WHERE id = ?7",
                 params![title, description, priority, assignee, labels, now, id],
+            )?;
+            Ok(rows > 0)
+        })
+    }
+
+    /// Update a task with project assignment.
+    pub fn update_task_with_project(
+        &self,
+        id: i64,
+        title: &str,
+        description: &str,
+        priority: &str,
+        assignee: Option<&str>,
+        labels: &str,
+        project: &str,
+    ) -> Result<bool, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64;
+            let rows = conn.execute(
+                "UPDATE project_tasks SET title = ?1, description = ?2, priority = ?3, assignee = ?4, labels = ?5, updated_at = ?6, project = ?8 WHERE id = ?7",
+                params![title, description, priority, assignee, labels, now, id, project],
             )?;
             Ok(rows > 0)
         })
@@ -93,7 +132,7 @@ impl Storage {
     pub fn list_tasks(&self) -> Result<Vec<TaskRecord>, rusqlite::Error> {
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, title, description, status, priority, assignee, created_by, created_at, updated_at, position, labels
+                "SELECT id, title, description, status, priority, assignee, created_by, created_at, updated_at, position, labels, COALESCE(project, 'default')
                  FROM project_tasks
                  ORDER BY position ASC, id ASC"
             )?;
@@ -110,6 +149,36 @@ impl Storage {
                     updated_at: row.get(8)?,
                     position: row.get(9)?,
                     labels: row.get(10)?,
+                    project: row.get(11)?,
+                })
+            })?.filter_map(|r| r.ok()).collect();
+            Ok(tasks)
+        })
+    }
+
+    /// List tasks filtered by project.
+    pub fn list_tasks_by_project(&self, project: &str) -> Result<Vec<TaskRecord>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, title, description, status, priority, assignee, created_by, created_at, updated_at, position, labels, COALESCE(project, 'default')
+                 FROM project_tasks
+                 WHERE COALESCE(project, 'default') = ?1
+                 ORDER BY position ASC, id ASC"
+            )?;
+            let tasks = stmt.query_map(params![project], |row| {
+                Ok(TaskRecord {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    description: row.get(2)?,
+                    status: row.get(3)?,
+                    priority: row.get(4)?,
+                    assignee: row.get(5)?,
+                    created_by: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                    position: row.get(9)?,
+                    labels: row.get(10)?,
+                    project: row.get(11)?,
                 })
             })?.filter_map(|r| r.ok()).collect();
             Ok(tasks)
@@ -120,7 +189,7 @@ impl Storage {
     pub fn get_task(&self, id: i64) -> Result<Option<TaskRecord>, rusqlite::Error> {
         self.with_conn(|conn| {
             match conn.query_row(
-                "SELECT id, title, description, status, priority, assignee, created_by, created_at, updated_at, position, labels
+                "SELECT id, title, description, status, priority, assignee, created_by, created_at, updated_at, position, labels, COALESCE(project, 'default')
                  FROM project_tasks WHERE id = ?1",
                 params![id],
                 |row| Ok(TaskRecord {
@@ -135,6 +204,7 @@ impl Storage {
                     updated_at: row.get(8)?,
                     position: row.get(9)?,
                     labels: row.get(10)?,
+                    project: row.get(11)?,
                 }),
             ) {
                 Ok(task) => Ok(Some(task)),
