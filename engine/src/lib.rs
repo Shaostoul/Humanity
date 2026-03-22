@@ -23,9 +23,12 @@ pub mod wasm_entry;
 #[cfg(feature = "native")]
 mod native_app {
     use glam::{Quat, Vec3};
+    use crate::assets::AssetManager;
+    use crate::hot_reload::HotReloadCoordinator;
     use crate::renderer::camera::{Camera, CameraController};
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
+    use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Instant;
     use winit::application::ApplicationHandler;
@@ -33,6 +36,30 @@ mod native_app {
     use winit::event_loop::{ActiveEventLoop, EventLoop};
     use winit::keyboard::PhysicalKey;
     use winit::window::{Window, WindowId};
+
+    /// Locate the data directory relative to the exe.
+    /// Checks: ./data, ./content/data, ../data, ../content/data
+    fn find_data_dir() -> PathBuf {
+        let exe = std::env::current_exe().unwrap_or_default();
+        let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
+
+        for candidate in &[
+            exe_dir.join("data"),
+            exe_dir.join("content").join("data"),
+            exe_dir.parent().unwrap_or(exe_dir).join("data"),
+            exe_dir.parent().unwrap_or(exe_dir).join("content").join("data"),
+            // Dev mode: repo root data directory
+            PathBuf::from("data"),
+        ] {
+            if candidate.exists() && candidate.is_dir() {
+                log::info!("Data directory: {}", candidate.display());
+                return candidate.clone();
+            }
+        }
+
+        log::warn!("No data directory found, using ./data");
+        PathBuf::from("data")
+    }
 
     /// Run the engine standalone — opens a window, renders a test scene.
     /// Supports three camera modes (Tab to cycle, F to toggle FP/TP, M for orbit).
@@ -58,6 +85,8 @@ mod native_app {
         renderer: Renderer,
         camera: Camera,
         controller: CameraController,
+        asset_manager: AssetManager,
+        hot_reload: HotReloadCoordinator,
         cube_mesh: usize,
         plane_mesh: usize,
         cube_material: usize,
@@ -106,11 +135,46 @@ mod native_app {
 
             let controller = CameraController::new(5.0, 3.0);
 
+            // Initialize data loading system
+            let data_dir = find_data_dir();
+            let mut asset_manager = AssetManager::new(data_dir.clone());
+            let hot_reload = HotReloadCoordinator::new(&data_dir);
+
+            // Load core data files at startup
+            // Items
+            #[derive(Debug, serde::Deserialize)]
+            #[allow(dead_code)]
+            struct ItemRow { id: String, name: String }
+            match asset_manager.load_csv::<ItemRow>("items.csv") {
+                Ok(items) => log::info!("Loaded {} items", items.len()),
+                Err(e) => log::warn!("Could not load items.csv: {e}"),
+            }
+
+            // Plants
+            #[derive(Debug, serde::Deserialize)]
+            #[allow(dead_code)]
+            struct PlantRow { id: String, name: String }
+            match asset_manager.load_csv::<PlantRow>("plants.csv") {
+                Ok(plants) => log::info!("Loaded {} plants", plants.len()),
+                Err(e) => log::warn!("Could not load plants.csv: {e}"),
+            }
+
+            // Recipes
+            #[derive(Debug, serde::Deserialize)]
+            #[allow(dead_code)]
+            struct RecipeRow { id: String, name: String }
+            match asset_manager.load_csv::<RecipeRow>("recipes.csv") {
+                Ok(recipes) => log::info!("Loaded {} recipes", recipes.len()),
+                Err(e) => log::warn!("Could not load recipes.csv: {e}"),
+            }
+
             self.state = Some(EngineState {
                 window,
                 renderer,
                 camera,
                 controller,
+                asset_manager,
+                hot_reload,
                 cube_mesh,
                 plane_mesh,
                 cube_material,
@@ -164,6 +228,12 @@ mod native_app {
                     let now = Instant::now();
                     let dt = (now - state.last_frame).as_secs_f32().min(0.1);
                     state.last_frame = now;
+
+                    // Poll hot-reload for file changes
+                    let changes = state.hot_reload.poll(&mut state.asset_manager);
+                    for changed in &changes {
+                        log::info!("Hot-reload: {changed}");
+                    }
 
                     // Update camera from input
                     state.controller.update_camera(&mut state.camera, dt);
