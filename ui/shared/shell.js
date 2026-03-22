@@ -4,7 +4,7 @@
  * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
  * If omitted, active tab is auto-detected from the current URL.
  *
- * Valid active keys: landing, chat, dashboard, profile, home, gear,
+ * Valid active keys: landing, chat, games, profile, home, gear,
  *   tasks, calendar, notes, home, map, market, wallet, web, roadmap, donate, ops, download, dev, settings, garden, data
  *
  * Usage:
@@ -70,6 +70,7 @@
     const p = location.pathname;
     if (p === '/') active = 'landing';
     else if (p.startsWith('/chat'))      active = 'chat';
+    else if (p.startsWith('/activities/game')) active = 'games';
     else if (p.startsWith('/dashboard')) active = 'dashboard';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/home'))      active = 'home';
@@ -471,7 +472,7 @@
 
       /* Core */
       navTab('/chat',      'network',   'Network',   'chat') +
-      navTab('/dashboard', 'games',     'Games',     'dashboard') +
+      navTab('/activities/game', 'games',     'Games',     'games') +
       navTab('/activities/gardening', 'seed',  'Garden',    'garden') +
       '<div class="nav-divider"></div>' +
 
@@ -527,7 +528,7 @@
   mobileDrawer.innerHTML =
     '<div class="mobile-hub-group"><h4>Core</h4>' +
       mobileLink('/chat',      'Network') +
-      mobileLink('/dashboard', 'Games') +
+      mobileLink('/activities/game', 'Games') +
       mobileLink('/activities/gardening', 'Garden') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Private</h4>' +
@@ -600,7 +601,7 @@
     if (l.includes('commands')) return 'Opens command tools and quick actions.';
     if (l.includes('help')) return 'Shows guidance, docs, and available actions.';
     if (l.includes('network')) return 'Chat, voice, and collaboration hub.';
-    if (l.includes('games')) return 'Play minigames and launch other games.';
+    if (l.includes('games')) return 'Launch the 3D game and explore the universe.';
     if (l.includes('garden')) return 'Tend your garden — plant, water, and harvest crops.';
     if (l.includes('profile')) return 'Your identity, skills, and social links.';
     if (l.includes('gear')) return 'Your inventory and equipment loadouts.';
@@ -1083,7 +1084,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.35.0';
+    var CURRENT_VERSION = '0.35.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

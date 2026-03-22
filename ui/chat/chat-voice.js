@@ -21,6 +21,57 @@ window._roomPeerConnections = {}; // key → RTCPeerConnection for mesh
 window._roomLocalStream = null;
 window._currentRoomId = null;
 
+// ── Voice Join/Leave Sounds ──
+// Track previous participant sets per room to detect joins/leaves
+let _prevRoomParticipants = {}; // roomId → Set of public_keys
+
+/** Play a short ascending chime when a peer joins a voice room (C5 → E5). */
+function playVoiceJoinSound() {
+  if (localStorage.getItem('humanity_sound_enabled') === 'false') return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    // C5 (523 Hz) then E5 (659 Hz), 100ms each
+    [[523.25, 0], [659.25, 0.1]].forEach(([freq, offset]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.12, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.15);
+    });
+    // Close context after sounds finish
+    setTimeout(() => ctx.close().catch(() => {}), 400);
+  } catch (e) { /* Audio not available */ }
+}
+
+/** Play a short descending tone when a peer leaves a voice room (E5 → C5). */
+function playVoiceLeaveSound() {
+  if (localStorage.getItem('humanity_sound_enabled') === 'false') return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    // E5 (659 Hz) then C5 (523 Hz), 100ms each
+    [[659.25, 0], [523.25, 0.1]].forEach(([freq, offset]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.12, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.15);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 400);
+  } catch (e) { /* Audio not available */ }
+}
+
 function createVoiceRoom() {
   const name = prompt('Voice channel name:');
   if (!name || !name.trim()) return;
@@ -37,6 +88,9 @@ function joinVoiceRoom(roomId) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'voice_room', action: 'join', room_id: String(roomId) }));
     window._currentRoomId = String(roomId);
+    // Snapshot current participants so first update doesn't trigger sounds for everyone already in the room
+    const existing = (window._voiceChannels || []).find(c => String(c.id) === String(roomId));
+    _prevRoomParticipants[String(roomId)] = new Set(existing ? existing.participants.map(p => p.public_key) : []);
     setupRoomAudio();
   }
 }
@@ -106,6 +160,8 @@ function cleanupRoomAudio() {
     pc.close();
   }
   window._roomPeerConnections = {};
+  // Clear participant tracking for the room we're leaving
+  if (window._currentRoomId) delete _prevRoomParticipants[window._currentRoomId];
   window._currentRoomId = null;
   // Remove room audio elements
   document.querySelectorAll('.room-remote-audio').forEach(el => el.remove());
@@ -205,7 +261,7 @@ async function connectToRoomPeer(peerKey, peerName, roomId, isCaller) {
 const _origHandleMessageVR = handleMessage;
 handleMessage = function(msg) {
   if (msg.type === 'voice_channel_list') {
-    window._voiceChannels = (msg.channels || []).map(c => ({
+    const newChannels = (msg.channels || []).map(c => ({
       id: c.id,
       name: c.name,
       participants: (c.participants || []).map(p => ({
@@ -214,6 +270,22 @@ handleMessage = function(msg) {
         muted: p.muted || false
       }))
     }));
+    // Detect join/leave in any room I'm currently in
+    if (window._currentRoomId) {
+      const newCh = newChannels.find(c => String(c.id) === String(window._currentRoomId));
+      const newKeys = new Set(newCh ? newCh.participants.map(p => p.public_key) : []);
+      const prevKeys = _prevRoomParticipants[window._currentRoomId] || new Set();
+      // Someone new joined (not me)
+      for (const k of newKeys) {
+        if (!prevKeys.has(k) && k !== myKey) playVoiceJoinSound();
+      }
+      // Someone left (not me)
+      for (const k of prevKeys) {
+        if (!newKeys.has(k) && k !== myKey) playVoiceLeaveSound();
+      }
+      _prevRoomParticipants[window._currentRoomId] = newKeys;
+    }
+    window._voiceChannels = newChannels;
     if (typeof renderServerList === 'function') renderServerList();
     // Auto-rejoin voice room after a deploy-triggered reload.
     const rejoinId = sessionStorage.getItem('_rejoin_room');

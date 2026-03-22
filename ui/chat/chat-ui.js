@@ -335,12 +335,18 @@ function closeHelpModal(e) {
 // ── Role badge helper ──
 function roleBadge(role) {
   switch (role) {
-    case 'admin': return '<span class="role-badge" title="Admin">👑</span>';
-    case 'mod': return '<span class="role-badge" title="Moderator">🛡️</span>';
-    case 'verified': return '<span class="role-badge" title="Verified">✦</span>';
-    case 'donor': return '<span class="role-badge" title="Donor">💎</span>';
+    case 'admin': return '<span class="role-badge role-admin" title="Admin">A</span>';
+    case 'mod': return '<span class="role-badge role-mod" title="Moderator">M</span>';
+    case 'verified': return '<span class="role-badge role-verified" title="Verified">V</span>';
+    case 'donor': return '<span class="role-badge role-donor" title="Donor">D</span>';
     default: return '';
   }
+}
+
+/** Returns a LIVE badge if the user is currently streaming. */
+function streamingBadge(isLive) {
+  if (!isLive) return '';
+  return '<span class="role-badge role-streaming" title="Streaming">LIVE</span>';
 }
 
 // ── User Context Menu ──

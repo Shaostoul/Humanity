@@ -351,10 +351,21 @@
 
 /* ── Role Badges ── */
 .role-badge {
-  font-size: var(--text-xs);
+  font-size: 0.6rem;
+  font-weight: 700;
   margin-left: var(--space-xs);
   vertical-align: middle;
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
 }
+.role-admin { background: #e67e22; color: #fff; }
+.role-mod { background: #27ae60; color: #fff; }
+.role-verified { background: #3498db; color: #fff; }
+.role-donor { background: #9b59b6; color: #fff; }
+.role-streaming { background: #e74c3c; color: #fff; font-size: 0.55rem; }
 
 /* ── DM Section ── */
 .dm-section h4 {

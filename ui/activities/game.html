@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Humanity: The Game — HumanityOS</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.7; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+
+    /* Hero */
+    .game-hero { text-align: center; padding: 48px 0 32px; }
+    .game-hero h1 { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 8px; }
+    .game-hero h1 em { font-style: normal; color: var(--accent); }
+    .game-hero p { color: var(--text-muted); font-size: 1.05rem; max-width: 640px; margin: 0 auto 24px; }
+
+    .alpha-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(255,136,17,0.1); border: 1px solid rgba(255,136,17,0.25);
+      border-radius: 20px; padding: 4px 14px; font-size: 0.78rem;
+      color: var(--accent); font-weight: 600; margin-bottom: 24px;
+    }
+
+    /* Launch card */
+    .launch-card {
+      background: var(--bg-card); border: 2px solid var(--accent);
+      border-radius: var(--radius); padding: 32px; text-align: center;
+      margin-bottom: 40px; box-shadow: 0 0 30px rgba(255, 136, 17, 0.08);
+    }
+    .launch-card h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+    .launch-card p { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 20px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px; border-radius: var(--radius); font-size: 1.05rem;
+      font-weight: 700; border: none; cursor: pointer;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: var(--accent-hover); color: #000; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(255,136,17,0.2); }
+
+    .browser-note {
+      font-size: 0.78rem; color: var(--text-muted); margin-top: 12px;
+    }
+
+    /* Info panels */
+    .section-label {
+      text-transform: uppercase; letter-spacing: 2px; font-size: 0.72rem;
+      color: var(--accent); font-weight: 600; margin-bottom: 8px; margin-top: 40px;
+    }
+    h2.section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+    .section-desc { color: var(--text-muted); font-size: 0.88rem; margin-bottom: 20px; }
+
+    .info-panel {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 24px; margin-bottom: 16px;
+    }
+    .info-panel h3 { font-size: 0.95rem; color: var(--accent); margin-bottom: 6px; }
+    .info-panel p, .info-panel li { font-size: 0.82rem; color: var(--text-muted); line-height: 1.7; }
+    .info-panel ul { padding-left: 1.4rem; }
+    .info-panel code {
+      background: var(--bg); padding: 2px 6px; border-radius: var(--radius-sm); font-size: 0.78rem;
+    }
+
+    /* Controls grid */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 40px;
+    }
+    .control-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 20px;
+    }
+    .control-card h4 {
+      font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: var(--text);
+    }
+    .control-card .key-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;
+    }
+    .control-card kbd {
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px; padding: 2px 8px; font-family: monospace;
+      font-size: 0.75rem; color: var(--text); white-space: nowrap;
+    }
+
+    /* Feature list */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 40px;
+    }
+    .feature-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 20px;
+    }
+    .feature-card h4 {
+      font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; color: var(--text);
+    }
+    .feature-card p {
+      font-size: 0.8rem; color: var(--text-muted); line-height: 1.6;
+    }
+    .feature-card .status-tag {
+      display: inline-block; font-size: 0.68rem; font-weight: 600;
+      padding: 2px 8px; border-radius: var(--radius-sm); margin-bottom: 8px;
+    }
+    .status-tag.playable { background: rgba(42,102,68,0.2); color: var(--success, #2a6); }
+    .status-tag.wip { background: rgba(255,136,17,0.15); color: var(--accent); }
+
+    @media (max-width: 600px) {
+      .game-hero { padding: 32px 0 20px; }
+      .controls-grid, .feature-grid { grid-template-columns: 1fr; }
+      .launch-card { padding: 24px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/shell.js" data-active="games"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
+
+  <div class="container">
+    <div class="game-hero">
+      <span class="alpha-badge">Alpha Preview</span>
+      <h1>Humanity: <em>The Game</em></h1>
+      <p>Explore planets, mine asteroids, build ships, farm, craft, and quest in a 3D universe. Your actions shape the real world.</p>
+    </div>
+
+    <!-- Launch card -->
+    <div class="launch-card" id="launch-card">
+      <h2>Launch the 3D Engine</h2>
+      <p>The game runs in your browser using WebGPU. No download required for the web preview.</p>
+      <a href="/engine/web/index.html" class="btn btn-primary" id="launch-btn">Launch Game</a>
+      <div class="browser-note" id="browser-note">Requires a WebGPU-capable browser (Chrome 113+, Edge 113+, or Firefox Nightly)</div>
+    </div>
+
+    <!-- Controls -->
+    <p class="section-label">Controls</p>
+    <h2 class="section-title">Camera and Movement</h2>
+    <p class="section-desc">The engine supports first-person, third-person, and orbit camera modes.</p>
+
+    <div class="controls-grid">
+      <div class="control-card">
+        <h4>Movement</h4>
+        <div class="key-row"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move forward/left/back/right</div>
+        <div class="key-row"><kbd>Space</kbd> Move up</div>
+        <div class="key-row"><kbd>Shift</kbd> Move down</div>
+      </div>
+      <div class="control-card">
+        <h4>Camera</h4>
+        <div class="key-row"><kbd>Mouse</kbd> Look (hold left or right click)</div>
+        <div class="key-row"><kbd>Scroll</kbd> Zoom in/out (third-person/orbit)</div>
+        <div class="key-row"><kbd>Tab</kbd> Cycle camera mode</div>
+      </div>
+      <div class="control-card">
+        <h4>Camera Modes</h4>
+        <div class="key-row"><kbd>F</kbd> Toggle first/third-person</div>
+        <div class="key-row"><kbd>M</kbd> Orbit mode</div>
+        <div class="key-row"><kbd>O</kbd> Toggle orthographic view</div>
+        <div class="key-row"><kbd>Q</kbd> Swap shoulder (third-person)</div>
+      </div>
+    </div>
+
+    <!-- What's playable -->
+    <p class="section-label">Current State</p>
+    <h2 class="section-title">What's Playable</h2>
+    <p class="section-desc">The engine is in active development. Here's what you can experience right now.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="status-tag playable">Playable</span>
+        <h4>First-Person Exploration</h4>
+        <p>Walk around in first-person or third-person view. Full WASD movement with physics-based collisions.</p>
+      </div>
+      <div class="feature-card">
+        <span class="status-tag playable">Playable</span>
+        <h4>Camera System</h4>
+        <p>Three camera modes: first-person, third-person (over-the-shoulder), and orbit. Switch between them freely.</p>
+      </div>
+      <div class="feature-card">
+        <span class="status-tag playable">Playable</span>
+        <h4>Planet Rendering</h4>
+        <p>Icosphere planets with LOD subdivision. View Earth, Mars, and the Moon from space or up close.</p>
+      </div>
+      <div class="feature-card">
+        <span class="status-tag playable">Playable</span>
+        <h4>Asteroid Fields</h4>
+        <p>Voxel-based asteroids with sparse octree storage. C-type, S-type, and M-type with ore veins.</p>
+      </div>
+      <div class="feature-card">
+        <span class="status-tag wip">In Development</span>
+        <h4>Ship Interiors</h4>
+        <p>Data-driven ship layouts loaded from RON files. Bridge, reactor, quarters, and cargo rooms.</p>
+      </div>
+      <div class="feature-card">
+        <span class="status-tag wip">In Development</span>
+        <h4>Farming and Crafting</h4>
+        <p>Plant crops, harvest resources, and craft items. Growth simulation with soil and water mechanics.</p>
+      </div>
+      <div class="feature-card">
+        <span class="status-tag wip">In Development</span>
+        <h4>Quests and AI</h4>
+        <p>Procedural quest generation, NPC behaviors with autonomy simulation, and objective tracking.</p>
+      </div>
+      <div class="feature-card">
+        <span class="status-tag wip">In Development</span>
+        <h4>Vehicles and Mechs</h4>
+        <p>Ship piloting, mech control, and propulsion physics. Mount, dismount, and switch between vehicles.</p>
+      </div>
+    </div>
+
+    <!-- Tech details -->
+    <p class="section-label">Under the Hood</p>
+    <h2 class="section-title">Engine Technology</h2>
+
+    <div class="info-panel">
+      <h3>Built with Rust and WebGPU</h3>
+      <p>The engine compiles to both native and WASM/WebGPU. It uses an ECS architecture (hecs) with Rapier3D physics. All game data is hot-reloadable from external files, so modding is as simple as editing CSV, TOML, or RON files in the data directory.</p>
+    </div>
+    <div class="info-panel">
+      <h3>Desktop App</h3>
+      <p>For the best performance, download the desktop app from the <a href="/activities/download">Download page</a>. The desktop build uses native GPU access and runs at full speed without browser overhead.</p>
+    </div>
+  </div>
+
+  <script>
+    // Check WebGPU support and update launch card accordingly
+    (function() {
+      if (!navigator.gpu) {
+        var btn = document.getElementById('launch-btn');
+        var note = document.getElementById('browser-note');
+        btn.style.background = 'var(--bg-card-hover)';
+        btn.style.color = 'var(--text-muted)';
+        btn.style.cursor = 'default';
+        btn.style.pointerEvents = 'none';
+        btn.textContent = 'WebGPU Not Available';
+        note.style.color = 'var(--accent)';
+        note.textContent = 'Your browser does not support WebGPU. Please use Chrome 113+, Edge 113+, or Firefox Nightly with WebGPU enabled.';
+      }
+    })();
+  </script>
+</body>
+</html>
