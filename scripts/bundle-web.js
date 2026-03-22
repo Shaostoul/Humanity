@@ -18,16 +18,16 @@ const OUT = path.join(ROOT, 'app', 'web');
 // IMPORTANT: dest paths must mirror the VPS nginx layout so nav links work in both
 // browser (nginx rewrites) and Tauri (static file serving).
 const SOURCES = [
-  { src: 'ui/shared',                        dest: 'shared',           exts: ['.js', '.css', '.json'] },
-  { src: 'ui/shared/icons',                  dest: 'shared/icons',     exts: ['.png', '.svg', '.ico'] },
-  { src: 'ui/chat',                          dest: 'chat',             exts: ['.html', '.js', '.css', '.ico', '.png', '.svg'] },
-  { src: 'ui/activities',                    dest: 'activities',       exts: ['.html', '.js'] },
+  { src: 'web/shared',                        dest: 'shared',           exts: ['.js', '.css', '.json'] },
+  { src: 'web/shared/icons',                  dest: 'shared/icons',     exts: ['.png', '.svg', '.ico'] },
+  { src: 'web/chat',                          dest: 'chat',             exts: ['.html', '.js', '.css', '.ico', '.png', '.svg'] },
+  { src: 'web/activities',                    dest: 'activities',       exts: ['.html', '.js'] },
   { src: 'assets/icons',                     dest: 'assets/icons',     exts: ['.png', '.svg'] },
 ];
 
 // Pages get special treatment: HTML goes to root (nginx serves /tasks → /tasks.html),
 // JS companion files go to pages/ subfolder (loaded via <script src="/pages/tasks-app.js">).
-const PAGES_SRC = path.join(ROOT, 'ui/pages');
+const PAGES_SRC = path.join(ROOT, 'web/pages');
 
 function sha256(buffer) {
   return 'sha256:' + crypto.createHash('sha256').update(buffer).digest('hex');

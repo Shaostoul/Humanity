@@ -66,17 +66,17 @@ sync:
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
         cargo build --release --bin humanity-relay 2>&1 | tail -4 && \
-        rsync -a --delete /opt/Humanity/ui/chat/ /var/www/humanity/chat/ && \
-        rsync -a /opt/Humanity/ui/shared/ /var/www/humanity/shared/ && \
+        rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
+        rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
         mkdir -p /var/www/humanity/pages /var/www/humanity/activities /var/www/humanity/data && \
-        for f in /opt/Humanity/ui/pages/*.html; do \
+        for f in /opt/Humanity/web/pages/*.html; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
         done && \
-        for f in /opt/Humanity/ui/pages/*.js; do \
+        for f in /opt/Humanity/web/pages/*.js; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/pages/\$(basename \"\$f\")\"; \
         done && \
-        rsync -a /opt/Humanity/ui/activities/ /var/www/humanity/activities/ && \
+        rsync -a /opt/Humanity/web/activities/ /var/www/humanity/activities/ && \
         rsync -a --include='*.json' --exclude='*' /opt/Humanity/data/ /var/www/humanity/data/ && \
         systemctl restart humanity-relay && \
         sleep 2 && systemctl is-active humanity-relay \
@@ -92,17 +92,17 @@ sync-web:
         git fetch origin main && \
         git reset --hard origin/main && \
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
-        rsync -a --delete /opt/Humanity/ui/chat/ /var/www/humanity/chat/ && \
-        rsync -a /opt/Humanity/ui/shared/ /var/www/humanity/shared/ && \
+        rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
+        rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
         mkdir -p /var/www/humanity/pages /var/www/humanity/activities /var/www/humanity/data && \
-        for f in /opt/Humanity/ui/pages/*.html; do \
+        for f in /opt/Humanity/web/pages/*.html; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/\$(basename \"\$f\")\"; \
         done && \
-        for f in /opt/Humanity/ui/pages/*.js; do \
+        for f in /opt/Humanity/web/pages/*.js; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/pages/\$(basename \"\$f\")\"; \
         done && \
-        rsync -a /opt/Humanity/ui/activities/ /var/www/humanity/activities/ && \
+        rsync -a /opt/Humanity/web/activities/ /var/www/humanity/activities/ && \
         rsync -a --include='*.json' --exclude='*' /opt/Humanity/data/ /var/www/humanity/data/ \
     "
     @echo "✓ Web assets synced (relay not restarted)."

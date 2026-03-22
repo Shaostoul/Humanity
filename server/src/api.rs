@@ -2290,7 +2290,7 @@ pub async fn push_unsubscribe(
 const ASSET_DIRS: &[(&str, &str, &[&str])] = &[
     ("assets/icons",             "icons",     &["png", "svg"]),
     ("assets/concepts",          "concepts",  &["png", "jpg", "jpeg", "webp"]),
-    ("ui/shared/icons",          "app-icons", &["png", "svg", "ico"]),
+    ("web/shared/icons",          "app-icons", &["png", "svg", "ico"]),
     ("desktop/src-tauri/icons",  "desktop-icons", &["png", "ico", "icns", "svg"]),
     ("assets/textures",          "textures",  &["ktx2", "png", "jpg", "jpeg", "webp"]),
     ("assets/models",            "models",    &["glb", "gltf"]),
@@ -2395,11 +2395,11 @@ use std::sync::Mutex;
 /// Directories to include in the web manifest, relative to WEB_ROOT.
 /// Each entry: (dir path, allowed extensions, recursive).
 const WEB_MANIFEST_DIRS: &[(&str, &[&str], bool)] = &[
-    ("ui/shared",                     &["js", "css", "json"],           false),
-    ("ui/shared/icons",               &["png", "svg", "ico"],           false),
-    ("ui/pages",                      &["html", "js", "css"],           false),
-    ("ui/activities",                  &["html", "js", "css"],           false),
-    ("ui/chat",                       &["html", "js", "css", "ico", "png", "svg"], false),
+    ("web/shared",                     &["js", "css", "json"],           false),
+    ("web/shared/icons",               &["png", "svg", "ico"],           false),
+    ("web/pages",                      &["html", "js", "css"],           false),
+    ("web/activities",                  &["html", "js", "css"],           false),
+    ("web/chat",                       &["html", "js", "css", "ico", "png", "svg"], false),
     ("assets/icons",                  &["png", "svg"],                  false),
 ];
 
@@ -2488,7 +2488,7 @@ fn build_web_manifest() -> WebManifest {
             };
 
             // Map ui/chat/ → /client/ for URL paths (backward compat).
-            let url_dir = if dir_rel == "ui/chat" {
+            let url_dir = if dir_rel == "web/chat" {
                 "client".to_string()
             } else {
                 dir_rel.replace('\\', "/")

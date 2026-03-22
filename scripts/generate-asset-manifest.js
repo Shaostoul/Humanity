@@ -55,11 +55,11 @@ const manifest = {
     },
     'app-icons': {
       label: 'App Icons',
-      dirs: ['ui/shared/icons', 'app/icons', 'ui/chat'],
+      dirs: ['web/shared/icons', 'app/icons', 'web/chat'],
       assets: [
-        ...scanDir('ui/shared/icons'),
+        ...scanDir('web/shared/icons'),
         ...scanDir('app/icons'),
-        ...scanDir('ui/chat', f => /^favicon\./i.test(f)),
+        ...scanDir('web/chat', f => /^favicon\./i.test(f)),
       ],
     },
   },
