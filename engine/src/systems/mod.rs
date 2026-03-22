@@ -15,6 +15,7 @@ pub mod vehicles;
 pub mod navigation;
 pub mod ai;
 pub mod skills;
+pub mod ecology;
 pub mod economy;
 pub mod player;
 pub mod interaction;

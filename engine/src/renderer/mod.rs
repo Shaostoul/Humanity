@@ -34,6 +34,16 @@ pub struct Material {
     bind_group: wgpu::BindGroup,
 }
 
+/// Groups objects sharing the same mesh and material for instanced drawing.
+pub struct InstanceBatch {
+    /// Index into Renderer::meshes.
+    pub mesh: usize,
+    /// Index into Renderer::materials.
+    pub material: usize,
+    /// Model-space transforms for each instance.
+    pub transforms: Vec<Mat4>,
+}
+
 /// Core renderer state wrapping wgpu device, queue, and surface.
 pub struct Renderer {
     pub device: wgpu::Device,
@@ -45,6 +55,9 @@ pub struct Renderer {
     pipeline: Pipeline,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    /// Pre-allocated object uniform buffer, reused each frame via write_buffer.
+    object_buffer: wgpu::Buffer,
+    object_bind_group: wgpu::BindGroup,
     // Registered meshes and materials
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
@@ -164,6 +177,25 @@ impl Renderer {
             }],
         });
 
+        // Pre-allocated object uniform buffer — reused each draw call via write_buffer
+        let object_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Object Uniform Buffer"),
+            contents: bytemuck::bytes_of(&ObjectUniforms {
+                model: Mat4::IDENTITY.to_cols_array_2d(),
+                normal_matrix: Mat4::IDENTITY.to_cols_array_2d(),
+            }),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let object_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Object Bind Group"),
+            layout: &pipeline.object_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: object_buffer.as_entire_binding(),
+            }],
+        });
+
         Self {
             device,
             queue,
@@ -174,6 +206,8 @@ impl Renderer {
             pipeline,
             camera_buffer,
             camera_bind_group,
+            object_buffer,
+            object_bind_group,
             meshes: Vec::new(),
             materials: Vec::new(),
         }
@@ -307,8 +341,6 @@ impl Renderer {
                     obj.rotation,
                     obj.position,
                 );
-                // Normal matrix = transpose(inverse(model)) — for uniform scaling
-                // we can use the model matrix directly, but let's be correct
                 let normal_matrix = model.inverse().transpose();
 
                 let object_uniforms = ObjectUniforms {
@@ -316,29 +348,117 @@ impl Renderer {
                     normal_matrix: normal_matrix.to_cols_array_2d(),
                 };
 
-                // Create per-object bind group (temporary — fine for small scenes)
-                let object_buffer =
-                    self.device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: Some("Object Uniform Buffer"),
-                            contents: bytemuck::bytes_of(&object_uniforms),
-                            usage: wgpu::BufferUsages::UNIFORM,
-                        });
-                let object_bind_group =
-                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("Object Bind Group"),
-                        layout: &self.pipeline.object_bind_group_layout,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: object_buffer.as_entire_binding(),
-                        }],
-                    });
+                // Reuse pre-allocated object buffer — no per-frame GPU allocation
+                self.queue.write_buffer(
+                    &self.object_buffer,
+                    0,
+                    bytemuck::bytes_of(&object_uniforms),
+                );
 
-                render_pass.set_bind_group(1, &object_bind_group, &[]);
+                render_pass.set_bind_group(1, &self.object_bind_group, &[]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            }
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+        output.present();
+        Ok(())
+    }
+
+    /// Render instanced batches — objects sharing the same mesh/material are
+    /// drawn with a single draw call each. More efficient than `render()` when
+    /// many objects share geometry (trees, rocks, buildings).
+    pub fn render_instanced(
+        &self,
+        camera: &Camera,
+        batches: &[InstanceBatch],
+    ) -> Result<(), wgpu::SurfaceError> {
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&camera.uniforms()),
+        );
+
+        let output = self.surface.get_current_texture()?;
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Instanced Render Encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Instanced Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.1,
+                            b: 0.15,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+
+            render_pass.set_pipeline(&self.pipeline.render_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+
+            for batch in batches {
+                let mesh = match self.meshes.get(batch.mesh) {
+                    Some(m) => m,
+                    None => continue,
+                };
+                let material = match self.materials.get(batch.material) {
+                    Some(m) => m,
+                    None => continue,
+                };
+
+                render_pass.set_bind_group(2, &material.bind_group, &[]);
+                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(
+                    mesh.index_buffer.slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+
+                // Draw each instance with its own transform via the shared object buffer.
+                // Uses the same uniform-per-draw approach as render() but avoids
+                // per-frame buffer allocation. For truly GPU-instanced rendering
+                // (single draw call per batch), a storage buffer or instance vertex
+                // buffer with shader changes would be needed.
+                for transform in &batch.transforms {
+                    let normal_matrix = transform.inverse().transpose();
+                    let object_uniforms = ObjectUniforms {
+                        model: transform.to_cols_array_2d(),
+                        normal_matrix: normal_matrix.to_cols_array_2d(),
+                    };
+                    self.queue.write_buffer(
+                        &self.object_buffer,
+                        0,
+                        bytemuck::bytes_of(&object_uniforms),
+                    );
+                    render_pass.set_bind_group(1, &self.object_bind_group, &[]);
+                    render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
             }
         }
 

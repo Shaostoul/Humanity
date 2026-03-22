@@ -1,26 +1,29 @@
-//! Objective types and tracking — what the player needs to accomplish.
+//! Quest objective types — what the player needs to accomplish for each step.
 
 use serde::{Deserialize, Serialize};
 
-/// Types of quest objectives.
+/// A single step in a quest chain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ObjectiveType {
-    /// Collect N of item_id.
-    Collect { item_id: String, count: u32 },
-    /// Reach a location.
-    ReachLocation { x: f32, y: f32, z: f32, radius: f32 },
-    /// Defeat N of enemy_type.
-    Defeat { enemy_type: String, count: u32 },
-    /// Build a structure matching blueprint_id.
-    Build { blueprint_id: String },
-    /// Talk to an NPC.
-    TalkTo { npc_id: String },
+pub struct QuestStep {
+    /// Human-readable description of what to do (e.g., "Gather 10 wood").
+    pub description: String,
+    /// The objective that must be satisfied to complete this step.
+    pub objective: QuestObjective,
 }
 
-/// A single quest objective with completion state.
+/// Specific objective types that the quest system can evaluate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Objective {
-    pub description: String,
-    pub objective_type: ObjectiveType,
-    pub completed: bool,
+pub enum QuestObjective {
+    /// Collect items — checked against player inventory.
+    Gather { item_id: String, quantity: u32 },
+    /// Craft items — tracked via progress counter from crafting system.
+    Craft { recipe_id: String, quantity: u32 },
+    /// Harvest crops — tracked via progress counter from farming system.
+    Harvest { crop_id: String, quantity: u32 },
+    /// Build a structure — tracked via progress counter from construction system.
+    Build { blueprint_id: String },
+    /// Travel to a destination — tracked via progress counter from navigation system.
+    Travel { destination: String },
+    /// Talk to an NPC — tracked via progress counter from interaction system.
+    Talk { npc_id: String },
 }

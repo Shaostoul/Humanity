@@ -2,94 +2,52 @@
 // Advanced agricultural quests for food production scaling.
 
 [
-    Quest(
+    (
         id: "farming_greenhouse",
-        title: "Greenhouse Construction",
+        name: "Greenhouse Construction",
         description: "Build a controlled environment for year-round food production.",
-        objectives: [
-            QuestObjective(
-                id: "gather_glass",
-                description: "Collect glass panels for greenhouse walls",
-                objective_type: Collect(item_id: "glass_panels"),
-                target_count: 20,
-                current_count: 0,
-                completed: false,
-                optional: false,
+        steps: [
+            (
+                description: "Collect glass panels for greenhouse walls (20)",
+                objective: Gather(item_id: "glass_panels", quantity: 20),
             ),
-            QuestObjective(
-                id: "build_greenhouse",
+            (
                 description: "Construct the greenhouse structure",
-                objective_type: Build(item_type: "greenhouse"),
-                target_count: 1,
-                current_count: 0,
-                completed: false,
-                optional: false,
+                objective: Build(blueprint_id: "greenhouse"),
             ),
-            QuestObjective(
-                id: "install_climate_control",
+            (
                 description: "Add climate control for temperature regulation",
-                objective_type: Build(item_type: "climate_controller"),
-                target_count: 1,
-                current_count: 0,
-                completed: false,
-                optional: false,
+                objective: Build(blueprint_id: "climate_controller"),
             ),
         ],
         rewards: [
-            Experience(180),
-            Items(item_id: "strawberry_seeds", quantity: 5),
-            Items(item_id: "pepper_seeds", quantity: 5),
-            BlueprintUnlock(blueprint_id: "hydroponics"),
+            ("strawberry_seeds", 5),
+            ("pepper_seeds", 5),
         ],
-        prerequisites: ["tutorial_farming_basics"],
-        category: Farming,
-        priority: Medium,
-        is_main_quest: false,
-        auto_start: false,
+        prerequisite: Some("tutorial_farming_basics"),
     ),
 
-    Quest(
+    (
         id: "farming_automation",
-        title: "Automated Farming",
+        name: "Automated Farming",
         description: "Implement automated systems to manage your crops efficiently.",
-        objectives: [
-            QuestObjective(
-                id: "build_irrigation",
-                description: "Install automated irrigation system",
-                objective_type: Build(item_type: "irrigation_system"),
-                target_count: 5,
-                current_count: 0,
-                completed: false,
-                optional: false,
+        steps: [
+            (
+                description: "Install automated irrigation system (5)",
+                objective: Build(blueprint_id: "irrigation_system"),
             ),
-            QuestObjective(
-                id: "craft_farm_bot",
+            (
                 description: "Build a farming robot",
-                objective_type: Craft(recipe_id: "farm_bot"),
-                target_count: 1,
-                current_count: 0,
-                completed: false,
-                optional: false,
+                objective: Craft(recipe_id: "farm_bot", quantity: 1),
             ),
-            QuestObjective(
-                id: "harvest_automated",
-                description: "Harvest crops using automation",
-                objective_type: Custom(event_id: "automated_harvest"),
-                target_count: 10,
-                current_count: 0,
-                completed: false,
-                optional: false,
+            (
+                description: "Harvest 10 crops using automation",
+                objective: Harvest(crop_id: "any", quantity: 10),
             ),
         ],
         rewards: [
-            Experience(250),
-            Items(item_id: "fertilizer", quantity: 20),
-            Technology(tech_id: "agricultural_automation"),
+            ("fertilizer", 20),
         ],
-        prerequisites: ["farming_greenhouse"],
-        category: Farming,
-        priority: Low,
-        is_main_quest: false,
-        auto_start: false,
+        prerequisite: Some("farming_greenhouse"),
     ),
 ]
