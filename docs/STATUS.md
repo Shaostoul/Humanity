@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-03-21 | **Version:** v0.26.0
+> **Last updated:** 2026-03-21 | **Version:** v0.31.0
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -54,8 +54,8 @@ Everything in this section is **built and working**.
 | Subscription management | ✅ | Save, get, remove subscriptions |
 | DM and @mention triggers | ✅ | Offline-only delivery to prevent duplicates |
 | Stale subscription cleanup | ✅ | Auto-removes expired/invalid subscriptions |
-| Notification preferences UI | ⚠️ | Settings page has toggles (master, DM, mentions, tasks, DND) — not yet wired to server |
-| Notification actions | ❌ | No reply or mark-read buttons on notifications |
+| Notification preferences | ✅ | Per-user DM/mention/task/DND settings, server-side storage (v0.31.0) |
+| Notification actions | ✅ | Reply and mark-read buttons on push notifications (v0.31.0) |
 
 ---
 
@@ -86,7 +86,7 @@ Everything in this section is **built and working**.
 | Full-text search | ✅ | FTS5 MATCH + LIKE fallback (v0.25.0) |
 | Seller profiles | ✅ | Clickable seller names, profile modal with listings and ratings (v0.25.0) |
 | Ratings and reviews | ✅ | Star ratings, review form, sort options, aggregate display (v0.25.0) |
-| Buyer-seller messaging | ❌ | No in-listing conversation thread |
+| Buyer-seller messaging | ✅ | listing_messages table, WebSocket send/history (v0.31.0) |
 
 ---
 
@@ -116,10 +116,20 @@ Everything in this section is **built and working**.
 | WGSL shaders | ✅ | 30 shaders (planets, PBR, procedural materials) |
 | Game data files | ✅ | 23 crops, 111 items, 35 recipes, quest chains, blueprints |
 | Gardening activity | ✅ | Playable 2D canvas farming (6 crops, save/load) |
+| Data loading (AssetManager) | ✅ | load_csv/toml/ron/json, FileWatcher, HotReloadCoordinator (v0.28.0) |
+| ECS system runner | ✅ | System trait, SystemRunner, 20 game components, per-frame tick (v0.29.0) |
+| Icosphere planet terrain | ✅ | Icosahedron subdivision, PlanetDef (RON), LOD levels, PlanetRenderer (v0.30.0) |
+| Voxel asteroid system | ✅ | Sparse octree, greedy meshing, ore veins (C/S/M-type), mining (v0.31.0) |
+| Rapier3d physics | ✅ | Rigid bodies, colliders, raycasting, step simulation (v0.31.0) |
+| Player controller | ✅ | WASD movement, gravity, jump, ground detection (v0.31.0) |
+| Interaction system | ✅ | Raycast from camera, find interactables within range (v0.31.0) |
+| Day/night cycle | ✅ | GameTime with seasons, sun direction/color (v0.31.0) |
+| Inventory system | ✅ | ItemStack slots, add/remove/transfer (v0.31.0) |
+| Crafting system | ✅ | Recipe matching from recipes.csv (v0.31.0) |
+| Farming system | ✅ | Growth timer, stage transitions, water/health simulation (v0.31.0) |
+| InputState | ✅ | Cross-system input sharing (v0.31.0) |
 | Engine sub-crates | ⚠️ | 19 crates exist with structure, most implementations are scaffolds |
-| Terrain rendering | ❌ | No terrain/tile rendering yet |
 | Game object rendering | ❌ | No trees, crops, buildings from data files |
-| Player controller | ❌ | No movement + interaction system (engine-level) |
 
 ---
 
@@ -131,6 +141,9 @@ Everything in this section is **built and working**.
 | SQLite via rusqlite | ✅ | All data in relay.db |
 | REST API | ✅ | 30+ endpoints (messages, tasks, projects, listings, reviews, members, etc.) |
 | Federation Phase 1+2 | ✅ | Server registry, discovery, S2S WebSocket |
+| Signed profile replication | ✅ | signed_profiles table, ProfileGossip between servers (v0.27.0) |
+| Federated message persistence | ✅ | Messages persisted with origin_server tag, survive restarts (v0.27.0) |
+| Profile lookup API | ✅ | GET /api/profile/{key} for public key lookup (v0.27.0) |
 | GitHub webhook | ✅ | Deploy bot announces in chat |
 | Admin system | ✅ | Roles, verify, lockdown, wipe, garbage collection |
 | nginx + VPS pipeline | ✅ | Push to main triggers build + deploy |
@@ -185,12 +198,10 @@ Everything in this section is **built and working**.
 
 | # | Feature | Category | Why |
 |---|---------|----------|-----|
-| 1 | 🔜 Engine Phase 3: Terrain | Engine | Load tile data, render ground + water in 3D |
-| 2 | 🔜 Engine Phase 4: Game objects | Engine | Trees, crops, buildings from data files |
-| 3 | 🔜 Engine Phase 5: Player controller | Engine | Movement, interaction, collision |
-| 4 | 🔜 Engine Phase 6: Game systems | Engine | Farming, inventory, day/night cycle in 3D |
-| 5 | 🔜 Push notification wiring | Notifications | Connect settings toggles to server-side filtering |
-| 6 | 🔜 Buyer-seller messaging | Marketplace | In-listing conversation thread |
+| 1 | 🔜 Game object rendering | Engine | Trees, crops, buildings from data files |
+| 2 | 🔜 Multiplayer sync | Engine | Networked ECS state replication |
+| 3 | 🔜 In-game UI (HUD) | Engine | Health, inventory, interaction prompts |
+| 4 | 🔜 Audio system | Engine | Spatial audio, music, SFX |
 
 ---
 
@@ -200,13 +211,13 @@ Everything in this section is **built and working**.
 |----------|---------|-----------|-----------|
 | Communication | 13 | 0 | 0 |
 | Identity & Security | 7 | 0 | 0 |
-| Push Notifications | 5 | 1 | 1 |
+| Push Notifications | 7 | 0 | 0 |
 | Task Board | 6 | 0 | 0 |
-| Marketplace | 10 | 0 | 1 |
+| Marketplace | 11 | 0 | 0 |
 | Wallet & Funding | 8 | 0 | 0 |
-| Game Engine | 7 | 1 | 3 |
-| Server & Infrastructure | 9 | 0 | 0 |
+| Game Engine | 19 | 1 | 1 |
+| Server & Infrastructure | 12 | 0 | 0 |
 | Navigation & UX | 7 | 0 | 0 |
 | Desktop App | 6 | 2 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
-| **Total** | **84** | **4** | **5** |
+| **Total** | **102** | **3** | **1** |

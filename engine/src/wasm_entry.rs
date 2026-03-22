@@ -10,9 +10,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use glam::{Quat, Vec3};
+use crate::ecs::GameWorld;
+use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
+use crate::ecs::systems::SystemRunner;
+use crate::hot_reload::data_store::DataStore;
+use crate::input::InputState;
 use crate::renderer::camera::{Camera, CameraController, CameraMode};
 use crate::renderer::mesh::Mesh;
 use crate::renderer::{RenderObject, Renderer};
+use crate::systems::crafting::CraftingSystem;
+use crate::systems::farming::FarmingSystem;
+use crate::systems::interaction::InteractionSystem;
+use crate::systems::inventory::InventorySystem;
+use crate::systems::player::PlayerControllerSystem;
+use crate::systems::time::TimeSystem;
 
 /// WASM entry point — called automatically when the module loads.
 #[wasm_bindgen(start)]
@@ -75,11 +86,44 @@ pub async fn main() {
 
     log::info!("Scene ready. Controls: WASD=move, Mouse=look, Tab=cycle mode, F=FP/TP, M=orbit, O=ortho, Scroll=zoom");
 
+    // Initialize ECS + game systems
+    let mut game_world = GameWorld::new();
+    let mut system_runner = SystemRunner::new();
+    let mut data_store = DataStore::new();
+
+    // Seed DataStore with initial shared state
+    data_store.insert("input_state", InputState::default());
+    data_store.insert("camera_position", Vec3::new(0.0, 2.0, 5.0));
+    data_store.insert("camera_forward", Vec3::NEG_Z);
+    data_store.insert("camera_yaw", 0.0_f32);
+
+    // Register all game systems (tick order matters)
+    system_runner.register(TimeSystem::new());
+    system_runner.register(PlayerControllerSystem);
+    system_runner.register(InteractionSystem);
+    system_runner.register(FarmingSystem::new());
+    system_runner.register(InventorySystem::new());
+    system_runner.register(CraftingSystem::new());
+
+    // Spawn a player entity
+    game_world.world.spawn((
+        Transform::default(),
+        Velocity::default(),
+        Controllable,
+        Health::default(),
+        Name("Player".to_string()),
+    ));
+
+    log::info!("ECS initialized: {} systems registered", system_runner.count());
+
     // Bundle state for the render loop
     let state = Rc::new(RefCell::new(WasmEngineState {
         renderer,
         camera,
         controller,
+        game_world,
+        system_runner,
+        data_store,
         cube_mesh,
         plane_mesh,
         cube_material,
@@ -102,6 +146,9 @@ struct WasmEngineState {
     renderer: Renderer,
     camera: Camera,
     controller: CameraController,
+    game_world: GameWorld,
+    system_runner: SystemRunner,
+    data_store: DataStore,
     cube_mesh: usize,
     plane_mesh: usize,
     cube_material: usize,
@@ -127,12 +174,14 @@ fn setup_input_handlers(
             // Prevent default for game keys to avoid scrolling
             let code = event.code();
             match code.as_str() {
-                "KeyW" | "KeyA" | "KeyS" | "KeyD" | "Space" | "Tab" => {
+                "KeyW" | "KeyA" | "KeyS" | "KeyD" | "Space" | "Tab" | "KeyE" => {
                     event.prevent_default();
                 }
                 _ => {}
             }
-            state.borrow_mut().controller.process_key(&code, true);
+            let mut s = state.borrow_mut();
+            s.controller.process_key(&code, true);
+            update_input_state(&mut s.data_store, &code, true);
         });
         document
             .add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref())
@@ -145,7 +194,9 @@ fn setup_input_handlers(
         let state = state.clone();
         let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| {
             let code = event.code();
-            state.borrow_mut().controller.process_key(&code, false);
+            let mut s = state.borrow_mut();
+            s.controller.process_key(&code, false);
+            update_input_state(&mut s.data_store, &code, false);
         });
         document
             .add_event_listener_with_callback("keyup", closure.as_ref().unchecked_ref())
@@ -225,6 +276,24 @@ fn setup_input_handlers(
     }
 }
 
+/// Update InputState in DataStore from a key code string.
+fn update_input_state(data_store: &mut DataStore, code: &str, pressed: bool) {
+    let mut input = data_store
+        .get::<InputState>("input_state")
+        .cloned()
+        .unwrap_or_default();
+    match code {
+        "KeyW" => input.forward = pressed,
+        "KeyS" => input.backward = pressed,
+        "KeyA" => input.left = pressed,
+        "KeyD" => input.right = pressed,
+        "Space" => input.jump = pressed,
+        "KeyE" => input.interact = pressed,
+        _ => return, // no change needed
+    }
+    data_store.insert("input_state", input);
+}
+
 /// Drive the render loop via requestAnimationFrame.
 fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
     let f: Rc<RefCell<Option<Closure<dyn FnMut(f64)>>>> = Rc::new(RefCell::new(None));
@@ -258,8 +327,25 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
 
         // Update camera from input
         // Destructure to get separate mutable references (satisfies borrow checker)
-        let WasmEngineState { ref mut controller, ref mut camera, .. } = *s;
+        let WasmEngineState {
+            ref mut controller,
+            ref mut camera,
+            ref mut data_store,
+            ref mut system_runner,
+            ref mut game_world,
+            ..
+        } = *s;
         controller.update_camera(camera, dt);
+
+        // Sync camera state into DataStore for game systems
+        data_store.insert("camera_position", camera.position);
+        let (yaw_sin, yaw_cos) = camera.yaw.sin_cos();
+        let forward = Vec3::new(-yaw_sin, 0.0, -yaw_cos).normalize();
+        data_store.insert("camera_forward", forward);
+        data_store.insert("camera_yaw", camera.yaw);
+
+        // Tick all ECS systems
+        system_runner.tick(&mut game_world.world, dt, data_store);
 
         // Spinning cube rotation
         let elapsed = (timestamp_ms / 1000.0) as f32;

@@ -251,7 +251,7 @@ impl System for InventorySystem {
         let registry = data.get::<ItemRegistry>("item_registry");
 
         for (entity, op) in ops {
-            let inventory = match world.get::<&mut Inventory>(entity) {
+            let mut inventory = match world.get::<&mut Inventory>(entity) {
                 Ok(inv) => inv,
                 Err(_) => {
                     log::warn!("InventoryOp on entity without Inventory component");

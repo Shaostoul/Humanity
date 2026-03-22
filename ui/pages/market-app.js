@@ -164,6 +164,17 @@ function handleMarketMessage(msg) {
       }
       refreshDetailReviews(lid2);
     }
+  } else if (msg.type === 'listing_messages') {
+    if (msg.listing_id) {
+      listingMsgs[msg.listing_id] = msg.messages || [];
+      if (_detailListingId === msg.listing_id) renderListingMessages(msg.listing_id);
+    }
+  } else if (msg.type === 'listing_message_new') {
+    if (msg.listing_id && msg.message) {
+      if (!listingMsgs[msg.listing_id]) listingMsgs[msg.listing_id] = [];
+      listingMsgs[msg.listing_id].push(msg.message);
+      if (_detailListingId === msg.listing_id) renderListingMessages(msg.listing_id);
+    }
   } else if (msg.type === 'peer_list') {
     if (msg.peers && marketMyKey) {
       var me = msg.peers.find(function(p) { return p.public_key_hex === marketMyKey || p.public_key === marketMyKey; });
@@ -245,6 +256,17 @@ function showListingDetail(id) {
       '<button onclick="markListingSold(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--success);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-sm);">' + hosIcon('check', 14) + ' Mark Sold</button>' +
       '<button onclick="deleteListing(\'' + l.id + '\');closeListingDetail()" style="flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid rgba(229,85,85,0.4);border-radius:6px;color:var(--error);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-sm);">' + hosIcon('trash', 14) + ' Delete</button>' +
     '</div>' : '') +
+    '<div id="listing-messages-section" style="border-top:1px solid var(--border);padding-top:var(--space-xl);margin-top:var(--space-xl);">' +
+      '<h4 style="color:var(--text);margin:0 0 var(--space-lg);font-size:0.9rem;">Messages</h4>' +
+      '<div id="listing-messages-list" style="max-height:240px;overflow-y:auto;margin-bottom:var(--space-md);"></div>' +
+      '<div id="listing-messages-empty" style="color:var(--text-muted);font-size:0.8rem;font-style:italic;margin-bottom:var(--space-md);">No messages yet. Ask a question or start a conversation.</div>' +
+      (marketMyKey && marketMyKey.indexOf('viewer_') !== 0 ?
+        '<div style="display:flex;gap:var(--space-sm);">' +
+          '<input id="listing-msg-input" type="text" maxlength="2000" placeholder="Type a message..." style="flex:1;padding:var(--space-sm) var(--space-md);background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;" onkeydown="if(event.key===\'Enter\')sendListingMessage(\'' + escHtml(l.id) + '\')">' +
+          '<button onclick="sendListingMessage(\'' + escHtml(l.id) + '\')" class="btn btn-clickable" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem;">Send</button>' +
+        '</div>'
+      : '<div style="color:var(--text-muted);font-size:0.75rem;font-style:italic;">Sign in to send messages.</div>') +
+    '</div>' +
     '<div id="listing-reviews-section" style="border-top:1px solid var(--border);padding-top:var(--space-xl);margin-top:var(--space-xl);">' +
       '<h4 style="color:var(--text);margin:0 0 var(--space-lg);font-size:0.9rem;">Reviews</h4>' +
       '<div id="listing-reviews-loading" style="color:var(--text-muted);font-size:0.8rem;font-style:italic;">Loading reviews...</div>' +
@@ -253,6 +275,7 @@ function showListingDetail(id) {
 
   modal.style.display = '';
   fetchListingReviews(id).then(function(data) { renderDetailReviews(id, data); });
+  requestListingMessages(id);
 }
 
 /** Render the reviews section inside the detail modal. */
@@ -565,6 +588,60 @@ function renderStoreDirectory() {
      '<a href="' + s.url + '" target="_blank" rel="noopener" style="display:inline-block;padding:var(--space-sm) var(--space-xl);background:var(--accent);color:#fff;border-radius:6px;text-decoration:none;font-size:0.75rem;font-weight:600;">Visit Store</a>' +
     '</div>';
   }).join('');
+}
+
+// ── Listing Messages (buyer-seller conversations) ──
+
+/** Cache of listing messages: { [listing_id]: MessageData[] } */
+var listingMsgs = {};
+
+/** Request message history for a listing */
+function requestListingMessages(listingId) {
+  if (marketWs && marketWs.readyState === 1) {
+    marketWs.send(JSON.stringify({ type: 'listing_message_history', listing_id: listingId }));
+  }
+}
+
+/** Send a message on a listing */
+function sendListingMessage(listingId) {
+  var input = document.getElementById('listing-msg-input');
+  if (!input) return;
+  var content = input.value.trim();
+  if (!content) return;
+  if (marketWs && marketWs.readyState === 1) {
+    marketWs.send(JSON.stringify({
+      type: 'listing_message_send',
+      listing_id: listingId,
+      content: content,
+    }));
+  }
+  input.value = '';
+}
+
+/** Render listing messages inside the detail modal */
+function renderListingMessages(listingId) {
+  var container = document.getElementById('listing-messages-list');
+  var emptyEl = document.getElementById('listing-messages-empty');
+  if (!container) return;
+  var msgs = listingMsgs[listingId] || [];
+  if (msgs.length === 0) {
+    container.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = '';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  container.innerHTML = msgs.map(function(m) {
+    var isMine = m.sender_key === marketMyKey;
+    var time = new Date(m.timestamp).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return '<div style="margin-bottom:var(--space-md);padding:var(--space-sm) var(--space-md);background:' + (isMine ? 'rgba(68,136,255,0.08)' : 'var(--bg-panel)') + ';border-radius:6px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-xs);">' +
+        '<strong style="font-size:0.75rem;color:' + (isMine ? 'var(--accent)' : 'var(--text)') + ';">' + escHtml(m.sender_name || 'Anonymous') + '</strong>' +
+        '<span style="font-size:0.65rem;color:var(--text-muted);">' + escHtml(time) + '</span>' +
+      '</div>' +
+      '<div style="font-size:0.8rem;color:var(--text);white-space:pre-wrap;word-break:break-word;">' + escHtml(m.content) + '</div>' +
+    '</div>';
+  }).join('');
+  container.scrollTop = container.scrollHeight;
 }
 
 document.addEventListener('DOMContentLoaded', function() {

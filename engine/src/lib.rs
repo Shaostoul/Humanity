@@ -14,8 +14,11 @@ pub mod input;
 pub mod assets;
 pub mod platform;
 pub mod terrain;
+pub mod ship;
 
 pub mod hot_reload;
+
+pub mod systems;
 
 #[cfg(feature = "wasm")]
 pub mod wasm_entry;
@@ -25,12 +28,20 @@ mod native_app {
     use glam::{Quat, Vec3};
     use crate::assets::AssetManager;
     use crate::ecs::GameWorld;
+    use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
     use crate::ecs::systems::SystemRunner;
     use crate::hot_reload::HotReloadCoordinator;
     use crate::hot_reload::data_store::DataStore;
+    use crate::input::InputState;
     use crate::renderer::camera::{Camera, CameraController};
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
+    use crate::systems::crafting::CraftingSystem;
+    use crate::systems::farming::FarmingSystem;
+    use crate::systems::interaction::InteractionSystem;
+    use crate::systems::inventory::InventorySystem;
+    use crate::systems::player::PlayerControllerSystem;
+    use crate::systems::time::TimeSystem;
     use crate::terrain::planet::{PlanetDef, PlanetRenderer};
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -38,7 +49,7 @@ mod native_app {
     use winit::application::ApplicationHandler;
     use winit::event::{DeviceEvent, DeviceId, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, EventLoop};
-    use winit::keyboard::PhysicalKey;
+    use winit::keyboard::{KeyCode, PhysicalKey};
     use winit::window::{Window, WindowId};
 
     /// Locate the data directory relative to the exe.
@@ -179,9 +190,33 @@ mod native_app {
             }
 
             // Initialize ECS
-            let game_world = GameWorld::new();
-            let system_runner = SystemRunner::new();
-            let data_store = DataStore::new();
+            let mut game_world = GameWorld::new();
+            let mut system_runner = SystemRunner::new();
+            let mut data_store = DataStore::new();
+
+            // Seed DataStore with initial shared state
+            data_store.insert("input_state", InputState::default());
+            data_store.insert("camera_position", Vec3::new(0.0, 2.0, 5.0));
+            data_store.insert("camera_forward", Vec3::NEG_Z);
+            data_store.insert("camera_yaw", 0.0_f32);
+
+            // Register all game systems (tick order matters)
+            system_runner.register(TimeSystem::new());
+            system_runner.register(PlayerControllerSystem);
+            system_runner.register(InteractionSystem);
+            system_runner.register(FarmingSystem::new());
+            system_runner.register(InventorySystem::new());
+            system_runner.register(CraftingSystem::new());
+
+            // Spawn a player entity with core components
+            game_world.world.spawn((
+                Transform::default(),
+                Velocity::default(),
+                Controllable,
+                Health::default(),
+                Name("Player".to_string()),
+            ));
+
             log::info!("ECS initialized: {} systems registered", system_runner.count());
 
             // Try to load a planet from data files
@@ -246,11 +281,28 @@ mod native_app {
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let PhysicalKey::Code(key) = event.physical_key {
-                        if key == winit::keyboard::KeyCode::Escape {
+                        if key == KeyCode::Escape {
                             event_loop.exit();
                             return;
                         }
                         state.controller.process_keyboard(key, event.state);
+
+                        // Update InputState in DataStore for game systems
+                        let pressed = event.state.is_pressed();
+                        let mut input = state.data_store
+                            .get::<InputState>("input_state")
+                            .cloned()
+                            .unwrap_or_default();
+                        match key {
+                            KeyCode::KeyW => input.forward = pressed,
+                            KeyCode::KeyS => input.backward = pressed,
+                            KeyCode::KeyA => input.left = pressed,
+                            KeyCode::KeyD => input.right = pressed,
+                            KeyCode::Space => input.jump = pressed,
+                            KeyCode::KeyE => input.interact = pressed,
+                            _ => {}
+                        }
+                        state.data_store.insert("input_state", input);
                     }
                 }
                 WindowEvent::MouseInput { button, state: btn_state, .. } => {
@@ -274,15 +326,22 @@ mod native_app {
                         log::info!("Hot-reload: {changed}");
                     }
 
+                    // Update camera from input
+                    state.controller.update_camera(&mut state.camera, dt);
+
+                    // Sync camera state into DataStore for game systems
+                    state.data_store.insert("camera_position", state.camera.position);
+                    let (yaw_sin, yaw_cos) = state.camera.yaw.sin_cos();
+                    let forward = Vec3::new(-yaw_sin, 0.0, -yaw_cos).normalize();
+                    state.data_store.insert("camera_forward", forward);
+                    state.data_store.insert("camera_yaw", state.camera.yaw);
+
                     // Tick all ECS systems
                     state.system_runner.tick(
                         &mut state.game_world.world,
                         dt,
                         &state.data_store,
                     );
-
-                    // Update camera from input
-                    state.controller.update_camera(&mut state.camera, dt);
 
                     // Spinning cube
                     let elapsed = (now - state.start_time).as_secs_f32();

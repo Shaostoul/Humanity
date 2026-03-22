@@ -5,6 +5,85 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 
 ---
 
+## v0.31.0 — Massive Parallel Build (2026-03-21)
+
+Four agents built simultaneously:
+
+### Engine — Voxel Asteroids & Physics
+- **Voxel asteroid system** — sparse octree, greedy meshing, ore veins (C/S/M-type), mining
+- **Full rapier3d physics** — rigid bodies, colliders, raycasting, step simulation
+- **Player controller** — WASD movement, gravity, jump, ground detection
+- **Interaction system** — raycast from camera, find interactables within range
+- **Day/night cycle** — GameTime with seasons, sun direction/color
+- **Inventory system** — ItemStack slots, add/remove/transfer
+- **Crafting system** — recipe matching from recipes.csv
+- **Farming system** — growth timer, stage transitions, water/health simulation
+- **InputState** — cross-system input sharing
+- **Asteroid types data file** — data/asteroids/types.csv
+
+### Server — Notifications & Marketplace Messaging
+- **Notification preferences** — per-user DM/mention/task/DND settings, server-side storage module
+- **Buyer-seller messaging** — listing_messages table, WebSocket send/history
+- **Push notification action buttons** — reply and mark-read on notifications
+
+## v0.30.0 — Icosphere Planet Terrain with LOD (2026-03-21)
+
+- **Icosphere** — base icosahedron (20 faces) with recursive midpoint subdivision
+- **PlanetDef** — radius, gravity, terrain_seed, atmosphere, biomes in RON format
+- **PlanetRenderer** — LOD from billboard (>100,000km) to walkable surface (<10km)
+- **Mesh::from_icosphere** — builds GPU mesh from icosphere data
+- **Planet data files** — Earth, Mars, Moon (data/planets/*.ron)
+- Planet renders as slowly rotating icosphere in the test scene
+
+## v0.29.0 — ECS System Runner & Game Components (2026-03-21)
+
+- **System trait** — `tick(world, dt, data)` signature
+- **SystemRunner** — registers and ticks systems each frame
+- **20 game components** — Renderable, Controllable, AIBehavior, CropInstance, GrowthStage, Interactable, VehicleSeat, Hardpoints, HardpointSlot, Harvestable, Faction, VoxelBody, PhysicsBody, plus existing Transform, Velocity, Health, Name
+- **ECS tick wired into native render loop**
+- **hot_reload module** — available on both native and WASM platforms
+
+## v0.28.0 — Data Loading Foundation (2026-03-21)
+
+- **AssetManager** — load_csv<T>, load_toml<T>, load_ron<T> methods
+- **CSV/TOML/RON/JSON parsers** — using crate deps (csv, toml, ron, serde_json)
+- **FileWatcher** — notify-based recursive directory monitoring (native only)
+- **HotReloadCoordinator** — polls watcher and invalidates cache per frame
+- **Engine loads data at startup** — items.csv, plants.csv, recipes.csv with logged counts
+
+## v0.27.0 — Signed Profile Replication & Federated Persistence (2026-03-21)
+
+- **signed_profiles table** — new storage module for replicated profiles
+- **Profile gossip** — ProfileGossip message type for inter-server profile replication
+- **Federated message persistence** — messages persisted with origin_server tag (survive restarts)
+- **GET /api/profile/{key}** — profile lookup by public key
+- **Identity architecture doc** — docs/design/identity.md (no home servers, key IS identity)
+- Updated federation doc: removed home server concept, added gossip protocol
+
+## v0.26.0 — Three-Mode Camera System (2026-03-21)
+
+- **Three-mode camera** — first-person, third-person, orbit with smooth transitions
+- Camera mode switching with configurable offsets and zoom
+
+## v0.25.0 — Wallet, Projects, Marketplace Upgrades (2026-03-20)
+
+- **Solana wallet** — balance, send, receive; Ed25519 identity IS the Solana address
+- **Token swaps** — Jupiter API integration, slippage settings, price impact warnings
+- **Staking** — validator picker, stake/unstake flows
+- **NFT support** — detection, Metaplex metadata, grid display with detail modals
+- **Donation page** — progress bar, source cards (GitHub/Solana/Bitcoin), FAQ
+- **Server funding config** — data/server-config.json with owner_key, funding sources
+- **Wallet settings** — network selection, custom RPC URL, nav balance toggle
+- **Projects system** — project CRUD, color/icon picker, task filtering by project
+- **Marketplace images** — upload (drag-and-drop), carousel gallery, thumbnails
+- **Full-text search** — FTS5 MATCH + LIKE fallback for marketplace listings
+- **Seller profiles** — clickable seller names, profile modal with listings and ratings
+- **Ratings and reviews** — star ratings, review form, sort options, aggregate display
+- **Server membership** — auto-join on identify, member roster, paginated search
+- **Server-info endpoint** — description, owner_key, funding, member_count
+- **Seed phrase recovery** — "Recover from Seed Phrase" button on login screen
+- **Onboarding tour** — 8-step guided walkthrough for new users
+
 ## v0.24.0 — External Links & Download Fix (2026-03-20)
 
 - **External links work in desktop app** — switched to `tauri-plugin-shell` for reliable URL opening on Windows
@@ -351,4 +430,4 @@ This was the largest pre-tag release — ~870 commits covering the full platform
 
 ---
 
-*1144 commits from initial commit to v0.24.0, spanning 2026-01-16 to 2026-03-20.*
+*Spanning from initial commit (2026-01-16) through v0.31.0 (2026-03-21).*

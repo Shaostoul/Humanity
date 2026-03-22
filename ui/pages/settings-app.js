@@ -670,7 +670,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS — v0.31.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS — v0.32.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -848,7 +848,7 @@ async function togglePushNotifications(enabled) {
   }
 }
 
-/** Save category preferences to localStorage */
+/** Save category preferences to localStorage and sync to server */
 function savePushPref() {
   var elDms = document.getElementById('pref-push-dms');
   var elMentions = document.getElementById('pref-push-mentions');
@@ -856,9 +856,10 @@ function savePushPref() {
   if (elDms) localStorage.setItem('hos_notify_dms', elDms.checked ? 'true' : 'false');
   if (elMentions) localStorage.setItem('hos_notify_mentions', elMentions.checked ? 'true' : 'false');
   if (elTasks) localStorage.setItem('hos_notify_tasks', elTasks.checked ? 'true' : 'false');
+  syncNotifPrefsToServer();
 }
 
-/** Save DND schedule to localStorage */
+/** Save DND schedule to localStorage and sync to server */
 function savePushDnd() {
   var elDnd = document.getElementById('pref-push-dnd');
   var elStart = document.getElementById('pref-dnd-start');
@@ -873,7 +874,83 @@ function savePushDnd() {
     localStorage.removeItem('hos_dnd_start');
     localStorage.removeItem('hos_dnd_end');
   }
+  syncNotifPrefsToServer();
 }
+
+/** Send current notification preferences to the server via WebSocket */
+function syncNotifPrefsToServer() {
+  var ws = window._humanityWs;
+  if (!ws || ws.readyState !== 1) return;
+  var dm = localStorage.getItem('hos_notify_dms') !== 'false';
+  var mentions = localStorage.getItem('hos_notify_mentions') !== 'false';
+  var tasks = localStorage.getItem('hos_notify_tasks') !== 'false';
+  var dndStart = localStorage.getItem('hos_dnd_start');
+  var dndEnd = localStorage.getItem('hos_dnd_end');
+  var msg = {
+    type: 'update_notification_prefs',
+    dm: dm,
+    mentions: mentions,
+    tasks: tasks
+  };
+  if (dndStart !== null && dndEnd !== null) {
+    msg.dnd_start = dndStart;
+    msg.dnd_end = dndEnd;
+  }
+  ws.send(JSON.stringify(msg));
+}
+
+/** Request notification preferences from the server */
+function requestNotifPrefsFromServer() {
+  var ws = window._humanityWs;
+  if (!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: 'get_notification_prefs' }));
+}
+
+/** Handle incoming notification_prefs_data from server — update UI and localStorage */
+function handleNotifPrefsData(msg) {
+  if (msg.dm !== undefined) localStorage.setItem('hos_notify_dms', msg.dm ? 'true' : 'false');
+  if (msg.mentions !== undefined) localStorage.setItem('hos_notify_mentions', msg.mentions ? 'true' : 'false');
+  if (msg.tasks !== undefined) localStorage.setItem('hos_notify_tasks', msg.tasks ? 'true' : 'false');
+  if (msg.dnd_start !== undefined && msg.dnd_start !== null) {
+    localStorage.setItem('hos_dnd_start', msg.dnd_start);
+  }
+  if (msg.dnd_end !== undefined && msg.dnd_end !== null) {
+    localStorage.setItem('hos_dnd_end', msg.dnd_end);
+  }
+  if (msg.dnd_start === null && msg.dnd_end === null) {
+    localStorage.removeItem('hos_dnd_start');
+    localStorage.removeItem('hos_dnd_end');
+  }
+  loadPushPrefs();
+}
+
+// Listen for notification_prefs_data from the server via global WS
+(function() {
+  function hookWs(ws) {
+    if (!ws || ws._notifPrefsHooked) return;
+    ws._notifPrefsHooked = true;
+    ws.addEventListener('message', function(e) {
+      try {
+        var msg = JSON.parse(e.data);
+        if (msg.type === 'notification_prefs_data') handleNotifPrefsData(msg);
+      } catch(ex) {}
+    });
+  }
+  // Hook the existing WS if available
+  if (window._humanityWs) hookWs(window._humanityWs);
+  // Watch for new WS connections (set by chat or market pages)
+  var origDescriptor = Object.getOwnPropertyDescriptor(window, '_humanityWs');
+  if (!origDescriptor || !origDescriptor.set) {
+    var _wsVal = window._humanityWs;
+    Object.defineProperty(window, '_humanityWs', {
+      get: function() { return _wsVal; },
+      set: function(v) { _wsVal = v; hookWs(v); },
+      configurable: true
+    });
+  }
+  // Request prefs from server after a brief delay to let WS connect
+  setTimeout(requestNotifPrefsFromServer, 1500);
+})();
 
 loadPrefs();
 applyPrefs();
