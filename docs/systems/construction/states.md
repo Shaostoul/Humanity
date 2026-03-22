@@ -63,7 +63,7 @@ Do not place the following in this folder:
   (these belong in `schemas/`)
 
 - engine implementation details  
-  (these belong in `engine/`)
+  (these belong in `native/`)
 
 - speculative ideas without constraints  
 

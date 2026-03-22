@@ -724,15 +724,15 @@ Semver with strict rules:
 - `0.X.Y` — Non-Rust changes only (HTML/JS/CSS/docs/config)
 - `1.0.0` — Reserved for fully functional product
 
-Automated bump script (`node scripts/bump-version.js [patch|minor|major]`) updates all 7 locations:
+Automated bump script (`node scripts/bump-version.js [patch|minor|major]`) updates version locations:
 
-1. `app/tauri.conf.json` — `"version"`
-2. `app/Cargo.toml` — `version`
-3. `web/shared/sw.js` — `CACHE_NAME`
-4. `web/pages/settings-app.js` — version display
-5. `web/pages/ops.html` — debug version
-6. `web/shared/shell.js` — version reference
-7. `web/activities/download.html` — fallback badge
+1. `web/shared/sw.js` — `CACHE_NAME`
+2. `web/pages/settings-app.js` — version display
+3. `web/pages/ops.html` — debug version
+4. `web/shared/shell.js` — version reference
+5. `web/activities/download.html` — fallback badge
+
+Note: Tauri app (`app/`) is deprecated. Its `tauri.conf.json` and `Cargo.toml` are no longer maintained.
 
 ### Scaling the Relay
 

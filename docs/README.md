@@ -106,6 +106,6 @@ Schemas define structure and invariants, not behavior.
 - `design/` defines enforceable system law
 - `knowledge/` provides real-world references
 - `data/` contains canonical structured truth
-- `engine/` executes design deterministically
+- `native/` executes design deterministically
 
 Design translates meaning into machinery.

@@ -194,7 +194,7 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Storage module | ✅ | 622-line app/src/storage.rs |
+| Storage module | ✅ | 622-line storage module (Tauri app, deprecated) |
 | Save slots | ✅ | Profile, inventory, farm, quests, skills, world |
 | Auto-rotating backups | ✅ | Keeps last 5 timestamped snapshots |
 | USB drive detection | ✅ | Detects removable drives for export/import |

@@ -28,10 +28,10 @@ Highest to lowest authority:
 3. `data/`  
    Canonical structured definitions of entities, resources, and world state.
 
-4. `engine/`  
+4. `native/`
    Deterministic execution of design over data across time.
 
-5. `ui/` and `tools/`  
+5. `web/` and `tools/`
    Presentation and authoring utilities; they do not redefine reality.
 
 No lower layer may override a higher layer.
@@ -105,7 +105,7 @@ Data must be:
 
 ---
 
-### Engine Layer (`engine/`)
+### Engine Layer (`native/`)
 The engine executes:
 - discrete time progression
 - system updates as pure transformations of state
@@ -119,7 +119,7 @@ The engine must:
 
 ---
 
-### Interface Layers (`ui/`, `tools/`)
+### Interface Layers (`web/`, `tools/`)
 Interfaces may:
 - visualize state
 - explain causality
@@ -140,7 +140,7 @@ A system is a bounded behavioral module that:
 - applies rules over time
 - produces state changes and events
 
-Systems live in `design/systems/` and are implemented in `engine/`.
+Systems live in `design/systems/` and are implemented in `native/`.
 
 Systems must not embed schema definitions; they reference `design/schemas/`.
 

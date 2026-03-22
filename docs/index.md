@@ -100,7 +100,7 @@ Player-facing mechanics and interaction systems.
 
 ## Engine (`engine/`)
 
-Renderer, performance, and asset pipeline specs.
+Renderer, performance, and asset pipeline specs. (Note: implementation moved from `engine/` to `native/` in v0.37.0)
 
 - [asset_budget_policy.md](engine/asset_budget_policy.md) -- Asset budget policy and limits
 - [custom_rust_wgpu_runtime_plan.md](engine/custom_rust_wgpu_runtime_plan.md) -- Custom Rust + wgpu runtime plan
@@ -194,7 +194,7 @@ Persistence, save formats, and local data layout.
 
 ## UI (`ui/`)
 
-App shell, navigation, and menu architecture.
+App shell, navigation, and menu architecture. (Note: implementation moved from `ui/` to `web/` in v0.37.0)
 
 - [README.md](ui/README.md) -- UI design overview
 - [app_shell_information_architecture.md](ui/app_shell_information_architecture.md) -- App shell information architecture

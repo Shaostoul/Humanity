@@ -47,7 +47,7 @@ Broad areas that always need help:
 
 ```
 Humanity/
-├── ui/                 ← Application interface (browser + Tauri WebView + in-game GUI)
+├── web/                ← Application interface (browser + native WebView)
 │   ├── chat/           ← Chat page + all chat JS/CSS
 │   │   ├── index.html
 │   │   ├── app.js          ← Core: state, connect, handleMessage, sendMessage
@@ -70,14 +70,13 @@ Humanity/
 │       │   └── utils.rs
 │       ├── storage/        ← SQLite domain modules (14 files)
 │       └── api.rs          ← HTTP REST API
-├── engine/             ← Rust game engine + systems
+├── native/             ← Rust game engine + systems
 │   ├── src/            ← Renderer, ECS, physics, audio, input, hot-reload
 │   ├── crates/         ← 19 sub-crates (core, modules, persistence)
 │   └── src/systems/    ← Game systems (farming, construction, inventory, etc.)
 ├── data/               ← Hot-reloadable game data (CSV, TOML, RON, JSON)
 ├── assets/             ← All shared media (icons, shaders, models, textures, audio)
-├── docs/               ← All docs (design, accord, history, website)
-└── app/                ← Tauri v2 desktop app
+└── docs/               ← All docs (design, accord, history, website)
 ```
 
 ---

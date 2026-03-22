@@ -48,7 +48,7 @@ What's solid and working:
 What's actively being built:
 - The standalone pages (home, profile, skills, etc.) — most exist as stubs that need content
 - Federation Phase 2 — cross-server identity and room directory
-- The game layer — game mechanics exist in `web/activities/` and `engine/` but need more development
+- The game layer — game mechanics exist in `web/activities/` and `native/` but need more development
 - Better onboarding for new users (which is why this document exists)
 
 What just happened (this session):

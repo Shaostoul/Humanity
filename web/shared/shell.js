@@ -4,8 +4,7 @@
  * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
  * If omitted, active tab is auto-detected from the current URL.
  *
- * Valid active keys: landing, chat, games, profile, home, gear,
- *   tasks, calendar, notes, home, map, market, wallet, web, roadmap, donate, ops, download, dev, settings, garden, data
+ * Valid active keys: landing, chat, tasks, map, market, settings, download
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="gear"></script>
@@ -470,38 +469,18 @@
       /* Brand */
       '<a href="/" class="brand' + (active === 'landing' ? ' active' : '') + '" data-tip="Home">H</a>' +
 
-      /* Core */
+      /* Main */
       navTab('/chat',      'network',   'Network',   'chat') +
-      navTab('/activities/game', 'games',     'Games',     'games') +
-      navTab('/activities/gardening', 'seed',  'Garden',    'garden') +
-      '<div class="nav-divider"></div>' +
-
-      /* Private — personal pages */
-      navTab('/profile',   'profile',   'Profile',   'profile') +
-      navTab('/home',      'home',      'Home',      'home') +
-      navTab('/inventory', 'inventory', 'Gear',      'gear') +
       navTab('/tasks',     'tasklist',  'Tasks',     'tasks') +
-      navTab('/calendar',  'calendar',  'Calendar',  'calendar') +
-      navTab('/notes',     'journal',   'Journal',   'notes') +
-      '<div class="nav-divider"></div>' +
-
-      /* Public — community pages */
       navTab('/maps',      'map',       'Maps',      'map') +
       navTab('/market',    'market',    'Market',    'market') +
-      navTab('/wallet',    'coin',      'Wallet',    'wallet') +
-      navTab('/web',       'website',   'Web',       'web') +
-      navTab('/roadmap',   'map',       'Roadmap',   'roadmap') +
-      navTab('/donate',    'heart',     'Donate',    'donate') +
 
       /* Spacer pushes utility tabs to the right */
       '<div class="spacer"></div>' +
 
       /* Utility — right-aligned */
-      navTab('/data',     'storage',   'Data',      'data') +
       navTab('/settings', 'settings',  'Settings',  'settings') +
       navTab('/activities/download', 'download',  'Download',  'download') +
-      navTab('/ops',      'ops',       'Ops',       'ops') +
-      navTab('/dev',      'dev',       'Dev',       'dev') +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
@@ -526,33 +505,15 @@
   }
 
   mobileDrawer.innerHTML =
-    '<div class="mobile-hub-group"><h4>Core</h4>' +
+    '<div class="mobile-hub-group"><h4>Navigate</h4>' +
       mobileLink('/chat',      'Network') +
-      mobileLink('/activities/game', 'Games') +
-      mobileLink('/activities/gardening', 'Garden') +
-    '</div>' +
-    '<div class="mobile-hub-group"><h4>Private</h4>' +
-      mobileLink('/profile',   'Profile') +
-      mobileLink('/home',      'Home') +
-      mobileLink('/inventory', 'Gear') +
       mobileLink('/tasks',     'Tasks') +
-      mobileLink('/calendar',  'Calendar') +
-      mobileLink('/notes',     'Journal') +
-    '</div>' +
-    '<div class="mobile-hub-group"><h4>Public</h4>' +
       mobileLink('/maps',      'Maps') +
       mobileLink('/market',    'Market') +
-      mobileLink('/wallet',    'Wallet') +
-      mobileLink('/web',       'Web') +
-      mobileLink('/roadmap',   'Roadmap') +
-      mobileLink('/donate',    'Donate') +
     '</div>' +
-    '<div class="mobile-hub-group"><h4>Config</h4>' +
-      mobileLink('/data',     'Data') +
+    '<div class="mobile-hub-group"><h4>More</h4>' +
       mobileLink('/settings', 'Settings') +
       mobileLink('/activities/download', 'Download') +
-      mobileLink('/ops',      'Ops') +
-      mobileLink('/dev',      '</> Dev') +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
@@ -1084,7 +1045,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.37.0';
+    var CURRENT_VERSION = '0.37.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

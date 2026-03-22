@@ -18,15 +18,18 @@ just logs             # tail server logs
 
 ## Architecture
 
+Three-part split: `server/` (backend), `web/` (website), `native/` (desktop client).
+
 ```
-Client (browser/Tauri WebView2)
+Web (browser)
   ↕ WebSocket /ws         ← relay.rs  (~5800 LOC, message routing)
   ↕ HTTP /api/*           ← api.rs    (~2500 LOC, REST endpoints)
 
 Server: Rust/axum/tokio, SQLite via rusqlite
 Static HTML served by nginx from /var/www/humanity/
 
-Game Engine: Rust/wgpu (native + WASM/WebGPU)
+Native Desktop Client: Rust binary with egui GUI + wgpu game engine
+  ├ GUI: egui immediate-mode UI (theme, widgets, pages)
   ├ ECS: hecs + SystemRunner (System trait, per-frame tick)
   ├ Physics: rapier3d (rigid bodies, colliders, raycasting)
   ├ Terrain: icosphere planets (LOD subdivision) + voxel asteroids (sparse octree)
@@ -56,8 +59,7 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `native/src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
 | `native/src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
 | `native/crates/` | 19 sub-crates (core, modules, persistence, etc.) |
-| `app/src/main.rs` | Tauri shell — local-first + background sync |
-| `app/src/storage.rs` | Local-first data persistence (saves, backups, USB detection, sync config) |
+| `native/src/gui/` | egui immediate-mode GUI: theme, widgets, pages |
 | `web/chat/app.js` | Core chat logic (~1700 LOC) |
 | `web/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
 | `web/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
@@ -72,7 +74,7 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `docs/` | ALL documentation — design, accord, history, website |
 | `Justfile` | Dev command runner — `just --list` for all recipes |
 
-## Script load order (chat)
+## Script load order (web/chat/)
 
 `crypto.js` → `events.js` → `app.js` → `chat-messages.js` → `chat-dms.js` → `chat-social.js` →
 `chat-ui.js` → `chat-voice.js` → `chat-profile.js` → `qrcode.js` → `chat-p2p.js`
@@ -120,7 +122,7 @@ GET        /api/sellers/{key}/rating
 
 ## Key patterns
 
-**Ed25519 identity** (set in app.js `connect()`):
+**Ed25519 identity** (set in web/chat/app.js `connect()`):
 ```js
 myIdentity = { publicKeyHex, privateKey, publicKey, canSign }
 ```
@@ -164,14 +166,13 @@ via notify file watcher. Mods = editing files in the data directory.
 
 **Multiple `impl Storage` blocks** across `storage/*.rs` — Rust allows this within one crate
 
-**Local-first storage** (app/src/storage.rs):
+**Local-first storage** (native binary):
 OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 - `identity/` — encrypted Ed25519 keys
 - `saves/` — named save slots (profile, inventory, farm, quests, skills, world)
 - `settings/` — preferences, sync config, display state
 - `cache/` — offline messages, avatars, manifests
 - `backups/` — timestamped snapshots (auto-rotate, keep last 5)
-Tauri commands: list_saves, create_save, delete_save, export_save, import_save, detect_drives, get_sync_config, set_sync_config, get_data_dir, get_storage_stats, create_backup, relocate_data
 
 ## Version SOP (MANDATORY before every push)
 
@@ -184,8 +185,7 @@ Tauri commands: list_saves, create_save, delete_save, export_save, import_save, 
 1. Check current version: `gh release view --repo Shaostoul/Humanity --json tagName`
 2. Bump the patch (Y) for non-Rust changes, minor (X) for Rust changes
 3. Update ALL version strings (they MUST stay in sync):
-   - `app/tauri.conf.json` → `"version"`
-   - `app/Cargo.toml` → `version`
+   - `native/Cargo.toml` → `version`
    - `web/shared/sw.js` → `CACHE_NAME` (bump number)
    - `web/pages/settings-app.js` → version tag text
    - `web/pages/ops.html` → debug version text
@@ -237,14 +237,13 @@ server_members (public_key, name, role, joined_at, last_seen)
 
 - `settings.js` has `injectGearButton()` — don't call it on pages that also load `shell.js` (already fixed: guards for `a[href="/settings"]`)
 - Tasks scope filter: `activeScope = 'cosmos'` by default; task labels must match or they're filtered out
-- WebView2 (Tauri desktop) aggressively caches — use Ctrl+Shift+Delete (or Settings → Advanced → Clear Cache) to bust; or manually delete `%LOCALAPPDATA%\HumanityOS\EBWebView\Default\Cache`
 - Deploy `git pull` fails if server has local changes → `just sync` fixes it
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
+- **Repo restructure (v0.37.0):** `engine/` renamed to `native/`, `ui/` renamed to `web/`, `app/` (Tauri) deprecated. Old path references in docs, configs, or scripts may need updating.
 
-## Current targets (v0.35.0)
+## Current targets (v0.37.0)
 
 1. Multiplayer sync (networked ECS state replication)
-2. In-game UI/HUD (health, inventory, interaction prompts)
+2. egui native GUI (theme, widgets, pages for desktop client)
 3. Audio system (spatial audio, music, SFX via kira crate)
 4. Map rework (replace 2D canvas solar system with 3D engine orbit mode)
-5. Third-party logos on download page (replace placeholder SVGs)

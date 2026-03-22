@@ -11,7 +11,7 @@ When files disagree, use this precedence:
 1. `accord/` (principles, governance, constraints)
 2. `design/` (architecture/system behavior and contracts)
 3. `data/` (structured runtime/canonical datasets)
-4. `server/`, `engine/`, `app/`, `ui/`, `docs/website/` (implementation layers)
+4. `server/`, `native/`, `web/`, `docs/website/` (implementation layers)
 5. `website/` content is presentation; canonical meaning stays upstream
 
 See also: `docs/website/README.md`.
@@ -21,11 +21,9 @@ See also: `docs/website/README.md`.
 ### Rust workspace (currently compiled members)
 
 - `server/` (relay server)
-- `engine/` (game engine + crates)
+- `native/` (game engine + crates)
 
 ### Other implemented runtime surfaces
-
-- `app/` (Tauri native wrapper)
 - `web/chat/` (web client served by relay)
 - `web/shared/` (shared front-end assets/scripts)
 - `docs/website/` (public docs/presentation site)
@@ -94,7 +92,7 @@ Most domain systems are already documented in `design/`, but many are not yet sp
   - `design/game_integration/`
   - `design/engine/`
 - Implementation now:
-  - `engine/` has game systems and crates
+  - `native/` has game systems and crates
   - `web/activities/` has web-based game activities
 - Status:
   - **Documented: medium-strong**
@@ -105,10 +103,10 @@ Most domain systems are already documented in `design/`, but many are not yet sp
 - Design sources:
   - `design/runtime/update_distribution_architecture.md`
 - Implementation now:
-  - `app/` (Tauri v2 wrapper around web app)
+  - Tauri desktop app (deprecated; native binary replaces it)
 - Status:
   - **Documented: present**
-  - **Implemented: strong**
+  - **Implemented: deprecated**
 
 ## G) Website/docs publishing
 

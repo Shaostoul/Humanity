@@ -47,7 +47,7 @@ Broad areas that always need help:
 
 ```
 Humanity/
-├── ui/
+├── web/
 │   ├── shared/
 │   │   ├── shell.js        ← Nav bar shared by every page — edit here to add nav items
 │   │   ├── settings.js     ← Theme/font persistence
@@ -71,13 +71,12 @@ Humanity/
 │       │   └── utils.rs
 │       ├── storage/        ← SQLite domain modules (14 files)
 │       └── api.rs          ← HTTP REST API
-├── engine/                 ← Game engine (renderer, ECS, physics, etc.)
+├── native/                 ← Game engine (renderer, ECS, physics, etc.)
 ├── data/                   ← Static JSON data (solar system, stars, cities, etc.)
 ├── assets/                 ← All shared media (icons, shaders, models, textures, audio)
-├── docs/
-│   └── accord/             ← Humanity Accord — civilizational principles (highest authority)
-│   └── design/             ← Architecture and design docs
-└── app/                    ← Tauri v2 desktop app
+└── docs/
+    └── accord/             ← Humanity Accord — civilizational principles (highest authority)
+    └── design/             ← Architecture and design docs
 ```
 
 ---
