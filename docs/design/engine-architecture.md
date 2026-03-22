@@ -1,10 +1,23 @@
 # HumanityOS v1.0 Game Engine Architecture
 
-**Status:** Active Reference Document
+**Status:** Active Reference Document (design target for v1.0)
 **Author:** Shaostoul + Claude
-**Date:** 2026-03-18
+**Date:** 2026-03-18 (updated 2026-03-21 for v0.34.0 implementation status)
 **Supersedes:** Project Universe approach
 **Depends on:** [game-engine.md](game-engine.md) (engine decision), [graphics-pipeline.md](graphics-pipeline.md) (renderer design), [audio-engine.md](audio-engine.md) (audio stack), [educational-gameplay.md](educational-gameplay.md) (skill system philosophy)
+
+> **Implementation vs Design:** This document describes the v1.0 target architecture. As of v0.34.0,
+> the actual implementation lives in `engine/src/` (not the sub-crates in `engine/crates/` which are
+> mostly scaffolds). Key differences from this design:
+> - **ECS**: Uses `hecs` crate, not a custom archetypal ECS
+> - **System runner**: Simple `System` trait with `tick(world, dt, data)`, no parallel scheduling yet
+> - **Renderer**: Forward PBR-lite (not deferred), instanced batching, GLTF loading
+> - **Terrain**: Icosphere planets with LOD + voxel asteroids with sparse octree (both implemented)
+> - **Physics**: Rapier3d rigid bodies and colliders (fluid/fire/structural are scaffolds)
+> - **Audio**: Module exists but not wired up yet
+> - **Data loading**: AssetManager with CSV/TOML/RON/JSON/GLTF, FileWatcher hot-reload (working)
+> - **Game systems**: 15 systems registered and ticking (farming, AI, vehicles, quests, ecology, etc.)
+> - **Ship interiors**: Layout parser and room mesh generation from RON data files
 
 ---
 
@@ -55,6 +68,71 @@ These principles are non-negotiable. Every system in the engine must satisfy all
 ---
 
 ## 2. Crate Architecture
+
+### Current Implementation (v0.34.0)
+
+The working engine code lives in `engine/src/`, structured as a single library crate:
+
+```
+engine/src/
+  lib.rs                        # Engine init, main loop, system registration
+  platform.rs                   # Cross-platform abstraction (native/WASM)
+  wasm_entry.rs                 # WASM entry point (WebGPU)
+  renderer/
+    mod.rs                      # Renderer: wgpu device/surface, RenderObject, Material, InstanceBatch
+    camera.rs                   # Three-mode camera (first-person, third-person, orbit)
+    mesh.rs                     # Mesh: vertex buffers, index buffers, from_icosphere
+    pipeline.rs                 # wgpu render pipeline, bind groups, uniforms
+    shader_loader.rs            # WGSL shader loading
+    multi_scale.rs              # Multi-scale rendering support
+  ecs/
+    mod.rs                      # Module exports
+    components.rs               # 20 components: Transform, Velocity, PhysicsBody, Renderable,
+                                # Name, Health, Faction, Controllable, AIBehavior, Interactable,
+                                # Harvestable, GrowthStage, CropInstance, VehicleSeat, HardpointSlot,
+                                # Hardpoints, VoxelBody, etc.
+    systems.rs                  # System trait + SystemRunner (tick all systems per frame)
+  physics/
+    mod.rs                      # Rapier3d integration: rigid bodies, colliders, raycasting
+    collision.rs                # Collision detection and response
+    fluid.rs                    # Fluid simulation (scaffold)
+  terrain/
+    mod.rs                      # Terrain module exports
+    icosphere.rs                # Icosahedron subdivision for planet surfaces
+    planet.rs                   # PlanetDef (RON), PlanetRenderer, LOD levels
+    asteroid.rs                 # Voxel asteroids: sparse octree, greedy meshing, ore veins
+  ship/
+    mod.rs                      # Ship interior module
+    layout.rs                   # Layout parser: reads ship definitions from RON
+    rooms.rs                    # Room mesh generation (bridge, reactor, quarters, cargo)
+  assets/
+    mod.rs                      # AssetManager: load_csv/toml/ron/json/gltf, cache, invalidate
+    loader.rs                   # File parsers (CSV, TOML, RON)
+    watcher.rs                  # notify-based FileWatcher for hot-reload (native only)
+  systems/
+    mod.rs                      # 15 game system modules
+    time.rs                     # Day/night cycle, GameTime with seasons
+    player.rs                   # Player controller (WASD, gravity, jump)
+    interaction.rs              # Raycast interaction system
+    ecology.rs                  # Ecosystem simulation
+    farming/                    # Crop growth, soil chemistry, automation
+    construction/               # CSG booleans, blueprints, structural analysis, routing
+    inventory/                  # ItemStack, volumetric containers
+    combat/                     # Damage types, status effects
+    crafting/                   # Recipe matching, workstations
+    quests/                     # Objectives, procedural generation
+    ai/                         # Behavior trees, autonomy, flow-field pathfinding
+    vehicles/                   # Ship piloting, mech control, propulsion
+    economy/                    # Fleet-wide resource pools
+    skills/                     # Learning-by-doing progression
+    logistics/                  # Cargo management, shipping routes
+    navigation/                 # Galaxy/system/orbital/surface scale transitions
+  hot_reload/                   # DataStore, HotReloadCoordinator
+  audio/                        # Audio module (scaffold, not yet wired)
+  input/                        # InputState for cross-system input sharing
+```
+
+### v1.0 Target Architecture (Design)
 
 ```
 crates/
@@ -231,7 +309,7 @@ humanity-engine  ←──  humanity-game
 | VR | `openxr` | Headset rendering, hand tracking |
 | File watching | `notify` | Cross-platform filesystem events |
 | Serialization | `serde` + `toml` + `ron` + `csv` | Data file parsing |
-| ECS | Custom | Minimal archetypal ECS (~800 lines) |
+| ECS | `hecs` | Archetypal ECS (was planned custom, using hecs in v0.34.0) |
 | Shaders | WGSL | Hand-written, no transpilation, hot-reloaded |
 
 ---

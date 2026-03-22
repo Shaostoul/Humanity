@@ -5,6 +5,39 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 
 ---
 
+## v0.34.0 — AI, Vehicles, Ecology, Quests & GLTF Loading (2026-03-21)
+
+### Engine — Game Systems & Rendering
+- **AI behavior system** — behavior trees, autonomy (off-screen simulation), flow-field pathfinding
+- **Vehicle/mech system** — ship piloting, propulsion, seat occupancy (pilot/gunner/passenger)
+- **Ecology system** — ecosystem simulation for biomes and wildlife
+- **Quest system** — objectives, procedural generation from RON templates
+- **GLTF/GLB model loading** — AssetManager.load_gltf() with mesh caching, flat normal generation, planar UV fallback
+- **Instanced rendering** — InstanceBatch groups same-mesh objects for GPU-efficient draw calls
+- **Combat system** — damage types, status effects
+- **Economy system** — fleet-wide resource pools
+- **Skills system** — learning-by-doing progression
+- **Logistics system** — cargo management, shipping routes
+- **Navigation system** — galaxy, system, orbital, surface scale transitions
+
+## v0.33.0 — Ship Interiors (2026-03-21)
+
+### Engine — Ship Layout System
+- **Ship interior module** — `engine/src/ship/` with layout parsing and room mesh generation
+- **Layout parser** — reads ship definitions from RON data files (`data/ships/`)
+- **Room types** — bridge, reactor, quarters, cargo bay with dimensions and connections
+- **Ship data files** — bridge.ron, layout_medium.ron, reactor.ron, starter_fleet.ron
+
+## v0.32.0 — Systems Wired & Construction (2026-03-21)
+
+### Engine — System Integration
+- **15 game systems registered** — all systems implement System trait and tick in the engine loop
+- **Construction system** — CSG booleans, blueprint hierarchy, structural analysis, auto-routing
+- **Crafting workstations** — workstation types with tool requirements
+- **Farming automation** — sprinkler/harvester automation, soil chemistry, crop disease
+- **Inventory containers** — volumetric containers with cubic meter capacity
+- **Combat effects** — damage types (kinetic/thermal/radiation/explosive), status effects
+
 ## v0.31.0 — Massive Parallel Build (2026-03-21)
 
 Four agents built simultaneously:
@@ -430,4 +463,4 @@ This was the largest pre-tag release — ~870 commits covering the full platform
 
 ---
 
-*Spanning from initial commit (2026-01-16) through v0.31.0 (2026-03-21).*
+*Spanning from initial commit (2026-01-16) through v0.34.0 (2026-03-21).*
