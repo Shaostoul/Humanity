@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <g stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <circle cx="256" cy="256" r="196" />
-    <line x1="160" y1="160" x2="352" y2="352" />
-    <line x1="352" y1="160" x2="160" y2="352" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Xbox sphere with X logo -->
+  <circle cx="24" cy="24" r="20"/>
+  <path d="M24 6c-3 3-8 10-8 18s5 15 8 18" fill="none"/>
+  <path d="M24 6c3 3 8 10 8 18s-5 15-8 18" fill="none"/>
+  <path d="M14 10c4 5 7 10 10 14 3-4 6-9 10-14" fill="none"/>
 </svg>

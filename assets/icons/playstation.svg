@@ -1,7 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <g stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <circle cx="256" cy="256" r="196" />
-    <path d="M180,300 Q180,200 256,160 Q332,200 332,260 Q332,300 256,300 H180" fill="none" />
-    <line x1="256" y1="160" x2="256" y2="380" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="currentColor" stroke="none">
+  <!-- PlayStation PS logo approximation -->
+  <path d="M19 4v36l-8-3v-5l8 3V20c0-3.5 2.5-5 6-5 4 0 6 2 6 5v7h-6V20c0-1-0.5-2-2-2s-2 1-2 2v0z"/>
+  <path d="M29 30l10-4v5l-10 4-10-4v-5l4 1.6v0L29 30z"/>
 </svg>
