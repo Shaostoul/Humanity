@@ -26,8 +26,8 @@ See also: `docs/website/README.md`.
 ### Other implemented runtime surfaces
 
 - `app/` (Tauri native wrapper)
-- `ui/chat/` (web client served by relay)
-- `ui/shared/` (shared front-end assets/scripts)
+- `web/chat/` (web client served by relay)
+- `web/shared/` (shared front-end assets/scripts)
 - `docs/website/` (public docs/presentation site)
 
 ### Important gap
@@ -56,7 +56,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/architecture_decisions/canonical_encoding_and_hashing.md`
   - `docs/design/network/object_format.md`
 - Implementation now:
-  - `engine/crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
+  - `native/crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
 - Status:
   - **Documented: strong**
   - **Implemented: strong (core foundation)**
@@ -94,7 +94,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/game_integration/`
   - `docs/design/engine/`
 - Implementation now:
-  - `ui/activities/` has web assets/pages
+  - `web/activities/` has web assets/pages
   - `engine/` contains the Rust game engine and systems
 - Status:
   - **Documented: medium-strong**

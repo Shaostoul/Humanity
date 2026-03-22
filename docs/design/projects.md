@@ -187,7 +187,7 @@ function getVisibleTasks(tasks) {
 
 ### Roadmap page
 
-The roadmap page (`ui/pages/tasks.html`) gets the same project dropdown. Selecting a project filters the roadmap view to that project's tasks only.
+The roadmap page (`web/pages/tasks.html`) gets the same project dropdown. Selecting a project filters the roadmap view to that project's tasks only.
 
 ## Migration path
 

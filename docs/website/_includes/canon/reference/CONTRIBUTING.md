@@ -117,7 +117,7 @@ That's the complete recipe. The nav auto-highlights the correct button because `
 
 ## Working on the Chat Client
 
-The chat client lives in `ui/chat/`. It's split into modules loaded in order:
+The chat client lives in `web/chat/`. It's split into modules loaded in order:
 
 | File | Responsibility |
 |------|---------------|

@@ -49,24 +49,24 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `server/src/main.rs` | Router setup, CSP middleware, axum config |
 | `server/src/storage/` | 17 domain modules (messages, channels, tasks, signed_profiles, notification_prefs…) |
 | `server/src/handlers/` | broadcast.rs, federation.rs, msg_handlers.rs, utils.rs |
-| `engine/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship |
-| `engine/src/systems/` | 11 game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat |
-| `engine/src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree, greedy mesh) |
-| `engine/src/ship/` | Ship layouts from RON, room mesh generation, BFS pathfinding |
-| `engine/src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
-| `engine/src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
-| `engine/crates/` | 19 sub-crates (core, modules, persistence, etc.) |
+| `native/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship |
+| `native/src/systems/` | 11 game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat |
+| `native/src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree, greedy mesh) |
+| `native/src/ship/` | Ship layouts from RON, room mesh generation, BFS pathfinding |
+| `native/src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
+| `native/src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
+| `native/crates/` | 19 sub-crates (core, modules, persistence, etc.) |
 | `app/src/main.rs` | Tauri shell — local-first + background sync |
 | `app/src/storage.rs` | Local-first data persistence (saves, backups, USB detection, sync config) |
-| `ui/chat/app.js` | Core chat logic (~1700 LOC) |
-| `ui/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
-| `ui/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
-| `ui/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
-| `ui/shared/shell.js` | Nav injection IIFE — loaded first on every page |
-| `ui/shared/settings.js` | Settings panel + gear button |
-| `ui/pages/*.html` | Standalone feature pages — tasks, maps, settings, etc. |
-| `ui/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
-| `ui/activities/` | Game/real-world activities — gardening, download, etc. |
+| `web/chat/app.js` | Core chat logic (~1700 LOC) |
+| `web/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
+| `web/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
+| `web/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
+| `web/shared/shell.js` | Nav injection IIFE — loaded first on every page |
+| `web/shared/settings.js` | Settings panel + gear button |
+| `web/pages/*.html` | Standalone feature pages — tasks, maps, settings, etc. |
+| `web/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
+| `web/activities/` | Game/real-world activities — gardening, download, etc. |
 | `assets/` | All shared media — icons, shaders, models, textures, audio |
 | `data/` | Hot-reloadable game data — CSV, TOML, RON, JSON |
 | `docs/` | ALL documentation — design, accord, history, website |
@@ -144,7 +144,7 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 
 **Rate limiting**: Fibonacci backoff per public key in `relay.rs`
 
-**Game System trait** (engine/src/ecs/systems.rs):
+**Game System trait** (native/src/ecs/systems.rs):
 ```rust
 trait System: Send + Sync {
     fn name(&self) -> &str;
@@ -186,11 +186,11 @@ Tauri commands: list_saves, create_save, delete_save, export_save, import_save, 
 3. Update ALL version strings (they MUST stay in sync):
    - `app/tauri.conf.json` → `"version"`
    - `app/Cargo.toml` → `version`
-   - `ui/shared/sw.js` → `CACHE_NAME` (bump number)
-   - `ui/pages/settings-app.js` → version tag text
-   - `ui/pages/ops.html` → debug version text
-   - `ui/activities/download.html` → fallback version badge + subtitle
-   - `ui/shared/shell.js` → version string
+   - `web/shared/sw.js` → `CACHE_NAME` (bump number)
+   - `web/pages/settings-app.js` → version tag text
+   - `web/pages/ops.html` → debug version text
+   - `web/activities/download.html` → fallback version badge + subtitle
+   - `web/shared/shell.js` → version string
 4. Commit the version bump IN the same commit (not separate)
 5. After push: `git tag vX.Y.Z && git push origin vX.Y.Z` (only if Rust changed or desktop release needed)
 

@@ -20,8 +20,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, gui_state: &mut GuiState) {
         .show(ctx, |ui| {
             Frame::none()
                 .fill(theme.overlay_bg)
-                .rounding(Rounding::same(8.0))
-                .inner_margin(Margin::same(10.0))
+                .rounding(Rounding::same(8))
+                .inner_margin(Margin::same(10))
                 .show(ui, |ui| {
                     ui.set_min_width(chat_width);
                     ui.set_max_height(chat_height);

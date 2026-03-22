@@ -18,7 +18,7 @@ pub fn collapsible_section(
     let id = ui.make_persistent_id(title);
     let mut open = ui.data_mut(|d| *d.get_persisted_mut_or(id, default_open));
 
-    let header_response = ui.horizontal(|ui| {
+    let _header_response = ui.horizontal(|ui| {
         let arrow = if open { "\u{25BC}" } else { "\u{25B6}" };
         if ui.button(egui::RichText::new(arrow).size(12.0).color(theme.accent)).clicked() {
             open = !open;
@@ -47,7 +47,7 @@ pub fn card(
         .fill(theme.panel_bg)
         .rounding(theme.rounding)
         .stroke(Stroke::new(1.0, theme.primary.linear_multiply(0.3)))
-        .inner_margin(egui::Margin::same(theme.padding))
+        .inner_margin(egui::Margin::same(theme.padding as i8))
         .show(ui, |ui| {
             ui.label(theme.subheading(title));
             ui.separator();
@@ -74,7 +74,7 @@ pub fn progress_bar(
     // Background
     painter.rect_filled(
         rect,
-        Rounding::same(3.0),
+        Rounding::same(3),
         Color32::from_rgba_premultiplied(30, 30, 40, 200),
     );
 
@@ -85,7 +85,7 @@ pub fn progress_bar(
             rect.min,
             egui::vec2(fill_width, rect.height()),
         );
-        painter.rect_filled(fill_rect, Rounding::same(3.0), color);
+        painter.rect_filled(fill_rect, Rounding::same(3), color);
     }
 
     // Label centered

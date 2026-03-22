@@ -1,6 +1,6 @@
 //! Inventory page — grid of item slots with detail panel.
 
-use egui::{Align2, Area, Color32, Frame, Margin, Rounding, Stroke};
+use egui::{Align2, Area, Color32, Frame, Margin, Rounding, Stroke, StrokeKind};
 use crate::gui::{GuiPage, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -22,7 +22,10 @@ struct DemoItem {
 
 /// Demo items to populate a few slots.
 fn demo_items() -> Vec<Option<DemoItem>> {
-    let mut items: Vec<Option<DemoItem>> = vec![None; TOTAL_SLOTS];
+    let mut items: Vec<Option<DemoItem>> = Vec::with_capacity(TOTAL_SLOTS);
+    for _ in 0..TOTAL_SLOTS {
+        items.push(None);
+    }
     items[0] = Some(DemoItem { name: "Iron Ore", icon: "Fe", count: 64, description: "Raw iron ore mined from asteroids." });
     items[1] = Some(DemoItem { name: "Steel Plate", icon: "St", count: 12, description: "Refined steel plating for construction." });
     items[2] = Some(DemoItem { name: "Copper Wire", icon: "Cu", count: 30, description: "Conductive wiring for electronics." });
@@ -42,7 +45,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, gui_state: &mut GuiState) {
             Frame::none()
                 .fill(theme.panel_bg)
                 .rounding(theme.rounding)
-                .inner_margin(Margin::same(24.0))
+                .inner_margin(Margin::same(24))
                 .show(ui, |ui| {
                     // Header
                     ui.horizontal(|ui| {
@@ -112,7 +115,7 @@ fn draw_grid(
                     Stroke::new(1.0, Color32::from_rgba_premultiplied(60, 60, 80, 150))
                 };
 
-                ui.painter().rect(rect, Rounding::same(4.0), bg, stroke);
+                ui.painter().rect(rect, Rounding::same(4), bg, stroke, StrokeKind::Outside);
 
                 // Item content
                 if let Some(Some(item)) = items.get(idx) {

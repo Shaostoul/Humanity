@@ -94,7 +94,7 @@ Every page follows the same pattern. Copy an existing simple page (like `logbook
    ```
    The `data-active` value is a short identifier used to highlight the nav button.
 
-2. **Add the nav button** in `ui/shared/shell.js` (two places):
+2. **Add the nav button** in `web/shared/shell.js` (two places):
    ```js
    // Desktop nav (around line 394):
    navTab('/yourpage', 'icon.png', 'Your Page', 'yourkey') +
@@ -117,7 +117,7 @@ That's the complete recipe. The nav auto-highlights the correct button because `
 
 ## Working on the Chat Client
 
-The chat client lives in `ui/chat/`. It's split into modules loaded in order:
+The chat client lives in `web/chat/`. It's split into modules loaded in order:
 
 | File | Responsibility |
 |------|---------------|

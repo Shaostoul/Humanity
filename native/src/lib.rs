@@ -20,6 +20,9 @@ pub mod hot_reload;
 
 pub mod systems;
 
+#[cfg(feature = "native")]
+pub mod gui;
+
 #[cfg(feature = "wasm")]
 pub mod wasm_entry;
 
@@ -30,6 +33,9 @@ mod native_app {
     use crate::ecs::GameWorld;
     use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
     use crate::ecs::systems::SystemRunner;
+    use crate::gui::{GuiPage, GuiState};
+    use crate::gui::theme::Theme;
+    use crate::gui::pages::{main_menu, settings, inventory, chat, hud};
     use crate::hot_reload::HotReloadCoordinator;
     use crate::hot_reload::data_store::DataStore;
     use crate::input::InputState;
@@ -116,6 +122,12 @@ mod native_app {
         yellow_material: usize,
         start_time: Instant,
         last_frame: Instant,
+        // egui integration
+        egui_ctx: egui::Context,
+        egui_state: egui_winit::State,
+        egui_renderer: egui_wgpu::Renderer,
+        gui_state: GuiState,
+        theme: Theme,
     }
 
     impl ApplicationHandler for App {
@@ -219,6 +231,27 @@ mod native_app {
 
             log::info!("ECS initialized: {} systems registered", system_runner.count());
 
+            // Initialize egui
+            let egui_ctx = egui::Context::default();
+            let egui_state = egui_winit::State::new(
+                egui_ctx.clone(),
+                egui_ctx.viewport_id(),
+                &window,
+                None,
+                None,
+                None,
+            );
+            let egui_renderer = egui_wgpu::Renderer::new(
+                &renderer.device,
+                renderer.surface_format(),
+                None,
+                1,
+                false,
+            );
+            let theme = crate::gui::theme::load_theme();
+            theme.apply_to_egui(&egui_ctx);
+            let gui_state = GuiState::default();
+
             // Try to load a planet from data files
             let planet_material = renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
             let (planet, planet_mesh) = match asset_manager.load_ron::<PlanetDef>("planets/earth.ron") {
@@ -257,6 +290,11 @@ mod native_app {
                 yellow_material,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
+                egui_ctx,
+                egui_state,
+                egui_renderer,
+                gui_state,
+                theme,
             });
         }
 
@@ -271,6 +309,10 @@ mod native_app {
                 None => return,
             };
 
+            // Pass events to egui first
+            let egui_response = state.egui_state.on_window_event(&state.window, &event);
+            let egui_consumed = egui_response.consumed;
+
             match event {
                 WindowEvent::CloseRequested => {
                     event_loop.exit();
@@ -281,14 +323,42 @@ mod native_app {
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
                     if let PhysicalKey::Code(key) = event.physical_key {
-                        if key == KeyCode::Escape {
-                            event_loop.exit();
+                        let pressed = event.state.is_pressed();
+
+                        // Escape toggles main menu (or closes current page)
+                        if key == KeyCode::Escape && pressed {
+                            if state.gui_state.active_page == GuiPage::None {
+                                state.gui_state.active_page = GuiPage::MainMenu;
+                            } else {
+                                state.gui_state.active_page = GuiPage::None;
+                            }
                             return;
                         }
+
+                        // Enter toggles chat overlay (only when in-game)
+                        if key == KeyCode::Enter && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                            && !egui_consumed
+                        {
+                            state.gui_state.show_chat = !state.gui_state.show_chat;
+                        }
+
+                        // Tab toggles inventory (only when in-game)
+                        if key == KeyCode::Tab && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                        {
+                            state.gui_state.active_page = GuiPage::Inventory;
+                            return;
+                        }
+
+                        // Don't pass input to game when egui consumed it or a menu is open
+                        if egui_consumed || state.gui_state.active_page != GuiPage::None {
+                            return;
+                        }
+
                         state.controller.process_keyboard(key, event.state);
 
                         // Update InputState in DataStore for game systems
-                        let pressed = event.state.is_pressed();
                         let mut input = state.data_store
                             .get::<InputState>("input_state")
                             .cloned()
@@ -306,14 +376,18 @@ mod native_app {
                     }
                 }
                 WindowEvent::MouseInput { button, state: btn_state, .. } => {
-                    state.controller.process_mouse_button(button, btn_state);
+                    if !egui_consumed && state.gui_state.active_page == GuiPage::None {
+                        state.controller.process_mouse_button(button, btn_state);
+                    }
                 }
                 WindowEvent::MouseWheel { delta, .. } => {
-                    let scroll = match delta {
-                        winit::event::MouseScrollDelta::LineDelta(_, y) => y,
-                        winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
-                    };
-                    state.controller.process_scroll(scroll);
+                    if !egui_consumed && state.gui_state.active_page == GuiPage::None {
+                        let scroll = match delta {
+                            winit::event::MouseScrollDelta::LineDelta(_, y) => y,
+                            winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
+                        };
+                        state.controller.process_scroll(scroll);
+                    }
                 }
                 WindowEvent::RedrawRequested => {
                     let now = Instant::now();
@@ -395,8 +469,148 @@ mod native_app {
                         });
                     }
 
-                    match state.renderer.render(&state.camera, &all_objects) {
-                        Ok(_) => {}
+                    // Update FPS counter
+                    state.gui_state.update_fps(dt);
+
+                    // Render 3D scene (returns surface texture for overlay rendering)
+                    let scene_result = state.renderer.render_scene(&state.camera, &all_objects);
+                    match scene_result {
+                        Ok((surface_texture, view)) => {
+                            // Run egui frame
+                            let raw_input = state.egui_state.take_egui_input(&state.window);
+                            let full_output = state.egui_ctx.run(raw_input, |ctx| {
+                                let mut quit = false;
+
+                                // Draw active full-screen page
+                                match state.gui_state.active_page {
+                                    GuiPage::MainMenu => {
+                                        main_menu::draw(ctx, &state.theme, &mut state.gui_state, &mut quit);
+                                    }
+                                    GuiPage::Settings => {
+                                        settings::draw(ctx, &state.theme, &mut state.gui_state);
+                                    }
+                                    GuiPage::Inventory => {
+                                        inventory::draw(ctx, &state.theme, &mut state.gui_state);
+                                    }
+                                    GuiPage::None => {}
+                                }
+
+                                // Always draw HUD when in-game
+                                if state.gui_state.active_page == GuiPage::None && state.gui_state.show_hud {
+                                    hud::draw(ctx, &state.theme, &state.gui_state, &state.data_store);
+                                }
+
+                                // Draw chat overlay if visible
+                                if state.gui_state.show_chat {
+                                    chat::draw(ctx, &state.theme, &mut state.gui_state);
+                                }
+
+                                if quit {
+                                    event_loop.exit();
+                                }
+                            });
+
+                            // Handle egui platform output (cursor changes, clipboard, etc.)
+                            state.egui_state.handle_platform_output(&state.window, full_output.platform_output);
+
+                            // Tessellate and render egui
+                            let paint_jobs = state.egui_ctx.tessellate(
+                                full_output.shapes,
+                                full_output.pixels_per_point,
+                            );
+
+                            // Handle egui texture updates
+                            for (id, image_delta) in &full_output.textures_delta.set {
+                                state.egui_renderer.update_texture(
+                                    &state.renderer.device,
+                                    &state.renderer.queue,
+                                    *id,
+                                    image_delta,
+                                );
+                            }
+
+                            let screen_descriptor = egui_wgpu::ScreenDescriptor {
+                                size_in_pixels: [
+                                    state.renderer.surface_size().0,
+                                    state.renderer.surface_size().1,
+                                ],
+                                pixels_per_point: full_output.pixels_per_point,
+                            };
+
+                            // Render egui overlay on top of the 3D scene.
+                            // Use two encoders: one for buffer updates, one for rendering.
+                            // This avoids lifetime issues with wgpu 24's render pass borrows.
+                            {
+                                let mut encoder = state.renderer.device.create_command_encoder(
+                                    &wgpu::CommandEncoderDescriptor {
+                                        label: Some("egui Buffer Update"),
+                                    },
+                                );
+
+                                state.egui_renderer.update_buffers(
+                                    &state.renderer.device,
+                                    &state.renderer.queue,
+                                    &mut encoder,
+                                    &paint_jobs,
+                                    &screen_descriptor,
+                                );
+
+                                state.renderer.queue.submit(std::iter::once(encoder.finish()));
+                            }
+
+                            {
+                                let mut encoder = state.renderer.device.create_command_encoder(
+                                    &wgpu::CommandEncoderDescriptor {
+                                        label: Some("egui Render"),
+                                    },
+                                );
+
+                                // SAFETY: The render pass is created, used, and dropped
+                                // within this block before encoder.finish(). The 'static
+                                // lifetime on egui_wgpu::Renderer::render() is overly
+                                // conservative. The render pass does not actually outlive
+                                // the encoder since we drop it before calling finish().
+                                let render_pass = unsafe {
+                                    std::mem::transmute::<
+                                        wgpu::RenderPass<'_>,
+                                        wgpu::RenderPass<'static>,
+                                    >(encoder.begin_render_pass(
+                                        &wgpu::RenderPassDescriptor {
+                                            label: Some("egui Render Pass"),
+                                            color_attachments: &[Some(
+                                                wgpu::RenderPassColorAttachment {
+                                                    view: &view,
+                                                    resolve_target: None,
+                                                    ops: wgpu::Operations {
+                                                        load: wgpu::LoadOp::Load,
+                                                        store: wgpu::StoreOp::Store,
+                                                    },
+                                                },
+                                            )],
+                                            depth_stencil_attachment: None,
+                                            ..Default::default()
+                                        },
+                                    ))
+                                };
+                                let mut render_pass = render_pass;
+
+                                state.egui_renderer.render(
+                                    &mut render_pass,
+                                    &paint_jobs,
+                                    &screen_descriptor,
+                                );
+                                drop(render_pass);
+
+                                state.renderer.queue.submit(std::iter::once(encoder.finish()));
+                            }
+
+                            // Free egui textures that are no longer needed
+                            for id in &full_output.textures_delta.free {
+                                state.egui_renderer.free_texture(id);
+                            }
+
+                            surface_texture.present();
+                        }
                         Err(wgpu::SurfaceError::Lost) => {
                             let size = state.window.inner_size();
                             state.renderer.resize(size.width, size.height);
@@ -426,7 +640,10 @@ mod native_app {
             };
 
             if let DeviceEvent::MouseMotion { delta } = event {
-                state.controller.process_mouse_motion(delta.0, delta.1);
+                // Only pass mouse motion to camera when no GUI page is active
+                if state.gui_state.active_page == GuiPage::None {
+                    state.controller.process_mouse_motion(delta.0, delta.1);
+                }
             }
         }
 

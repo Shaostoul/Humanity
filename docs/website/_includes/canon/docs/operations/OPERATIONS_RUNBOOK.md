@@ -28,7 +28,7 @@ sudo /usr/local/bin/humanity-deploy-last-report
 
 Checks:
 - relay service active,
-- runtime `/var/www/humanity/chat/app.js` hash matches repo `/opt/Humanity/ui/chat/app.js`,
+- runtime `/var/www/humanity/chat/app.js` hash matches repo `/opt/Humanity/web/chat/app.js`,
 - release binary contains critical command markers (`/channel-edit`, `/channel-delete`).
 
 ## Fast rollback

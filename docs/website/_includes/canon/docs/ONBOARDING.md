@@ -96,7 +96,7 @@ server/src/
 ### The chat client (JavaScript)
 
 ```
-ui/chat/
+web/chat/
 ├── index.html          ← The shell. Loads scripts in order. Don't reorder them.
 ├── crypto.js           ← Ed25519 + ECDH + AES. The crypto foundation.
 ├── app.js              ← Core: WebSocket connection, message dispatch, state globals
@@ -150,7 +150,7 @@ Every message is signed with the private key. The server verifies the signature 
 
 For encrypted DMs, a second **ECDH P-256 keypair** handles key exchange. The actual message encryption uses AES-256-GCM. The server never sees DM content.
 
-This is implemented in `ui/chat/crypto.js` and verified in `server/src/relay.rs`.
+This is implemented in `web/chat/crypto.js` and verified in `server/src/relay.rs`.
 
 ---
 

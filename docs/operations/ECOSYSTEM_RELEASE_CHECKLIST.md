@@ -34,7 +34,7 @@ Use this checklist for every feature/fix release to prevent drift across GitHub,
 If web runtime serves static files outside repo path, sync them after deploy.
 
 - [ ] Runtime file matches repo file for chat client JS:
-  - Repo: `/opt/Humanity/ui/chat/app.js`
+  - Repo: `/opt/Humanity/web/chat/app.js`
   - Runtime: `/var/www/humanity/chat/app.js`
 - [ ] Browser hard refresh tested.
 

@@ -1,6 +1,6 @@
 //! HUD overlay — health bar, hotbar, compass, day/night, FPS counter.
 
-use egui::{Align2, Area, Color32, Rounding, Stroke};
+use egui::{Align2, Area, Color32, Rounding, Stroke, StrokeKind};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -59,9 +59,10 @@ fn draw_hotbar(ctx: &egui::Context, theme: &Theme) {
                     // Slot background
                     ui.painter().rect(
                         rect,
-                        Rounding::same(4.0),
+                        Rounding::same(4),
                         Color32::from_rgba_premultiplied(20, 20, 30, 180),
                         Stroke::new(1.0, theme.primary.linear_multiply(0.4)),
+                        StrokeKind::Outside,
                     );
 
                     // Slot number in top-left

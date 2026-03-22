@@ -319,7 +319,7 @@ The desktop app can host a local AI via Ollama, llama.cpp, or similar runtimes:
 
 ### Same Codebase, No Build Step
 
-The web app IS the desktop app's UI layer. The files in `ui/chat/` and `ui/pages/` are served directly by nginx. There is no webpack, no vite, no npm, no transpilation. Plain HTML, plain JavaScript, plain CSS.
+The web app IS the desktop app's UI layer. The files in `web/chat/` and `web/pages/` are served directly by nginx. There is no webpack, no vite, no npm, no transpilation. Plain HTML, plain JavaScript, plain CSS.
 
 ```
 Browser
@@ -328,9 +328,9 @@ Browser
   │           crypto.js → events.js → app.js → chat-messages.js
   │           → chat-dms.js → chat-social.js → chat-ui.js
   │           → chat-voice.js → chat-profile.js → chat-p2p.js
-  ├── ui/pages/*.html (standalone feature pages)
+  ├── web/pages/*.html (standalone feature pages)
   │     └── Each page loads: events.js → shell.js → page-specific.js
-  └── ui/shared/ (shell.js, events.js, settings.js — loaded on every page)
+  └── web/shared/ (shell.js, events.js, settings.js — loaded on every page)
 ```
 
 ### Why No Build Step
@@ -728,11 +728,11 @@ Automated bump script (`node scripts/bump-version.js [patch|minor|major]`) updat
 
 1. `app/tauri.conf.json` — `"version"`
 2. `app/Cargo.toml` — `version`
-3. `ui/shared/sw.js` — `CACHE_NAME`
-4. `ui/pages/settings-app.js` — version display
-5. `ui/pages/ops.html` — debug version
-6. `ui/shared/shell.js` — version reference
-7. `ui/activities/download.html` — fallback badge
+3. `web/shared/sw.js` — `CACHE_NAME`
+4. `web/pages/settings-app.js` — version display
+5. `web/pages/ops.html` — debug version
+6. `web/shared/shell.js` — version reference
+7. `web/activities/download.html` — fallback badge
 
 ### Scaling the Relay
 

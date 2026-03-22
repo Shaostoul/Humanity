@@ -72,11 +72,11 @@ just release minor       # minor bump + bundle + build + ship
 
 ## Icons
 
-To regenerate icons from the source SVG (`ui/chat/favicon.svg`):
+To regenerate icons from the source SVG (`web/chat/favicon.svg`):
 
 ```bash
 cd app
-npx tauri icon ../ui/chat/favicon.svg
+npx tauri icon ../web/chat/favicon.svg
 ```
 
 ## License

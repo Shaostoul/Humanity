@@ -7,7 +7,7 @@
 **Depends on:** [game-engine.md](game-engine.md) (engine decision), [graphics-pipeline.md](graphics-pipeline.md) (renderer design), [audio-engine.md](audio-engine.md) (audio stack), [educational-gameplay.md](educational-gameplay.md) (skill system philosophy)
 
 > **Implementation vs Design:** This document describes the v1.0 target architecture. As of v0.34.0,
-> the actual implementation lives in `engine/src/` (not the sub-crates in `engine/crates/` which are
+> the actual implementation lives in `native/src/` (not the sub-crates in `native/crates/` which are
 > mostly scaffolds). Key differences from this design:
 > - **ECS**: Uses `hecs` crate, not a custom archetypal ECS
 > - **System runner**: Simple `System` trait with `tick(world, dt, data)`, no parallel scheduling yet
@@ -71,10 +71,10 @@ These principles are non-negotiable. Every system in the engine must satisfy all
 
 ### Current Implementation (v0.34.0)
 
-The working engine code lives in `engine/src/`, structured as a single library crate:
+The working engine code lives in `native/src/`, structured as a single library crate:
 
 ```
-engine/src/
+native/src/
   lib.rs                        # Engine init, main loop, system registration
   platform.rs                   # Cross-platform abstraction (native/WASM)
   wasm_entry.rs                 # WASM entry point (WebGPU)

@@ -23,7 +23,7 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 ## v0.33.0 — Ship Interiors (2026-03-21)
 
 ### Engine — Ship Layout System
-- **Ship interior module** — `engine/src/ship/` with layout parsing and room mesh generation
+- **Ship interior module** — `native/src/ship/` with layout parsing and room mesh generation
 - **Layout parser** — reads ship definitions from RON data files (`data/ships/`)
 - **Room types** — bridge, reactor, quarters, cargo bay with dimensions and connections
 - **Ship data files** — bridge.ron, layout_medium.ron, reactor.ron, starter_fleet.ron
@@ -215,7 +215,7 @@ Four agents built simultaneously:
 
 ### Repository restructure
 - `desktop/src-tauri/` → `app/` (flatter, clearer)
-- `ui/game/` → `ui/activities/` (reality/fantasy agnostic tools)
+- `ui/game/` → `web/activities/` (reality/fantasy agnostic tools)
 - `assets/ui/icons/` → `assets/icons/` (shared between UI and engine)
 - Updated 14+ docs/scripts with stale path references
 
@@ -227,7 +227,7 @@ Four agents built simultaneously:
 - Tiered sync config: local-only → own server → trusted server → public recovery
 - 12 Tauri commands: list/create/delete/export/import saves, detect drives, sync config, backups
 
-### Data management page (`ui/pages/data.html`)
+### Data management page (`web/pages/data.html`)
 - 5-tab UI: Overview, Saves, Backups, Sync Settings, USB/Portable
 - Visual storage breakdown, backup management, sync tier toggles
 

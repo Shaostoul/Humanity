@@ -17,7 +17,7 @@ Features:
 
 Reference games: Minecraft, Valheim, Satisfactory.
 
-Partially implemented in `engine/crates/core-firstperson-controller/`.
+Partially implemented in `native/crates/core-firstperson-controller/`.
 
 ### 2. Third-Person — Social and Action Mode
 
@@ -142,8 +142,8 @@ Input abstraction through `winit` handles the platform differences for mouse/key
 
 ## Related Files
 
-- `engine/crates/core-firstperson-controller/` — existing first-person controller
-- `engine/src/systems/` — game systems that interact with camera
+- `native/crates/core-firstperson-controller/` — existing first-person controller
+- `native/src/systems/` — game systems that interact with camera
 - `docs/design/engine-architecture.md` — master engine reference
 - `docs/design/engine-wasm.md` — WASM compilation (same camera code runs in browser)
 - `docs/design/maps-multi-scale.md` — multi-scale map rendering (orbit mode zoom levels)

@@ -36,7 +36,7 @@ Server reads this file at startup and serves it via the existing `/api/server-in
 
 ## Donate Page
 
-**File:** `ui/pages/donate.html` + `donate-app.js`
+**File:** `web/pages/donate.html` + `donate-app.js`
 
 ### Wireframe
 
@@ -156,12 +156,12 @@ Reuse existing `qrcode.js` (already loaded for chat identity). Generate QR on pa
 
 | File | Change |
 |------|--------|
-| `ui/pages/donate.html` | New — donation page |
-| `ui/pages/donate-app.js` | New — balance queries, progress bar, QR generation |
+| `web/pages/donate.html` | New — donation page |
+| `web/pages/donate-app.js` | New — balance queries, progress bar, QR generation |
 | `server/src/api.rs` | Extend `/api/server-info` to include `funding` from config |
 | `data/server-config.json` | New — server owner editable funding config |
-| `ui/shared/shell.js` | Add conditional "Donate" nav link |
-| `ui/chat/chat-profile.js` | Add funding section to owner's profile card |
+| `web/shared/shell.js` | Add conditional "Donate" nav link |
+| `web/chat/chat-profile.js` | Add funding section to owner's profile card |
 
 ## Privacy
 

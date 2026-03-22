@@ -200,11 +200,11 @@ Use at your own risk.
 
 | File | Change |
 |------|--------|
-| `ui/shared/wallet.js` | NEW — Solana wallet module (base58, RPC queries, tx building) |
-| `ui/chat/crypto.js` | Add `extractRawKeypair()` to get 64-byte Solana keypair from PKCS8 |
-| `ui/pages/settings-app.js` | Add wallet section (address display, network config) |
-| `ui/chat/chat-profile.js` | Add wallet balance to profile card |
-| `ui/pages/donate-app.js` | Use derived address instead of hardcoded placeholder |
+| `web/shared/wallet.js` | NEW — Solana wallet module (base58, RPC queries, tx building) |
+| `web/chat/crypto.js` | Add `extractRawKeypair()` to get 64-byte Solana keypair from PKCS8 |
+| `web/pages/settings-app.js` | Add wallet section (address display, network config) |
+| `web/chat/chat-profile.js` | Add wallet balance to profile card |
+| `web/pages/donate-app.js` | Use derived address instead of hardcoded placeholder |
 
 ## Dependencies
 

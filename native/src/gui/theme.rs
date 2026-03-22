@@ -25,7 +25,7 @@ pub struct Theme {
     pub warning: Color32,
     /// Danger/damage color.
     pub danger: Color32,
-    /// Standard corner rounding.
+    /// Standard corner rounding (u8 pixels).
     pub rounding: Rounding,
     /// Standard panel padding.
     pub padding: f32,
@@ -43,7 +43,7 @@ impl Default for Theme {
             success: Color32::from_rgb(80, 200, 80),
             warning: Color32::from_rgb(220, 180, 40),
             danger: Color32::from_rgb(220, 60, 60),
-            rounding: Rounding::same(6.0),
+            rounding: Rounding::same(6),
             padding: 12.0,
         }
     }
@@ -63,7 +63,6 @@ impl Theme {
         let mut visuals = Visuals::dark();
         visuals.panel_fill = self.panel_bg;
         visuals.window_fill = self.panel_bg;
-        visuals.window_rounding = self.rounding;
         visuals.window_stroke = Stroke::new(1.0, self.primary.linear_multiply(0.3));
 
         // Widget styling
@@ -72,15 +71,15 @@ impl Theme {
 
         visuals.widgets.inactive.bg_fill = Color32::from_rgba_premultiplied(40, 40, 60, 200);
         visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, self.text_dim);
-        visuals.widgets.inactive.rounding = self.rounding;
+        visuals.widgets.inactive.corner_radius = self.rounding;
 
         visuals.widgets.hovered.bg_fill = Color32::from_rgba_premultiplied(50, 50, 80, 220);
         visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, self.text);
-        visuals.widgets.hovered.rounding = self.rounding;
+        visuals.widgets.hovered.corner_radius = self.rounding;
 
         visuals.widgets.active.bg_fill = self.primary.linear_multiply(0.3);
         visuals.widgets.active.fg_stroke = Stroke::new(1.0, self.primary);
-        visuals.widgets.active.rounding = self.rounding;
+        visuals.widgets.active.corner_radius = self.rounding;
 
         visuals.selection.bg_fill = self.primary.linear_multiply(0.2);
         visuals.selection.stroke = Stroke::new(1.0, self.primary);
@@ -97,7 +96,7 @@ impl Theme {
         // Spacing
         style.spacing.item_spacing = egui::vec2(8.0, 6.0);
         style.spacing.button_padding = egui::vec2(12.0, 6.0);
-        style.spacing.window_margin = egui::Margin::same(self.padding);
+        style.spacing.window_margin = egui::Margin::same(self.padding as i8);
 
         ctx.set_style(style);
     }

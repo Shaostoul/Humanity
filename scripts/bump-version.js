@@ -51,8 +51,8 @@ replaceInFile(
   `version = "${newVersion}"`
 );
 
-// 4. ui/shared/sw.js — CACHE_NAME = 'humanity-vNN' (increment the number)
-const swPath = path.join(ROOT, 'ui/shared/sw.js');
+// 4. web/shared/sw.js — CACHE_NAME = 'humanity-vNN' (increment the number)
+const swPath = path.join(ROOT, 'web/shared/sw.js');
 const swContent = fs.readFileSync(swPath, 'utf8');
 const cacheMatch = swContent.match(/humanity-v(\d+)/);
 if (cacheMatch) {
@@ -60,45 +60,45 @@ if (cacheMatch) {
   const newCacheNum = oldCacheNum + 1;
   const swUpdated = swContent.replace(`humanity-v${oldCacheNum}`, `humanity-v${newCacheNum}`);
   fs.writeFileSync(swPath, swUpdated, 'utf8');
-  console.log(`  updated ui/shared/sw.js  (humanity-v${oldCacheNum} -> humanity-v${newCacheNum})`);
+  console.log(`  updated web/shared/sw.js  (humanity-v${oldCacheNum} -> humanity-v${newCacheNum})`);
 } else {
-  console.error('  WARNING: could not find CACHE_NAME in ui/shared/sw.js');
+  console.error('  WARNING: could not find CACHE_NAME in web/shared/sw.js');
 }
 
-// 5. ui/pages/settings-app.js — 'HumanityOS — vX.Y.Z · '
+// 5. web/pages/settings-app.js — 'HumanityOS — vX.Y.Z · '
 replaceInFile(
-  'ui/pages/settings-app.js',
+  'web/pages/settings-app.js',
   `HumanityOS — v${oldVersion}`,
   `HumanityOS — v${newVersion}`
 );
 
-// 6. ui/pages/ops.html — 'vX.Y.Z'
+// 6. web/pages/ops.html — 'vX.Y.Z'
 replaceInFile(
-  'ui/pages/ops.html',
+  'web/pages/ops.html',
   `'v${oldVersion}'`,
   `'v${newVersion}'`
 );
 
-// 7. ui/shared/shell.js — CURRENT_VERSION = 'X.Y.Z'
+// 7. web/shared/shell.js — CURRENT_VERSION = 'X.Y.Z'
 replaceInFile(
-  'ui/shared/shell.js',
+  'web/shared/shell.js',
   `var CURRENT_VERSION = '${oldVersion}'`,
   `var CURRENT_VERSION = '${newVersion}'`
 );
 
-// 8. ui/activities/download.html — version badge, subtitle, and JS fallback
-const dlPath = path.join(ROOT, 'ui/activities/download.html');
+// 8. web/activities/download.html — version badge, subtitle, and JS fallback
+const dlPath = path.join(ROOT, 'web/activities/download.html');
 let dlContent = fs.readFileSync(dlPath, 'utf8');
 // Replace both "v0.X.Y" (badge/subtitle) and "'0.X.Y'" (JS fallback) patterns
 let dlUpdated = dlContent.split(`v${oldVersion}`).join(`v${newVersion}`);
 dlUpdated = dlUpdated.split(`'${oldVersion}'`).join(`'${newVersion}'`);
 if (dlUpdated === dlContent) {
-  console.error('  WARNING: no match in ui/activities/download.html');
+  console.error('  WARNING: no match in web/activities/download.html');
 } else {
   const count = (dlContent.length - dlUpdated.length === 0) ? 0 :
     (dlContent.split(`v${oldVersion}`).length - 1) + (dlContent.split(`'${oldVersion}'`).length - 1);
   fs.writeFileSync(dlPath, dlUpdated, 'utf8');
-  console.log(`  updated ui/activities/download.html  (${count} occurrence${count > 1 ? 's' : ''})`);
+  console.log(`  updated web/activities/download.html  (${count} occurrence${count > 1 ? 's' : ''})`);
 }
 
 // 9. app/web/manifest.json — version field (if bundle exists)

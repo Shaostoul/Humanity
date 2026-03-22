@@ -26,8 +26,8 @@ See also: `docs/website/README.md`.
 ### Other implemented runtime surfaces
 
 - `app/` (Tauri native wrapper)
-- `ui/chat/` (web client served by relay)
-- `ui/shared/` (shared front-end assets/scripts)
+- `web/chat/` (web client served by relay)
+- `web/shared/` (shared front-end assets/scripts)
 - `docs/website/` (public docs/presentation site)
 
 ### Important gap
@@ -56,7 +56,7 @@ Most domain systems are already documented in `design/`, but many are not yet sp
   - `design/architecture_decisions/canonical_encoding_and_hashing.md`
   - `design/network/object_format.md`
 - Implementation now:
-  - `engine/crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
+  - `native/crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
 - Status:
   - **Documented: strong**
   - **Implemented: strong (core foundation)**
@@ -95,7 +95,7 @@ Most domain systems are already documented in `design/`, but many are not yet sp
   - `design/engine/`
 - Implementation now:
   - `engine/` has game systems and crates
-  - `ui/activities/` has web-based game activities
+  - `web/activities/` has web-based game activities
 - Status:
   - **Documented: medium-strong**
   - **Implemented: early/planned**

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "static",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "-l", "3456", "-s", "."],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:/Humanity/scripts/dev-server.js"],
       "port": 3456
     }
   ]

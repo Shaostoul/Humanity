@@ -22,7 +22,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, gui_state: &mut GuiState) {
             Frame::none()
                 .fill(theme.panel_bg)
                 .rounding(theme.rounding)
-                .inner_margin(Margin::same(24.0))
+                .inner_margin(Margin::same(24))
                 .show(ui, |ui| {
                     ui.set_min_width(500.0);
                     ui.set_max_height(600.0);

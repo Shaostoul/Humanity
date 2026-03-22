@@ -38,10 +38,10 @@ jobs:
 
             # Sync web assets
             rsync -a --delete \
-              /opt/Humanity/ui/chat/ \
+              /opt/Humanity/web/chat/ \
               /var/www/humanity/chat/
             rsync -a \
-              /opt/Humanity/ui/shared/ \
+              /opt/Humanity/web/shared/ \
               /var/www/humanity/shared/
             rsync -a \
               /opt/Humanity/assets/ \
@@ -54,18 +54,18 @@ jobs:
 
             # Copy all standalone pages (HTML + JS) from pages/ folder
             mkdir -p /var/www/humanity/pages
-            for f in /opt/Humanity/ui/pages/*.html; do
+            for f in /opt/Humanity/web/pages/*.html; do
               [ -f "$f" ] && cp "$f" "/var/www/humanity/$(basename "$f")"
             done
-            for f in /opt/Humanity/ui/pages/*.js; do
+            for f in /opt/Humanity/web/pages/*.js; do
               [ -f "$f" ] && cp "$f" "/var/www/humanity/pages/$(basename "$f")"
             done
 
             # Sync activities and data directories
             for dir in activities; do
-              if [ -d "/opt/Humanity/ui/$dir" ]; then
+              if [ -d "/opt/Humanity/web/$dir" ]; then
                 mkdir -p "/var/www/humanity/$dir"
-                rsync -a /opt/Humanity/ui/$dir/ /var/www/humanity/$dir/
+                rsync -a /opt/Humanity/web/$dir/ /var/www/humanity/$dir/
               fi
             done
             mkdir -p /var/www/humanity/data

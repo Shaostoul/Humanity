@@ -28,7 +28,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, gui_state: &mut GuiState, quit: 
             Frame::none()
                 .fill(theme.panel_bg)
                 .rounding(theme.rounding)
-                .inner_margin(Margin::same(40.0))
+                .inner_margin(Margin::same(40))
                 .show(ui, |ui| {
                     ui.set_min_width(300.0);
                     ui.vertical_centered(|ui| {
