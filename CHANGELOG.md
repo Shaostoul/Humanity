@@ -5,6 +5,16 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 
 ---
 
+## v0.37.0 — Repository Restructure (2026-03-22)
+
+### Directory renames
+- **`engine/` renamed to `native/`** — reflects that this is the native game engine binary, not a generic engine
+- **`ui/` renamed to `web/`** — reflects that this is the web interface layer
+- **`app/` (Tauri) deprecated** — native binary replaces the Tauri desktop wrapper
+- All documentation updated to reflect new paths
+
+---
+
 ## v0.34.0 — AI, Vehicles, Ecology, Quests & GLTF Loading (2026-03-21)
 
 ### Engine — Game Systems & Rendering

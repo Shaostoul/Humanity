@@ -107,7 +107,7 @@ wasm-pack build engine-wasm --target web --out-dir pkg
 # Serve locally for testing
 npx serve engine-wasm/
 
-# Production: copy pkg/ contents to ui/ static assets
+# Production: copy pkg/ contents to web/ static assets
 # Served by nginx alongside the rest of HumanityOS
 ```
 

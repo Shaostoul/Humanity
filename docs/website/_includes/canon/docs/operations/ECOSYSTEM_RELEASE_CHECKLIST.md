@@ -40,7 +40,7 @@ If web runtime serves static files outside repo path, sync them after deploy.
 
 ## 5) Functional verification
 - [ ] Feature works in web chat.
-- [ ] Feature works in app/desktop (if applicable).
+- [ ] Feature works in native desktop binary (if applicable).
 - [ ] Regression check for nearby features completed.
 
 ## 6) Docs + comms

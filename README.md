@@ -83,7 +83,7 @@ Both share the same server, identity system, and data layer. The game is how peo
 
 ### Platform
 - **PWA installable** — works on mobile, add to homescreen
-- **Desktop app** — [Tauri v2](https://tauri.app/) for Windows, macOS, Linux
+- **Desktop app** — Native Rust/wgpu binary for Windows, macOS, Linux
 - **Command palette** — quick navigation
 - **Dark/light themes**, accent colors, font size controls
 - **Auto-reload on deploy** — no manual refresh needed
@@ -106,7 +106,7 @@ Both share the same server, identity system, and data layer. The game is how peo
 | Transport | WebSocket + WebRTC |
 | Client | Plain HTML/CSS/JS — no build step |
 | Identity | Ed25519 (signing) + ECDH P-256 (encryption) |
-| Desktop | Tauri v2 |
+| Desktop | Native binary (Rust/wgpu) |
 | Hosting | nginx + systemd |
 | Layout | Cargo workspace |
 
@@ -114,55 +114,29 @@ Both share the same server, identity system, and data layer. The game is how peo
 
 ```
 Humanity/
-├── crates/
-│   └── humanity-relay/        ← Rust WebSocket relay server
-│       ├── src/
-│       │   ├── main.rs        ← Entry point, routing, axum setup
-│       │   ├── relay.rs       ← WebSocket handler (~5600 lines, message routing)
-│       │   ├── handlers/      ← Extracted relay helpers
-│       │   │   ├── broadcast.rs   broadcast_peer_list, broadcast_channel_list, etc.
-│       │   │   ├── federation.rs  server-to-server connections
-│       │   │   └── utils.rs       is_private_ip, fetch_link_preview, html_decode, etc.
-│       │   ├── storage/       ← SQLite domain modules
-│       │   │   ├── mod.rs     Storage struct, open(), schema migrations
-│       │   │   ├── messages.rs, channels.rs, dms.rs, social.rs, profile.rs
-│       │   │   ├── reactions.rs, pins.rs, marketplace.rs, streams.rs
-│       │   │   └── board.rs, assets.rs, skill_dna.rs, misc.rs, uploads.rs
-│       │   └── api.rs         ← HTTP REST API endpoints
-│       └── client/            ← Web client (no build step)
-│           ├── index.html     ← Chat page — loads all scripts in order
-│           ├── app.js         ← Core: state, connect, handleMessage, switchChannel
-│           ├── chat-messages.js   reactions, editing, pins, typing, threads
-│           ├── chat-dms.js        DM state and conversation list
-│           ├── chat-social.js     follow/friend system, groups
-│           ├── chat-ui.js         notifications, sidebar, search, commands
-│           ├── chat-voice.js      voice rooms, 1-on-1 calls, video, sidebar
-│           ├── chat-profile.js    profile edit/view modals
-│           ├── chat-p2p.js        P2P contact cards, WebRTC DataChannel
-│           ├── crypto.js          Ed25519/ECDH/AES helpers
-│           ├── base.css, layout.css, sidebar.css, messages.css
-│           ├── modals.css, voice.css, inputs.css
-│           └── style.css      ← Original (kept for reference)
-├── *.html                     ← 18 standalone pages (home, profile, skills, etc.)
-├── shared/
-│   ├── shell.js               ← Nav bar — inject on every page
-│   ├── settings.js            ← Theme/font settings
-│   └── theme.css              ← CSS variables and base theme
-├── game/
-│   ├── index.html             ← Game hub (HTML structure only)
-│   ├── js/                    ← Game JS modules
-│   │   ├── core.js, reality.js, fantasy.js, celestial.js
-│   │   ├── streams.js, browse.js, map.js, info-market.js
-│   └── data/                  ← Static JSON data (fetched on demand)
-│       ├── solar-system.json, stars-nearby.json, stars-catalog.json
-│       ├── constellations.json, cities.json, coastlines.json, milky-way.json
-├── desktop/                   ← Tauri v2 desktop app
-├── accord/                    ← Humanity Accord (civilizational principles)
-├── design/                    ← Architecture and design documentation
+├── server/                    ← Rust relay server (axum/tokio, SQLite)
+│   └── src/
+│       ├── main.rs            ← Entry point, routing, axum setup
+│       ├── relay.rs           ← WebSocket handler (~5800 lines, message routing)
+│       ├── handlers/          ← Extracted relay helpers
+│       ├── storage/           ← SQLite domain modules (17 files)
+│       └── api.rs             ← HTTP REST API endpoints
+├── native/                    ← Rust game engine (renderer, ECS, physics, systems)
+│   ├── src/                   ← Engine source (renderer, terrain, ship, assets, systems)
+│   └── crates/                ← 19 sub-crates (core, modules, persistence)
+├── web/                       ← Web interface (browser + WebView)
+│   ├── chat/                  ← Chat client (app.js, crypto.js, chat-*.js)
+│   ├── pages/                 ← Standalone pages (tasks, maps, settings, etc.)
+│   ├── activities/            ← Game + real-world tools (gardening, download, etc.)
+│   └── shared/                ← shell.js, events.js, theme.css
+├── data/                      ← Hot-reloadable game data (CSV, TOML, RON, JSON)
+├── assets/                    ← All shared media (icons, shaders, models, textures, audio)
+├── docs/                      ← All documentation (design, accord, history, website)
+│   └── accord/                ← Humanity Accord (civilizational principles)
 └── SELF-HOSTING.md            ← Production server setup guide
 ```
 
-The client uses **no build step** — plain `<script src="">` tags load modules in dependency order. All modules share global scope (no ES modules). When in doubt about a function's location, `grep` the client/ directory.
+The client uses **no build step** — plain `<script src="">` tags load modules in dependency order. All modules share global scope (no ES modules). When in doubt about a function's location, `grep` the web/ directory.
 
 ### Adding a New Page
 

@@ -1,4 +1,6 @@
-# HumanityOS Desktop App
+# HumanityOS Desktop App (DEPRECATED)
+
+> **Note:** The Tauri desktop app (`app/`) is deprecated as of v0.37.0. The native game engine binary (`native/`) replaces it. This directory is kept for historical reference.
 
 Native desktop wrapper built with [Tauri v2](https://tauri.app/). Uses a local-first architecture: web assets are bundled into the binary so the app works offline, then syncs with the server when connected.
 

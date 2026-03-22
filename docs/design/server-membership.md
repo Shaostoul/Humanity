@@ -80,7 +80,7 @@ Status: Connected as Member
 Sync: Profile [x]  Saves [x]  Vault [x]
 ```
 
-Maps to existing `get_sync_config` / `set_sync_config` Tauri commands in `app/src/storage.rs`. The server URL is stored in `settings/sync.json`.
+Maps to existing `get_sync_config` / `set_sync_config` commands (previously in Tauri `app/src/storage.rs`, now deprecated). The server URL is stored in `settings/sync.json`.
 
 ### Profile page
 
