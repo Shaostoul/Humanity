@@ -21,10 +21,23 @@ just logs             # tail server logs
 ```
 Client (browser/Tauri WebView2)
   ↕ WebSocket /ws         ← relay.rs  (~5800 LOC, message routing)
-  ↕ HTTP /api/*           ← api.rs    (~1500 LOC, REST endpoints)
+  ↕ HTTP /api/*           ← api.rs    (~2500 LOC, REST endpoints)
 
 Server: Rust/axum/tokio, SQLite via rusqlite
 Static HTML served by nginx from /var/www/humanity/
+
+Game Engine: Rust/wgpu (native + WASM/WebGPU)
+  ├ ECS: hecs + SystemRunner (System trait, per-frame tick)
+  ├ Physics: rapier3d (rigid bodies, colliders, raycasting)
+  ├ Terrain: icosphere planets (LOD subdivision) + voxel asteroids (sparse octree)
+  ├ Ships: data-driven layouts from RON, room mesh generation
+  ├ Data: AssetManager loads CSV/TOML/RON/JSON from external files
+  └ Hot-reload: notify file watcher, cache invalidation per frame
+
+Identity: Ed25519 key = identity = Solana wallet address
+  ├ No home servers, no accounts, no passwords
+  ├ Signed profiles replicate across all federated servers
+  └ BIP39 24-word seed phrase backs up everything
 ```
 
 ## File map
@@ -34,10 +47,14 @@ Static HTML served by nginx from /var/www/humanity/
 | `server/src/relay.rs` | WS message routing, rate limiting, auth |
 | `server/src/api.rs` | REST API handlers |
 | `server/src/main.rs` | Router setup, CSP middleware, axum config |
-| `server/src/storage/` | 14 domain modules (messages, channels, tasks…) |
+| `server/src/storage/` | 17 domain modules (messages, channels, tasks, signed_profiles, notification_prefs…) |
 | `server/src/handlers/` | broadcast.rs, federation.rs, msg_handlers.rs, utils.rs |
-| `engine/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload |
-| `engine/src/systems/` | Game systems: farming, construction, inventory, combat, etc. |
+| `engine/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship |
+| `engine/src/systems/` | 11 game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat |
+| `engine/src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree, greedy mesh) |
+| `engine/src/ship/` | Ship layouts from RON, room mesh generation, BFS pathfinding |
+| `engine/src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
+| `engine/src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
 | `engine/crates/` | 19 sub-crates (core, modules, persistence, etc.) |
 | `app/src/main.rs` | Tauri shell — local-first + background sync |
 | `app/src/storage.rs` | Local-first data persistence (saves, backups, USB detection, sync config) |
@@ -88,6 +105,17 @@ GET/POST   /api/skills/search
 GET        /api/skills/{user_key}
 GET/PUT/DEL /api/vault/sync           authenticated via Ed25519 sig
 GET        /api/server-info
+GET        /api/profile/{key}           signed profile lookup by public key
+GET/POST   /api/projects
+PATCH/DEL  /api/projects/{id}
+GET/POST   /api/listings/{id}/images
+DELETE     /api/listings/{id}/images/{img_id}
+GET/POST   /api/listings/{id}/reviews
+DELETE     /api/listings/{id}/reviews/{rev_id}
+GET        /api/members                 paginated, ?search=
+GET        /api/members/count
+GET        /api/members/{key}
+GET        /api/sellers/{key}/rating
 ```
 
 ## Key patterns
@@ -115,6 +143,24 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 `deriveKeyFromPassphrase(passphrase, salt)` → CryptoKey (600k iterations)
 
 **Rate limiting**: Fibonacci backoff per public key in `relay.rs`
+
+**Game System trait** (engine/src/ecs/systems.rs):
+```rust
+trait System: Send + Sync {
+    fn name(&self) -> &str;
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore);
+}
+```
+Systems registered with `SystemRunner`, ticked in order each frame.
+
+**Signed profile replication** (no home server):
+Profiles are signed objects. Any server caches them. Latest timestamp wins.
+ProfileGossip messages propagate profiles between federated servers.
+
+**Data-driven game content** (Space Engineers style):
+Game data in external files next to exe. CSV for items/plants/recipes,
+TOML for config, RON for quests/blueprints/ships/planets. Hot-reloadable
+via notify file watcher. Mods = editing files in the data directory.
 
 **Multiple `impl Storage` blocks** across `storage/*.rs` — Rust allows this within one crate
 
@@ -178,6 +224,13 @@ follows        (follower_key, followee_key, created_at)
 vault_blobs    (public_key, blob, updated_at)
 key_rotations  (old_key, new_key, sig_by_old, sig_by_new, rotated_at)
 uploads        (id, uploader_key, filename, url, size, mime_type, created_at)
+signed_profiles (public_key, name, bio, avatar_url, socials, timestamp, signature)
+projects       (id, name, description, owner_key, visibility, color, icon, created_at)
+listing_images (id, listing_id, url, position, created_at)
+listing_reviews (id, listing_id, reviewer_key, rating, comment, created_at)
+listing_messages (id, listing_id, sender_key, sender_name, content, timestamp)
+notification_prefs (public_key, dm_enabled, mentions_enabled, tasks_enabled, dnd_start, dnd_end)
+server_members (public_key, name, role, joined_at, last_seen)
 ```
 
 ## Known gotchas
@@ -188,11 +241,10 @@ uploads        (id, uploader_key, filename, url, size, mime_type, created_at)
 - Deploy `git pull` fails if server has local changes → `just sync` fixes it
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
 
-## Current targets (see docs/roadmap.md)
+## Current targets (v0.35.0)
 
-1. Push notifications (WebPush API)
-2. FTS5 full-text message search (upgrade from LIKE queries)
-3. Server-side user directory endpoint (paginated roster with profiles)
-4. Task assignments + email/push notifications when assigned
-5. Crypto payment layer (see design/economy/crypto_exchange.md)
-6. In-app browser (webview tabs for external URLs — Tauri webview panels)
+1. Multiplayer sync (networked ECS state replication)
+2. In-game UI/HUD (health, inventory, interaction prompts)
+3. Audio system (spatial audio, music, SFX via kira crate)
+4. Map rework (replace 2D canvas solar system with 3D engine orbit mode)
+5. Third-party logos on download page (replace placeholder SVGs)
