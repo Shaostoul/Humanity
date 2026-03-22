@@ -14,7 +14,6 @@ pub mod input;
 pub mod assets;
 pub mod platform;
 
-#[cfg(feature = "native")]
 pub mod hot_reload;
 
 #[cfg(feature = "wasm")]
@@ -24,7 +23,10 @@ pub mod wasm_entry;
 mod native_app {
     use glam::{Quat, Vec3};
     use crate::assets::AssetManager;
+    use crate::ecs::GameWorld;
+    use crate::ecs::systems::SystemRunner;
     use crate::hot_reload::HotReloadCoordinator;
+    use crate::hot_reload::data_store::DataStore;
     use crate::renderer::camera::{Camera, CameraController};
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
@@ -87,6 +89,9 @@ mod native_app {
         controller: CameraController,
         asset_manager: AssetManager,
         hot_reload: HotReloadCoordinator,
+        game_world: GameWorld,
+        system_runner: SystemRunner,
+        data_store: DataStore,
         cube_mesh: usize,
         plane_mesh: usize,
         cube_material: usize,
@@ -168,6 +173,12 @@ mod native_app {
                 Err(e) => log::warn!("Could not load recipes.csv: {e}"),
             }
 
+            // Initialize ECS
+            let game_world = GameWorld::new();
+            let system_runner = SystemRunner::new();
+            let data_store = DataStore::new();
+            log::info!("ECS initialized: {} systems registered", system_runner.count());
+
             self.state = Some(EngineState {
                 window,
                 renderer,
@@ -175,6 +186,9 @@ mod native_app {
                 controller,
                 asset_manager,
                 hot_reload,
+                game_world,
+                system_runner,
+                data_store,
                 cube_mesh,
                 plane_mesh,
                 cube_material,
@@ -234,6 +248,13 @@ mod native_app {
                     for changed in &changes {
                         log::info!("Hot-reload: {changed}");
                     }
+
+                    // Tick all ECS systems
+                    state.system_runner.tick(
+                        &mut state.game_world.world,
+                        dt,
+                        &state.data_store,
+                    );
 
                     // Update camera from input
                     state.controller.update_camera(&mut state.camera, dt);
