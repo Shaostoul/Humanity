@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-03-21 | **Version:** v0.31.0
+> **Last updated:** 2026-03-21 | **Version:** v0.35.0
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -128,8 +128,17 @@ Everything in this section is **built and working**.
 | Crafting system | ✅ | Recipe matching from recipes.csv (v0.31.0) |
 | Farming system | ✅ | Growth timer, stage transitions, water/health simulation (v0.31.0) |
 | InputState | ✅ | Cross-system input sharing (v0.31.0) |
+| Ship interior system | ✅ | ShipDef/DeckDef/RoomDef from RON, room mesh generation, BFS pathfinding (v0.33.0) |
+| AI behavior system | ✅ | Passive/aggressive/herd/predator/guard state machines (v0.34.0) |
+| Vehicle/mech system | ✅ | Enter/exit, Controllable transfer, torso twist, jump jets, heat (v0.34.0) |
+| Ecology simulation | ✅ | Disease spread/recovery, population tracking, seasonal effects (v0.34.0) |
+| Quest system | ✅ | Data-driven RON quests, step objectives, rewards (v0.34.0) |
+| GLTF model loading | ✅ | Load .glb models via gltf crate, mesh caching in AssetManager (v0.34.0) |
+| Instanced rendering | ✅ | InstanceBatch, pre-allocated uniform buffer, no per-frame GPU alloc (v0.34.0) |
+| Global error boundary | ✅ | window.onerror + unhandledrejection, toast UI instead of white screen (v0.35.0) |
+| Env var validation | ✅ | Fail-fast startup, clear messages for missing/invalid config (v0.35.0) |
+| Automated DB backup | ✅ | SQLite backup every 6 hours, keep last 5, tokio background task (v0.35.0) |
 | Engine sub-crates | ⚠️ | 19 crates exist with structure, most implementations are scaffolds |
-| Game object rendering | ❌ | No trees, crops, buildings from data files |
 
 ---
 
@@ -198,10 +207,10 @@ Everything in this section is **built and working**.
 
 | # | Feature | Category | Why |
 |---|---------|----------|-----|
-| 1 | 🔜 Game object rendering | Engine | Trees, crops, buildings from data files |
-| 2 | 🔜 Multiplayer sync | Engine | Networked ECS state replication |
-| 3 | 🔜 In-game UI (HUD) | Engine | Health, inventory, interaction prompts |
-| 4 | 🔜 Audio system | Engine | Spatial audio, music, SFX |
+| 1 | 🔜 Multiplayer sync | Engine | Networked ECS state replication |
+| 2 | 🔜 In-game UI (HUD) | Engine | Health, inventory, interaction prompts |
+| 3 | 🔜 Audio system | Engine | Spatial audio, music, SFX |
+| 4 | 🔜 Map rework | UI | Replace 2D canvas solar system with 3D engine orbit mode |
 
 ---
 
@@ -215,9 +224,9 @@ Everything in this section is **built and working**.
 | Task Board | 6 | 0 | 0 |
 | Marketplace | 11 | 0 | 0 |
 | Wallet & Funding | 8 | 0 | 0 |
-| Game Engine | 19 | 1 | 1 |
-| Server & Infrastructure | 12 | 0 | 0 |
+| Game Engine | 29 | 1 | 0 |
+| Server & Infrastructure | 15 | 0 | 0 |
 | Navigation & UX | 7 | 0 | 0 |
 | Desktop App | 6 | 2 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
-| **Total** | **102** | **3** | **1** |
+| **Total** | **115** | **3** | **0** |
