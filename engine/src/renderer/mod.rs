@@ -16,6 +16,7 @@ use pipeline::{MaterialUniforms, ObjectUniforms, Pipeline};
 use wgpu::util::DeviceExt;
 
 /// Describes one object to render in the scene.
+#[derive(Clone)]
 pub struct RenderObject {
     pub position: Vec3,
     pub rotation: Quat,

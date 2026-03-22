@@ -119,6 +119,36 @@ impl Mesh {
         Self::from_vertices(device, vertices, indices)
     }
 
+    /// Build a mesh from an icosphere (for planet rendering).
+    /// Vertices are on a sphere of the given radius, normals point outward.
+    pub fn from_icosphere(
+        device: &wgpu::Device,
+        icosphere: &crate::terrain::icosphere::Icosphere,
+        radius: f32,
+    ) -> Self {
+        let vertices: Vec<Vertex> = icosphere.vertices.iter().map(|v| {
+            let pos = *v * radius;
+            let normal = v.normalize();
+            // Simple UV from spherical coordinates
+            let u = 0.5 + normal.z.atan2(normal.x) / (2.0 * std::f32::consts::PI);
+            let v_coord = 0.5 - normal.y.asin() / std::f32::consts::PI;
+            Vertex {
+                position: [pos.x, pos.y, pos.z],
+                normal: [normal.x, normal.y, normal.z],
+                uv: [u, v_coord],
+            }
+        }).collect();
+
+        let mut indices = Vec::with_capacity(icosphere.faces.len() * 3);
+        for face in &icosphere.faces {
+            indices.push(face.v0);
+            indices.push(face.v1);
+            indices.push(face.v2);
+        }
+
+        Self::from_vertices(device, &vertices, &indices)
+    }
+
     /// Ground plane on XZ axis (centered at origin, 10x10 units).
     pub fn plane(device: &wgpu::Device) -> Self {
         let s = 5.0;

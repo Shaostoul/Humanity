@@ -13,6 +13,7 @@ pub mod audio;
 pub mod input;
 pub mod assets;
 pub mod platform;
+pub mod terrain;
 
 pub mod hot_reload;
 
@@ -30,6 +31,7 @@ mod native_app {
     use crate::renderer::camera::{Camera, CameraController};
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
+    use crate::terrain::planet::{PlanetDef, PlanetRenderer};
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Instant;
@@ -92,6 +94,9 @@ mod native_app {
         game_world: GameWorld,
         system_runner: SystemRunner,
         data_store: DataStore,
+        planet: Option<PlanetRenderer>,
+        planet_mesh: Option<usize>,
+        planet_material: usize,
         cube_mesh: usize,
         plane_mesh: usize,
         cube_material: usize,
@@ -179,6 +184,23 @@ mod native_app {
             let data_store = DataStore::new();
             log::info!("ECS initialized: {} systems registered", system_runner.count());
 
+            // Try to load a planet from data files
+            let planet_material = renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
+            let (planet, planet_mesh) = match asset_manager.load_ron::<PlanetDef>("planets/earth.ron") {
+                Ok(def) => {
+                    log::info!("Loaded planet: {} (radius: {}m)", def.name, def.radius);
+                    let mut pr = PlanetRenderer::new(def.clone(), Vec3::new(0.0, 0.0, -20.0));
+                    // Start at a viewable LOD (subdivision 2 for demo)
+                    let ico = pr.icosphere();
+                    let mesh_idx = renderer.add_mesh(Mesh::from_icosphere(&renderer.device, ico, 5.0));
+                    (Some(pr), Some(mesh_idx))
+                }
+                Err(e) => {
+                    log::warn!("Could not load planet: {e}");
+                    (None, None)
+                }
+            };
+
             self.state = Some(EngineState {
                 window,
                 renderer,
@@ -189,6 +211,9 @@ mod native_app {
                 game_world,
                 system_runner,
                 data_store,
+                planet,
+                planet_mesh,
+                planet_material,
                 cube_mesh,
                 plane_mesh,
                 cube_material,
@@ -299,7 +324,19 @@ mod native_app {
                         },
                     ];
 
-                    match state.renderer.render(&state.camera, &objects) {
+                    // Add planet to render list if loaded
+                    let mut all_objects = objects.to_vec();
+                    if let (Some(_planet), Some(mesh_idx)) = (&state.planet, state.planet_mesh) {
+                        all_objects.push(RenderObject {
+                            position: Vec3::new(0.0, 5.0, -20.0),
+                            rotation: Quat::from_rotation_y(elapsed * 0.1),
+                            scale: Vec3::ONE,
+                            mesh: mesh_idx,
+                            material: state.planet_material,
+                        });
+                    }
+
+                    match state.renderer.render(&state.camera, &all_objects) {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => {
                             let size = state.window.inner_size();
