@@ -122,12 +122,28 @@ handleMessage = function(msg) {
 };
 
 function updateFriendIndicators() {
-  // Update friend/follow icons next to peers in the peer list
+  // Update friend/follow icons and role badges next to peers in the peer list
   document.querySelectorAll('.peer[data-pubkey]').forEach(el => {
     const key = el.dataset.pubkey;
     if (!key || key === myKey) return;
     // Remove old indicators
     el.querySelectorAll('.follow-indicator').forEach(x => x.remove());
+    // Remove old streaming badges (re-applied below if still active)
+    el.querySelectorAll('.role-streaming').forEach(x => x.remove());
+
+    // Add streaming LIVE badge if peer's profile has streaming_live set
+    if (typeof streamingBadge === 'function') {
+      const peer = peerData[key];
+      const isLive = peer && peer.streaming_live;
+      if (isLive) {
+        const wrapper = document.createElement('span');
+        wrapper.innerHTML = streamingBadge(true);
+        const liveEl = wrapper.firstElementChild;
+        if (liveEl) el.appendChild(liveEl);
+      }
+    }
+
+    // Friend/follow indicators
     if (isFriend(key)) {
       const badge = document.createElement('span');
       badge.className = 'follow-indicator';

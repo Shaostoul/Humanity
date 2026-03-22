@@ -231,6 +231,16 @@ impl Renderer {
         self.config.width as f32 / self.config.height as f32
     }
 
+    /// Surface texture format (needed by egui-wgpu renderer).
+    pub fn surface_format(&self) -> wgpu::TextureFormat {
+        self.config.format
+    }
+
+    /// Current surface dimensions.
+    pub fn surface_size(&self) -> (u32, u32) {
+        (self.config.width, self.config.height)
+    }
+
     /// Register a mesh and return its handle (index).
     pub fn add_mesh(&mut self, mesh: Mesh) -> usize {
         let idx = self.meshes.len();
@@ -277,6 +287,19 @@ impl Renderer {
 
     /// Render a frame with the given camera and objects.
     pub fn render(&self, camera: &Camera, objects: &[RenderObject]) -> Result<(), wgpu::SurfaceError> {
+        let (output, _view) = self.render_scene(camera, objects)?;
+        output.present();
+        Ok(())
+    }
+
+    /// Render the 3D scene and return the surface texture + view for further
+    /// overlay rendering (e.g., egui). Caller must call `output.present()`
+    /// after all overlay passes are complete.
+    pub fn render_scene(
+        &self,
+        camera: &Camera,
+        objects: &[RenderObject],
+    ) -> Result<(wgpu::SurfaceTexture, wgpu::TextureView), wgpu::SurfaceError> {
         // Update camera uniforms
         self.queue.write_buffer(
             &self.camera_buffer,
@@ -364,8 +387,7 @@ impl Renderer {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
-        Ok(())
+        Ok((output, view))
     }
 
     /// Render instanced batches — objects sharing the same mesh/material are

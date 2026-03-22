@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = ["native"]
-native = ["winit", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio"]
+native = ["winit", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit"]
 wasm = [
     "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
     "dep:console_error_panic_hook", "dep:console_log",
@@ -47,6 +47,9 @@ notify = { version = "7", optional = true }
 pollster = { version = "0.4", optional = true }
 env_logger = { version = "0.11", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"], optional = true }
+egui = { version = "0.31", optional = true }
+egui-wgpu = { version = "0.31", optional = true }
+egui-winit = { version = "0.31", optional = true }
 
 # === Platform: WASM ===
 web-sys = { version = "0.3", optional = true, features = [
