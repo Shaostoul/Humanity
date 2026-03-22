@@ -822,6 +822,33 @@ impl Storage {
                 ON push_subscriptions(public_key);"
         )?;
 
+        // Notification preferences per user (DM, mentions, tasks, DND schedule).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS notification_prefs (
+                public_key        TEXT PRIMARY KEY,
+                dm_enabled        INTEGER NOT NULL DEFAULT 1,
+                mentions_enabled  INTEGER NOT NULL DEFAULT 1,
+                tasks_enabled     INTEGER NOT NULL DEFAULT 1,
+                dnd_start         TEXT DEFAULT NULL,
+                dnd_end           TEXT DEFAULT NULL
+            );"
+        )?;
+
+        // Listing messages for buyer-seller marketplace conversations.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS listing_messages (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                listing_id  TEXT NOT NULL,
+                sender_key  TEXT NOT NULL,
+                sender_name TEXT,
+                content     TEXT NOT NULL,
+                timestamp   INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_listing_messages_listing
+                ON listing_messages(listing_id, timestamp);"
+        )?;
+
         conn.execute_batch("
             -- Key rotation: maps an old identity key to a new one.
             -- old_key is PRIMARY KEY so each identity can only rotate forward once per entry.
@@ -1003,4 +1030,8 @@ mod uploads;
 mod reviews;
 mod members;
 mod signed_profiles;
+mod notification_prefs;
 mod vault_sync;
+
+pub use marketplace::ListingMessageRecord;
+pub use notification_prefs::NotifPrefs;

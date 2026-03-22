@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v59';
+const CACHE_NAME = 'humanity-v60';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
@@ -48,17 +48,53 @@ self.addEventListener('push', event => {
       icon: '/shared/icons/icon-192.png',
       badge: '/shared/icons/icon-192.png',
       tag: data.tag || 'humanity',
-      data: { url: data.url || '/chat' }
+      data: { url: data.url || '/chat' },
+      actions: [
+        { action: 'reply', title: 'Reply' },
+        { action: 'mark-read', title: 'Mark Read' }
+      ]
     })
   );
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const action = event.action;
+  const url = (event.notification.data && event.notification.data.url) || '/chat';
+
+  if (action === 'mark-read') {
+    // Mark as read: notify open clients to clear unread badge for this conversation.
+    event.waitUntil(
+      clients.matchAll({ type: 'window' }).then(cls => {
+        cls.forEach(client => {
+          client.postMessage({
+            type: 'notification-action',
+            action: 'mark-read',
+            tag: event.notification.tag
+          });
+        });
+      })
+    );
+    return;
+  }
+
+  // Default click or 'reply' action: focus or open the relevant page.
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then(cls => {
-      if (cls.length > 0) { cls[0].focus(); return; }
-      clients.openWindow(event.notification.data.url || '/chat');
+      if (cls.length > 0) {
+        cls[0].focus();
+        // Tell the client to open the reply box if action was 'reply'.
+        if (action === 'reply') {
+          cls[0].postMessage({
+            type: 'notification-action',
+            action: 'reply',
+            tag: event.notification.tag,
+            url: url
+          });
+        }
+        return;
+      }
+      clients.openWindow(url);
     })
   );
 });

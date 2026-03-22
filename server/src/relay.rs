@@ -1222,6 +1222,72 @@ pub enum RelayMessage {
         review_id: i64,
     },
 
+    // ── Notification Preferences ──
+
+    /// Client updates notification preferences.
+    #[serde(rename = "update_notification_prefs")]
+    UpdateNotificationPrefs {
+        #[serde(default = "default_true")]
+        dm: bool,
+        #[serde(default = "default_true")]
+        mentions: bool,
+        #[serde(default = "default_true")]
+        tasks: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dnd_start: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dnd_end: Option<String>,
+    },
+
+    /// Server sends notification preferences to the requesting client.
+    #[serde(rename = "notification_prefs_data")]
+    NotificationPrefsData {
+        dm: bool,
+        mentions: bool,
+        tasks: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dnd_start: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dnd_end: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
+    },
+
+    /// Client requests their current notification preferences.
+    #[serde(rename = "get_notification_prefs")]
+    GetNotificationPrefs {},
+
+    // ── Listing Messages (buyer-seller conversations) ──
+
+    /// Client sends a message on a listing.
+    #[serde(rename = "listing_message_send")]
+    ListingMessageSend {
+        listing_id: String,
+        content: String,
+    },
+
+    /// Client requests message history for a listing.
+    #[serde(rename = "listing_message_history")]
+    ListingMessageHistory {
+        listing_id: String,
+    },
+
+    /// Server sends listing messages to the requesting client.
+    #[serde(rename = "listing_messages")]
+    ListingMessages {
+        listing_id: String,
+        messages: Vec<ListingMessageData>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        target: Option<String>,
+    },
+
+    /// Server broadcasts a new listing message.
+    #[serde(rename = "listing_message_new")]
+    ListingMessageNew {
+        listing_id: String,
+        message: ListingMessageData,
+    },
+
     /// Client requests to create a group.
     #[serde(rename = "group_create")]
     GroupCreate {
@@ -1711,6 +1777,7 @@ pub struct PeerInfo {
     pub ecdh_public: Option<String>,
 }
 
+fn default_true() -> bool { true }
 fn default_online() -> String { "online".to_string() }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1779,6 +1846,28 @@ pub fn review_from_db(r: &crate::storage::ReviewRecord) -> ReviewData {
         rating: r.rating,
         comment: r.comment.clone(),
         created_at: r.created_at.clone(),
+    }
+}
+
+/// Listing message data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListingMessageData {
+    pub id: i64,
+    pub listing_id: String,
+    pub sender_key: String,
+    pub sender_name: Option<String>,
+    pub content: String,
+    pub timestamp: i64,
+}
+
+pub fn listing_message_from_db(m: &crate::storage::ListingMessageRecord) -> ListingMessageData {
+    ListingMessageData {
+        id: m.id,
+        listing_id: m.listing_id.clone(),
+        sender_key: m.sender_key.clone(),
+        sender_name: m.sender_name.clone(),
+        content: m.content.clone(),
+        timestamp: m.timestamp,
     }
 }
 
@@ -2443,6 +2532,24 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
 
             // ListingList: only deliver to the target client.
             if let RelayMessage::ListingList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // NotificationPrefsData: only deliver to the target client.
+            if let RelayMessage::NotificationPrefsData { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
+            // ListingMessages: only deliver to the target client.
+            if let RelayMessage::ListingMessages { ref target, .. } = msg {
                 match target {
                     Some(t) if t != &my_key_for_broadcast => continue,
                     None => continue,
@@ -4337,6 +4444,20 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             RelayMessage::ReviewDelete { listing_id, review_id } => {
                                 handle_review_delete(&state_clone, &my_key_for_recv, listing_id, review_id).await;
+                            }
+                            // ── Listing Messages (buyer-seller) ──
+                            RelayMessage::ListingMessageSend { listing_id, content } => {
+                                handle_listing_message_send(&state_clone, &my_key_for_recv, listing_id, content).await;
+                            }
+                            RelayMessage::ListingMessageHistory { listing_id } => {
+                                handle_listing_message_history(&state_clone, &my_key_for_recv, listing_id).await;
+                            }
+                            // ── Notification Preferences ──
+                            RelayMessage::UpdateNotificationPrefs { dm, mentions, tasks, dnd_start, dnd_end } => {
+                                handle_update_notification_prefs(&state_clone, &my_key_for_recv, dm, mentions, tasks, dnd_start, dnd_end).await;
+                            }
+                            RelayMessage::GetNotificationPrefs {} => {
+                                handle_get_notification_prefs(&state_clone, &my_key_for_recv).await;
                             }
                             // ── Group System ──
                             RelayMessage::GroupCreate { name } => {

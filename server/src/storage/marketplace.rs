@@ -2,6 +2,17 @@ use super::Storage;
 use super::{MarketplaceListing, ListingImage};
 use rusqlite::params;
 
+/// A message in a marketplace listing conversation thread.
+#[derive(Debug, Clone)]
+pub struct ListingMessageRecord {
+    pub id: i64,
+    pub listing_id: String,
+    pub sender_key: String,
+    pub sender_name: Option<String>,
+    pub content: String,
+    pub timestamp: i64,
+}
+
 fn map_listing_row(row: &rusqlite::Row) -> rusqlite::Result<MarketplaceListing> {
     Ok(MarketplaceListing {
         id: row.get(0)?,
@@ -427,6 +438,55 @@ impl Storage {
             let now = super::now_millis() as i64;
             let rows = conn.execute("DELETE FROM friend_codes WHERE expires_at < ?1", params![now])?;
             Ok(rows)
+        })
+    }
+
+    // ── Listing Messages (buyer-seller conversations) ──
+
+    /// Create a message in a listing conversation thread.
+    pub fn create_listing_message(
+        &self,
+        listing_id: &str,
+        sender_key: &str,
+        sender_name: Option<&str>,
+        content: &str,
+        timestamp: i64,
+    ) -> Result<i64, rusqlite::Error> {
+        self.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO listing_messages (listing_id, sender_key, sender_name, content, timestamp)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![listing_id, sender_key, sender_name, content, timestamp],
+            )?;
+            Ok(conn.last_insert_rowid())
+        })
+    }
+
+    /// Get messages for a listing, ordered by timestamp ascending, with a limit.
+    pub fn get_listing_messages(&self, listing_id: &str, limit: usize) -> Vec<ListingMessageRecord> {
+        self.with_conn(|conn| {
+            let mut stmt = match conn.prepare(
+                "SELECT id, listing_id, sender_key, sender_name, content, timestamp
+                 FROM listing_messages
+                 WHERE listing_id = ?1
+                 ORDER BY timestamp ASC
+                 LIMIT ?2"
+            ) {
+                Ok(s) => s,
+                Err(_) => return Vec::new(),
+            };
+            stmt.query_map(params![listing_id, limit as i64], |row| {
+                Ok(ListingMessageRecord {
+                    id: row.get(0)?,
+                    listing_id: row.get(1)?,
+                    sender_key: row.get(2)?,
+                    sender_name: row.get(3)?,
+                    content: row.get(4)?,
+                    timestamp: row.get(5)?,
+                })
+            })
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default()
         })
     }
 }

@@ -33,6 +33,13 @@ pub struct Velocity {
     pub angular: Vec3,
 }
 
+/// Links an entity to a Rapier3d rigid body for physics simulation.
+/// The handle indexes into PhysicsWorld's RigidBodySet.
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicsBody {
+    pub handle: rapier3d::dynamics::RigidBodyHandle,
+}
+
 // ── Rendering ────────────────────────────────────────────────
 
 /// Links an entity to a mesh and material for rendering.

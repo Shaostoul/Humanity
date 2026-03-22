@@ -2346,6 +2346,7 @@ dependencies = [
  "rapier3d",
  "ron",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
  "wasm-bindgen",

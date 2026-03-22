@@ -1859,6 +1859,123 @@ pub async fn handle_review_delete(
     }
 }
 
+// ── Notification Preferences handlers ──
+
+pub async fn handle_update_notification_prefs(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    dm: bool,
+    mentions: bool,
+    tasks: bool,
+    dnd_start: Option<String>,
+    dnd_end: Option<String>,
+) {
+    if let Err(e) = state.db.save_notification_prefs(
+        my_key,
+        dm,
+        mentions,
+        tasks,
+        dnd_start.as_deref(),
+        dnd_end.as_deref(),
+    ) {
+        tracing::error!("Failed to save notification prefs: {e}");
+        return;
+    }
+    // Send back confirmation with the saved prefs.
+    let _ = state.broadcast_tx.send(RelayMessage::NotificationPrefsData {
+        dm,
+        mentions,
+        tasks,
+        dnd_start,
+        dnd_end,
+        target: Some(my_key.to_string()),
+    });
+}
+
+pub async fn handle_get_notification_prefs(
+    state: &Arc<RelayState>,
+    my_key: &str,
+) {
+    let prefs = state.db.get_notification_prefs(my_key);
+    let (dm, mentions, tasks, dnd_start, dnd_end) = match prefs {
+        Some(p) => (p.dm_enabled, p.mentions_enabled, p.tasks_enabled, p.dnd_start, p.dnd_end),
+        None => (true, true, true, None, None),
+    };
+    let _ = state.broadcast_tx.send(RelayMessage::NotificationPrefsData {
+        dm,
+        mentions,
+        tasks,
+        dnd_start,
+        dnd_end,
+        target: Some(my_key.to_string()),
+    });
+}
+
+// ── Listing Message handlers (buyer-seller conversations) ──
+
+pub async fn handle_listing_message_send(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    listing_id: String,
+    content: String,
+) {
+    // Validate content.
+    let content = content.trim().to_string();
+    if content.is_empty() || content.len() > 2000 {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Message must be 1-2000 characters.".to_string(),
+        });
+        return;
+    }
+
+    // Verify listing exists.
+    if state.db.get_listing_by_id(&listing_id).ok().flatten().is_none() {
+        let _ = state.broadcast_tx.send(RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Listing not found.".to_string(),
+        });
+        return;
+    }
+
+    let sender_name = state.db.name_for_key(my_key).ok().flatten().unwrap_or_else(|| "Anonymous".to_string());
+    let timestamp = crate::storage::now_millis() as i64;
+
+    match state.db.create_listing_message(&listing_id, my_key, Some(&sender_name), &content, timestamp) {
+        Ok(id) => {
+            let msg_data = ListingMessageData {
+                id,
+                listing_id: listing_id.clone(),
+                sender_key: my_key.to_string(),
+                sender_name: Some(sender_name),
+                content,
+                timestamp,
+            };
+            let _ = state.broadcast_tx.send(RelayMessage::ListingMessageNew {
+                listing_id,
+                message: msg_data,
+            });
+        }
+        Err(e) => {
+            tracing::error!("Failed to create listing message: {e}");
+        }
+    }
+}
+
+pub async fn handle_listing_message_history(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    listing_id: String,
+) {
+    let records = state.db.get_listing_messages(&listing_id, 100);
+    let messages: Vec<ListingMessageData> = records.iter().map(listing_message_from_db).collect();
+    let _ = state.broadcast_tx.send(RelayMessage::ListingMessages {
+        listing_id,
+        messages,
+        target: Some(my_key.to_string()),
+    });
+}
+
 // ── Device handlers ──
 
 pub async fn handle_device_list_request(
