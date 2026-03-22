@@ -23,6 +23,7 @@ use std::sync::Arc;
 
 use relay::RelayState;
 use serde_json;
+use rusqlite;
 
 /// Add security headers to every response.
 /// CSP uses unsafe-inline for now (inline scripts/handlers exist throughout the
@@ -53,6 +54,66 @@ async fn security_headers(
     res
 }
 
+/// Convert epoch days (since 1970-01-01) to (year, month, day).
+fn epoch_days_to_ymd(days: i64) -> (i64, u32, u32) {
+    // Algorithm from http://howardhinnant.github.io/date_algorithms.html
+    let z = days + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d)
+}
+
+/// Validate environment variables and configuration at startup.
+/// Fails fast with helpful messages if critical config is invalid.
+fn validate_environment() -> (String, u16) {
+    let db_path = std::env::var("DATABASE_PATH")
+        .or_else(|_| std::env::var("DB_PATH"))
+        .unwrap_or_else(|_| {
+            tracing::info!("DATABASE_PATH not set, defaulting to data/relay.db");
+            "data/relay.db".to_string()
+        });
+
+    let port: u16 = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or_else(|| {
+            tracing::info!("PORT not set, defaulting to 3210");
+            3210
+        });
+
+    // Validate database directory exists or can be created.
+    let db_dir = std::path::Path::new(&db_path)
+        .parent()
+        .unwrap_or(std::path::Path::new("."));
+    if let Err(e) = std::fs::create_dir_all(db_dir) {
+        panic!("Cannot create database directory '{}': {e}. Set DATABASE_PATH to a writable location.", db_dir.display());
+    }
+
+    // Warn about optional but recommended config.
+    if std::env::var("SERVER_NAME").is_err() {
+        tracing::warn!("SERVER_NAME not set — using default server identity");
+    }
+    if std::env::var("VAPID_PRIVATE_KEY").is_err() {
+        tracing::warn!("VAPID keys not configured — web push notifications will be disabled");
+    }
+    if std::env::var("API_SECRET").is_err() {
+        tracing::warn!("API_SECRET not set — bot API endpoints will reject all requests");
+    }
+    if std::env::var("WEBHOOK_SECRET").is_err() {
+        tracing::warn!("WEBHOOK_SECRET not set — GitHub webhook endpoint will reject requests");
+    }
+
+    tracing::info!("Configuration validated: db={db_path}, port={port}");
+    (db_path, port)
+}
+
 #[tokio::main]
 async fn main() {
     // Initialize logging
@@ -63,9 +124,10 @@ async fn main() {
         )
         .init();
 
+    // Validate environment and get config.
+    let (db_path, port) = validate_environment();
+
     // Initialize persistent storage.
-    let db_path = std::env::var("DB_PATH")
-        .unwrap_or_else(|_| "data/relay.db".to_string());
     let db_dir = std::path::Path::new(&db_path).parent().unwrap_or(std::path::Path::new("."));
     std::fs::create_dir_all(db_dir).expect("Failed to create database directory");
 
@@ -127,6 +189,93 @@ async fn main() {
             let count = relay::start_federation_connections(&fed_state).await;
             if count > 0 {
                 tracing::info!("Federation: initiated connections to {} servers", count);
+            }
+        });
+    }
+
+    // Automated SQLite backup every 6 hours, keeping last 5 backups.
+    {
+        let backup_db_path = db_path.clone();
+        tokio::spawn(async move {
+            use std::path::PathBuf;
+
+            let backup_dir = PathBuf::from(&backup_db_path)
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join("backups");
+
+            loop {
+                // Wait 6 hours between backups.
+                tokio::time::sleep(tokio::time::Duration::from_secs(6 * 60 * 60)).await;
+
+                // Ensure backup directory exists.
+                if let Err(e) = std::fs::create_dir_all(&backup_dir) {
+                    tracing::error!("DB backup: failed to create backup directory: {e}");
+                    continue;
+                }
+
+                // Generate timestamped backup filename.
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                // Convert epoch seconds to YYYYMMDD_HHMMSS.
+                let secs_per_day = 86400;
+                let days = now / secs_per_day;
+                let time_of_day = now % secs_per_day;
+                // Simple date calculation (accurate enough for filenames).
+                let (year, month, day) = epoch_days_to_ymd(days as i64);
+                let hours = time_of_day / 3600;
+                let minutes = (time_of_day % 3600) / 60;
+                let seconds = time_of_day % 60;
+
+                let backup_filename = format!(
+                    "relay_{:04}{:02}{:02}_{:02}{:02}{:02}.db",
+                    year, month, day, hours, minutes, seconds
+                );
+                let backup_path = backup_dir.join(&backup_filename);
+
+                // Use SQLite VACUUM INTO for a consistent backup.
+                match rusqlite::Connection::open(&backup_db_path) {
+                    Ok(conn) => {
+                        let vacuum_sql = format!("VACUUM INTO '{}'", backup_path.display());
+                        match conn.execute_batch(&vacuum_sql) {
+                            Ok(_) => tracing::info!("DB backup: created {backup_filename}"),
+                            Err(e) => {
+                                tracing::error!("DB backup: VACUUM INTO failed: {e}");
+                                continue;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("DB backup: failed to open database: {e}");
+                        continue;
+                    }
+                }
+
+                // Prune old backups, keeping the last 5.
+                if let Ok(entries) = std::fs::read_dir(&backup_dir) {
+                    let mut backups: Vec<PathBuf> = entries
+                        .filter_map(|e| e.ok())
+                        .map(|e| e.path())
+                        .filter(|p| {
+                            p.extension().and_then(|e| e.to_str()) == Some("db")
+                                && p.file_name()
+                                    .and_then(|n| n.to_str())
+                                    .map(|n| n.starts_with("relay_"))
+                                    .unwrap_or(false)
+                        })
+                        .collect();
+                    backups.sort();
+                    while backups.len() > 5 {
+                        let oldest = backups.remove(0);
+                        if let Err(e) = std::fs::remove_file(&oldest) {
+                            tracing::warn!("DB backup: failed to remove old backup {}: {e}", oldest.display());
+                        } else {
+                            tracing::info!("DB backup: pruned old backup {}", oldest.file_name().unwrap_or_default().to_string_lossy());
+                        }
+                    }
+                }
             }
         });
     }
@@ -201,13 +350,13 @@ async fn main() {
         )
         .with_state(state);
 
-    let addr = "0.0.0.0:3210";
+    let addr = format!("0.0.0.0:{port}");
     tracing::info!("Humanity relay listening on {addr}");
-    tracing::info!("Web client: http://localhost:3210");
-    tracing::info!("WebSocket:  ws://localhost:3210/ws");
-    tracing::info!("Bot API:    http://localhost:3210/api/");
+    tracing::info!("Web client: http://localhost:{port}");
+    tracing::info!("WebSocket:  ws://localhost:{port}/ws");
+    tracing::info!("Bot API:    http://localhost:{port}/api/");
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 

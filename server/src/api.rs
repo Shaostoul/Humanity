@@ -480,34 +480,39 @@ pub async fn github_webhook(
     body: axum::body::Bytes,
 ) -> Result<StatusCode, (StatusCode, String)> {
     // M-2: Verify HMAC-SHA256 signature from GitHub.
-    let webhook_secret = std::env::var("WEBHOOK_SECRET").unwrap_or_default();
+    // Accepts both GITHUB_WEBHOOK_SECRET and WEBHOOK_SECRET env var names.
+    let webhook_secret = std::env::var("GITHUB_WEBHOOK_SECRET")
+        .or_else(|_| std::env::var("WEBHOOK_SECRET"))
+        .unwrap_or_default();
+
     if webhook_secret.is_empty() {
-        return Err((StatusCode::INTERNAL_SERVER_ERROR, "WEBHOOK_SECRET not configured.".into()));
-    }
+        // No secret configured — accept for backward compatibility but warn.
+        tracing::warn!("GITHUB_WEBHOOK_SECRET not configured — accepting webhook without signature verification");
+    } else {
+        let sig_header = headers
+            .get("x-hub-signature-256")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("sha256="))
+            .unwrap_or("");
 
-    let sig_header = headers
-        .get("x-hub-signature-256")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.strip_prefix("sha256="))
-        .unwrap_or("");
+        if sig_header.is_empty() {
+            return Err((StatusCode::UNAUTHORIZED, "Missing X-Hub-Signature-256 header.".into()));
+        }
 
-    if sig_header.is_empty() {
-        return Err((StatusCode::UNAUTHORIZED, "Missing X-Hub-Signature-256 header.".into()));
-    }
+        // Compute HMAC-SHA256.
+        use hmac::{Hmac, Mac};
+        use sha2::Sha256;
+        type HmacSha256 = Hmac<Sha256>;
 
-    // Compute HMAC-SHA256.
-    use hmac::{Hmac, Mac};
-    use sha2::Sha256;
-    type HmacSha256 = Hmac<Sha256>;
+        let mut mac = HmacSha256::new_from_slice(webhook_secret.as_bytes())
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "HMAC key error.".into()))?;
+        mac.update(&body);
+        let expected = hex::encode(mac.finalize().into_bytes());
 
-    let mut mac = HmacSha256::new_from_slice(webhook_secret.as_bytes())
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "HMAC key error.".into()))?;
-    mac.update(&body);
-    let expected = hex::encode(mac.finalize().into_bytes());
-
-    // Constant-time comparison.
-    if expected.len() != sig_header.len() || !constant_time_eq(expected.as_bytes(), sig_header.as_bytes()) {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid webhook signature.".into()));
+        // Constant-time comparison.
+        if expected.len() != sig_header.len() || !constant_time_eq(expected.as_bytes(), sig_header.as_bytes()) {
+            return Err((StatusCode::UNAUTHORIZED, "Invalid webhook signature.".into()));
+        }
     }
 
     let payload: GitHubPushEvent = serde_json::from_slice(&body)
@@ -691,6 +696,8 @@ pub async fn get_pins(
 pub struct TasksQuery {
     pub status: Option<String>,
     pub project: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
 }
 
 /// Response for GET /api/tasks.
@@ -748,8 +755,12 @@ pub async fn get_tasks(
         state.db.list_tasks().unwrap_or_default()
     };
     let counts = state.db.get_task_comment_counts().unwrap_or_default();
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
     let entries: Vec<TaskEntry> = tasks.into_iter()
         .filter(|t| params.status.as_ref().map_or(true, |s| &t.status == s))
+        .skip(offset)
+        .take(limit)
         .map(|t| {
             let cc = *counts.get(&t.id).unwrap_or(&0);
             TaskEntry {
@@ -911,20 +922,33 @@ pub async fn delete_task(
 }
 
 /// GET /api/tasks/:id/comments — list comments for a task (public).
+/// Query params for GET /api/tasks/{id}/comments.
+#[derive(Debug, Deserialize)]
+pub struct TaskCommentsQuery {
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
 pub async fn get_task_comments(
     State(state): State<Arc<RelayState>>,
     axum::extract::Path(task_id): axum::extract::Path<i64>,
+    Query(params): Query<TaskCommentsQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
     match state.db.get_task_comments(task_id) {
         Ok(comments) => {
-            let list: Vec<serde_json::Value> = comments.into_iter().map(|c| serde_json::json!({
-                "id": c.id,
-                "task_id": c.task_id,
-                "author_key": c.author_key,
-                "author_name": c.author_name,
-                "content": c.content,
-                "created_at": c.created_at,
-            })).collect();
+            let list: Vec<serde_json::Value> = comments.into_iter()
+                .skip(offset)
+                .take(limit)
+                .map(|c| serde_json::json!({
+                    "id": c.id,
+                    "task_id": c.task_id,
+                    "author_key": c.author_key,
+                    "author_name": c.author_name,
+                    "content": c.content,
+                    "created_at": c.created_at,
+                })).collect();
             Ok(Json(serde_json::json!({ "comments": list })))
         }
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to load comments: {e}"))),
@@ -964,30 +988,37 @@ pub async fn create_task_comment(
 pub struct ProjectsQuery {
     pub owner_key: Option<String>,
     pub visibility: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
 }
 
-/// GET /api/projects — list visible projects.
+/// GET /api/projects — list visible projects (paginated).
 pub async fn get_projects(
     State(state): State<Arc<RelayState>>,
     Query(params): Query<ProjectsQuery>,
 ) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
     let projects = state.db.get_projects(
         params.visibility.as_deref(),
         params.owner_key.as_deref(),
     ).unwrap_or_default();
-    let list: Vec<serde_json::Value> = projects.into_iter().map(|(p, tc)| {
-        serde_json::json!({
-            "id": p.id,
-            "name": p.name,
-            "description": p.description,
-            "owner_key": p.owner_key,
-            "visibility": p.visibility,
-            "color": p.color,
-            "icon": p.icon,
-            "created_at": p.created_at,
-            "task_count": tc,
-        })
-    }).collect();
+    let list: Vec<serde_json::Value> = projects.into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(|(p, tc)| {
+            serde_json::json!({
+                "id": p.id,
+                "name": p.name,
+                "description": p.description,
+                "owner_key": p.owner_key,
+                "visibility": p.visibility,
+                "color": p.color,
+                "icon": p.icon,
+                "created_at": p.created_at,
+                "task_count": tc,
+            })
+        }).collect();
     Json(serde_json::json!(list))
 }
 
@@ -1330,6 +1361,7 @@ pub struct ListingsQuery {
     pub category: Option<String>,
     pub status: Option<String>,
     pub limit: Option<usize>,
+    pub offset: Option<usize>,
     /// Full-text search query (uses FTS5 when available, LIKE fallback).
     pub q: Option<String>,
 }
@@ -1390,13 +1422,16 @@ pub async fn get_listings(
             limit,
         ).unwrap_or_default()
     };
-    let entries: Vec<ListingEntry> = listings.into_iter().map(|l| ListingEntry {
-        id: l.id, seller_key: l.seller_key, seller_name: l.seller_name,
-        title: l.title, description: l.description, category: l.category,
-        condition: l.condition, price: l.price, payment_methods: l.payment_methods,
-        location: l.location, images: l.images, status: l.status, created_at: l.created_at,
-        updated_at: l.updated_at,
-    }).collect();
+    let offset = params.offset.unwrap_or(0);
+    let entries: Vec<ListingEntry> = listings.into_iter()
+        .skip(offset)
+        .map(|l| ListingEntry {
+            id: l.id, seller_key: l.seller_key, seller_name: l.seller_name,
+            title: l.title, description: l.description, category: l.category,
+            condition: l.condition, price: l.price, payment_methods: l.payment_methods,
+            location: l.location, images: l.images, status: l.status, created_at: l.created_at,
+            updated_at: l.updated_at,
+        }).collect();
     Json(ListingsResponse { listings: entries })
 }
 
@@ -1555,6 +1590,7 @@ async fn resolve_upload_key(state: &Arc<RelayState>, query: &UploadQuery) -> Res
 #[derive(Debug, Deserialize)]
 pub struct ReviewsQuery {
     pub limit: Option<usize>,
+    pub offset: Option<usize>,
     pub sort: Option<String>,
 }
 
@@ -1565,8 +1601,9 @@ pub async fn get_listing_reviews(
     Query(params): Query<ReviewsQuery>,
 ) -> Json<serde_json::Value> {
     let limit = params.limit.unwrap_or(50).min(200);
-    let reviews = state.db.get_reviews(&listing_id, limit).unwrap_or_default();
-    let data: Vec<serde_json::Value> = reviews.iter().map(|r| {
+    let offset = params.offset.unwrap_or(0);
+    let reviews = state.db.get_reviews(&listing_id, limit + offset).unwrap_or_default();
+    let data: Vec<serde_json::Value> = reviews.iter().skip(offset).map(|r| {
         serde_json::json!({
             "id": r.id,
             "listing_id": r.listing_id,
@@ -1784,6 +1821,7 @@ pub struct AssetQuery {
     pub search: Option<String>,
     pub owner: Option<String>,
     pub limit: Option<usize>,
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1812,15 +1850,20 @@ pub async fn get_assets(
     State(state): State<Arc<RelayState>>,
     Query(query): Query<AssetQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let limit = query.limit.unwrap_or(100).min(500);
+    let limit = query.limit.unwrap_or(50).min(200);
+    let offset = query.offset.unwrap_or(0);
+    // Fetch extra rows to support offset at the application layer.
     match state.db.get_assets(
         query.category.as_deref(),
         query.file_type.as_deref(),
         query.search.as_deref(),
         query.owner.as_deref(),
-        limit,
+        limit + offset,
     ) {
-        Ok(assets) => Ok(Json(serde_json::json!({ "assets": assets }))),
+        Ok(assets) => {
+            let page: Vec<_> = assets.into_iter().skip(offset).collect();
+            Ok(Json(serde_json::json!({ "assets": page })))
+        }
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
     }
 }

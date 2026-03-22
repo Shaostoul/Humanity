@@ -14,6 +14,32 @@
   if (window.__HOS_SHELL_INIT__) return;
   window.__HOS_SHELL_INIT__ = true;
 
+  // ── Global error boundary — prevent white-screen-of-death ──
+  function showErrorBanner(msg) {
+    if (document.getElementById('hos-error-banner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'hos-error-banner';
+    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:999999;background:#991b1b;color:#fff;padding:10px 16px;font:14px/1.4 sans-serif;display:flex;align-items:center;justify-content:space-between;gap:12px;';
+    var text = document.createElement('span');
+    text.textContent = 'Something went wrong. Try refreshing.';
+    var btn = document.createElement('button');
+    btn.textContent = 'Dismiss';
+    btn.style.cssText = 'background:#fff;color:#991b1b;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font:inherit;font-weight:600;';
+    btn.onclick = function() { banner.remove(); };
+    banner.appendChild(text);
+    banner.appendChild(btn);
+    document.body.appendChild(banner);
+  }
+  window.onerror = function(message, source, lineno, colno, error) {
+    console.error('[HOS] Uncaught error:', message, 'at', source, lineno + ':' + colno, error);
+    showErrorBanner();
+    return true; // Prevent default browser error handling
+  };
+  window.onunhandledrejection = function(event) {
+    console.error('[HOS] Unhandled promise rejection:', event.reason);
+    showErrorBanner();
+  };
+
   // ── Load shared icon system ──
   if (!window.hosIcon) {
     // Synchronous load so hosIcon() is available for nav tab rendering
@@ -1057,7 +1083,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.34.0';
+    var CURRENT_VERSION = '0.35.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
