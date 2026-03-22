@@ -167,7 +167,7 @@
     <div class="dl-hero">
       <h1>Download <em>Humanity</em></h1>
       <p>Your launcher for the civilization operating system. Download once — modules extend it with games, tools, and integrations.</p>
-      <span class="version-badge" id="version-badge">Desktop: v0.32.0 · Web: always latest</span>
+      <span class="version-badge" id="version-badge">Desktop: v0.33.0 · Web: always latest</span>
     </div>
 
     <!-- Auto-detected platform -->
@@ -525,7 +525,7 @@ npx tauri build</code></pre>
       if (['windows', 'macos', 'linux'].includes(os)) {
         btn.textContent = 'Download for ' + names[os];
         btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
-        sub.textContent = 'Downloads from GitHub Releases · v0.32.0';
+        sub.textContent = 'Downloads from GitHub Releases · v0.33.0';
         // Fetch direct download URL from GitHub API so clicks download the file
         fetchDirectDownload(os, arch, btn, sub);
       } else if (['android', 'ios'].includes(os)) {
@@ -580,7 +580,7 @@ npx tauri build</code></pre>
       var sub = document.getElementById('detected-sub');
       if (!btn) return;
 
-      var appVer = window.__HOS_APP_VERSION || '0.32.0';
+      var appVer = window.__HOS_APP_VERSION || '0.33.0';
       btn.textContent = 'Checking for updates...';
       btn.style.opacity = '0.7';
       if (sub) sub.textContent = 'Currently running v' + appVer;
