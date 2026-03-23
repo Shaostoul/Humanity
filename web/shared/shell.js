@@ -525,6 +525,8 @@
       '<span class="nav-group-blue">' +
         navTab('/settings', 'settings',  'Settings',  'settings') +
         navTab('/activities/download', 'download', 'Download', 'download') +
+        navTab('/ops',      'server',    'Ops',       'ops') +
+        navTab('/dev',      'dev',       'Dev',       'dev') +
       '</span>' +
 
       /* Spacer pushes context toggle to the right */
