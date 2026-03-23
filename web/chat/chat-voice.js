@@ -1306,7 +1306,12 @@ function renderUnifiedRightSidebar() {
       const s = active.get(sid);
       badges += `<button class="ulist-icon" onclick="toggleStreamVisibilityById('${esc(sid)}')" title="${s && !s.hidden ? 'Hide stream' : 'Watch stream'}">📺</button>`;
     }
-    return `<div class="unified-row peer" data-username="${esc(name)}" data-pubkey="${esc(pk)}">${dot}<span class="peer-name">${esc(name)}</span>${badges}</div>`;
+    // Role + streaming badges (from chat-ui.js helpers)
+    const role = typeof roleBadge === 'function' ? roleBadge(u.role) : '';
+    const live = typeof streamingBadge === 'function' ? streamingBadge(u.streaming_live) : '';
+    // Follow indicator
+    const followed = typeof isFollowing === 'function' && isFollowing(pk) ? '<span class="role-badge" style="background:#555;color:#ccc" title="Following">F</span>' : '';
+    return `<div class="unified-row peer" data-username="${esc(name)}" data-pubkey="${esc(pk)}">${dot}<span class="peer-name">${esc(name)}</span>${role}${live}${followed}${badges}</div>`;
   }
 
   // Build a collapsible section with a flat alphabetical user list

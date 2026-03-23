@@ -647,10 +647,9 @@ async function handleMessage(msg) {
       document.getElementById('msg-input').focus();
       updateStats();
       updatePeerList(msg.peers);
-      // Refresh sidebar datasets on connect/reconnect.
+      // Refresh DM list on connect/reconnect. Groups are sent automatically by the server.
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/dms', timestamp: Date.now(), channel: 'general' }));
-        ws.send(JSON.stringify({ type: 'chat', from: myKey, from_name: myName, content: '/groups', timestamp: Date.now(), channel: 'general' }));
       }
       break;
     case 'full_user_list':

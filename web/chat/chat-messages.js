@@ -413,7 +413,15 @@ async function uploadImage(file) {
     const resp = await fetch(uploadUrl, { method: 'POST', body: formData });
     if (!resp.ok) {
       const text = await resp.text();
-      addSystemMessage(`Upload failed: ${text}`);
+      // Make error messages more user-friendly
+      let friendly = text;
+      if (text.includes('too large')) {
+        const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+        friendly = `File "${file.name}" is ${sizeMB}MB. Max allowed: 10MB for images/docs, 20MB for audio/video. Try compressing the image or using a smaller file.`;
+      } else if (text.includes('Unsupported')) {
+        friendly = `File type not allowed. Supported: images (png, jpg, gif, webp), documents (pdf, txt), audio (mp3, ogg, wav), video (mp4, webm).`;
+      }
+      addSystemMessage(`Upload failed: ${friendly}`);
       return null;
     }
 
