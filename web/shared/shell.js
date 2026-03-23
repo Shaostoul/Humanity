@@ -171,7 +171,6 @@
       user-select: none;
       text-decoration: none;
       flex-shrink: 0;
-      box-shadow: inset 0 0 0 1px #2a6;
       transition: color 0.1s, box-shadow 0.1s;
       overflow: visible;
     }
@@ -501,18 +500,18 @@
 
       '<div class="nav-divider"></div>' +
 
-      /* Red group: core identity */
+      /* Red group: core identity (never changes with context) */
       '<span class="nav-group-red">' +
         navTab('/chat',     'network',  'Chat',     'chat') +
-        navTab('/profile',  'profile',  'Profile',  'profile') +
         navTab('/wallet',   'coin',     'Wallet',   'wallet') +
         navTab('/donate',   'heart',    'Donate',   'donate') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
 
-      /* Green group: context-sensitive */
+      /* Green group: context-sensitive (data changes with Real/Game) */
       '<span class="nav-group-green">' +
+        navTab('/profile',   'profile',    'Profile',   'profile') +
         navTab('/tasks',     'tasklist',   'Tasks',     'tasks') +
         navTab('/inventory', 'inventory',  'Inventory', 'gear') +
         navTab('/maps',      'map',        'Maps',      'map') +
