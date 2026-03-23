@@ -156,8 +156,13 @@ h4 { font-size: var(--text-base); }
   white-space: nowrap;
 }
 .context-toggle .ctx-seg.active {
-  background: var(--accent);
   color: #fff;
+}
+.context-toggle.ctx-real .ctx-seg.active {
+  background: #27ae60;
+}
+.context-toggle.ctx-game .ctx-seg.active {
+  background: var(--accent);
 }
 .context-toggle .ctx-seg:not(.active):hover {
   color: var(--text);

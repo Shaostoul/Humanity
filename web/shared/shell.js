@@ -83,7 +83,7 @@
     else if (p.startsWith('/wallet'))    active = 'wallet';
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
-    else if (p.startsWith('/ops'))       active = 'ops';
+    else if (p.startsWith('/ops') || p.startsWith('/pages/ops'))  active = 'ops';
     else if (p.startsWith('/download') || p.startsWith('/activities/download'))  active = 'download';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
@@ -486,7 +486,7 @@
 
   function buildContextToggle() {
     var ctx = window.hos_context;
-    return '<div class="context-toggle" id="hos-context-toggle">' +
+    return '<div class="context-toggle ctx-' + ctx + '" id="hos-context-toggle">' +
       '<span class="ctx-seg' + (ctx === 'real' ? ' active' : '') + '" data-ctx="real">Real</span>' +
       '<span class="ctx-seg' + (ctx === 'game' ? ' active' : '') + '" data-ctx="game">Game</span>' +
     '</div>';
@@ -611,14 +611,27 @@
 
   // ── Context toggle handler ──
   document.addEventListener('click', function(e) {
+    // Click anywhere on the toggle to switch (not just the text)
+    var toggle = e.target.closest('.context-toggle');
+    if (!toggle) return;
     var seg = e.target.closest('.ctx-seg');
-    if (!seg) return;
-    var newCtx = seg.getAttribute('data-ctx');
+    // If they clicked the toggle but not a specific segment, switch to the other one
+    var newCtx;
+    if (seg) {
+      newCtx = seg.getAttribute('data-ctx');
+    } else {
+      newCtx = window.hos_context === 'real' ? 'game' : 'real';
+    }
     if (!newCtx || newCtx === window.hos_context) return;
     localStorage.setItem('humanity_context', newCtx);
     // Update all toggle instances on the page
     document.querySelectorAll('.context-toggle .ctx-seg').forEach(function(el) {
       el.classList.toggle('active', el.getAttribute('data-ctx') === newCtx);
+    });
+    // Update color coding on toggle containers
+    document.querySelectorAll('.context-toggle').forEach(function(el) {
+      el.classList.toggle('ctx-real', newCtx === 'real');
+      el.classList.toggle('ctx-game', newCtx === 'game');
     });
     // Dispatch event so pages can react
     window.dispatchEvent(new CustomEvent('hos-context-change', { detail: { context: newCtx } }));
