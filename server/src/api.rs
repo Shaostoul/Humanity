@@ -248,7 +248,7 @@ pub async fn upload_file(
     Query(query): Query<UploadQuery>,
     mut multipart: axum::extract::Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    const MAX_SIZE_DEFAULT: usize = 5 * 1024 * 1024; // 5MB for most files
+    const MAX_SIZE_DEFAULT: usize = 10 * 1024 * 1024; // 10MB for most files (images, docs)
     const MAX_SIZE_MEDIA: usize = 20 * 1024 * 1024; // 20MB for audio/video
     const ALLOWED_TYPES: &[&str] = &[
         "image/png", "image/jpeg", "image/gif", "image/webp",
