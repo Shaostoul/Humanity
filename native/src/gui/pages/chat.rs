@@ -1,89 +1,56 @@
-//! Chat overlay — semi-transparent message log in the bottom-left corner.
+//! In-game chat overlay (semi-transparent, bottom-left).
 
-use egui::{Align2, Area, Color32, Frame, Margin, Rounding};
+use egui::{Align2, Color32, Frame, RichText, Rounding, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 
-/// Maximum number of messages shown in the chat overlay.
-const MAX_VISIBLE_MESSAGES: usize = 10;
-
-/// Draw the chat overlay in the bottom-left corner.
-/// Semi-transparent so the game scene is visible behind it.
-pub fn draw(ctx: &egui::Context, theme: &Theme, gui_state: &mut GuiState) {
+pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let screen = ctx.screen_rect();
-    let chat_width = 380.0;
-    let chat_height = 280.0;
-    let margin = 16.0;
+    let chat_width = 400.0_f32.min(screen.width() * 0.4);
+    let chat_height = 250.0;
 
-    Area::new(egui::Id::new("chat_overlay"))
-        .fixed_pos(egui::pos2(margin, screen.height() - chat_height - margin))
+    egui::Window::new("chat_overlay")
+        .title_bar(false)
+        .resizable(false)
+        .fixed_pos([8.0, screen.height() - chat_height - 8.0])
+        .fixed_size(Vec2::new(chat_width, chat_height))
+        .frame(Frame::none().fill(Color32::from_black_alpha(160)).rounding(Rounding::same(theme.border_radius as u8)))
         .show(ctx, |ui| {
-            Frame::none()
-                .fill(theme.overlay_bg)
-                .rounding(Rounding::same(8))
-                .inner_margin(Margin::same(10))
+            // Message list
+            let msg_height = chat_height - 40.0;
+            egui::ScrollArea::vertical()
+                .max_height(msg_height)
+                .stick_to_bottom(true)
                 .show(ui, |ui| {
-                    ui.set_min_width(chat_width);
-                    ui.set_max_height(chat_height);
-
-                    // Message history
-                    let messages_height = chat_height - 40.0;
-                    egui::ScrollArea::vertical()
-                        .max_height(messages_height)
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            if gui_state.chat_messages.is_empty() {
-                                ui.label(theme.dimmed("No messages yet. Press Enter to chat."));
-                            } else {
-                                let start = gui_state.chat_messages.len()
-                                    .saturating_sub(MAX_VISIBLE_MESSAGES);
-                                for (time, sender, msg) in &gui_state.chat_messages[start..] {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.label(
-                                            egui::RichText::new(time)
-                                                .size(10.0)
-                                                .color(theme.text_dim),
-                                        );
-                                        ui.label(
-                                            egui::RichText::new(sender)
-                                                .size(12.0)
-                                                .color(theme.accent),
-                                        );
-                                        ui.label(
-                                            egui::RichText::new(msg)
-                                                .size(12.0)
-                                                .color(theme.text),
-                                        );
-                                    });
-                                }
-                            }
-                        });
-
-                    ui.separator();
-
-                    // Text input
-                    let response = ui.add(
-                        egui::TextEdit::singleline(&mut gui_state.chat_input)
-                            .desired_width(chat_width - 20.0)
-                            .hint_text(
-                                egui::RichText::new("Type a message...")
-                                    .color(Color32::from_rgba_premultiplied(100, 100, 120, 150)),
-                            )
-                            .text_color(theme.text),
-                    );
-
-                    // Submit on Enter
-                    if response.lost_focus()
-                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                        && !gui_state.chat_input.trim().is_empty()
-                    {
-                        let msg = gui_state.chat_input.trim().to_string();
-                        let time = "now".to_string();
-                        let sender = "You".to_string();
-                        gui_state.chat_messages.push((time, sender, msg));
-                        gui_state.chat_input.clear();
-                        response.request_focus();
+                    if state.chat_messages.is_empty() {
+                        ui.label(RichText::new("Press Enter to chat").color(theme.text_muted()));
+                    }
+                    for msg in &state.chat_messages {
+                        ui.label(RichText::new(msg).size(theme.font_size_small).color(theme.text_primary()));
                     }
                 });
+
+            // Input
+            ui.horizontal(|ui| {
+                let response = ui.add(
+                    egui::TextEdit::singleline(&mut state.chat_input)
+                        .desired_width(chat_width - 70.0)
+                        .hint_text("Type a message...")
+                );
+                if (response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                    || ui.button("Send").clicked()
+                {
+                    if !state.chat_input.trim().is_empty() {
+                        let msg = format!("You: {}", state.chat_input.trim());
+                        state.chat_messages.push(msg);
+                        state.chat_input.clear();
+                        // Keep last 50 messages
+                        if state.chat_messages.len() > 50 {
+                            state.chat_messages.remove(0);
+                        }
+                    }
+                    response.request_focus();
+                }
+            });
         });
 }

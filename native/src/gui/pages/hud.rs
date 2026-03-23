@@ -1,184 +1,88 @@
-//! HUD overlay — health bar, hotbar, compass, day/night, FPS counter.
+//! In-game HUD: health bar, hotbar, crosshair, compass, FPS.
 
-use egui::{Align2, Area, Color32, Rounding, Stroke, StrokeKind};
+use egui::{Align2, Area, Color32, FontId, Pos2, Rect, RichText, Rounding, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
-use crate::gui::widgets;
-use crate::hot_reload::data_store::DataStore;
-use crate::systems::time::GameTime;
 
-/// Number of hotbar slots.
-const HOTBAR_SLOTS: usize = 9;
-/// Size of each hotbar slot in pixels.
-const HOTBAR_SLOT_SIZE: f32 = 48.0;
-
-/// Draw the full in-game HUD.
-pub fn draw(ctx: &egui::Context, theme: &Theme, gui_state: &GuiState, data_store: &DataStore) {
-    draw_health_bar(ctx, theme);
-    draw_hotbar(ctx, theme);
-    draw_crosshair(ctx);
-    draw_compass(ctx, theme, data_store);
-    draw_day_night(ctx, theme, data_store);
-    draw_fps(ctx, theme, gui_state);
-}
-
-/// Health bar in the top-left corner.
-fn draw_health_bar(ctx: &egui::Context, theme: &Theme) {
-    Area::new(egui::Id::new("hud_health"))
-        .fixed_pos(egui::pos2(16.0, 16.0))
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("\u{2764}")
-                        .size(16.0)
-                        .color(theme.danger),
-                );
-                // Default 80% health for demo
-                widgets::progress_bar(ui, 0.8, theme.danger, "80 / 100", 160.0);
-            });
-        });
-}
-
-/// Hotbar at bottom center — 9 numbered slots.
-fn draw_hotbar(ctx: &egui::Context, theme: &Theme) {
-    let screen = ctx.screen_rect();
-    let total_width = HOTBAR_SLOTS as f32 * (HOTBAR_SLOT_SIZE + 4.0) - 4.0;
-    let x = (screen.width() - total_width) / 2.0;
-    let y = screen.height() - HOTBAR_SLOT_SIZE - 20.0;
-
-    Area::new(egui::Id::new("hud_hotbar"))
-        .fixed_pos(egui::pos2(x, y))
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                for i in 0..HOTBAR_SLOTS {
-                    let (rect, _response) = ui.allocate_exact_size(
-                        egui::vec2(HOTBAR_SLOT_SIZE, HOTBAR_SLOT_SIZE),
-                        egui::Sense::click(),
-                    );
-
-                    // Slot background
-                    ui.painter().rect(
-                        rect,
-                        Rounding::same(4),
-                        Color32::from_rgba_premultiplied(20, 20, 30, 180),
-                        Stroke::new(1.0, theme.primary.linear_multiply(0.4)),
-                        StrokeKind::Outside,
-                    );
-
-                    // Slot number in top-left
-                    ui.painter().text(
-                        rect.left_top() + egui::vec2(4.0, 2.0),
-                        egui::Align2::LEFT_TOP,
-                        format!("{}", i + 1),
-                        egui::FontId::new(10.0, egui::FontFamily::Proportional),
-                        theme.text_dim,
-                    );
-                }
-            });
-        });
-}
-
-/// Small crosshair dot at screen center.
-fn draw_crosshair(ctx: &egui::Context) {
-    let screen = ctx.screen_rect();
-    let center = screen.center();
-
-    Area::new(egui::Id::new("hud_crosshair"))
-        .fixed_pos(center - egui::vec2(3.0, 3.0))
-        .interactable(false)
-        .show(ctx, |ui| {
-            let (rect, _) = ui.allocate_exact_size(egui::vec2(6.0, 6.0), egui::Sense::hover());
-            ui.painter().circle_filled(rect.center(), 2.5, Color32::from_rgba_premultiplied(255, 255, 255, 180));
-        });
-}
-
-/// Compass at top center showing cardinal direction based on camera yaw.
-fn draw_compass(ctx: &egui::Context, theme: &Theme, data_store: &DataStore) {
-    let screen = ctx.screen_rect();
-    let yaw = data_store.get::<f32>("camera_yaw").copied().unwrap_or(0.0);
-
-    // Convert yaw radians to compass bearing (0 = North, PI/2 = East, etc.)
-    let degrees = yaw.to_degrees().rem_euclid(360.0);
-    let direction = match degrees as u32 {
-        0..=22 | 338..=360 => "N",
-        23..=67 => "NE",
-        68..=112 => "E",
-        113..=157 => "SE",
-        158..=202 => "S",
-        203..=247 => "SW",
-        248..=292 => "W",
-        293..=337 => "NW",
-        _ => "N",
-    };
-
-    Area::new(egui::Id::new("hud_compass"))
-        .fixed_pos(egui::pos2(screen.center().x - 30.0, 16.0))
-        .interactable(false)
-        .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(direction)
-                        .size(18.0)
-                        .color(theme.accent),
-                );
-                ui.label(
-                    egui::RichText::new(format!(" {:.0}\u{00B0}", degrees))
-                        .size(12.0)
-                        .color(theme.text_dim),
-                );
-            });
-        });
-}
-
-/// Day/night indicator showing current game time.
-fn draw_day_night(ctx: &egui::Context, theme: &Theme, data_store: &DataStore) {
+pub fn draw(ctx: &egui::Context, theme: &Theme, state: &GuiState, camera_yaw: f32) {
     let screen = ctx.screen_rect();
 
-    let (icon, time_str) = if let Some(game_time) = data_store.get::<GameTime>("game_time") {
-        let icon = if game_time.hour >= 6.0 && game_time.hour < 18.0 {
-            "\u{2600}" // Sun
-        } else {
-            "\u{263D}" // Moon
-        };
-        let hour = game_time.hour as u32;
-        let minute = ((game_time.hour - hour as f32) * 60.0) as u32;
-        (icon, format!("{:02}:{:02}", hour, minute))
-    } else {
-        ("\u{2600}", "08:00".to_string())
-    };
-
-    Area::new(egui::Id::new("hud_daytime"))
-        .fixed_pos(egui::pos2(screen.center().x + 40.0, 16.0))
-        .interactable(false)
+    Area::new(egui::Id::new("hud_layer"))
+        .fixed_pos([0.0, 0.0])
         .show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(icon)
-                        .size(16.0)
-                        .color(theme.warning),
-                );
-                ui.label(
-                    egui::RichText::new(&time_str)
-                        .size(12.0)
-                        .color(theme.text_dim),
-                );
-            });
-        });
-}
+            // Allocate full screen but don't consume input
+            ui.allocate_rect(screen, egui::Sense::hover());
+            let painter = ui.painter();
 
-/// FPS counter in the top-right corner.
-fn draw_fps(ctx: &egui::Context, theme: &Theme, gui_state: &GuiState) {
-    let screen = ctx.screen_rect();
+            // ── Health bar (top-left) ──
+            let hp = 0.75_f32; // placeholder
+            let hp_rect = Rect::from_min_size(Pos2::new(16.0, 16.0), Vec2::new(200.0, 16.0));
+            painter.rect_filled(hp_rect, Rounding::same(4), Color32::from_black_alpha(140));
+            let filled = Rect::from_min_size(hp_rect.min, Vec2::new(200.0 * hp, 16.0));
+            let hp_color = if hp > 0.5 { theme.success() } else if hp > 0.25 { theme.warning() } else { theme.danger() };
+            painter.rect_filled(filled, Rounding::same(4), hp_color);
+            painter.text(hp_rect.center(), Align2::CENTER_CENTER, format!("{}%", (hp * 100.0) as i32), FontId::proportional(11.0), Color32::WHITE);
 
-    Area::new(egui::Id::new("hud_fps"))
-        .fixed_pos(egui::pos2(screen.width() - 80.0, 16.0))
-        .interactable(false)
-        .show(ctx, |ui| {
-            ui.label(
-                egui::RichText::new(format!("{} FPS", gui_state.current_fps))
-                    .size(12.0)
-                    .color(theme.text_dim)
-                    .family(egui::FontFamily::Monospace),
+            // ── FPS counter (top-right) ──
+            painter.text(
+                Pos2::new(screen.right() - 16.0, 16.0),
+                Align2::RIGHT_TOP,
+                format!("{:.0} FPS", state.fps),
+                FontId::proportional(12.0),
+                theme.text_muted(),
             );
+
+            // ── Crosshair (center) ──
+            let center = screen.center();
+            painter.circle_filled(center, 3.0, Color32::from_white_alpha(180));
+
+            // ── Compass (top-center) ──
+            let compass_y = 20.0;
+            let directions = [
+                (0.0_f32, "N"),
+                (std::f32::consts::FRAC_PI_2, "E"),
+                (std::f32::consts::PI, "S"),
+                (-std::f32::consts::FRAC_PI_2, "W"),
+            ];
+            let compass_width = 200.0;
+            for (angle, label) in &directions {
+                let diff = normalize_angle(*angle - camera_yaw);
+                if diff.abs() < std::f32::consts::FRAC_PI_2 {
+                    let x = center.x + diff / std::f32::consts::FRAC_PI_2 * (compass_width / 2.0);
+                    let color = if *label == "N" { theme.danger() } else { theme.text_secondary() };
+                    painter.text(Pos2::new(x, compass_y), Align2::CENTER_TOP, *label, FontId::proportional(14.0), color);
+                }
+            }
+
+            // ── Hotbar (bottom-center) ──
+            let slot_size = 44.0;
+            let slot_gap = 4.0;
+            let slot_count = 9;
+            let total_width = slot_count as f32 * slot_size + (slot_count - 1) as f32 * slot_gap;
+            let start_x = center.x - total_width / 2.0;
+            let start_y = screen.bottom() - slot_size - 16.0;
+
+            for i in 0..slot_count {
+                let x = start_x + i as f32 * (slot_size + slot_gap);
+                let rect = Rect::from_min_size(Pos2::new(x, start_y), Vec2::splat(slot_size));
+                painter.rect_filled(rect, Rounding::same(4), Color32::from_black_alpha(140));
+                painter.rect_stroke(rect, Rounding::same(4), egui::Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
+
+                // Slot number
+                painter.text(
+                    rect.left_top() + Vec2::new(4.0, 2.0),
+                    Align2::LEFT_TOP,
+                    format!("{}", i + 1),
+                    FontId::proportional(10.0),
+                    theme.text_muted(),
+                );
+            }
         });
+}
+
+fn normalize_angle(a: f32) -> f32 {
+    let mut a = a % (2.0 * std::f32::consts::PI);
+    if a > std::f32::consts::PI { a -= 2.0 * std::f32::consts::PI; }
+    if a < -std::f32::consts::PI { a += 2.0 * std::f32::consts::PI; }
+    a
 }

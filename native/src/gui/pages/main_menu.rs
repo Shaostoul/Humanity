@@ -1,67 +1,47 @@
-//! Main menu page — title screen overlay on the 3D scene.
+//! Title screen: Play, Settings, Quit.
 
-use egui::{Align2, Area, Color32, Frame, Margin};
+use egui::{Align2, Area, Color32, RichText, Vec2};
 use crate::gui::{GuiPage, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
-/// Draw the main menu as a centered overlay.
-/// The 3D scene renders behind this as a live background.
-pub fn draw(ctx: &egui::Context, theme: &Theme, gui_state: &mut GuiState, quit: &mut bool) {
-    // Semi-transparent backdrop so the 3D scene shows through
+pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // Semi-transparent backdrop
     Area::new(egui::Id::new("main_menu_backdrop"))
-        .fixed_pos(egui::pos2(0.0, 0.0))
+        .fixed_pos([0.0, 0.0])
         .show(ctx, |ui| {
             let screen = ctx.screen_rect();
-            let (rect, _) = ui.allocate_exact_size(screen.size(), egui::Sense::hover());
-            ui.painter().rect_filled(
-                rect,
-                egui::Rounding::ZERO,
-                Color32::from_rgba_premultiplied(0, 0, 0, 120),
-            );
+            ui.allocate_rect(screen, egui::Sense::click());
+            ui.painter().rect_filled(screen, 0.0, Color32::from_black_alpha(180));
         });
 
-    // Centered menu panel
-    Area::new(egui::Id::new("main_menu_panel"))
-        .anchor(Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+    egui::Window::new("main_menu_window")
+        .title_bar(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .fixed_size(Vec2::new(320.0, 300.0))
+        .frame(egui::Frame::none().fill(Color32::TRANSPARENT))
         .show(ctx, |ui| {
-            Frame::none()
-                .fill(theme.panel_bg)
-                .rounding(theme.rounding)
-                .inner_margin(Margin::same(40))
-                .show(ui, |ui| {
-                    ui.set_min_width(300.0);
-                    ui.vertical_centered(|ui| {
-                        // Title
-                        ui.label(
-                            egui::RichText::new("HumanityOS")
-                                .size(48.0)
-                                .color(theme.primary)
-                        );
-                        ui.add_space(8.0);
-                        ui.label(theme.dimmed("Unite Humanity"));
-                        ui.add_space(32.0);
+            ui.vertical_centered(|ui| {
+                ui.add_space(20.0);
+                ui.label(RichText::new("HumanityOS").size(theme.font_size_title).color(theme.accent()));
+                ui.add_space(8.0);
+                ui.label(RichText::new("End poverty. Unite humanity.").size(theme.font_size_body).color(theme.text_secondary()));
+                ui.add_space(40.0);
 
-                        // Menu buttons
-                        if widgets::primary_button(ui, theme, "Play") {
-                            gui_state.active_page = GuiPage::None;
-                        }
-                        ui.add_space(8.0);
-
-                        if widgets::secondary_button(ui, theme, "Settings") {
-                            gui_state.active_page = GuiPage::Settings;
-                        }
-                        ui.add_space(8.0);
-
-                        if widgets::secondary_button(ui, theme, "Quit") {
-                            *quit = true;
-                        }
-
-                        ui.add_space(24.0);
-
-                        // Version text at bottom
-                        ui.label(theme.dimmed("v0.35.1"));
-                    });
-                });
+                if widgets::primary_button(ui, theme, "   Play   ") {
+                    state.active_page = GuiPage::None;
+                }
+                ui.add_space(8.0);
+                if widgets::secondary_button(ui, theme, " Settings ") {
+                    state.active_page = GuiPage::Settings;
+                }
+                ui.add_space(8.0);
+                if widgets::danger_button(ui, theme, "   Quit   ") {
+                    std::process::exit(0);
+                }
+                ui.add_space(30.0);
+                ui.label(RichText::new("v0.37.2").size(theme.font_size_small).color(theme.text_muted()));
+            });
         });
 }

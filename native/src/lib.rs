@@ -470,7 +470,7 @@ mod native_app {
                     }
 
                     // Update FPS counter
-                    state.gui_state.update_fps(dt);
+                    state.gui_state.fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
 
                     // Render 3D scene (returns surface texture for overlay rendering)
                     let scene_result = state.renderer.render_scene(&state.camera, &all_objects);
@@ -479,12 +479,10 @@ mod native_app {
                             // Run egui frame
                             let raw_input = state.egui_state.take_egui_input(&state.window);
                             let full_output = state.egui_ctx.run(raw_input, |ctx| {
-                                let mut quit = false;
-
                                 // Draw active full-screen page
                                 match state.gui_state.active_page {
                                     GuiPage::MainMenu => {
-                                        main_menu::draw(ctx, &state.theme, &mut state.gui_state, &mut quit);
+                                        main_menu::draw(ctx, &state.theme, &mut state.gui_state);
                                     }
                                     GuiPage::Settings => {
                                         settings::draw(ctx, &state.theme, &mut state.gui_state);
@@ -497,7 +495,7 @@ mod native_app {
 
                                 // Always draw HUD when in-game
                                 if state.gui_state.active_page == GuiPage::None && state.gui_state.show_hud {
-                                    hud::draw(ctx, &state.theme, &state.gui_state, &state.data_store);
+                                    hud::draw(ctx, &state.theme, &state.gui_state, state.camera.yaw);
                                 }
 
                                 // Draw chat overlay if visible
@@ -505,7 +503,7 @@ mod native_app {
                                     chat::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
-                                if quit {
+                                if false {
                                     event_loop.exit();
                                 }
                             });

@@ -1,4 +1,4 @@
-//! GUI pages — each module draws one full-screen or overlay page.
+//! GUI pages composing widgets into full screens.
 
 pub mod main_menu;
 pub mod settings;

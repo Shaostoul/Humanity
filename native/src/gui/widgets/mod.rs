@@ -1,138 +1,139 @@
-//! Reusable GUI widgets for HumanityOS pages.
-//!
-//! Provides styled building blocks so pages stay consistent without
-//! duplicating layout code.
+//! Reusable egui widgets styled by the HumanityOS theme.
 
-use egui::{Color32, Rounding, Stroke, Ui};
-use crate::gui::theme::Theme;
+use egui::{Color32, RichText, Rounding, Stroke, Ui, Vec2};
+use super::theme::Theme;
 
-/// Draw a collapsible section with a header and body content.
-/// Returns true if the section is currently expanded.
-pub fn collapsible_section(
-    ui: &mut Ui,
-    theme: &Theme,
-    title: &str,
-    default_open: bool,
-    add_body: impl FnOnce(&mut Ui),
-) -> bool {
-    let id = ui.make_persistent_id(title);
-    let mut open = ui.data_mut(|d| *d.get_persisted_mut_or(id, default_open));
-
-    let _header_response = ui.horizontal(|ui| {
-        let arrow = if open { "\u{25BC}" } else { "\u{25B6}" };
-        if ui.button(egui::RichText::new(arrow).size(12.0).color(theme.accent)).clicked() {
-            open = !open;
-        }
-        ui.label(theme.subheading(title));
-    });
-
-    if open {
-        ui.indent(id, |ui| {
-            add_body(ui);
-        });
-    }
-
-    ui.data_mut(|d| d.insert_persisted(id, open));
-    open
-}
-
-/// Draw a card-style container with a title bar and content area.
-pub fn card(
-    ui: &mut Ui,
-    theme: &Theme,
-    title: &str,
-    add_content: impl FnOnce(&mut Ui),
-) {
-    egui::Frame::none()
-        .fill(theme.panel_bg)
-        .rounding(theme.rounding)
-        .stroke(Stroke::new(1.0, theme.primary.linear_multiply(0.3)))
-        .inner_margin(egui::Margin::same(theme.padding as i8))
-        .show(ui, |ui| {
-            ui.label(theme.subheading(title));
-            ui.separator();
-            add_content(ui);
-        });
-}
-
-/// Draw a horizontal progress bar (0.0 to 1.0) with a label.
-pub fn progress_bar(
-    ui: &mut Ui,
-    fraction: f32,
-    color: Color32,
-    label: &str,
-    width: f32,
-) {
-    let height = 16.0;
-    let (rect, _response) = ui.allocate_exact_size(
-        egui::vec2(width, height),
-        egui::Sense::hover(),
-    );
-
-    let painter = ui.painter();
-
-    // Background
-    painter.rect_filled(
-        rect,
-        Rounding::same(3),
-        Color32::from_rgba_premultiplied(30, 30, 40, 200),
-    );
-
-    // Fill
-    let fill_width = rect.width() * fraction.clamp(0.0, 1.0);
-    if fill_width > 0.0 {
-        let fill_rect = egui::Rect::from_min_size(
-            rect.min,
-            egui::vec2(fill_width, rect.height()),
-        );
-        painter.rect_filled(fill_rect, Rounding::same(3), color);
-    }
-
-    // Label centered
-    painter.text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        label,
-        egui::FontId::new(11.0, egui::FontFamily::Proportional),
-        Color32::WHITE,
-    );
-}
-
-/// Draw a styled primary button. Returns true if clicked.
-pub fn primary_button(ui: &mut Ui, theme: &Theme, text: &str) -> bool {
-    let button = egui::Button::new(
-        egui::RichText::new(text).size(16.0).color(Color32::WHITE),
+/// Orange accent button. Returns true if clicked.
+pub fn primary_button(ui: &mut Ui, theme: &Theme, label: &str) -> bool {
+    let btn = egui::Button::new(
+        RichText::new(label).color(theme.text_on_accent()).size(theme.font_size_body),
     )
-    .fill(theme.primary.linear_multiply(0.6))
-    .rounding(theme.rounding)
-    .min_size(egui::vec2(120.0, 36.0));
-
-    ui.add(button).clicked()
+    .fill(theme.accent())
+    .min_size(Vec2::new(0.0, theme.button_height))
+    .rounding(Rounding::same(theme.border_radius as u8));
+    ui.add(btn).clicked()
 }
 
-/// Draw a styled secondary/outline button. Returns true if clicked.
-pub fn secondary_button(ui: &mut Ui, theme: &Theme, text: &str) -> bool {
-    let button = egui::Button::new(
-        egui::RichText::new(text).size(14.0).color(theme.text_dim),
+/// Outline button. Returns true if clicked.
+pub fn secondary_button(ui: &mut Ui, theme: &Theme, label: &str) -> bool {
+    let btn = egui::Button::new(
+        RichText::new(label).color(theme.text_primary()).size(theme.font_size_body),
     )
     .fill(Color32::TRANSPARENT)
-    .stroke(Stroke::new(1.0, theme.text_dim.linear_multiply(0.5)))
-    .rounding(theme.rounding)
-    .min_size(egui::vec2(100.0, 32.0));
-
-    ui.add(button).clicked()
+    .stroke(Stroke::new(1.0, theme.border()))
+    .min_size(Vec2::new(0.0, theme.button_height))
+    .rounding(Rounding::same(theme.border_radius as u8));
+    ui.add(btn).clicked()
 }
 
-/// Labeled slider with value display.
-pub fn labeled_slider(
-    ui: &mut Ui,
-    theme: &Theme,
-    label: &str,
-    value: &mut f32,
-    range: std::ops::RangeInclusive<f32>,
-) {
-    ui.horizontal(|ui| {
-        ui.label(theme.body(label));
-        ui.add(egui::Slider::new(value, range).show_value(true));
+/// Red danger button. Returns true if clicked.
+pub fn danger_button(ui: &mut Ui, theme: &Theme, label: &str) -> bool {
+    let btn = egui::Button::new(
+        RichText::new(label).color(Color32::WHITE).size(theme.font_size_body),
+    )
+    .fill(theme.danger())
+    .min_size(Vec2::new(0.0, theme.button_height))
+    .rounding(Rounding::same(theme.border_radius as u8));
+    ui.add(btn).clicked()
+}
+
+/// Styled card container with background.
+pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {
+    egui::Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius as u8))
+        .inner_margin(theme.card_padding)
+        .stroke(Stroke::new(1.0, theme.border()))
+        .show(ui, |ui| {
+            add_contents(ui);
+        });
+}
+
+/// Card with a title header.
+pub fn card_with_header(ui: &mut Ui, theme: &Theme, title: &str, add_contents: impl FnOnce(&mut Ui)) {
+    card(ui, theme, |ui| {
+        ui.label(RichText::new(title).size(theme.font_size_heading).color(theme.text_primary()));
+        ui.add_space(theme.spacing_sm);
+        add_contents(ui);
     });
 }
+
+/// Collapsible section with header.
+pub fn collapsible_section(ui: &mut Ui, title: &str, default_open: bool, add_contents: impl FnOnce(&mut Ui)) {
+    egui::CollapsingHeader::new(title)
+        .default_open(default_open)
+        .show(ui, |ui| {
+            add_contents(ui);
+        });
+}
+
+/// Labeled slider. Returns true if value changed.
+pub fn labeled_slider(ui: &mut Ui, theme: &Theme, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>) -> bool {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).color(theme.text_secondary()));
+        ui.add(egui::Slider::new(value, range).show_value(true))
+    }).inner.changed()
+}
+
+/// Toggle switch with label. Returns true if value changed.
+pub fn toggle(ui: &mut Ui, theme: &Theme, label: &str, value: &mut bool) -> bool {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).color(theme.text_secondary()));
+        let response = ui.checkbox(value, "");
+        response
+    }).inner.changed()
+}
+
+/// Progress bar (0.0 to 1.0).
+pub fn progress_bar(ui: &mut Ui, theme: &Theme, progress: f32, label: Option<&str>) {
+    let bar = egui::ProgressBar::new(progress.clamp(0.0, 1.0))
+        .fill(theme.accent());
+    let bar = if let Some(text) = label {
+        bar.text(text)
+    } else {
+        bar
+    };
+    ui.add(bar);
+}
+
+/// Tab bar. Updates active index, returns true if changed.
+pub fn tab_bar(ui: &mut Ui, theme: &Theme, tabs: &[&str], active: &mut usize) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        for (i, tab) in tabs.iter().enumerate() {
+            let is_active = i == *active;
+            let text = if is_active {
+                RichText::new(*tab).color(theme.text_on_accent()).size(theme.font_size_body)
+            } else {
+                RichText::new(*tab).color(theme.text_secondary()).size(theme.font_size_body)
+            };
+            let fill = if is_active { theme.accent() } else { Color32::TRANSPARENT };
+            let btn = egui::Button::new(text)
+                .fill(fill)
+                .rounding(Rounding::same(theme.border_radius as u8));
+            if ui.add(btn).clicked() && !is_active {
+                *active = i;
+                changed = true;
+            }
+        }
+    });
+    changed
+}
+
+/// Role badge pill.
+pub fn role_badge(ui: &mut Ui, theme: &Theme, role: &str) {
+    let (color, letter) = match role {
+        "admin" => (Theme::c32(&theme.badge_admin), "A"),
+        "mod" => (Theme::c32(&theme.badge_mod), "M"),
+        "verified" => (Theme::c32(&theme.badge_verified), "V"),
+        "donor" => (Theme::c32(&theme.badge_donor), "D"),
+        _ => return,
+    };
+    let text = RichText::new(letter).size(theme.font_size_small).color(Color32::WHITE);
+    egui::Frame::none()
+        .fill(color)
+        .rounding(Rounding::same(3))
+        .inner_margin(Vec2::new(4.0, 1.0))
+        .show(ui, |ui| { ui.label(text); });
+}
+
