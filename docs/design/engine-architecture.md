@@ -2,13 +2,14 @@
 
 **Status:** Active Reference Document (design target for v1.0)
 **Author:** Shaostoul + Claude
-**Date:** 2026-03-18 (updated 2026-03-21 for v0.34.0 implementation status)
+**Date:** 2026-03-18 (updated 2026-03-22 for v0.37.1 restructure + egui GUI)
 **Supersedes:** Project Universe approach
 **Depends on:** [game-engine.md](game-engine.md) (engine decision), [graphics-pipeline.md](graphics-pipeline.md) (renderer design), [audio-engine.md](audio-engine.md) (audio stack), [educational-gameplay.md](educational-gameplay.md) (skill system philosophy)
 
 > **Implementation vs Design:** This document describes the v1.0 target architecture. As of v0.34.0,
 > the actual implementation lives in `native/src/` (not the sub-crates in `native/crates/` which are
 > mostly scaffolds). Key differences from this design:
+> - **GUI**: egui immediate-mode UI (theme.ron, widgets, 5 pages) replaces Tauri WebView (v0.36.0)
 > - **ECS**: Uses `hecs` crate, not a custom archetypal ECS
 > - **System runner**: Simple `System` trait with `tick(world, dt, data)`, no parallel scheduling yet
 > - **Renderer**: Forward PBR-lite (not deferred), instanced batching, GLTF loading
@@ -18,6 +19,7 @@
 > - **Data loading**: AssetManager with CSV/TOML/RON/JSON/GLTF, FileWatcher hot-reload (working)
 > - **Game systems**: 15 systems registered and ticking (farming, AI, vehicles, quests, ecology, etc.)
 > - **Ship interiors**: Layout parser and room mesh generation from RON data files
+> - **Desktop app**: Standalone Rust binary (no Tauri). `app/` directory deprecated (v0.37.0)
 
 ---
 
@@ -51,7 +53,7 @@ These principles are non-negotiable. Every system in the engine must satisfy all
 
 **Hot-reloadable everything.** Any data file change takes effect immediately without restarting the game. Shaders, assets, game constants, item definitions, AI behavior trees — all hot-reloaded via file watchers. The dev loop is: edit a TOML file, save, see the change in-game within one second.
 
-**Dual rendering.** The Tauri webview handles all social features, HUD, menus, inventory, and settings (the existing HTML/JS/CSS stack). A native wgpu window handles 3D rendering. They coexist in the same application, communicating via Tauri IPC. Neither owns the other.
+**Dual rendering.** The egui immediate-mode GUI handles HUD, menus, inventory, settings, and overlays natively. The wgpu renderer handles 3D world rendering. Both run in the same Rust binary. The web frontend (HTML/JS/CSS) handles all social features in the browser. Desktop and web share the same server API but render independently.
 
 **Parametric construction.** Building is not snapping cubes on a grid. Shapes have continuously adjustable dimensions. A wall is length x width x thickness, not a fixed-size block. CSG boolean operations combine primitives into complex geometry.
 
@@ -127,6 +129,16 @@ native/src/
     skills/                     # Learning-by-doing progression
     logistics/                  # Cargo management, shipping routes
     navigation/                 # Galaxy/system/orbital/surface scale transitions
+  gui/
+    mod.rs                      # egui GUI module
+    theme.rs                    # Theme system (loads theme.ron, hot-reloadable)
+    widgets.rs                  # Reusable widgets (buttons, panels, inputs, sliders)
+    pages/
+      main_menu.rs              # Main menu page
+      settings.rs               # Settings page (theme, display, controls)
+      inventory.rs              # Inventory management page
+      chat_overlay.rs           # In-game chat overlay
+      hud.rs                    # HUD (health, status, interaction prompts)
   hot_reload/                   # DataStore, HotReloadCoordinator
   audio/                        # Audio module (scaffold, not yet wired)
   input/                        # InputState for cross-system input sharing
@@ -1181,24 +1193,24 @@ This forces genuine understanding rather than rote pattern recognition.
 
 ---
 
-## 12. Dual Rendering Architecture
+## 12. Rendering Architecture
 
-### Overview
+### Overview (Updated v0.36.0)
 
-The application has two rendering surfaces that coexist:
+The desktop application is a standalone Rust binary with two rendering layers:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Tauri Application Window                                    │
+│  Native Application Window (winit)                           │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  WebView2 Layer (always on top, transparent background) │  │
+│  │  egui Layer (immediate-mode GUI, rendered on top)       │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
 │  │  │  Chat overlay    Inventory     Health/status bar  │  │  │
-│  │  │  Quest tracker   Minimap       Dev console (~)    │  │  │
-│  │  │  Settings panel  Trade window  Blueprint editor   │  │  │
+│  │  │  Quest tracker   Minimap       Settings panel     │  │  │
+│  │  │  Main menu       Trade window  Blueprint editor   │  │  │
 │  │  └──────────────────────────────────────────────────┘  │  │
 │  ├────────────────────────────────────────────────────────┤  │
-│  │  wgpu Native Window (renders behind webview)           │  │
+│  │  wgpu 3D Renderer (renders behind egui)                │  │
 │  │  ┌──────────────────────────────────────────────────┐  │  │
 │  │  │  3D world: terrain, ships, characters, effects    │  │  │
 │  │  │  Sky, weather, particles, volumetric clouds       │  │  │
@@ -1208,30 +1220,34 @@ The application has two rendering surfaces that coexist:
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Communication (Tauri IPC)
+> **Historical note:** Earlier versions (v0.1.0 through v0.35.0) used a Tauri v2 wrapper with WebView2
+> for UI. As of v0.36.0, the desktop app is a standalone Rust binary using egui for all native UI.
+> The Tauri `app/` directory is deprecated.
 
-The webview and the native renderer communicate through Tauri's command system:
+### egui GUI System (v0.36.0)
 
-**Webview to Renderer (commands):**
-- Camera control: position, rotation, zoom, mode switches
-- Construction: place primitive, adjust parameter, apply CSG operation
-- Interaction: click target at screen coordinates, activate equipment
-- Settings: quality level, render distance, particle budget
+The native desktop GUI uses egui (immediate-mode Rust GUI library) with:
 
-**Renderer to Webview (events):**
-- Entity interaction results: what the player clicked on, damage numbers
-- World state updates: nearby entities, environmental readings
-- Performance metrics: FPS, draw calls, memory usage
-- Screenshot capture for UI preview thumbnails
+- **Theme system** -- theme.ron defines colors, spacing, fonts; hot-reloadable via FileWatcher
+- **Reusable widgets** -- buttons, panels, text inputs, sliders, consistent styling
+- **5 pages** -- main menu, settings, inventory, chat overlay, HUD
+- **Integration** -- egui renders on top of wgpu, sharing the same winit window
 
-**Shared state** via `Arc<Mutex<GameState>>` or lock-free channels (`crossbeam::channel`). The game state is owned by the Rust side. The webview reads snapshots of it via Tauri commands.
+### Communication Between Layers
 
-### Why Dual Rendering
+egui and wgpu share the same Rust process. No IPC needed:
 
-- The existing HTML/JS/CSS UI stack (chat, settings, social, tasks) is already built and working. Rewriting it in an immediate-mode GPU UI would be months of wasted effort.
-- HTML/CSS is superior for text-heavy UI (chat, encyclopedia, quest logs, inventory lists). GPU renderers handle text poorly.
-- The 3D renderer focuses on what HTML cannot do: terrain, PBR materials, physics visualization, volumetric effects.
-- This architecture allows web-only users (no desktop app) to access all social features. The 3D game is a desktop-only enhancement.
+- **GUI to Renderer:** Direct function calls and shared state via `Arc<Mutex<GameState>>` or ECS queries
+- **Renderer to GUI:** Game state is directly readable; egui queries ECS world each frame
+- **Web frontend:** Communicates with server via WebSocket/REST API (separate from desktop)
+
+### Why This Architecture
+
+- egui is pure Rust, no WebView dependency, no cross-process communication overhead
+- Hot-reloadable theme.ron for rapid UI iteration
+- The web frontend (HTML/JS/CSS) handles all browser-based social features independently
+- Web-only users access all social features without the desktop app
+- The 3D renderer focuses on what egui cannot do: terrain, PBR materials, physics visualization
 
 For the full rendering pipeline design (G-Buffer, lighting, RT, post-processing), see [graphics-pipeline.md](graphics-pipeline.md).
 
@@ -1427,17 +1443,17 @@ Large fleet projects (new ship construction, station expansion, Dyson sphere seg
 
 ## 17. Build Phases
 
-### Phase 1: Foundation (Weeks 1-2)
+### Phase 1: Foundation (Weeks 1-2) -- COMPLETE (v0.29.0)
 
-**Goal:** Tauri app with dual windows. Triangle rendered in wgpu. Webview sends commands to native window.
+**Goal:** Native binary with wgpu rendering and egui GUI. Triangle rendered. GUI controls engine.
 
-- Tauri app spawns wgpu window alongside webview.
+- Standalone Rust binary with winit window, wgpu renderer, egui overlay.
 - Basic wgpu renderer: clear color, single triangle, PBR shader.
-- Tauri IPC: webview can set camera position, native window reports FPS.
-- Custom ECS: entities, components, basic system scheduler.
+- egui GUI: main menu, settings page, direct Rust communication (no IPC).
+- hecs ECS: entities, components, System trait, SystemRunner.
 - File watcher: detect changes in `data/` directory.
 
-**Milestone:** A spinning textured cube controlled by buttons in the webview.
+**Milestone:** A spinning textured cube controlled by egui buttons.
 
 ### Phase 2: Scene and Assets (Weeks 3-4)
 

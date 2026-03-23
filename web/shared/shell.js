@@ -90,6 +90,7 @@
     else if (p.startsWith('/activities/gardening')) active = 'garden';
     else if (p.startsWith('/donate'))    active = 'donate';
     else if (p.startsWith('/data'))     active = 'data';
+    else if (p.startsWith('/crafting')) active = 'crafting';
     else active = '';
   }
 
@@ -437,12 +438,25 @@
       margin: 0.15rem;
     }
 
+    /* ── Nav group wrappers ── */
+    .hub-nav .nav-group-red,
+    .hub-nav .nav-group-green,
+    .hub-nav .nav-group-blue {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
     /* ── Responsive: hide flat tabs on mobile, show hamburger ── */
     @media (max-width: 768px) {
       .hub-nav { padding: 0 0.4rem; gap: 0.15rem; height: 36px; }
       .hub-nav .tab { display: none !important; }
       .hub-nav .nav-divider { display: none !important; }
+      .hub-nav .nav-group-red,
+      .hub-nav .nav-group-green,
+      .hub-nav .nav-group-blue { display: none !important; }
       .hub-nav .spacer { display: none !important; }
+      .hub-nav .context-toggle { display: none !important; }
       .hub-nav .brand { margin-right: 0.25rem; }
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
       .hub-nav-spacer { height: 37px; }
@@ -462,6 +476,22 @@
     '</a>';
   }
 
+  // ── Context toggle (Real / Game) ──
+  var savedContext = localStorage.getItem('humanity_context') || 'real';
+  if (savedContext !== 'real' && savedContext !== 'game') savedContext = 'real';
+  Object.defineProperty(window, 'hos_context', {
+    get: function() { return localStorage.getItem('humanity_context') || 'real'; },
+    configurable: true
+  });
+
+  function buildContextToggle() {
+    var ctx = window.hos_context;
+    return '<div class="context-toggle" id="hos-context-toggle">' +
+      '<span class="ctx-seg' + (ctx === 'real' ? ' active' : '') + '" data-ctx="real">Real</span>' +
+      '<span class="ctx-seg' + (ctx === 'game' ? ' active' : '') + '" data-ctx="game">Game</span>' +
+    '</div>';
+  }
+
   // ── Inject Nav ──
   const nav = document.createElement('div');
   nav.innerHTML =
@@ -469,18 +499,39 @@
       /* Brand */
       '<a href="/" class="brand' + (active === 'landing' ? ' active' : '') + '" data-tip="Home">H</a>' +
 
-      /* Main */
-      navTab('/chat',      'network',   'Network',   'chat') +
-      navTab('/tasks',     'tasklist',  'Tasks',     'tasks') +
-      navTab('/maps',      'map',       'Maps',      'map') +
-      navTab('/market',    'market',    'Market',    'market') +
+      '<div class="nav-divider"></div>' +
 
-      /* Spacer pushes utility tabs to the right */
+      /* Red group: core identity */
+      '<span class="nav-group-red">' +
+        navTab('/chat',     'network',  'Chat',     'chat') +
+        navTab('/profile',  'profile',  'Profile',  'profile') +
+        navTab('/wallet',   'coin',     'Wallet',   'wallet') +
+        navTab('/donate',   'heart',    'Donate',   'donate') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      /* Green group: context-sensitive */
+      '<span class="nav-group-green">' +
+        navTab('/tasks',     'tasklist',   'Tasks',     'tasks') +
+        navTab('/inventory', 'inventory',  'Inventory', 'gear') +
+        navTab('/maps',      'map',        'Maps',      'map') +
+        navTab('/market',    'market',     'Market',    'market') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      /* Blue group: system/config */
+      '<span class="nav-group-blue">' +
+        navTab('/settings', 'settings',  'Settings',  'settings') +
+        navTab('/activities/download', 'download', 'Download', 'download') +
+      '</span>' +
+
+      /* Spacer pushes context toggle to the right */
       '<div class="spacer"></div>' +
 
-      /* Utility — right-aligned */
-      navTab('/settings', 'settings',  'Settings',  'settings') +
-      navTab('/activities/download', 'download',  'Download',  'download') +
+      /* Context toggle — right-aligned */
+      buildContextToggle() +
 
       /* Mobile hamburger — only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
@@ -505,15 +556,24 @@
   }
 
   mobileDrawer.innerHTML =
-    '<div class="mobile-hub-group"><h4>Navigate</h4>' +
-      mobileLink('/chat',      'Network') +
+    '<div class="mobile-hub-group group-red"><h4>Identity</h4>' +
+      mobileLink('/chat',      'Chat') +
+      mobileLink('/profile',   'Profile') +
+      mobileLink('/wallet',    'Wallet') +
+      mobileLink('/donate',    'Donate') +
+    '</div>' +
+    '<div class="mobile-hub-group group-green"><h4>Activities</h4>' +
       mobileLink('/tasks',     'Tasks') +
+      mobileLink('/inventory', 'Inventory') +
       mobileLink('/maps',      'Maps') +
       mobileLink('/market',    'Market') +
     '</div>' +
-    '<div class="mobile-hub-group"><h4>More</h4>' +
-      mobileLink('/settings', 'Settings') +
-      mobileLink('/activities/download', 'Download') +
+    '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
+      mobileLink('/settings',             'Settings') +
+      mobileLink('/activities/download',   'Download') +
+    '</div>' +
+    '<div class="mobile-hub-group"><h4>Context</h4>' +
+      '<div style="padding:0.5rem 0.55rem;">' + buildContextToggle() + '</div>' +
     '</div>';
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
@@ -547,6 +607,21 @@
     if (link) closeMobileDrawer();
   });
 
+  // ── Context toggle handler ──
+  document.addEventListener('click', function(e) {
+    var seg = e.target.closest('.ctx-seg');
+    if (!seg) return;
+    var newCtx = seg.getAttribute('data-ctx');
+    if (!newCtx || newCtx === window.hos_context) return;
+    localStorage.setItem('humanity_context', newCtx);
+    // Update all toggle instances on the page
+    document.querySelectorAll('.context-toggle .ctx-seg').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-ctx') === newCtx);
+    });
+    // Dispatch event so pages can react
+    window.dispatchEvent(new CustomEvent('hos-context-change', { detail: { context: newCtx } }));
+  });
+
   // Rich tooltips (label + short explanation)
   function defaultTooltipDescription(label) {
     var l = (label || '').toLowerCase();
@@ -561,9 +636,12 @@
     if (l.includes('attach') || l.includes('file')) return 'Adds a file to your message or upload flow.';
     if (l.includes('commands')) return 'Opens command tools and quick actions.';
     if (l.includes('help')) return 'Shows guidance, docs, and available actions.';
-    if (l.includes('network')) return 'Chat, voice, and collaboration hub.';
+    if (l.includes('chat') || l.includes('network')) return 'Chat, voice, and collaboration hub.';
     if (l.includes('games')) return 'Launch the 3D game and explore the universe.';
-    if (l.includes('garden')) return 'Tend your garden — plant, water, and harvest crops.';
+    if (l.includes('garden')) return 'Tend your garden: plant, water, and harvest crops.';
+    if (l.includes('donate')) return 'Support the project with donations and funding.';
+    if (l.includes('inventory')) return 'Your items, equipment, and resource storage.';
+    if (l.includes('crafting')) return 'Combine materials to create tools and equipment.';
     if (l.includes('profile')) return 'Your identity, skills, and social links.';
     if (l.includes('gear')) return 'Your inventory and equipment loadouts.';
     if (l.includes('tasks')) return 'Kanban board, quests, and project planning.';
@@ -1045,7 +1123,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.37.1';
+    var CURRENT_VERSION = '0.37.2';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

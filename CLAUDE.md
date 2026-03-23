@@ -241,9 +241,9 @@ server_members (public_key, name, role, joined_at, last_seen)
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
 - **Repo restructure (v0.37.0):** `engine/` renamed to `native/`, `ui/` renamed to `web/`, `app/` (Tauri) deprecated. Old path references in docs, configs, or scripts may need updating.
 
-## Current targets (v0.37.0)
+## Current targets (v0.37.1)
 
 1. Multiplayer sync (networked ECS state replication)
-2. egui native GUI (theme, widgets, pages for desktop client)
+2. Real/game context toggle (global mode switch between real-life tools and game mode)
 3. Audio system (spatial audio, music, SFX via kira crate)
 4. Map rework (replace 2D canvas solar system with 3D engine orbit mode)

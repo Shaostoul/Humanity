@@ -5,6 +5,14 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 
 ---
 
+## v0.37.1 — Complete Restructure Cleanup (2026-03-22)
+
+- **Simplified web nav** — streamlined navigation structure
+- **Platform SVGs** — platform detection icons as inline SVGs
+- **Documentation updated** — all remaining docs updated for native/web/server restructure
+
+---
+
 ## v0.37.0 — Repository Restructure (2026-03-22)
 
 ### Directory renames
@@ -12,6 +20,29 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 - **`ui/` renamed to `web/`** — reflects that this is the web interface layer
 - **`app/` (Tauri) deprecated** — native binary replaces the Tauri desktop wrapper
 - All documentation updated to reflect new paths
+
+---
+
+## v0.36.0 — egui Native GUI System (2026-03-22)
+
+### Desktop GUI
+- **egui immediate-mode GUI** — replaces Tauri WebView for desktop UI
+- **Theme system** — theme.ron for colors, spacing, fonts; hot-reloadable
+- **Reusable widgets** — buttons, panels, text inputs, sliders
+- **5 pages** — main menu, settings, inventory, chat overlay, HUD
+- Desktop app is now a standalone Rust binary with egui + wgpu (no Tauri dependency)
+
+---
+
+## v0.35.0 — Security Hardening (2026-03-21)
+
+### Security audit fixes
+- **Global error boundary** — window.onerror + unhandledrejection in shell.js, toast UI instead of white screen
+- **Env var validation** — fail-fast startup with clear messages for missing/invalid config
+- **Automated DB backup** — SQLite backup every 6 hours via VACUUM INTO, keep last 5, tokio background task
+- **REST endpoint pagination audited** — all list endpoints accept limit/offset params
+- **GitHub webhook signature verification** — HMAC-SHA256 when WEBHOOK_SECRET is set
+- **Admin role checks audited** — all admin operations verify sender role
 
 ---
 
@@ -229,7 +260,7 @@ Four agents built simultaneously:
 - `assets/ui/icons/` → `assets/icons/` (shared between UI and engine)
 - Updated 14+ docs/scripts with stale path references
 
-### Local-first save system (`app/src/storage.rs`)
+### Local-first save system (previously `app/src/storage.rs`, now deprecated)
 - **622-line storage module** — OS-standard data dir (`%APPDATA%\HumanityOS\`)
 - Save slots: profile, inventory, farm, quests, skills, world
 - Auto-rotating backups (keep last 5)
@@ -473,4 +504,4 @@ This was the largest pre-tag release — ~870 commits covering the full platform
 
 ---
 
-*Spanning from initial commit (2026-01-16) through v0.34.0 (2026-03-21).*
+*Spanning from initial commit (2026-01-16) through v0.37.1 (2026-03-22).*

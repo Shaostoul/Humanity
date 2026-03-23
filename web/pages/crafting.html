@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>Crafting — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:900px;width:100%;margin:0 auto}
+    .craft-hero{text-align:center;margin:var(--space-3xl) 0}
+    .craft-hero h1{font-size:1.6rem;margin:0 0 var(--space-md)}
+    .craft-hero p{color:var(--text-muted);font-size:0.95rem;max-width:560px;margin:0 auto;line-height:1.5}
+    .coming-soon{text-align:center;padding:var(--space-3xl);color:var(--text-muted);font-size:0.9rem;border:1px dashed var(--border);border-radius:12px;margin-top:var(--space-xl)}
+  </style>
+</head>
+<body>
+  <script src="/shared/shell.js" data-active="crafting"></script>
+
+  <div id="page-app">
+    <div class="craft-hero">
+      <h1 id="craft-heading">Crafting</h1>
+      <p id="craft-desc">Combine materials and components to create tools, structures, and equipment.</p>
+    </div>
+    <div class="coming-soon">
+      <p>Coming soon. The crafting system will let you transform raw resources into useful items.</p>
+    </div>
+  </div>
+
+  <script>
+    // React to context toggle
+    function updateCraftContext() {
+      var ctx = window.hos_context || 'real';
+      var heading = document.getElementById('craft-heading');
+      var desc = document.getElementById('craft-desc');
+      if (ctx === 'game') {
+        heading.textContent = 'Game Crafting';
+        desc.textContent = 'Combine materials and components to create tools, structures, and equipment in-game.';
+      } else {
+        heading.textContent = 'Crafting';
+        desc.textContent = 'Combine materials and components to create tools, structures, and equipment.';
+      }
+    }
+    updateCraftContext();
+    window.addEventListener('hos-context-change', updateCraftContext);
+  </script>
+</body>
+</html>

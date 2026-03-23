@@ -29,6 +29,7 @@
     // Navigation
     'rgb-nav': true,
     'nav-tips': true,
+    context: 'real',  // 'real' or 'game'
     // Notifications
     'notif-dm': true,
     'notif-group': true,

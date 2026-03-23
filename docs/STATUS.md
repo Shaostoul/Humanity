@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-03-21 | **Version:** v0.35.0
+> **Last updated:** 2026-03-22 | **Version:** v0.37.1
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -175,18 +175,21 @@ Everything in this section is **built and working**.
 
 ---
 
-## Desktop App (Tauri v2)
+## Native Desktop Client
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Tauri v2 shell | ✅ | Desktop binary wrapping web UI |
-| Local-first bundling | ✅ | All web UI bundled, works offline |
-| Background web sync | ✅ | Checks /api/web-manifest for updates |
-| External links | ✅ | Via tauri-plugin-shell |
-| DevTools gating | ✅ | Gated behind environment variable |
-| Service worker skip | ✅ | Skipped in Tauri WebView2 context |
-| Auto-updater | ⚠️ | Signing keys + CI pipeline ready, end-to-end test pending |
-| Multi-webview | ⚠️ | Infrastructure exists but gated due to rendering bugs |
+| Standalone Rust binary | ✅ | egui + wgpu desktop app, no Tauri dependency |
+| egui GUI system | ✅ | Immediate-mode UI with theme.ron, reusable widgets (v0.36.0) |
+| Main menu page | ✅ | Entry point with navigation to all features (v0.36.0) |
+| Settings page | ✅ | Theme, display, controls configuration (v0.36.0) |
+| Inventory page | ✅ | Item management UI (v0.36.0) |
+| Chat overlay page | ✅ | In-game chat interface (v0.36.0) |
+| HUD page | ✅ | Health, status, interaction prompts (v0.36.0) |
+| Hot-reloadable theme | ✅ | theme.ron for colors, spacing, fonts; live reload (v0.36.0) |
+| Real/game context toggle | 🔜 | Global mode switch between real-life tools and game mode |
+
+> **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary in `native/` replaces it.
 
 ---
 
@@ -194,12 +197,12 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Storage module | ✅ | 622-line storage module (Tauri app, deprecated) |
+| OS-standard data dir | ✅ | `%APPDATA%\HumanityOS\` with identity, saves, settings, cache, backups |
 | Save slots | ✅ | Profile, inventory, farm, quests, skills, world |
 | Auto-rotating backups | ✅ | Keeps last 5 timestamped snapshots |
 | USB drive detection | ✅ | Detects removable drives for export/import |
 | Tiered sync config | ✅ | Configurable sync levels |
-| Tauri commands | ✅ | 12 commands (list/create/delete/export/import saves, backups, sync config) |
+| Data management UI | ✅ | web/pages/data.html with saves, backups, sync settings, USB tabs |
 
 ---
 
@@ -208,9 +211,9 @@ Everything in this section is **built and working**.
 | # | Feature | Category | Why |
 |---|---------|----------|-----|
 | 1 | 🔜 Multiplayer sync | Engine | Networked ECS state replication |
-| 2 | 🔜 In-game UI (HUD) | Engine | Health, inventory, interaction prompts |
-| 3 | 🔜 Audio system | Engine | Spatial audio, music, SFX |
-| 4 | 🔜 Map rework | UI | Replace 2D canvas solar system with 3D engine orbit mode |
+| 2 | 🔜 Real/game context toggle | Native/Web | Global mode switch, same features with different data |
+| 3 | 🔜 Audio system | Engine | Spatial audio, music, SFX via kira crate |
+| 4 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
 
 ---
 
@@ -227,6 +230,6 @@ Everything in this section is **built and working**.
 | Game Engine | 29 | 1 | 0 |
 | Server & Infrastructure | 15 | 0 | 0 |
 | Navigation & UX | 7 | 0 | 0 |
-| Desktop App | 6 | 2 | 0 |
+| Native Desktop Client | 8 | 0 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
-| **Total** | **115** | **3** | **0** |
+| **Total** | **117** | **1** | **0** |

@@ -83,7 +83,7 @@ Both share the same server, identity system, and data layer. The game is how peo
 
 ### Platform
 - **PWA installable** — works on mobile, add to homescreen
-- **Desktop app** — Native Rust/wgpu binary for Windows, macOS, Linux
+- **Desktop app** — Native Rust/wgpu/egui binary for Windows, macOS, Linux
 - **Command palette** — quick navigation
 - **Dark/light themes**, accent colors, font size controls
 - **Auto-reload on deploy** — no manual refresh needed
@@ -106,7 +106,7 @@ Both share the same server, identity system, and data layer. The game is how peo
 | Transport | WebSocket + WebRTC |
 | Client | Plain HTML/CSS/JS — no build step |
 | Identity | Ed25519 (signing) + ECDH P-256 (encryption) |
-| Desktop | Native binary (Rust/wgpu) |
+| Desktop | Native binary (Rust/wgpu + egui GUI) |
 | Hosting | nginx + systemd |
 | Layout | Cargo workspace |
 
@@ -121,8 +121,8 @@ Humanity/
 │       ├── handlers/          ← Extracted relay helpers
 │       ├── storage/           ← SQLite domain modules (17 files)
 │       └── api.rs             ← HTTP REST API endpoints
-├── native/                    ← Rust game engine (renderer, ECS, physics, systems)
-│   ├── src/                   ← Engine source (renderer, terrain, ship, assets, systems)
+├── native/                    ← Rust desktop client (egui GUI + wgpu game engine)
+│   ├── src/                   ← Engine source (gui, renderer, terrain, ship, assets, systems)
 │   └── crates/                ← 19 sub-crates (core, modules, persistence)
 ├── web/                       ← Web interface (browser + WebView)
 │   ├── chat/                  ← Chat client (app.js, crypto.js, chat-*.js)

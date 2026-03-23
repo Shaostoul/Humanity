@@ -106,6 +106,7 @@
     tool: '<path d="M28,20 L42,6" fill="none"/><circle cx="18" cy="30" r="12"/><line x1="18" y1="24" x2="18" y2="36"/><line x1="12" y1="30" x2="24" y2="30"/>',
     cube: '<path d="M24,4 L44,16 V32 L24,44 L4,32 V16 Z" fill="none"/><line x1="24" y1="24" x2="24" y2="44"/><line x1="4" y1="16" x2="24" y2="24"/><line x1="44" y1="16" x2="24" y2="24"/>',
     car: '<path d="M8,30 H40 V38 H8 Z" fill="none"/><path d="M10,30 L16,20 H32 L38,30" fill="none"/><circle cx="14" cy="38" r="4"/><circle cx="34" cy="38" r="4"/>',
+    crafting: '<path d="M10,38 L20,28" fill="none"/><path d="M28,20 L38,10" fill="none"/><rect x="16" y="16" width="16" height="16" rx="2" transform="rotate(45,24,24)"/><circle cx="24" cy="24" r="3"/>',
     blueprint: '<rect x="6" y="8" width="36" height="32" rx="2"/><line x1="14" y1="16" x2="34" y2="16"/><line x1="14" y1="24" x2="28" y2="24"/><line x1="14" y1="32" x2="22" y2="32"/>',
     storage: '<rect x="6" y="8" width="36" height="12" rx="2"/><rect x="6" y="24" width="36" height="12" rx="2"/><circle cx="34" cy="14" r="2" fill="currentColor" stroke="none"/><circle cx="34" cy="30" r="2" fill="currentColor" stroke="none"/>',
 
