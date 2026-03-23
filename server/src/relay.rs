@@ -3989,6 +3989,8 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 }
                                             }
                                         }
+                                        // Silently ignore client-side-only commands
+                                        "/groups" | "/dms" | "/servers" | "/friends" => {}
                                         _ => {
                                             let private = RelayMessage::Private {
                                                 to: my_key_for_recv.clone(),
