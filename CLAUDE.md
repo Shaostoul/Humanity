@@ -66,7 +66,7 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `web/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
 | `web/shared/shell.js` | Nav injection IIFE — loaded first on every page |
 | `web/shared/settings.js` | Settings panel + gear button |
-| `web/pages/*.html` | Standalone feature pages — tasks, maps, settings, etc. |
+| `web/pages/*.html` | Standalone feature pages — tasks, maps, civilization, settings, etc. |
 | `web/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
 | `web/activities/` | Game/real-world activities — gardening, download, etc. |
 | `assets/` | All shared media — icons, shaders, models, textures, audio |
@@ -241,9 +241,14 @@ server_members (public_key, name, role, joined_at, last_seen)
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
 - **Repo restructure (v0.37.0):** `engine/` renamed to `native/`, `ui/` renamed to `web/`, `app/` (Tauri) deprecated. Old path references in docs, configs, or scripts may need updating.
 
+## Real/Sim toggle
+
+The Real/Sim toggle switches the UI context between real-life tools and simulation mode. "Sim" was chosen over "Game" because the platform teaches real survival skills through simulation. Both modes share the same tools (inventory, tasks, maps, market) but display different datasets.
+
 ## Current targets (v0.37.1)
 
 1. Multiplayer sync (networked ECS state replication)
-2. Real/game context toggle (global mode switch between real-life tools and game mode)
+2. Real/sim context toggle (global mode switch between real-life tools and sim mode)
 3. Audio system (spatial audio, music, SFX via kira crate)
 4. Map rework (replace 2D canvas solar system with 3D engine orbit mode)
+5. Civilization page (macro community/infrastructure view)

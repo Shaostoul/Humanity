@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Civilization — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:1100px; width:100%; margin:0 auto; }
+    .civ-header { margin-bottom:var(--space-2xl); }
+    .civ-header h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-sm); }
+    .civ-header p { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; }
+    .civ-grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));
+      gap:var(--space-xl);
+    }
+    .civ-card {
+      background:var(--bg-card);
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+      padding:var(--space-2xl);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .civ-card:hover {
+      border-color:var(--accent);
+      box-shadow:0 2px 12px rgba(255,136,17,0.08);
+    }
+    .civ-card h3 {
+      font-size:var(--text-lg);
+      font-weight:700;
+      margin-bottom:var(--space-md);
+      display:flex;
+      align-items:center;
+      gap:var(--space-md);
+    }
+    .civ-card .card-icon {
+      width:24px; height:24px;
+      opacity:0.7;
+    }
+    .civ-card .placeholder {
+      color:var(--text-muted);
+      font-size:var(--text-sm);
+      font-style:italic;
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active=civilization></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<p class="page-hint">The big picture. Community infrastructure, population, resources, and governance.</p>
+
+<div id="page-app">
+  <div class="civ-header">
+    <h1 id="civ-heading">Civilization</h1>
+    <p id="civ-desc">Track the state of our communities, infrastructure, and collective progress.</p>
+  </div>
+
+  <!-- Real mode sections -->
+  <div id="civ-real" class="civ-grid">
+    <div class="civ-card">
+      <h3>Population</h3>
+      <p class="placeholder">Community member count, growth trends, and demographics. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Infrastructure</h3>
+      <p class="placeholder">Roads, power, water, internet, and shared facilities. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Resources</h3>
+      <p class="placeholder">Food, energy, materials, and supply chain tracking. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Governance</h3>
+      <p class="placeholder">Proposals, voting, bylaws, and cooperative decision-making. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Education</h3>
+      <p class="placeholder">Learning programs, skill development, and knowledge sharing. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Health</h3>
+      <p class="placeholder">Community health metrics, wellness programs, and care access. Coming soon.</p>
+    </div>
+  </div>
+
+  <!-- Sim mode sections -->
+  <div id="civ-sim" class="civ-grid" style="display:none;">
+    <div class="civ-card">
+      <h3>Colony Stats</h3>
+      <p class="placeholder">Population, morale, and colony growth simulation. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Buildings</h3>
+      <p class="placeholder">Construct and manage habitats, factories, and research labs. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Technology Tree</h3>
+      <p class="placeholder">Research new technologies to unlock advanced structures and capabilities. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Diplomacy</h3>
+      <p class="placeholder">Relations with other colonies, trade agreements, and alliances. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Military</h3>
+      <p class="placeholder">Defense systems, fleet management, and threat response. Coming soon.</p>
+    </div>
+    <div class="civ-card">
+      <h3>Economy</h3>
+      <p class="placeholder">Production chains, trade routes, and resource allocation. Coming soon.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  function updateCivContext() {
+    var ctx = window.hos_context || 'real';
+    var heading = document.getElementById('civ-heading');
+    var desc = document.getElementById('civ-desc');
+    var realGrid = document.getElementById('civ-real');
+    var simGrid = document.getElementById('civ-sim');
+    if (ctx === 'sim') {
+      heading.textContent = 'Civilization — Sim';
+      desc.textContent = 'Manage your colony, research technology, and build a thriving civilization in the simulation.';
+      realGrid.style.display = 'none';
+      simGrid.style.display = 'grid';
+    } else {
+      heading.textContent = 'Civilization';
+      desc.textContent = 'Track the state of our communities, infrastructure, and collective progress.';
+      realGrid.style.display = 'grid';
+      simGrid.style.display = 'none';
+    }
+  }
+  updateCivContext();
+  window.addEventListener('hos-context-change', updateCivContext);
+</script>
+</body>
+</html>

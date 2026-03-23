@@ -4,7 +4,7 @@
  * Set data-active="<key>" on the <script> tag to highlight the matching nav tab.
  * If omitted, active tab is auto-detected from the current URL.
  *
- * Valid active keys: landing, chat, tasks, map, market, settings, download
+ * Valid active keys: landing, chat, tasks, map, market, settings, download, civilization
  *
  * Usage:
  *   <script src="/shared/shell.js" data-active="gear"></script>
@@ -91,6 +91,7 @@
     else if (p.startsWith('/donate'))    active = 'donate';
     else if (p.startsWith('/data'))     active = 'data';
     else if (p.startsWith('/crafting')) active = 'crafting';
+    else if (p.startsWith('/civilization')) active = 'civilization';
     else active = '';
   }
 
@@ -477,9 +478,15 @@
 
   // ── Context toggle (Real / Game) ──
   var savedContext = localStorage.getItem('humanity_context') || 'real';
-  if (savedContext !== 'real' && savedContext !== 'game') savedContext = 'real';
+  // Backward compat: treat legacy "game" as "sim"
+  if (savedContext === 'game') { savedContext = 'sim'; localStorage.setItem('humanity_context', 'sim'); }
+  if (savedContext !== 'real' && savedContext !== 'sim') savedContext = 'real';
   Object.defineProperty(window, 'hos_context', {
-    get: function() { return localStorage.getItem('humanity_context') || 'real'; },
+    get: function() {
+      var v = localStorage.getItem('humanity_context') || 'real';
+      if (v === 'game') { v = 'sim'; localStorage.setItem('humanity_context', 'sim'); }
+      return v;
+    },
     configurable: true
   });
 
@@ -487,7 +494,7 @@
     var ctx = window.hos_context;
     return '<div class="context-toggle ctx-' + ctx + '" id="hos-context-toggle">' +
       '<span class="ctx-seg' + (ctx === 'real' ? ' active' : '') + '" data-ctx="real">Real</span>' +
-      '<span class="ctx-seg' + (ctx === 'game' ? ' active' : '') + '" data-ctx="game">Game</span>' +
+      '<span class="ctx-seg' + (ctx === 'sim' ? ' active' : '') + '" data-ctx="sim">Sim</span>' +
     '</div>';
   }
 
@@ -512,6 +519,7 @@
       /* Green group: context-sensitive (data changes with Real/Game) */
       '<span class="nav-group-green">' +
         navTab('/profile',   'profile',    'Profile',   'profile') +
+        navTab('/civilization', 'globe',   'Civilization', 'civilization') +
         navTab('/tasks',     'tasklist',   'Tasks',     'tasks') +
         navTab('/inventory', 'inventory',  'Inventory', 'gear') +
         navTab('/maps',      'map',        'Maps',      'map') +
@@ -564,6 +572,7 @@
       mobileLink('/donate',    'Donate') +
     '</div>' +
     '<div class="mobile-hub-group group-green"><h4>Activities</h4>' +
+      mobileLink('/civilization', 'Civilization') +
       mobileLink('/tasks',     'Tasks') +
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/maps',      'Maps') +
@@ -613,15 +622,9 @@
     // Click anywhere on the toggle to switch (not just the text)
     var toggle = e.target.closest('.context-toggle');
     if (!toggle) return;
-    var seg = e.target.closest('.ctx-seg');
-    // If they clicked the toggle but not a specific segment, switch to the other one
-    var newCtx;
-    if (seg) {
-      newCtx = seg.getAttribute('data-ctx');
-    } else {
-      newCtx = window.hos_context === 'real' ? 'game' : 'real';
-    }
-    if (!newCtx || newCtx === window.hos_context) return;
+    // Clicking anywhere on the pill toggles to the other context
+    var newCtx = window.hos_context === 'real' ? 'sim' : 'real';
+    if (!newCtx) return;
     localStorage.setItem('humanity_context', newCtx);
     // Update all toggle instances on the page
     document.querySelectorAll('.context-toggle .ctx-seg').forEach(function(el) {
@@ -630,7 +633,7 @@
     // Update color coding on toggle containers
     document.querySelectorAll('.context-toggle').forEach(function(el) {
       el.classList.toggle('ctx-real', newCtx === 'real');
-      el.classList.toggle('ctx-game', newCtx === 'game');
+      el.classList.toggle('ctx-sim', newCtx === 'sim');
     });
     // Dispatch event so pages can react
     window.dispatchEvent(new CustomEvent('hos-context-change', { detail: { context: newCtx } }));
@@ -662,6 +665,7 @@
     if (l.includes('journal')) return 'Encrypted notes and timestamped log entries.';
     if (l.includes('web')) return 'Browse curated websites and bookmarks.';
     if (l.includes('systems')) return 'Game systems and infrastructure overview.';
+    if (l.includes('civilization')) return 'The big picture: population, infrastructure, resources, and governance.';
     if (l.includes('maps')) return 'Interactive maps from local to galactic scale.';
     if (l.includes('market')) return 'Buy, sell, and trade with other users.';
     if (l.includes('wallet')) return 'Solana wallet: send, receive, swap, and stake crypto.';
@@ -1137,7 +1141,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.38.0';
+    var CURRENT_VERSION = '0.38.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

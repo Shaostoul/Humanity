@@ -187,7 +187,8 @@ Everything in this section is **built and working**.
 | Chat overlay page | ✅ | In-game chat interface (v0.36.0) |
 | HUD page | ✅ | Health, status, interaction prompts (v0.36.0) |
 | Hot-reloadable theme | ✅ | theme.ron for colors, spacing, fonts; live reload (v0.36.0) |
-| Real/game context toggle | 🔜 | Global mode switch between real-life tools and game mode |
+| Real/sim context toggle | 🔜 | Global mode switch between real-life tools and sim mode |
+| Civilization page | 🔜 | Macro community/infrastructure view |
 
 > **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary in `native/` replaces it.
 
@@ -211,7 +212,7 @@ Everything in this section is **built and working**.
 | # | Feature | Category | Why |
 |---|---------|----------|-----|
 | 1 | 🔜 Multiplayer sync | Engine | Networked ECS state replication |
-| 2 | 🔜 Real/game context toggle | Native/Web | Global mode switch, same features with different data |
+| 2 | 🔜 Real/sim context toggle | Native/Web | Global mode switch, same features with different data |
 | 3 | 🔜 Audio system | Engine | Spatial audio, music, SFX via kira crate |
 | 4 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
 
