@@ -2598,3 +2598,93 @@ pub async fn get_signed_profile(
         }
     }
 }
+
+// ── File browser API ───────────────────────────────────────────────────
+
+/// Query params for GET /api/files.
+#[derive(Debug, Deserialize)]
+pub struct FilesListQuery {
+    /// Directory path to list (must be within data/).
+    pub path: Option<String>,
+}
+
+/// GET /api/files — list files in a directory within data/.
+pub async fn list_files(
+    Query(params): Query<FilesListQuery>,
+) -> impl IntoResponse {
+    let dir_path = params.path.as_deref().unwrap_or("data");
+
+    match crate::storage::files::list_directory(dir_path) {
+        Ok(entries) => (StatusCode::OK, Json(serde_json::json!({
+            "path": dir_path,
+            "entries": entries,
+        }))).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+            "error": e,
+        }))).into_response(),
+    }
+}
+
+/// Query params for GET /api/files/read.
+#[derive(Debug, Deserialize)]
+pub struct FileReadQuery {
+    /// File path to read (must be within data/).
+    pub path: String,
+}
+
+/// GET /api/files/read — read a text file's contents.
+pub async fn read_file(
+    Query(params): Query<FileReadQuery>,
+) -> impl IntoResponse {
+    match crate::storage::files::read_file(&params.path) {
+        Ok(content) => {
+            let abs_path = crate::storage::files::validate_path(&params.path);
+            let (size, modified) = abs_path.ok()
+                .and_then(|p| std::fs::metadata(&p).ok())
+                .map(|m| {
+                    let size = m.len();
+                    let modified = m.modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    (size, modified)
+                })
+                .unwrap_or((0, 0));
+
+            (StatusCode::OK, Json(serde_json::json!({
+                "path": params.path,
+                "content": content,
+                "size": size,
+                "modified": modified,
+            }))).into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+            "error": e,
+        }))).into_response(),
+    }
+}
+
+/// Request body for POST /api/files/write.
+#[derive(Debug, Deserialize)]
+pub struct FileWriteRequest {
+    /// File path to write (must be within data/).
+    pub path: String,
+    /// File content to write.
+    pub content: String,
+}
+
+/// POST /api/files/write — write/save a text file.
+pub async fn write_file(
+    Json(req): Json<FileWriteRequest>,
+) -> impl IntoResponse {
+    match crate::storage::files::write_file(&req.path, &req.content) {
+        Ok(()) => (StatusCode::OK, Json(serde_json::json!({
+            "ok": true,
+            "path": req.path,
+        }))).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, Json(serde_json::json!({
+            "error": e,
+        }))).into_response(),
+    }
+}

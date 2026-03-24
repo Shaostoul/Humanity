@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Files — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Top bar ── */
+    .files-topbar {
+      display: flex; align-items: center; gap: var(--space-lg);
+      padding: var(--space-md) var(--space-xl);
+      background: var(--bg); border-bottom: 1px solid var(--bg-secondary);
+      flex-shrink: 0; min-height: 42px;
+    }
+    .breadcrumb { display: flex; align-items: center; gap: var(--space-xs); flex: 1; overflow-x: auto; }
+    .breadcrumb-seg {
+      font-size: 0.82rem; color: var(--text-muted); cursor: pointer;
+      background: none; border: none; padding: var(--space-xs) var(--space-sm);
+      border-radius: var(--radius-sm); transition: color 0.12s;
+    }
+    .breadcrumb-seg:hover { color: var(--text); }
+    .breadcrumb-seg.active { color: var(--text); cursor: default; }
+    .breadcrumb-sep { color: var(--text-dim); font-size: 0.75rem; }
+    .file-info { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+    .btn-save {
+      background: var(--accent); color: #000; border: none;
+      border-radius: var(--radius-sm); padding: var(--space-sm) var(--space-xl);
+      font-size: 0.78rem; font-weight: 700; cursor: pointer;
+      transition: opacity 0.12s; display: none;
+    }
+    .btn-save:hover { opacity: 0.85; }
+    .btn-save.visible { display: inline-block; }
+    .btn-wrap {
+      background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-md);
+      font-size: 0.72rem; cursor: pointer; display: none; white-space: nowrap;
+    }
+    .btn-wrap:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn-wrap.visible { display: inline-block; }
+    .unsaved-dot { color: var(--accent); font-weight: 700; display: none; margin-right: var(--space-xs); }
+    .unsaved-dot.visible { display: inline; }
+
+    /* ── Main layout ── */
+    .files-main {
+      display: flex; flex: 1; overflow: hidden;
+      height: calc(100vh - 42px - 42px);
+    }
+
+    /* ── File tree (left panel) ── */
+    .file-tree {
+      width: 260px; min-width: 180px;
+      background: var(--bg); border-right: 1px solid var(--bg-secondary);
+      display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+    }
+    .tree-header {
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--bg-secondary);
+      display: flex; align-items: center; gap: var(--space-md);
+    }
+    .tree-header h2 {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted); flex: 1; margin: 0;
+    }
+    .btn-refresh-tree {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-sm); font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .btn-refresh-tree:hover { color: var(--text); border-color: var(--text-muted); }
+    .tree-list { flex: 1; overflow-y: auto; padding: var(--space-sm) 0; }
+    .tree-item {
+      display: flex; align-items: center; gap: var(--space-sm);
+      padding: var(--space-xs) var(--space-lg);
+      font-size: 0.82rem; color: var(--text-muted);
+      cursor: pointer; transition: background 0.1s; border: none;
+      background: none; width: 100%; text-align: left;
+    }
+    .tree-item:hover { background: var(--bg-secondary); color: var(--text); }
+    .tree-item.active { background: var(--bg-hover); color: var(--text); }
+    .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 0.75rem; }
+    .tree-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tree-item .size { font-size: 0.68rem; color: var(--text-dim); }
+    .tree-item.dir .icon { color: var(--accent); }
+    .tree-children { display: none; }
+    .tree-children.open { display: block; }
+
+    /* ── Viewer (right panel) ── */
+    .file-viewer {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+      background: var(--bg);
+    }
+    .viewer-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--text-muted); gap: var(--space-lg);
+    }
+    .viewer-empty .empty-icon { font-size: 3rem; opacity: 0.3; }
+    .viewer-empty p { font-size: 0.88rem; }
+
+    /* ── Code editor ── */
+    .editor-wrap {
+      flex: 1; display: flex; overflow: hidden; position: relative;
+    }
+    .line-numbers {
+      background: var(--bg-panel, #0d0d0d); color: var(--text-dim);
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.82rem; line-height: 1.55;
+      padding: var(--space-lg) var(--space-md);
+      text-align: right; user-select: none;
+      overflow: hidden; flex-shrink: 0; min-width: 48px;
+      border-right: 1px solid var(--bg-secondary);
+    }
+    .editor-textarea {
+      flex: 1; background: transparent; color: var(--text);
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.82rem; line-height: 1.55;
+      padding: var(--space-lg);
+      border: none; outline: none; resize: none;
+      overflow: auto; tab-size: 4; white-space: pre;
+    }
+    .editor-textarea.wrap { white-space: pre-wrap; word-wrap: break-word; }
+
+    /* ── Media viewers ── */
+    .media-viewer {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: var(--space-2xl); overflow: auto;
+    }
+    .media-viewer img {
+      max-width: 100%; max-height: 100%; object-fit: contain;
+      border-radius: var(--radius);
+    }
+    .media-viewer audio, .media-viewer video {
+      max-width: 100%; border-radius: var(--radius);
+    }
+
+    /* ── JSON viewer ── */
+    .json-viewer {
+      flex: 1; overflow: auto; padding: var(--space-lg) var(--space-xl);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.82rem; line-height: 1.55;
+    }
+    .json-key { color: #7ec8e3; }
+    .json-str { color: #a8d89a; }
+    .json-num { color: #d4a0ff; }
+    .json-bool { color: #f0a500; }
+    .json-null { color: #888; }
+    .json-toggle {
+      cursor: pointer; color: var(--text-dim); user-select: none;
+      display: inline-block; width: 16px; text-align: center;
+    }
+    .json-toggle:hover { color: var(--text); }
+    .json-collapsed { display: none; }
+
+    /* ── CSV table ── */
+    .csv-viewer {
+      flex: 1; overflow: auto; padding: var(--space-lg);
+    }
+    .csv-table {
+      border-collapse: collapse; width: 100%; font-size: 0.8rem;
+    }
+    .csv-table th {
+      background: var(--bg-secondary); color: var(--text);
+      padding: var(--space-sm) var(--space-lg);
+      text-align: left; font-weight: 700; position: sticky; top: 0;
+      border-bottom: 2px solid var(--accent);
+    }
+    .csv-table td {
+      padding: var(--space-sm) var(--space-lg);
+      border-bottom: 1px solid var(--bg-secondary); color: var(--text-muted);
+    }
+    .csv-table tr:hover td { background: var(--bg-secondary); color: var(--text); }
+
+    /* ── Markdown ── */
+    .md-viewer {
+      flex: 1; overflow: auto; padding: var(--space-xl) var(--space-2xl);
+      line-height: 1.7; color: var(--text-muted); max-width: 800px;
+    }
+    .md-viewer h1 { font-size: 1.5rem; color: var(--text); margin: var(--space-xl) 0 var(--space-lg); border-bottom: 1px solid var(--bg-secondary); padding-bottom: var(--space-md); }
+    .md-viewer h2 { font-size: 1.2rem; color: var(--text); margin: var(--space-xl) 0 var(--space-md); }
+    .md-viewer h3 { font-size: 1rem; color: var(--text); margin: var(--space-lg) 0 var(--space-sm); }
+    .md-viewer p { margin: var(--space-md) 0; }
+    .md-viewer code {
+      background: var(--bg-secondary); padding: 2px 6px; border-radius: 3px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.85em;
+    }
+    .md-viewer pre {
+      background: var(--bg-secondary); padding: var(--space-lg);
+      border-radius: var(--radius); overflow-x: auto;
+    }
+    .md-viewer pre code { background: none; padding: 0; }
+    .md-viewer a { color: var(--accent); }
+    .md-viewer ul, .md-viewer ol { padding-left: var(--space-2xl); }
+    .md-viewer li { margin: var(--space-xs) 0; }
+    .md-viewer strong { color: var(--text); }
+    .md-viewer blockquote {
+      border-left: 3px solid var(--accent); padding-left: var(--space-lg);
+      color: var(--text-dim); margin: var(--space-lg) 0;
+    }
+
+    /* ── Unknown file ── */
+    .unknown-viewer {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: var(--space-xl); color: var(--text-muted);
+    }
+    .unknown-viewer .file-icon { font-size: 4rem; opacity: 0.3; }
+    .unknown-viewer .file-name { font-size: 1.1rem; color: var(--text); }
+    .unknown-viewer .file-meta { font-size: 0.82rem; }
+    .unknown-viewer .note { font-size: 0.78rem; color: var(--text-dim); margin-top: var(--space-lg); }
+
+    /* ── Loading ── */
+    .loading { color: var(--text-dim); font-size: 0.85rem; padding: var(--space-xl); text-align: center; }
+
+    @media (max-width: 600px) {
+      .file-tree { width: 180px; min-width: 140px; }
+      .files-topbar { padding: var(--space-sm) var(--space-md); }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="files"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div id="page-app">
+  <!-- Top bar -->
+  <div class="files-topbar">
+    <span class="unsaved-dot" id="unsaved-dot" title="Unsaved changes">*</span>
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <span class="file-info" id="file-info"></span>
+    <button class="btn-wrap" id="btn-wrap" onclick="FilesApp.toggleWrap()">Wrap</button>
+    <button class="btn-save" id="btn-save" onclick="FilesApp.save()">Save</button>
+  </div>
+
+  <div class="files-main">
+    <!-- File tree -->
+    <div class="file-tree">
+      <div class="tree-header">
+        <h2>Files</h2>
+        <button class="btn-refresh-tree" onclick="FilesApp.refreshTree()" title="Refresh">Refresh</button>
+      </div>
+      <div class="tree-list" id="tree-list">
+        <div class="loading">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Viewer -->
+    <div class="file-viewer" id="file-viewer">
+      <div class="viewer-empty">
+        <div class="empty-icon">&#128193;</div>
+        <p>Select a file to view or edit</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/pages/files-app.js"></script>
+</body>
+</html>

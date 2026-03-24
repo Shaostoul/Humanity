@@ -323,6 +323,9 @@ async fn main() {
         .route("/api/push/subscribe", post(api::push_subscribe))
         .route("/api/push/unsubscribe", post(api::push_unsubscribe))
         .route("/api/vapid-public-key", get(api::get_vapid_public_key))
+        .route("/api/files", get(api::list_files))
+        .route("/api/files/read", get(api::read_file))
+        .route("/api/files/write", post(api::write_file))
         .route("/api/asset-manifest", get(api::get_asset_manifest))
         .route("/api/web-manifest", get(api::get_web_manifest))
         .route("/api/me/system",

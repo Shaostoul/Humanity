@@ -1033,6 +1033,7 @@ mod signed_profiles;
 mod notification_prefs;
 mod vault_sync;
 mod civilization;
+pub mod files;
 
 pub use civilization::CivilizationStats;
 pub use marketplace::ListingMessageRecord;
