@@ -4,11 +4,12 @@ Open-source cooperative platform. Goal: end poverty, unite humanity.
 Live: https://united-humanity.us | GitHub: https://github.com/Shaostoul/Humanity
 SSH alias: `humanity-vps` (server1.shaostoul.com)
 
-> **⚠️ START HERE:**
-> 1. Read `docs/STATUS.md` for feature inventory (what's built, what's not)
-> 2. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
-> 3. Read `docs/SOP.md` for version sync, deploy, and development procedures
-> 4. Prevents re-researching, re-building, and re-fixing existing work
+> **⚠️ START HERE (mandatory, every session):**
+> 1. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
+> 2. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
+> 3. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
+> 4. Read `docs/SOP.md` for version sync, deploy, and development procedures
+> 5. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
 
 ## Quick orientation
 

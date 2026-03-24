@@ -1,12 +1,10 @@
-# Design
+# UI Architecture
 
-Technical design documents for major engine and game subsystems, covering audio, graphics, VR, and world rendering.
+This folder contains top-level UI/navigation architecture docs:
 
-## Contents
+- `app_shell_information_architecture.md`
+- `knowledge_tab_architecture.md`
+- `header_dropdown_navigation.md`
+- `menu_submenu_matrix.md`
 
-- `audio-engine.md` — Audio engine architecture (spatial audio, surround, polyphony)
-- `game-engine.md` — Core game engine design and technology choices
-- `gardening-game.md` — Gardening gameplay system design
-- `graphics-pipeline.md` — Graphics and rendering pipeline architecture
-- `maps-multi-scale.md` — Multi-scale map rendering (planet to local)
-- `vr-tracking.md` — VR tracking and input design
+These define the Private | H | Public shell, Knowledge tab behavior, and dropdown-based final nav structure.
