@@ -548,9 +548,9 @@ npx tauri build</code></pre>
           var ver = (d.tag_name || '').replace(/^v/, '');
           // Match the right asset for the detected platform
           var patterns = {
-            windows: /\.exe$/i,
-            macos:   arch === 'arm64' ? /aarch64.*\.dmg$/i : /x64.*\.dmg$/i,
-            linux:   arch === 'arm64' ? /aarch64.*\.AppImage$/i : /amd64.*\.AppImage$|x86_64.*\.AppImage$/i,
+            windows: /windows.*\.exe$/i,
+            macos:   arch === 'arm64' ? /macos-arm64/i : /macos-x64/i,
+            linux:   /linux-x64/i,
           };
           var pat = patterns[os];
           if (!pat) return;
