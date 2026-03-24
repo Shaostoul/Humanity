@@ -10,6 +10,10 @@ pub mod widgets;
 #[cfg(feature = "native")]
 pub mod pages;
 
+/// Current engine version (read from Cargo.toml at compile time).
+#[cfg(feature = "native")]
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// Which page/overlay is currently active.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +35,9 @@ pub struct GuiState {
     pub chat_messages: Vec<String>,
     pub selected_slot: Option<usize>,
     pub fps: f32,
+    pub updater: crate::updater::Updater,
+    /// Set true when an update notification toast should show.
+    pub update_toast_visible: bool,
 }
 
 #[cfg(feature = "native")]
@@ -45,6 +52,8 @@ impl Default for GuiState {
             chat_messages: Vec::new(),
             selected_slot: None,
             fps: 0.0,
+            updater: crate::updater::Updater::new(VERSION),
+            update_toast_visible: false,
         }
     }
 }
@@ -55,6 +64,7 @@ pub enum SettingsCategory {
     Graphics,
     Audio,
     Controls,
+    Updates,
 }
 
 #[cfg(feature = "native")]

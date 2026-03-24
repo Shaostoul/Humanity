@@ -3,6 +3,7 @@
 use egui::{Align2, Area, Color32, FontId, Pos2, Rect, RichText, Rounding, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
+use crate::updater::UpdateState;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &GuiState, camera_yaw: f32) {
     let screen = ctx.screen_rect();
@@ -75,6 +76,23 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &GuiState, camera_yaw: f3
                     format!("{}", i + 1),
                     FontId::proportional(10.0),
                     theme.text_muted(),
+                );
+            }
+
+            // ── Update notification toast (top-right, below FPS) ──
+            if let UpdateState::Available { ref version, .. } = state.updater.state {
+                let toast_rect = Rect::from_min_size(
+                    Pos2::new(screen.right() - 260.0, 36.0),
+                    Vec2::new(244.0, 44.0),
+                );
+                painter.rect_filled(toast_rect, Rounding::same(6), Color32::from_rgba_premultiplied(20, 20, 25, 230));
+                painter.rect_stroke(toast_rect, Rounding::same(6), egui::Stroke::new(1.0, theme.accent()), egui::StrokeKind::Outside);
+                painter.text(
+                    toast_rect.center(),
+                    Align2::CENTER_CENTER,
+                    format!("Update {} available", version),
+                    FontId::proportional(12.0),
+                    theme.accent(),
                 );
             }
         });
