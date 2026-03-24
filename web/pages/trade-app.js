@@ -262,7 +262,20 @@ function renderTwoColumns(t, isInitiator, editable) {
 function showTradeSection(section) {
   document.getElementById('trade-section-list').style.display = section === 'list' ? '' : 'none';
   document.getElementById('trade-section-detail').style.display = section === 'detail' ? '' : 'none';
-  if (section === 'list') activeTrade = null;
+  document.getElementById('trade-section-orderbook').style.display = section === 'orderbook' ? '' : 'none';
+  // Update tab active state
+  document.querySelectorAll('.trade-tab').forEach(function(t) { t.classList.remove('active'); });
+  if (section === 'list') {
+    document.getElementById('trade-nav-list').classList.add('active');
+    activeTrade = null;
+  } else if (section === 'orderbook') {
+    document.getElementById('trade-nav-orderbook').classList.add('active');
+    // Show create section if connected
+    if (tradeMyKey && !tradeMyKey.startsWith('viewer_')) {
+      document.getElementById('ob-create-section').style.display = '';
+      loadTradeHistory();
+    }
+  }
 }
 
 function viewTrade(tradeId) {
@@ -356,6 +369,217 @@ function cancelTrade(tradeId) {
     type: 'trade_cancel',
     trade_id: tradeId
   }));
+}
+
+// ── Order Book functions ──
+
+function searchOrderBook() {
+  var itemType = (document.getElementById('ob-search-item').value || '').trim();
+  if (!itemType) { document.getElementById('ob-search-item').focus(); return; }
+  fetch('/api/trade/orders?item_type=' + encodeURIComponent(itemType))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      renderOrderBook(data.orders || [], data.item_type, data.market_price);
+    })
+    .catch(function() {
+      document.getElementById('ob-orders-container').innerHTML = '<p style="color:var(--danger,#f44);text-align:center;">Failed to load orders.</p>';
+    });
+}
+
+function renderOrderBook(orders, itemType, marketPrice) {
+  var priceEl = document.getElementById('ob-market-price');
+  if (marketPrice != null) {
+    priceEl.textContent = 'Last trade price for ' + itemType + ': ' + marketPrice.toFixed(2);
+    priceEl.style.display = '';
+  } else {
+    priceEl.style.display = 'none';
+  }
+
+  var container = document.getElementById('ob-orders-container');
+  if (orders.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:var(--space-xl);">No open orders for "' + escHtml(itemType) + '".</p>';
+    return;
+  }
+
+  var html = '<table class="ob-table"><thead><tr>';
+  html += '<th>Seller</th><th>Item</th><th>Qty</th><th>Price/Unit</th><th>Currency</th><th>Total</th><th></th>';
+  html += '</tr></thead><tbody>';
+  orders.forEach(function(o) {
+    var sellerLabel = o.seller_key.slice(0, 12) + '...';
+    var isMine = o.seller_key === tradeMyKey;
+    html += '<tr>';
+    html += '<td>' + escHtml(sellerLabel) + (isMine ? ' <em>(you)</em>' : '') + '</td>';
+    html += '<td>' + escHtml(o.item_type) + (o.item_id ? ' (' + escHtml(o.item_id) + ')' : '') + '</td>';
+    html += '<td>' + o.remaining_qty + '/' + o.quantity + '</td>';
+    html += '<td>' + o.price_per_unit.toFixed(2) + '</td>';
+    html += '<td>' + escHtml(o.currency) + '</td>';
+    html += '<td>' + (o.remaining_qty * o.price_per_unit).toFixed(2) + '</td>';
+    html += '<td>';
+    if (isMine) {
+      html += '<button class="cancel-order-btn" onclick="cancelOrder(' + o.id + ')">Cancel</button>';
+    } else if (tradeMyKey && !tradeMyKey.startsWith('viewer_')) {
+      html += '<button class="buy-btn" onclick="promptBuyOrder(' + o.id + ',' + o.remaining_qty + ',' + o.price_per_unit + ')">Buy</button>';
+    }
+    html += '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function promptBuyOrder(orderId, maxQty, pricePerUnit) {
+  var qty = prompt('How many to buy? (max ' + maxQty + ', price ' + pricePerUnit.toFixed(2) + ' each)', maxQty);
+  if (qty === null) return;
+  qty = parseInt(qty);
+  if (!qty || qty <= 0 || qty > maxQty) { alert('Invalid quantity.'); return; }
+  fillOrder(orderId, qty);
+}
+
+async function fillOrder(orderId, quantity) {
+  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) { alert('Not authenticated.'); return; }
+  var timestamp = Date.now();
+  var sigContent = 'fill_order\n' + orderId + '\n' + quantity + '\n' + timestamp;
+  var signature = '';
+  try {
+    var backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
+    if (backup && backup.privateKeyHex) {
+      var privBytes = hexToBytes(backup.privateKeyHex);
+      var keyPair = nacl.sign.keyPair.fromSeed(privBytes.slice(0, 32));
+      var msgBytes = new TextEncoder().encode(sigContent);
+      signature = bytesToHex(nacl.sign.detached(msgBytes, keyPair.secretKey));
+    }
+  } catch(e) { alert('Could not sign request.'); return; }
+
+  try {
+    var resp = await fetch('/api/trade/orders/' + orderId + '/fill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ public_key: tradeMyKey, timestamp: timestamp, signature: signature, quantity: quantity })
+    });
+    var data = await resp.json();
+    if (resp.ok) {
+      alert('Purchase complete!');
+      searchOrderBook();
+      loadTradeHistory();
+    } else {
+      alert('Error: ' + (data.message || JSON.stringify(data)));
+    }
+  } catch(e) { alert('Network error.'); }
+}
+
+async function createSellOrder() {
+  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) { alert('Not authenticated.'); return; }
+  var itemType = (document.getElementById('ob-create-item').value || '').trim();
+  var qty = parseInt(document.getElementById('ob-create-qty').value) || 0;
+  var price = parseFloat(document.getElementById('ob-create-price').value) || 0;
+  var currency = document.getElementById('ob-create-currency').value || 'credits';
+
+  if (!itemType) { document.getElementById('ob-create-item').focus(); return; }
+  if (qty <= 0) { alert('Quantity must be positive.'); return; }
+  if (price <= 0) { alert('Price must be positive.'); return; }
+
+  var timestamp = Date.now();
+  var sigContent = 'trade_order\n' + itemType + '\n' + qty + '\n' + price + '\n' + timestamp;
+  var signature = '';
+  try {
+    var backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
+    if (backup && backup.privateKeyHex) {
+      var privBytes = hexToBytes(backup.privateKeyHex);
+      var keyPair = nacl.sign.keyPair.fromSeed(privBytes.slice(0, 32));
+      var msgBytes = new TextEncoder().encode(sigContent);
+      signature = bytesToHex(nacl.sign.detached(msgBytes, keyPair.secretKey));
+    }
+  } catch(e) { alert('Could not sign request.'); return; }
+
+  try {
+    var resp = await fetch('/api/trade/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        public_key: tradeMyKey, timestamp: timestamp, signature: signature,
+        item_type: itemType, quantity: qty, price_per_unit: price, currency: currency
+      })
+    });
+    var data = await resp.json();
+    if (resp.ok) {
+      alert('Sell order posted!');
+      document.getElementById('ob-search-item').value = itemType;
+      searchOrderBook();
+    } else {
+      alert('Error: ' + (data.message || JSON.stringify(data)));
+    }
+  } catch(e) { alert('Network error.'); }
+}
+
+async function cancelOrder(orderId) {
+  if (!confirm('Cancel this sell order?')) return;
+  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) { alert('Not authenticated.'); return; }
+  var timestamp = Date.now();
+  var sigContent = 'cancel_order\n' + orderId + '\n' + timestamp;
+  var signature = '';
+  try {
+    var backup = JSON.parse(localStorage.getItem('humanity_key_backup') || 'null');
+    if (backup && backup.privateKeyHex) {
+      var privBytes = hexToBytes(backup.privateKeyHex);
+      var keyPair = nacl.sign.keyPair.fromSeed(privBytes.slice(0, 32));
+      var msgBytes = new TextEncoder().encode(sigContent);
+      signature = bytesToHex(nacl.sign.detached(msgBytes, keyPair.secretKey));
+    }
+  } catch(e) { alert('Could not sign request.'); return; }
+
+  try {
+    var resp = await fetch('/api/trade/orders/' + orderId + '?key=' + encodeURIComponent(tradeMyKey) +
+      '&timestamp=' + timestamp + '&sig=' + encodeURIComponent(signature), { method: 'DELETE' });
+    var data = await resp.json();
+    if (resp.ok) {
+      searchOrderBook();
+    } else {
+      alert('Error: ' + (data.message || JSON.stringify(data)));
+    }
+  } catch(e) { alert('Network error.'); }
+}
+
+function loadTradeHistory() {
+  if (!tradeMyKey || tradeMyKey.startsWith('viewer_')) return;
+  fetch('/api/trade/history?key=' + encodeURIComponent(tradeMyKey) + '&limit=20')
+    .then(function(r) { return r.json(); })
+    .then(function(history) { renderTradeHistory(history); })
+    .catch(function() {});
+}
+
+function renderTradeHistory(history) {
+  var container = document.getElementById('ob-history-container');
+  if (!history || history.length === 0) {
+    container.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;">No trade history yet.</p>';
+    return;
+  }
+  var html = '<table class="ob-table"><thead><tr>';
+  html += '<th>Date</th><th>Item</th><th>Qty</th><th>Price/Unit</th><th>Total</th><th>Role</th>';
+  html += '</tr></thead><tbody>';
+  history.forEach(function(h) {
+    var date = new Date(h.timestamp).toLocaleDateString();
+    var role = h.buyer_key === tradeMyKey ? 'Bought' : 'Sold';
+    html += '<tr>';
+    html += '<td>' + escHtml(date) + '</td>';
+    html += '<td>' + escHtml(h.item_type) + '</td>';
+    html += '<td>' + h.quantity + '</td>';
+    html += '<td>' + h.price_per_unit.toFixed(2) + '</td>';
+    html += '<td>' + h.total_price.toFixed(2) + '</td>';
+    html += '<td>' + role + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// Hex utilities for signing
+function hexToBytes(hex) {
+  var bytes = new Uint8Array(hex.length / 2);
+  for (var i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return bytes;
+}
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
 }
 
 // Click outside modal to close

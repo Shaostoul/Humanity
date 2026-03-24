@@ -56,8 +56,8 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11px;
 }
 
-/* Zoom slider */
-#zoom-bar {
+/* Toolbar */
+#toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -66,11 +66,30 @@ button { font-family: inherit; cursor: pointer; }
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-#zoom-bar label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+#toolbar label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
 #zoom-slider {
   flex: 1;
   accent-color: var(--accent);
   height: 6px;
+  max-width: 300px;
+}
+.mode-toggle {
+  display: flex;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-left: auto;
+}
+.mode-toggle button {
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.mode-toggle button.active {
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 
 /* Main layout */
@@ -83,17 +102,17 @@ button { font-family: inherit; cursor: pointer; }
 #map-canvas {
   flex: 1;
   display: block;
-  background: #0a0a0a;
+  background: #060810;
   cursor: grab;
 }
 #map-canvas.dragging { cursor: grabbing; }
 
 /* Info sidebar */
 #info-panel {
-  width: 260px;
+  width: 280px;
   background: var(--bg-panel);
   border-left: 1px solid var(--border);
-  padding: 12px;
+  padding: 14px;
   overflow-y: auto;
   font-size: var(--text-sm);
   flex-shrink: 0;
@@ -101,7 +120,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 #info-panel.open { display: block; }
 #info-panel h3 { color: var(--accent); margin-bottom: 8px; font-size: var(--text-base); }
-#info-panel .info-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #222; }
+#info-panel .info-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #1a1a1a; }
 #info-panel .info-label { color: var(--text-muted); }
 #info-panel .info-value { color: var(--text); text-align: right; }
 #info-close {
@@ -113,6 +132,17 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text-muted);
   font-size: 18px;
 }
+.info-action-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 7px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+.info-action-btn:hover { background: var(--accent); color: #fff; }
 
 /* Controls overlay */
 #map-controls {
@@ -153,8 +183,8 @@ button { font-family: inherit; cursor: pointer; }
 /* Tooltip */
 #hover-tooltip {
   position: absolute;
-  padding: 4px 8px;
-  background: rgba(20,20,20,0.95);
+  padding: 5px 10px;
+  background: rgba(15,15,20,0.95);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
@@ -175,7 +205,7 @@ button { font-family: inherit; cursor: pointer; }
   height: 20px;
   pointer-events: none;
   z-index: 5;
-  opacity: 0.3;
+  opacity: 0.25;
 }
 #crosshair::before, #crosshair::after {
   content: '';
@@ -187,7 +217,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Responsive */
 @media (max-width: 700px) {
-  #info-panel { width: 220px; }
+  #info-panel { width: 240px; }
   #info-panel.open { position: absolute; right: 0; top: 0; bottom: 0; z-index: 15; }
 }
   </style>
@@ -199,7 +229,7 @@ button { font-family: inherit; cursor: pointer; }
 <script src="/shared/eli5.js"></script>
 <div class="eli5-block">
   <div class="eli5-simple">Explore maps from your neighborhood to the whole galaxy.</div>
-  <div class="eli5-expert">Multi-scale seamless zoom from galaxy to street level on a single HTML5 Canvas. Galaxy spiral with named stars, solar system with real orbital mechanics, planet globe rendering, and OpenStreetMap tile-based surface maps. Scroll wheel drives continuous scale transitions.</div>
+  <div class="eli5-expert">Multi-scale seamless zoom from galaxy to street level on a single HTML5 Canvas. 3D perspective orbit with tilt/rotation, real orbital mechanics, planet globe rendering, and OpenStreetMap tile-based surface maps. Real/Sim toggle between real-world and game views.</div>
 </div>
 
 <div id=page-app>
@@ -207,10 +237,14 @@ button { font-family: inherit; cursor: pointer; }
     <span class="crumb current" id="bc-galaxy">Galaxy</span>
     <span id="scale-readout"></span>
   </div>
-  <div id="zoom-bar">
+  <div id="toolbar">
     <label>Galaxy</label>
     <input type="range" id="zoom-slider" min="0" max="60" step="0.1" value="0">
     <label>Street</label>
+    <div class="mode-toggle">
+      <button id="btn-sim" class="active" onclick="setMode('sim')">Sim</button>
+      <button id="btn-real" onclick="setMode('real')">Real</button>
+    </div>
   </div>
 
   <div id="map-wrap">
@@ -234,7 +268,7 @@ button { font-family: inherit; cursor: pointer; }
 
 <script>
 // ============================================================================
-// HumanityOS Multi-Scale Map — Galaxy to Street seamless zoom
+// HumanityOS 3D Orbit Map — Galaxy to Street seamless zoom
 // ============================================================================
 'use strict';
 
@@ -263,29 +297,33 @@ const EARTH_CIRC = 4.007e7;
 // zoomLevel: 0 = galaxy, 60 = street. Continuous float.
 const state = {
   zoomLevel: 0,
-  // Pan offset in screen pixels from center
   panX: 0,
   panY: 0,
+  // 3D orbit angles (radians)
+  orbitTilt: 0.4,    // tilt from top (0 = top-down, PI/2 = edge-on)
+  orbitRotation: 0,  // rotation around Y axis
   // Navigation context
-  focusStar: null,    // star object when zoomed into a system
-  focusPlanet: null,  // planet object when zoomed into a planet
+  focusStar: null,
+  focusPlanet: null,
   // For tile view
   tileLat: 0,
   tileLng: 0,
+  // Mode
+  mode: 'sim', // 'sim' or 'real'
   // Animation
   animating: false,
   selectedObject: null,
 };
 
 // Zoom thresholds
-const ZOOM_GALAXY_MAX = 5;       // 0-5: galaxy view
+const ZOOM_GALAXY_MAX = 5;
 const ZOOM_STELLAR_MIN = 3;
-const ZOOM_STELLAR_MAX = 10;     // 3-10: stellar neighborhood
+const ZOOM_STELLAR_MAX = 10;
 const ZOOM_SYSTEM_MIN = 8;
-const ZOOM_SYSTEM_MAX = 18;      // 8-18: solar system
+const ZOOM_SYSTEM_MAX = 18;
 const ZOOM_GLOBE_MIN = 16;
-const ZOOM_GLOBE_MAX = 24;       // 16-24: planet globe
-const ZOOM_TILE_MIN = 22;        // 22+: tile map (Earth only)
+const ZOOM_GLOBE_MAX = 24;
+const ZOOM_TILE_MIN = 22;
 
 // ---- Star catalog (30 named stars with galactic x,y,z in parsecs) ----
 const STARS = [
@@ -316,38 +354,37 @@ const STARS = [
   { name: 'Wolf 359', x: -0.97, y: -1.89, z: 0.49, mag: 13.54, absMag: 16.64, spectral: 'M6.5V', color: '#ffb56c', temp: 2800, desc: 'Very faint red dwarf nearby' },
   { name: '61 Cygni A', x: 1.94, y: -2.38, z: 2.25, mag: 5.21, absMag: 7.49, spectral: 'K5V', color: '#ffd2a1', temp: 4526, desc: 'First star with measured parallax' },
   { name: 'Ross 128', x: -1.39, y: -2.98, z: 0.46, mag: 11.13, absMag: 13.51, spectral: 'M4V', color: '#ffb56c', temp: 3192, desc: 'Red dwarf with temperate exoplanet' },
-  { name: 'Luyten\'s Star', x: -0.85, y: -3.26, z: -1.55, mag: 9.86, absMag: 11.97, spectral: 'M3.5V', color: '#ffb56c', temp: 3382, desc: 'Red dwarf in Canis Minor' },
+  { name: "Luyten's Star", x: -0.85, y: -3.26, z: -1.55, mag: 9.86, absMag: 11.97, spectral: 'M3.5V', color: '#ffb56c', temp: 3382, desc: 'Red dwarf in Canis Minor' },
   { name: 'Canopus', x: -19.4, y: 5.64, z: -94.2, mag: -0.74, absMag: -5.71, spectral: 'A9II', color: '#f8f7ff', temp: 7400, desc: 'Second brightest star, in Carina' },
   { name: 'Achernar', x: -7.31, y: -25.1, z: -38.5, mag: 0.46, absMag: -1.46, spectral: 'B6V', color: '#aabfff', temp: 14500, desc: 'Flattest known star, in Eridanus' },
 ];
 
-// ---- Planet data (orbital elements) ----
+// ---- Planet data ----
 const PLANETS = [
-  { name: 'Mercury', semiMajor: 0.387, period: 0.241, ecc: 0.206, color: '#a0a0a0', radius: 2440, mass: '3.30e23 kg', temp: 167, moons: 0, desc: 'Smallest planet, extreme temps' },
-  { name: 'Venus', semiMajor: 0.723, period: 0.615, ecc: 0.007, color: '#e8c87a', radius: 6052, mass: '4.87e24 kg', temp: 464, moons: 0, desc: 'Hottest planet, thick atmosphere' },
-  { name: 'Earth', semiMajor: 1.000, period: 1.000, ecc: 0.017, color: '#4488cc', radius: 6371, mass: '5.97e24 kg', temp: 15, moons: 1, desc: 'Our home world', hasMap: true },
-  { name: 'Mars', semiMajor: 1.524, period: 1.881, ecc: 0.093, color: '#cc6644', radius: 3390, mass: '6.42e23 kg', temp: -65, moons: 2, desc: 'The Red Planet' },
-  { name: 'Jupiter', semiMajor: 5.203, period: 11.86, ecc: 0.049, color: '#d4a574', radius: 69911, mass: '1.90e27 kg', temp: -110, moons: 95, desc: 'Largest planet, gas giant' },
-  { name: 'Saturn', semiMajor: 9.537, period: 29.46, ecc: 0.054, color: '#e8d5a0', radius: 58232, mass: '5.68e26 kg', temp: -140, moons: 146, desc: 'Ringed gas giant' },
-  { name: 'Uranus', semiMajor: 19.19, period: 84.01, ecc: 0.047, color: '#7ec8c8', radius: 25362, mass: '8.68e25 kg', temp: -195, moons: 28, desc: 'Tilted ice giant' },
-  { name: 'Neptune', semiMajor: 30.07, period: 164.8, ecc: 0.009, color: '#4466dd', radius: 24622, mass: '1.02e26 kg', temp: -200, moons: 16, desc: 'Windiest planet' },
-  { name: 'Pluto', semiMajor: 39.48, period: 247.9, ecc: 0.249, color: '#c8b89a', radius: 1188, mass: '1.31e22 kg', temp: -230, moons: 5, desc: 'Dwarf planet in Kuiper belt', dwarf: true },
+  { name: 'Mercury', semiMajor: 0.387, period: 0.241, ecc: 0.206, incl: 7.0, color: '#a0a0a0', radius: 2440, mass: '3.30e23 kg', gravity: '3.7 m/s2', atmo: 'None (trace)', temp: 167, moons: 0, type: 'Terrestrial', desc: 'Smallest planet, extreme temps' },
+  { name: 'Venus', semiMajor: 0.723, period: 0.615, ecc: 0.007, incl: 3.4, color: '#e8c87a', radius: 6052, mass: '4.87e24 kg', gravity: '8.87 m/s2', atmo: 'CO2 (96.5%), N2 (3.5%)', temp: 464, moons: 0, type: 'Terrestrial', desc: 'Hottest planet, thick atmosphere' },
+  { name: 'Earth', semiMajor: 1.000, period: 1.000, ecc: 0.017, incl: 0.0, color: '#4488cc', radius: 6371, mass: '5.97e24 kg', gravity: '9.81 m/s2', atmo: 'N2 (78%), O2 (21%)', temp: 15, moons: 1, type: 'Terrestrial', desc: 'Our home world', hasMap: true },
+  { name: 'Mars', semiMajor: 1.524, period: 1.881, ecc: 0.093, incl: 1.9, color: '#cc6644', radius: 3390, mass: '6.42e23 kg', gravity: '3.72 m/s2', atmo: 'CO2 (95%), N2 (2.7%)', temp: -65, moons: 2, type: 'Terrestrial', desc: 'The Red Planet' },
+  { name: 'Jupiter', semiMajor: 5.203, period: 11.86, ecc: 0.049, incl: 1.3, color: '#d4a574', radius: 69911, mass: '1.90e27 kg', gravity: '24.79 m/s2', atmo: 'H2 (90%), He (10%)', temp: -110, moons: 95, type: 'Gas giant', desc: 'Largest planet, gas giant' },
+  { name: 'Saturn', semiMajor: 9.537, period: 29.46, ecc: 0.054, incl: 2.5, color: '#e8d5a0', radius: 58232, mass: '5.68e26 kg', gravity: '10.44 m/s2', atmo: 'H2 (96%), He (3%)', temp: -140, moons: 146, type: 'Gas giant', desc: 'Ringed gas giant' },
+  { name: 'Uranus', semiMajor: 19.19, period: 84.01, ecc: 0.047, incl: 0.8, color: '#7ec8c8', radius: 25362, mass: '8.68e25 kg', gravity: '8.87 m/s2', atmo: 'H2 (83%), He (15%), CH4 (2%)', temp: -195, moons: 28, type: 'Ice giant', desc: 'Tilted ice giant' },
+  { name: 'Neptune', semiMajor: 30.07, period: 164.8, ecc: 0.009, incl: 1.8, color: '#4466dd', radius: 24622, mass: '1.02e26 kg', gravity: '11.15 m/s2', atmo: 'H2 (80%), He (19%), CH4 (1%)', temp: -200, moons: 16, type: 'Ice giant', desc: 'Windiest planet' },
+  { name: 'Pluto', semiMajor: 39.48, period: 247.9, ecc: 0.249, incl: 17.2, color: '#c8b89a', radius: 1188, mass: '1.31e22 kg', gravity: '0.62 m/s2', atmo: 'N2, CH4, CO (thin)', temp: -230, moons: 5, type: 'Dwarf planet', desc: 'Dwarf planet in Kuiper belt', dwarf: true },
 ];
 
-// Give each planet a fixed starting angle for display
 PLANETS.forEach((p, i) => {
-  // Spread them out so they don't overlap visually
-  p.startAngle = (i * 137.508 * DEG2RAD) % TWO_PI; // golden angle
+  p.startAngle = (i * 137.508 * DEG2RAD) % TWO_PI;
 });
 
 // ---- Asteroid belt ----
 const ASTEROID_COUNT = 400;
 const asteroids = [];
 for (let i = 0; i < ASTEROID_COUNT; i++) {
-  const r = 2.1 + Math.random() * 1.2; // 2.1 - 3.3 AU
+  const r = 2.1 + Math.random() * 1.2;
   const angle = Math.random() * TWO_PI;
   const jitter = (Math.random() - 0.5) * 0.15;
-  asteroids.push({ r, angle, jitter });
+  const zJitter = (Math.random() - 0.5) * 0.3;
+  asteroids.push({ r, angle, jitter, zJitter });
 }
 
 // ---- Kuiper belt ----
@@ -357,7 +394,8 @@ for (let i = 0; i < KUIPER_COUNT; i++) {
   const r = 30 + Math.random() * 25;
   const angle = Math.random() * TWO_PI;
   const jitter = (Math.random() - 0.5) * 2;
-  kuiperObjects.push({ r, angle, jitter });
+  const zJitter = (Math.random() - 0.5) * 3;
+  kuiperObjects.push({ r, angle, jitter, zJitter });
 }
 
 // ---- Galaxy spiral arm parameters ----
@@ -368,82 +406,45 @@ const GALAXY_ARMS = [
   { name: 'Norma-Outer', startAngle: Math.PI * 1.5, color: 'rgba(120,160,255,0.11)' },
 ];
 const GALAXY_PITCH = 12 * DEG2RAD;
-const SOL_DISTANCE_KPC = 8.15; // from galactic center
+const SOL_DISTANCE_KPC = 8.15;
 
-// Pre-generate galaxy particles along spiral arms
 const galaxyParticles = [];
 GALAXY_ARMS.forEach(arm => {
   for (let i = 0; i < 600; i++) {
     const t = i / 600;
-    const r = 1 + t * 14; // 1-15 kpc
+    const r = 1 + t * 14;
     const theta = arm.startAngle + Math.log(r) / Math.tan(GALAXY_PITCH);
     const spread = 0.8 * (0.5 + t * 0.5);
     const px = r * Math.cos(theta) + (Math.random() - 0.5) * spread;
     const py = r * Math.sin(theta) + (Math.random() - 0.5) * spread;
+    const pz = (Math.random() - 0.5) * 0.3;
     const brightness = 0.2 + Math.random() * 0.6;
     const size = 0.5 + Math.random() * 1.5;
-    galaxyParticles.push({ x: px, y: py, brightness, size });
+    galaxyParticles.push({ x: px, y: py, z: pz, brightness, size });
   }
 });
-// Add central bulge particles
 for (let i = 0; i < 300; i++) {
   const r = Math.random() * 2.5;
   const theta = Math.random() * TWO_PI;
   const px = r * Math.cos(theta) * 0.7;
   const py = r * Math.sin(theta);
+  const pz = (Math.random() - 0.5) * 0.5;
   const brightness = 0.5 + Math.random() * 0.5;
-  galaxyParticles.push({ x: px, y: py, brightness, size: 0.5 + Math.random() });
+  galaxyParticles.push({ x: px, y: py, z: pz, brightness, size: 0.5 + Math.random() });
 }
 
-// ---- Earth continent outlines (simplified) ----
-// Very simplified continent polygons for globe rendering (lat/lng pairs)
+// ---- Earth continent outlines (simplified lat/lng) ----
 const CONTINENTS = [
-  // North America (very simplified)
-  { color: '#3a6b3a', points: [
-    [49,-125],[60,-140],[71,-157],[62,-165],[55,-168],[51,-178],[65,170],[72,-155],
-    [71,-100],[60,-65],[48,-55],[44,-65],[30,-82],[25,-80],[20,-88],[15,-88],
-    [17,-100],[20,-105],[30,-115],[35,-120],[40,-124],[49,-125]
-  ]},
-  // South America
-  { color: '#3a6b3a', points: [
-    [12,-70],[10,-62],[5,-52],[-5,-35],[-15,-39],[-23,-41],[-34,-52],
-    [-42,-62],[-55,-68],[-55,-72],[-46,-75],[-40,-68],[-30,-70],
-    [-18,-70],[-5,-78],[2,-77],[7,-76],[12,-70]
-  ]},
-  // Europe
-  { color: '#4a7a4a', points: [
-    [36,-6],[38,0],[43,5],[44,12],[40,26],[42,30],[45,37],[48,18],
-    [50,5],[52,7],[55,12],[54,22],[56,24],[60,30],[62,25],[65,28],
-    [71,26],[70,18],[63,10],[58,5],[56,3],[52,0],[48,-5],[44,-8],[36,-6]
-  ]},
-  // Africa
-  { color: '#4a7a4a', points: [
-    [37,-1],[35,10],[32,32],[25,35],[15,42],[12,44],[5,42],[0,43],
-    [-5,40],[-12,42],[-22,36],[-27,33],[-34,22],[-35,18],[-30,17],
-    [-20,13],[-10,14],[0,10],[5,2],[5,-5],[5,-10],[10,-15],[15,-17],
-    [20,-17],[25,-15],[30,-10],[35,-2],[37,-1]
-  ]},
-  // Asia (simplified)
-  { color: '#3a6b3a', points: [
-    [42,30],[40,50],[25,55],[25,65],[30,70],[20,90],[25,95],[22,100],
-    [10,105],[5,104],[0,110],[10,120],[22,115],[30,120],[35,130],[40,132],
-    [42,135],[45,140],[50,142],[52,140],[55,135],[60,130],[55,70],
-    [55,62],[53,55],[50,42],[45,37],[42,30]
-  ]},
-  // Australia
-  { color: '#5a8a4a', points: [
-    [-12,132],[-14,127],[-22,114],[-28,114],[-32,116],[-35,118],
-    [-38,145],[-35,150],[-28,154],[-24,152],[-18,146],[-15,140],
-    [-12,136],[-12,132]
-  ]},
-  // Antarctica (simplified ring)
-  { color: '#e8e8e8', points: [
-    [-65,-60],[-68,-30],[-70,0],[-72,30],[-70,60],[-68,90],
-    [-70,120],[-72,150],[-70,180],[-68,-150],[-70,-120],[-68,-90],[-65,-60]
-  ]},
+  { color: '#3a6b3a', points: [[49,-125],[60,-140],[71,-157],[62,-165],[55,-168],[51,-178],[65,170],[72,-155],[71,-100],[60,-65],[48,-55],[44,-65],[30,-82],[25,-80],[20,-88],[15,-88],[17,-100],[20,-105],[30,-115],[35,-120],[40,-124],[49,-125]] },
+  { color: '#3a6b3a', points: [[12,-70],[10,-62],[5,-52],[-5,-35],[-15,-39],[-23,-41],[-34,-52],[-42,-62],[-55,-68],[-55,-72],[-46,-75],[-40,-68],[-30,-70],[-18,-70],[-5,-78],[2,-77],[7,-76],[12,-70]] },
+  { color: '#4a7a4a', points: [[36,-6],[38,0],[43,5],[44,12],[40,26],[42,30],[45,37],[48,18],[50,5],[52,7],[55,12],[54,22],[56,24],[60,30],[62,25],[65,28],[71,26],[70,18],[63,10],[58,5],[56,3],[52,0],[48,-5],[44,-8],[36,-6]] },
+  { color: '#4a7a4a', points: [[37,-1],[35,10],[32,32],[25,35],[15,42],[12,44],[5,42],[0,43],[-5,40],[-12,42],[-22,36],[-27,33],[-34,22],[-35,18],[-30,17],[-20,13],[-10,14],[0,10],[5,2],[5,-5],[5,-10],[10,-15],[15,-17],[20,-17],[25,-15],[30,-10],[35,-2],[37,-1]] },
+  { color: '#3a6b3a', points: [[42,30],[40,50],[25,55],[25,65],[30,70],[20,90],[25,95],[22,100],[10,105],[5,104],[0,110],[10,120],[22,115],[30,120],[35,130],[40,132],[42,135],[45,140],[50,142],[52,140],[55,135],[60,130],[55,70],[55,62],[53,55],[50,42],[45,37],[42,30]] },
+  { color: '#5a8a4a', points: [[-12,132],[-14,127],[-22,114],[-28,114],[-32,116],[-35,118],[-38,145],[-35,150],[-28,154],[-24,152],[-18,146],[-15,140],[-12,136],[-12,132]] },
+  { color: '#e8e8e8', points: [[-65,-60],[-68,-30],[-70,0],[-72,30],[-70,60],[-68,90],[-70,120],[-72,150],[-70,180],[-68,-150],[-70,-120],[-68,-90],[-65,-60]] },
 ];
 
-// ---- Tile cache for OSM ----
+// ---- OSM Tile cache ----
 class TileCache {
   constructor(maxSize = 250) {
     this.cache = new Map();
@@ -451,7 +452,6 @@ class TileCache {
     this.maxSize = maxSize;
   }
   getTile(z, x, y) {
-    // Wrap x coordinate
     const n = Math.pow(2, z);
     x = ((x % n) + n) % n;
     const key = `${z}/${x}/${y}`;
@@ -471,7 +471,6 @@ class TileCache {
         requestRender();
       };
       img.onerror = () => { this.loading.delete(key); };
-      // CartoDB Dark Matter — matches dark theme
       img.src = `https://basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
     }
     return null;
@@ -488,6 +487,44 @@ class TileCache {
   }
 }
 const tileCache = new TileCache();
+
+// ---- 3D projection helper ----
+// Project a 3D point (x, y, z) to 2D screen using tilt and rotation.
+function project3D(x, y, z, cx, cy, scale) {
+  const cosTilt = Math.cos(state.orbitTilt);
+  const sinTilt = Math.sin(state.orbitTilt);
+  const cosRot = Math.cos(state.orbitRotation);
+  const sinRot = Math.sin(state.orbitRotation);
+
+  // Rotate around Y
+  const rx = x * cosRot - z * sinRot;
+  const rz = x * sinRot + z * cosRot;
+  // Tilt around X
+  const ry = y * cosTilt - rz * sinTilt;
+
+  return {
+    sx: cx + rx * scale,
+    sy: cy + ry * scale,
+    depth: rz * cosTilt + y * sinTilt
+  };
+}
+
+// ---- Mode toggle ----
+function setMode(mode) {
+  state.mode = mode;
+  document.getElementById('btn-sim').classList.toggle('active', mode === 'sim');
+  document.getElementById('btn-real').classList.toggle('active', mode === 'real');
+  if (mode === 'real') {
+    // Real mode: jump to Earth view
+    state.focusStar = STARS[0];
+    state.focusPlanet = PLANETS[2]; // Earth
+    state.tileLat = 20;
+    state.tileLng = 0;
+    animateZoomTo(ZOOM_TILE_MIN + 2);
+  } else {
+    requestRender();
+  }
+}
 
 // ---- Rendering ----
 let W, H;
@@ -515,17 +552,23 @@ function requestRender() {
 
 function render(ts) {
   renderScheduled = false;
-  const dt = ts - lastFrameTime;
   lastFrameTime = ts;
   animationTime = ts;
 
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#0a0a0a';
+
+  // Background: deep space gradient
+  const bgGrad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+  bgGrad.addColorStop(0, '#0c0e18');
+  bgGrad.addColorStop(1, '#040608');
+  ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
+
+  // Background stars
+  drawBackgroundStars();
 
   const z = state.zoomLevel;
 
-  // Determine which renderers to use and compute blend
   if (z < ZOOM_GALAXY_MAX) {
     renderGalaxy(ctx, 1);
   }
@@ -537,7 +580,7 @@ function render(ts) {
   if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) {
     const fadeIn = smoothstep(ZOOM_SYSTEM_MIN, ZOOM_SYSTEM_MIN + 2, z);
     const fadeOut = 1 - smoothstep(ZOOM_SYSTEM_MAX - 2, ZOOM_SYSTEM_MAX, z);
-    renderSystem(ctx, fadeIn * fadeOut);
+    renderSystem3D(ctx, fadeIn * fadeOut);
   }
   if (z >= ZOOM_GLOBE_MIN && z < ZOOM_GLOBE_MAX && state.focusPlanet) {
     const fadeIn = smoothstep(ZOOM_GLOBE_MIN, ZOOM_GLOBE_MIN + 2, z);
@@ -550,13 +593,35 @@ function render(ts) {
   }
 
   updateBreadcrumbs();
-  updateScaleReadout();
   updateAttribution();
   zoomSlider.value = z;
 
-  // Continue animating for system view (planet orbits)
-  if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) {
+  // Continue animating for system/globe views
+  if ((z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) ||
+      (z >= ZOOM_GLOBE_MIN && z < ZOOM_GLOBE_MAX && state.focusPlanet)) {
     requestRender();
+  }
+}
+
+// Background star field
+let bgStars = null;
+function drawBackgroundStars() {
+  if (!bgStars || bgStars.w !== W || bgStars.h !== H) {
+    bgStars = { w: W, h: H, stars: [] };
+    for (let i = 0; i < 200; i++) {
+      bgStars.stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: 0.3 + Math.random() * 1.2,
+        b: 0.2 + Math.random() * 0.6,
+      });
+    }
+  }
+  for (const s of bgStars.stars) {
+    ctx.fillStyle = `rgba(200,210,240,${s.b})`;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, TWO_PI);
+    ctx.fill();
   }
 }
 
@@ -566,7 +631,7 @@ function smoothstep(edge0, edge1, x) {
 }
 
 // ============================================================================
-// GALAXY RENDERER
+// GALAXY RENDERER (3D tilt)
 // ============================================================================
 function renderGalaxy(ctx, alpha) {
   ctx.save();
@@ -585,15 +650,15 @@ function renderGalaxy(ctx, alpha) {
   ctx.fillStyle = bulgeGrad;
   ctx.fillRect(0, 0, W, H);
 
-  // Draw particles
+  // Draw particles with 3D tilt
+  const tiltFactor = Math.cos(state.orbitTilt);
   for (const p of galaxyParticles) {
     const sx = cx + p.x * scale;
-    const sy = cy + p.y * scale;
+    const sy = cy + (p.y * tiltFactor + p.z * Math.sin(state.orbitTilt)) * scale;
     if (sx < -10 || sx > W + 10 || sy < -10 || sy > H + 10) continue;
 
     const r = p.size * Math.max(0.5, scale / 15);
-    const b = p.brightness;
-    ctx.fillStyle = `rgba(180,200,255,${b * 0.7})`;
+    ctx.fillStyle = `rgba(180,200,255,${p.brightness * 0.7})`;
     ctx.beginPath();
     ctx.arc(sx, sy, r, 0, TWO_PI);
     ctx.fill();
@@ -604,7 +669,6 @@ function renderGalaxy(ctx, alpha) {
   const solY = cy;
   const pulse = 0.7 + 0.3 * Math.sin(animationTime * 0.003);
 
-  // Sol glow
   const solGlow = ctx.createRadialGradient(solX, solY, 0, solX, solY, 12);
   solGlow.addColorStop(0, `rgba(255,200,50,${0.8 * pulse})`);
   solGlow.addColorStop(1, 'rgba(255,200,50,0)');
@@ -613,19 +677,16 @@ function renderGalaxy(ctx, alpha) {
   ctx.arc(solX, solY, 12, 0, TWO_PI);
   ctx.fill();
 
-  // Sol dot
   ctx.fillStyle = '#ffcc33';
   ctx.beginPath();
   ctx.arc(solX, solY, 3, 0, TWO_PI);
   ctx.fill();
 
-  // Sol label
   ctx.fillStyle = '#ffcc33';
   ctx.font = '11px sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText('Sol (You are here)', solX + 8, solY + 4);
 
-  // Galaxy label
   if (state.zoomLevel < 2) {
     ctx.fillStyle = 'rgba(200,200,255,0.5)';
     ctx.font = '14px sans-serif';
@@ -636,7 +697,7 @@ function renderGalaxy(ctx, alpha) {
   }
 
   ctx.restore();
-  if (alpha > 0 && state.zoomLevel < 3) requestRender(); // for pulse
+  if (alpha > 0 && state.zoomLevel < 3) requestRender();
 }
 
 // ============================================================================
@@ -648,13 +709,10 @@ function renderStellar(ctx, alpha) {
 
   const cx = W / 2 + state.panX;
   const cy = H / 2 + state.panY;
-  // Scale: parsecs to pixels. Increases with zoom.
   const scale = 20 * Math.pow(1.5, state.zoomLevel - ZOOM_STELLAR_MIN);
-
-  // Determine visibility magnitude cutoff based on zoom
   const magCutoff = 6 + (state.zoomLevel - ZOOM_STELLAR_MIN) * 2;
 
-  // Draw grid lines
+  // Grid
   ctx.strokeStyle = 'rgba(100,100,150,0.1)';
   ctx.lineWidth = 0.5;
   const gridStep = Math.max(1, Math.pow(10, Math.floor(Math.log10(200 / scale))));
@@ -665,7 +723,7 @@ function renderStellar(ctx, alpha) {
     if (gy > 0 && gy < H) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke(); }
   }
 
-  // Distance rings from Sol
+  // Distance rings
   ctx.strokeStyle = 'rgba(100,150,200,0.12)';
   ctx.lineWidth = 0.5;
   for (const r of [1, 2, 5, 10, 20, 50]) {
@@ -681,62 +739,64 @@ function renderStellar(ctx, alpha) {
     }
   }
 
-  // Draw stars
+  // Draw stars with 3D projection
   for (const star of STARS) {
     if (star.absMag > magCutoff && !star.name.startsWith('Sol')) continue;
 
-    const sx = cx + star.x * scale;
-    const sy = cy + star.y * scale;
-    if (sx < -50 || sx > W + 50 || sy < -50 || sy > H + 50) continue;
+    const p = project3D(star.x, star.z, star.y, cx, cy, scale);
+    if (p.sx < -50 || p.sx > W + 50 || p.sy < -50 || p.sy > H + 50) continue;
 
-    // Star size based on absolute magnitude
     const sizeFactor = Math.max(1.5, 8 - star.absMag * 0.4);
     const r = sizeFactor * Math.min(1, scale / 50);
 
     // Glow
-    const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 3);
+    const glow = ctx.createRadialGradient(p.sx, p.sy, 0, p.sx, p.sy, r * 3);
     glow.addColorStop(0, star.color);
     glow.addColorStop(0.3, star.color.replace(')', ',0.3)').replace('rgb', 'rgba'));
     glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(sx, sy, r * 3, 0, TWO_PI);
+    ctx.arc(p.sx, p.sy, r * 3, 0, TWO_PI);
     ctx.fill();
 
-    // Star body
     ctx.fillStyle = star.color;
     ctx.beginPath();
-    ctx.arc(sx, sy, r, 0, TWO_PI);
+    ctx.arc(p.sx, p.sy, r, 0, TWO_PI);
     ctx.fill();
 
-    // Label (only for brighter stars or when zoomed in)
     if (star.absMag < 6 || scale > 60) {
       ctx.fillStyle = 'rgba(220,220,240,0.8)';
       ctx.font = (star.name === 'Sol' ? 'bold ' : '') + '10px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(star.name, sx, sy - r - 5);
+      ctx.fillText(star.name, p.sx, p.sy - r - 5);
     }
+
+    // Store screen pos for hit testing
+    star._sx = p.sx;
+    star._sy = p.sy;
+    star._sr = r;
   }
 
   ctx.restore();
 }
 
 // ============================================================================
-// SOLAR SYSTEM RENDERER
+// 3D SOLAR SYSTEM RENDERER
 // ============================================================================
-function renderSystem(ctx, alpha) {
+function renderSystem3D(ctx, alpha) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
   const cx = W / 2 + state.panX;
   const cy = H / 2 + state.panY;
-
-  // Logarithmic scale for AU so inner and outer planets are all visible
   const baseScale = 30 * Math.pow(1.4, state.zoomLevel - ZOOM_SYSTEM_MIN);
+
   function auToPixels(au) {
-    // Log compression so Mercury isn't tiny and Neptune isn't huge
     return Math.log2(1 + au * 4) * baseScale;
   }
+
+  const cosTilt = Math.cos(state.orbitTilt);
+  const sinTilt = Math.sin(state.orbitTilt);
 
   // Sun
   const sunR = Math.max(8, baseScale * 0.3);
@@ -759,58 +819,78 @@ function renderSystem(ctx, alpha) {
   ctx.textAlign = 'center';
   ctx.fillText('Sun', cx, cy - sunR - 6);
 
-  // Asteroid belt
+  // Asteroid belt (3D)
   ctx.fillStyle = 'rgba(150,140,120,0.3)';
   for (const a of asteroids) {
     const r = auToPixels(a.r + a.jitter);
-    const ax = cx + r * Math.cos(a.angle);
-    const ay = cy + r * Math.sin(a.angle);
-    if (ax < -5 || ax > W + 5 || ay < -5 || ay > H + 5) continue;
+    const x3 = r * Math.cos(a.angle);
+    const z3 = r * Math.sin(a.angle);
+    const y3 = a.zJitter * baseScale * 0.15;
+    const sx = cx + x3;
+    const sy = cy + z3 * cosTilt + y3 * sinTilt;
+    if (sx < -5 || sx > W + 5 || sy < -5 || sy > H + 5) continue;
     ctx.beginPath();
-    ctx.arc(ax, ay, 0.7, 0, TWO_PI);
+    ctx.arc(sx, sy, 0.7, 0, TWO_PI);
     ctx.fill();
   }
 
-  // Kuiper belt
+  // Kuiper belt (3D)
   ctx.fillStyle = 'rgba(120,130,160,0.2)';
   for (const k of kuiperObjects) {
     const r = auToPixels(k.r + k.jitter);
-    const kx = cx + r * Math.cos(k.angle);
-    const ky = cy + r * Math.sin(k.angle);
-    if (kx < -5 || kx > W + 5 || ky < -5 || ky > H + 5) continue;
+    const x3 = r * Math.cos(k.angle);
+    const z3 = r * Math.sin(k.angle);
+    const y3 = k.zJitter * baseScale * 0.1;
+    const sx = cx + x3;
+    const sy = cy + z3 * cosTilt + y3 * sinTilt;
+    if (sx < -5 || sx > W + 5 || sy < -5 || sy > H + 5) continue;
     ctx.beginPath();
-    ctx.arc(kx, ky, 0.5, 0, TWO_PI);
+    ctx.arc(sx, sy, 0.5, 0, TWO_PI);
     ctx.fill();
   }
 
-  // Planets
+  // Planets with 3D orbit tilt
   const yearFraction = (Date.now() / 1000 / 86400 / 365.25);
+  const renderOrder = [];
+
   for (const planet of PLANETS) {
     const orbitR = auToPixels(planet.semiMajor);
+    const inclRad = (planet.incl || 0) * DEG2RAD;
+    const angle = planet.startAngle + (yearFraction / planet.period) * TWO_PI;
 
-    // Orbit ellipse
+    // 3D orbit position
+    const x3 = orbitR * Math.cos(angle);
+    const z3 = orbitR * Math.sin(angle) * Math.cos(inclRad);
+    const y3 = orbitR * Math.sin(angle) * Math.sin(inclRad);
+
+    // Project to 2D with tilt
+    const px = cx + x3;
+    const py = cy + z3 * cosTilt + y3;
+    const depth = z3 * sinTilt;
+
+    // Draw orbit ellipse (tilted)
     ctx.strokeStyle = `rgba(100,120,160,${planet.dwarf ? 0.15 : 0.25})`;
     ctx.lineWidth = planet.dwarf ? 0.5 : 0.8;
     ctx.setLineDash(planet.dwarf ? [3, 4] : []);
     ctx.beginPath();
-    ctx.arc(cx, cy, orbitR, 0, TWO_PI);
+    ctx.ellipse(cx, cy, orbitR, orbitR * cosTilt, 0, 0, TWO_PI);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Planet position (approximate: uniform circular motion)
-    const angle = planet.startAngle + (yearFraction / planet.period) * TWO_PI;
-    const px = cx + orbitR * Math.cos(angle);
-    const py = cy + orbitR * Math.sin(angle);
-
-    // Planet size
     const planetR = Math.max(3, Math.min(14, Math.log2(planet.radius / 1000 + 1) * 3));
+    renderOrder.push({ planet, px, py, planetR, depth, angle, orbitR });
+  }
 
+  // Sort by depth for proper occlusion
+  renderOrder.sort((a, b) => a.depth - b.depth);
+
+  for (const { planet, px, py, planetR, angle, orbitR } of renderOrder) {
     // Saturn rings
     if (planet.name === 'Saturn') {
       ctx.strokeStyle = 'rgba(210,190,140,0.5)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(px, py, planetR * 2.2, planetR * 0.8, -0.3, 0, TWO_PI);
+      ctx.ellipse(px, py, planetR * 2.2, planetR * 0.8 * cosTilt, -0.3, 0, TWO_PI);
       ctx.stroke();
     }
 
@@ -835,13 +915,12 @@ function renderSystem(ctx, alpha) {
     ctx.textAlign = 'center';
     ctx.fillText(planet.name, px, py - planetR - 5);
 
-    // Store screen position for hit testing
     planet._sx = px;
     planet._sy = py;
     planet._sr = planetR;
   }
 
-  // Hint: click a planet to explore it
+  // Hint
   if (!state.focusPlanet) {
     ctx.fillStyle = 'rgba(255,180,60,0.7)';
     ctx.font = '13px sans-serif';
@@ -849,11 +928,10 @@ function renderSystem(ctx, alpha) {
     ctx.fillText('Click a planet to explore it', W / 2, H - 30);
   }
 
-  // Scale indicator
   ctx.fillStyle = 'rgba(200,200,220,0.4)';
   ctx.font = '9px sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('Logarithmic scale (AU)', W - 10, H - 10);
+  ctx.fillText('3D Orbit View (drag to rotate)', W - 10, H - 10);
 
   ctx.restore();
 }
@@ -871,12 +949,9 @@ function renderGlobe(ctx, alpha) {
   const cx = W / 2 + state.panX;
   const cy = H / 2 + state.panY;
   const globeR = Math.min(W, H) * 0.35 * Math.pow(1.2, state.zoomLevel - ZOOM_GLOBE_MIN);
-
-  // Rotation based on time
   const rotAngle = animationTime * 0.0001;
 
   if (planet.name === 'Earth') {
-    // Ocean
     const oceanGrad = ctx.createRadialGradient(cx - globeR * 0.3, cy - globeR * 0.3, 0, cx, cy, globeR);
     oceanGrad.addColorStop(0, '#3366aa');
     oceanGrad.addColorStop(1, '#1a3366');
@@ -885,7 +960,6 @@ function renderGlobe(ctx, alpha) {
     ctx.arc(cx, cy, globeR, 0, TWO_PI);
     ctx.fill();
 
-    // Draw continents with orthographic projection
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, globeR, 0, TWO_PI);
@@ -898,16 +972,11 @@ function renderGlobe(ctx, alpha) {
       for (const [lat, lng] of cont.points) {
         const adjLng = lng * DEG2RAD + rotAngle;
         const latR = lat * DEG2RAD;
-
-        // Orthographic projection
         const cosLat = Math.cos(latR);
         const x = cx + globeR * cosLat * Math.sin(adjLng);
         const y = cy - globeR * Math.sin(latR);
-
-        // Only draw if on the visible hemisphere
         const vis = Math.cos(latR) * Math.cos(adjLng);
         if (vis < -0.1) continue;
-
         if (first) { ctx.moveTo(x, y); first = false; }
         else ctx.lineTo(x, y);
       }
@@ -916,11 +985,7 @@ function renderGlobe(ctx, alpha) {
     }
     ctx.restore();
   } else {
-    // Other planets: simple colored sphere
-    const grad = ctx.createRadialGradient(
-      cx - globeR * 0.3, cy - globeR * 0.3, 0,
-      cx, cy, globeR
-    );
+    const grad = ctx.createRadialGradient(cx - globeR * 0.3, cy - globeR * 0.3, 0, cx, cy, globeR);
     grad.addColorStop(0, lightenColor(planet.color, 40));
     grad.addColorStop(0.7, planet.color);
     grad.addColorStop(1, darkenColor(planet.color, 60));
@@ -929,7 +994,7 @@ function renderGlobe(ctx, alpha) {
     ctx.arc(cx, cy, globeR, 0, TWO_PI);
     ctx.fill();
 
-    // Surface features for Mars
+    // Mars features
     if (planet.name === 'Mars') {
       ctx.fillStyle = 'rgba(180,90,40,0.3)';
       for (let i = 0; i < 8; i++) {
@@ -939,40 +1004,28 @@ function renderGlobe(ctx, alpha) {
         const fy = cy - globeR * 0.5 * Math.sin(lat + i * 0.3);
         const fr = globeR * (0.05 + Math.abs(Math.sin(i * 2.3)) * 0.1);
         if (Math.cos(lat) * Math.cos(a) > 0) {
-          ctx.beginPath();
-          ctx.arc(fx, fy, fr, 0, TWO_PI);
-          ctx.fill();
+          ctx.beginPath(); ctx.arc(fx, fy, fr, 0, TWO_PI); ctx.fill();
         }
       }
-      // Polar ice caps
       ctx.fillStyle = 'rgba(220,220,230,0.5)';
-      ctx.beginPath();
-      ctx.ellipse(cx, cy - globeR * 0.92, globeR * 0.2, globeR * 0.08, 0, 0, TWO_PI);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + globeR * 0.94, globeR * 0.15, globeR * 0.06, 0, 0, TWO_PI);
-      ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx, cy - globeR * 0.92, globeR * 0.2, globeR * 0.08, 0, 0, TWO_PI); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(cx, cy + globeR * 0.94, globeR * 0.15, globeR * 0.06, 0, 0, TWO_PI); ctx.fill();
     }
 
     // Jupiter bands
     if (planet.name === 'Jupiter') {
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, globeR, 0, TWO_PI);
-      ctx.clip();
+      ctx.beginPath(); ctx.arc(cx, cy, globeR, 0, TWO_PI); ctx.clip();
       for (let i = -5; i <= 5; i++) {
         const by = cy + i * globeR * 0.14;
         const bw = Math.sqrt(Math.max(0, globeR * globeR - (by - cy) * (by - cy)));
         ctx.fillStyle = i % 2 === 0 ? 'rgba(180,140,90,0.2)' : 'rgba(210,170,110,0.15)';
         ctx.fillRect(cx - bw, by - globeR * 0.05, bw * 2, globeR * 0.1);
       }
-      // Great Red Spot
       const grsx = cx + globeR * 0.3 * Math.cos(rotAngle * 2);
       if (Math.cos(rotAngle * 2) > 0) {
         ctx.fillStyle = 'rgba(200,100,60,0.4)';
-        ctx.beginPath();
-        ctx.ellipse(grsx, cy + globeR * 0.22, globeR * 0.12, globeR * 0.08, 0.1, 0, TWO_PI);
-        ctx.fill();
+        ctx.beginPath(); ctx.ellipse(grsx, cy + globeR * 0.22, globeR * 0.12, globeR * 0.08, 0.1, 0, TWO_PI); ctx.fill();
       }
       ctx.restore();
     }
@@ -982,18 +1035,16 @@ function renderGlobe(ctx, alpha) {
       ctx.strokeStyle = 'rgba(210,190,140,0.4)';
       for (let r = 1.3; r < 2.2; r += 0.15) {
         ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, globeR * r, globeR * r * 0.3, 0, 0, Math.PI);
-        ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(cx, cy, globeR * r, globeR * r * 0.3, 0, 0, Math.PI); ctx.stroke();
       }
     }
   }
 
-  // Atmosphere glow
-  const atmoGrad = ctx.createRadialGradient(cx, cy, globeR * 0.95, cx, cy, globeR * 1.15);
+  // Atmosphere
   const atmoColor = planet.name === 'Earth' ? '100,180,255' :
                     planet.name === 'Mars' ? '200,140,100' :
                     planet.name === 'Venus' ? '220,200,150' : '150,170,200';
+  const atmoGrad = ctx.createRadialGradient(cx, cy, globeR * 0.95, cx, cy, globeR * 1.15);
   atmoGrad.addColorStop(0, `rgba(${atmoColor},0.15)`);
   atmoGrad.addColorStop(0.5, `rgba(${atmoColor},0.08)`);
   atmoGrad.addColorStop(1, `rgba(${atmoColor},0)`);
@@ -1002,13 +1053,11 @@ function renderGlobe(ctx, alpha) {
   ctx.arc(cx, cy, globeR * 1.15, 0, TWO_PI);
   ctx.fill();
 
-  // Planet name
   ctx.fillStyle = 'rgba(220,220,240,0.8)';
   ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText(planet.name, cx, cy - globeR - 20);
 
-  // Hint for Earth
   if (planet.name === 'Earth' && state.zoomLevel < ZOOM_TILE_MIN) {
     ctx.fillStyle = 'rgba(200,200,220,0.4)';
     ctx.font = '11px sans-serif';
@@ -1016,34 +1065,28 @@ function renderGlobe(ctx, alpha) {
   }
 
   ctx.restore();
-  requestRender(); // for rotation
+  requestRender();
 }
 
 // ============================================================================
-// TILE MAP RENDERER (OpenStreetMap via CartoDB Dark Matter)
+// TILE MAP RENDERER
 // ============================================================================
 function renderTiles(ctx, alpha) {
   ctx.save();
   ctx.globalAlpha = alpha;
 
   const tileZoom = Math.max(0, Math.min(19, Math.floor(state.zoomLevel - ZOOM_TILE_MIN + 2)));
-
   const n = Math.pow(2, tileZoom);
-  // Pixels per tile at current zoom
   const tileScreenSize = 256 * Math.pow(1.3, state.zoomLevel - ZOOM_TILE_MIN);
 
-  // Center tile coordinates from lat/lng
   const latRad = state.tileLat * DEG2RAD;
   const centerTileX = (state.tileLng + 180) / 360 * n;
   const centerTileY = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
 
   const cx = W / 2 + state.panX;
   const cy = H / 2 + state.panY;
-
-  // How many tiles fit on screen
   const tilesX = Math.ceil(W / tileScreenSize) + 2;
   const tilesY = Math.ceil(H / tileScreenSize) + 2;
-
   const startTileX = Math.floor(centerTileX - tilesX / 2);
   const startTileY = Math.floor(centerTileY - tilesY / 2);
 
@@ -1055,8 +1098,6 @@ function renderTiles(ctx, alpha) {
 
       const screenX = cx + (tx - centerTileX) * tileScreenSize;
       const screenY = cy + (ty - centerTileY) * tileScreenSize;
-
-      // Skip if off screen
       if (screenX > W + tileScreenSize || screenX + tileScreenSize < 0) continue;
       if (screenY > H + tileScreenSize || screenY + tileScreenSize < 0) continue;
 
@@ -1064,7 +1105,6 @@ function renderTiles(ctx, alpha) {
       if (img) {
         ctx.drawImage(img, screenX, screenY, tileScreenSize, tileScreenSize);
       } else {
-        // Placeholder while loading
         ctx.fillStyle = '#151515';
         ctx.fillRect(screenX, screenY, tileScreenSize, tileScreenSize);
         ctx.strokeStyle = '#222';
@@ -1115,10 +1155,6 @@ function getScaleText() {
   const metersPerPx = EARTH_CIRC * Math.cos(state.tileLat * DEG2RAD) / (256 * Math.pow(2, tileZoom));
   if (metersPerPx > 1000) return `${(metersPerPx / 1000).toFixed(1)} km/px`;
   return `${metersPerPx.toFixed(0)} m/px`;
-}
-
-function updateScaleReadout() {
-  // Handled in updateBreadcrumbs now
 }
 
 function updateAttribution() {
@@ -1180,31 +1216,35 @@ function animateZoomTo(targetZoom, duration = 600) {
 function showInfo(obj) {
   state.selectedObject = obj;
   let html = `<h3>${obj.name}</h3>`;
-  if (obj.desc) html += `<p style="color:var(--text-muted);margin-bottom:8px">${obj.desc}</p>`;
+  if (obj.desc) html += `<p style="color:var(--text-muted);margin-bottom:10px">${obj.desc}</p>`;
 
   const rows = [];
+  if (obj.type) rows.push(['Type', obj.type]);
   if (obj.spectral) rows.push(['Spectral Type', obj.spectral]);
-  if (obj.temp) rows.push(['Temperature', `${obj.temp} K`]);
-  if (obj.mag !== undefined) rows.push(['Apparent Mag', obj.mag.toFixed(2)]);
-  if (obj.absMag !== undefined) rows.push(['Absolute Mag', obj.absMag.toFixed(2)]);
+  if (obj.temp !== undefined) rows.push(['Temperature', `${obj.temp}${obj.spectral ? ' K' : ' C'}`]);
   if (obj.radius) rows.push(['Radius', typeof obj.radius === 'number' && obj.radius > 100 ? `${obj.radius.toLocaleString()} km` : `${obj.radius} R\u2609`]);
+  if (obj.gravity) rows.push(['Gravity', obj.gravity]);
+  if (obj.atmo) rows.push(['Atmosphere', obj.atmo]);
   if (obj.mass) rows.push(['Mass', obj.mass]);
   if (obj.semiMajor) rows.push(['Semi-major Axis', `${obj.semiMajor} AU`]);
   if (obj.period) rows.push(['Orbital Period', `${obj.period} yr`]);
   if (obj.ecc !== undefined) rows.push(['Eccentricity', obj.ecc.toFixed(3)]);
   if (obj.moons !== undefined) rows.push(['Known Moons', obj.moons]);
-  if (obj.color) rows.push(['Color', `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${obj.color};vertical-align:middle"></span>`]);
+  if (obj.mag !== undefined) rows.push(['Apparent Mag', obj.mag.toFixed(2)]);
+  if (obj.absMag !== undefined) rows.push(['Absolute Mag', obj.absMag.toFixed(2)]);
 
   for (const [label, val] of rows) {
     html += `<div class="info-row"><span class="info-label">${label}</span><span class="info-value">${val}</span></div>`;
   }
 
-  // Action buttons
   if (STARS.includes(obj)) {
-    html += `<button onclick="zoomToStar(STARS[${STARS.indexOf(obj)}])" style="margin-top:12px;width:100%;padding:6px;background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);border-radius:var(--radius-sm)">Zoom to System</button>`;
+    html += `<button class="info-action-btn" onclick="zoomToStar(STARS[${STARS.indexOf(obj)}])">Zoom to System</button>`;
   }
   if (PLANETS.includes(obj)) {
-    html += `<button onclick="zoomToPlanet(PLANETS[${PLANETS.indexOf(obj)}])" style="margin-top:12px;width:100%;padding:6px;background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent);border-radius:var(--radius-sm)">Zoom to ${obj.name}</button>`;
+    html += `<button class="info-action-btn" onclick="zoomToPlanet(PLANETS[${PLANETS.indexOf(obj)}])">Zoom to ${obj.name}</button>`;
+    if (obj.hasMap) {
+      html += `<button class="info-action-btn" onclick="zoomToPlanet(PLANETS[${PLANETS.indexOf(obj)}]);setTimeout(()=>animateZoomTo(ZOOM_TILE_MIN+2),700)" style="margin-top:4px">View Surface Map</button>`;
+    }
   }
 
   infoContent.innerHTML = html;
@@ -1253,18 +1293,17 @@ function resetView() {
   state.focusPlanet = null;
   state.panX = 0;
   state.panY = 0;
+  state.orbitTilt = 0.4;
+  state.orbitRotation = 0;
   animateZoomTo(0);
 }
 
-/** When zooming in past a threshold without a focus, auto-select Sol.
- *  Planets are NOT auto-selected — the user must click one in the system view. */
 function autoFocusOnZoom() {
   if (state.zoomLevel >= ZOOM_SYSTEM_MIN && !state.focusStar) {
-    state.focusStar = STARS[0]; // Sol (only star system available)
+    state.focusStar = STARS[0];
     state.panX = 0;
     state.panY = 0;
   }
-  // Clamp zoom if no planet selected — can't go past system view without picking one
   if (state.zoomLevel >= ZOOM_GLOBE_MIN && !state.focusPlanet) {
     state.zoomLevel = ZOOM_GLOBE_MIN - 0.5;
   }
@@ -1297,54 +1336,75 @@ canvas.addEventListener('wheel', e => {
   state.zoomLevel = Math.max(0, Math.min(60, state.zoomLevel + delta));
   autoFocusOnZoom();
 
-  // In tile mode, pan follows mouse position for zoom-toward-cursor
   if (state.zoomLevel >= ZOOM_TILE_MIN && state.focusPlanet && state.focusPlanet.hasMap) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left - W / 2;
     const my = e.clientY - rect.top - H / 2;
-    if (delta > 0) {
-      state.panX -= mx * 0.1;
-      state.panY -= my * 0.1;
-    } else {
-      state.panX += mx * 0.05;
-      state.panY += my * 0.05;
-    }
+    if (delta > 0) { state.panX -= mx * 0.1; state.panY -= my * 0.1; }
+    else { state.panX += mx * 0.05; state.panY += my * 0.05; }
   }
 
-  if (state.zoomLevel < ZOOM_SYSTEM_MIN) {
-    state.focusStar = null;
-    state.focusPlanet = null;
-  }
-  if (state.zoomLevel < ZOOM_GLOBE_MIN) {
-    state.focusPlanet = null;
-  }
-
+  if (state.zoomLevel < ZOOM_SYSTEM_MIN) { state.focusStar = null; state.focusPlanet = null; }
+  if (state.zoomLevel < ZOOM_GLOBE_MIN) state.focusPlanet = null;
   requestRender();
 }, { passive: false });
 
-// ---- Mouse drag pan ----
+// ---- Mouse drag (pan + orbit rotation) ----
 let dragging = false;
 let dragStartX, dragStartY;
 let dragPanStartX, dragPanStartY;
+let orbitDragStartTilt, orbitDragStartRot;
+let rightDragging = false;
 
 canvas.addEventListener('mousedown', e => {
+  if (e.button === 2) {
+    // Right-drag: orbit rotation
+    rightDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    orbitDragStartTilt = state.orbitTilt;
+    orbitDragStartRot = state.orbitRotation;
+    canvas.classList.add('dragging');
+    e.preventDefault();
+    return;
+  }
   dragging = true;
   dragStartX = e.clientX;
   dragStartY = e.clientY;
   dragPanStartX = state.panX;
   dragPanStartY = state.panY;
+  orbitDragStartTilt = state.orbitTilt;
+  orbitDragStartRot = state.orbitRotation;
   canvas.classList.add('dragging');
 });
 
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
 window.addEventListener('mousemove', e => {
+  if (rightDragging) {
+    state.orbitTilt = orbitDragStartTilt + (e.clientY - dragStartY) * 0.005;
+    state.orbitTilt = Math.max(0, Math.min(Math.PI * 0.45, state.orbitTilt));
+    state.orbitRotation = orbitDragStartRot + (e.clientX - dragStartX) * 0.005;
+    requestRender();
+    return;
+  }
+
   if (dragging) {
-    state.panX = dragPanStartX + (e.clientX - dragStartX);
-    state.panY = dragPanStartY + (e.clientY - dragStartY);
+    const z = state.zoomLevel;
+    // In system view, left-drag rotates the orbit
+    if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar && !state.focusPlanet) {
+      state.orbitTilt = orbitDragStartTilt + (e.clientY - dragStartY) * 0.005;
+      state.orbitTilt = Math.max(0, Math.min(Math.PI * 0.45, state.orbitTilt));
+      state.orbitRotation = orbitDragStartRot + (e.clientX - dragStartX) * 0.005;
+    } else {
+      state.panX = dragPanStartX + (e.clientX - dragStartX);
+      state.panY = dragPanStartY + (e.clientY - dragStartY);
+    }
     requestRender();
   }
 
   // Hover tooltip
-  if (!dragging) {
+  if (!dragging && !rightDragging) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -1352,18 +1412,21 @@ window.addEventListener('mousemove', e => {
   }
 });
 
-window.addEventListener('mouseup', () => {
+window.addEventListener('mouseup', e => {
+  if (rightDragging) {
+    rightDragging = false;
+    canvas.classList.remove('dragging');
+    return;
+  }
   if (dragging) {
     dragging = false;
     canvas.classList.remove('dragging');
-    // In tile mode, convert pan offset to lat/lng shift
     if (state.zoomLevel >= ZOOM_TILE_MIN && state.focusPlanet && state.focusPlanet.hasMap) {
       commitTilePan();
     }
   }
 });
 
-/** Convert accumulated pan pixels into tile lat/lng shift and reset pan to zero */
 function commitTilePan() {
   const tileZoom = Math.max(0, Math.min(19, Math.floor(state.zoomLevel - ZOOM_TILE_MIN + 2)));
   const tileScreenSize = 256 * Math.pow(1.3, state.zoomLevel - ZOOM_TILE_MIN);
@@ -1391,10 +1454,10 @@ function commitTilePan() {
 
 // ---- Click to select ----
 canvas.addEventListener('click', e => {
+  // Ignore if we dragged
+  if (Math.abs(e.clientX - dragStartX) > 5 || Math.abs(e.clientY - dragStartY) > 5) return;
   const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  handleClick(mx, my);
+  handleClick(e.clientX - rect.left, e.clientY - rect.top);
 });
 
 // ---- Double click to zoom ----
@@ -1419,6 +1482,8 @@ canvas.addEventListener('touchstart', e => {
     dragStartY = e.touches[0].clientY;
     dragPanStartX = state.panX;
     dragPanStartY = state.panY;
+    orbitDragStartTilt = state.orbitTilt;
+    orbitDragStartRot = state.orbitRotation;
   } else if (e.touches.length === 2) {
     dragging = false;
     const dx = e.touches[1].clientX - e.touches[0].clientX;
@@ -1435,8 +1500,15 @@ canvas.addEventListener('touchstart', e => {
 canvas.addEventListener('touchmove', e => {
   e.preventDefault();
   if (e.touches.length === 1 && dragging) {
-    state.panX = dragPanStartX + (e.touches[0].clientX - dragStartX);
-    state.panY = dragPanStartY + (e.touches[0].clientY - dragStartY);
+    const z = state.zoomLevel;
+    if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar && !state.focusPlanet) {
+      state.orbitTilt = orbitDragStartTilt + (e.touches[0].clientY - dragStartY) * 0.005;
+      state.orbitTilt = Math.max(0, Math.min(Math.PI * 0.45, state.orbitTilt));
+      state.orbitRotation = orbitDragStartRot + (e.touches[0].clientX - dragStartX) * 0.005;
+    } else {
+      state.panX = dragPanStartX + (e.touches[0].clientX - dragStartX);
+      state.panY = dragPanStartY + (e.touches[0].clientY - dragStartY);
+    }
     requestRender();
   } else if (e.touches.length === 2) {
     const dx = e.touches[1].clientX - e.touches[0].clientX;
@@ -1446,7 +1518,6 @@ canvas.addEventListener('touchmove', e => {
     state.zoomLevel = Math.max(0, Math.min(60, touchStartZoom + Math.log2(scale) * 3));
     autoFocusOnZoom();
 
-    // Pan with two-finger drag
     const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
     const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
     state.panX = touchStartPanX + (cx - touchStartCenterX);
@@ -1490,25 +1561,18 @@ window.addEventListener('keydown', e => {
 function handleClick(mx, my) {
   const z = state.zoomLevel;
 
-  // Stellar view: click stars
   if (z >= ZOOM_STELLAR_MIN && z < ZOOM_STELLAR_MAX) {
-    const cx = W / 2 + state.panX;
-    const cy = H / 2 + state.panY;
-    const scale = 20 * Math.pow(1.5, z - ZOOM_STELLAR_MIN);
-
     for (const star of STARS) {
-      const sx = cx + star.x * scale;
-      const sy = cy + star.y * scale;
-      const hitR = Math.max(10, 8 - star.absMag * 0.4) * Math.min(1, scale / 50);
-      const dx = mx - sx, dy = my - sy;
-      if (dx * dx + dy * dy < hitR * hitR * 4) {
+      if (star._sx === undefined) continue;
+      const dx = mx - star._sx, dy = my - star._sy;
+      const hitR = Math.max(10, (star._sr || 5)) * 2;
+      if (dx * dx + dy * dy < hitR * hitR) {
         showInfo(star);
         return;
       }
     }
   }
 
-  // System view: click planets to select, double-click to zoom
   if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX + 2 && state.focusStar) {
     for (const planet of PLANETS) {
       if (planet._sx === undefined) continue;
@@ -1516,19 +1580,17 @@ function handleClick(mx, my) {
       const hitR = Math.max(14, planet._sr * 1.5);
       if (dx * dx + dy * dy < hitR * hitR) {
         showInfo(planet);
-        // Auto-zoom to the planet on click (like clicking a star zooms to its system)
         zoomToPlanet(planet);
         return;
       }
     }
-    // Click on the sun
     const cx = W / 2 + state.panX;
     const cy = H / 2 + state.panY;
     const baseScale = 30 * Math.pow(1.4, z - ZOOM_SYSTEM_MIN);
     const sunR = Math.max(8, baseScale * 0.3);
     const dx = mx - cx, dy = my - cy;
     if (dx * dx + dy * dy < sunR * sunR * 4) {
-      showInfo({ name: 'Sun', desc: 'G-type main-sequence star', spectral: 'G2V', temp: 5778, radius: '696,340 km', mass: '1.989e30 kg', color: '#ffee88' });
+      showInfo({ name: 'Sun', type: 'G-type Main Sequence', desc: 'Center of our solar system', spectral: 'G2V', temp: 5778, radius: '696,340 km', mass: '1.989e30 kg', gravity: '274 m/s2', atmo: 'H/He plasma', color: '#ffee88' });
       return;
     }
   }
@@ -1540,34 +1602,21 @@ function handleHover(mx, my, clientX, clientY) {
   const z = state.zoomLevel;
   let found = null;
 
-  // Stellar view
   if (z >= ZOOM_STELLAR_MIN && z < ZOOM_STELLAR_MAX) {
-    const cx = W / 2 + state.panX;
-    const cy = H / 2 + state.panY;
-    const scale = 20 * Math.pow(1.5, z - ZOOM_STELLAR_MIN);
-
     for (const star of STARS) {
-      const sx = cx + star.x * scale;
-      const sy = cy + star.y * scale;
-      const hitR = Math.max(8, 8 - star.absMag * 0.4) * Math.min(1, scale / 50);
-      const dx = mx - sx, dy = my - sy;
-      if (dx * dx + dy * dy < hitR * hitR * 4) {
-        found = star;
-        break;
-      }
+      if (star._sx === undefined) continue;
+      const dx = mx - star._sx, dy = my - star._sy;
+      const hitR = Math.max(8, (star._sr || 5)) * 2;
+      if (dx * dx + dy * dy < hitR * hitR) { found = star; break; }
     }
   }
 
-  // System view
   if (!found && z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) {
     for (const planet of PLANETS) {
       if (planet._sx === undefined) continue;
       const dx = mx - planet._sx, dy = my - planet._sy;
-      const hitR = Math.max(10, planet._sr);
-      if (dx * dx + dy * dy < hitR * hitR * 4) {
-        found = planet;
-        break;
-      }
+      const hitR = Math.max(10, planet._sr) * 2;
+      if (dx * dx + dy * dy < hitR * hitR) { found = planet; break; }
     }
   }
 
@@ -1597,10 +1646,9 @@ window.addEventListener('resize', resize);
 resize();
 requestRender();
 
-// Continuous animation loop for galaxy pulse and globe rotation
+// Continuous animation loop
 requestAnimationFrame(function tick(ts) {
   animationTime = ts;
-  // Re-render at ~20fps when in animated views (galaxy pulse, globe rotation)
   const z = state.zoomLevel;
   if (z < ZOOM_STELLAR_MIN || (z >= ZOOM_GLOBE_MIN && z < ZOOM_GLOBE_MAX && state.focusPlanet)) {
     if (Math.floor(ts / 50) % 3 === 0) requestRender();

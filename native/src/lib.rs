@@ -21,6 +21,9 @@ pub mod hot_reload;
 pub mod systems;
 
 #[cfg(feature = "native")]
+pub mod persistence;
+
+#[cfg(feature = "native")]
 pub mod gui;
 
 #[cfg(feature = "native")]
