@@ -1,94 +1,60 @@
 # Development Loop
 
-Autonomous development cycle. Repeat until v1.0.0.
+Standard cycle for continuous HumanityOS development. Follow these steps in order, then repeat.
 
-## The Loop
+## Step 1: Evaluate Current State
+1. Read `docs/FEATURES.md` -- complete feature inventory with file paths
+2. Read `docs/STATUS.md` -- what's built vs planned
+3. Read `docs/BUGS.md` -- all bugs and their resolution status (NEVER re-fix a resolved bug)
+4. Read `docs/SOP.md` -- version sync and deploy procedures
+5. Check current version: look at `web/shared/shell.js` version string
+6. Run `just status` to check git, CI, and live API health
 
-```
-┌─────────────────────────────────────────────────┐
-│                                                 │
-│  1. EVALUATE                                    │
-│     Read: FEATURES.md, STATUS.md, BUGS.md       │
-│     Check: GitHub Issues, bug reports page       │
-│     Audit: compile check, broken pages, stale    │
-│            docs, version mismatches              │
-│                                                 │
-│  2. PLAN                                        │
-│     Compare features list against vision         │
-│     Identify: bugs > polish > new features       │
-│     Priority: security > stability > UX > new    │
-│     Check: does this already exist? (FEATURES)   │
-│     Check: was this already fixed? (BUGS)        │
-│                                                 │
-│  3. BUILD                                       │
-│     Fix bugs first (update BUGS.md)              │
-│     Build features (update FEATURES.md)          │
-│     Use subagents for parallel work              │
-│     Compile check after every change             │
-│     No backward compat hacks                     │
-│                                                 │
-│  4. SYNC                                        │
-│     Run SYNC.md checklist                        │
-│     Version bump (patch or minor)                │
-│     Update: STATUS.md, FEATURES.md, BUGS.md      │
-│     Update: CHANGELOG.md                         │
-│     Update: CLAUDE.md if architecture changed    │
-│     Commit, push, verify CI passes               │
-│     Tag release if significant                   │
-│                                                 │
-│  5. VERIFY                                      │
-│     Check live site (united-humanity.us)         │
-│     Check CI deploy succeeded                    │
-│     Test new pages load correctly                │
-│     Check for console errors via Chrome          │
-│     Read bug reports for regressions             │
-│                                                 │
-│  6. ASK (if needed)                             │
-│     Design decisions that affect UX              │
-│     Architecture choices with tradeoffs          │
-│     Priorities when multiple paths exist         │
-│     Anything that changes the user experience    │
-│     If no questions: go to step 1                │
-│                                                 │
-└──────────── repeat ─────────────────────────────┘
-```
+## Step 2: Identify Work
+Priority order:
+1. Open bugs (from BUGS.md or user reports)
+2. Broken features (things that exist but don't work)
+3. Incomplete features (partially built)
+4. New features (from roadmap or user requests)
+5. Polish (UX improvements, performance, accessibility)
+6. Data expansion (more items, recipes, planets, etc.)
 
-## Priority Order
+Before proposing ANY feature: search FEATURES.md first. If it exists, enhance it. Never rebuild.
 
-Always fix in this order:
-1. **Security vulnerabilities** (immediately)
-2. **Data loss bugs** (immediately)
-3. **Crashes / white screens** (same session)
-4. **Broken features** (same session)
-5. **Polish / UX improvements** (next available)
-6. **New features** (after stability)
-7. **Optimization** (after feature complete)
+## Step 3: Develop
+- Use subagents for parallel work on non-overlapping files
+- All Rust code must pass: `cargo check` (native) AND `cargo check --target wasm32-unknown-unknown --features wasm --no-default-features` AND `cd server && cargo check`
+- Follow existing code patterns (read before writing)
+- No backward compatibility hacks until v1.0.0
+- No em dashes in user-facing text
 
-## When to Ask the User
+## Step 4: Sync
+1. Bump version: `node scripts/bump-version.js patch|minor`
+2. Commit with descriptive message
+3. Push to GitHub (CI auto-deploys to VPS)
+4. If CI fails: `just sync`
+5. Create GitHub Release tag for notable versions
 
-Ask before:
-- Changing nav structure or page layout
-- Renaming concepts (like Game to Sim)
-- Removing features or pages
-- Architecture decisions with multiple valid approaches
-- Spending significant time on something speculative
+## Step 5: Update Docs
+After EVERY development cycle, update:
+- `docs/FEATURES.md` -- add new features with file paths
+- `docs/STATUS.md` -- update counts and status
+- `docs/BUGS.md` -- add new bugs found, mark fixed bugs
+- `CHANGELOG.md` -- add version entry
+- `CLAUDE.md` -- update if architecture changed
+- Memory files -- update if patterns changed
 
-Don't ask:
-- Bug fixes (just fix them)
-- Data file additions (items, recipes, materials)
-- Documentation updates
-- Code cleanup that doesn't change behavior
-- Adding tests
+## Step 6: Verify
+- Check live site (united-humanity.us) for regressions
+- Verify new pages load correctly
+- Server compiles and runs
+- No console errors on key pages
 
-## Autonomous Development Rules
-
-1. Never rebuild an existing feature (check FEATURES.md)
-2. Never re-fix a resolved bug (check BUGS.md)
-3. Never create backward compatibility hacks
-4. Always compile check before committing
-5. Always use absolute paths for web script sources
-6. Always update FEATURES.md when adding features
-7. Always update BUGS.md when fixing bugs
-8. Run the SYNC.md checklist before pushing
-9. Use subagents for independent parallel work
-10. Commit frequently with descriptive messages
+## Anti-Patterns (NEVER do these)
+- Rebuild a feature that already exists (check FEATURES.md)
+- Re-fix a bug marked as resolved (check BUGS.md)
+- Create backward compatibility for pre-v1.0 code
+- Use em dashes in text
+- Skip version bumps
+- Push without compiling
+- Modify files without reading them first
