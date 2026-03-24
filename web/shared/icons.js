@@ -110,6 +110,8 @@
     blueprint: '<rect x="6" y="8" width="36" height="32" rx="2"/><line x1="14" y1="16" x2="34" y2="16"/><line x1="14" y1="24" x2="28" y2="24"/><line x1="14" y1="32" x2="22" y2="32"/>',
     storage: '<rect x="6" y="8" width="36" height="12" rx="2"/><rect x="6" y="24" width="36" height="12" rx="2"/><circle cx="34" cy="14" r="2" fill="currentColor" stroke="none"/><circle cx="34" cy="30" r="2" fill="currentColor" stroke="none"/>',
 
+    bug: '<path d="M24,14 A8,8 0 0 1 32,22 V30 A8,8 0 0 1 16,30 V22 A8,8 0 0 1 24,14 Z" fill="none"/><line x1="16" y1="24" x2="8" y2="20"/><line x1="32" y1="24" x2="40" y2="20"/><line x1="16" y1="30" x2="8" y2="34"/><line x1="32" y1="30" x2="40" y2="34"/><line x1="20" y1="14" x2="18" y2="8"/><line x1="28" y1="14" x2="30" y2="8"/><line x1="16" y1="26" x2="32" y2="26"/>',
+
     // ── Status dots (filled circles, no stroke) ──
     'dot-green': '<circle cx="24" cy="24" r="8" fill="#4a9" stroke="none"/>',
     'dot-red': '<circle cx="24" cy="24" r="8" fill="#c44" stroke="none"/>',

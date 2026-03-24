@@ -369,6 +369,10 @@ async fn main() {
         .route("/api/guilds/{id}/members", get(api::get_guild_members).post(api::join_guild))
         .route("/api/guilds/{id}/leave", post(api::leave_guild))
         .route("/api/guilds/{id}/invite", post(api::create_guild_invite))
+        // Bug reports
+        .route("/api/bugs", get(api::get_bugs).post(api::create_bug))
+        .route("/api/bugs/{id}", patch(api::update_bug_status))
+        .route("/api/bugs/{id}/vote", post(api::vote_bug))
         // Reputation
         .route("/api/reputation/leaderboard", get(api::get_reputation_leaderboard))
         .route("/api/reputation/{key}", get(api::get_reputation))

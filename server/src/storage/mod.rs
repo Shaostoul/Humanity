@@ -1124,6 +1124,42 @@ impl Storage {
                 ON reputation(score DESC);"
         )?;
 
+        // Bug reports table.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS bug_reports (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                title           TEXT NOT NULL,
+                description     TEXT NOT NULL,
+                steps           TEXT NOT NULL DEFAULT '',
+                expected        TEXT NOT NULL DEFAULT '',
+                actual          TEXT NOT NULL DEFAULT '',
+                severity        TEXT NOT NULL DEFAULT 'medium',
+                category        TEXT NOT NULL DEFAULT 'other',
+                reporter_key    TEXT NOT NULL,
+                reporter_name   TEXT NOT NULL DEFAULT '',
+                browser_info    TEXT NOT NULL DEFAULT '',
+                page_url        TEXT NOT NULL DEFAULT '',
+                version         TEXT NOT NULL DEFAULT '',
+                status          TEXT NOT NULL DEFAULT 'open',
+                votes           INTEGER NOT NULL DEFAULT 0,
+                created_at      INTEGER NOT NULL,
+                updated_at      INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_bug_reports_status ON bug_reports(status);
+            CREATE INDEX IF NOT EXISTS idx_bug_reports_severity ON bug_reports(severity);
+            CREATE INDEX IF NOT EXISTS idx_bug_reports_category ON bug_reports(category);
+            CREATE INDEX IF NOT EXISTS idx_bug_reports_reporter ON bug_reports(reporter_key);
+
+            CREATE TABLE IF NOT EXISTS bug_votes (
+                bug_id      INTEGER NOT NULL,
+                voter_key   TEXT NOT NULL,
+                voted_at    INTEGER NOT NULL,
+                PRIMARY KEY (bug_id, voter_key),
+                FOREIGN KEY (bug_id) REFERENCES bug_reports(id) ON DELETE CASCADE
+            );"
+        )?;
+
         info!("Database opened: {}", path.display());
         Ok(Self { conn: Mutex::new(conn) })
     }
@@ -1157,6 +1193,7 @@ mod trading;
 mod vault_sync;
 mod civilization;
 pub mod files;
+mod bugs;
 mod guilds;
 mod reputation;
 
@@ -1164,5 +1201,6 @@ pub use civilization::CivilizationStats;
 pub use guilds::{GuildRecord, GuildMemberRecord, GuildInviteRecord};
 pub use marketplace::ListingMessageRecord;
 pub use notification_prefs::NotifPrefs;
+pub use bugs::BugReport;
 pub use reputation::{ReputationRecord, ReputationEventRecord};
 pub use trading::TradeRecord;

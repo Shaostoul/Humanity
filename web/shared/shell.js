@@ -93,6 +93,7 @@
     else if (p.startsWith('/crafting')) active = 'crafting';
     else if (p.startsWith('/civilization')) active = 'civilization';
     else if (p.startsWith('/resources')) active = 'resources';
+    else if (p.startsWith('/bugs'))     active = 'bugs';
     else active = '';
   }
 
@@ -534,6 +535,7 @@
         navTab('/settings', 'settings',  'Settings',  'settings') +
         navTab('/activities/download', 'download', 'Download', 'download') +
         navTab('/ops',      'ops',       'Ops',       'ops') +
+        navTab('/bugs',     'bug',       'Bugs',      'bugs') +
         navTab('/dev',      'dev',       'Dev',       'dev') +
       '</span>' +
 
@@ -581,6 +583,7 @@
     '</div>' +
     '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
       mobileLink('/settings',             'Settings') +
+      mobileLink('/bugs',                  'Bug Reports') +
       mobileLink('/activities/download',   'Download') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Context</h4>' +

@@ -3322,3 +3322,200 @@ pub async fn get_reputation_leaderboard(
     }).collect();
     Json(serde_json::json!(list))
 }
+
+// ── Bug Reports API ──────────────────────────────────────────────────────
+
+/// Query params for GET /api/bugs.
+#[derive(Debug, Deserialize)]
+pub struct BugsQuery {
+    pub status: Option<String>,
+    pub severity: Option<String>,
+    pub category: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+/// Request body for POST /api/bugs.
+#[derive(Debug, Deserialize)]
+pub struct CreateBugRequest {
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub steps: String,
+    #[serde(default)]
+    pub expected: String,
+    #[serde(default)]
+    pub actual: String,
+    #[serde(default = "default_severity")]
+    pub severity: String,
+    #[serde(default = "default_category")]
+    pub category: String,
+    #[serde(default)]
+    pub reporter_key: String,
+    #[serde(default)]
+    pub reporter_name: String,
+    #[serde(default)]
+    pub browser_info: String,
+    #[serde(default)]
+    pub page_url: String,
+    #[serde(default)]
+    pub version: String,
+}
+
+fn default_severity() -> String { "medium".to_string() }
+fn default_category() -> String { "other".to_string() }
+
+/// Request body for PATCH /api/bugs/{id}.
+#[derive(Debug, Deserialize)]
+pub struct UpdateBugRequest {
+    pub status: String,
+    pub admin_key: String,
+}
+
+/// Request body for POST /api/bugs/{id}/vote.
+#[derive(Debug, Deserialize)]
+pub struct VoteBugRequest {
+    pub voter_key: String,
+}
+
+fn bug_to_json(b: &crate::storage::BugReport) -> serde_json::Value {
+    serde_json::json!({
+        "id": b.id,
+        "title": b.title,
+        "description": b.description,
+        "steps": b.steps,
+        "expected": b.expected,
+        "actual": b.actual,
+        "severity": b.severity,
+        "category": b.category,
+        "reporter_key": b.reporter_key,
+        "reporter_name": b.reporter_name,
+        "browser_info": b.browser_info,
+        "page_url": b.page_url,
+        "version": b.version,
+        "status": b.status,
+        "votes": b.votes,
+        "created_at": b.created_at,
+        "updated_at": b.updated_at,
+    })
+}
+
+/// GET /api/bugs -- list bug reports with optional filters.
+pub async fn get_bugs(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<BugsQuery>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
+
+    let bugs = state.db.get_bugs(
+        params.status.as_deref(),
+        params.severity.as_deref(),
+        params.category.as_deref(),
+        limit,
+        offset,
+    ).unwrap_or_default();
+
+    let list: Vec<serde_json::Value> = bugs.iter().map(bug_to_json).collect();
+    Json(serde_json::json!({ "bugs": list, "count": list.len() }))
+}
+
+/// POST /api/bugs -- create a new bug report.
+pub async fn create_bug(
+    State(state): State<Arc<RelayState>>,
+    Json(req): Json<CreateBugRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Validate required fields.
+    if req.title.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Title is required.".into()));
+    }
+    if req.description.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Description is required.".into()));
+    }
+    if req.title.len() > 500 {
+        return Err((StatusCode::BAD_REQUEST, "Title too long (max 500 chars).".into()));
+    }
+    if req.description.len() > 10000 {
+        return Err((StatusCode::BAD_REQUEST, "Description too long (max 10000 chars).".into()));
+    }
+
+    // Validate severity.
+    let valid_severities = ["critical", "high", "medium", "low", "cosmetic"];
+    let severity = if valid_severities.contains(&req.severity.as_str()) {
+        &req.severity
+    } else {
+        "medium"
+    };
+
+    // Validate category.
+    let valid_categories = ["chat", "tasks", "market", "wallet", "maps", "game", "settings", "other"];
+    let category = if valid_categories.contains(&req.category.as_str()) {
+        &req.category
+    } else {
+        "other"
+    };
+
+    match state.db.create_bug(
+        req.title.trim(),
+        req.description.trim(),
+        &req.steps,
+        &req.expected,
+        &req.actual,
+        severity,
+        category,
+        &req.reporter_key,
+        &req.reporter_name,
+        &req.browser_info,
+        &req.page_url,
+        &req.version,
+    ) {
+        Ok(id) => Ok(Json(serde_json::json!({ "id": id, "status": "created" }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
+    }
+}
+
+/// PATCH /api/bugs/{id} -- update bug status (admin only).
+pub async fn update_bug_status(
+    State(state): State<Arc<RelayState>>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateBugRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Check admin role.
+    let role = state.db.get_role(&req.admin_key).unwrap_or_default();
+    if role != "admin" && role != "moderator" {
+        return Err((StatusCode::FORBIDDEN, "Admin or moderator role required.".into()));
+    }
+
+    let valid_statuses = ["open", "in_progress", "fixed", "wont_fix", "duplicate"];
+    if !valid_statuses.contains(&req.status.as_str()) {
+        return Err((StatusCode::BAD_REQUEST, format!(
+            "Invalid status. Must be one of: {}", valid_statuses.join(", ")
+        )));
+    }
+
+    match state.db.update_bug_status(id, &req.status) {
+        Ok(true) => Ok(Json(serde_json::json!({ "updated": true }))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, "Bug not found.".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
+    }
+}
+
+/// POST /api/bugs/{id}/vote -- upvote a bug report.
+pub async fn vote_bug(
+    State(state): State<Arc<RelayState>>,
+    Path(id): Path<i64>,
+    Json(req): Json<VoteBugRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if req.voter_key.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "voter_key is required.".into()));
+    }
+
+    match state.db.vote_bug(id, &req.voter_key) {
+        Ok((voted, count)) => Ok(Json(serde_json::json!({
+            "voted": voted,
+            "votes": count,
+        }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {e}"))),
+    }
+}

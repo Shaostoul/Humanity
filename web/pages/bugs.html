@@ -3,163 +3,217 @@
 <head>
   <meta charset=UTF-8>
   <meta name=viewport content=width=device-width,initial-scale=1.0>
-  <title>Bug Report — HumanityOS</title>
+  <title>Bug Reports - HumanityOS</title>
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
-    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
-    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:800px; width:100%; margin:0 auto; }
-    h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
-    .subtitle { color:var(--text-muted); margin-bottom:var(--space-xl); }
-    .form-group { margin-bottom:var(--space-lg); }
-    .form-group label { display:block; font-weight:600; margin-bottom:var(--space-xs); font-size:var(--text-sm); }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem; width: 100%; box-sizing: border-box; }
+
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.4rem; font-weight: 700; margin: 0 0 0.3rem; }
+    .page-header p { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
+
+    /* ---- Form ---- */
+    .bug-form { background: var(--bg-card, #131313); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 2rem; }
+    .bug-form h2 { font-size: 1rem; font-weight: 600; margin: 0 0 1rem; }
+    .form-row { display: flex; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .form-row.full { flex-direction: column; }
+    .form-group { display: flex; flex-direction: column; flex: 1; }
+    .form-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .form-group label .req { color: #e55; }
     .form-group input, .form-group textarea, .form-group select {
-      width:100%; padding:10px 12px; background:var(--bg-card); border:1px solid var(--border);
-      border-radius:var(--radius); color:var(--text); font-size:var(--text-base); font-family:inherit;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 0.5rem 0.65rem; border-radius: 6px; font: inherit; font-size: 0.85rem;
+      outline: none; transition: border-color 0.15s;
     }
     .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
-      outline:none; border-color:var(--accent);
+      border-color: var(--accent, #f0a500);
     }
-    .form-group textarea { min-height:120px; resize:vertical; }
-    .form-group select { appearance:auto; }
-    .submit-btn {
-      background:var(--accent); color:#111; border:none; padding:12px 32px;
-      border-radius:var(--radius); font-size:var(--text-base); font-weight:700;
-      cursor:pointer;
+    .form-group textarea { resize: vertical; min-height: 70px; }
+    .form-group select { appearance: auto; }
+
+    .form-actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.25rem; }
+    .btn-submit {
+      background: var(--accent, #f0a500); color: #000; border: none; padding: 0.55rem 1.5rem;
+      border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85rem;
+      transition: opacity 0.15s;
     }
-    .submit-btn:hover { opacity:0.9; }
-    .submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
-    .success-msg { color:var(--accent); font-weight:600; margin-top:var(--space-md); display:none; }
-    .known-bugs { margin-top:var(--space-2xl); }
-    .known-bugs h2 { font-size:var(--text-lg); margin-bottom:var(--space-md); }
-    .bug-item { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space-md); margin-bottom:var(--space-sm); }
-    .bug-item .bug-id { color:var(--text-muted); font-size:var(--text-sm); font-family:monospace; }
-    .bug-item .bug-status { display:inline-block; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:600; }
-    .bug-status-fixed { background:rgba(46,204,113,0.2); color:#2ecc71; }
-    .bug-status-open { background:rgba(231,76,60,0.2); color:#e74c3c; }
-    .info-box { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space-md); margin-bottom:var(--space-xl); }
-    .info-box a { color:var(--accent); }
+    .btn-submit:hover { opacity: 0.85; }
+    .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+    .form-status { font-size: 0.8rem; color: var(--text-muted); }
+    .form-status.error { color: #e55; }
+    .form-status.success { color: #4a9; }
+
+    .auto-captured { font-size: 0.72rem; color: var(--text-dim, #555); margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+
+    .info-box { background: var(--bg-card, #131313); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.82rem; }
+    .info-box a { color: var(--accent, #f0a500); }
+
+    /* ---- Bug list ---- */
+    .bug-list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
+    .bug-list-header h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+    .filters { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .filters select {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 0.3rem 0.5rem; border-radius: 4px; font-size: 0.78rem;
+    }
+
+    .bug-card {
+      background: var(--bg-card, #131313); border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.85rem 1rem; margin-bottom: 0.5rem;
+      transition: border-color 0.15s;
+    }
+    .bug-card:hover { border-color: var(--border-bright, #2a2a2a); }
+    .bug-card-top { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; flex-wrap: wrap; }
+    .bug-card-title { font-weight: 600; font-size: 0.9rem; flex: 1; min-width: 0; }
+
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge-critical { background: #7f1d1d; color: #fca5a5; }
+    .badge-high { background: #78350f; color: #fbbf24; }
+    .badge-medium { background: #1e3a5f; color: #93c5fd; }
+    .badge-low { background: #14532d; color: #86efac; }
+    .badge-cosmetic { background: #3b0764; color: #d8b4fe; }
+    .badge-open { background: #064e3b; color: #6ee7b7; }
+    .badge-in_progress { background: #78350f; color: #fde68a; }
+    .badge-fixed { background: #1e3a5f; color: #93c5fd; }
+    .badge-wont_fix { background: #333; color: #aaa; }
+    .badge-duplicate { background: #333; color: #aaa; }
+
+    .bug-card-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+    .vote-btn {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+      padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .vote-btn:hover { border-color: var(--accent, #f0a500); color: var(--accent, #f0a500); }
+    .vote-btn.voted { border-color: var(--accent, #f0a500); color: var(--accent, #f0a500); }
+
+    .empty-state { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.85rem; }
+
+    .bug-card-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem; max-height: 2.4em; overflow: hidden; text-overflow: ellipsis; }
+
+    @media (max-width: 600px) {
+      .form-row { flex-direction: column; }
+    }
   </style>
 </head>
 <body>
-<script src="/shared/events.js?v=1"></script>
-<script src=/shared/shell.js data-active=bugs></script>
-<script src="/shared/defaults.js"></script>
-<script src="/shared/settings.js"></script>
-
+<script src="/shared/shell.js" data-active="bugs"></script>
 <div id="page-app">
-  <h1>Report a Bug</h1>
-  <p class="subtitle">Help improve HumanityOS by reporting issues you encounter.</p>
+  <div class="page-header">
+    <h1>Bug Reports</h1>
+    <p>Report issues or vote on existing bugs to help prioritize fixes.</p>
+  </div>
 
   <div class="info-box">
     You can also report bugs on <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" rel="noopener">GitHub Issues</a> for public tracking.
   </div>
 
-  <form id="bug-form" onsubmit="return submitBug(event)">
-    <div class="form-group">
-      <label for="bug-title">Title</label>
-      <input type="text" id="bug-title" placeholder="Short description of the issue" required>
-    </div>
+  <!-- Report form -->
+  <div class="bug-form">
+    <h2>Report a Bug</h2>
+    <form id="bug-form" autocomplete="off">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Title <span class="req">*</span></label>
+          <input type="text" id="bug-title" required maxlength="500" placeholder="Short summary of the issue">
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-group">
+          <label>Description <span class="req">*</span></label>
+          <textarea id="bug-description" required maxlength="10000" placeholder="What happened? Provide as much detail as possible."></textarea>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-group">
+          <label>Steps to Reproduce</label>
+          <textarea id="bug-steps" placeholder="1. Go to ...&#10;2. Click on ...&#10;3. See error"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Expected Behavior</label>
+          <input type="text" id="bug-expected" placeholder="What should have happened">
+        </div>
+        <div class="form-group">
+          <label>Actual Behavior</label>
+          <input type="text" id="bug-actual" placeholder="What actually happened">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Severity</label>
+          <select id="bug-severity">
+            <option value="critical">Critical - app unusable</option>
+            <option value="high">High - major feature broken</option>
+            <option value="medium" selected>Medium - feature impaired</option>
+            <option value="low">Low - minor issue</option>
+            <option value="cosmetic">Cosmetic - visual only</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="bug-category">
+            <option value="chat">Chat</option>
+            <option value="tasks">Tasks</option>
+            <option value="market">Market</option>
+            <option value="wallet">Wallet</option>
+            <option value="maps">Maps</option>
+            <option value="game">Game</option>
+            <option value="settings">Settings</option>
+            <option value="other" selected>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="auto-captured" id="auto-captured">
+        Auto-captured: browser, screen size, page URL, app version, your public key (if logged in)
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-submit" id="btn-submit">Submit Bug Report</button>
+        <span class="form-status" id="form-status"></span>
+      </div>
+    </form>
+  </div>
 
-    <div class="form-group">
-      <label for="bug-category">Category</label>
-      <select id="bug-category">
-        <option value="web">Website / Web UI</option>
-        <option value="native">Desktop App / Native</option>
-        <option value="server">Server / API</option>
-        <option value="chat">Chat / Voice</option>
-        <option value="game">Game / Simulation</option>
-        <option value="wallet">Wallet / Crypto</option>
+  <!-- Bug list -->
+  <div class="bug-list-header">
+    <h2>Known Bugs</h2>
+    <div class="filters">
+      <select id="filter-status">
+        <option value="">All Statuses</option>
+        <option value="open">Open</option>
+        <option value="in_progress">In Progress</option>
+        <option value="fixed">Fixed</option>
+        <option value="wont_fix">Won't Fix</option>
+        <option value="duplicate">Duplicate</option>
+      </select>
+      <select id="filter-severity">
+        <option value="">All Severities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="cosmetic">Cosmetic</option>
+      </select>
+      <select id="filter-category">
+        <option value="">All Categories</option>
+        <option value="chat">Chat</option>
+        <option value="tasks">Tasks</option>
+        <option value="market">Market</option>
+        <option value="wallet">Wallet</option>
+        <option value="maps">Maps</option>
+        <option value="game">Game</option>
+        <option value="settings">Settings</option>
         <option value="other">Other</option>
       </select>
     </div>
-
-    <div class="form-group">
-      <label for="bug-severity">Severity</label>
-      <select id="bug-severity">
-        <option value="low">Low (cosmetic, minor annoyance)</option>
-        <option value="medium" selected>Medium (feature not working correctly)</option>
-        <option value="high">High (crash, data loss, security issue)</option>
-      </select>
-    </div>
-
-    <div class="form-group">
-      <label for="bug-steps">Steps to Reproduce</label>
-      <textarea id="bug-steps" placeholder="1. Go to...&#10;2. Click on...&#10;3. See error..."></textarea>
-    </div>
-
-    <div class="form-group">
-      <label for="bug-expected">Expected Behavior</label>
-      <input type="text" id="bug-expected" placeholder="What should have happened?">
-    </div>
-
-    <div class="form-group">
-      <label for="bug-actual">Actual Behavior</label>
-      <input type="text" id="bug-actual" placeholder="What actually happened?">
-    </div>
-
-    <div class="form-group">
-      <label for="bug-platform">Platform</label>
-      <input type="text" id="bug-platform" placeholder="e.g., Windows 10, Chrome 113, Desktop App v0.42.0" value="">
-    </div>
-
-    <button type="submit" class="submit-btn" id="submit-btn">Submit Bug Report</button>
-    <p class="success-msg" id="success-msg">Bug report submitted. Thank you for helping improve HumanityOS!</p>
-  </form>
+  </div>
+  <div id="bug-list"></div>
 </div>
 
-<script>
-  // Auto-detect platform
-  (function() {
-    var p = document.getElementById('bug-platform');
-    if (p) {
-      var ua = navigator.userAgent;
-      var os = ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Unknown';
-      var browser = ua.includes('Chrome') ? 'Chrome' : ua.includes('Firefox') ? 'Firefox' : ua.includes('Safari') ? 'Safari' : 'Unknown';
-      p.value = os + ', ' + browser;
-    }
-  })();
-
-  function submitBug(e) {
-    e.preventDefault();
-    var report = {
-      title: document.getElementById('bug-title').value,
-      category: document.getElementById('bug-category').value,
-      severity: document.getElementById('bug-severity').value,
-      steps: document.getElementById('bug-steps').value,
-      expected: document.getElementById('bug-expected').value,
-      actual: document.getElementById('bug-actual').value,
-      platform: document.getElementById('bug-platform').value,
-      timestamp: Date.now(),
-      url: window.location.href
-    };
-
-    // Send to server via API
-    fetch('/api/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        channel: 'dev',
-        content: '**Bug Report:** ' + report.title + '\nCategory: ' + report.category + ' | Severity: ' + report.severity + '\nSteps: ' + report.steps + '\nExpected: ' + report.expected + '\nActual: ' + report.actual + '\nPlatform: ' + report.platform,
-        from_name: 'Bug Reporter'
-      })
-    }).catch(function() {});
-
-    // Also store locally
-    var bugs = JSON.parse(localStorage.getItem('humanity_bug_reports') || '[]');
-    bugs.push(report);
-    localStorage.setItem('humanity_bug_reports', JSON.stringify(bugs));
-
-    document.getElementById('success-msg').style.display = 'block';
-    document.getElementById('submit-btn').disabled = true;
-    document.getElementById('bug-form').reset();
-
-    setTimeout(function() {
-      document.getElementById('success-msg').style.display = 'none';
-      document.getElementById('submit-btn').disabled = false;
-    }, 5000);
-
-    return false;
-  }
-</script>
+<script src="/pages/bugs-app.js"></script>
 </body>
 </html>
