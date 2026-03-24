@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-03-22 | **Version:** v0.37.1
+> **Last updated:** 2026-03-23 | **Version:** v0.40.0
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -28,6 +28,8 @@ Everything in this section is **built and working**.
 | Video calls | ✅ | Camera selection, PiP overlay, gallery view |
 | Screen sharing | ✅ | Concurrent camera+screen layers, draggable PiP |
 | Streaming system | ✅ | Streamer dashboard, WebRTC relay, scenes/presets |
+| Voice join/leave sounds | ✅ | Audio cues when users enter/leave voice channels (v0.35.1) |
+| Role badges in sidebar | ✅ | Visual role indicators next to usernames in member lists (v0.35.1) |
 
 ---
 
@@ -42,6 +44,7 @@ Everything in this section is **built and working**.
 | Device management | ✅ | List, label, revoke devices; QR code linking |
 | Vault sync | ✅ | Encrypted cross-device sync, auto-lock, timestamp freshness |
 | Seed phrase recovery | ✅ | "Recover from Seed Phrase" button on login screen (v0.25.0) |
+| Security hardening | ✅ | Error boundary, pagination guards, env validation, automated DB backups (v0.35.0) |
 
 ---
 
@@ -87,6 +90,7 @@ Everything in this section is **built and working**.
 | Seller profiles | ✅ | Clickable seller names, profile modal with listings and ratings (v0.25.0) |
 | Ratings and reviews | ✅ | Star ratings, review form, sort options, aggregate display (v0.25.0) |
 | Buyer-seller messaging | ✅ | listing_messages table, WebSocket send/history (v0.31.0) |
+| P2P trading with escrow | ✅ | Peer-to-peer trade system with escrow protection (v0.40.0) |
 
 ---
 
@@ -94,7 +98,7 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Solana wallet | ✅ | Balance, send, receive — Ed25519 identity IS the Solana address (v0.25.0) |
+| Solana wallet | ✅ | Balance, send, receive -- Ed25519 identity IS the Solana address (v0.25.0) |
 | Token swaps | ✅ | Jupiter API integration, slippage settings, price impact warnings (v0.25.0) |
 | Staking | ✅ | Validator picker, stake/unstake flows (v0.25.0) |
 | NFT support | ✅ | Detection, Metaplex metadata, grid display with detail modals (v0.25.0) |
@@ -138,6 +142,13 @@ Everything in this section is **built and working**.
 | Global error boundary | ✅ | window.onerror + unhandledrejection, toast UI instead of white screen (v0.35.0) |
 | Env var validation | ✅ | Fail-fast startup, clear messages for missing/invalid config (v0.35.0) |
 | Automated DB backup | ✅ | SQLite backup every 6 hours, keep last 5, tokio background task (v0.35.0) |
+| Weather system | ✅ | 7 weather conditions, seasonal variation, affects gameplay (v0.40.0) |
+| Day/night sky renderer | ✅ | Procedural sky with stars, sun, moon, atmospheric scattering (v0.40.0) |
+| Audio system | ✅ | kira crate, spatial 3D audio, music, SFX (v0.39.0) |
+| Multiplayer networking | ✅ | WebSocket client, ECS state sync, server authority (v0.39.0) |
+| Construction system | ✅ | Blueprints, snap grid, placement preview (v0.39.0) |
+| Skills progression | ✅ | 20 skills, XP curves, level-up rewards (v0.39.0) |
+| Mod support framework | ✅ | Mod manifest, load order, data override system (v0.40.0) |
 | Engine sub-crates | ⚠️ | 19 crates exist with structure, most implementations are scaffolds |
 
 ---
@@ -158,6 +169,8 @@ Everything in this section is **built and working**.
 | nginx + VPS pipeline | ✅ | Push to main triggers build + deploy |
 | Server membership | ✅ | Auto-join on identify, member roster, paginated search (v0.25.0) |
 | Server-info endpoint | ✅ | Description, owner_key, funding, member_count (v0.25.0) |
+| Server game state authority | ✅ | Authoritative server for game state validation (v0.40.0) |
+| Admin analytics dashboard | ✅ | Server metrics, user activity, system health monitoring (v0.40.0) |
 
 ---
 
@@ -172,6 +185,10 @@ Everything in this section is **built and working**.
 | PWA support | ✅ | Manifest + service worker |
 | Keyboard shortcuts | ✅ | Global shortcuts via shell.js |
 | Onboarding tour | ✅ | 8-step guided walkthrough for new users (v0.25.0) |
+| Real/Sim context toggle | ✅ | Global mode switch between real-life tools and simulation (v0.38.1) |
+| Color-coded nav groups | ✅ | Red (identity), green (context-sensitive), blue (system) nav groups (v0.37.2) |
+| Localization | ✅ | 5 language translations (v0.40.0) |
+| Accessibility | ✅ | High contrast, colorblind modes, reduced motion support (v0.40.0) |
 
 ---
 
@@ -187,10 +204,21 @@ Everything in this section is **built and working**.
 | Chat overlay page | ✅ | In-game chat interface (v0.36.0) |
 | HUD page | ✅ | Health, status, interaction prompts (v0.36.0) |
 | Hot-reloadable theme | ✅ | theme.ron for colors, spacing, fonts; live reload (v0.36.0) |
-| Real/sim context toggle | 🔜 | Global mode switch between real-life tools and sim mode |
-| Civilization page | 🔜 | Macro community/infrastructure view |
 
 > **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary in `native/` replaces it.
+
+---
+
+## Web Tools & Utilities
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Civilization dashboard | ✅ | Macro community/infrastructure view with live API data (v0.39.0) |
+| File browser/editor | ✅ | Browse, view, and edit files with built-in viewers (v0.39.0) |
+| Tools catalog | ✅ | 37 open-source apps across 11 categories (v0.39.0) |
+| Calculator | ✅ | Basic, scientific, and unit converter modes (v0.39.0) |
+| Calendar/planner | ✅ | Event creation, scheduling, and reminders (v0.39.0) |
+| Notes/journal | ✅ | Markdown preview, encrypted notes, daily log (v0.39.0) |
 
 ---
 
@@ -211,10 +239,10 @@ Everything in this section is **built and working**.
 
 | # | Feature | Category | Why |
 |---|---------|----------|-----|
-| 1 | 🔜 Multiplayer sync | Engine | Networked ECS state replication |
-| 2 | 🔜 Real/sim context toggle | Native/Web | Global mode switch, same features with different data |
-| 3 | 🔜 Audio system | Engine | Spatial audio, music, SFX via kira crate |
-| 4 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
+| 1 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
+| 2 | 🔜 Advanced trading | Marketplace | Order books, automated matching, trade history |
+| 3 | 🔜 Guild/organization system | Social | Group management, shared resources, permissions |
+| 4 | 🔜 Reputation system | Identity | Trust scores, contribution tracking, community standing |
 
 ---
 
@@ -222,15 +250,16 @@ Everything in this section is **built and working**.
 
 | Category | ✅ Built | ⚠️ Partial | ❌ Missing |
 |----------|---------|-----------|-----------|
-| Communication | 13 | 0 | 0 |
-| Identity & Security | 7 | 0 | 0 |
+| Communication | 15 | 0 | 0 |
+| Identity & Security | 8 | 0 | 0 |
 | Push Notifications | 7 | 0 | 0 |
 | Task Board | 6 | 0 | 0 |
-| Marketplace | 11 | 0 | 0 |
+| Marketplace | 12 | 0 | 0 |
 | Wallet & Funding | 8 | 0 | 0 |
-| Game Engine | 29 | 1 | 0 |
-| Server & Infrastructure | 15 | 0 | 0 |
-| Navigation & UX | 7 | 0 | 0 |
+| Game Engine | 35 | 1 | 0 |
+| Server & Infrastructure | 14 | 0 | 0 |
+| Navigation & UX | 11 | 0 | 0 |
 | Native Desktop Client | 8 | 0 | 0 |
+| Web Tools & Utilities | 6 | 0 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
-| **Total** | **117** | **1** | **0** |
+| **Total** | **136** | **1** | **0** |

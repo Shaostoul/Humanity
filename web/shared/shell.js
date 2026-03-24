@@ -92,6 +92,7 @@
     else if (p.startsWith('/data'))     active = 'data';
     else if (p.startsWith('/crafting')) active = 'crafting';
     else if (p.startsWith('/civilization')) active = 'civilization';
+    else if (p.startsWith('/resources')) active = 'resources';
     else active = '';
   }
 

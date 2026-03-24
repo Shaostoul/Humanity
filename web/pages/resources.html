@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Resources — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:1100px; width:100%; margin:0 auto; }
+    .res-header h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
+    .res-header p { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:var(--space-lg); }
+    #res-search { width:100%; padding:10px 16px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:var(--text-base); margin-bottom:var(--space-md); }
+    #res-search:focus { outline:none; border-color:var(--accent); }
+    #res-search::placeholder { color:var(--text-muted); }
+    .filter-bar { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:var(--space-xl); }
+    .filter-btn { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:4px 12px; font-size:0.78rem; color:var(--text-muted); cursor:pointer; transition:border-color 0.15s, color 0.15s; }
+    .filter-btn:hover { border-color:var(--accent); color:var(--text); }
+    .filter-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(255,136,17,0.1); }
+    .cat-section { margin-bottom:var(--space-2xl); }
+    .cat-header { display:flex; align-items:center; gap:var(--space-md); cursor:pointer; padding:var(--space-sm) 0; user-select:none; }
+    .cat-header h2 { font-size:var(--text-lg); font-weight:600; margin:0; }
+    .cat-header .cat-count { color:var(--text-muted); font-size:var(--text-sm); }
+    .cat-header .cat-arrow { color:var(--text-muted); transition:transform 0.2s; }
+    .cat-header .cat-arrow.collapsed { transform:rotate(-90deg); }
+    .res-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:var(--space-md); }
+    .res-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:var(--space-lg); transition:border-color 0.15s; }
+    .res-card:hover { border-color:var(--accent); }
+    .res-name { font-size:var(--text-base); font-weight:700; margin-bottom:var(--space-xs); }
+    .res-name a { color:var(--accent); text-decoration:none; }
+    .res-name a:hover { text-decoration:underline; }
+    .res-desc { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; margin-bottom:var(--space-sm); }
+    .res-tags { display:flex; flex-wrap:wrap; gap:4px; }
+    .res-tag { padding:2px 8px; border-radius:3px; font-size:11px; font-weight:600; background:rgba(255,255,255,0.05); color:var(--text-muted); }
+    .no-results { color:var(--text-muted); font-style:italic; padding:var(--space-xl); text-align:center; }
+    .context-label { font-size:0.72rem; color:var(--text-muted); margin-bottom:var(--space-sm); text-transform:uppercase; letter-spacing:0.05em; }
+    @media (max-width:600px) { .res-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active=resources></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<p class="page-hint">Find helpful resources for real life or in-game guides, depending on your context.</p>
+
+<div id="page-app">
+  <div class="res-header">
+    <h1 id="res-title">Resources</h1>
+    <p id="res-subtitle">Curated links to helpful websites and services.</p>
+  </div>
+  <input type="text" id="res-search" placeholder="Search resources by name, category, or keyword...">
+  <div class="filter-bar" id="filter-bar"></div>
+  <div id="res-list"></div>
+</div>
+
+<script src="/pages/resources-app.js"></script>
+</body>
+</html>
