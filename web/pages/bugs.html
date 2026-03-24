@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Bug Report — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:800px; width:100%; margin:0 auto; }
+    h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
+    .subtitle { color:var(--text-muted); margin-bottom:var(--space-xl); }
+    .form-group { margin-bottom:var(--space-lg); }
+    .form-group label { display:block; font-weight:600; margin-bottom:var(--space-xs); font-size:var(--text-sm); }
+    .form-group input, .form-group textarea, .form-group select {
+      width:100%; padding:10px 12px; background:var(--bg-card); border:1px solid var(--border);
+      border-radius:var(--radius); color:var(--text); font-size:var(--text-base); font-family:inherit;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+      outline:none; border-color:var(--accent);
+    }
+    .form-group textarea { min-height:120px; resize:vertical; }
+    .form-group select { appearance:auto; }
+    .submit-btn {
+      background:var(--accent); color:#111; border:none; padding:12px 32px;
+      border-radius:var(--radius); font-size:var(--text-base); font-weight:700;
+      cursor:pointer;
+    }
+    .submit-btn:hover { opacity:0.9; }
+    .submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+    .success-msg { color:var(--accent); font-weight:600; margin-top:var(--space-md); display:none; }
+    .known-bugs { margin-top:var(--space-2xl); }
+    .known-bugs h2 { font-size:var(--text-lg); margin-bottom:var(--space-md); }
+    .bug-item { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space-md); margin-bottom:var(--space-sm); }
+    .bug-item .bug-id { color:var(--text-muted); font-size:var(--text-sm); font-family:monospace; }
+    .bug-item .bug-status { display:inline-block; padding:2px 8px; border-radius:3px; font-size:11px; font-weight:600; }
+    .bug-status-fixed { background:rgba(46,204,113,0.2); color:#2ecc71; }
+    .bug-status-open { background:rgba(231,76,60,0.2); color:#e74c3c; }
+    .info-box { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:var(--space-md); margin-bottom:var(--space-xl); }
+    .info-box a { color:var(--accent); }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active=bugs></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<div id="page-app">
+  <h1>Report a Bug</h1>
+  <p class="subtitle">Help improve HumanityOS by reporting issues you encounter.</p>
+
+  <div class="info-box">
+    You can also report bugs on <a href="https://github.com/Shaostoul/Humanity/issues" target="_blank" rel="noopener">GitHub Issues</a> for public tracking.
+  </div>
+
+  <form id="bug-form" onsubmit="return submitBug(event)">
+    <div class="form-group">
+      <label for="bug-title">Title</label>
+      <input type="text" id="bug-title" placeholder="Short description of the issue" required>
+    </div>
+
+    <div class="form-group">
+      <label for="bug-category">Category</label>
+      <select id="bug-category">
+        <option value="web">Website / Web UI</option>
+        <option value="native">Desktop App / Native</option>
+        <option value="server">Server / API</option>
+        <option value="chat">Chat / Voice</option>
+        <option value="game">Game / Simulation</option>
+        <option value="wallet">Wallet / Crypto</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="bug-severity">Severity</label>
+      <select id="bug-severity">
+        <option value="low">Low (cosmetic, minor annoyance)</option>
+        <option value="medium" selected>Medium (feature not working correctly)</option>
+        <option value="high">High (crash, data loss, security issue)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="bug-steps">Steps to Reproduce</label>
+      <textarea id="bug-steps" placeholder="1. Go to...&#10;2. Click on...&#10;3. See error..."></textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="bug-expected">Expected Behavior</label>
+      <input type="text" id="bug-expected" placeholder="What should have happened?">
+    </div>
+
+    <div class="form-group">
+      <label for="bug-actual">Actual Behavior</label>
+      <input type="text" id="bug-actual" placeholder="What actually happened?">
+    </div>
+
+    <div class="form-group">
+      <label for="bug-platform">Platform</label>
+      <input type="text" id="bug-platform" placeholder="e.g., Windows 10, Chrome 113, Desktop App v0.42.0" value="">
+    </div>
+
+    <button type="submit" class="submit-btn" id="submit-btn">Submit Bug Report</button>
+    <p class="success-msg" id="success-msg">Bug report submitted. Thank you for helping improve HumanityOS!</p>
+  </form>
+</div>
+
+<script>
+  // Auto-detect platform
+  (function() {
+    var p = document.getElementById('bug-platform');
+    if (p) {
+      var ua = navigator.userAgent;
+      var os = ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : ua.includes('Linux') ? 'Linux' : 'Unknown';
+      var browser = ua.includes('Chrome') ? 'Chrome' : ua.includes('Firefox') ? 'Firefox' : ua.includes('Safari') ? 'Safari' : 'Unknown';
+      p.value = os + ', ' + browser;
+    }
+  })();
+
+  function submitBug(e) {
+    e.preventDefault();
+    var report = {
+      title: document.getElementById('bug-title').value,
+      category: document.getElementById('bug-category').value,
+      severity: document.getElementById('bug-severity').value,
+      steps: document.getElementById('bug-steps').value,
+      expected: document.getElementById('bug-expected').value,
+      actual: document.getElementById('bug-actual').value,
+      platform: document.getElementById('bug-platform').value,
+      timestamp: Date.now(),
+      url: window.location.href
+    };
+
+    // Send to server via API
+    fetch('/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel: 'dev',
+        content: '**Bug Report:** ' + report.title + '\nCategory: ' + report.category + ' | Severity: ' + report.severity + '\nSteps: ' + report.steps + '\nExpected: ' + report.expected + '\nActual: ' + report.actual + '\nPlatform: ' + report.platform,
+        from_name: 'Bug Reporter'
+      })
+    }).catch(function() {});
+
+    // Also store locally
+    var bugs = JSON.parse(localStorage.getItem('humanity_bug_reports') || '[]');
+    bugs.push(report);
+    localStorage.setItem('humanity_bug_reports', JSON.stringify(bugs));
+
+    document.getElementById('success-msg').style.display = 'block';
+    document.getElementById('submit-btn').disabled = true;
+    document.getElementById('bug-form').reset();
+
+    setTimeout(function() {
+      document.getElementById('success-msg').style.display = 'none';
+      document.getElementById('submit-btn').disabled = false;
+    }, 5000);
+
+    return false;
+  }
+</script>
+</body>
+</html>
