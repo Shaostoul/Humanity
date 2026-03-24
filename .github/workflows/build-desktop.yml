@@ -101,12 +101,12 @@ jobs:
       - name: Create data archive
         run: |
           tar czf HumanityOS-data-${{ github.ref_name }}.tar.gz \
-            data/ \
-            assets/icons/ \
-            assets/shaders/ \
             --exclude="data/audio/sfx/*" \
             --exclude="data/audio/music/*" \
-            --exclude="data/audio/ambient/*"
+            --exclude="data/audio/ambient/*" \
+            data/ \
+            assets/icons/ \
+            assets/shaders/
 
       - name: Upload data bundle to release
         uses: softprops/action-gh-release@v2

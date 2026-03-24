@@ -3,6 +3,10 @@ name = "humanity-engine"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "humanity-engine"
+path = "src/main.rs"
+
 [features]
 default = ["native"]
 native = ["winit", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq"]
