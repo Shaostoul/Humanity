@@ -8,41 +8,74 @@
   <style>
     body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
     #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:1100px; width:100%; margin:0 auto; }
-    .civ-header { margin-bottom:var(--space-2xl); }
-    .civ-header h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-sm); }
-    .civ-header p { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; }
+    .civ-header { margin-bottom:var(--space-xl); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--space-md); }
+    .civ-header-left h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
+    .civ-header-left p { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; }
+    .civ-meta { display:flex; align-items:center; gap:var(--space-md); font-size:var(--text-sm); color:var(--text-muted); }
+    .civ-meta button { background:var(--bg-card); border:1px solid var(--border); color:var(--text-muted); padding:4px 12px; border-radius:var(--radius); cursor:pointer; font-size:var(--text-sm); }
+    .civ-meta button:hover { border-color:var(--accent); color:var(--text); }
     .civ-grid {
       display:grid;
-      grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));
-      gap:var(--space-xl);
+      grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+      gap:var(--space-lg);
     }
     .civ-card {
       background:var(--bg-card);
       border:1px solid var(--border);
       border-radius:var(--radius-lg);
-      padding:var(--space-2xl);
+      padding:var(--space-xl);
+      position:relative;
+      overflow:hidden;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
     .civ-card:hover {
       border-color:var(--accent);
       box-shadow:0 2px 12px rgba(255,136,17,0.08);
     }
-    .civ-card h3 {
-      font-size:var(--text-lg);
-      font-weight:700;
-      margin-bottom:var(--space-md);
-      display:flex;
-      align-items:center;
-      gap:var(--space-md);
+    .civ-card-accent {
+      position:absolute;
+      top:0; left:0; right:0;
+      height:3px;
+      border-radius:var(--radius-lg) var(--radius-lg) 0 0;
     }
-    .civ-card .card-icon {
-      width:24px; height:24px;
-      opacity:0.7;
-    }
-    .civ-card .placeholder {
+    .civ-card-title {
+      font-size:var(--text-base);
+      font-weight:600;
       color:var(--text-muted);
+      margin-bottom:var(--space-md);
+      text-transform:uppercase;
+      letter-spacing:0.05em;
+    }
+    .civ-stat {
+      display:flex;
+      align-items:baseline;
+      gap:var(--space-sm);
+      margin-bottom:var(--space-md);
+    }
+    .civ-stat-num {
+      font-size:2.5rem;
+      font-weight:700;
+      color:var(--text);
+      line-height:1;
+    }
+    .civ-stat-unit {
       font-size:var(--text-sm);
-      font-style:italic;
+      color:var(--text-muted);
+    }
+    .civ-subs {
+      display:flex;
+      flex-direction:column;
+      gap:var(--space-xs);
+    }
+    .civ-sub {
+      font-size:var(--text-sm);
+      color:var(--text-muted);
+      padding-left:var(--space-sm);
+      border-left:2px solid var(--border);
+    }
+    @media (max-width:600px) {
+      .civ-grid { grid-template-columns:1fr; }
+      .civ-stat-num { font-size:2rem; }
     }
   </style>
 </head>
@@ -55,88 +88,21 @@
 
 <div id="page-app">
   <div class="civ-header">
-    <h1 id="civ-heading">Civilization</h1>
-    <p id="civ-desc">Track the state of our communities, infrastructure, and collective progress.</p>
-  </div>
-
-  <!-- Real mode sections -->
-  <div id="civ-real" class="civ-grid">
-    <div class="civ-card">
-      <h3>Population</h3>
-      <p class="placeholder">Community member count, growth trends, and demographics. Coming soon.</p>
+    <div class="civ-header-left">
+      <h1 id="real-title">Civilization</h1>
+      <h1 id="sim-title" style="display:none">Colony Overview</h1>
+      <p id="civ-desc">Live stats from the community. Auto-refreshes every 60 seconds.</p>
     </div>
-    <div class="civ-card">
-      <h3>Infrastructure</h3>
-      <p class="placeholder">Roads, power, water, internet, and shared facilities. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Resources</h3>
-      <p class="placeholder">Food, energy, materials, and supply chain tracking. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Governance</h3>
-      <p class="placeholder">Proposals, voting, bylaws, and cooperative decision-making. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Education</h3>
-      <p class="placeholder">Learning programs, skill development, and knowledge sharing. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Health</h3>
-      <p class="placeholder">Community health metrics, wellness programs, and care access. Coming soon.</p>
+    <div class="civ-meta">
+      <span>Updated <span id="civ-last-updated">...</span></span>
+      <button id="civ-refresh">Refresh</button>
     </div>
   </div>
 
-  <!-- Sim mode sections -->
-  <div id="civ-sim" class="civ-grid" style="display:none;">
-    <div class="civ-card">
-      <h3>Colony Stats</h3>
-      <p class="placeholder">Population, morale, and colony growth simulation. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Buildings</h3>
-      <p class="placeholder">Construct and manage habitats, factories, and research labs. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Technology Tree</h3>
-      <p class="placeholder">Research new technologies to unlock advanced structures and capabilities. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Diplomacy</h3>
-      <p class="placeholder">Relations with other colonies, trade agreements, and alliances. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Military</h3>
-      <p class="placeholder">Defense systems, fleet management, and threat response. Coming soon.</p>
-    </div>
-    <div class="civ-card">
-      <h3>Economy</h3>
-      <p class="placeholder">Production chains, trade routes, and resource allocation. Coming soon.</p>
-    </div>
-  </div>
+  <div id="real-grid" class="civ-grid"></div>
+  <div id="sim-grid" class="civ-grid" style="display:none"></div>
 </div>
 
-<script>
-  function updateCivContext() {
-    var ctx = window.hos_context || 'real';
-    var heading = document.getElementById('civ-heading');
-    var desc = document.getElementById('civ-desc');
-    var realGrid = document.getElementById('civ-real');
-    var simGrid = document.getElementById('civ-sim');
-    if (ctx === 'sim') {
-      heading.textContent = 'Civilization — Sim';
-      desc.textContent = 'Manage your colony, research technology, and build a thriving civilization in the simulation.';
-      realGrid.style.display = 'none';
-      simGrid.style.display = 'grid';
-    } else {
-      heading.textContent = 'Civilization';
-      desc.textContent = 'Track the state of our communities, infrastructure, and collective progress.';
-      realGrid.style.display = 'grid';
-      simGrid.style.display = 'none';
-    }
-  }
-  updateCivContext();
-  window.addEventListener('hos-context-change', updateCivContext);
-</script>
+<script src="civilization-app.js"></script>
 </body>
 </html>

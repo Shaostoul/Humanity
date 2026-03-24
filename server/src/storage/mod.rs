@@ -1032,6 +1032,8 @@ mod members;
 mod signed_profiles;
 mod notification_prefs;
 mod vault_sync;
+mod civilization;
 
+pub use civilization::CivilizationStats;
 pub use marketplace::ListingMessageRecord;
 pub use notification_prefs::NotifPrefs;

@@ -1340,6 +1340,15 @@ pub async fn get_server_info(
     })
 }
 
+/// GET /api/civilization — aggregated civilization dashboard stats.
+pub async fn get_civilization_stats(
+    State(state): State<Arc<RelayState>>,
+) -> Json<serde_json::Value> {
+    let online_count = state.peers.read().await.len() as u32;
+    let stats = state.db.get_civilization_stats(online_count);
+    Json(serde_json::to_value(stats).unwrap_or_default())
+}
+
 /// Response for GET /api/federation/servers.
 #[derive(Debug, Serialize)]
 pub struct FederatedServerEntry {

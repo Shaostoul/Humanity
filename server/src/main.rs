@@ -299,6 +299,7 @@ async fn main() {
         .route("/api/members/count", get(api::get_member_count))
         .route("/api/members/{key}", get(api::get_member_by_key))
         .route("/api/server-info", get(api::get_server_info))
+        .route("/api/civilization", get(api::get_civilization_stats))
         .route("/api/profile/{key}", get(api::get_signed_profile))
         .route("/api/assets", get(api::get_assets).post(api::create_asset))
         .route("/api/assets/{id}", delete(api::delete_asset))
