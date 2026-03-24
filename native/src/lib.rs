@@ -12,6 +12,7 @@ pub mod physics;
 pub mod audio;
 pub mod input;
 pub mod assets;
+pub mod embedded_data;
 pub mod platform;
 pub mod terrain;
 pub mod ship;

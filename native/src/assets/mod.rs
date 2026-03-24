@@ -16,6 +16,8 @@ use std::any::Any;
 use std::path::PathBuf;
 use serde::de::DeserializeOwned;
 
+use crate::embedded_data;
+
 /// Central asset manager: loads data files, caches parsed results, supports hot-reload.
 pub struct AssetManager {
     /// Root data directory (e.g., `HumanityOS/content/data/`).
@@ -187,6 +189,223 @@ impl AssetManager {
 
         self.mesh_cache.insert(relative_path.to_string(), mesh_idx);
         Ok(mesh_idx)
+    }
+
+    // ── Embedded-fallback loaders ─────────────────────────────────────
+    // These try disk first (so mods can override), then fall back to
+    // compile-time embedded data for fully offline operation.
+
+    /// Load CSV: disk first, then embedded fallback.
+    /// Results are cached by path.
+    #[cfg(feature = "native")]
+    pub fn load_csv_or_embedded<T: DeserializeOwned + Send + Sync + 'static>(
+        &mut self,
+        relative_path: &str,
+    ) -> Result<&Vec<T>, String> {
+        if self.cache.contains_key(relative_path) {
+            return self.cache
+                .get(relative_path)
+                .and_then(|v| v.downcast_ref::<Vec<T>>())
+                .ok_or_else(|| format!("Type mismatch for cached {relative_path}"));
+        }
+
+        // Try disk first
+        let path = self.data_dir.join(relative_path);
+        let records: Vec<T> = if path.exists() {
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    match loader::parse_csv(&bytes) {
+                        Ok(r) => {
+                            log::info!("Loaded {} records from disk: {}", r.len(), relative_path);
+                            r
+                        }
+                        Err(e) => {
+                            log::warn!("Disk CSV parse failed for {relative_path}: {e}, trying embedded");
+                            Self::parse_embedded_csv(relative_path)?
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Disk read failed for {relative_path}: {e}, trying embedded");
+                    Self::parse_embedded_csv(relative_path)?
+                }
+            }
+        } else {
+            log::info!("File not on disk, using embedded: {relative_path}");
+            Self::parse_embedded_csv(relative_path)?
+        };
+
+        self.cache.insert(relative_path.to_string(), Box::new(records));
+        self.cache
+            .get(relative_path)
+            .and_then(|v| v.downcast_ref::<Vec<T>>())
+            .ok_or_else(|| format!("Type mismatch for cached {relative_path}"))
+    }
+
+    /// Load TOML: disk first, then embedded fallback.
+    #[cfg(feature = "native")]
+    pub fn load_toml_or_embedded<T: DeserializeOwned + Send + Sync + 'static>(
+        &mut self,
+        relative_path: &str,
+    ) -> Result<&T, String> {
+        if self.cache.contains_key(relative_path) {
+            return self.cache
+                .get(relative_path)
+                .and_then(|v| v.downcast_ref::<T>())
+                .ok_or_else(|| format!("Type mismatch for cached {relative_path}"));
+        }
+
+        let path = self.data_dir.join(relative_path);
+        let value: T = if path.exists() {
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    match loader::parse_toml(&bytes) {
+                        Ok(v) => {
+                            log::info!("Loaded TOML from disk: {relative_path}");
+                            v
+                        }
+                        Err(e) => {
+                            log::warn!("Disk TOML parse failed for {relative_path}: {e}, trying embedded");
+                            Self::parse_embedded_toml(relative_path)?
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Disk read failed for {relative_path}: {e}, trying embedded");
+                    Self::parse_embedded_toml(relative_path)?
+                }
+            }
+        } else {
+            log::info!("File not on disk, using embedded: {relative_path}");
+            Self::parse_embedded_toml(relative_path)?
+        };
+
+        self.cache.insert(relative_path.to_string(), Box::new(value));
+        self.cache
+            .get(relative_path)
+            .and_then(|v| v.downcast_ref::<T>())
+            .ok_or_else(|| format!("Type mismatch for cached {relative_path}"))
+    }
+
+    /// Load RON: disk first, then embedded fallback.
+    #[cfg(feature = "native")]
+    pub fn load_ron_or_embedded<T: DeserializeOwned + Send + Sync + 'static>(
+        &mut self,
+        relative_path: &str,
+    ) -> Result<&T, String> {
+        if self.cache.contains_key(relative_path) {
+            return self.cache
+                .get(relative_path)
+                .and_then(|v| v.downcast_ref::<T>())
+                .ok_or_else(|| format!("Type mismatch for cached {relative_path}"));
+        }
+
+        let path = self.data_dir.join(relative_path);
+        let value: T = if path.exists() {
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    match loader::parse_ron(&bytes) {
+                        Ok(v) => {
+                            log::info!("Loaded RON from disk: {relative_path}");
+                            v
+                        }
+                        Err(e) => {
+                            log::warn!("Disk RON parse failed for {relative_path}: {e}, trying embedded");
+                            Self::parse_embedded_ron(relative_path)?
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Disk read failed for {relative_path}: {e}, trying embedded");
+                    Self::parse_embedded_ron(relative_path)?
+                }
+            }
+        } else {
+            log::info!("File not on disk, using embedded: {relative_path}");
+            Self::parse_embedded_ron(relative_path)?
+        };
+
+        self.cache.insert(relative_path.to_string(), Box::new(value));
+        self.cache
+            .get(relative_path)
+            .and_then(|v| v.downcast_ref::<T>())
+            .ok_or_else(|| format!("Type mismatch for cached {relative_path}"))
+    }
+
+    /// Load JSON: disk first, then embedded fallback.
+    #[cfg(feature = "native")]
+    pub fn load_json_or_embedded<T: DeserializeOwned + Send + Sync + 'static>(
+        &mut self,
+        relative_path: &str,
+    ) -> Result<&T, String> {
+        if self.cache.contains_key(relative_path) {
+            return self.cache
+                .get(relative_path)
+                .and_then(|v| v.downcast_ref::<T>())
+                .ok_or_else(|| format!("Type mismatch for cached {relative_path}"));
+        }
+
+        let path = self.data_dir.join(relative_path);
+        let value: T = if path.exists() {
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    match loader::parse_json(&bytes) {
+                        Ok(v) => {
+                            log::info!("Loaded JSON from disk: {relative_path}");
+                            v
+                        }
+                        Err(e) => {
+                            log::warn!("Disk JSON parse failed for {relative_path}: {e}, trying embedded");
+                            Self::parse_embedded_json(relative_path)?
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Disk read failed for {relative_path}: {e}, trying embedded");
+                    Self::parse_embedded_json(relative_path)?
+                }
+            }
+        } else {
+            log::info!("File not on disk, using embedded: {relative_path}");
+            Self::parse_embedded_json(relative_path)?
+        };
+
+        self.cache.insert(relative_path.to_string(), Box::new(value));
+        self.cache
+            .get(relative_path)
+            .and_then(|v| v.downcast_ref::<T>())
+            .ok_or_else(|| format!("Type mismatch for cached {relative_path}"))
+    }
+
+    /// Get raw embedded text for a path (useful for non-deserialized access).
+    pub fn get_embedded_str(relative_path: &str) -> Option<&'static str> {
+        embedded_data::get_embedded(relative_path)
+    }
+
+    // ── Private embedded parse helpers ──────────────────────────────
+
+    fn parse_embedded_csv<T: DeserializeOwned>(path: &str) -> Result<Vec<T>, String> {
+        let text = embedded_data::get_embedded(path)
+            .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        loader::parse_csv(text.as_bytes())
+    }
+
+    fn parse_embedded_toml<T: DeserializeOwned>(path: &str) -> Result<T, String> {
+        let text = embedded_data::get_embedded(path)
+            .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        loader::parse_toml(text.as_bytes())
+    }
+
+    fn parse_embedded_ron<T: DeserializeOwned>(path: &str) -> Result<T, String> {
+        let text = embedded_data::get_embedded(path)
+            .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        loader::parse_ron(text.as_bytes())
+    }
+
+    fn parse_embedded_json<T: DeserializeOwned>(path: &str) -> Result<T, String> {
+        let text = embedded_data::get_embedded(path)
+            .ok_or_else(|| format!("No embedded fallback for {path}"))?;
+        loader::parse_json(text.as_bytes())
     }
 
     /// Invalidate a cached entry (called by hot-reload on file change).
