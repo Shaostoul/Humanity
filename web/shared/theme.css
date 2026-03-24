@@ -178,6 +178,13 @@ h4 { font-size: var(--text-base); }
 .mobile-hub-group.group-green h4 { color: rgba(46, 204, 113, 0.85); }
 .mobile-hub-group.group-blue h4 { color: rgba(52, 152, 219, 0.85); }
 
+/* -- Accessibility -- */
+[data-high-contrast] { --bg: #000; --text: #fff; --border: #fff; --accent: #ff0; }
+[data-reduced-motion] * { animation: none !important; transition: none !important; }
+[data-colorblind="protanopia"] { filter: url(#protanopia); }
+[data-colorblind="deuteranopia"] { filter: url(#deuteranopia); }
+[data-colorblind="tritanopia"] { filter: url(#tritanopia); }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
