@@ -1,0 +1,119 @@
+# HumanityOS Materials Database
+# Physical properties of all base materials in the game world
+#
+# Column definitions:
+#   id                      - Unique material identifier (snake_case)
+#   name                    - Display name
+#   category                - Material category: fabric, metal, wood, ceramic, polymer, natural
+#   density_kg_m3           - Density in kg per cubic meter
+#   tensile_strength_mpa    - Tensile strength in megapascals
+#   thermal_conductivity    - Thermal conductivity in W/(m*K)
+#   hardness                - Relative hardness 0.0-10.0 (Mohs-inspired)
+#   flexibility             - Flexibility rating 0.0-1.0 (1.0 = most flexible)
+#   cost_per_kg             - Base cost per kilogram in credits
+#   renewable               - Whether the material is renewable (true/false)
+#   description             - Short description
+#
+# === FABRICS / TEXTILES ===
+id,name,category,density_kg_m3,tensile_strength_mpa,thermal_conductivity,hardness,flexibility,cost_per_kg,renewable,description
+cotton,Cotton,fabric,1540,400,0.04,0.4,0.95,3,true,Natural plant fiber textile
+hemp,Hemp,fabric,1480,550,0.04,0.5,0.85,2,true,Strong natural bast fiber
+linen,Linen,fabric,1500,500,0.05,0.4,0.80,5,true,Flax-derived woven textile
+wool,Wool,fabric,1310,170,0.04,0.3,0.90,8,true,Animal fiber with insulating properties
+silk,Silk,fabric,1340,500,0.05,0.2,0.95,50,true,Fine natural protein fiber
+polyester,Polyester,fabric,1380,900,0.05,0.5,0.85,2,false,Synthetic petroleum-based fiber
+nylon,Nylon,fabric,1150,900,0.25,0.5,0.90,4,false,Strong synthetic polyamide fiber
+kevlar,Kevlar,fabric,1440,3600,0.04,1.0,0.60,40,false,Extremely strong aramid fiber
+canvas,Canvas,fabric,1540,450,0.04,0.5,0.70,4,true,Heavy-duty woven cotton or linen
+denim,Denim,fabric,1540,420,0.04,0.5,0.75,5,true,Rugged twill-weave cotton fabric
+leather,Leather,fabric,860,20,0.14,0.6,0.70,15,true,Tanned animal hide
+synthetic_leather,Synthetic Leather,fabric,1100,30,0.16,0.5,0.75,8,false,Polyurethane-based leather substitute
+felt,Felt,fabric,300,5,0.04,0.3,0.80,4,true,Matted non-woven wool textile
+burlap,Burlap,fabric,1440,300,0.04,0.4,0.65,1,true,Coarse jute or sisal weave
+spandex,Spandex,fabric,1200,40,0.20,0.2,1.00,10,false,Highly elastic polyurethane fiber
+fleece,Fleece,fabric,250,15,0.03,0.2,0.90,6,false,Soft synthetic insulating fabric
+mesh_fabric,Mesh Fabric,fabric,800,200,0.10,0.3,0.85,3,false,Open-weave breathable textile
+tarp_material,Tarp Material,fabric,950,600,0.20,0.5,0.60,4,false,Waterproof polyethylene sheet
+#
+# === METALS ===
+iron,Iron,metal,7874,350,80.0,4.0,0.20,1,false,Common ferrous metal
+steel,Steel,metal,7850,500,50.0,5.5,0.15,3,false,Iron-carbon alloy
+stainless_steel,Stainless Steel,metal,7900,520,16.0,5.5,0.15,6,false,Corrosion-resistant chromium steel
+aluminum,Aluminum,metal,2700,300,237.0,2.8,0.30,4,false,Lightweight nonferrous metal
+copper,Copper,metal,8960,220,401.0,3.0,0.35,5,false,Conductive reddish metal
+brass,Brass,metal,8500,350,109.0,3.5,0.25,7,false,Copper-zinc alloy
+bronze,Bronze,metal,8800,310,26.0,3.5,0.20,8,false,Copper-tin alloy
+titanium,Titanium,metal,4500,900,22.0,6.0,0.15,25,false,Strong lightweight refractory metal
+nickel,Nickel,metal,8900,380,91.0,4.0,0.20,12,false,Corrosion-resistant ferromagnetic metal
+cobalt,Cobalt,metal,8900,760,100.0,5.0,0.15,30,false,Hard magnetic transition metal
+tungsten,Tungsten,metal,19300,1500,173.0,9.0,0.05,20,false,Extremely hard refractory metal
+platinum,Platinum,metal,21450,140,72.0,4.0,0.25,500,false,Precious catalytic metal
+gold,Gold,metal,19300,120,318.0,2.5,0.40,400,false,Soft highly conductive precious metal
+silver,Silver,metal,10490,170,429.0,2.5,0.40,50,false,Conductive antimicrobial precious metal
+lead,Lead,metal,11340,18,35.0,1.5,0.50,2,false,Dense soft toxic metal
+zinc,Zinc,metal,7130,120,116.0,2.5,0.25,3,false,Corrosion-resistant bluish metal
+tin,Tin,metal,7280,15,67.0,1.5,0.45,10,false,Soft malleable metal for plating
+chromium,Chromium,metal,7190,280,94.0,8.5,0.05,8,false,Hard corrosion-resistant plating metal
+manganese,Manganese,metal,7440,500,7.8,6.0,0.10,3,false,Hard brittle metal for steel alloys
+vanadium,Vanadium,metal,6100,450,31.0,7.0,0.10,15,false,Strong steel-hardening alloy metal
+#
+# === WOODS ===
+oak,Oak,wood,750,100,0.17,4.0,0.30,4,true,Dense hardwood for furniture
+pine,Pine,wood,510,40,0.12,2.0,0.40,2,true,Common softwood for construction
+maple,Maple,wood,700,110,0.16,4.0,0.30,5,true,Hard fine-grained deciduous wood
+birch,Birch,wood,650,85,0.14,3.5,0.35,3,true,Light hardwood with smooth bark
+walnut,Walnut,wood,670,120,0.13,4.0,0.25,8,true,Dark decorative hardwood
+cedar,Cedar,wood,380,50,0.11,2.0,0.35,6,true,Aromatic rot-resistant softwood
+mahogany,Mahogany,wood,550,80,0.13,3.5,0.30,12,true,Premium tropical hardwood
+bamboo,Bamboo,wood,400,230,0.17,3.0,0.50,2,true,Fast-growing grass stem
+plywood,Plywood,wood,600,30,0.13,2.5,0.25,3,true,Layered engineered wood panel
+particle_board,Particle Board,wood,650,10,0.15,1.5,0.15,1,true,Compressed wood chip panel
+balsa,Balsa,wood,160,20,0.05,1.0,0.50,6,true,Extremely lightweight tropical wood
+teak,Teak,wood,650,95,0.14,4.5,0.25,15,true,Water-resistant tropical hardwood
+spruce,Spruce,wood,430,65,0.11,2.0,0.40,2,true,Light resonant softwood
+ash_wood,Ash Wood,wood,680,100,0.16,4.0,0.40,4,true,Flexible shock-resistant hardwood
+cherry,Cherry,wood,580,85,0.14,3.5,0.30,7,true,Fine-grained reddish hardwood
+#
+# === CERAMICS / STONE ===
+concrete,Concrete,ceramic,2400,5,1.70,6.0,0.02,1,false,Portland cement aggregate mix
+brick,Brick,ceramic,1900,4,0.72,5.5,0.02,1,false,Fired clay building block
+glass,Glass,ceramic,2500,33,1.05,6.5,0.01,3,false,Transparent amorphous silica
+porcelain,Porcelain,ceramic,2400,50,1.50,7.0,0.01,8,false,Fine vitrified ceramic
+granite,Granite,ceramic,2700,15,2.80,7.0,0.01,5,false,Hard igneous building stone
+marble,Marble,ceramic,2700,10,2.50,3.5,0.01,10,false,Metamorphic decorative stone
+limestone,Limestone,ceramic,2600,8,1.30,3.0,0.02,2,false,Sedimentary calcium carbonate rock
+sandstone,Sandstone,ceramic,2300,5,1.70,4.0,0.02,2,false,Cemented quartz grain rock
+slate,Slate,ceramic,2700,30,2.00,4.0,0.02,4,false,Layered metamorphic roofing stone
+clay,Clay,ceramic,1800,1,1.30,1.5,0.50,1,true,Moldable hydrated mineral soil
+obsidian,Obsidian,ceramic,2600,40,1.20,5.5,0.01,6,false,Volcanic glass with sharp edges
+quartz,Quartz,ceramic,2650,50,3.00,7.0,0.01,4,false,Hard crystalline silicon dioxide
+#
+# === POLYMERS / COMPOSITES ===
+polycarbonate,Polycarbonate,polymer,1200,70,0.20,4.0,0.40,6,false,Impact-resistant transparent thermoplastic
+abs_plastic,ABS Plastic,polymer,1050,40,0.17,3.0,0.35,3,false,Tough general-purpose thermoplastic
+pvc,PVC,polymer,1400,50,0.16,3.0,0.30,2,false,Versatile rigid vinyl plastic
+hdpe,HDPE,polymer,960,30,0.50,2.5,0.50,2,false,High-density polyethylene
+acrylic,Acrylic,polymer,1180,70,0.20,3.5,0.15,5,false,Clear shatter-resistant plastic
+epoxy,Epoxy,polymer,1200,80,0.20,4.0,0.10,8,false,Thermoset adhesive resin
+fiberglass,Fiberglass,polymer,1800,500,0.04,4.5,0.20,6,false,Glass-reinforced polymer composite
+carbon_fiber_mat,Carbon Fiber,polymer,1600,3500,7.00,5.0,0.15,50,false,Ultra-strong lightweight composite
+rubber,Rubber,polymer,1100,25,0.16,1.5,0.95,3,true,Elastic natural or synthetic polymer
+silicone,Silicone,polymer,1100,10,0.20,1.0,0.90,8,false,Heat-resistant flexible polymer
+foam,Foam,polymer,30,0.2,0.03,0.2,0.80,2,false,Lightweight cellular polymer
+neoprene,Neoprene,polymer,1240,20,0.19,2.0,0.85,7,false,Waterproof synthetic rubber
+#
+# === NATURAL / OTHER ===
+bone,Bone,natural,1900,130,0.30,3.5,0.10,1,true,Calcified organic structural tissue
+shell,Shell,natural,2700,60,0.20,3.5,0.05,2,true,Calcium carbonate exoskeleton
+horn,Horn,natural,1300,80,0.40,2.5,0.20,3,true,Keratin-based animal growth
+sinew,Sinew,natural,1100,100,0.50,1.0,0.80,2,true,Animal tendon cordage material
+plant_fiber,Plant Fiber,natural,1200,300,0.04,0.5,0.85,1,true,Raw cellulose fiber strand
+resin,Resin,natural,1100,40,0.15,2.0,0.20,4,true,Natural tree secretion adhesive
+tar,Tar,natural,1200,5,0.70,0.5,0.30,1,false,Thick hydrocarbon sealant
+charcoal,Charcoal,natural,400,5,0.05,1.0,0.10,1,true,Carbonized wood fuel
+ash_ite,Ash,natural,700,0,0.12,0.5,0.20,0,true,Combustion mineral residue
+salt,Salt,natural,2170,30,6.50,2.5,0.01,1,false,Sodium chloride crystal
+sand,Sand,natural,1600,0,0.25,6.0,0.01,0,false,Loose silica grain aggregate
+gravel,Gravel,natural,1800,0,0.70,5.0,0.01,0,false,Coarse rock fragment mix
+ice,Ice,natural,917,1,2.20,1.5,0.01,0,true,Frozen water solid
+snow,Snow,natural,200,0,0.10,0.5,0.30,0,true,Crystalline ice precipitation

@@ -2,109 +2,340 @@
 # All items available in the game world with volumetric physics data
 #
 # Column definitions:
-#   id                - Unique item identifier (snake_case)
+#   id                - Unique item identifier (snake_case, _0 suffix = default style)
 #   name              - Display name shown to player
+#   category          - clothing, tool, weapon, furniture, food, material, machine, vehicle
+#   subcategory       - More specific grouping within category
+#   base_material     - Primary material_id this item is made from
+#   weight_kg         - Physical mass in kilograms
+#   stack_size        - Max stack count (1 = not stackable)
+#   durability        - Max durability points (0 = indestructible consumable)
 #   description       - Short description of the item
-#   type              - Category: weapon, armor, tool, consumable, seed, food, ingredient, material, component
-#   rarity            - Drop/find frequency: common, uncommon, rare, epic, legendary
-#   value             - Base trade value in credits
-#   mass_kg           - Physical mass in kilograms
-#   volume_liters     - Physical volume in liters (for volumetric cargo)
-#   requirements      - Skill requirements (skill:level pairs separated by colons)
-#   stats             - Stat modifiers (stat:value pairs separated by colons)
-#   effects           - Applied effects (effect:value pairs separated by colons)
-#   durability        - Max durability points (empty = indestructible)
-#   stackable         - Whether item stacks in inventory (true/false)
-#   equip_slot        - Equipment slot: head, chest, legs, feet, hands, waist, main_hand, off_hand
-#   animation         - Animation trigger name
-#   particles         - Particle effect (type:color:duration)
-#   sound             - Sound effect filename
 #
-# === WEAPONS ===
-id,name,description,type,rarity,value,mass_kg,volume_liters,requirements,stats,effects,durability,stackable,equip_slot,animation,particles,sound
-iron_sword,Iron Sword,A basic iron sword,weapon,common,50,3.0,1.5,strength:5,damage:10:attack_speed:1.0,,100,false,main_hand,swing,impact:gray:0.3,sword_swing.ogg
-fire_staff,Fire Staff,Channel fire magic,weapon,uncommon,100,2.0,3.0,magic:10,damage:15:magic_power:1.2,fire_damage:5,120,false,main_hand,cast,fire:orange:0.5,staff_cast.ogg
-#
-# === ARMOR ===
-leather_armor,Leather Armor,Basic leather protection,armor,common,30,2.0,4.0,,defense:5:movement:0.9,,80,false,chest,equip,equip:brown:0.2,armor_equip.ogg
-steel_plate,Steel Plate Armor,Heavy plate protection,armor,rare,200,8.0,12.0,strength:15,defense:15:movement:0.8,,150,false,chest,equip,equip:silver:0.3,armor_equip.ogg
-light_jacket,Light Jacket,Water-resistant jacket,armor,common,45,0.8,2.0,,,cold_resistance:0.6,,false,chest,wear,jacket:blue:0.3,zip.ogg
-mid_layer_fleece,Mid Layer Fleece,Insulating fleece jacket,armor,common,65,0.7,2.5,,,cold_resistance:0.8,,false,chest,wear,fleece:navy:0.4,zip.ogg
-outer_shell_rain,Outer Shell Rain,Rain jacket,armor,common,90,0.8,2.0,,,water_resistance:0.95,,false,chest,wear,jacket:yellow:0.5,zip.ogg
-base_layer_top,Base Layer Top,Moisture-wicking undershirt,armor,common,35,0.3,0.8,,,temperature_regulation:0.6,,false,chest,wear,shirt:gray:0.4,pull.ogg
-base_layer_bottom,Base Layer Bottom,Moisture-wicking underwear,armor,common,30,0.25,0.7,,,temperature_regulation:0.5,,false,legs,wear,pants:gray:0.4,pull.ogg
-hiking_pants,Hiking Pants,Durable hiking pants,armor,common,70,0.9,2.5,,,movement:0.05:durability:0.7,,false,legs,wear,pants:khaki:0.4,zip.ogg
-hiking_shoes,Hiking Shoes,Durable hiking footwear,armor,common,80,1.2,3.0,,,foot_protection:0.8:movement:0.1,,false,feet,wear,shoes:brown:0.4,lace.ogg
-hiking_socks,Hiking Socks,Moisture-wicking socks,armor,common,25,0.4,0.3,,,foot_comfort:0.9,,true,,wear,sock:gray:0.4,pull.ogg
-gloves_light,Light Gloves,Thin protective gloves,armor,common,15,0.2,0.3,,,hand_protection:0.4,,false,hands,wear,gloves:gray:0.4,pull.ogg
-hat_sun,Sun Hat,Wide-brimmed sun hat,armor,common,20,0.3,1.5,,,sun_protection:0.5,,false,head,wear,hat:beige:0.4,rustle.ogg
-cap_sun,Sun Cap,Baseball-style sun cap,armor,common,15,0.2,1.0,,,sun_protection:0.4,,false,head,wear,cap:navy:0.4,pull.ogg
-gaiters_light,Light Gaiters,Trail gaiters,armor,common,25,0.4,0.5,,,debris_protection:0.8,,false,legs,fasten,gaiter:black:0.3,velcro.ogg
-belt,Belt,Utility belt,armor,common,20,0.3,0.4,,,utility_slots:4,,false,waist,wear,belt:brown:0.4,buckle.ogg
+# === CLOTHING ===
+id,name,category,subcategory,base_material,weight_kg,stack_size,durability,description
+t_shirt_0,T-Shirt,clothing,top,cotton,0.2,5,60,Basic short-sleeve cotton shirt
+long_sleeve_0,Long Sleeve Shirt,clothing,top,cotton,0.3,5,70,Full-length sleeve cotton shirt
+hoodie_0,Hoodie,clothing,top,cotton,0.6,3,80,Pullover hooded sweatshirt
+jacket_light_0,Light Jacket,clothing,outerwear,nylon,0.8,1,100,Water-resistant windbreaker
+jacket_heavy_0,Heavy Jacket,clothing,outerwear,canvas,1.5,1,150,Insulated winter jacket
+coat_winter_0,Winter Coat,clothing,outerwear,wool,2.2,1,180,Thick cold-weather overcoat
+vest_0,Vest,clothing,top,cotton,0.3,3,60,Sleeveless torso garment
+pants_0,Pants,clothing,bottom,cotton,0.5,5,80,Standard full-length trousers
+shorts_0,Shorts,clothing,bottom,cotton,0.3,5,60,Knee-length leg garment
+skirt_0,Skirt,clothing,bottom,cotton,0.3,5,60,Hip-to-knee draped garment
+dress_0,Dress,clothing,full_body,cotton,0.4,3,70,One-piece body garment
+overalls_0,Overalls,clothing,full_body,denim,0.9,1,120,Bib-and-brace work garment
+jumpsuit_0,Jumpsuit,clothing,full_body,nylon,0.7,1,100,One-piece utility suit
+underwear_0,Underwear,clothing,undergarment,cotton,0.1,10,40,Basic undergarment
+socks_0,Socks,clothing,feet,cotton,0.08,20,30,Ankle-height foot covering
+boots_work_0,Work Boots,clothing,footwear,leather,1.5,1,200,Steel-toe protective footwear
+boots_hiking_0,Hiking Boots,clothing,footwear,leather,1.2,1,180,Ankle-support trail boots
+shoes_casual_0,Casual Shoes,clothing,footwear,synthetic_leather,0.6,1,120,Everyday walking shoes
+sandals_0,Sandals,clothing,footwear,rubber,0.3,1,80,Open-toe warm-weather footwear
+gloves_work_0,Work Gloves,clothing,hands,leather,0.3,3,100,Reinforced hand protection
+gloves_winter_0,Winter Gloves,clothing,hands,wool,0.2,3,80,Insulated cold-weather gloves
+hat_baseball_0,Baseball Cap,clothing,headwear,cotton,0.15,5,50,Brimmed casual cap
+hat_beanie_0,Beanie,clothing,headwear,wool,0.1,5,50,Knit cold-weather hat
+helmet_hard_0,Hard Hat,clothing,headwear,hdpe,0.4,1,200,Impact-resistant safety helmet
+helmet_combat_0,Combat Helmet,clothing,headwear,kevlar,1.4,1,300,Ballistic protection headgear
+goggles_safety_0,Safety Goggles,clothing,eyewear,polycarbonate,0.15,1,150,Splash and impact eye guards
+sunglasses_0,Sunglasses,clothing,eyewear,polycarbonate,0.05,1,80,UV-blocking eye shades
+backpack_small_0,Small Backpack,clothing,carry,nylon,0.8,1,120,Day-trip rucksack 20L
+backpack_large_0,Large Backpack,clothing,carry,nylon,1.5,1,180,Expedition rucksack 60L
+belt_0,Belt,clothing,accessory,leather,0.3,1,100,Waist strap with buckle
+scarf_0,Scarf,clothing,accessory,wool,0.15,5,50,Neck and face wrap
+apron_0,Apron,clothing,work,canvas,0.4,1,100,Front-body work protector
+raincoat_0,Raincoat,clothing,outerwear,tarp_material,0.6,1,120,Waterproof full-length coat
+wetsuit_0,Wetsuit,clothing,full_body,neoprene,2.0,1,200,Thermal diving suit
+hazmat_suit_0,Hazmat Suit,clothing,full_body,hdpe,3.0,1,250,Chemical and biological barrier suit
+spacesuit_0,Spacesuit,clothing,full_body,kevlar,12.0,1,500,Pressurized extravehicular suit
+lab_coat_0,Lab Coat,clothing,work,polyester,0.4,1,80,Laboratory protective garment
+coveralls_0,Coveralls,clothing,work,cotton,0.8,1,100,Full-body mechanic suit
+poncho_0,Poncho,clothing,outerwear,tarp_material,0.4,3,80,Sleeveless rain cover
+thermal_underwear_0,Thermal Underwear,clothing,undergarment,fleece,0.3,5,60,Base-layer insulating garment
 #
 # === TOOLS ===
-hoe,Farming Hoe,Basic soil cultivation tool,tool,common,15,2.0,3.0,farming:1,farming_speed:1.2,,100,false,main_hand,dig,soil:brown:0.3,dig.ogg
-watering_can,Watering Can,Tool for watering plants,tool,common,12,1.5,8.0,farming:1,water_efficiency:1.1,,80,false,off_hand,water,water:blue:0.4,water.ogg
-fertilizer,Organic Fertilizer,Nutrient-rich plant food,tool,common,8,1.0,1.0,farming:2,nutrient_bonus:1.3,,50,true,,fertilize,nutrient:green:0.5,fertilize.ogg
-pesticide,Natural Pesticide,Eco-friendly pest control,tool,uncommon,15,0.8,0.8,farming:3,pest_protection:0.8,,30,true,,spray,spray:purple:0.3,spray.ogg
-map_compass,Map and Compass,Navigation tools,tool,common,25,0.5,0.5,,,,,,navigate,compass:blue:0.2,click.ogg
-compass,Compass,Magnetic navigation compass,tool,common,15,0.2,0.1,,,,,,use,compass:black:0.3,click.ogg
-first_aid_kit,First Aid Kit,Emergency medical supplies,tool,common,30,1.2,3.0,,,,,,use,medical:red:0.4,open.ogg
-whistle,Emergency Whistle,Loud signaling device,tool,common,3,0.1,0.02,,,,,,blow,whistle:yellow:0.8,whistle.ogg
-emergency_blanket,Emergency Blanket,Thermal emergency blanket,tool,common,8,0.2,0.3,,,,,,unfold,blanket:silver:0.3,unfold.ogg
-headlamp,Headlamp,Rechargeable LED headlamp,tool,common,20,0.3,0.2,,,,,false,head,light,light:white:0.9,click.ogg
-multi_tool,Multi-Tool,Compact multi-function tool,tool,common,35,0.8,0.3,,,,,,use,tool:gray:0.4,click.ogg
-pocket_knife,Pocket Knife,Compact folding knife,tool,common,18,0.2,0.1,,,,,,open,knife:silver:0.5,click.ogg
-paracord_15m,Paracord 15m,Strong utility cord,tool,common,15,0.6,0.5,,,,,,cut,cord:brown:0.3,snip.ogg
-fire_starter,Fire Starter,Magnesium fire starter,tool,common,12,0.2,0.05,,,,,,strike,fire:orange:0.7,strike.ogg
-water_filter,Water Filter,Portable water purifier,tool,common,40,0.4,0.5,,,,,,filter,filter:blue:0.3,gurgle.ogg
-rain_cover_pack,Rain Cover Pack,Pack rain cover,tool,common,18,0.3,0.4,,,,,,unfold,cover:blue:0.3,unfold.ogg
-bandana,Bandana,Multi-purpose cloth,tool,common,5,0.1,0.1,,,,,,tie,cloth:red:0.6,rustle.ogg
-omnitool,Omnitool,Universal construction and repair tool,tool,uncommon,100,1.5,1.0,,,,200,false,main_hand,use,tool:cyan:0.5,omnitool.ogg
-basic_toolkit,Basic Toolkit,Set of common hand tools,tool,common,40,3.0,5.0,,,,150,false,,use,tool:gray:0.3,toolbox.ogg
-welding_torch,Welding Torch,Portable welding device,tool,uncommon,80,2.5,2.0,,,,100,false,main_hand,weld,spark:orange:0.6,weld.ogg
-multimeter,Multimeter,Electronic diagnostic tool,tool,common,25,0.5,0.3,,,,80,false,,use,tool:yellow:0.2,beep.ogg
+hammer_0,Hammer,tool,striking,steel,0.8,1,200,Claw hammer for nails and light demolition
+screwdriver_flat_0,Flat Screwdriver,tool,fastening,steel,0.2,1,150,Slotted-head screwdriver
+screwdriver_phillips_0,Phillips Screwdriver,tool,fastening,steel,0.2,1,150,Cross-head screwdriver
+wrench_adjustable_0,Adjustable Wrench,tool,fastening,steel,0.5,1,200,Variable-jaw bolt wrench
+wrench_socket_set_0,Socket Wrench Set,tool,fastening,steel,2.0,1,250,Ratchet and socket collection
+pliers_0,Pliers,tool,gripping,steel,0.3,1,180,Pivot-jaw gripping tool
+saw_hand_0,Hand Saw,tool,cutting,steel,0.6,1,150,Manual crosscut saw
+saw_circular_0,Circular Saw,tool,cutting,steel,4.0,1,200,Powered rotary cutting saw
+drill_electric_0,Electric Drill,tool,boring,steel,2.0,1,200,Corded rotary drill
+drill_manual_0,Hand Drill,tool,boring,steel,0.8,1,150,Manual brace-and-bit drill
+axe_0,Axe,tool,cutting,steel,1.8,1,200,Full-size felling axe
+hatchet_0,Hatchet,tool,cutting,steel,0.8,1,180,Compact one-hand chopping axe
+pickaxe_0,Pickaxe,tool,mining,steel,2.5,1,200,Rock-breaking pointed pick
+shovel_0,Shovel,tool,digging,steel,2.0,1,180,Flat-blade earth mover
+rake_0,Rake,tool,gardening,steel,1.0,1,120,Tine-head ground smoother
+hoe_0,Hoe,tool,gardening,steel,1.2,1,150,Flat-blade soil cultivator
+scythe_0,Scythe,tool,gardening,steel,2.0,1,120,Curved-blade crop harvester
+chisel_0,Chisel,tool,carving,steel,0.3,1,150,Flat-edge shaping blade
+file_metal_0,Metal File,tool,finishing,steel,0.4,1,120,Abrasive surface smoother
+sandpaper_0,Sandpaper,tool,finishing,sand,0.05,50,20,Grit-coated abrasive sheet
+tape_measure_0,Tape Measure,tool,measuring,steel,0.3,1,100,Retractable distance gauge
+level_0,Level,tool,measuring,aluminum,0.5,1,150,Spirit bubble alignment gauge
+square_0,Carpenter Square,tool,measuring,steel,0.4,1,200,Right-angle reference edge
+clamp_0,Clamp,tool,gripping,steel,0.6,1,200,Adjustable workpiece holder
+vise_0,Vise,tool,gripping,steel,5.0,1,300,Bench-mounted clamping jaw
+anvil_0,Anvil,tool,smithing,steel,30.0,1,500,Forging impact surface
+forge_hammer_0,Forge Hammer,tool,smithing,steel,3.0,1,250,Heavy blacksmithing hammer
+welding_torch_0,Welding Torch,tool,joining,steel,2.5,1,150,Oxy-fuel cutting and joining tool
+soldering_iron_0,Soldering Iron,tool,joining,copper,0.3,1,100,Electric solder-melting tip
+multimeter_0,Multimeter,tool,electrical,abs_plastic,0.5,1,100,Voltage/current/resistance meter
+wire_stripper_0,Wire Stripper,tool,electrical,steel,0.2,1,120,Insulation removal pliers
+crimping_tool_0,Crimping Tool,tool,electrical,steel,0.4,1,150,Terminal compression pliers
+crowbar_0,Crowbar,tool,prying,steel,2.0,1,300,Leverage prying bar
+bolt_cutter_0,Bolt Cutter,tool,cutting,steel,3.0,1,250,Heavy shear jaw cutter
+pipe_wrench_0,Pipe Wrench,tool,fastening,steel,1.5,1,200,Serrated-jaw pipe grip wrench
+trowel_0,Trowel,tool,masonry,steel,0.5,1,120,Flat-blade mortar spreader
+spirit_level_0,Spirit Level,tool,measuring,aluminum,0.6,1,150,Precision horizontal gauge
+pruning_shears_0,Pruning Shears,tool,gardening,steel,0.3,1,120,Spring-loaded branch cutter
+wheelbarrow_0,Wheelbarrow,tool,transport,steel,15.0,1,200,Single-wheel hand cart
+ladder_0,Ladder,tool,access,aluminum,8.0,1,250,Folding step ladder
 #
-# === CONSUMABLES ===
-health_potion,Health Potion,Restores health,consumable,common,20,0.5,0.5,,,healing:30,,true,,use,heal:red:0.5,potion_use.ogg
-mana_potion,Mana Potion,Restores mana,consumable,common,25,0.5,0.5,,,mana:30,,true,,use,mana:blue:0.5,potion_use.ogg
-water_bottle,Water Bottle,Reusable water container,consumable,common,5,0.3,1.0,,,hydration:500,,false,,drink,water:blue:0.3,bottle.ogg
-energy_bar,Energy Bar,Nutritious snack bar,consumable,common,8,0.2,0.15,,,nutrition:200:energy:100,,true,,eat,energy:orange:0.3,unwrap.ogg
-trail_mix,Trail Mix,Mixed nuts and dried fruits,consumable,common,12,0.4,0.5,,,nutrition:300:hydration:50,,true,,eat,mix:brown:0.3,crunch.ogg
-snack_bar,Snack Bar,Energy snack bar,consumable,common,6,0.15,0.12,,,nutrition:150:energy:75,,true,,eat,energy:orange:0.3,unwrap.ogg
-spare_batteries,Spare Batteries,AA battery pack,consumable,common,10,0.4,0.2,,,,,,insert,battery:silver:0.5,click.ogg
-sunscreen_small,Sunscreen Small,SPF 50 sun protection,consumable,common,6,0.1,0.1,,,sun_protection:0.9,,true,,apply,cream:white:0.2,squish.ogg
-insect_repellent,Insect Repellent,Bug spray repellent,consumable,common,7,0.2,0.2,,,insect_protection:0.8,,true,,spray,spray:green:0.4,spray.ogg
-spare_socks,Spare Socks,Extra hiking socks,consumable,common,12,0.3,0.3,,,,,,wear,sock:gray:0.4,rustle.ogg
-hand_sanitizer,Hand Sanitizer,Alcohol-based sanitizer,consumable,common,4,0.1,0.1,,,hygiene:0.7,,true,,apply,squirt:blue:0.3,squish.ogg
-emergency_ration,Emergency Ration,Long-shelf-life survival food,consumable,common,10,0.5,0.4,,,nutrition:500,,true,,eat,energy:brown:0.3,unwrap.ogg
+# === WEAPONS ===
+knife_utility_0,Utility Knife,weapon,blade,steel,0.2,1,120,Folding everyday carry knife
+knife_combat_0,Combat Knife,weapon,blade,steel,0.4,1,200,Fixed-blade fighting knife
+sword_0,Sword,weapon,blade,steel,1.5,1,250,Single-edge long blade
+spear_0,Spear,weapon,polearm,steel,2.0,1,200,Pointed thrusting polearm
+bow_recurve_0,Recurve Bow,weapon,ranged,bamboo,1.0,1,150,Curved laminate bow
+bow_compound_0,Compound Bow,weapon,ranged,aluminum,2.0,1,250,Cam-levered precision bow
+crossbow_0,Crossbow,weapon,ranged,steel,3.5,1,200,Trigger-release bolt launcher
+sling_0,Sling,weapon,ranged,leather,0.1,1,80,Centrifugal projectile launcher
+staff_0,Staff,weapon,blunt,oak,1.5,1,150,Full-length wooden striking pole
+mace_0,Mace,weapon,blunt,steel,2.5,1,250,Flanged head impact weapon
+shield_round_0,Round Shield,weapon,defense,steel,3.0,1,300,Circular arm-strapped guard
+shield_tower_0,Tower Shield,weapon,defense,steel,8.0,1,400,Full-body standing shield
+pistol_0,Pistol,weapon,firearm,steel,1.0,1,300,Semi-automatic handgun
+rifle_0,Rifle,weapon,firearm,steel,3.5,1,350,Shoulder-fired long arm
+shotgun_0,Shotgun,weapon,firearm,steel,3.0,1,300,Smoothbore scatter gun
+sniper_0,Sniper Rifle,weapon,firearm,steel,5.0,1,350,Precision long-range rifle
+gun_holster_0,Gun Holster,weapon,accessory,leather,0.3,1,120,Belt-mounted firearm carrier
+quiver_0,Quiver,weapon,accessory,leather,0.4,1,100,Back-mounted arrow holder
+ammo_pouch_0,Ammo Pouch,weapon,accessory,canvas,0.2,1,80,Belt-mounted cartridge carrier
+arrow_0,Arrow,weapon,ammo,bamboo,0.05,50,0,Pointed shaft projectile
+bolt_crossbow_0,Crossbow Bolt,weapon,ammo,steel,0.08,50,0,Short heavy crossbow projectile
+bullet_pistol_0,Pistol Ammo,weapon,ammo,brass,0.01,200,0,Handgun cartridge
+bullet_rifle_0,Rifle Ammo,weapon,ammo,brass,0.02,100,0,Long-arm cartridge
 #
-# === SEEDS ===
-tomato_seeds,Tomato Seeds,Seeds for growing tomatoes,seed,common,5,0.1,0.05,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
-carrot_seeds,Carrot Seeds,Seeds for growing carrots,seed,common,3,0.1,0.05,farming:1,,,20,true,,plant,plant:orange:0.2,plant.ogg
-potato_seeds,Potato Seeds,Seed potatoes for planting,seed,common,4,0.2,0.15,farming:1,,,20,true,,plant,plant:brown:0.2,plant.ogg
-wheat_seeds,Wheat Seeds,Seeds for growing wheat,seed,common,2,0.1,0.05,farming:2,,,20,true,,plant,plant:gold:0.2,plant.ogg
-lettuce_seeds,Lettuce Seeds,Seeds for growing lettuce,seed,common,2,0.05,0.02,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
-corn_seeds,Corn Seeds,Seeds for growing corn,seed,common,4,0.15,0.1,farming:2,,,20,true,,plant,plant:gold:0.2,plant.ogg
-strawberry_seeds,Strawberry Seeds,Seeds for growing strawberries,seed,uncommon,8,0.05,0.02,farming:2,,,20,true,,plant,plant:red:0.2,plant.ogg
-bean_seeds,Bean Seeds,Seeds for growing beans,seed,common,3,0.1,0.08,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
-cucumber_seeds,Cucumber Seeds,Seeds for growing cucumbers,seed,common,3,0.1,0.05,farming:1,,,20,true,,plant,plant:green:0.2,plant.ogg
-rice_seeds,Rice Seeds,Seeds for growing rice,seed,uncommon,5,0.1,0.05,farming:3,,,20,true,,plant,plant:green:0.2,plant.ogg
+# === FURNITURE ===
+chair_0,Chair,furniture,seating,oak,5.0,1,200,Four-leg wooden chair
+table_dining_0,Dining Table,furniture,table,oak,20.0,1,250,Six-seat family table
+table_work_0,Work Table,furniture,table,pine,15.0,1,200,Reinforced utility table
+desk_0,Desk,furniture,table,oak,18.0,1,220,Writing and computer desk
+bed_single_0,Single Bed,furniture,sleeping,pine,25.0,1,300,One-person sleeping frame
+bed_double_0,Double Bed,furniture,sleeping,pine,40.0,1,350,Two-person sleeping frame
+bunk_bed_0,Bunk Bed,furniture,sleeping,pine,35.0,1,300,Stacked two-tier bed frame
+shelf_0,Shelf,furniture,storage,pine,3.0,1,150,Wall-mounted single shelf
+bookcase_0,Bookcase,furniture,storage,oak,15.0,1,200,Multi-shelf book storage
+cabinet_0,Cabinet,furniture,storage,oak,20.0,1,220,Enclosed shelf with doors
+wardrobe_0,Wardrobe,furniture,storage,oak,30.0,1,250,Full-height clothing closet
+dresser_0,Dresser,furniture,storage,oak,25.0,1,220,Multi-drawer clothing chest
+nightstand_0,Nightstand,furniture,storage,pine,8.0,1,150,Bedside table with drawer
+couch_0,Couch,furniture,seating,oak,35.0,1,250,Three-seat upholstered sofa
+bench_0,Bench,furniture,seating,pine,10.0,1,200,Backless long seat
+stool_0,Stool,furniture,seating,oak,3.0,1,150,Backless single seat
+hammock_0,Hammock,furniture,sleeping,cotton,2.0,1,100,Suspended fabric sleeping sling
+rug_0,Rug,furniture,decor,wool,3.0,1,120,Floor covering textile
+curtain_0,Curtain,furniture,decor,cotton,1.0,3,80,Window covering drape
+mirror_0,Mirror,furniture,decor,glass,2.0,1,80,Reflective wall panel
+lamp_floor_0,Floor Lamp,furniture,lighting,steel,4.0,1,120,Standing room light
+lamp_desk_0,Desk Lamp,furniture,lighting,aluminum,1.5,1,100,Adjustable task light
+chandelier_0,Chandelier,furniture,lighting,brass,8.0,1,150,Suspended multi-light fixture
+clock_wall_0,Wall Clock,furniture,decor,oak,1.0,1,100,Analog time display
+picture_frame_0,Picture Frame,furniture,decor,pine,0.5,5,60,Photo and art display frame
+door_wood_0,Wood Door,furniture,structure,oak,15.0,1,250,Hinged room divider
+window_frame_0,Window Frame,furniture,structure,pine,8.0,1,200,Glazed wall opening
 #
-# === FOOD (harvested crops) ===
-fresh_tomato,Fresh Tomato,Ripe red tomato,food,common,15,0.3,0.25,,nutrition:20:hydration:10,,true,,consume,eat:red:0.3,eat.ogg
-fresh_carrot,Fresh Carrot,Crunchy orange carrot,food,common,8,0.2,0.12,,nutrition:15:vision:5,,true,,consume,eat:orange:0.3,eat.ogg
-fresh_potato,Fresh Potato,Nutritious potato,food,common,12,0.4,0.3,,nutrition:25:energy:15,,true,,consume,eat:brown:0.3,eat.ogg
-wheat_grain,Wheat Grain,Harvested wheat grain,ingredient,common,20,0.1,0.08,,,,true,,process,grain:gold:0.2,grain.ogg
+# === FOOD / CONSUMABLES ===
+water_bottle_0,Water Bottle,food,drink,hdpe,0.5,10,0,Purified drinking water 500ml
+ration_basic_0,Basic Ration,food,meal,cotton,0.4,20,0,Vacuum-packed survival meal
+bread_0,Bread,food,baked,cotton,0.3,10,0,Baked wheat loaf
+jerky_0,Jerky,food,preserved,cotton,0.1,30,0,Dried seasoned meat strip
+fruit_apple_0,Apple,food,fruit,plant_fiber,0.2,20,0,Fresh red apple
+fruit_banana_0,Banana,food,fruit,plant_fiber,0.15,20,0,Fresh yellow banana
+fruit_orange_0,Orange,food,fruit,plant_fiber,0.2,20,0,Fresh citrus orange
+fruit_berries_0,Berries,food,fruit,plant_fiber,0.1,30,0,Mixed fresh berry bundle
+vegetable_carrot_0,Carrot,food,vegetable,plant_fiber,0.15,20,0,Fresh orange root vegetable
+vegetable_potato_0,Potato,food,vegetable,plant_fiber,0.3,20,0,Starchy tuber vegetable
+vegetable_onion_0,Onion,food,vegetable,plant_fiber,0.15,20,0,Pungent bulb vegetable
+vegetable_tomato_0,Tomato,food,vegetable,plant_fiber,0.2,20,0,Red vine-ripened fruit vegetable
+vegetable_corn_0,Corn,food,vegetable,plant_fiber,0.25,20,0,Sweet corn ear
+vegetable_lettuce_0,Lettuce,food,vegetable,plant_fiber,0.3,20,0,Leafy green head
+vegetable_cabbage_0,Cabbage,food,vegetable,plant_fiber,0.8,10,0,Dense leafy head
+rice_0,Rice,food,grain,plant_fiber,0.5,20,0,Dry white rice 500g bag
+flour_0,Flour,food,grain,plant_fiber,0.5,20,0,Ground wheat flour 500g bag
+sugar_0,Sugar,food,seasoning,plant_fiber,0.5,20,0,Granulated cane sugar 500g
+salt_food_0,Salt,food,seasoning,salt,0.5,20,0,Table salt 500g container
+cooking_oil_0,Cooking Oil,food,oil,plant_fiber,0.5,10,0,Vegetable cooking oil 500ml
+butter_0,Butter,food,dairy,plant_fiber,0.25,10,0,Salted butter 250g block
+cheese_0,Cheese,food,dairy,plant_fiber,0.3,10,0,Aged cheddar wheel portion
+egg_0,Egg,food,protein,shell,0.06,30,0,Fresh chicken egg
+milk_0,Milk,food,dairy,plant_fiber,1.0,5,0,Fresh whole milk 1L
+coffee_0,Coffee,food,drink,plant_fiber,0.25,20,0,Roasted coffee beans 250g
+tea_0,Tea,food,drink,plant_fiber,0.1,30,0,Dried tea leaves 100g box
+juice_0,Juice,food,drink,plant_fiber,0.5,10,0,Fruit juice bottle 500ml
+canned_food_0,Canned Food,food,preserved,steel,0.4,20,0,Sealed tinned meal
+mre_0,MRE,food,preserved,tarp_material,0.5,10,0,Meal ready to eat field ration
+protein_bar_0,Protein Bar,food,snack,plant_fiber,0.08,30,0,High-protein nutrition bar
+energy_drink_0,Energy Drink,food,drink,aluminum,0.35,20,0,Caffeinated performance beverage
+dried_fruit_0,Dried Fruit,food,preserved,plant_fiber,0.15,30,0,Dehydrated mixed fruit
+dried_meat_0,Dried Meat,food,preserved,plant_fiber,0.1,30,0,Salt-cured preserved meat
+honey_0,Honey,food,preserved,glass,0.5,10,0,Natural bee honey jar
+spice_mix_0,Spice Mix,food,seasoning,plant_fiber,0.05,30,0,Assorted cooking spices
 #
-# === RAW MATERIALS ===
-iron_ore,Iron Ore,Raw iron ore for smelting,material,common,5,4.5,1.0,,,,true,,,,
-copper_ore,Copper Ore,High-grade copper ore,material,common,12,4.2,1.0,,,,true,,,,
-lumber,Lumber,Processed construction lumber,material,common,8,2.5,8.0,,,,true,,,,
-concrete_mix,Concrete Mix,Ready-mix concrete,material,common,3,2.2,1.0,,,,true,,,,
-steel_ingot,Steel Ingot,Refined steel ingot,material,common,20,7.85,0.13,,,,true,,,,
-coal,Coal,Carbon fuel source,material,common,2,1.3,0.8,,,,true,,,,
-glass_panels,Glass Panels,Transparent construction glass,material,common,15,2.5,5.0,,,,true,,,,
-copper_wire,Copper Wire,Insulated copper wire,component,common,8,0.5,0.1,,,,true,,,,
-steel_plate_material,Steel Plate Sheet,Flat steel construction plate,material,common,25,7.8,2.0,,,,true,,,,
-carbon_fiber,Carbon Fiber Sheet,High-strength composite sheet,material,rare,50,1.6,1.0,,,,true,,,,
+# === MEDICAL ===
+bandage_0,Bandage,food,medical,cotton,0.05,30,0,Sterile wound dressing strip
+medkit_0,Medkit,food,medical,abs_plastic,1.0,5,0,Complete first-aid supply box
+painkiller_0,Painkiller,food,medical,abs_plastic,0.02,50,0,Over-the-counter analgesic tablet
+antibiotic_0,Antibiotic,food,medical,abs_plastic,0.02,50,0,Broad-spectrum antibiotic dose
+antidote_0,Antidote,food,medical,glass,0.1,20,0,General anti-toxin vial
+stimulant_0,Stimulant,food,medical,abs_plastic,0.02,30,0,Adrenaline boost injection
+vitamins_0,Vitamins,food,medical,abs_plastic,0.05,30,0,Daily multivitamin bottle
+splint_0,Splint,food,medical,aluminum,0.2,10,0,Bone fracture immobilizer
+antiseptic_0,Antiseptic,food,medical,hdpe,0.1,20,0,Wound disinfectant solution
+surgical_kit_0,Surgical Kit,food,medical,steel,2.0,1,0,Field surgery instrument set
+blood_pack_0,Blood Pack,food,medical,pvc,0.5,5,0,Stored blood transfusion unit
+#
+# === MATERIALS / RESOURCES ===
+wood_log_0,Wood Log,material,raw_wood,pine,8.0,10,0,Unprocessed timber round
+wood_plank_0,Wood Plank,material,processed_wood,pine,2.5,20,0,Sawn flat lumber board
+stone_raw_0,Raw Stone,material,raw_stone,granite,5.0,10,0,Uncut natural rock chunk
+stone_brick_0,Stone Brick,material,processed_stone,granite,3.0,20,0,Cut rectangular building block
+iron_ore_0,Iron Ore,material,ore,iron,4.5,20,0,Unrefined ferrous mineral
+iron_ingot_0,Iron Ingot,material,ingot,iron,3.0,20,0,Smelted iron bar
+steel_ingot_0,Steel Ingot,material,ingot,steel,3.5,20,0,Forged steel bar
+copper_ore_0,Copper Ore,material,ore,copper,4.2,20,0,Unrefined cupric mineral
+copper_ingot_0,Copper Ingot,material,ingot,copper,2.8,20,0,Smelted copper bar
+aluminum_ingot_0,Aluminum Ingot,material,ingot,aluminum,1.0,20,0,Smelted aluminum bar
+titanium_ingot_0,Titanium Ingot,material,ingot,titanium,2.0,10,0,Smelted titanium bar
+gold_ingot_0,Gold Ingot,material,ingot,gold,5.0,10,0,Refined gold bar
+silver_ingot_0,Silver Ingot,material,ingot,silver,3.0,10,0,Refined silver bar
+coal_0,Coal,material,fuel,charcoal,1.3,30,0,Combustible carbon lump
+oil_crude_0,Crude Oil,material,fuel,tar,0.9,10,0,Unrefined petroleum barrel
+fuel_refined_0,Refined Fuel,material,fuel,tar,0.8,10,0,Processed combustible liquid
+clay_raw_0,Raw Clay,material,raw_stone,clay,1.8,20,0,Moldable wet mineral earth
+sand_0,Sand,material,aggregate,sand,1.6,20,0,Loose silica granules
+gravel_0,Gravel,material,aggregate,gravel,1.8,20,0,Coarse crushed rock
+cement_0,Cement,material,processed_stone,concrete,2.4,10,0,Portland cement powder bag
+concrete_block_0,Concrete Block,material,processed_stone,concrete,12.0,5,0,Cured modular building block
+glass_pane_0,Glass Pane,material,processed,glass,2.5,10,0,Flat transparent glass sheet
+rope_0,Rope,material,cordage,hemp,0.5,20,0,Braided hemp line 10m
+wire_0,Wire,material,electrical,copper,0.3,30,0,Insulated copper wire spool
+nail_box_0,Nail Box,material,fastener,steel,0.5,20,0,Box of 100 steel nails
+screw_box_0,Screw Box,material,fastener,steel,0.5,20,0,Box of 100 steel screws
+bolt_box_0,Bolt Box,material,fastener,steel,0.8,20,0,Box of 50 steel bolts
+glue_0,Glue,material,adhesive,epoxy,0.3,20,0,All-purpose adhesive tube
+tape_duct_0,Duct Tape,material,adhesive,tarp_material,0.2,20,0,Reinforced adhesive tape roll
+paint_0,Paint,material,finish,acrylic,1.0,10,0,Acrylic paint can 1L
+fertilizer_0,Fertilizer,material,agricultural,plant_fiber,2.0,10,0,Nutrient-rich plant food bag
+seed_wheat_0,Wheat Seeds,material,seed,plant_fiber,0.1,50,0,Planting grain seeds packet
+seed_corn_0,Corn Seeds,material,seed,plant_fiber,0.1,50,0,Planting maize seeds packet
+seed_potato_0,Potato Seeds,material,seed,plant_fiber,0.2,30,0,Seed potato tuber set
+seed_tomato_0,Tomato Seeds,material,seed,plant_fiber,0.05,50,0,Planting tomato seeds packet
+seed_carrot_0,Carrot Seeds,material,seed,plant_fiber,0.05,50,0,Planting carrot seeds packet
+seed_lettuce_0,Lettuce Seeds,material,seed,plant_fiber,0.05,50,0,Planting lettuce seeds packet
+seed_rice_0,Rice Seeds,material,seed,plant_fiber,0.1,50,0,Planting paddy rice seeds
+seed_bean_0,Bean Seeds,material,seed,plant_fiber,0.1,50,0,Planting bean seeds packet
+seed_tree_0,Tree Sapling,material,seed,plant_fiber,0.5,10,0,Young tree for planting
+soil_bag_0,Soil Bag,material,agricultural,clay,5.0,5,0,Nutrient-enriched potting soil
+water_purified_0,Purified Water,material,liquid,ice,1.0,10,0,Filtered clean water jug
+ice_block_0,Ice Block,material,frozen,ice,10.0,5,0,Solid frozen water block
+fiber_bundle_0,Fiber Bundle,material,raw,plant_fiber,0.5,20,0,Raw plant fiber bundle
+rubber_sheet_0,Rubber Sheet,material,processed,rubber,1.0,10,0,Flat vulcanized rubber panel
+plastic_sheet_0,Plastic Sheet,material,processed,hdpe,0.5,20,0,Flat polyethylene panel
+carbon_fiber_sheet_0,Carbon Fiber Sheet,material,processed,carbon_fiber_mat,0.3,10,0,Woven carbon composite panel
+leather_hide_0,Leather Hide,material,raw,leather,2.0,5,0,Tanned animal skin piece
+cloth_bolt_0,Cloth Bolt,material,processed,cotton,1.0,10,0,Rolled cotton fabric length
+#
+# === MACHINES / APPLIANCES ===
+generator_portable_0,Portable Generator,machine,power,steel,25.0,1,300,Gasoline electric generator 2kW
+solar_panel_0,Solar Panel,machine,power,glass,12.0,1,250,Photovoltaic electricity panel
+wind_turbine_small_0,Small Wind Turbine,machine,power,aluminum,20.0,1,300,Rooftop wind generator 1kW
+water_pump_0,Water Pump,machine,fluid,steel,8.0,1,200,Electric water extraction pump
+air_filter_unit_0,Air Filter Unit,machine,climate,steel,5.0,1,150,Powered air purification system
+heater_0,Heater,machine,climate,steel,10.0,1,200,Electric space heater
+cooler_0,Cooler,machine,climate,aluminum,8.0,1,200,Evaporative air cooler unit
+stove_0,Stove,machine,cooking,steel,20.0,1,300,Four-burner cooking range
+oven_0,Oven,machine,cooking,steel,30.0,1,350,Enclosed baking and roasting chamber
+fridge_0,Fridge,machine,storage,steel,40.0,1,300,Refrigerated food storage unit
+washing_machine_0,Washing Machine,machine,textile,steel,35.0,1,250,Automatic clothing laundry
+sewing_machine_0,Sewing Machine,machine,textile,steel,8.0,1,200,Electric fabric stitching machine
+loom_0,Loom,machine,textile,oak,25.0,1,250,Frame-based fabric weaving device
+kiln_0,Kiln,machine,processing,brick,50.0,1,400,High-temperature ceramic firing oven
+forge_0,Forge,machine,processing,brick,60.0,1,400,Metal-heating blacksmith furnace
+workbench_0,Workbench,machine,crafting,oak,20.0,1,300,General-purpose crafting station
+anvil_station_0,Anvil Station,machine,crafting,steel,40.0,1,500,Mounted metalworking anvil
+electronics_bench_0,Electronics Bench,machine,crafting,pine,15.0,1,200,Circuit assembly workstation
+chemistry_set_0,Chemistry Set,machine,crafting,glass,5.0,1,150,Laboratory reaction apparatus
+microscope_0,Microscope,machine,science,steel,3.0,1,150,Optical magnification instrument
+telescope_0,Telescope,machine,science,aluminum,5.0,1,150,Celestial observation instrument
+radio_0,Radio,machine,communication,abs_plastic,1.5,1,120,Two-way voice transceiver
+computer_terminal_0,Computer Terminal,machine,computing,aluminum,8.0,1,200,Networked computing workstation
+printer_3d_0,3D Printer,machine,fabrication,steel,15.0,1,200,Additive manufacturing device
+sawmill_0,Sawmill,machine,processing,steel,80.0,1,400,Powered lumber cutting station
+smelter_0,Smelter,machine,processing,brick,70.0,1,400,Ore-to-ingot melting furnace
+grain_mill_0,Grain Mill,machine,processing,granite,30.0,1,300,Seed-to-flour grinding mill
+water_purifier_0,Water Purifier,machine,fluid,steel,10.0,1,200,Filtration water treatment unit
+fuel_refinery_0,Fuel Refinery,machine,processing,steel,100.0,1,500,Crude oil distillation unit
+battery_bank_0,Battery Bank,machine,power,steel,50.0,1,300,Large-scale energy storage array
+composter_0,Composter,machine,agricultural,oak,10.0,1,150,Organic waste decomposition bin
+greenhouse_0,Greenhouse,machine,agricultural,glass,30.0,1,300,Climate-controlled growing enclosure
+irrigation_system_0,Irrigation System,machine,agricultural,pvc,15.0,1,200,Automated crop watering network
+#
+# === VEHICLES / TRANSPORT ===
+bicycle_0,Bicycle,vehicle,human_powered,steel,12.0,1,250,Two-wheel pedal vehicle
+cart_hand_0,Hand Cart,vehicle,human_powered,steel,15.0,1,200,Two-wheel push cargo carrier
+cart_horse_0,Horse Cart,vehicle,animal_powered,oak,80.0,1,300,Four-wheel draft animal wagon
+motorcycle_0,Motorcycle,vehicle,motorized,steel,180.0,1,400,Two-wheel combustion engine cycle
+car_sedan_0,Sedan,vehicle,motorized,steel,1400.0,1,500,Four-door passenger automobile
+truck_pickup_0,Pickup Truck,vehicle,motorized,steel,2000.0,1,500,Open-bed utility truck
+truck_cargo_0,Cargo Truck,vehicle,motorized,steel,5000.0,1,600,Enclosed freight hauler
+bus_0,Bus,vehicle,motorized,steel,8000.0,1,600,Multi-passenger transit vehicle
+tractor_0,Tractor,vehicle,motorized,steel,3000.0,1,500,Agricultural power vehicle
+excavator_0,Excavator,vehicle,motorized,steel,6000.0,1,600,Hydraulic earth-moving machine
+boat_rowboat_0,Rowboat,vehicle,watercraft,pine,40.0,1,250,Oar-driven small boat
+boat_sailboat_0,Sailboat,vehicle,watercraft,pine,200.0,1,350,Wind-powered sailing vessel
+boat_motorboat_0,Motorboat,vehicle,watercraft,fiberglass,400.0,1,400,Engine-driven speedboat
+submarine_0,Submarine,vehicle,watercraft,steel,5000.0,1,600,Underwater submersible vessel
+helicopter_0,Helicopter,vehicle,aircraft,aluminum,1500.0,1,500,Rotary-wing vertical-flight craft
+airplane_small_0,Small Airplane,vehicle,aircraft,aluminum,800.0,1,500,Single-engine fixed-wing plane
+rover_0,Rover,vehicle,motorized,aluminum,500.0,1,400,All-terrain exploration vehicle
+spacecraft_pod_0,Spacecraft Pod,vehicle,spacecraft,titanium,2000.0,1,600,Single-seat orbital vehicle
+hovercraft_0,Hovercraft,vehicle,motorized,fiberglass,600.0,1,400,Air-cushion surface vehicle
+sled_0,Sled,vehicle,human_powered,pine,5.0,1,150,Snow-surface sliding vehicle
+raft_0,Raft,vehicle,watercraft,bamboo,20.0,1,100,Simple floating platform
+canoe_0,Canoe,vehicle,watercraft,cedar,25.0,1,200,Narrow paddle-driven boat
+#
+# === CONTAINERS / STORAGE ===
+chest_wood_0,Wood Chest,furniture,container,oak,10.0,1,200,Lidded wooden storage box
+crate_0,Crate,furniture,container,pine,5.0,1,150,Slatted shipping container
+barrel_0,Barrel,furniture,container,oak,8.0,1,180,Curved-stave liquid container
+locker_0,Locker,furniture,container,steel,15.0,1,250,Vertical locking cabinet
+safe_0,Safe,furniture,container,steel,50.0,1,500,Armored valuables vault
+toolbox_0,Toolbox,furniture,container,steel,3.0,1,200,Portable compartmented tool case
+ammo_crate_0,Ammo Crate,furniture,container,pine,4.0,1,180,Sealed ammunition shipping box
+fuel_drum_0,Fuel Drum,furniture,container,steel,10.0,1,200,200L liquid fuel barrel
+water_tank_0,Water Tank,furniture,container,hdpe,5.0,1,200,Potable water storage cistern
+grain_silo_0,Grain Silo,furniture,container,steel,60.0,1,400,Bulk crop storage cylinder
+#
+# === ELECTRONICS / GADGETS ===
+flashlight_0,Flashlight,tool,lighting,aluminum,0.3,1,100,Handheld LED torch
+lantern_0,Lantern,tool,lighting,steel,0.8,1,120,Portable area light
+flare_0,Flare,tool,signal,abs_plastic,0.2,10,0,Emergency signal flare stick
+compass_0,Compass,tool,navigation,brass,0.1,1,100,Magnetic direction finder
+binoculars_0,Binoculars,tool,optics,aluminum,0.6,1,120,Magnifying distance viewer
+walkie_talkie_0,Walkie Talkie,tool,communication,abs_plastic,0.3,1,120,Short-range voice radio
+gps_device_0,GPS Device,tool,navigation,abs_plastic,0.2,1,100,Satellite positioning unit
+camera_0,Camera,tool,recording,aluminum,0.4,1,120,Digital photography device
+solar_charger_0,Solar Charger,tool,power,polycarbonate,0.5,1,150,Portable PV charging panel
+battery_pack_0,Battery Pack,tool,power,abs_plastic,0.3,5,0,Rechargeable lithium power cell
+fire_extinguisher_0,Fire Extinguisher,tool,safety,steel,5.0,1,100,Pressurized fire suppression unit
+smoke_detector_0,Smoke Detector,tool,safety,abs_plastic,0.2,1,100,Airborne particle fire alarm
+motion_light_0,Motion Light,tool,lighting,abs_plastic,0.4,1,120,PIR-activated area light
+water_tester_0,Water Tester,tool,science,abs_plastic,0.1,1,80,Water quality analysis probe
+geiger_counter_0,Geiger Counter,tool,science,aluminum,0.5,1,120,Ionizing radiation detector
