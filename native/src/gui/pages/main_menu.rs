@@ -71,6 +71,7 @@ fn draw_step_welcome(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if ui.small_button("Skip setup (offline mode)").clicked() {
             state.onboarding_complete = true;
             state.active_page = GuiPage::None;
+            crate::config::AppConfig::from_gui_state(state).save();
         }
 
         ui.add_space(16.0);
@@ -244,6 +245,7 @@ fn draw_step_ready(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             } else {
                 state.active_page = GuiPage::None; // Enter the 3D world
             }
+            crate::config::AppConfig::from_gui_state(state).save();
         }
 
         ui.add_space(30.0);

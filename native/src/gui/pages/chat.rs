@@ -536,7 +536,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ─────────────────────────────── Helpers ───────────────────────────────────
 
 /// Convert an HTTPS URL to a WSS URL for the relay.
-fn derive_ws_url(url: &str) -> String {
+pub fn derive_ws_url(url: &str) -> String {
     let base = url
         .trim_end_matches('/')
         .replace("https://", "wss://")
@@ -549,7 +549,7 @@ fn derive_ws_url(url: &str) -> String {
 }
 
 /// Generate a random 64-char hex string to use as a placeholder public key.
-fn generate_random_hex_key() -> String {
+pub fn generate_random_hex_key() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
     let bytes: Vec<u8> = (0..32).map(|_| rng.gen()).collect();

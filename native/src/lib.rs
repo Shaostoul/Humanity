@@ -34,6 +34,9 @@ pub mod mods;
 pub mod net;
 
 #[cfg(feature = "native")]
+pub mod config;
+
+#[cfg(feature = "native")]
 pub mod updater;
 
 #[cfg(feature = "wasm")]
@@ -335,7 +338,16 @@ mod native_app {
             );
             let theme = crate::gui::theme::load_theme();
             theme.apply_to_egui(&egui_ctx);
-            let gui_state = GuiState::default();
+            let mut gui_state = GuiState::default();
+
+            // Load persistent config and apply to GUI state
+            let config = crate::config::AppConfig::load();
+            config.apply_to_gui_state(&mut gui_state);
+
+            // If returning user with onboarding done, go to hub instead of onboarding
+            if gui_state.onboarding_complete {
+                gui_state.active_page = GuiPage::MainMenu;
+            }
 
             // Try to load a planet from data files
             let planet_material = renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
@@ -620,6 +632,25 @@ mod native_app {
                         });
                     }
 
+                    // ── Auto-connect to server if configured but not connected ──
+                    if !state.gui_state.server_url.is_empty()
+                        && state.gui_state.ws_client.is_none()
+                        && !state.gui_state.user_name.is_empty()
+                        && state.gui_state.onboarding_complete
+                    {
+                        let ws_url = crate::gui::pages::chat::derive_ws_url(&state.gui_state.server_url);
+                        let name = state.gui_state.user_name.clone();
+                        let pubkey = if state.gui_state.profile_public_key.is_empty() {
+                            crate::gui::pages::chat::generate_random_hex_key()
+                        } else {
+                            state.gui_state.profile_public_key.clone()
+                        };
+                        state.gui_state.ws_client = Some(
+                            crate::net::ws_client::WsClient::connect(&ws_url, &name, &pubkey),
+                        );
+                        state.gui_state.ws_status = "Connecting...".to_string();
+                    }
+
                     // ── Poll WebSocket messages from relay server ──
                     if let Some(ref mut ws) = state.gui_state.ws_client {
                         let messages = ws.poll_messages();
@@ -670,6 +701,11 @@ mod native_app {
                                     Some("peer_list") => {
                                         state.gui_state.chat_users.clear();
                                         state.gui_state.ws_status = "Connected".to_string();
+                                        // Request tasks from server on connect
+                                        if let Some(ref ws_client) = state.gui_state.ws_client {
+                                            let get_tasks = serde_json::json!({"type": "get_tasks"});
+                                            ws_client.send(&get_tasks.to_string());
+                                        }
                                         if let Some(peers) = val.get("peers").and_then(|v| v.as_array()) {
                                             for peer in peers {
                                                 let name = peer.get("display_name")
@@ -768,6 +804,59 @@ mod native_app {
                                     }
                                     Some("name_taken") => {
                                         state.gui_state.ws_status = "Name taken - try another".to_string();
+                                    }
+                                    Some("task_list") => {
+                                        if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
+                                            state.gui_state.tasks.clear();
+                                            for task in tasks {
+                                                let id = task.get("id")
+                                                    .and_then(|v| v.as_u64())
+                                                    .unwrap_or(0) as u32;
+                                                let title = task.get("title")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let description = task.get("description")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let status_str = task.get("status")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("todo");
+                                                let status = match status_str {
+                                                    "in_progress" => crate::gui::TaskStatus::InProgress,
+                                                    "done" => crate::gui::TaskStatus::Done,
+                                                    _ => crate::gui::TaskStatus::Todo,
+                                                };
+                                                let priority_str = task.get("priority")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("medium");
+                                                let priority = match priority_str {
+                                                    "low" => crate::gui::TaskPriority::Low,
+                                                    "high" => crate::gui::TaskPriority::High,
+                                                    "critical" => crate::gui::TaskPriority::Critical,
+                                                    _ => crate::gui::TaskPriority::Medium,
+                                                };
+                                                let assignee = task.get("assignee")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let labels: Vec<String> = task.get("labels")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .split(',')
+                                                    .filter(|s| !s.is_empty())
+                                                    .map(|s| s.trim().to_string())
+                                                    .collect();
+                                                state.gui_state.tasks.push(
+                                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels },
+                                                );
+                                                if id >= state.gui_state.task_next_id {
+                                                    state.gui_state.task_next_id = id + 1;
+                                                }
+                                            }
+                                            log::info!("Received {} tasks from server", state.gui_state.tasks.len());
+                                        }
                                     }
                                     _ => {
                                         // Ignore other message types for now
@@ -998,6 +1087,9 @@ mod native_app {
 
                                 // Render distance → camera far plane
                                 state.camera.far = state.gui_state.settings.render_distance;
+
+                                // Persist settings to config file
+                                crate::config::AppConfig::from_gui_state(&state.gui_state).save();
                             }
                         }
                         Err(wgpu::SurfaceError::Lost) => {
