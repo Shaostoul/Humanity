@@ -5,6 +5,92 @@ All notable changes to HumanityOS. Versions follow [semver](https://semver.org/)
 
 ---
 
+## v0.43.0 — Comprehensive Game Data & Documentation (2026-03-24)
+
+### Game Data
+- **Chemistry database** — 396 entries across 5 datasets: 118 elements, 59 alloys, 132 compounds, 35 gases, 52 toxins
+- **Solar system database** — 70+ celestial bodies with orbital parameters and RON planet definitions
+- **Materials database** — 92 materials with properties and categories
+- **Components database** — 102 components for crafting and construction
+- **Expanded items/recipes** — 306 items (was 111) and 227 recipes (was 35)
+- **Glossary system** — 150+ terms with definitions, searchable overlay on all pages
+
+### Documentation
+- Updated FEATURES.md, STATUS.md, CHANGELOG.md, and CLAUDE.md to reflect complete project state
+
+---
+
+## v0.42.0 — Terrain, Hydrology, Atmosphere & Disasters (2026-03-23)
+
+### Engine — Environmental Systems
+- **Heightmap terrain generation** — procedural terrain with 16 biome types
+- **Hydrological system** — rain cycle, rivers, aquifers, water table, contamination tracking
+- **Atmospheric system** — gas tracking, explosions, suffocation, pressure simulation
+- **Disaster system** — 21 disaster types with chain reactions, severity scaling, black holes
+- **World persistence** — save/load game world state (entities, terrain, player progress)
+
+### Engine — Unit Tests
+- 25 unit tests covering terrain generation, hydrology, atmosphere, and disaster systems
+
+---
+
+## v0.41.0 — Guilds, Reputation & Platform Icons (2026-03-23)
+
+### Server — Social Systems
+- **Guild system** — create, join, search guilds with invite codes
+- **Reputation system** — points, levels, leaderboard for community standing
+
+### Web
+- **Guilds page** — guild management UI with create, join, search, invite flows
+- **Platform brand SVGs** — Steam, Epic, GOG, PlayStation, Xbox inline SVG icons
+
+---
+
+## v0.40.0 — Trading, i18n, Accessibility & Mod Support (2026-03-23)
+
+### Marketplace
+- **P2P trading with escrow** — peer-to-peer item exchange with dual confirmation and escrow protection
+
+### Navigation & UX
+- **Localization (i18n)** — 5 languages (English, Spanish, French, Chinese, Japanese) with fallback
+- **Accessibility** — high contrast, reduced motion, font scaling, colorblind mode filters
+
+### Engine
+- **Weather system** — 7 weather conditions with seasonal transitions
+- **Sky renderer** — time-of-day colors (dawn/day/dusk/night) modified by weather
+- **Mod support framework** — mod manifest, directory scanning, load order, path override resolution
+
+### Server
+- **Game state authority** — authoritative server for entity management and position validation
+- **Admin analytics dashboard** — server metrics, user activity, system health monitoring
+
+---
+
+## v0.39.0 — Civilization, Tools & Desktop Systems (2026-03-22)
+
+### Web Tools
+- **Civilization dashboard** — macro community/infrastructure view with live API data
+- **File browser/editor** — tree navigator for data/ directory with built-in viewers
+- **Tools catalog** — 37 free open-source apps across 11 categories
+- **Calculator** — basic, scientific, and unit converter modes
+- **Resources page** — 45 curated real-world resource links
+
+### Engine
+- **Audio system** — kira crate, spatial 3D audio, music, SFX with volume controls
+- **Multiplayer networking** — WebSocket client, ECS state sync, server authority
+- **Construction system** — blueprint placement, snap-to-grid, timed building
+- **Skills progression** — 20 skills across 5 categories, XP curves, level-up notifications
+
+---
+
+## v0.38.1 — Real/Sim Toggle & Color-Coded Nav (2026-03-22)
+
+### Navigation
+- **Real/Sim context toggle** — global mode switch between real-life tools and simulation
+- **Color-coded nav groups** — red (identity), green (context-sensitive), blue (system) nav groups
+
+---
+
 ## v0.37.1 — Complete Restructure Cleanup (2026-03-22)
 
 - **Simplified web nav** — streamlined navigation structure
@@ -504,4 +590,4 @@ This was the largest pre-tag release — ~870 commits covering the full platform
 
 ---
 
-*Spanning from initial commit (2026-01-16) through v0.37.1 (2026-03-22).*
+*Spanning from initial commit (2026-01-16) through v0.43.0 (2026-03-24).*

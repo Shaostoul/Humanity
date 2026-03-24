@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-03-23 | **Version:** v0.40.0
+> **Last updated:** 2026-03-24 | **Version:** v0.43.0
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -149,6 +149,11 @@ Everything in this section is **built and working**.
 | Construction system | ✅ | Blueprints, snap grid, placement preview (v0.39.0) |
 | Skills progression | ✅ | 20 skills, XP curves, level-up rewards (v0.39.0) |
 | Mod support framework | ✅ | Mod manifest, load order, data override system (v0.40.0) |
+| Heightmap terrain | ✅ | Procedural terrain generation with 16 biome types (v0.42.0) |
+| Hydrological system | ✅ | Rain cycle, rivers, aquifers, contamination tracking (v0.42.0) |
+| Atmospheric system | ✅ | Gas tracking, explosions, suffocation, pressure (v0.42.0) |
+| Disaster system | ✅ | 21 disaster types, chain reactions, severity scaling (v0.42.0) |
+| World persistence | ✅ | Save/load game world state, entities, terrain (v0.42.0) |
 | Engine sub-crates | ⚠️ | 19 crates exist with structure, most implementations are scaffolds |
 
 ---
@@ -171,6 +176,8 @@ Everything in this section is **built and working**.
 | Server-info endpoint | ✅ | Description, owner_key, funding, member_count (v0.25.0) |
 | Server game state authority | ✅ | Authoritative server for game state validation (v0.40.0) |
 | Admin analytics dashboard | ✅ | Server metrics, user activity, system health monitoring (v0.40.0) |
+| Guild system | ✅ | Create, join, search guilds with invite codes (v0.41.0) |
+| Reputation system | ✅ | Points, levels, leaderboard for community standing (v0.41.0) |
 
 ---
 
@@ -219,6 +226,8 @@ Everything in this section is **built and working**.
 | Calculator | ✅ | Basic, scientific, and unit converter modes (v0.39.0) |
 | Calendar/planner | ✅ | Event creation, scheduling, and reminders (v0.39.0) |
 | Notes/journal | ✅ | Markdown preview, encrypted notes, daily log (v0.39.0) |
+| Resources page | ✅ | 45 curated real-world resource links across categories (v0.39.0) |
+| Glossary system | ✅ | 150+ terms with definitions, searchable overlay (v0.41.0) |
 
 ---
 
@@ -235,14 +244,27 @@ Everything in this section is **built and working**.
 
 ---
 
+## Game Data
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Chemistry database | ✅ | 118 elements, 59 alloys, 132 compounds, 35 gases, 52 toxins (v0.42.0) |
+| Solar system database | ✅ | 70+ celestial bodies with orbital and physical data (v0.42.0) |
+| Materials database | ✅ | 92 materials with properties (v0.42.0) |
+| Components database | ✅ | 102 components for crafting/construction (v0.42.0) |
+| Items and recipes | ✅ | 306 items, 227 recipes (expanded v0.42.0) |
+| Platform brand SVGs | ✅ | Steam, Epic, GOG, PlayStation, Xbox icons (v0.41.0) |
+
+---
+
 ## What to Build Next (Priority Order)
 
 | # | Feature | Category | Why |
 |---|---------|----------|-----|
 | 1 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
 | 2 | 🔜 Advanced trading | Marketplace | Order books, automated matching, trade history |
-| 3 | 🔜 Guild/organization system | Social | Group management, shared resources, permissions |
-| 4 | 🔜 Reputation system | Identity | Trust scores, contribution tracking, community standing |
+| 3 | 🔜 Biome-specific gameplay | Engine | Weather/terrain/ecology integration per biome |
+| 4 | 🔜 Multiplayer world sync | Engine | Full ECS state replication for shared worlds |
 
 ---
 
@@ -256,10 +278,11 @@ Everything in this section is **built and working**.
 | Task Board | 6 | 0 | 0 |
 | Marketplace | 12 | 0 | 0 |
 | Wallet & Funding | 8 | 0 | 0 |
-| Game Engine | 35 | 1 | 0 |
-| Server & Infrastructure | 14 | 0 | 0 |
+| Game Engine | 41 | 1 | 0 |
+| Server & Infrastructure | 16 | 0 | 0 |
 | Navigation & UX | 11 | 0 | 0 |
 | Native Desktop Client | 8 | 0 | 0 |
-| Web Tools & Utilities | 6 | 0 | 0 |
+| Web Tools & Utilities | 8 | 0 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
-| **Total** | **136** | **1** | **0** |
+| Game Data | 6 | 0 | 0 |
+| **Total** | **152** | **1** | **0** |

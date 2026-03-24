@@ -1,6 +1,6 @@
 # HumanityOS Features Directory
 
-Complete inventory of every feature, where it lives, and what it does. Updated v0.40.0.
+Complete inventory of every feature, where it lives, and what it does. Updated v0.43.0.
 
 ## How to Read This
 
@@ -163,6 +163,19 @@ Direct player-to-player item exchange with dual confirmation.
 
 ---
 
+## Social
+
+### Guild System
+Create, join, search, and manage guilds with invite codes.
+- Web: `web/pages/guilds.html`
+- Server: `server/src/storage/guilds.rs`
+
+### Reputation System
+Points, levels, and leaderboard for community standing.
+- Server: `server/src/storage/reputation.rs`
+
+---
+
 ## Wallet and Funding
 
 ### Solana Wallet
@@ -223,6 +236,11 @@ Local-first note editor with auto-save, search, markdown preview, export.
 ### Resources Page
 45 curated real-world resource links (education, health, housing, etc.) + in-game guides.
 - Web: `web/pages/resources.html`, `web/pages/resources-app.js`
+
+### Glossary System
+150+ terms with definitions, searchable tooltip overlay on all pages.
+- Web: `web/shared/glossary.js`
+- Data: `data/glossary.json`
 
 ### Admin Dashboard
 Server analytics for admins. Users, messages, channels, federation, game state.
@@ -365,6 +383,10 @@ Recursive subdivision from icosahedron. LOD from billboard to walkable surface.
 - Native: `native/src/terrain/icosphere.rs`, `native/src/terrain/planet.rs`
 - Data: `data/planets/*.ron`
 
+### Heightmap Terrain Generation
+Procedural terrain from heightmaps with 16 biome types.
+- Native: `native/src/terrain/heightmap.rs`
+
 ### Voxel Asteroids
 Sparse octree storage, greedy meshing, ore veins by classification, mining.
 - Native: `native/src/terrain/asteroid.rs`
@@ -400,6 +422,10 @@ Mod manifest format, directory scanning, load order, path override resolution.
 - Native: `native/src/mods/mod.rs`
 - Data: `data/mods/README.md`, `data/mods/example-mod/mod.json`
 
+### World Persistence
+Save and load game world state (entities, terrain, player progress).
+- Native: `native/src/persistence.rs`
+
 ---
 
 ## Game Systems
@@ -419,6 +445,18 @@ GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game
 ### Weather System
 7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions.
 - Native: `native/src/systems/weather.rs`
+
+### Hydrological System
+Rain cycle, rivers, aquifers, contamination tracking, water table simulation.
+- Native: `native/src/systems/hydrology.rs`
+
+### Atmospheric System
+Gas tracking, explosions, suffocation, pressure simulation.
+- Native: `native/src/systems/atmosphere.rs`
+
+### Disaster System
+21 disaster types with chain reactions, severity scaling, black holes.
+- Native: `native/src/systems/disasters.rs`
 
 ### Farming
 6 growth stages, water/health simulation, seasonal effects.
@@ -475,3 +513,31 @@ Multi-scale navigation (galaxy, system, orbital, surface).
 ### Logistics
 Cargo transport and shipping routes.
 - Native: `native/src/systems/logistics/`
+
+---
+
+## Game Data
+
+### Chemistry Database
+118 elements, 59 alloys, 132 compounds, 35 gases, 52 toxins across 5 CSV datasets.
+- Data: `data/chemistry/elements.csv`, `data/chemistry/alloys.csv`, `data/chemistry/compounds.csv`, `data/chemistry/gases.csv`, `data/chemistry/toxins.csv`
+
+### Solar System Database
+70+ celestial bodies with orbital parameters, physical properties, and RON planet definitions.
+- Data: `data/solar_system/bodies.json`, `data/solar_system/earth.ron`, `data/solar_system/mars.ron`, `data/solar_system/sun.ron`
+
+### Materials Database
+92 materials with properties and categories.
+- Data: `data/materials.csv`
+
+### Components Database
+102 components for crafting and construction.
+- Data: `data/components.csv`
+
+### Items and Recipes
+306 items and 227 recipes for crafting, construction, and gameplay.
+- Data: `data/items.csv`, `data/recipes.csv`
+
+### Platform Brand SVGs
+Platform detection icons (Steam, Epic, GOG, PlayStation, Xbox) as inline SVGs.
+- Assets: `assets/icons/platforms/`

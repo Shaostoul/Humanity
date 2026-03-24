@@ -55,14 +55,17 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `server/src/relay.rs` | WS message routing, rate limiting, auth |
 | `server/src/api.rs` | REST API handlers |
 | `server/src/main.rs` | Router setup, CSP middleware, axum config |
-| `server/src/storage/` | 17 domain modules (messages, channels, tasks, signed_profiles, notification_prefs…) |
-| `server/src/handlers/` | broadcast.rs, federation.rs, msg_handlers.rs, utils.rs |
-| `native/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship |
-| `native/src/systems/` | 11 game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat |
-| `native/src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree, greedy mesh) |
+| `server/src/storage/` | 20+ domain modules (messages, channels, tasks, signed_profiles, guilds, reputation, trading, files…) |
+| `server/src/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, utils.rs |
+| `native/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship, persistence |
+| `native/src/systems/` | 15+ game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat, weather, hydrology, atmosphere, disasters |
+| `native/src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree), heightmap terrain (16 biomes) |
 | `native/src/ship/` | Ship layouts from RON, room mesh generation, BFS pathfinding |
 | `native/src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
 | `native/src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
+| `native/src/audio/` | kira crate: spatial 3D audio, music, SFX, volume controls |
+| `native/src/mods/` | Mod manifest, load order, data override resolution |
+| `native/src/persistence.rs` | World save/load (entities, terrain, player progress) |
 | `native/crates/` | 19 sub-crates (core, modules, persistence, etc.) |
 | `native/src/gui/` | egui immediate-mode GUI: theme, widgets, pages |
 | `web/chat/app.js` | Core chat logic (~1700 LOC) |
@@ -71,11 +74,19 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `web/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
 | `web/shared/shell.js` | Nav injection IIFE — loaded first on every page |
 | `web/shared/settings.js` | Settings panel + gear button |
+| `web/shared/glossary.js` | 150+ term glossary overlay |
+| `web/shared/i18n.js` | Localization (5 languages) |
+| `web/shared/accessibility.js` | High contrast, colorblind, reduced motion modes |
 | `web/pages/*.html` | Standalone feature pages — tasks, maps, civilization, settings, etc. |
 | `web/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
 | `web/activities/` | Game/real-world activities — gardening, download, etc. |
 | `assets/` | All shared media — icons, shaders, models, textures, audio |
-| `data/` | Hot-reloadable game data — CSV, TOML, RON, JSON |
+| `data/` | Hot-reloadable game data — CSV, TOML, RON, JSON (306 items, 227 recipes, 92 materials, 102 components) |
+| `data/chemistry/` | 396 entries: elements, alloys, compounds, gases, toxins |
+| `data/solar_system/` | 70+ celestial bodies, planet RON definitions |
+| `data/glossary.json` | 150+ term definitions for glossary overlay |
+| `data/i18n/` | Translation files (en, es, fr, ja, zh) |
+| `data/tools/` | Open-source tools catalog (37 entries) |
 | `docs/` | ALL documentation — design, accord, history, website |
 | `Justfile` | Dev command runner — `just --list` for all recipes |
 
@@ -250,10 +261,9 @@ server_members (public_key, name, role, joined_at, last_seen)
 
 The Real/Sim toggle switches the UI context between real-life tools and simulation mode. "Sim" was chosen over "Game" because the platform teaches real survival skills through simulation. Both modes share the same tools (inventory, tasks, maps, market) but display different datasets.
 
-## Current targets (v0.37.1)
+## Current targets (v0.43.0)
 
-1. Multiplayer sync (networked ECS state replication)
-2. Real/sim context toggle (global mode switch between real-life tools and sim mode)
-3. Audio system (spatial audio, music, SFX via kira crate)
-4. Map rework (replace 2D canvas solar system with 3D engine orbit mode)
-5. Civilization page (macro community/infrastructure view)
+1. Map rework (replace 2D canvas solar system with 3D engine orbit mode)
+2. Advanced trading (order books, automated matching, trade history)
+3. Biome-specific gameplay (weather/terrain/ecology integration per biome)
+4. Multiplayer world sync (full ECS state replication for shared worlds)
