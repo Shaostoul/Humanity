@@ -1,140 +1,249 @@
-//! Escape menu — full navigation to all app pages.
+//! Escape menu with RGB-colored header nav bar.
 //!
-//! Appears when pressing Escape during gameplay. Semi-transparent
-//! backdrop over the 3D scene with buttons for every tool/page.
+//! Mirrors the web shell.js color-coded navigation:
+//! - Red group: identity pages (never change with context)
+//! - Green group: context-sensitive pages (data changes with Real/Sim)
+//! - Blue group: system/config pages
+//! Plus a Real/Sim toggle on the right.
 
-use egui::{Align2, Area, Color32, Frame, RichText, Vec2};
+use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Vec2};
 use crate::gui::{GuiPage, GuiState, VERSION};
 
-/// Draw the escape menu overlay.
+// Color constants matching web theme.css
+const RED: Color32 = Color32::from_rgb(231, 76, 60);
+const GREEN: Color32 = Color32::from_rgb(46, 204, 113);
+const BLUE: Color32 = Color32::from_rgb(52, 152, 219);
+const ACCENT: Color32 = Color32::from_rgb(237, 140, 36);
+const BG_DARK: Color32 = Color32::from_rgb(18, 18, 22);
+const BG_BAR: Color32 = Color32::from_rgb(24, 24, 30);
+const TEXT_MUTED: Color32 = Color32::from_rgb(120, 120, 130);
+
+struct NavItem {
+    label: &'static str,
+    page: GuiPage,
+}
+
+/// Draw the escape menu overlay with RGB header nav.
 pub fn draw(ctx: &egui::Context, state: &mut GuiState) {
-    // Semi-transparent backdrop
+    // Full-screen semi-transparent backdrop
     let screen = ctx.screen_rect();
     let painter = ctx.layer_painter(egui::LayerId::background());
-    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 180));
+    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 200));
 
-    Area::new(egui::Id::new("escape_menu"))
-        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+    // Top nav bar
+    egui::TopBottomPanel::top("escape_nav_bar")
+        .frame(Frame::none().fill(BG_BAR).inner_margin(egui::Margin::symmetric(8, 4)))
         .show(ctx, |ui| {
-            Frame::none()
-                .inner_margin(32.0)
-                .show(ui, |ui| {
-                    ui.set_min_width(400.0);
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 2.0;
 
-                    ui.vertical_centered(|ui| {
-                        ui.label(
-                            RichText::new("HumanityOS")
-                                .size(32.0)
-                                .color(Color32::from_rgb(237, 140, 36)),
-                        );
-                        ui.add_space(8.0);
-                        ui.label(
-                            RichText::new("End poverty. Unite humanity.")
-                                .size(14.0)
-                                .color(Color32::from_rgb(150, 150, 160)),
-                        );
-                        ui.add_space(24.0);
-                    });
+                // Brand
+                let brand = ui.add(
+                    egui::Button::new(RichText::new("H").size(14.0).strong().color(ACCENT))
+                        .min_size(Vec2::new(28.0, 28.0))
+                        .rounding(Rounding::same(4)),
+                );
+                if brand.clicked() {
+                    state.active_page = GuiPage::None;
+                }
 
-                    // Resume button (prominent)
-                    ui.vertical_centered(|ui| {
-                        let resume = ui.add_sized(
-                            Vec2::new(300.0, 40.0),
-                            egui::Button::new(RichText::new("Resume").size(16.0)),
-                        );
-                        if resume.clicked() {
-                            state.active_page = GuiPage::None;
-                        }
-                    });
+                ui.add_space(6.0);
+                separator_dot(ui);
+                ui.add_space(6.0);
 
-                    ui.add_space(16.0);
-                    ui.separator();
-                    ui.add_space(8.0);
+                // Red group: identity (unchanged by context)
+                let red_items = [
+                    NavItem { label: "Chat", page: GuiPage::Chat },
+                    NavItem { label: "Wallet", page: GuiPage::Wallet },
+                    NavItem { label: "Donate", page: GuiPage::Donate },
+                ];
+                nav_group(ui, &red_items, RED, state);
 
-                    // Two-column grid of page buttons
-                    ui.columns(2, |cols| {
-                        let left_pages = [
-                            ("Inventory", GuiPage::Inventory),
-                            ("Tasks", GuiPage::Tasks),
-                            ("Maps", GuiPage::Maps),
-                            ("Market", GuiPage::Market),
-                            ("Crafting", GuiPage::Crafting),
-                            ("Quests", GuiPage::Quests),
-                            ("Calculator", GuiPage::Calculator),
-                        ];
+                ui.add_space(6.0);
+                separator_dot(ui);
+                ui.add_space(6.0);
 
-                        let right_pages = [
-                            ("Profile", GuiPage::Profile),
-                            ("Chat", GuiPage::Chat),
-                            ("Civilization", GuiPage::Civilization),
-                            ("Notes", GuiPage::Notes),
-                            ("Calendar", GuiPage::Calendar),
-                            ("Settings", GuiPage::Settings),
-                            ("Bug Report", GuiPage::BugReport),
-                        ];
+                // Green group: context-sensitive
+                let green_items = [
+                    NavItem { label: "Profile", page: GuiPage::Profile },
+                    NavItem { label: "Tasks", page: GuiPage::Tasks },
+                    NavItem { label: "Inventory", page: GuiPage::Inventory },
+                    NavItem { label: "Maps", page: GuiPage::Maps },
+                    NavItem { label: "Market", page: GuiPage::Market },
+                    NavItem { label: "Crafting", page: GuiPage::Crafting },
+                    NavItem { label: "Civilization", page: GuiPage::Civilization },
+                ];
+                nav_group(ui, &green_items, GREEN, state);
 
-                        for (label, page) in left_pages {
-                            if cols[0]
-                                .add_sized(
-                                    Vec2::new(180.0, 32.0),
-                                    egui::Button::new(label),
-                                )
-                                .clicked()
-                            {
-                                state.active_page = page;
-                            }
-                            cols[0].add_space(4.0);
-                        }
+                ui.add_space(6.0);
+                separator_dot(ui);
+                ui.add_space(6.0);
 
-                        for (label, page) in right_pages {
-                            if cols[1]
-                                .add_sized(
-                                    Vec2::new(180.0, 32.0),
-                                    egui::Button::new(label),
-                                )
-                                .clicked()
-                            {
-                                state.active_page = page;
-                            }
-                            cols[1].add_space(4.0);
-                        }
-                    });
+                // Blue group: system
+                let blue_items = [
+                    NavItem { label: "Settings", page: GuiPage::Settings },
+                    NavItem { label: "Tools", page: GuiPage::Tools },
+                    NavItem { label: "Bugs", page: GuiPage::BugReport },
+                ];
+                nav_group(ui, &blue_items, BLUE, state);
 
-                    ui.add_space(16.0);
-                    ui.separator();
-                    ui.add_space(8.0);
+                // Push Real/Sim toggle to the right
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
 
-                    // Bottom row: Main Menu and Quit
-                    ui.horizontal(|ui| {
-                        ui.add_space(50.0);
-                        if ui
-                            .add_sized(Vec2::new(140.0, 32.0), egui::Button::new("Main Menu"))
-                            .clicked()
-                        {
-                            state.active_page = GuiPage::MainMenu;
-                        }
-                        ui.add_space(16.0);
-                        if ui
-                            .add_sized(
-                                Vec2::new(140.0, 32.0),
-                                egui::Button::new(
-                                    RichText::new("Quit").color(Color32::from_rgb(231, 76, 60)),
-                                ),
-                            )
-                            .clicked()
-                        {
-                            state.quit_requested = true;
-                        }
-                    });
+                    let sim_active = !state.context_real;
+                    let real_active = state.context_real;
 
-                    ui.add_space(12.0);
-                    ui.vertical_centered(|ui| {
-                        ui.label(
-                            RichText::new(format!("v{}", VERSION))
-                                .size(11.0)
-                                .color(Color32::from_rgb(80, 80, 90)),
-                        );
-                    });
+                    // Sim button
+                    let sim_color = if sim_active {
+                        Color32::from_rgb(108, 92, 231)
+                    } else {
+                        Color32::from_rgb(60, 60, 70)
+                    };
+                    let sim_btn = ui.add(
+                        egui::Button::new(
+                            RichText::new("Sim").size(11.0).color(if sim_active {
+                                Color32::WHITE
+                            } else {
+                                TEXT_MUTED
+                            }),
+                        )
+                        .fill(sim_color)
+                        .rounding(Rounding {
+                            nw: 0, ne: 4, se: 4, sw: 0,
+                        })
+                        .min_size(Vec2::new(36.0, 22.0)),
+                    );
+                    if sim_btn.clicked() {
+                        state.context_real = false;
+                    }
+
+                    // Real button
+                    let real_color = if real_active {
+                        ACCENT
+                    } else {
+                        Color32::from_rgb(60, 60, 70)
+                    };
+                    let real_btn = ui.add(
+                        egui::Button::new(
+                            RichText::new("Real").size(11.0).color(if real_active {
+                                Color32::BLACK
+                            } else {
+                                TEXT_MUTED
+                            }),
+                        )
+                        .fill(real_color)
+                        .rounding(Rounding {
+                            nw: 4, ne: 0, se: 0, sw: 4,
+                        })
+                        .min_size(Vec2::new(36.0, 22.0)),
+                    );
+                    if real_btn.clicked() {
+                        state.context_real = true;
+                    }
                 });
+            });
         });
+
+    // Center content area with Resume and secondary nav
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::TRANSPARENT))
+        .show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(ui.available_height() * 0.3);
+
+                ui.label(
+                    RichText::new("HumanityOS")
+                        .size(36.0)
+                        .color(ACCENT),
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("End poverty. Unite humanity.")
+                        .size(14.0)
+                        .color(TEXT_MUTED),
+                );
+                ui.add_space(24.0);
+
+                // Resume button
+                if ui
+                    .add_sized(
+                        Vec2::new(200.0, 40.0),
+                        egui::Button::new(RichText::new("Resume").size(16.0).color(Color32::WHITE))
+                            .fill(ACCENT),
+                    )
+                    .clicked()
+                {
+                    state.active_page = GuiPage::None;
+                }
+
+                ui.add_space(16.0);
+
+                // Secondary row
+                ui.horizontal(|ui| {
+                    ui.add_space((ui.available_width() - 200.0) / 2.0);
+                    if ui
+                        .add_sized(Vec2::new(90.0, 28.0), egui::Button::new("Main Menu"))
+                        .clicked()
+                    {
+                        state.active_page = GuiPage::MainMenu;
+                    }
+                    ui.add_space(8.0);
+                    if ui
+                        .add_sized(
+                            Vec2::new(90.0, 28.0),
+                            egui::Button::new(RichText::new("Quit").color(RED)),
+                        )
+                        .clicked()
+                    {
+                        state.quit_requested = true;
+                    }
+                });
+
+                ui.add_space(12.0);
+                ui.label(
+                    RichText::new(format!("v{}", VERSION))
+                        .size(11.0)
+                        .color(Color32::from_rgb(60, 60, 70)),
+                );
+            });
+        });
+}
+
+/// Draw a group of nav buttons with a colored underline.
+fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, state: &mut GuiState) {
+    for item in items {
+        let is_active = std::mem::discriminant(&state.active_page)
+            == std::mem::discriminant(&item.page);
+
+        let text_color = if is_active { Color32::WHITE } else { TEXT_MUTED };
+        let underline_alpha = if is_active { 255 } else { 80 };
+
+        let response = ui.add(
+            egui::Button::new(RichText::new(item.label).size(11.0).color(text_color))
+                .fill(Color32::TRANSPARENT)
+                .min_size(Vec2::new(0.0, 28.0)),
+        );
+
+        // Draw colored underline
+        let rect = response.rect;
+        let painter = ui.painter();
+        painter.rect_filled(
+            egui::Rect::from_min_size(
+                egui::pos2(rect.left() + 2.0, rect.bottom() - 3.0),
+                Vec2::new(rect.width() - 4.0, 3.0),
+            ),
+            Rounding::same(2),
+            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), underline_alpha),
+        );
+
+        if response.clicked() {
+            state.active_page = item.page.clone();
+        }
+    }
+}
+
+/// Small dot separator between nav groups.
+fn separator_dot(ui: &mut egui::Ui) {
+    ui.label(RichText::new("·").size(14.0).color(Color32::from_rgb(50, 50, 60)));
 }

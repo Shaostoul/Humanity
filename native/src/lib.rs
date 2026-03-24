@@ -48,7 +48,11 @@ mod native_app {
     use crate::ecs::systems::SystemRunner;
     use crate::gui::{GuiGameTime, GuiItemSlot, GuiPage, GuiState, GuiWeather};
     use crate::gui::theme::Theme;
-    use crate::gui::pages::{main_menu, escape_menu, settings, inventory, chat, hud, placeholder};
+    use crate::gui::pages::{
+        main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
+        tasks, profile, maps, market, calculator, calendar, notes, civilization,
+        wallet, crafting, guilds, trade, files, bugs, resources, donate, tools,
+    };
     use crate::hot_reload::HotReloadCoordinator;
     use crate::hot_reload::data_store::DataStore;
     use crate::input::InputState;
@@ -558,17 +562,23 @@ mod native_app {
                                         chat::draw(ctx, &state.theme, &mut state.gui_state);
                                     }
                                     // Placeholder pages (web versions exist, native coming)
-                                    GuiPage::Tasks => placeholder::draw(ctx, &mut state.gui_state, "Tasks"),
-                                    GuiPage::Maps => placeholder::draw(ctx, &mut state.gui_state, "Maps"),
-                                    GuiPage::Market => placeholder::draw(ctx, &mut state.gui_state, "Market"),
-                                    GuiPage::Profile => placeholder::draw(ctx, &mut state.gui_state, "Profile"),
-                                    GuiPage::Civilization => placeholder::draw(ctx, &mut state.gui_state, "Civilization"),
-                                    GuiPage::Calculator => placeholder::draw(ctx, &mut state.gui_state, "Calculator"),
-                                    GuiPage::Notes => placeholder::draw(ctx, &mut state.gui_state, "Notes"),
-                                    GuiPage::Calendar => placeholder::draw(ctx, &mut state.gui_state, "Calendar"),
-                                    GuiPage::Crafting => placeholder::draw(ctx, &mut state.gui_state, "Crafting"),
-                                    GuiPage::Quests => placeholder::draw(ctx, &mut state.gui_state, "Quests"),
-                                    GuiPage::BugReport => placeholder::draw(ctx, &mut state.gui_state, "Bug Report"),
+                                    GuiPage::Tasks => tasks::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Maps => maps::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Market => market::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Profile => profile::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Civilization => civilization::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Calculator => calculator::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Notes => notes::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Calendar => calendar::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Crafting => crafting::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Wallet => wallet::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Guilds => guilds::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Trade => trade::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Files => files::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::BugReport => bugs::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Resources => resources::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Donate => donate::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::None => {}
                                 }
 
