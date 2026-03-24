@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Tools — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:1100px; width:100%; margin:0 auto; }
+    .tools-header h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
+    .tools-header p { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:var(--space-lg); }
+    #tools-search { width:100%; padding:10px 16px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); color:var(--text); font-size:var(--text-base); margin-bottom:var(--space-xl); }
+    #tools-search:focus { outline:none; border-color:var(--accent); }
+    #tools-search::placeholder { color:var(--text-muted); }
+    .cat-section { margin-bottom:var(--space-2xl); }
+    .cat-header { display:flex; align-items:center; gap:var(--space-md); cursor:pointer; padding:var(--space-sm) 0; user-select:none; }
+    .cat-header h2 { font-size:var(--text-lg); font-weight:600; margin:0; }
+    .cat-header .cat-count { color:var(--text-muted); font-size:var(--text-sm); }
+    .cat-header .cat-arrow { color:var(--text-muted); transition:transform 0.2s; }
+    .cat-header .cat-arrow.collapsed { transform:rotate(-90deg); }
+    .cat-exts { display:flex; flex-wrap:wrap; gap:4px; margin:var(--space-sm) 0 var(--space-md); }
+    .cat-ext { background:var(--bg); border:1px solid var(--border); border-radius:3px; padding:1px 6px; font-size:11px; color:var(--text-muted); font-family:monospace; }
+    .tools-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:var(--space-md); }
+    .tool-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:var(--space-lg); transition:border-color 0.15s; }
+    .tool-card:hover { border-color:var(--accent); }
+    .tool-name { font-size:var(--text-base); font-weight:700; margin-bottom:var(--space-xs); }
+    .tool-name a { color:var(--accent); text-decoration:none; }
+    .tool-name a:hover { text-decoration:underline; }
+    .tool-desc { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; margin-bottom:var(--space-md); }
+    .tool-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .tool-badge { padding:2px 8px; border-radius:3px; font-size:11px; font-weight:600; }
+    .badge-windows { background:rgba(0,120,215,0.2); color:#5ba8f5; }
+    .badge-mac { background:rgba(150,150,150,0.2); color:#aaa; }
+    .badge-linux { background:rgba(240,160,0,0.2); color:#f0a000; }
+    .badge-web { background:rgba(46,204,113,0.2); color:#2ecc71; }
+    .tool-license { color:var(--text-muted); font-size:11px; }
+    .tool-size { color:var(--text-muted); font-size:11px; }
+    .no-results { color:var(--text-muted); font-style:italic; padding:var(--space-xl); text-align:center; }
+    @media (max-width:600px) { .tools-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src=/shared/shell.js data-active=tools></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<p class="page-hint">Discover free, open-source tools that integrate with HumanityOS.</p>
+
+<div id="page-app">
+  <div class="tools-header">
+    <h1>Tools Catalog</h1>
+    <p>Free and open-source software for every file type. Install what you need, when you need it.</p>
+  </div>
+  <input type="text" id="tools-search" placeholder="Search tools by name, extension, or category...">
+  <div id="tools-list"></div>
+</div>
+
+<script src="/pages/tools-app.js"></script>
+</body>
+</html>
