@@ -380,6 +380,74 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: var(--radius-sm); }
 
+    /* ── Today sidebar ── */
+    #today-sidebar {
+      width: 240px;
+      min-width: 200px;
+      background: var(--bg);
+      border-left: 1px solid var(--bg-secondary);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .today-sidebar-header {
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--bg-secondary);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+    }
+    .today-sidebar-header span { color: var(--accent); }
+    #today-events-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-md);
+    }
+    .today-ev-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.1s;
+      margin-bottom: var(--space-sm);
+    }
+    .today-ev-item:hover { background: var(--bg-card); }
+    .today-ev-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .today-ev-info { flex: 1; min-width: 0; }
+    .today-ev-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .today-ev-time {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+    }
+    .today-ev-empty {
+      padding: var(--space-xl);
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    @media (max-width: 768px) {
+      #today-sidebar { display: none; }
+    }
+
     @media (max-width: 600px) {
       .week-header { grid-template-columns: 36px repeat(7, 1fr); }
       .week-time-col { width: 36px; }
@@ -414,10 +482,16 @@
     <button id="add-event-btn" onclick="openAddEvent()">+ Event</button>
   </div>
 
-  <div id="cal-content">
-    <div id="month-view" style="display:none"></div>
-    <div id="week-view" style="display:none"></div>
-    <div id="day-view" style="display:none"></div>
+  <div style="display:flex;flex:1;overflow:hidden;">
+    <div id="cal-content">
+      <div id="month-view" style="display:none"></div>
+      <div id="week-view" style="display:none"></div>
+      <div id="day-view" style="display:none"></div>
+    </div>
+    <div id="today-sidebar">
+      <div class="today-sidebar-header">Today's Events <span id="today-date-label"></span></div>
+      <div id="today-events-list"></div>
+    </div>
   </div>
 </div>
 
@@ -577,6 +651,40 @@ function render() {
   if (view === 'month') renderMonth();
   else if (view === 'week') renderWeek();
   else renderDay();
+  renderTodaySidebar();
+}
+
+function renderTodaySidebar() {
+  const td = todayStr();
+  const evs = eventsOn(td);
+  const dateLabel = document.getElementById('today-date-label');
+  const list = document.getElementById('today-events-list');
+  dateLabel.textContent = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  if (!evs.length) {
+    list.innerHTML = '<div class="today-ev-empty">No events today.</div>';
+    return;
+  }
+
+  // Sort: timed events first by time, then all-day
+  evs.sort((a, b) => {
+    if (a.startTime && !b.startTime) return -1;
+    if (!a.startTime && b.startTime) return 1;
+    if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+    return 0;
+  });
+
+  list.innerHTML = evs.map(e => {
+    const timeStr = e.allday || !e.startTime ? 'All day' :
+      e.startTime + (e.endTime ? ' - ' + e.endTime : '');
+    return `<div class="today-ev-item" onclick="openEditEvent('${e.id}')" title="${esc(e.notes || '')}">
+      <div class="today-ev-dot" style="background:${e.color || '#3498db'}"></div>
+      <div class="today-ev-info">
+        <div class="today-ev-title">${esc(e.title)}</div>
+        <div class="today-ev-time">${timeStr}${e._recurring ? ' (recurring)' : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function updateTitle() {

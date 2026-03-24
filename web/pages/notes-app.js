@@ -83,11 +83,16 @@ function getNote(id) { return notes.find(n => n.id === id) || null; }
 function renderList() {
   const q = document.getElementById('search-input').value.toLowerCase();
   const list = document.getElementById('note-list');
+  const sortMode = document.getElementById('sort-select') ? document.getElementById('sort-select').value : 'modified';
   const filtered = notes.filter(n =>
     !q ||
     (n.title || '').toLowerCase().includes(q) ||
     (!n.encrypted && (n.content || '').toLowerCase().includes(q))
-  ).sort((a, b) => b.updatedAt - a.updatedAt);
+  ).sort((a, b) => {
+    if (sortMode === 'created') return (b.createdAt || 0) - (a.createdAt || 0);
+    if (sortMode === 'alpha') return (a.title || '').localeCompare(b.title || '');
+    return (b.updatedAt || 0) - (a.updatedAt || 0);
+  });
 
   if (!filtered.length) {
     list.innerHTML = '<div style="padding:var(--space-xl);color:#444;font-size:.78rem;text-align:center">No notes yet.</div>';
@@ -171,6 +176,14 @@ function openNote(id) {
     const encBtn = document.getElementById('btn-encrypt-toggle');
     encBtn.innerHTML = note.encrypted ? (typeof hosIcon==='function'?hosIcon('lock',14):'') + ' Encrypted' : (typeof hosIcon==='function'?hosIcon('unlock',14):'') + ' Plain';
     encBtn.classList.toggle('encrypt-on', note.encrypted);
+    // Reset markdown preview to edit mode
+    if (mdPreviewOn) {
+      mdPreviewOn = false;
+      document.getElementById('md-preview').style.display = 'none';
+      document.getElementById('note-content').style.display = '';
+      document.getElementById('btn-md-toggle').classList.remove('active-toggle');
+      document.getElementById('btn-md-toggle').textContent = 'Preview';
+    }
     updateWordCount();
     setStatus('');
     renderList();
@@ -276,6 +289,97 @@ function deleteActiveNote() {
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ── Markdown preview ──
+
+let mdPreviewOn = false;
+
+function toggleMarkdownPreview() {
+  mdPreviewOn = !mdPreviewOn;
+  const textarea = document.getElementById('note-content');
+  const preview = document.getElementById('md-preview');
+  const btn = document.getElementById('btn-md-toggle');
+  if (mdPreviewOn) {
+    preview.innerHTML = renderMarkdown(textarea.value);
+    preview.style.display = 'block';
+    textarea.style.display = 'none';
+    btn.classList.add('active-toggle');
+    btn.textContent = 'Edit';
+  } else {
+    preview.style.display = 'none';
+    textarea.style.display = '';
+    btn.classList.remove('active-toggle');
+    btn.textContent = 'Preview';
+  }
+}
+
+function renderMarkdown(text) {
+  if (!text) return '<p style="color:var(--text-muted)">Nothing to preview.</p>';
+  let html = esc(text);
+  // Code blocks (fenced)
+  html = html.replace(/```([\s\S]*?)```/g, function(_, code) {
+    return '<pre><code>' + code.trim() + '</code></pre>';
+  });
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Headers
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // Bold and italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // Blockquotes
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  // Horizontal rules
+  html = html.replace(/^---$/gm, '<hr>');
+  // Unordered lists
+  html = html.replace(/^[*-] (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Line breaks (double newline = paragraph, single = br)
+  html = html.replace(/\n\n/g, '</p><p>');
+  html = html.replace(/\n/g, '<br>');
+  html = '<p>' + html + '</p>';
+  // Clean up empty paragraphs around block elements
+  html = html.replace(/<p><(h[1-3]|pre|blockquote|ul|hr)/g, '<$1');
+  html = html.replace(/<\/(h[1-3]|pre|blockquote|ul|hr)><\/p>/g, '</$1>');
+  return html;
+}
+
+// ── Export ──
+
+function toggleExportMenu() {
+  document.getElementById('export-menu').classList.toggle('open');
+}
+
+function exportNote(format) {
+  document.getElementById('export-menu').classList.remove('open');
+  const note = getNote(activeId);
+  if (!note) return;
+  const title = (note.title || 'Untitled').replace(/[^a-zA-Z0-9_\- ]/g, '');
+  const content = document.getElementById('note-content').value;
+  const ext = format === 'md' ? '.md' : '.txt';
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = title + ext;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Close export menu on click outside
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('export-menu');
+  if (menu && !e.target.closest('.export-drop')) {
+    menu.classList.remove('open');
+  }
+});
 
 // ── Notes Init ──
 

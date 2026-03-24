@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculator — HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #calc-app {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--space-xl);
+      gap: var(--space-xl);
+      overflow-y: auto;
+    }
+
+    /* ── Mode tabs ── */
+    .calc-tabs {
+      display: flex;
+      gap: var(--space-sm);
+      flex-shrink: 0;
+    }
+    .calc-tab {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      padding: var(--space-sm) var(--space-xl);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .calc-tab:hover { background: var(--bg-input); color: var(--text); }
+    .calc-tab.active { background: #1f1508; border-color: #553300; color: var(--accent); }
+
+    /* ── Calculator container ── */
+    .calc-container {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    /* ── Display ── */
+    .calc-display {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius);
+      padding: var(--space-lg) var(--space-xl);
+      text-align: right;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      position: relative;
+    }
+    .calc-expr {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      min-height: 1.2em;
+      word-break: break-all;
+    }
+    .calc-result {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text);
+      word-break: break-all;
+      line-height: 1.2;
+    }
+    .calc-copy {
+      position: absolute;
+      top: var(--space-md);
+      left: var(--space-md);
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      padding: 2px 8px;
+      font-size: 0.65rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .calc-copy:hover { color: var(--text); background: var(--bg-input); }
+
+    /* ── Button grid ── */
+    .calc-grid {
+      display: grid;
+      gap: var(--space-sm);
+    }
+    .calc-grid.basic { grid-template-columns: repeat(4, 1fr); }
+    .calc-grid.scientific { grid-template-columns: repeat(5, 1fr); }
+
+    .calc-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 600;
+      padding: var(--space-lg) var(--space-md);
+      cursor: pointer;
+      transition: all 0.12s;
+      font-family: inherit;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .calc-btn:hover { background: var(--bg-input); }
+    .calc-btn:active { transform: scale(0.96); }
+    .calc-btn.op { color: var(--accent); }
+    .calc-btn.fn { color: #4cf; font-size: 0.82rem; }
+    .calc-btn.eq {
+      background: #1a3a1a;
+      border-color: #2a5a2a;
+      color: #4caf50;
+    }
+    .calc-btn.eq:hover { background: #1e481e; }
+    .calc-btn.clr {
+      background: #2a1010;
+      border-color: #5a2a2a;
+      color: #e74c3c;
+    }
+    .calc-btn.clr:hover { background: #381010; }
+    .calc-btn.wide { grid-column: span 2; }
+
+    /* ── History panel ── */
+    .calc-history {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius);
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .hist-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--bg-hover);
+    }
+    .hist-header span {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .hist-clear {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      cursor: pointer;
+    }
+    .hist-clear:hover { color: var(--danger); }
+    .hist-item {
+      padding: var(--space-sm) var(--space-lg);
+      border-bottom: 1px solid var(--bg-hover);
+      cursor: pointer;
+      transition: background 0.1s;
+      text-align: right;
+    }
+    .hist-item:last-child { border-bottom: none; }
+    .hist-item:hover { background: var(--bg-secondary); }
+    .hist-expr { font-size: 0.72rem; color: var(--text-muted); }
+    .hist-result { font-size: 0.88rem; color: var(--text); font-weight: 600; }
+    .hist-empty {
+      padding: var(--space-xl);
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Converter mode ── */
+    .converter-panel {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+    .conv-category {
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+    }
+    .conv-cat-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      padding: var(--space-sm) var(--space-lg);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .conv-cat-btn.active { background: #1f1508; border-color: #553300; color: var(--accent); }
+    .conv-cat-btn:hover:not(.active) { background: var(--bg-input); }
+
+    .conv-row {
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+    .conv-input {
+      flex: 1;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius);
+      padding: var(--space-lg) var(--space-xl);
+      color: var(--text);
+      font-size: 1.1rem;
+      font-weight: 600;
+      outline: none;
+      font-family: inherit;
+    }
+    .conv-input:focus { border-color: var(--accent); }
+    .conv-select {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: var(--space-md) var(--space-lg);
+      font-size: 0.82rem;
+      outline: none;
+      min-width: 80px;
+    }
+    .conv-swap {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 1rem;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .conv-swap:hover { color: var(--accent); transform: rotate(180deg); }
+    .conv-result-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Currency mode ── */
+    .currency-notice {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius);
+      padding: var(--space-xl);
+      text-align: center;
+    }
+    .currency-notice h3 {
+      font-size: 0.9rem;
+      color: var(--accent);
+      margin-bottom: var(--space-md);
+    }
+    .currency-notice p {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: var(--space-lg);
+    }
+    .manual-rate {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+      margin-top: var(--space-lg);
+      padding-top: var(--space-lg);
+      border-top: 1px solid var(--bg-hover);
+    }
+    .manual-rate label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Mode panels ── */
+    .mode-panel { display: none; }
+    .mode-panel.active { display: flex; flex-direction: column; gap: var(--space-lg); }
+
+    @media (max-width: 480px) {
+      .calc-container { max-width: 100%; }
+      .calc-btn { min-height: 44px; font-size: 0.9rem; padding: var(--space-md); }
+      .calc-result { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="calculator"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/eli5.js"></script>
+<div class="eli5-block">
+  <div class="eli5-simple">A calculator with basic math, scientific functions, and unit conversion.</div>
+  <div class="eli5-expert">Multi-mode calculator: basic arithmetic with operator precedence via eval (sanitized), scientific functions (trig, log, factorial), unit converter with 6 categories, and currency converter stub with manual rate input. History persisted in localStorage.</div>
+</div>
+<p class="page-hint">Calculator with basic and scientific modes, plus unit and currency conversion.</p>
+
+<div id="calc-app">
+  <!-- Mode tabs -->
+  <div class="calc-tabs">
+    <button class="calc-tab active" data-mode="basic" onclick="setMode('basic')">Basic</button>
+    <button class="calc-tab" data-mode="scientific" onclick="setMode('scientific')">Scientific</button>
+    <button class="calc-tab" data-mode="converter" onclick="setMode('converter')">Converter</button>
+    <button class="calc-tab" data-mode="currency" onclick="setMode('currency')">Currency</button>
+  </div>
+
+  <div class="calc-container">
+    <!-- ═══ Basic mode ═══ -->
+    <div class="mode-panel active" id="panel-basic">
+      <div class="calc-display">
+        <button class="calc-copy" onclick="copyResult()" title="Copy result">Copy</button>
+        <div class="calc-expr" id="basic-expr"></div>
+        <div class="calc-result" id="basic-result">0</div>
+      </div>
+      <div class="calc-grid basic">
+        <button class="calc-btn clr" onclick="clearCalc()">C</button>
+        <button class="calc-btn op" onclick="inputOp('(')">(</button>
+        <button class="calc-btn op" onclick="inputOp(')')">)</button>
+        <button class="calc-btn op" onclick="inputOp('/')">/</button>
+        <button class="calc-btn" onclick="inputNum('7')">7</button>
+        <button class="calc-btn" onclick="inputNum('8')">8</button>
+        <button class="calc-btn" onclick="inputNum('9')">9</button>
+        <button class="calc-btn op" onclick="inputOp('*')">*</button>
+        <button class="calc-btn" onclick="inputNum('4')">4</button>
+        <button class="calc-btn" onclick="inputNum('5')">5</button>
+        <button class="calc-btn" onclick="inputNum('6')">6</button>
+        <button class="calc-btn op" onclick="inputOp('-')">-</button>
+        <button class="calc-btn" onclick="inputNum('1')">1</button>
+        <button class="calc-btn" onclick="inputNum('2')">2</button>
+        <button class="calc-btn" onclick="inputNum('3')">3</button>
+        <button class="calc-btn op" onclick="inputOp('+')">+</button>
+        <button class="calc-btn" onclick="inputNum('0')">0</button>
+        <button class="calc-btn" onclick="inputNum('.')">.</button>
+        <button class="calc-btn op" onclick="inputOp('%')">%</button>
+        <button class="calc-btn eq" onclick="evaluate()">=</button>
+      </div>
+    </div>
+
+    <!-- ═══ Scientific mode ═══ -->
+    <div class="mode-panel" id="panel-scientific">
+      <div class="calc-display">
+        <button class="calc-copy" onclick="copyResult()" title="Copy result">Copy</button>
+        <div class="calc-expr" id="sci-expr"></div>
+        <div class="calc-result" id="sci-result">0</div>
+      </div>
+      <div class="calc-grid scientific">
+        <button class="calc-btn fn" onclick="inputFn('sin(')">sin</button>
+        <button class="calc-btn fn" onclick="inputFn('cos(')">cos</button>
+        <button class="calc-btn fn" onclick="inputFn('tan(')">tan</button>
+        <button class="calc-btn fn" onclick="inputFn('log(')">log</button>
+        <button class="calc-btn fn" onclick="inputFn('ln(')">ln</button>
+        <button class="calc-btn fn" onclick="inputFn('sqrt(')">sqrt</button>
+        <button class="calc-btn fn" onclick="inputFn('pow(')">pow</button>
+        <button class="calc-btn fn" onclick="inputNum(String(Math.PI))">pi</button>
+        <button class="calc-btn fn" onclick="inputNum(String(Math.E))">e</button>
+        <button class="calc-btn fn" onclick="inputFn('fact(')">n!</button>
+        <button class="calc-btn clr" onclick="clearCalc()">C</button>
+        <button class="calc-btn op" onclick="inputOp('(')">(</button>
+        <button class="calc-btn op" onclick="inputOp(')')">)</button>
+        <button class="calc-btn op" onclick="inputOp('/')">/</button>
+        <button class="calc-btn op" onclick="backspace()">DEL</button>
+        <button class="calc-btn" onclick="inputNum('7')">7</button>
+        <button class="calc-btn" onclick="inputNum('8')">8</button>
+        <button class="calc-btn" onclick="inputNum('9')">9</button>
+        <button class="calc-btn op" onclick="inputOp('*')">*</button>
+        <button class="calc-btn op" onclick="inputOp('^')">^</button>
+        <button class="calc-btn" onclick="inputNum('4')">4</button>
+        <button class="calc-btn" onclick="inputNum('5')">5</button>
+        <button class="calc-btn" onclick="inputNum('6')">6</button>
+        <button class="calc-btn op" onclick="inputOp('-')">-</button>
+        <button class="calc-btn op" onclick="inputOp('%')">%</button>
+        <button class="calc-btn" onclick="inputNum('1')">1</button>
+        <button class="calc-btn" onclick="inputNum('2')">2</button>
+        <button class="calc-btn" onclick="inputNum('3')">3</button>
+        <button class="calc-btn op" onclick="inputOp('+')">+</button>
+        <button class="calc-btn" onclick="inputNum('.')">.</button>
+        <button class="calc-btn wide" onclick="inputNum('0')">0</button>
+        <button class="calc-btn clr" onclick="backspace()">DEL</button>
+        <button class="calc-btn eq" onclick="evaluate()">=</button>
+      </div>
+    </div>
+
+    <!-- ═══ Converter mode ═══ -->
+    <div class="mode-panel" id="panel-converter">
+      <div class="conv-category" id="conv-cats"></div>
+      <div class="conv-row">
+        <input class="conv-input" id="conv-from-val" type="number" value="1" oninput="doConvert()">
+        <select class="conv-select" id="conv-from-unit" onchange="doConvert()"></select>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;">
+        <button class="conv-swap" onclick="swapUnits()" title="Swap units">&#8645;</button>
+      </div>
+      <div class="conv-row">
+        <input class="conv-input" id="conv-to-val" type="text" readonly>
+        <select class="conv-select" id="conv-to-unit" onchange="doConvert()"></select>
+      </div>
+      <div class="conv-result-label" id="conv-formula"></div>
+    </div>
+
+    <!-- ═══ Currency mode ═══ -->
+    <div class="mode-panel" id="panel-currency">
+      <div class="currency-notice">
+        <h3>Currency Converter</h3>
+        <p>Live exchange rates coming soon. Use manual rate entry below.</p>
+      </div>
+      <div class="manual-rate">
+        <label>Enter exchange rate manually:</label>
+        <div class="conv-row">
+          <input class="conv-input" id="cur-amount" type="number" value="1" oninput="doCurrConvert()">
+          <input class="conv-select" id="cur-from" type="text" placeholder="USD" style="text-transform:uppercase;width:70px;" oninput="doCurrConvert()">
+        </div>
+        <div class="conv-row">
+          <label style="font-size:0.78rem;color:var(--text-muted)">Rate: 1 <span id="cur-from-label">unit</span> =</label>
+          <input class="conv-input" id="cur-rate" type="number" value="1" step="any" style="max-width:120px" oninput="doCurrConvert()">
+          <input class="conv-select" id="cur-to" type="text" placeholder="EUR" style="text-transform:uppercase;width:70px;" oninput="doCurrConvert()">
+        </div>
+        <div class="conv-row">
+          <input class="conv-input" id="cur-result" type="text" readonly>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ History ═══ -->
+    <div class="calc-history" id="calc-history">
+      <div class="hist-header">
+        <span>History</span>
+        <button class="hist-clear" onclick="clearHistory()">Clear</button>
+      </div>
+      <div id="hist-list">
+        <div class="hist-empty">No calculations yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/pages/calculator-app.js"></script>
+</body>
+</html>

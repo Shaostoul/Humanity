@@ -102,6 +102,21 @@
     }
     #note-search input:focus { border-color: var(--accent); }
 
+    #note-sort {
+      padding: var(--space-sm) var(--space-lg);
+      border-bottom: 1px solid var(--bg-secondary);
+    }
+    #note-sort select {
+      width: 100%;
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-md);
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      outline: none;
+    }
+
     #note-list {
       flex: 1;
       overflow-y: auto;
@@ -199,6 +214,7 @@
     }
     .toolbar-btn:hover { color: var(--text); background: var(--bg-input); }
     .toolbar-btn.danger:hover { color: var(--danger); border-color: #500; }
+    .toolbar-btn.active-toggle { color: #4cf; border-color: #1a3a5a; background: #0a1520; }
     .toolbar-btn.encrypt-on { color: var(--accent); border-color: #553300; background: #1a1000; }
 
     #note-body {
@@ -221,6 +237,58 @@
       min-height: 400px;
     }
     #note-content::placeholder { color: var(--bg-hover); }
+
+    /* ── Markdown preview ── */
+    #md-preview {
+      display: none;
+      width: 100%;
+      min-height: 400px;
+      padding: 0;
+      font-size: 0.9rem;
+      line-height: 1.75;
+      color: #d0d0d0;
+      overflow-y: auto;
+    }
+    #md-preview h1 { font-size: 1.5rem; margin: 0.6em 0 0.3em; color: var(--text); border-bottom: 1px solid var(--bg-hover); padding-bottom: 0.2em; }
+    #md-preview h2 { font-size: 1.25rem; margin: 0.5em 0 0.25em; color: var(--text); }
+    #md-preview h3 { font-size: 1.05rem; margin: 0.4em 0 0.2em; color: var(--text); }
+    #md-preview p { margin: 0.4em 0; }
+    #md-preview code { background: var(--bg-secondary); padding: 2px 5px; border-radius: 3px; font-size: 0.85em; }
+    #md-preview pre { background: var(--bg-secondary); padding: var(--space-lg); border-radius: var(--radius-sm); overflow-x: auto; margin: 0.5em 0; }
+    #md-preview pre code { background: none; padding: 0; }
+    #md-preview blockquote { border-left: 3px solid var(--accent); padding-left: var(--space-lg); color: var(--text-muted); margin: 0.5em 0; }
+    #md-preview ul, #md-preview ol { padding-left: 1.5em; margin: 0.3em 0; }
+    #md-preview a { color: var(--accent); }
+    #md-preview strong { color: var(--text); }
+    #md-preview hr { border: none; border-top: 1px solid var(--bg-hover); margin: 0.8em 0; }
+
+    /* Export dropdown */
+    .export-drop { position: relative; display: inline-block; }
+    .export-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--bg-hover);
+      border-radius: var(--radius-sm);
+      z-index: 200;
+      min-width: 120px;
+      margin-top: 4px;
+    }
+    .export-menu.open { display: block; }
+    .export-menu button {
+      display: block;
+      width: 100%;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: var(--space-md) var(--space-lg);
+      text-align: left;
+      cursor: pointer;
+    }
+    .export-menu button:hover { background: var(--bg-secondary); color: var(--text); }
 
     #note-status {
       padding: var(--space-sm) var(--space-xl);
@@ -543,6 +611,13 @@
     <div id="note-search">
       <input type="text" id="search-input" placeholder="Search notes…" oninput="renderList()">
     </div>
+    <div id="note-sort">
+      <select id="sort-select" onchange="renderList()">
+        <option value="modified">Last modified</option>
+        <option value="created">Created</option>
+        <option value="alpha">Alphabetical</option>
+      </select>
+    </div>
     <div id="note-list"></div>
     <div id="sidebar-footer">
       <span class="lock-status"><span class="pg-ico" data-icon="lock" data-size="14"></span></span>
@@ -567,6 +642,14 @@
     <!-- Toolbar (shown when a note is selected) -->
     <div id="note-toolbar" style="display:none">
       <input type="text" id="note-title-input" placeholder="Note title…" oninput="scheduleAutoSave()">
+      <button class="toolbar-btn" id="btn-md-toggle" onclick="toggleMarkdownPreview()" title="Toggle markdown preview">Preview</button>
+      <div class="export-drop">
+        <button class="toolbar-btn" onclick="toggleExportMenu()" title="Export note">Export</button>
+        <div class="export-menu" id="export-menu">
+          <button onclick="exportNote('txt')">Export as .txt</button>
+          <button onclick="exportNote('md')">Export as .md</button>
+        </div>
+      </div>
       <button class="toolbar-btn" id="btn-encrypt-toggle" onclick="toggleEncrypt()" title="Toggle per-note encryption"><span class="pg-ico" data-icon="unlock" data-size="14"></span> Plain</button>
       <button class="toolbar-btn danger" onclick="deleteActiveNote()" title="Delete note"><span class="pg-ico" data-icon="trash" data-size="14"></span></button>
     </div>
@@ -574,6 +657,7 @@
     <!-- Body -->
     <div id="note-body" style="display:none">
       <textarea id="note-content" placeholder="Start writing…" oninput="scheduleAutoSave()"></textarea>
+      <div id="md-preview"></div>
     </div>
     <div id="note-status" style="display:none">
       <span id="status-msg">All changes saved</span>
