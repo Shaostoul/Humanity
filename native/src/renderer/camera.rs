@@ -357,6 +357,11 @@ pub struct CameraController {
     switch_orbit: bool,
     toggle_ortho: bool,
     toggle_shoulder: bool,
+    // Gravity / jump state (first-person mode)
+    vertical_velocity: f32,
+    is_grounded: bool,
+    eye_height: f32,
+    jump_speed: f32,
 }
 
 impl CameraController {
@@ -380,6 +385,10 @@ impl CameraController {
             switch_orbit: false,
             toggle_ortho: false,
             toggle_shoulder: false,
+            vertical_velocity: 0.0,
+            is_grounded: true,
+            eye_height: 1.7,
+            jump_speed: 5.0,
         }
     }
 
@@ -536,22 +545,21 @@ impl CameraController {
     }
 
     /// First-person: WASD moves character, mouse rotates view.
+    /// Includes gravity simulation and jump mechanics.
     fn update_first_person(
-        &self,
+        &mut self,
         camera: &mut Camera,
         dt: f32,
         mouse_dx: f64,
         mouse_dy: f64,
     ) {
-        // Mouse look (always active in FP, or when right-click held)
-        if self.mouse_right || self.mouse_left {
-            camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;
-            camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
-            let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
-            camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
-        }
+        // Mouse look (always active in FP mode — cursor is grabbed)
+        camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;
+        camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
+        let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
+        camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
 
-        // WASD movement relative to camera facing
+        // WASD movement relative to camera facing (horizontal only)
         let forward = camera.forward_xz();
         let right = forward.cross(Vec3::Y).normalize();
 
@@ -560,12 +568,36 @@ impl CameraController {
         if self.backward { velocity -= forward; }
         if self.right { velocity += right; }
         if self.left { velocity -= right; }
-        if self.ascend { velocity += Vec3::Y; }
-        if self.descend { velocity -= Vec3::Y; }
+
+        // Crouch: slow movement when shift is held
+        let move_speed = if self.descend {
+            self.speed * 0.4
+        } else {
+            self.speed
+        };
 
         if velocity.length_squared() > 0.0 {
-            velocity = velocity.normalize() * self.speed * dt;
+            velocity = velocity.normalize() * move_speed * dt;
             camera.position += velocity;
+        }
+
+        // ── Gravity and jump ──
+        // Jump: apply upward impulse if grounded and Space is pressed
+        if self.ascend && self.is_grounded {
+            self.vertical_velocity = self.jump_speed;
+            self.is_grounded = false;
+        }
+
+        // Apply gravity
+        self.vertical_velocity -= 9.8 * dt;
+        camera.position.y += self.vertical_velocity * dt;
+
+        // Ground collision
+        let ground_height = 0.0_f32;
+        if camera.position.y < ground_height + self.eye_height {
+            camera.position.y = ground_height + self.eye_height;
+            self.vertical_velocity = 0.0;
+            self.is_grounded = true;
         }
     }
 

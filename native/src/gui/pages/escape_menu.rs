@@ -23,14 +23,9 @@ struct NavItem {
     page: GuiPage,
 }
 
-/// Draw the escape menu overlay with RGB header nav.
-pub fn draw(ctx: &egui::Context, state: &mut GuiState) {
-    // Full-screen semi-transparent backdrop
-    let screen = ctx.screen_rect();
-    let painter = ctx.layer_painter(egui::LayerId::background());
-    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 200));
-
-    // Top nav bar
+/// Draw the RGB header nav bar at the top of the screen.
+/// Reusable across all pages (escape menu, tool pages, etc.).
+pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
     egui::TopBottomPanel::top("escape_nav_bar")
         .frame(Frame::none().fill(BG_BAR).inner_margin(egui::Margin::symmetric(8, 4)))
         .show(ctx, |ui| {
@@ -144,7 +139,11 @@ pub fn draw(ctx: &egui::Context, state: &mut GuiState) {
                 });
             });
         });
+}
 
+/// Draw the escape menu center content (Resume, Main Menu, Quit).
+/// The nav bar is drawn separately by the engine for all pages.
+pub fn draw(ctx: &egui::Context, state: &mut GuiState) {
     // Center content area with Resume and secondary nav
     egui::CentralPanel::default()
         .frame(Frame::none().fill(Color32::TRANSPARENT))

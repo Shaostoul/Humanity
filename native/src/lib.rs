@@ -100,6 +100,69 @@ mod native_app {
         PathBuf::from("data")
     }
 
+    /// Extract embedded data files to disk on first run.
+    /// If the data directory already exists, this is a no-op.
+    /// This enables modding: users can edit the extracted files.
+    fn extract_data_if_needed() {
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| std::path::PathBuf::from("."));
+        let data_dir = exe_dir.join("data");
+        if data_dir.exists() {
+            return;
+        }
+
+        log::info!("First run: extracting game data to {:?}", data_dir);
+
+        // All embedded files with their relative paths
+        let files: &[&str] = &[
+            "items.csv", "recipes.csv", "materials.csv", "components.csv",
+            "plants.csv", "game.csv", "skills/skills.csv",
+            "chemistry/elements.csv", "chemistry/alloys.csv",
+            "chemistry/compounds.csv", "chemistry/gases.csv", "chemistry/toxins.csv",
+            "asteroids/types.csv",
+            "glossary.json", "solar_system/bodies.json", "solar-system.json",
+            "tools/catalog.json", "cities.json", "coastlines.json",
+            "constellations.json", "milky-way.json", "stars-catalog.json",
+            "stars-nearby.json",
+            "config.toml", "calendar.toml", "input.toml", "player.toml",
+            "gui/theme.ron",
+            "planets/earth.ron", "planets/mars.ron", "planets/moon.ron",
+            "solar_system/earth.ron", "solar_system/mars.ron", "solar_system/sun.ron",
+            "ships/bridge.ron", "ships/layout_medium.ron", "ships/reactor.ron",
+            "ships/starter_fleet.ron",
+            "quests/construction.ron", "quests/exploration.ron",
+            "quests/farming.ron", "quests/tutorial.ron",
+            "blueprints/basic.ron", "blueprints/construction.ron",
+            "blueprints/habitat.ron", "blueprints/materials.ron",
+            "blueprints/objects.ron",
+            "entities/human/human_001.ron", "entities/plants/plant_001.ron",
+            "entities/plants/tomato.ron", "entities/substrates/loam_basic.ron",
+            "entities/substrates/substrate_001.ron",
+            "plots/plot_001.ron",
+            "resources/fertilizer_basic.ron", "resources/water_clean.ron",
+            "i18n/en.json", "i18n/es.json", "i18n/fr.json",
+            "i18n/ja.json", "i18n/zh.json",
+            "language/acronyms.json", "language/dictionary.json",
+            "language/parts_of_speech.json",
+        ];
+
+        for relative_path in files {
+            if let Some(content) = crate::embedded_data::get_embedded(relative_path) {
+                let file_path = data_dir.join(relative_path);
+                if let Some(parent) = file_path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                if let Err(e) = std::fs::write(&file_path, content) {
+                    log::warn!("Failed to extract {}: {e}", relative_path);
+                }
+            }
+        }
+
+        log::info!("Data extraction complete");
+    }
+
     /// Run the engine standalone — opens a window, renders a test scene.
     /// Supports three camera modes (Tab to cycle, F to toggle FP/TP, M for orbit).
     pub fn run() {
@@ -154,8 +217,11 @@ mod native_app {
                 return;
             }
 
+            // Extract embedded data files on first run (enables modding)
+            extract_data_if_needed();
+
             let window_attrs = Window::default_attributes()
-                .with_title("HumanityOS Engine")
+                .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")))
                 .with_inner_size(winit::dpi::LogicalSize::new(1280, 720));
 
             let window = Arc::new(
@@ -346,12 +412,26 @@ mod native_app {
 
                         // Escape: None -> EscapeMenu, EscapeMenu -> None, any page -> EscapeMenu
                         if key == KeyCode::Escape && pressed {
-                            state.gui_state.active_page = match state.gui_state.active_page {
+                            let old_page = state.gui_state.active_page;
+                            state.gui_state.active_page = match old_page {
                                 GuiPage::None => GuiPage::EscapeMenu,
                                 GuiPage::EscapeMenu => GuiPage::None,
                                 GuiPage::MainMenu => GuiPage::MainMenu, // don't escape from title
                                 _ => GuiPage::EscapeMenu, // any tool page -> back to menu
                             };
+                            // Update cursor grab based on page transition
+                            let new_page = state.gui_state.active_page;
+                            if old_page == GuiPage::None && new_page != GuiPage::None {
+                                // Entering a menu: release cursor
+                                state.window.set_cursor_visible(true);
+                                state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
+                            } else if old_page != GuiPage::None && new_page == GuiPage::None {
+                                // Returning to FPS mode: grab cursor
+                                state.window.set_cursor_visible(false);
+                                state.window.set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                                    .or_else(|_| state.window.set_cursor_grab(winit::window::CursorGrabMode::Locked))
+                                    .ok();
+                            }
                             return;
                         }
 
@@ -368,6 +448,9 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                         {
                             state.gui_state.active_page = GuiPage::Inventory;
+                            // Release cursor for inventory page
+                            state.window.set_cursor_visible(true);
+                            state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
                             return;
                         }
 
@@ -537,13 +620,36 @@ mod native_app {
                         });
                     }
 
-                    // Render 3D scene (returns surface texture for overlay rendering)
-                    let scene_result = state.renderer.render_scene(&state.camera, &all_objects);
+                    // Track page before egui frame for cursor grab transitions
+                    let page_before_frame = state.gui_state.active_page;
+
+                    // Decide whether to render 3D scene or just a cleared surface
+                    let page_active = state.gui_state.active_page != GuiPage::None;
+                    let scene_result = if page_active {
+                        // UI-only frame: skip 3D render, clear to dark background
+                        state.renderer.acquire_surface_cleared(wgpu::Color {
+                            r: 0.07,
+                            g: 0.07,
+                            b: 0.086,
+                            a: 1.0,
+                        })
+                    } else {
+                        // In-game: full 3D scene render
+                        state.renderer.render_scene(&state.camera, &all_objects)
+                    };
                     match scene_result {
                         Ok((surface_texture, view)) => {
                             // Run egui frame
                             let raw_input = state.egui_state.take_egui_input(&state.window);
                             let full_output = state.egui_ctx.run(raw_input, |ctx| {
+                                // Show RGB nav bar on all pages except None and MainMenu
+                                match state.gui_state.active_page {
+                                    GuiPage::None | GuiPage::MainMenu => {}
+                                    _ => {
+                                        escape_menu::draw_nav_bar(ctx, &mut state.gui_state);
+                                    }
+                                }
+
                                 // Draw active full-screen page
                                 match state.gui_state.active_page {
                                     GuiPage::MainMenu => {
@@ -587,8 +693,8 @@ mod native_app {
                                     hud::draw(ctx, &state.theme, &state.gui_state, state.camera.yaw);
                                 }
 
-                                // Draw chat overlay if visible
-                                if state.gui_state.show_chat {
+                                // Draw chat overlay if visible (only in-game)
+                                if state.gui_state.active_page == GuiPage::None && state.gui_state.show_chat {
                                     chat::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
@@ -698,6 +804,22 @@ mod native_app {
                             }
 
                             surface_texture.present();
+
+                            // ── Update cursor grab if page changed during egui frame ──
+                            let page_after_frame = state.gui_state.active_page;
+                            if page_before_frame != page_after_frame {
+                                if page_after_frame == GuiPage::None {
+                                    // Returning to FPS mode: grab cursor
+                                    state.window.set_cursor_visible(false);
+                                    state.window.set_cursor_grab(winit::window::CursorGrabMode::Confined)
+                                        .or_else(|_| state.window.set_cursor_grab(winit::window::CursorGrabMode::Locked))
+                                        .ok();
+                                } else if page_before_frame == GuiPage::None {
+                                    // Leaving FPS mode: release cursor
+                                    state.window.set_cursor_visible(true);
+                                    state.window.set_cursor_grab(winit::window::CursorGrabMode::None).ok();
+                                }
+                            }
 
                             // ── Apply settings changes from GUI to engine ──
                             if state.gui_state.settings_dirty {

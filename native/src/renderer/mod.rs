@@ -293,6 +293,44 @@ impl Renderer {
         Ok(())
     }
 
+    /// Acquire the surface texture and clear it with a solid color.
+    /// Used when rendering UI-only frames (no 3D scene).
+    pub fn acquire_surface_cleared(
+        &self,
+        clear_color: wgpu::Color,
+    ) -> Result<(wgpu::SurfaceTexture, wgpu::TextureView), wgpu::SurfaceError> {
+        let output = self.surface.get_current_texture()?;
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Clear Encoder"),
+            });
+
+        {
+            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Clear Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_color),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                ..Default::default()
+            });
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        Ok((output, view))
+    }
+
     /// Render the 3D scene and return the surface texture + view for further
     /// overlay rendering (e.g., egui). Caller must call `output.present()`
     /// after all overlay passes are complete.
