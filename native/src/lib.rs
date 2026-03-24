@@ -48,7 +48,7 @@ mod native_app {
     use crate::ecs::systems::SystemRunner;
     use crate::gui::{GuiGameTime, GuiItemSlot, GuiPage, GuiState, GuiWeather};
     use crate::gui::theme::Theme;
-    use crate::gui::pages::{main_menu, settings, inventory, chat, hud};
+    use crate::gui::pages::{main_menu, escape_menu, settings, inventory, chat, hud, placeholder};
     use crate::hot_reload::HotReloadCoordinator;
     use crate::hot_reload::data_store::DataStore;
     use crate::input::InputState;
@@ -340,13 +340,14 @@ mod native_app {
                     if let PhysicalKey::Code(key) = event.physical_key {
                         let pressed = event.state.is_pressed();
 
-                        // Escape toggles main menu (or closes current page)
+                        // Escape: None -> EscapeMenu, EscapeMenu -> None, any page -> EscapeMenu
                         if key == KeyCode::Escape && pressed {
-                            if state.gui_state.active_page == GuiPage::None {
-                                state.gui_state.active_page = GuiPage::MainMenu;
-                            } else {
-                                state.gui_state.active_page = GuiPage::None;
-                            }
+                            state.gui_state.active_page = match state.gui_state.active_page {
+                                GuiPage::None => GuiPage::EscapeMenu,
+                                GuiPage::EscapeMenu => GuiPage::None,
+                                GuiPage::MainMenu => GuiPage::MainMenu, // don't escape from title
+                                _ => GuiPage::EscapeMenu, // any tool page -> back to menu
+                            };
                             return;
                         }
 
@@ -544,12 +545,30 @@ mod native_app {
                                     GuiPage::MainMenu => {
                                         main_menu::draw(ctx, &state.theme, &mut state.gui_state);
                                     }
+                                    GuiPage::EscapeMenu => {
+                                        escape_menu::draw(ctx, &mut state.gui_state);
+                                    }
                                     GuiPage::Settings => {
                                         settings::draw(ctx, &state.theme, &mut state.gui_state);
                                     }
                                     GuiPage::Inventory => {
                                         inventory::draw(ctx, &state.theme, &mut state.gui_state);
                                     }
+                                    GuiPage::Chat => {
+                                        chat::draw(ctx, &state.theme, &mut state.gui_state);
+                                    }
+                                    // Placeholder pages (web versions exist, native coming)
+                                    GuiPage::Tasks => placeholder::draw(ctx, &mut state.gui_state, "Tasks"),
+                                    GuiPage::Maps => placeholder::draw(ctx, &mut state.gui_state, "Maps"),
+                                    GuiPage::Market => placeholder::draw(ctx, &mut state.gui_state, "Market"),
+                                    GuiPage::Profile => placeholder::draw(ctx, &mut state.gui_state, "Profile"),
+                                    GuiPage::Civilization => placeholder::draw(ctx, &mut state.gui_state, "Civilization"),
+                                    GuiPage::Calculator => placeholder::draw(ctx, &mut state.gui_state, "Calculator"),
+                                    GuiPage::Notes => placeholder::draw(ctx, &mut state.gui_state, "Notes"),
+                                    GuiPage::Calendar => placeholder::draw(ctx, &mut state.gui_state, "Calendar"),
+                                    GuiPage::Crafting => placeholder::draw(ctx, &mut state.gui_state, "Crafting"),
+                                    GuiPage::Quests => placeholder::draw(ctx, &mut state.gui_state, "Quests"),
+                                    GuiPage::BugReport => placeholder::draw(ctx, &mut state.gui_state, "Bug Report"),
                                     GuiPage::None => {}
                                 }
 

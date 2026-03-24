@@ -18,10 +18,27 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuiPage {
+    /// In-game, no menu overlay (HUD still visible).
     None,
+    /// Title screen: Play, Settings, Quit.
     MainMenu,
+    /// Escape menu: full nav to all pages.
+    EscapeMenu,
+    // ── Tool pages ──
     Settings,
     Inventory,
+    Tasks,
+    Maps,
+    Market,
+    Profile,
+    Civilization,
+    Chat,
+    Calculator,
+    Notes,
+    Calendar,
+    Crafting,
+    Quests,
+    BugReport,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.
