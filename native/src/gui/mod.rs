@@ -299,6 +299,48 @@ pub struct GuiState {
     pub profile_name: String,
     pub profile_bio: String,
     pub profile_public_key: String,
+    pub profile_section: ProfileSection,
+    // Body & Measurements
+    pub profile_height: String,
+    pub profile_weight: String,
+    pub profile_eye_color: String,
+    pub profile_blood_type: String,
+    pub profile_hair_color: String,
+    pub profile_hair_length: String,
+    pub profile_hair_style: String,
+    pub profile_hair_texture: String,
+    pub profile_neck: String,
+    pub profile_shoulders: String,
+    pub profile_chest: String,
+    pub profile_waist: String,
+    pub profile_hips: String,
+    pub profile_thighs: String,
+    pub profile_inseam: String,
+    pub profile_shoe_size: String,
+    pub profile_shirt_size: String,
+    pub profile_pants_size: String,
+    // Identity
+    pub profile_pronouns: String,
+    pub profile_location: String,
+    pub profile_website: String,
+    // Private Notes
+    pub profile_private_notes: String,
+    // Network Profile
+    pub profile_network_name: String,
+    pub profile_network_bio: String,
+    pub profile_network_avatar: String,
+    // Interests
+    pub profile_interests: Vec<String>,
+    pub profile_interest_input: String,
+    // Skills
+    pub profile_skills: Vec<(String, f32)>,
+    // Social Links
+    pub profile_social_links: Vec<(String, String)>,
+    pub profile_social_platform: String,
+    pub profile_social_url: String,
+    // Streaming
+    pub profile_streaming_url: String,
+    pub profile_streaming_live: bool,
 
     // ── Map state ──
     pub map_planets: Vec<GuiPlanet>,
@@ -440,6 +482,49 @@ impl Default for GuiState {
             profile_name: String::new(),
             profile_bio: String::new(),
             profile_public_key: String::new(),
+            profile_section: ProfileSection::Identity,
+            profile_height: String::new(),
+            profile_weight: String::new(),
+            profile_eye_color: String::new(),
+            profile_blood_type: String::new(),
+            profile_hair_color: String::new(),
+            profile_hair_length: String::new(),
+            profile_hair_style: String::new(),
+            profile_hair_texture: String::new(),
+            profile_neck: String::new(),
+            profile_shoulders: String::new(),
+            profile_chest: String::new(),
+            profile_waist: String::new(),
+            profile_hips: String::new(),
+            profile_thighs: String::new(),
+            profile_inseam: String::new(),
+            profile_shoe_size: String::new(),
+            profile_shirt_size: String::new(),
+            profile_pants_size: String::new(),
+            profile_pronouns: String::new(),
+            profile_location: String::new(),
+            profile_website: String::new(),
+            profile_private_notes: String::new(),
+            profile_network_name: String::new(),
+            profile_network_bio: String::new(),
+            profile_network_avatar: String::new(),
+            profile_interests: Vec::new(),
+            profile_interest_input: String::new(),
+            profile_skills: vec![
+                ("Farming".into(), 0.3),
+                ("Crafting".into(), 0.1),
+                ("Trading".into(), 0.0),
+                ("Building".into(), 0.05),
+                ("Cooking".into(), 0.0),
+                ("Mining".into(), 0.0),
+                ("Combat".into(), 0.0),
+                ("Navigation".into(), 0.0),
+            ],
+            profile_social_links: Vec::new(),
+            profile_social_platform: String::new(),
+            profile_social_url: String::new(),
+            profile_streaming_url: String::new(),
+            profile_streaming_live: false,
 
             // Map defaults
             map_planets: default_planets(),
@@ -543,24 +628,67 @@ fn default_planets() -> Vec<GuiPlanet> {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SettingsCategory {
-    Graphics,
+    Account,
+    Appearance,
+    Notifications,
+    Wallet,
     Audio,
+    Graphics,
     Controls,
+    Privacy,
+    Data,
     Updates,
+}
+
+/// Profile page sidebar sections.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileSection {
+    // Private (red)
+    BodyMeasurements,
+    Identity,
+    PrivateNotes,
+    // Personal (orange)
+    NetworkProfile,
+    Interests,
+    Skills,
+    // Public (green)
+    SocialLinks,
+    Streaming,
 }
 
 #[cfg(feature = "native")]
 pub struct SettingsState {
     pub category: SettingsCategory,
+    // Graphics
     pub fullscreen: bool,
     pub vsync: bool,
     pub fov: f32,
     pub render_distance: f32,
+    // Audio
     pub master_volume: f32,
     pub music_volume: f32,
     pub sfx_volume: f32,
+    // Controls
     pub mouse_sensitivity: f32,
     pub invert_y: bool,
+    // Appearance
+    pub dark_mode: bool,
+    pub font_size: f32,
+    // Notifications
+    pub notify_dm: bool,
+    pub notify_mentions: bool,
+    pub notify_tasks: bool,
+    pub dnd_start: String,
+    pub dnd_end: String,
+    // Wallet
+    pub wallet_network: WalletNetwork,
+    pub custom_rpc_url: String,
+    // Privacy
+    pub profile_visible: bool,
+    pub online_status_visible: bool,
+    // Data
+    pub seed_phrase_visible: bool,
 }
 
 #[cfg(feature = "native")]
@@ -577,6 +705,18 @@ impl Default for SettingsState {
             sfx_volume: 0.7,
             mouse_sensitivity: 3.0,
             invert_y: false,
+            dark_mode: true,
+            font_size: 14.0,
+            notify_dm: true,
+            notify_mentions: true,
+            notify_tasks: true,
+            dnd_start: String::new(),
+            dnd_end: String::new(),
+            wallet_network: WalletNetwork::Devnet,
+            custom_rpc_url: String::new(),
+            profile_visible: true,
+            online_status_visible: true,
+            seed_phrase_visible: false,
         }
     }
 }

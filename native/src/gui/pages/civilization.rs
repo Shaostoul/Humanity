@@ -1,6 +1,7 @@
 //! Civilization dashboard — community stats (Real) or colony stats (Sim).
+//! 3-column stats grid, trend arrows, progress bars, events timeline, charts placeholder.
 
-use egui::{Color32, Frame, RichText, ScrollArea, Vec2};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -20,53 +21,47 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let mode_label = if is_real { "Real" } else { "Sim" };
-                    ui.label(
-                        RichText::new(mode_label)
-                            .size(theme.font_size_small)
-                            .color(theme.accent()),
-                    );
+                    let mode_btn = egui::Button::new(
+                        RichText::new(mode_label).size(theme.font_size_small).color(theme.text_on_accent()),
+                    )
+                    .fill(theme.accent())
+                    .rounding(Rounding::same(4));
+                    ui.add(mode_btn);
                 });
             });
 
             ui.add_space(theme.spacing_md);
 
             ScrollArea::vertical().show(ui, |ui| {
-                // Stats grid (2 columns)
-                let stats = if is_real {
+                // Stats definitions with trend arrows
+                let stats: Vec<(&str, String, &str, f32)> = if is_real {
                     vec![
-                        ("Population", state.civ_population.to_string()),
-                        ("Buildings", state.civ_buildings.to_string()),
-                        ("Resources", state.civ_resources.to_string()),
-                        ("Tech Level", format!("Level {}", state.civ_tech_level)),
+                        ("Population", state.civ_population.to_string(), "+12", 0.0),
+                        ("Buildings Built", state.civ_buildings.to_string(), "+3", 0.0),
+                        ("Resources Gathered", state.civ_resources.to_string(), "+45", 0.0),
+                        ("Technology Level", format!("Level {}", state.civ_tech_level), "", civ_tech_progress(state.civ_tech_level)),
+                        ("Food Supply", format!("{:.0}%", state.civ_food * 100.0), "", state.civ_food),
+                        ("Energy Production", format!("{:.0}%", state.civ_energy * 100.0), "", state.civ_energy),
                     ]
                 } else {
                     vec![
-                        ("Colonists", state.civ_population.to_string()),
-                        ("Structures", state.civ_buildings.to_string()),
-                        ("Stockpile", state.civ_resources.to_string()),
-                        ("Research", format!("Tier {}", state.civ_tech_level)),
+                        ("Colonists", state.civ_population.to_string(), "+5", 0.0),
+                        ("Structures", state.civ_buildings.to_string(), "+2", 0.0),
+                        ("Stockpile", state.civ_resources.to_string(), "+28", 0.0),
+                        ("Research Tier", format!("Tier {}", state.civ_tech_level), "", civ_tech_progress(state.civ_tech_level)),
+                        ("Food Reserves", format!("{:.0}%", state.civ_food * 100.0), "", state.civ_food),
+                        ("Power Grid", format!("{:.0}%", state.civ_energy * 100.0), "", state.civ_energy),
                     ]
                 };
 
-                egui::Grid::new("civ_stats_grid")
-                    .num_columns(2)
-                    .spacing(Vec2::new(theme.spacing_md, theme.spacing_sm))
+                // 3-column stats grid
+                egui::Grid::new("civ_stats_grid_3col")
+                    .num_columns(3)
+                    .spacing(Vec2::new(theme.spacing_sm, theme.spacing_sm))
                     .show(ui, |ui| {
-                        for (i, (label, value)) in stats.iter().enumerate() {
-                            widgets::card(ui, theme, |ui| {
-                                ui.set_min_width(220.0);
-                                ui.label(
-                                    RichText::new(*label)
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_muted()),
-                                );
-                                ui.label(
-                                    RichText::new(value)
-                                        .size(theme.font_size_title)
-                                        .color(theme.accent()),
-                                );
-                            });
-                            if i % 2 == 1 {
+                        for (i, (label, value, trend, progress)) in stats.iter().enumerate() {
+                            draw_stat_card(ui, theme, label, value, trend, *progress);
+                            if (i + 1) % 3 == 0 {
                                 ui.end_row();
                             }
                         }
@@ -74,18 +69,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.add_space(theme.spacing_md);
 
-                // Progress bars for key metrics
-                let metrics = if is_real {
+                // Key metrics with progress bars
+                let metrics: Vec<(&str, f32)> = if is_real {
                     vec![
-                        ("Food Supply", state.civ_food),
-                        ("Energy", state.civ_energy),
-                        ("Water", state.civ_water),
+                        ("Water Supply", state.civ_water),
                         ("Happiness", state.civ_happiness),
                     ]
                 } else {
                     vec![
-                        ("Food Reserves", state.civ_food),
-                        ("Power Grid", state.civ_energy),
                         ("Water Recycling", state.civ_water),
                         ("Morale", state.civ_happiness),
                     ]
@@ -94,32 +85,64 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 widgets::card(ui, theme, |ui| {
                     ui.label(
                         RichText::new("Key Metrics")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary()),
                     );
                     ui.add_space(theme.spacing_xs);
                     for (label, value) in &metrics {
                         ui.horizontal(|ui| {
-                            ui.set_min_width(100.0);
+                            ui.set_min_width(120.0);
                             ui.label(
                                 RichText::new(*label)
-                                    .size(theme.font_size_small)
+                                    .size(theme.font_size_body)
                                     .color(theme.text_secondary()),
                             );
                         });
-                        widgets::progress_bar(ui, theme, *value, Some(&format!("{:.0}%", value * 100.0)));
+                        let color = if *value >= 0.7 {
+                            theme.success()
+                        } else if *value >= 0.4 {
+                            theme.warning()
+                        } else {
+                            theme.danger()
+                        };
+                        let bar = egui::ProgressBar::new(value.clamp(0.0, 1.0))
+                            .fill(color)
+                            .text(format!("{:.0}%", value * 100.0));
+                        ui.add(bar);
                         ui.add_space(theme.spacing_xs);
                     }
                 });
 
                 ui.add_space(theme.spacing_md);
 
-                // Recent events log
+                // Charts placeholder
+                widgets::card(ui, theme, |ui| {
+                    ui.label(
+                        RichText::new("Charts")
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary()),
+                    );
+                    ui.add_space(theme.spacing_sm);
+                    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width().min(500.0), 120.0), egui::Sense::hover());
+                    ui.painter().rect_filled(rect, Rounding::same(8), Color32::from_rgb(25, 25, 32));
+                    ui.painter().rect_stroke(rect, Rounding::same(8), Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "Charts coming soon",
+                        egui::FontId::proportional(theme.font_size_body),
+                        theme.text_muted(),
+                    );
+                });
+
+                ui.add_space(theme.spacing_md);
+
+                // Recent events timeline
                 widgets::card(ui, theme, |ui| {
                     ui.label(
                         RichText::new("Recent Events")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary()),
                     );
                     ui.add_space(theme.spacing_xs);
 
@@ -129,15 +152,79 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .color(theme.text_muted()),
                         );
                     } else {
-                        for event in state.civ_events.iter().rev() {
-                            ui.label(
-                                RichText::new(event)
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_secondary()),
-                            );
-                        }
+                        ScrollArea::vertical()
+                            .id_salt("civ_events_scroll")
+                            .max_height(180.0)
+                            .show(ui, |ui| {
+                                for (i, event) in state.civ_events.iter().rev().enumerate() {
+                                    ui.horizontal(|ui| {
+                                        // Timeline dot
+                                        let (dot_rect, _) = ui.allocate_exact_size(
+                                            Vec2::new(8.0, 8.0),
+                                            egui::Sense::hover(),
+                                        );
+                                        let dot_color = if i == 0 { theme.accent() } else { theme.text_muted() };
+                                        ui.painter().circle_filled(dot_rect.center(), 4.0, dot_color);
+
+                                        ui.label(
+                                            RichText::new(event)
+                                                .size(theme.font_size_small)
+                                                .color(if i == 0 { theme.text_primary() } else { theme.text_secondary() }),
+                                        );
+                                    });
+                                }
+                            });
                     }
                 });
             });
         });
+}
+
+/// Draw a stat card with large number, trend arrow, and optional progress bar.
+fn draw_stat_card(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str, trend: &str, progress: f32) {
+    let frame = egui::Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius as u8))
+        .stroke(Stroke::new(1.0, theme.border()))
+        .inner_margin(theme.card_padding);
+
+    frame.show(ui, |ui| {
+        ui.set_min_width(180.0);
+        ui.label(
+            RichText::new(label)
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(value)
+                    .size(theme.font_size_title)
+                    .color(theme.accent()),
+            );
+            if !trend.is_empty() {
+                let (arrow, color) = if trend.starts_with('+') {
+                    ("^", theme.success())
+                } else if trend.starts_with('-') {
+                    ("v", theme.danger())
+                } else {
+                    ("-", theme.text_muted())
+                };
+                ui.label(
+                    RichText::new(format!("{} {}", arrow, trend))
+                        .size(theme.font_size_small)
+                        .color(color),
+                );
+            }
+        });
+        if progress > 0.0 {
+            widgets::progress_bar(ui, theme, progress, None);
+        }
+    });
+}
+
+/// Calculate tech progress as a fraction for progress bar display.
+fn civ_tech_progress(level: u32) -> f32 {
+    // Show progress within current level (each level requires more)
+    let max_level = 10u32;
+    (level as f32 / max_level as f32).clamp(0.0, 1.0)
 }

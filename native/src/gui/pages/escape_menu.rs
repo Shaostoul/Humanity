@@ -6,7 +6,7 @@
 //! - Blue group: system/config pages
 //! Plus a Real/Sim toggle on the right.
 
-use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Vec2};
+use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Stroke, Vec2};
 use crate::gui::{GuiPage, GuiState, VERSION};
 
 // Color constants matching web theme.css
@@ -230,39 +230,59 @@ fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
     Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
 }
 
-/// Draw a group of nav buttons with a colored underline.
-/// Active button gets an RGB channeling animation cycling through hues.
+/// Draw a group of nav buttons with border-based visual language.
+///
+/// Border states (from ops.html Color Reference):
+/// - Default: thin 1px border in group color at low opacity
+/// - Hover: blue 2px border glow
+/// - Active (current page): animated RGB border cycling through hue spectrum
+///
+/// Group color subtly tints the button background.
 fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, state: &mut GuiState) {
+    let time = ui.ctx().input(|i| i.time) as f32;
+
     for item in items {
         let is_active = std::mem::discriminant(&state.active_page)
             == std::mem::discriminant(&item.page);
 
         let text_color = if is_active { Color32::WHITE } else { TEXT_MUTED };
 
+        // Subtle group-color tinted background
+        let bg_fill = if is_active {
+            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 30)
+        } else {
+            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 10)
+        };
+
+        // Border: active = animated RGB, default = thin group color
+        let border_stroke = if is_active {
+            let hue = (time * 0.3) % 1.0;
+            let rgb = hsv_to_rgb(hue, 0.9, 1.0);
+            Stroke::new(2.0, rgb)
+        } else {
+            Stroke::new(1.0, Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 60))
+        };
+
         let response = ui.add(
             egui::Button::new(RichText::new(item.label).size(11.0).color(text_color))
-                .fill(Color32::TRANSPARENT)
+                .fill(bg_fill)
+                .stroke(border_stroke)
+                .rounding(Rounding::same(4))
                 .min_size(Vec2::new(0.0, 28.0)),
         );
 
-        // Draw colored underline — active buttons get RGB channeling animation
-        let rect = response.rect;
-        let painter = ui.painter();
-        let underline_color = if is_active {
-            let time = ui.ctx().input(|i| i.time) as f32;
-            let hue = (time * 0.3) % 1.0;
-            hsv_to_rgb(hue, 0.8, 1.0)
-        } else {
-            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 80)
-        };
-        painter.rect_filled(
-            egui::Rect::from_min_size(
-                egui::pos2(rect.left() + 2.0, rect.bottom() - 3.0),
-                Vec2::new(rect.width() - 4.0, 3.0),
-            ),
-            Rounding::same(2),
-            underline_color,
-        );
+        // Override border on hover: blue 2px glow
+        if response.hovered() && !is_active {
+            let rect = response.rect;
+            let painter = ui.painter();
+            let hover_color = Color32::from_rgb(52, 152, 219); // BLUE
+            painter.rect_stroke(
+                rect,
+                Rounding::same(4),
+                Stroke::new(2.0, hover_color),
+                egui::StrokeKind::Outside,
+            );
+        }
 
         if response.clicked() {
             state.active_page = item.page.clone();
