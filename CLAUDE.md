@@ -4,7 +4,11 @@ Open-source cooperative platform. Goal: end poverty, unite humanity.
 Live: https://united-humanity.us | GitHub: https://github.com/Shaostoul/Humanity
 SSH alias: `humanity-vps` (server1.shaostoul.com)
 
-> **⚠️ START HERE:** Read `docs/STATUS.md` for comprehensive feature inventory (what's built, what's not, what's next). Prevents re-researching existing features.
+> **⚠️ START HERE:**
+> 1. Read `docs/STATUS.md` for feature inventory (what's built, what's not)
+> 2. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
+> 3. Read `docs/SOP.md` for version sync, deploy, and development procedures
+> 4. Prevents re-researching, re-building, and re-fixing existing work
 
 ## Quick orientation
 
