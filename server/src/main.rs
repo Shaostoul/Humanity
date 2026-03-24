@@ -193,6 +193,38 @@ async fn main() {
         });
     }
 
+    // Game world tick loop: advance simulation and send TimeSync every 5 seconds.
+    {
+        let game_state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+            loop {
+                interval.tick().await;
+                let mut world = game_state.game_world.write().await;
+                world.tick(5.0); // 5 seconds elapsed
+                let game_time = world.game_time;
+                let player_count = world.player_count();
+                drop(world);
+
+                // Only send TimeSync if there are game players online.
+                if player_count > 0 {
+                    let server_time = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs_f64();
+                    let sync_msg = serde_json::json!({
+                        "type": "game_time_sync",
+                        "game_time": game_time,
+                        "server_time": server_time,
+                    });
+                    let _ = game_state.broadcast_tx.send(relay::RelayMessage::System {
+                        message: format!("__game__:{}", sync_msg),
+                    });
+                }
+            }
+        });
+    }
+
     // Automated SQLite backup every 6 hours, keeping last 5 backups.
     {
         let backup_db_path = db_path.clone();
@@ -326,6 +358,7 @@ async fn main() {
         .route("/api/files", get(api::list_files))
         .route("/api/files/read", get(api::read_file))
         .route("/api/files/write", post(api::write_file))
+        .route("/api/admin/stats", get(api::get_admin_stats))
         .route("/api/asset-manifest", get(api::get_asset_manifest))
         .route("/api/web-manifest", get(api::get_web_manifest))
         .route("/api/me/system",

@@ -6,6 +6,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
 
+use rand::Rng;
+
 use crate::relay::*;
 use crate::storage::Storage;
 use crate::handlers::broadcast::*;
@@ -2612,5 +2614,468 @@ pub async fn handle_project_delete(
             let _ = state.broadcast_tx.send(private);
         }
         Err(e) => tracing::error!("Project delete error: {e}"),
+    }
+}
+
+// ── Trade handlers ──
+
+/// Helper: convert a TradeRecord to a TradeDataPayload for sending to clients.
+fn trade_to_payload(t: &crate::storage::TradeRecord) -> TradeDataPayload {
+    let initiator_items: Vec<TradeItem> = serde_json::from_str(&t.initiator_items).unwrap_or_default();
+    let recipient_items: Vec<TradeItem> = serde_json::from_str(&t.recipient_items).unwrap_or_default();
+    TradeDataPayload {
+        id: t.id.clone(),
+        initiator_key: t.initiator_key.clone(),
+        recipient_key: t.recipient_key.clone(),
+        status: t.status.clone(),
+        initiator_items,
+        recipient_items,
+        initiator_confirmed: t.initiator_confirmed,
+        recipient_confirmed: t.recipient_confirmed,
+        created_at: t.created_at,
+        completed_at: t.completed_at,
+        message: t.message.clone(),
+    }
+}
+
+/// Send trade data to both parties.
+fn send_trade_data(state: &Arc<RelayState>, trade: &crate::storage::TradeRecord) {
+    let payload = trade_to_payload(trade);
+    // Send to initiator
+    let msg1 = RelayMessage::TradeData { trade: payload.clone() };
+    let _ = state.broadcast_tx.send(msg1);
+    // The broadcast loop will deliver to both since TradeData has no target filter.
+    // We rely on the client filtering by their own key.
+    // Actually, we need to send as Private-like targeted messages. Let's use the
+    // existing Private pattern with JSON prefix.
+    let json = serde_json::to_string(&RelayMessage::TradeData { trade: payload }).unwrap_or_default();
+    let priv_init = RelayMessage::Private {
+        to: trade.initiator_key.clone(),
+        message: format!("__trade_data__:{}", json),
+    };
+    let priv_recv = RelayMessage::Private {
+        to: trade.recipient_key.clone(),
+        message: format!("__trade_data__:{}", json),
+    };
+    let _ = state.broadcast_tx.send(priv_init);
+    let _ = state.broadcast_tx.send(priv_recv);
+}
+
+pub async fn handle_trade_request(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let target_key = match raw.get("target_key").and_then(|v| v.as_str()) {
+        Some(k) if !k.is_empty() && k != my_key => k,
+        _ => {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Invalid trade target.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+            return;
+        }
+    };
+    let message = raw.get("message").and_then(|v| v.as_str()).unwrap_or("");
+
+    // Check target is online.
+    let target_online = state.peers.read().await.contains_key(target_key);
+    if !target_online {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Trade target is not online.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+
+    // Limit active trades per user (max 10).
+    if let Ok(trades) = state.db.get_trades_for_user(my_key) {
+        let active = trades.iter().filter(|t| t.status == "pending" || t.status == "active").count();
+        if active >= 10 {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Too many active trades (max 10). Cancel some first.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+            return;
+        }
+    }
+
+    let trade_id = format!("trade_{}", rand::rng().random::<u64>());
+    match state.db.create_trade(&trade_id, my_key, target_key, if message.is_empty() { None } else { Some(message) }) {
+        Ok(()) => {
+            if let Ok(Some(trade)) = state.db.get_trade(&trade_id) {
+                send_trade_data(state, &trade);
+            }
+        }
+        Err(e) => tracing::error!("Trade create error: {e}"),
+    }
+}
+
+pub async fn handle_trade_response(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let trade_id = match raw.get("trade_id").and_then(|v| v.as_str()) {
+        Some(id) => id,
+        None => return,
+    };
+    let accepted = raw.get("accepted").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    // Only the recipient can respond.
+    if let Ok(Some(trade)) = state.db.get_trade(trade_id) {
+        if trade.recipient_key != my_key {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Only the trade recipient can accept/reject.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+            return;
+        }
+        match state.db.respond_to_trade(trade_id, accepted) {
+            Ok(true) => {
+                if let Ok(Some(updated)) = state.db.get_trade(trade_id) {
+                    send_trade_data(state, &updated);
+                }
+            }
+            Ok(false) => {
+                let private = RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: "Trade not found or not pending.".to_string(),
+                };
+                let _ = state.broadcast_tx.send(private);
+            }
+            Err(e) => tracing::error!("Trade response error: {e}"),
+        }
+    }
+}
+
+pub async fn handle_trade_update_items(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let trade_id = match raw.get("trade_id").and_then(|v| v.as_str()) {
+        Some(id) => id,
+        None => return,
+    };
+    let items = match raw.get("items") {
+        Some(v) => v.to_string(),
+        None => return,
+    };
+
+    // Validate items JSON parses as an array.
+    if serde_json::from_str::<Vec<TradeItem>>(&items).is_err() {
+        let private = RelayMessage::Private {
+            to: my_key.to_string(),
+            message: "Invalid items format.".to_string(),
+        };
+        let _ = state.broadcast_tx.send(private);
+        return;
+    }
+
+    if let Ok(Some(trade)) = state.db.get_trade(trade_id) {
+        let side = if my_key == trade.initiator_key {
+            "initiator"
+        } else if my_key == trade.recipient_key {
+            "recipient"
+        } else {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "You are not part of this trade.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+            return;
+        };
+
+        match state.db.update_trade_items(trade_id, side, &items) {
+            Ok(true) => {
+                if let Ok(Some(updated)) = state.db.get_trade(trade_id) {
+                    send_trade_data(state, &updated);
+                }
+            }
+            Ok(false) => {
+                let private = RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: "Trade not active or not found.".to_string(),
+                };
+                let _ = state.broadcast_tx.send(private);
+            }
+            Err(e) => tracing::error!("Trade update items error: {e}"),
+        }
+    }
+}
+
+pub async fn handle_trade_confirm(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let trade_id = match raw.get("trade_id").and_then(|v| v.as_str()) {
+        Some(id) => id,
+        None => return,
+    };
+
+    match state.db.confirm_trade(trade_id, my_key) {
+        Ok((true, both_confirmed)) => {
+            if both_confirmed {
+                // Both confirmed — complete the trade.
+                match state.db.complete_trade(trade_id) {
+                    Ok(true) => {
+                        if let Ok(Some(completed)) = state.db.get_trade(trade_id) {
+                            send_trade_data(state, &completed);
+                            // Also send a completion notification.
+                            let comp_msg1 = RelayMessage::Private {
+                                to: completed.initiator_key.clone(),
+                                message: format!("__trade_complete__:{{\"trade_id\":\"{}\"}}", trade_id),
+                            };
+                            let comp_msg2 = RelayMessage::Private {
+                                to: completed.recipient_key.clone(),
+                                message: format!("__trade_complete__:{{\"trade_id\":\"{}\"}}", trade_id),
+                            };
+                            let _ = state.broadcast_tx.send(comp_msg1);
+                            let _ = state.broadcast_tx.send(comp_msg2);
+                        }
+                    }
+                    Ok(false) => tracing::warn!("Trade completion failed for {trade_id}"),
+                    Err(e) => tracing::error!("Trade complete error: {e}"),
+                }
+            } else {
+                // Only one side confirmed so far — notify both.
+                if let Ok(Some(updated)) = state.db.get_trade(trade_id) {
+                    send_trade_data(state, &updated);
+                }
+            }
+        }
+        Ok((false, _)) => {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Trade not active, not found, or you're not part of it.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        Err(e) => tracing::error!("Trade confirm error: {e}"),
+    }
+}
+
+pub async fn handle_trade_cancel(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let trade_id = match raw.get("trade_id").and_then(|v| v.as_str()) {
+        Some(id) => id,
+        None => return,
+    };
+
+    match state.db.cancel_trade(trade_id, my_key) {
+        Ok(true) => {
+            if let Ok(Some(cancelled)) = state.db.get_trade(trade_id) {
+                send_trade_data(state, &cancelled);
+            }
+        }
+        Ok(false) => {
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: "Trade not found, already completed, or you're not part of it.".to_string(),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        Err(e) => tracing::error!("Trade cancel error: {e}"),
+    }
+}
+
+pub async fn handle_trade_list_request(
+    state: &Arc<RelayState>,
+    my_key: &str,
+) {
+    match state.db.get_trades_for_user(my_key) {
+        Ok(trades) => {
+            let payloads: Vec<TradeDataPayload> = trades.iter().map(trade_to_payload).collect();
+            let json = serde_json::json!({
+                "type": "trade_list",
+                "trades": payloads,
+            }).to_string();
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: format!("__trade_list__:{}", json),
+            };
+            let _ = state.broadcast_tx.send(private);
+        }
+        Err(e) => tracing::error!("Trade list error: {e}"),
+    }
+}
+
+// ── Game state handlers ──
+
+/// Handle a client joining the game world.
+/// Creates a player entity in GameWorld, sends Welcome with world snapshot,
+/// and broadcasts PlayerJoined to all other clients.
+pub async fn handle_game_join(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let player_name = raw.get("player_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Anonymous")
+        .to_string();
+
+    let mut world = state.game_world.write().await;
+
+    // Don't create duplicate player entities.
+    if world.find_player_entity(my_key).is_some() {
+        tracing::warn!("Player {} already in game world, ignoring duplicate join", my_key);
+        return;
+    }
+
+    // Spawn player at default position.
+    let spawn_pos = [0.0_f32, 1.0, 0.0];
+    let player_id = world.spawn_player(my_key, spawn_pos);
+
+    // Build world snapshot for the joiner.
+    let snapshot = world.snapshot();
+    let game_time = world.game_time;
+    drop(world);
+
+    // Build snapshot JSON values.
+    let snapshot_json: Vec<serde_json::Value> = snapshot.iter().map(|s| {
+        serde_json::json!({
+            "entity_id": s.entity_id,
+            "entity_type": s.entity_type,
+            "position": s.position,
+            "rotation": s.rotation,
+            "components": s.components,
+        })
+    }).collect();
+
+    // Send Welcome to the joining player.
+    let welcome = serde_json::json!({
+        "type": "game_welcome",
+        "player_id": player_id,
+        "world_snapshot": snapshot_json,
+        "game_time": game_time,
+    });
+    let private = RelayMessage::Private {
+        to: my_key.to_string(),
+        message: format!("__game__:{}", welcome),
+    };
+    let _ = state.broadcast_tx.send(private);
+
+    // Broadcast PlayerJoined to all clients.
+    let joined = serde_json::json!({
+        "type": "game_player_joined",
+        "player_id": player_id,
+        "name": player_name,
+        "position": spawn_pos,
+    });
+    let _ = state.broadcast_tx.send(RelayMessage::System {
+        message: format!("__game__:{}", joined),
+    });
+
+    tracing::info!("Game: player '{}' ({}) joined as entity {}", player_name, my_key, player_id);
+}
+
+/// Handle a position update from a game client.
+/// Validates the update, applies it server-side, and relays to other clients.
+pub async fn handle_game_position_update(
+    state: &Arc<RelayState>,
+    my_key: &str,
+    raw: &serde_json::Value,
+) {
+    let position: [f32; 3] = match raw.get("position").and_then(|v| {
+        let arr = v.as_array()?;
+        if arr.len() != 3 { return None; }
+        Some([
+            arr[0].as_f64()? as f32,
+            arr[1].as_f64()? as f32,
+            arr[2].as_f64()? as f32,
+        ])
+    }) {
+        Some(p) => p,
+        None => return,
+    };
+
+    let rotation: [f32; 4] = raw.get("rotation").and_then(|v| {
+        let arr = v.as_array()?;
+        if arr.len() != 4 { return None; }
+        Some([
+            arr[0].as_f64()? as f32,
+            arr[1].as_f64()? as f32,
+            arr[2].as_f64()? as f32,
+            arr[3].as_f64()? as f32,
+        ])
+    }).unwrap_or([0.0, 0.0, 0.0, 1.0]);
+
+    let velocity: [f32; 3] = raw.get("velocity").and_then(|v| {
+        let arr = v.as_array()?;
+        if arr.len() != 3 { return None; }
+        Some([
+            arr[0].as_f64()? as f32,
+            arr[1].as_f64()? as f32,
+            arr[2].as_f64()? as f32,
+        ])
+    }).unwrap_or([0.0, 0.0, 0.0]);
+
+    let timestamp = raw.get("timestamp")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    let mut world = state.game_world.write().await;
+    let player_id = match world.find_player_entity(my_key) {
+        Some(id) => id,
+        None => return, // Not in the game world
+    };
+
+    // Server-side validation: reject teleportation (> 100 units per update).
+    if let Some(entity) = world.entities.get(&player_id) {
+        let dx = position[0] - entity.position[0];
+        let dy = position[1] - entity.position[1];
+        let dz = position[2] - entity.position[2];
+        let dist_sq = dx * dx + dy * dy + dz * dz;
+        if dist_sq > 100.0 * 100.0 {
+            tracing::warn!("Game: rejected teleport from {} (dist={})", my_key, dist_sq.sqrt());
+            return;
+        }
+    }
+
+    world.update_position(player_id, position, rotation);
+    drop(world);
+
+    // Relay to all other game clients via broadcast.
+    let update = serde_json::json!({
+        "type": "game_position_update",
+        "player_id": player_id,
+        "position": position,
+        "rotation": rotation,
+        "velocity": velocity,
+        "timestamp": timestamp,
+    });
+    let _ = state.broadcast_tx.send(RelayMessage::System {
+        message: format!("__game__:{}", update),
+    });
+}
+
+/// Handle a game client disconnecting. Removes their player entity and broadcasts PlayerLeft.
+pub async fn handle_game_disconnect(
+    state: &Arc<RelayState>,
+    player_key: &str,
+) {
+    let mut world = state.game_world.write().await;
+    if let Some(entity_id) = world.despawn_player(player_key) {
+        drop(world);
+
+        let left = serde_json::json!({
+            "type": "game_player_left",
+            "player_id": entity_id,
+        });
+        let _ = state.broadcast_tx.send(RelayMessage::System {
+            message: format!("__game__:{}", left),
+        });
+
+        tracing::info!("Game: player {} left (entity {})", player_key, entity_id);
     }
 }

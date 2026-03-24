@@ -834,6 +834,27 @@ impl Storage {
             );"
         )?;
 
+        // Peer-to-peer trades with escrow.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS trades (
+                id                TEXT PRIMARY KEY,
+                initiator_key     TEXT NOT NULL,
+                recipient_key     TEXT NOT NULL,
+                status            TEXT NOT NULL DEFAULT 'pending',
+                initiator_items   TEXT NOT NULL DEFAULT '[]',
+                recipient_items   TEXT NOT NULL DEFAULT '[]',
+                initiator_confirmed INTEGER DEFAULT 0,
+                recipient_confirmed INTEGER DEFAULT 0,
+                created_at        INTEGER NOT NULL,
+                completed_at      INTEGER,
+                message           TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_trades_initiator ON trades(initiator_key);
+            CREATE INDEX IF NOT EXISTS idx_trades_recipient ON trades(recipient_key);
+            CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);"
+        )?;
+
         // Listing messages for buyer-seller marketplace conversations.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS listing_messages (
@@ -1031,6 +1052,7 @@ mod reviews;
 mod members;
 mod signed_profiles;
 mod notification_prefs;
+mod trading;
 mod vault_sync;
 mod civilization;
 pub mod files;
@@ -1038,3 +1060,4 @@ pub mod files;
 pub use civilization::CivilizationStats;
 pub use marketplace::ListingMessageRecord;
 pub use notification_prefs::NotifPrefs;
+pub use trading::TradeRecord;

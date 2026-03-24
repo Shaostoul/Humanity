@@ -8,6 +8,7 @@ pub mod mesh;
 pub mod multi_scale;
 pub mod pipeline;
 pub mod shader_loader;
+pub mod sky;
 
 use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};

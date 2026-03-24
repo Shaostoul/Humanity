@@ -1,0 +1,9 @@
+{
+  "name": "Example Mod",
+  "id": "example-mod",
+  "version": "1.0.0",
+  "author": "Community",
+  "description": "An example mod showing the mod structure.",
+  "load_order": 100,
+  "dependencies": []
+}

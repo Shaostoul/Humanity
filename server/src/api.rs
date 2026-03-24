@@ -2688,3 +2688,114 @@ pub async fn write_file(
         }))).into_response(),
     }
 }
+
+// ── Admin Analytics API ──
+
+/// Query params for GET /api/admin/stats (Ed25519-signed).
+#[derive(Debug, Deserialize)]
+pub struct AdminStatsQuery {
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+}
+
+/// GET /api/admin/stats — admin-only server analytics.
+/// Authenticated via Ed25519 signature (same pattern as vault_sync).
+pub async fn get_admin_stats(
+    State(state): State<Arc<RelayState>>,
+    Query(q): Query<AdminStatsQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    // Verify freshness (5 min window).
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+
+    // Verify Ed25519 signature.
+    if !verify_ed25519_signature(&q.key, "admin_stats", q.timestamp, &q.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    // Check admin role.
+    let role = state.db.get_role(&q.key).unwrap_or_default();
+    if role != "admin" {
+        return Err((StatusCode::FORBIDDEN, "Admin role required.".into()));
+    }
+
+    // Gather stats.
+    let user_count = state.db.get_member_count(None).unwrap_or(0);
+    let online_count = state.peers.read().await.len();
+    let total_messages = state.db.message_count().unwrap_or(0);
+    let uptime_seconds = state.start_time.elapsed().as_secs();
+
+    // Message count in last 24h.
+    let message_count_24h = state.db.message_count_since_hours(24).unwrap_or(0);
+
+    // DB file size.
+    let db_size_bytes = std::fs::metadata("data/relay.db")
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    // Upload storage size.
+    let upload_size_bytes = std::fs::read_dir("data/uploads")
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter_map(|e| e.metadata().ok())
+                .filter(|m| m.is_file())
+                .map(|m| m.len())
+                .sum::<u64>()
+        })
+        .unwrap_or(0);
+
+    // Top channels by message count.
+    let top_channels = state.db.top_channels_by_messages(10).unwrap_or_default();
+
+    // Recent joins (last 10).
+    let recent_joins = state.db.recent_joins(10).unwrap_or_default();
+
+    // Federation servers.
+    let federation_servers = state.db.list_federated_servers().unwrap_or_default();
+    let federation: Vec<serde_json::Value> = federation_servers.into_iter().map(|s| {
+        serde_json::json!({
+            "server_id": s.server_id,
+            "name": s.name,
+            "url": s.url,
+            "trust_tier": s.trust_tier,
+            "status": s.status,
+            "last_seen": s.last_seen,
+        })
+    }).collect();
+
+    // Messages per hour (last 24h) for activity chart.
+    let hourly_messages = state.db.messages_per_hour_24h().unwrap_or_default();
+
+    // Game world stats.
+    let game_world = state.game_world.read().await;
+    let game_players = game_world.player_count();
+    let game_entities = game_world.entity_count();
+    let game_time = game_world.game_time;
+    drop(game_world);
+
+    Ok(Json(serde_json::json!({
+        "user_count": user_count,
+        "online_count": online_count,
+        "total_messages": total_messages,
+        "message_count_24h": message_count_24h,
+        "db_size_bytes": db_size_bytes,
+        "upload_size_bytes": upload_size_bytes,
+        "uptime_seconds": uptime_seconds,
+        "top_channels": top_channels,
+        "recent_joins": recent_joins,
+        "federation": federation,
+        "hourly_messages": hourly_messages,
+        "game_players": game_players,
+        "game_entities": game_entities,
+        "game_time": game_time,
+    })))
+}

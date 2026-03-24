@@ -1,0 +1,45 @@
+{
+  "meta": { "language": "Français", "code": "fr", "direction": "ltr" },
+  "nav": {
+    "home": "Accueil",
+    "chat": "Discussion",
+    "profile": "Profil",
+    "civilization": "Civilisation",
+    "tasks": "Tâches",
+    "inventory": "Inventaire",
+    "maps": "Cartes",
+    "market": "Marché",
+    "settings": "Paramètres",
+    "download": "Télécharger",
+    "donate": "Faire un don",
+    "tools": "Outils",
+    "files": "Fichiers"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "search": "Rechercher",
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "refresh": "Actualiser",
+    "real": "Réel",
+    "sim": "Sim"
+  },
+  "chat": {
+    "type_message": "Écrire un message...",
+    "send": "Envoyer",
+    "online": "en ligne",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté"
+  },
+  "settings": {
+    "language": "Langue",
+    "theme": "Thème",
+    "notifications": "Notifications",
+    "privacy": "Confidentialité"
+  }
+}

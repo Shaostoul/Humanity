@@ -24,6 +24,9 @@ pub mod systems;
 pub mod gui;
 
 #[cfg(feature = "native")]
+pub mod mods;
+
+#[cfg(feature = "native")]
 pub mod net;
 
 #[cfg(feature = "wasm")]

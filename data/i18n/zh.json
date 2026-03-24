@@ -1,0 +1,45 @@
+{
+  "meta": { "language": "简体中文", "code": "zh", "direction": "ltr" },
+  "nav": {
+    "home": "首页",
+    "chat": "聊天",
+    "profile": "个人资料",
+    "civilization": "文明",
+    "tasks": "任务",
+    "inventory": "物品栏",
+    "maps": "地图",
+    "market": "市场",
+    "settings": "设置",
+    "download": "下载",
+    "donate": "捐赠",
+    "tools": "工具",
+    "files": "文件"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "search": "搜索",
+    "loading": "加载中...",
+    "error": "出了点问题",
+    "confirm": "确认",
+    "close": "关闭",
+    "refresh": "刷新",
+    "real": "现实",
+    "sim": "模拟"
+  },
+  "chat": {
+    "type_message": "输入消息...",
+    "send": "发送",
+    "online": "在线",
+    "connected": "已连接",
+    "disconnected": "已断开"
+  },
+  "settings": {
+    "language": "语言",
+    "theme": "主题",
+    "notifications": "通知",
+    "privacy": "隐私"
+  }
+}

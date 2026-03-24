@@ -19,3 +19,4 @@ pub mod ecology;
 pub mod economy;
 pub mod player;
 pub mod interaction;
+pub mod weather;

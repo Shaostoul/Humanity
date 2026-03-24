@@ -16,6 +16,7 @@ use crate::storage::Storage;
 use web_push_native::jwt_simple::prelude::ES256KeyPair;
 
 use crate::handlers::*;
+use crate::handlers::game_state::GameWorld;
 // Re-export start_federation_connections so main.rs can call relay::start_federation_connections.
 pub use crate::handlers::start_federation_connections;
 
@@ -134,6 +135,8 @@ pub struct RelayState {
     pub vapid_key: Option<ES256KeyPair>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
     pub server_config: serde_json::Value,
+    /// Server-authoritative game world state.
+    pub game_world: RwLock<GameWorld>,
 }
 
 impl RelayState {
@@ -219,6 +222,7 @@ impl RelayState {
             federation_rate: std::sync::Mutex::new(HashMap::new()),
             vapid_key: None,
             server_config,
+            game_world: RwLock::new(GameWorld::new()),
         }
     }
 
@@ -1565,6 +1569,98 @@ pub enum RelayMessage {
     StreamSetExternal {
         urls: Vec<StreamExternalUrl>,
     },
+
+    // ── Peer-to-Peer Trading ──
+
+    /// Client requests a trade with another user.
+    #[serde(rename = "trade_request")]
+    TradeRequest {
+        target_key: String,
+        #[serde(default)]
+        message: String,
+    },
+
+    /// Client responds to a trade request (accept/reject).
+    #[serde(rename = "trade_response")]
+    TradeResponse {
+        trade_id: String,
+        accepted: bool,
+    },
+
+    /// Client updates items on their side of a trade.
+    #[serde(rename = "trade_update_items")]
+    TradeUpdateItems {
+        trade_id: String,
+        items: Vec<TradeItem>,
+    },
+
+    /// Client confirms a trade (both must confirm to complete).
+    #[serde(rename = "trade_confirm")]
+    TradeConfirm {
+        trade_id: String,
+    },
+
+    /// Client cancels a trade.
+    #[serde(rename = "trade_cancel")]
+    TradeCancel {
+        trade_id: String,
+    },
+
+    /// Server sends trade data to both parties.
+    #[serde(rename = "trade_data")]
+    TradeData {
+        trade: TradeDataPayload,
+    },
+
+    /// Server notifies that a trade was completed.
+    #[serde(rename = "trade_complete")]
+    TradeComplete {
+        trade_id: String,
+    },
+
+    /// Client requests list of their trades.
+    #[serde(rename = "trade_list_request")]
+    TradeListRequest {},
+
+    /// Server responds with trade list.
+    #[serde(rename = "trade_list")]
+    TradeList {
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+        trades: Vec<TradeDataPayload>,
+    },
+}
+
+/// An item in a trade (flexible structure for any tradeable content).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeItem {
+    pub item_type: String,
+    pub name: String,
+    #[serde(default)]
+    pub quantity: u32,
+    #[serde(default)]
+    pub description: String,
+    /// Optional ID for referencing specific items (listing IDs, etc.).
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub reference_id: Option<String>,
+}
+
+/// Trade data sent to clients.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TradeDataPayload {
+    pub id: String,
+    pub initiator_key: String,
+    pub recipient_key: String,
+    pub status: String,
+    pub initiator_items: Vec<TradeItem>,
+    pub recipient_items: Vec<TradeItem>,
+    pub initiator_confirmed: bool,
+    pub recipient_confirmed: bool,
+    pub created_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
 }
 
 fn default_stream_source() -> String { "humanity".to_string() }
@@ -2667,6 +2763,40 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             }
                             Some("task_create") => {
                                 handle_raw_task_create(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            // ── Trade messages ──
+                            Some("trade_request") => {
+                                handle_trade_request(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("trade_response") => {
+                                handle_trade_response(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("trade_update_items") => {
+                                handle_trade_update_items(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("trade_confirm") => {
+                                handle_trade_confirm(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("trade_cancel") => {
+                                handle_trade_cancel(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("trade_list_request") => {
+                                handle_trade_list_request(&state_clone, &my_key_for_recv).await;
+                                continue;
+                            }
+                            // ── Game state messages ──
+                            Some("game_join") => {
+                                handle_game_join(&state_clone, &my_key_for_recv, &raw).await;
+                                continue;
+                            }
+                            Some("game_position_update") => {
+                                handle_game_position_update(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
                             _ => {} // Fall through to normal RelayMessage handling
@@ -4568,6 +4698,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
         }
     }
     state.kicked_keys.write().await.remove(&my_key);
+
+    // Remove player from game world on disconnect.
+    handle_game_disconnect(&state, &my_key).await;
 
     // Remove from voice rooms and clear status text on disconnect.
     leave_voice_room(&state, &my_key).await;

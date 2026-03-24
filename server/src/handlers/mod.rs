@@ -3,6 +3,7 @@
 
 pub mod broadcast;
 pub mod federation;
+pub mod game_state;
 pub mod msg_handlers;
 pub mod utils;
 
