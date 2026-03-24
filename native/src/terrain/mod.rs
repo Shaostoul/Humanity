@@ -5,5 +5,6 @@
 //! Both environments are procedurally generated from seed data.
 
 pub mod asteroid;
+pub mod heightmap;
 pub mod icosphere;
 pub mod planet;
