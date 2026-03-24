@@ -166,4 +166,29 @@ impl Storage {
             )
         })
     }
+
+    /// Get the N most recently joined members (for admin dashboard).
+    pub fn recent_joins(&self, limit: usize) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT public_key, name, role, joined_at
+                 FROM server_members
+                 ORDER BY joined_at DESC
+                 LIMIT ?1"
+            )?;
+            let rows = stmt.query_map(params![limit as i64], |row| {
+                let public_key: String = row.get(0)?;
+                let name: Option<String> = row.get(1)?;
+                let role: String = row.get(2)?;
+                let joined_at: String = row.get(3)?;
+                Ok(serde_json::json!({
+                    "public_key": public_key,
+                    "name": name,
+                    "role": role,
+                    "joined_at": joined_at,
+                }))
+            })?;
+            rows.collect()
+        })
+    }
 }

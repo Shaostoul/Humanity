@@ -581,4 +581,53 @@ impl Storage {
             )
         })
     }
+
+    /// Get message count within the last N hours.
+    pub fn message_count_since_hours(&self, hours: u64) -> Result<i64, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let cutoff_ms = super::now_millis().saturating_sub(hours * 3600 * 1000) as i64;
+            conn.query_row(
+                "SELECT COUNT(*) FROM messages WHERE msg_type = 'chat' AND timestamp > ?1",
+                rusqlite::params![cutoff_ms],
+                |row| row.get(0),
+            )
+        })
+    }
+
+    /// Get top N channels by message count.
+    pub fn top_channels_by_messages(&self, limit: usize) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT channel, COUNT(*) as cnt FROM messages
+                 WHERE msg_type = 'chat' AND channel IS NOT NULL
+                 GROUP BY channel ORDER BY cnt DESC LIMIT ?1"
+            )?;
+            let rows = stmt.query_map(rusqlite::params![limit as i64], |row| {
+                let channel: String = row.get(0)?;
+                let count: i64 = row.get(1)?;
+                Ok(serde_json::json!({ "channel": channel, "count": count }))
+            })?;
+            rows.collect()
+        })
+    }
+
+    /// Get message counts per hour for the last 24 hours.
+    pub fn messages_per_hour_24h(&self) -> Result<Vec<serde_json::Value>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let now_ms = super::now_millis() as i64;
+            let cutoff_ms = now_ms - 24 * 3600 * 1000;
+            let mut stmt = conn.prepare(
+                "SELECT (timestamp - ?1) / 3600000 as hour_bucket, COUNT(*) as cnt
+                 FROM messages
+                 WHERE msg_type = 'chat' AND timestamp > ?1
+                 GROUP BY hour_bucket ORDER BY hour_bucket ASC"
+            )?;
+            let rows = stmt.query_map(rusqlite::params![cutoff_ms], |row| {
+                let hour: i64 = row.get(0)?;
+                let count: i64 = row.get(1)?;
+                Ok(serde_json::json!({ "hour": hour, "count": count }))
+            })?;
+            rows.collect()
+        })
+    }
 }
