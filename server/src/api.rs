@@ -1740,6 +1740,184 @@ pub async fn get_seller_rating(
     }))
 }
 
+// ── Order Book API ──
+
+#[derive(Debug, Deserialize)]
+pub struct OrderBookQuery {
+    pub item_type: Option<String>,
+}
+
+/// GET /api/trade/orders?item_type=wood — get open sell orders for an item type.
+pub async fn get_trade_orders(
+    State(state): State<Arc<RelayState>>,
+    Query(query): Query<OrderBookQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let item_type = query.item_type.unwrap_or_default();
+    if item_type.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "item_type is required.".into()));
+    }
+    match state.db.get_open_orders(&item_type) {
+        Ok(orders) => {
+            let market_price = state.db.get_market_price(&item_type).unwrap_or(None);
+            Ok(Json(serde_json::json!({
+                "item_type": item_type,
+                "orders": orders,
+                "market_price": market_price,
+            })))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTradeOrderRequest {
+    pub public_key: String,
+    pub timestamp: u64,
+    pub signature: String,
+    pub item_type: String,
+    pub item_id: Option<String>,
+    pub quantity: i64,
+    pub price_per_unit: f64,
+    pub currency: Option<String>,
+}
+
+/// POST /api/trade/orders — create a sell order (authenticated via Ed25519 sig).
+pub async fn create_trade_order(
+    State(state): State<Arc<RelayState>>,
+    Json(body): Json<CreateTradeOrderRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
+    }
+
+    let sig_content = format!("trade_order\n{}\n{}\n{}", body.item_type, body.quantity, body.price_per_unit);
+    if !verify_ed25519_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    if body.quantity <= 0 {
+        return Err((StatusCode::BAD_REQUEST, "Quantity must be positive.".into()));
+    }
+    if body.price_per_unit <= 0.0 {
+        return Err((StatusCode::BAD_REQUEST, "Price must be positive.".into()));
+    }
+    if body.item_type.is_empty() || body.item_type.len() > 100 {
+        return Err((StatusCode::BAD_REQUEST, "Invalid item_type.".into()));
+    }
+
+    let currency = body.currency.as_deref().unwrap_or("credits");
+    if currency != "credits" && currency != "SOL" {
+        return Err((StatusCode::BAD_REQUEST, "Currency must be 'credits' or 'SOL'.".into()));
+    }
+
+    let item_id = body.item_id.as_deref().unwrap_or("");
+    match state.db.create_trade_order(
+        &body.public_key,
+        &body.item_type,
+        item_id,
+        body.quantity,
+        body.price_per_unit,
+        currency,
+    ) {
+        Ok(id) => Ok(Json(serde_json::json!({ "id": id, "status": "open" }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
+    }
+}
+
+/// DELETE /api/trade/orders/{id} — cancel a sell order (authenticated via Ed25519 sig).
+pub async fn cancel_trade_order(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(order_id): axum::extract::Path<i64>,
+    Query(q): Query<VaultSyncQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(q.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+
+    let sig_content = format!("cancel_order\n{}", order_id);
+    if !verify_ed25519_signature(&q.key, &sig_content, q.timestamp, &q.sig) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    match state.db.cancel_trade_order(order_id, &q.key) {
+        Ok(true) => Ok(Json(serde_json::json!({ "status": "cancelled" }))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, "Order not found or not yours.".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FillOrderRequest {
+    pub public_key: String,
+    pub timestamp: u64,
+    pub signature: String,
+    pub quantity: i64,
+}
+
+/// POST /api/trade/orders/{id}/fill — buy from a sell order (authenticated via Ed25519 sig).
+pub async fn fill_trade_order(
+    State(state): State<Arc<RelayState>>,
+    axum::extract::Path(order_id): axum::extract::Path<i64>,
+    Json(body): Json<FillOrderRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::handlers::broadcast::verify_ed25519_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old (> 5 min).".into()));
+    }
+
+    let sig_content = format!("fill_order\n{}\n{}", order_id, body.quantity);
+    if !verify_ed25519_signature(&body.public_key, &sig_content, body.timestamp, &body.signature) {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    match state.db.fill_trade_order(order_id, &body.public_key, body.quantity) {
+        Ok(history_id) => Ok(Json(serde_json::json!({
+            "status": "filled",
+            "history_id": history_id,
+        }))),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e)),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TradeHistoryQuery {
+    pub key: Option<String>,
+    pub limit: Option<usize>,
+}
+
+/// GET /api/trade/history?key=...&limit=50 — get trade history for a user.
+pub async fn get_trade_history(
+    State(state): State<Arc<RelayState>>,
+    Query(query): Query<TradeHistoryQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let key = query.key.unwrap_or_default();
+    if key.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "key is required.".into()));
+    }
+    let limit = query.limit.unwrap_or(50);
+    match state.db.get_trade_history(&key, limit) {
+        Ok(history) => Ok(Json(serde_json::json!(history))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}"))),
+    }
+}
+
 /// GET /api/federation/servers — list federated servers (public).
 pub async fn list_federation_servers(
     State(state): State<Arc<RelayState>>,
@@ -2798,4 +2976,349 @@ pub async fn get_admin_stats(
         "game_entities": game_entities,
         "game_time": game_time,
     })))
+}
+
+// ── Guilds API ──────────────────────────────────────────────────────────
+
+/// Query params for GET /api/guilds.
+#[derive(Debug, Deserialize)]
+pub struct GuildsQuery {
+    pub search: Option<String>,
+    pub user: Option<String>,
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+/// GET /api/guilds — list or search guilds.
+pub async fn get_guilds(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<GuildsQuery>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
+
+    let guilds = if let Some(ref user) = params.user {
+        state.db.get_guilds_for_user(user).unwrap_or_default()
+    } else if let Some(ref q) = params.search {
+        state.db.search_guilds(q, limit, offset).unwrap_or_default()
+    } else {
+        state.db.get_all_guilds(limit, offset).unwrap_or_default()
+    };
+
+    let list: Vec<serde_json::Value> = guilds.into_iter().map(|g| {
+        serde_json::json!({
+            "id": g.id,
+            "name": g.name,
+            "description": g.description,
+            "owner_key": g.owner_key,
+            "icon": g.icon,
+            "color": g.color,
+            "created_at": g.created_at,
+            "member_count": g.member_count,
+        })
+    }).collect();
+    Json(serde_json::json!(list))
+}
+
+/// Request body for POST /api/guilds.
+#[derive(Debug, Deserialize)]
+pub struct CreateGuildRequest {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default = "default_guild_color")]
+    pub color: String,
+    pub owner_key: String,
+}
+
+fn default_guild_color() -> String { "#4488ff".to_string() }
+
+/// POST /api/guilds — create a new guild.
+pub async fn create_guild(
+    State(state): State<Arc<RelayState>>,
+    Json(req): Json<CreateGuildRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if req.name.trim().is_empty() || req.name.len() > 100 {
+        return Err((StatusCode::BAD_REQUEST, "Guild name must be 1-100 characters.".into()));
+    }
+    if req.description.len() > 2000 {
+        return Err((StatusCode::BAD_REQUEST, "Description too long (max 2000 chars).".into()));
+    }
+    if req.owner_key.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Owner key is required.".into()));
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    match state.db.create_guild(&id, &req.name, &req.description, &req.owner_key, &req.icon, &req.color) {
+        Ok(()) => Ok(Json(serde_json::json!({ "id": id, "status": "created" }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create guild: {e}"))),
+    }
+}
+
+/// GET /api/guilds/{id} — get a single guild.
+pub async fn get_guild(
+    State(state): State<Arc<RelayState>>,
+    Path(guild_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let guild = state.db.get_guild(&guild_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(serde_json::json!({
+        "id": guild.id,
+        "name": guild.name,
+        "description": guild.description,
+        "owner_key": guild.owner_key,
+        "icon": guild.icon,
+        "color": guild.color,
+        "created_at": guild.created_at,
+        "member_count": guild.member_count,
+    })))
+}
+
+/// Request body for PATCH /api/guilds/{id}.
+#[derive(Debug, Deserialize)]
+pub struct UpdateGuildRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub owner_key: String,
+}
+
+/// PATCH /api/guilds/{id} — update a guild.
+pub async fn update_guild(
+    State(state): State<Arc<RelayState>>,
+    Path(guild_id): Path<String>,
+    Json(req): Json<UpdateGuildRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let existing = state.db.get_guild(&guild_id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {e}")))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, "Guild not found.".into()))?;
+
+    let name = req.name.as_deref().unwrap_or(&existing.name);
+    let description = req.description.as_deref().unwrap_or(&existing.description);
+    let icon = req.icon.as_deref().unwrap_or(&existing.icon);
+    let color = req.color.as_deref().unwrap_or(&existing.color);
+
+    if name.is_empty() || name.len() > 100 {
+        return Err((StatusCode::BAD_REQUEST, "Guild name must be 1-100 characters.".into()));
+    }
+
+    match state.db.update_guild(&guild_id, &req.owner_key, name, description, icon, color) {
+        Ok(true) => Ok(Json(serde_json::json!({ "status": "updated" }))),
+        Ok(false) => Err((StatusCode::FORBIDDEN, "Only the guild owner can update.".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update guild: {e}"))),
+    }
+}
+
+/// DELETE /api/guilds/{id} — delete a guild.
+pub async fn delete_guild(
+    State(state): State<Arc<RelayState>>,
+    Path(guild_id): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let owner_key = params.get("owner_key")
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "owner_key query param required.".into()))?;
+
+    match state.db.delete_guild(&guild_id, owner_key) {
+        Ok(true) => Ok(Json(serde_json::json!({ "status": "deleted", "id": guild_id }))),
+        Ok(false) => Err((StatusCode::FORBIDDEN, "Only the guild owner can delete, or guild not found.".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete guild: {e}"))),
+    }
+}
+
+/// Query params for GET /api/guilds/{id}/members.
+#[derive(Debug, Deserialize)]
+pub struct GuildMembersQuery {
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
+
+/// GET /api/guilds/{id}/members — list guild members.
+pub async fn get_guild_members(
+    State(state): State<Arc<RelayState>>,
+    Path(guild_id): Path<String>,
+    Query(params): Query<GuildMembersQuery>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(50).min(200);
+    let offset = params.offset.unwrap_or(0);
+    let members = state.db.get_guild_members(&guild_id, limit, offset).unwrap_or_default();
+    let list: Vec<serde_json::Value> = members.into_iter().map(|m| {
+        serde_json::json!({
+            "guild_id": m.guild_id,
+            "public_key": m.public_key,
+            "role": m.role,
+            "joined_at": m.joined_at,
+            "name": m.name,
+        })
+    }).collect();
+    Json(serde_json::json!(list))
+}
+
+/// Request body for POST /api/guilds/{id}/members (join).
+#[derive(Debug, Deserialize)]
+pub struct JoinGuildRequest {
+    pub public_key: String,
+    pub invite_code: Option<String>,
+}
+
+/// POST /api/guilds/{id}/members — join a guild (directly or via invite code).
+pub async fn join_guild(
+    State(state): State<Arc<RelayState>>,
+    Path(guild_id): Path<String>,
+    Json(req): Json<JoinGuildRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if let Some(code) = &req.invite_code {
+        match state.db.use_guild_invite(code, &req.public_key) {
+            Ok(Some(gid)) => Ok(Json(serde_json::json!({ "status": "joined", "guild_id": gid }))),
+            Ok(None) => Err((StatusCode::BAD_REQUEST, "Invalid or expired invite code.".into())),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to use invite: {e}"))),
+        }
+    } else {
+        match state.db.join_guild(&guild_id, &req.public_key) {
+            Ok(true) => Ok(Json(serde_json::json!({ "status": "joined" }))),
+            Ok(false) => Err((StatusCode::CONFLICT, "Already a member.".into())),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to join guild: {e}"))),
+        }
+    }
+}
+
+/// Request body for POST /api/guilds/{id}/leave.
+#[derive(Debug, Deserialize)]
+pub struct LeaveGuildRequest {
+    pub public_key: String,
+}
+
+/// POST /api/guilds/{id}/leave — leave a guild.
+pub async fn leave_guild(
+    State(state): State<Arc<RelayState>>,
+    Path(guild_id): Path<String>,
+    Json(req): Json<LeaveGuildRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    match state.db.leave_guild(&guild_id, &req.public_key) {
+        Ok(true) => Ok(Json(serde_json::json!({ "status": "left" }))),
+        Ok(false) => Err((StatusCode::BAD_REQUEST, "Cannot leave: you are the owner or not a member.".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to leave guild: {e}"))),
+    }
+}
+
+/// Request body for POST /api/guilds/{id}/invite.
+#[derive(Debug, Deserialize)]
+pub struct CreateGuildInviteRequest {
+    pub created_by: String,
+    #[serde(default = "default_invite_uses")]
+    pub uses: i64,
+    /// Duration in hours before expiry (default: 24).
+    #[serde(default = "default_invite_hours")]
+    pub hours: i64,
+}
+
+fn default_invite_uses() -> i64 { 10 }
+fn default_invite_hours() -> i64 { 24 }
+
+/// POST /api/guilds/{id}/invite — create an invite code.
+pub async fn create_guild_invite(
+    State(state): State<Arc<RelayState>>,
+    Path(guild_id): Path<String>,
+    Json(req): Json<CreateGuildInviteRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    // Only members can create invites.
+    let role = state.db.get_guild_member_role(&guild_id, &req.created_by);
+    if role.is_none() {
+        return Err((StatusCode::FORBIDDEN, "Only guild members can create invites.".into()));
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let code: String = {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        (0..8).map(|_| {
+            let idx = rng.gen_range(0..36);
+            if idx < 10 { (b'0' + idx) as char }
+            else { (b'a' + idx - 10) as char }
+        }).collect()
+    };
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+    let expires_at = now_ms + req.hours * 3600 * 1000;
+
+    match state.db.create_guild_invite(&id, &guild_id, &req.created_by, &code, req.uses, expires_at) {
+        Ok(()) => Ok(Json(serde_json::json!({
+            "id": id,
+            "code": code,
+            "uses_remaining": req.uses,
+            "expires_at": expires_at,
+        }))),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create invite: {e}"))),
+    }
+}
+
+// ── Reputation API ──────────────────────────────────────────────────────
+
+/// GET /api/reputation/{key} — get a user's reputation.
+pub async fn get_reputation(
+    State(state): State<Arc<RelayState>>,
+    Path(key): Path<String>,
+) -> impl IntoResponse {
+    match state.db.get_reputation(&key) {
+        Ok(rep) => {
+            let history = state.db.get_reputation_history(&key, 20).unwrap_or_default();
+            let events: Vec<serde_json::Value> = history.into_iter().map(|e| {
+                serde_json::json!({
+                    "id": e.id,
+                    "event_type": e.event_type,
+                    "points": e.points,
+                    "reason": e.reason,
+                    "created_at": e.created_at,
+                    "source_key": e.source_key,
+                })
+            }).collect();
+            (StatusCode::OK, Json(serde_json::json!({
+                "public_key": rep.public_key,
+                "score": rep.score,
+                "level": rep.level,
+                "updated_at": rep.updated_at,
+                "recent_events": events,
+            }))).into_response()
+        }
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+                "error": format!("Database error: {}", e)
+            }))).into_response()
+        }
+    }
+}
+
+/// Query params for GET /api/reputation/leaderboard.
+#[derive(Debug, Deserialize)]
+pub struct LeaderboardQuery {
+    pub limit: Option<usize>,
+}
+
+/// GET /api/reputation/leaderboard — top users by reputation score.
+pub async fn get_reputation_leaderboard(
+    State(state): State<Arc<RelayState>>,
+    Query(params): Query<LeaderboardQuery>,
+) -> Json<serde_json::Value> {
+    let limit = params.limit.unwrap_or(20).min(100);
+    let leaders = state.db.get_reputation_leaderboard(limit).unwrap_or_default();
+    let list: Vec<serde_json::Value> = leaders.into_iter().map(|r| {
+        // Try to get display name from server_members.
+        let name = state.db.get_member(&r.public_key)
+            .ok()
+            .flatten()
+            .and_then(|m| m.name);
+        serde_json::json!({
+            "public_key": r.public_key,
+            "score": r.score,
+            "level": r.level,
+            "name": name,
+        })
+    }).collect();
+    Json(serde_json::json!(list))
 }

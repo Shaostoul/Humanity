@@ -855,6 +855,44 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);"
         )?;
 
+        // Order-book trading (sell orders with partial fills).
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS trade_orders (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                seller_key      TEXT NOT NULL,
+                item_type       TEXT NOT NULL,
+                item_id         TEXT NOT NULL DEFAULT '',
+                quantity         INTEGER NOT NULL,
+                remaining_qty   INTEGER NOT NULL,
+                price_per_unit  REAL NOT NULL,
+                currency        TEXT NOT NULL DEFAULT 'credits',
+                status          TEXT NOT NULL DEFAULT 'open',
+                created_at      INTEGER NOT NULL,
+                filled_at       INTEGER
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_trade_orders_item ON trade_orders(item_type, status);
+            CREATE INDEX IF NOT EXISTS idx_trade_orders_seller ON trade_orders(seller_key, status);
+
+            CREATE TABLE IF NOT EXISTS trade_history (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id        INTEGER NOT NULL,
+                buyer_key       TEXT NOT NULL,
+                seller_key      TEXT NOT NULL,
+                item_type       TEXT NOT NULL,
+                item_id         TEXT NOT NULL DEFAULT '',
+                quantity         INTEGER NOT NULL,
+                price_per_unit  REAL NOT NULL,
+                total_price     REAL NOT NULL,
+                timestamp       INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_trade_history_buyer ON trade_history(buyer_key);
+            CREATE INDEX IF NOT EXISTS idx_trade_history_seller ON trade_history(seller_key);
+            CREATE INDEX IF NOT EXISTS idx_trade_history_item ON trade_history(item_type);
+            CREATE INDEX IF NOT EXISTS idx_trade_history_order ON trade_history(order_id);"
+        )?;
+
         // Listing messages for buyer-seller marketplace conversations.
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS listing_messages (
@@ -1023,6 +1061,69 @@ impl Storage {
             info!("FTS5 not available — falling back to LIKE search");
         }
 
+        // Guilds tables.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS guilds (
+                id           TEXT PRIMARY KEY,
+                name         TEXT NOT NULL,
+                description  TEXT NOT NULL DEFAULT '',
+                owner_key    TEXT NOT NULL,
+                icon         TEXT NOT NULL DEFAULT '',
+                color        TEXT NOT NULL DEFAULT '#4488ff',
+                created_at   TEXT NOT NULL,
+                member_count INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_guilds_owner ON guilds(owner_key);
+
+            CREATE TABLE IF NOT EXISTS guild_members (
+                guild_id    TEXT NOT NULL,
+                public_key  TEXT NOT NULL,
+                role        TEXT NOT NULL DEFAULT 'member',
+                joined_at   TEXT NOT NULL,
+                PRIMARY KEY (guild_id, public_key)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_guild_members_key ON guild_members(public_key);
+
+            CREATE TABLE IF NOT EXISTS guild_invites (
+                id              TEXT PRIMARY KEY,
+                guild_id        TEXT NOT NULL,
+                created_by      TEXT NOT NULL,
+                code            TEXT NOT NULL UNIQUE,
+                uses_remaining  INTEGER NOT NULL DEFAULT 1,
+                expires_at      INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_guild_invites_code ON guild_invites(code);
+            CREATE INDEX IF NOT EXISTS idx_guild_invites_guild ON guild_invites(guild_id);"
+        )?;
+
+        // Reputation tables.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS reputation (
+                public_key  TEXT PRIMARY KEY,
+                score       INTEGER NOT NULL DEFAULT 0,
+                level       INTEGER NOT NULL DEFAULT 0,
+                updated_at  INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS reputation_events (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                public_key  TEXT NOT NULL,
+                event_type  TEXT NOT NULL,
+                points      INTEGER NOT NULL,
+                reason      TEXT NOT NULL DEFAULT '',
+                created_at  INTEGER NOT NULL,
+                source_key  TEXT NOT NULL DEFAULT ''
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_reputation_events_key
+                ON reputation_events(public_key, created_at);
+            CREATE INDEX IF NOT EXISTS idx_reputation_score
+                ON reputation(score DESC);"
+        )?;
+
         info!("Database opened: {}", path.display());
         Ok(Self { conn: Mutex::new(conn) })
     }
@@ -1056,8 +1157,12 @@ mod trading;
 mod vault_sync;
 mod civilization;
 pub mod files;
+mod guilds;
+mod reputation;
 
 pub use civilization::CivilizationStats;
+pub use guilds::{GuildRecord, GuildMemberRecord, GuildInviteRecord};
 pub use marketplace::ListingMessageRecord;
 pub use notification_prefs::NotifPrefs;
+pub use reputation::{ReputationRecord, ReputationEventRecord};
 pub use trading::TradeRecord;

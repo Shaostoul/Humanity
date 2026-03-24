@@ -193,20 +193,35 @@ async fn main() {
         });
     }
 
-    // Game world tick loop: advance simulation and send TimeSync every 5 seconds.
+    // Game world simulation tick loop: 20 ticks/sec (50ms), only when players connected.
+    {
+        let game_state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(50));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            loop {
+                interval.tick().await;
+                let mut world = game_state.game_world.write().await;
+                if world.player_count() > 0 {
+                    world.tick(0.05); // 50ms = 0.05 seconds
+                }
+                drop(world);
+            }
+        });
+    }
+
+    // Game TimeSync broadcast: every 5 seconds, only when players connected.
     {
         let game_state = state.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
             loop {
                 interval.tick().await;
-                let mut world = game_state.game_world.write().await;
-                world.tick(5.0); // 5 seconds elapsed
-                let game_time = world.game_time;
+                let world = game_state.game_world.read().await;
                 let player_count = world.player_count();
+                let game_time = world.game_time;
                 drop(world);
 
-                // Only send TimeSync if there are game players online.
                 if player_count > 0 {
                     let server_time = std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
@@ -343,6 +358,20 @@ async fn main() {
         .route("/api/listings/{id}/reviews", get(api::get_listing_reviews).post(api::create_listing_review))
         .route("/api/listings/{id}/reviews/{review_id}", delete(api::delete_listing_review))
         .route("/api/sellers/{key}/rating", get(api::get_seller_rating))
+        // Order-book trading
+        .route("/api/trade/orders", get(api::get_trade_orders).post(api::create_trade_order))
+        .route("/api/trade/orders/{id}", delete(api::cancel_trade_order))
+        .route("/api/trade/orders/{id}/fill", post(api::fill_trade_order))
+        .route("/api/trade/history", get(api::get_trade_history))
+        // Guilds
+        .route("/api/guilds", get(api::get_guilds).post(api::create_guild))
+        .route("/api/guilds/{id}", get(api::get_guild).patch(api::update_guild).delete(api::delete_guild))
+        .route("/api/guilds/{id}/members", get(api::get_guild_members).post(api::join_guild))
+        .route("/api/guilds/{id}/leave", post(api::leave_guild))
+        .route("/api/guilds/{id}/invite", post(api::create_guild_invite))
+        // Reputation
+        .route("/api/reputation/leaderboard", get(api::get_reputation_leaderboard))
+        .route("/api/reputation/{key}", get(api::get_reputation))
         .route("/api/federation/servers", get(api::list_federation_servers))
         .route("/api/search", get(api::search_messages))
         .route("/api/skills/search", get(api::search_skills))

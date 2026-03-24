@@ -184,7 +184,7 @@
     <!-- ═══════════════════════════════════════════════════════════════════ -->
     <div class="section-label">Modules</div>
     <h2>Extend your launcher</h2>
-    <p class="section-desc">The launcher is a lightweight shell. Modules add capabilities — install only what you need.</p>
+    <p class="section-desc">The desktop app is a native binary. Modules add capabilities — install only what you need.</p>
 
     <div class="module-grid">
       <!-- Core modules — ship with the launcher -->
@@ -443,9 +443,8 @@
       <h3>Build from source</h3>
       <p>Everything is public domain (CC0). Clone, build, verify:</p>
       <pre><code>git clone https://github.com/Shaostoul/Humanity.git
-cd Humanity/desktop
-npm install
-npx tauri build</code></pre>
+cd Humanity/native
+cargo build --release</code></pre>
     </div>
 
     <div class="oss-banner">
@@ -572,15 +571,15 @@ npx tauri build</code></pre>
 
     detectPlatform();
 
-    // ── Tauri desktop app: check for updates via GitHub API ──
-    (function tauriUpdateIntegration() {
+    // ── Native desktop app: check for updates via GitHub API ──
+    (function desktopUpdateCheck() {
       if (!window.__HOS_DESKTOP__) return;
 
       var btn = document.getElementById('detected-download');
       var sub = document.getElementById('detected-sub');
       if (!btn) return;
 
-      var appVer = window.__HOS_APP_VERSION || '0.36.0';
+      var appVer = window.__HOS_APP_VERSION || '0.38.0';
       btn.textContent = 'Checking for updates...';
       btn.style.opacity = '0.7';
       if (sub) sub.textContent = 'Currently running v' + appVer;
@@ -608,20 +607,11 @@ npx tauri build</code></pre>
           }
 
           if (versionNewer(latestVer, appVer) && asset) {
-            // Newer version available — download directly
+            // Newer version available — link to download
             btn.textContent = 'Download v' + latestVer;
             btn.style.opacity = '1';
             btn.style.pointerEvents = 'auto';
-            btn.onclick = function(e) {
-              e.preventDefault();
-              // Open the direct download URL in the system browser
-              if (window.__TAURI__ && window.__TAURI__.core) {
-                window.__TAURI__.core.invoke('open_external_url', { url: asset.browser_download_url });
-              }
-              btn.textContent = 'Download started!';
-              btn.style.background = 'var(--success, #2a6)';
-              if (sub) sub.textContent = 'Check your browser downloads for the installer';
-            };
+            btn.href = asset.browser_download_url;
             if (sub) sub.textContent = 'v' + latestVer + ' available · You have v' + appVer;
           } else {
             // Up to date
@@ -632,7 +622,7 @@ npx tauri build</code></pre>
             if (sub) sub.textContent = 'Running the latest version';
           }
 
-          btn.href = '#';
+          btn.href = btn.href || '#';
           btn.removeAttribute('target');
         })
         .catch(function(err) {
@@ -640,18 +630,13 @@ npx tauri build</code></pre>
           btn.textContent = 'Download Latest';
           btn.style.opacity = '1';
           btn.style.pointerEvents = 'auto';
-          btn.onclick = function(e) {
-            e.preventDefault();
-            if (window.__TAURI__ && window.__TAURI__.core) {
-              window.__TAURI__.core.invoke('open_external_url', { url: 'https://github.com/Shaostoul/Humanity/releases/latest' });
-            }
-          };
+          btn.href = 'https://github.com/Shaostoul/Humanity/releases/latest';
           if (sub) sub.textContent = 'Currently running v' + appVer + ' · Could not check for updates';
         });
     })();
 
     // ── Fetch latest version from GitHub Releases (web only) ──
-    if (!window.__TAURI__) {
+    if (!window.__HOS_DESKTOP__) {
       fetch('https://api.github.com/repos/Shaostoul/Humanity/releases/latest')
         .then(function(r) { return r.json(); })
         .then(function(d) {
