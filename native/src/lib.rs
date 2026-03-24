@@ -29,6 +29,9 @@ pub mod mods;
 #[cfg(feature = "native")]
 pub mod net;
 
+#[cfg(feature = "native")]
+pub mod updater;
+
 #[cfg(feature = "wasm")]
 pub mod wasm_entry;
 
