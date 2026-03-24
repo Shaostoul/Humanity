@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default = ["native"]
-native = ["winit", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite"]
+native = ["winit", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira"]
 wasm = [
     "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
     "dep:console_error_panic_hook", "dep:console_log",
@@ -23,7 +23,7 @@ rapier3d = "0.22"
 # Math
 glam = { version = "0.29", features = ["serde"] }
 # Audio
-kira = "0.9"
+kira = { version = "0.9", optional = true }
 # Asset loading
 gltf = "1.4"
 image = "0.25"
