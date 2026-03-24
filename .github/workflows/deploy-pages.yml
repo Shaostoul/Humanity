@@ -33,10 +33,24 @@ jobs:
           mkdir -p docs/website/_includes/canon/docs
           mkdir -p docs/website/_includes/canon/design
           mkdir -p docs/website/_includes/canon/reference
-          # Copy docs into canon structure for Jekyll includes
+          # Copy all docs into canon/ so Jekyll includes resolve regardless of path
           rsync -a docs/accord/ docs/website/_includes/canon/accord/
           rsync -a docs/design/ docs/website/_includes/canon/design/
-          rsync -a docs/ --exclude=website/ --exclude=accord/ --exclude=design/ docs/website/_includes/canon/docs/
+          rsync -a docs/ --exclude=website/ docs/website/_includes/canon/docs/
+          # Also mirror design/ into docs/ subpaths for backward-compat wrapper pages
+          # that use {% include canon/docs/decisions/... %} or similar old paths
+          rsync -a docs/design/ docs/website/_includes/canon/docs/design/
+          rsync -a docs/game/ docs/website/_includes/canon/docs/game/ 2>/dev/null || true
+          rsync -a docs/reference/ docs/website/_includes/canon/docs/reference/ 2>/dev/null || true
+          rsync -a docs/network/ docs/website/_includes/canon/docs/network/ 2>/dev/null || true
+          # Flatten: copy design files into old expected locations
+          # (decisions/ was merged into design/ during restructure)
+          mkdir -p docs/website/_includes/canon/docs/decisions
+          cp docs/design/ADR-*.md docs/website/_includes/canon/docs/decisions/ 2>/dev/null || true
+          mkdir -p docs/website/_includes/canon/docs/core
+          cp docs/design/architecture.md docs/website/_includes/canon/docs/core/ 2>/dev/null || true
+          cp docs/design/ai_interface.md docs/website/_includes/canon/docs/core/ 2>/dev/null || true
+          cp docs/design/data_model.md docs/website/_includes/canon/docs/core/ 2>/dev/null || true
           # Copy select root .md files as reference docs
           for f in CONTRIBUTING.md README.md; do
             [ -f "$f" ] && cp "$f" docs/website/_includes/canon/reference/
