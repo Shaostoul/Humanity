@@ -1,4 +1,4 @@
-//! Inventory grid with item slots.
+//! Inventory grid with item slots — reads from player's ECS Inventory component.
 
 use egui::{Color32, RichText, Rounding, Stroke, Vec2};
 use crate::gui::{GuiPage, GuiState};
@@ -6,16 +6,24 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
 const COLS: usize = 6;
-const TOTAL_SLOTS: usize = 36;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let total_slots = state.inventory_max_slots.max(1);
+
     egui::Window::new("Inventory")
         .resizable(false)
         .collapsible(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(500.0, 420.0))
         .show(ctx, |ui| {
-            ui.label(RichText::new("Inventory").size(theme.font_size_heading).color(theme.text_primary()));
+            // Header with slot count
+            let used = state.inventory_items.iter().filter(|s| s.is_some()).count();
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Inventory").size(theme.font_size_heading).color(theme.text_primary()));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(RichText::new(format!("{}/{} slots", used, total_slots)).color(theme.text_muted()));
+                });
+            });
             ui.add_space(theme.spacing_sm);
 
             // Item grid
@@ -23,7 +31,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             egui::Grid::new("inv_grid")
                 .spacing(Vec2::splat(4.0))
                 .show(ui, |ui| {
-                    for i in 0..TOTAL_SLOTS {
+                    for i in 0..total_slots {
                         let selected = state.selected_slot == Some(i);
                         let stroke = if selected {
                             Stroke::new(2.0, theme.accent())
@@ -44,22 +52,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ui.painter().rect_filled(rect, Rounding::same(4), fill);
                         ui.painter().rect_stroke(rect, Rounding::same(4), stroke, egui::StrokeKind::Outside);
 
-                        // Placeholder items for demo
-                        if i < 5 {
-                            let names = ["Stone", "Iron", "Wood", "Seeds", "Water"];
-                            let counts = [64, 12, 32, 8, 4];
+                        // Draw item if slot is occupied
+                        if let Some(Some(item)) = state.inventory_items.get(i) {
+                            let icon = item.name.chars().next().unwrap_or('?').to_string();
                             let center = rect.center();
                             ui.painter().text(
                                 center,
                                 egui::Align2::CENTER_CENTER,
-                                &names[i][..1],
+                                &icon,
                                 egui::FontId::proportional(18.0),
                                 theme.text_primary(),
                             );
                             ui.painter().text(
                                 rect.right_bottom() + Vec2::new(-4.0, -2.0),
                                 egui::Align2::RIGHT_BOTTOM,
-                                counts[i].to_string(),
+                                item.quantity.to_string(),
                                 egui::FontId::proportional(10.0),
                                 theme.text_muted(),
                             );
@@ -74,18 +81,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Detail panel for selected slot
             if let Some(idx) = state.selected_slot {
                 ui.add_space(theme.spacing_md);
-                if idx < 5 {
-                    let names = ["Stone", "Iron Ore", "Wood", "Seeds", "Water Bucket"];
-                    let descs = [
-                        "Common building material.",
-                        "Smelt into iron ingots.",
-                        "Basic construction resource.",
-                        "Plant to grow crops.",
-                        "Hydrates crops and animals.",
-                    ];
+                if let Some(Some(item)) = state.inventory_items.get(idx) {
                     widgets::card(ui, theme, |ui| {
-                        ui.label(RichText::new(names[idx]).size(theme.font_size_heading).color(theme.accent()));
-                        ui.label(RichText::new(descs[idx]).color(theme.text_secondary()));
+                        ui.label(RichText::new(&item.name).size(theme.font_size_heading).color(theme.accent()));
+                        ui.label(RichText::new(format!("ID: {}", item.item_id)).color(theme.text_muted()));
+                        ui.label(RichText::new(format!("Quantity: {}", item.quantity)).color(theme.text_secondary()));
                     });
                 } else {
                     ui.label(RichText::new("Empty slot").color(theme.text_muted()));

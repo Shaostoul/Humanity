@@ -46,7 +46,7 @@ mod native_app {
     use crate::ecs::GameWorld;
     use crate::ecs::components::{Controllable, Health, Name, Transform, Velocity};
     use crate::ecs::systems::SystemRunner;
-    use crate::gui::{GuiPage, GuiState};
+    use crate::gui::{GuiGameTime, GuiItemSlot, GuiPage, GuiState, GuiWeather};
     use crate::gui::theme::Theme;
     use crate::gui::pages::{main_menu, settings, inventory, chat, hud};
     use crate::hot_reload::HotReloadCoordinator;
@@ -58,9 +58,10 @@ mod native_app {
     use crate::systems::crafting::CraftingSystem;
     use crate::systems::farming::FarmingSystem;
     use crate::systems::interaction::InteractionSystem;
-    use crate::systems::inventory::InventorySystem;
+    use crate::systems::inventory::{Inventory, InventorySystem, ItemRegistry};
     use crate::systems::player::PlayerControllerSystem;
-    use crate::systems::time::TimeSystem;
+    use crate::systems::time::{GameTime, TimeSystem};
+    use crate::systems::weather::Weather;
     use crate::terrain::planet::{PlanetDef, PlanetRenderer};
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -240,6 +241,7 @@ mod native_app {
                 Controllable,
                 Health::default(),
                 Name("Player".to_string()),
+                Inventory::new(36),
             ));
 
             log::info!("ECS initialized: {} systems registered", system_runner.count());
@@ -485,6 +487,51 @@ mod native_app {
                     // Update FPS counter
                     state.gui_state.fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
 
+                    // ── Bridge ECS/DataStore state into GuiState for GUI pages ──
+
+                    // Bridge player health and inventory from ECS
+                    for (_entity, (health, _ctrl)) in state.game_world.world.query::<(&Health, &Controllable)>().iter() {
+                        state.gui_state.player_health = health.current;
+                        state.gui_state.player_health_max = health.max;
+                    }
+                    // Bridge inventory from the player entity
+                    let item_registry = state.data_store.get::<ItemRegistry>("item_registry");
+                    for (_entity, (inv, _ctrl)) in state.game_world.world.query::<(&Inventory, &Controllable)>().iter() {
+                        state.gui_state.inventory_max_slots = inv.max_slots;
+                        state.gui_state.inventory_items = inv.slots.iter().map(|slot| {
+                            slot.as_ref().map(|stack| {
+                                let name = item_registry
+                                    .and_then(|reg| reg.items.get(&stack.item_id))
+                                    .map(|def| def.name.clone())
+                                    .unwrap_or_else(|| stack.item_id.clone());
+                                GuiItemSlot {
+                                    item_id: stack.item_id.clone(),
+                                    name,
+                                    quantity: stack.quantity,
+                                }
+                            })
+                        }).collect();
+                    }
+
+                    // Bridge game time from DataStore (if TimeSystem writes it)
+                    if let Some(gt) = state.data_store.get::<GameTime>("game_time") {
+                        state.gui_state.game_time = Some(GuiGameTime {
+                            hour: gt.hour,
+                            day_count: gt.day_count,
+                            season: format!("{:?}", gt.season),
+                            is_daytime: gt.hour >= 6.0 && gt.hour <= 18.0,
+                        });
+                    }
+
+                    // Bridge weather from DataStore (if WeatherSystem writes it)
+                    if let Some(w) = state.data_store.get::<Weather>("weather") {
+                        state.gui_state.weather = Some(GuiWeather {
+                            condition: format!("{:?}", w.condition),
+                            temperature: w.temperature,
+                            wind_speed: w.wind_speed,
+                        });
+                    }
+
                     // Render 3D scene (returns surface texture for overlay rendering)
                     let scene_result = state.renderer.render_scene(&state.camera, &all_objects);
                     match scene_result {
@@ -516,7 +563,8 @@ mod native_app {
                                     chat::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
-                                if false {
+                                // Quit requested from main menu
+                                if state.gui_state.quit_requested {
                                     event_loop.exit();
                                 }
                             });
@@ -621,6 +669,28 @@ mod native_app {
                             }
 
                             surface_texture.present();
+
+                            // ── Apply settings changes from GUI to engine ──
+                            if state.gui_state.settings_dirty {
+                                state.gui_state.settings_dirty = false;
+
+                                // FOV
+                                state.camera.fov_degrees = state.gui_state.settings.fov;
+
+                                // Mouse sensitivity
+                                state.controller.mouse_sensitivity = state.gui_state.settings.mouse_sensitivity;
+
+                                // Fullscreen
+                                let fullscreen = if state.gui_state.settings.fullscreen {
+                                    Some(winit::window::Fullscreen::Borderless(None))
+                                } else {
+                                    None
+                                };
+                                state.window.set_fullscreen(fullscreen);
+
+                                // Render distance → camera far plane
+                                state.camera.far = state.gui_state.settings.render_distance;
+                            }
                         }
                         Err(wgpu::SurfaceError::Lost) => {
                             let size = state.window.inner_size();

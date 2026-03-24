@@ -24,6 +24,37 @@ pub enum GuiPage {
     Inventory,
 }
 
+/// Item slot data bridged from ECS Inventory for GUI display.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct GuiItemSlot {
+    /// Item ID from items.csv.
+    pub item_id: String,
+    /// Human-readable item name (looked up from ItemRegistry).
+    pub name: String,
+    /// Quantity in this stack.
+    pub quantity: u32,
+}
+
+/// Game time snapshot bridged from TimeSystem for GUI display.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct GuiGameTime {
+    pub hour: f32,
+    pub day_count: u32,
+    pub season: String,
+    pub is_daytime: bool,
+}
+
+/// Weather snapshot bridged from WeatherSystem for GUI display.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct GuiWeather {
+    pub condition: String,
+    pub temperature: f32,
+    pub wind_speed: f32,
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -38,6 +69,25 @@ pub struct GuiState {
     pub updater: crate::updater::Updater,
     /// Set true when an update notification toast should show.
     pub update_toast_visible: bool,
+
+    // ── Bridged game state (written by lib.rs each frame) ──
+
+    /// Player health fraction (0.0 to 1.0). Updated from ECS Health component.
+    pub player_health: f32,
+    /// Player max health. Updated from ECS Health component.
+    pub player_health_max: f32,
+    /// Inventory items from the player entity's Inventory component.
+    pub inventory_items: Vec<Option<GuiItemSlot>>,
+    /// Total inventory slot count.
+    pub inventory_max_slots: usize,
+    /// Current game time snapshot.
+    pub game_time: Option<GuiGameTime>,
+    /// Current weather snapshot.
+    pub weather: Option<GuiWeather>,
+    /// Whether settings were changed this frame (signals lib.rs to apply them).
+    pub settings_dirty: bool,
+    /// Request to quit the application.
+    pub quit_requested: bool,
 }
 
 #[cfg(feature = "native")]
@@ -54,6 +104,15 @@ impl Default for GuiState {
             fps: 0.0,
             updater: crate::updater::Updater::new(VERSION),
             update_toast_visible: false,
+
+            player_health: 1.0,
+            player_health_max: 100.0,
+            inventory_items: Vec::new(),
+            inventory_max_slots: 36,
+            game_time: None,
+            weather: None,
+            settings_dirty: false,
+            quit_requested: false,
         }
     }
 }

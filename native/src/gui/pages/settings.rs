@@ -1,4 +1,6 @@
 //! Settings panel with Graphics, Audio, Controls, Updates tabs.
+//! Toggles and sliders write to GuiState.settings; lib.rs reads these
+//! and applies them to the camera, controller, window, and audio manager.
 
 use egui::{RichText, Vec2};
 use crate::gui::{GuiPage, GuiState, SettingsCategory, VERSION};
@@ -35,19 +37,37 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             match state.settings.category {
                 SettingsCategory::Graphics => {
-                    widgets::toggle(ui, theme, "Fullscreen", &mut state.settings.fullscreen);
-                    widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync);
-                    widgets::labeled_slider(ui, theme, "FOV", &mut state.settings.fov, 60.0..=120.0);
-                    widgets::labeled_slider(ui, theme, "Render Distance", &mut state.settings.render_distance, 50.0..=2000.0);
+                    if widgets::toggle(ui, theme, "Fullscreen", &mut state.settings.fullscreen) {
+                        state.settings_dirty = true;
+                    }
+                    if widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync) {
+                        state.settings_dirty = true;
+                    }
+                    if widgets::labeled_slider(ui, theme, "FOV", &mut state.settings.fov, 60.0..=120.0) {
+                        state.settings_dirty = true;
+                    }
+                    if widgets::labeled_slider(ui, theme, "Render Distance", &mut state.settings.render_distance, 50.0..=2000.0) {
+                        state.settings_dirty = true;
+                    }
                 }
                 SettingsCategory::Audio => {
-                    widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0);
-                    widgets::labeled_slider(ui, theme, "Music Volume", &mut state.settings.music_volume, 0.0..=1.0);
-                    widgets::labeled_slider(ui, theme, "SFX Volume", &mut state.settings.sfx_volume, 0.0..=1.0);
+                    if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
+                        state.settings_dirty = true;
+                    }
+                    if widgets::labeled_slider(ui, theme, "Music Volume", &mut state.settings.music_volume, 0.0..=1.0) {
+                        state.settings_dirty = true;
+                    }
+                    if widgets::labeled_slider(ui, theme, "SFX Volume", &mut state.settings.sfx_volume, 0.0..=1.0) {
+                        state.settings_dirty = true;
+                    }
                 }
                 SettingsCategory::Controls => {
-                    widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.5..=10.0);
-                    widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y);
+                    if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.5..=10.0) {
+                        state.settings_dirty = true;
+                    }
+                    if widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y) {
+                        state.settings_dirty = true;
+                    }
                 }
                 SettingsCategory::Updates => {
                     draw_updates_tab(ui, theme, state);

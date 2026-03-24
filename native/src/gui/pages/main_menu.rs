@@ -1,7 +1,7 @@
 //! Title screen: Play, Settings, Quit.
 
 use egui::{Align2, Area, Color32, RichText, Vec2};
-use crate::gui::{GuiPage, GuiState};
+use crate::gui::{GuiPage, GuiState, VERSION};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -38,10 +38,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 ui.add_space(8.0);
                 if widgets::danger_button(ui, theme, "   Quit   ") {
-                    std::process::exit(0);
+                    state.quit_requested = true;
                 }
                 ui.add_space(30.0);
-                ui.label(RichText::new("v0.37.2").size(theme.font_size_small).color(theme.text_muted()));
+                ui.label(RichText::new(format!("v{}", VERSION)).size(theme.font_size_small).color(theme.text_muted()));
             });
         });
 }
