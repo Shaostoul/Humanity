@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.50.0"
+version = "0.51.0"
 edition = "2021"
 
 [[bin]]
@@ -54,7 +54,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"], optiona
 egui = { version = "0.31", optional = true }
 egui-wgpu = { version = "0.31", optional = true }
 egui-winit = { version = "0.31", optional = true }
-tungstenite = { version = "0.24", optional = true }
+tungstenite = { version = "0.24", optional = true, features = ["native-tls"] }
 ureq = { version = "2", optional = true }
 
 # === Platform: WASM ===
