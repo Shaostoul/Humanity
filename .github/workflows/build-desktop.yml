@@ -59,19 +59,18 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            native/target
+            target
           key: ${{ matrix.target }}-cargo-${{ hashFiles('native/Cargo.lock') }}
           restore-keys: ${{ matrix.target }}-cargo-
 
       - name: Build native engine (release)
-        working-directory: native
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }} -p humanity-engine
 
       - name: Copy binary
         shell: bash
         run: |
           mkdir -p dist
-          cp native/target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
