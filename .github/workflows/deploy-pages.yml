@@ -24,63 +24,38 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      # Mirror canonical docs into website/_includes/canon (generated build material)
-      - name: Mirror canonical docs into website/_includes/canon
+      # Simple mirror: copy entire docs/ tree into _includes/canon/docs/
+      # Jekyll wrapper pages use {% include canon/docs/FILENAME.md %}
+      # Accord pages use {% include canon/accord/FILENAME.md %}
+      - name: Mirror docs into website/_includes/canon
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p docs/website/_includes/canon/accord
+          rm -rf docs/website/_includes/canon
           mkdir -p docs/website/_includes/canon/docs
-          mkdir -p docs/website/_includes/canon/design
+          mkdir -p docs/website/_includes/canon/accord
           mkdir -p docs/website/_includes/canon/reference
-          # Copy all docs into canon/ so Jekyll includes resolve regardless of path
-          rsync -a docs/accord/ docs/website/_includes/canon/accord/
-          rsync -a docs/design/ docs/website/_includes/canon/design/
+
+          # Mirror entire docs/ tree (except website/) into canon/docs/
           rsync -a docs/ --exclude=website/ docs/website/_includes/canon/docs/
-          # Also mirror design/ into docs/ subpaths for backward-compat wrapper pages
-          # that use {% include canon/docs/decisions/... %} or similar old paths
-          rsync -a docs/design/ docs/website/_includes/canon/docs/design/
-          rsync -a docs/game/ docs/website/_includes/canon/docs/game/ 2>/dev/null || true
-          rsync -a docs/reference/ docs/website/_includes/canon/docs/reference/ 2>/dev/null || true
-          rsync -a docs/network/ docs/website/_includes/canon/docs/network/ 2>/dev/null || true
-          # Flatten: copy design files into old expected locations
-          # (decisions/ was merged into design/ during restructure)
-          mkdir -p docs/website/_includes/canon/docs/decisions
-          cp docs/design/ADR-*.md docs/website/_includes/canon/docs/decisions/ 2>/dev/null || true
-          mkdir -p docs/website/_includes/canon/docs/core
-          cp docs/design/architecture.md docs/website/_includes/canon/docs/core/ 2>/dev/null || true
-          cp docs/design/ai_interface.md docs/website/_includes/canon/docs/core/ 2>/dev/null || true
-          cp docs/design/data_model.md docs/website/_includes/canon/docs/core/ 2>/dev/null || true
-          # Copy select root .md files as reference docs
+
+          # Accord gets its own top-level canon path (wrapper pages use canon/accord/)
+          rsync -a docs/accord/ docs/website/_includes/canon/accord/
+
+          # Reference gets its own path too
           for f in CONTRIBUTING.md README.md; do
             [ -f "$f" ] && cp "$f" docs/website/_includes/canon/reference/
           done
 
-      # Hard fail early if the expected include targets are missing.
       - name: Verify canon mirror
         shell: bash
         run: |
           set -euo pipefail
           test -f docs/website/_includes/canon/accord/humanity_accord.md
-          test -f docs/website/_includes/canon/design/architecture.md
           test -f docs/website/_includes/canon/docs/00-START-HERE.md
+          test -f docs/website/_includes/canon/docs/design/architecture.md
           test -f docs/website/_includes/canon/reference/README.md
 
-
-      # Debug dump: if the build fails, you can see what Jekyll actually had.
-      - name: Dump website tree (debug)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "=== docs/website/_layouts ==="
-          ls -la docs/website/_layouts || true
-          echo "=== docs/website root ==="
-          ls -la docs/website
-          echo "=== docs/website/_includes/canon ==="
-          find docs/website/_includes/canon -maxdepth 3 -type f -print
-
-
-      # Official GitHub Pages Jekyll build action
       - name: Build with Jekyll (Pages)
         uses: actions/jekyll-build-pages@v1
         with:

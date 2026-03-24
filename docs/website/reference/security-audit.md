@@ -1,7 +1,1 @@
----
-layout: doc
-title: Security Audit
-permalink: /reference/security-audit
----
-
-{% include canon/reference/SECURITY_AUDIT.md %}
+# Security Audit\n\nSee docs/BUGS.md for resolved security issues and docs/reference/ for security architecture.
