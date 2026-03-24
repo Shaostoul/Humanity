@@ -1,7 +1,7 @@
 //! Open Source Tools Catalog — searchable grid of tools with category filters.
 //! Reads from the embedded tools catalog (data/tools/catalog.json format).
 
-use egui::{Color32, RichText, Rounding, Vec2};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -83,15 +83,12 @@ fn with_state<R>(f: impl FnOnce(&mut ToolsPageState) -> R) -> R {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Tools Catalog")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(640.0, 520.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Open Source Tools")
-                    .size(theme.font_size_heading)
+                    .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_xs);
@@ -157,9 +154,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.separator();
 
             // Tool cards grid
-            egui::ScrollArea::vertical()
+            ScrollArea::vertical()
                 .id_salt("tools_grid")
-                .max_height(360.0)
                 .show(ui, |ui| {
                     with_state(|ts| {
                         let search_lower = ts.search.to_lowercase();
@@ -249,10 +245,5 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             });
                     });
                 });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = crate::gui::GuiPage::EscapeMenu;
-            }
         });
 }

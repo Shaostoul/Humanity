@@ -1,6 +1,6 @@
 //! Donations page — funding progress, donation methods, and FAQ.
 
-use egui::{Color32, RichText, Rounding, Vec2};
+use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -82,15 +82,12 @@ fn with_state<R>(f: impl FnOnce(&mut DonatePageState) -> R) -> R {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Donate")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(520.0, 520.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Support HumanityOS")
-                    .size(theme.font_size_heading)
+                    .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
             ui.label(
@@ -100,108 +97,100 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             );
             ui.add_space(theme.spacing_md);
 
-            // Funding goal progress bar
-            widgets::card(ui, theme, |ui| {
-                ui.label(
-                    RichText::new("Monthly Funding Goal")
-                        .color(theme.text_secondary()),
-                );
-                let progress = 0.35; // placeholder
-                widgets::progress_bar(ui, theme, progress, Some(&format!("${} / ${} ({}%)", 350, 1000, (progress * 100.0) as u32)));
-                ui.label(
-                    RichText::new("Covers server hosting, domain, and dev tools.")
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-            });
-            ui.add_space(theme.spacing_md);
+            ScrollArea::vertical().show(ui, |ui| {
+                // Funding goal progress bar
+                widgets::card(ui, theme, |ui| {
+                    ui.label(
+                        RichText::new("Monthly Funding Goal")
+                            .color(theme.text_secondary()),
+                    );
+                    let progress = 0.35; // placeholder
+                    widgets::progress_bar(ui, theme, progress, Some(&format!("${} / ${} ({}%)", 350, 1000, (progress * 100.0) as u32)));
+                    ui.label(
+                        RichText::new("Covers server hosting, domain, and dev tools.")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                });
+                ui.add_space(theme.spacing_md);
 
-            // Donation source cards
-            egui::ScrollArea::vertical()
-                .id_salt("donate_sources")
-                .max_height(200.0)
-                .show(ui, |ui| {
-                    for source in DONATION_SOURCES {
-                        widgets::card(ui, theme, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.vertical(|ui| {
+                // Donation source cards
+                for source in DONATION_SOURCES {
+                    widgets::card(ui, theme, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(source.name)
+                                        .size(theme.font_size_body)
+                                        .color(theme.accent())
+                                        .strong(),
+                                );
+                                ui.label(
+                                    RichText::new(source.description)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                );
+                                ui.horizontal(|ui| {
+                                    let addr_color = if source.is_url {
+                                        Theme::c32(&theme.info)
+                                    } else {
+                                        theme.text_primary()
+                                    };
                                     ui.label(
-                                        RichText::new(source.name)
-                                            .size(theme.font_size_body)
-                                            .color(theme.accent())
-                                            .strong(),
-                                    );
-                                    ui.label(
-                                        RichText::new(source.description)
+                                        RichText::new(source.address_or_url)
                                             .size(theme.font_size_small)
-                                            .color(theme.text_secondary()),
+                                            .color(addr_color),
                                     );
-                                    ui.horizontal(|ui| {
-                                        let addr_color = if source.is_url {
-                                            Theme::c32(&theme.info)
-                                        } else {
-                                            theme.text_primary()
-                                        };
-                                        ui.label(
-                                            RichText::new(source.address_or_url)
-                                                .size(theme.font_size_small)
-                                                .color(addr_color),
-                                        );
-                                        if !source.is_url {
-                                            if ui.small_button("Copy").clicked() {
-                                                ui.output_mut(|o| {
-                                                    o.copied_text = source.address_or_url.to_string();
-                                                });
-                                                with_state(|ds| {
-                                                    ds.copied_message = format!("Copied {}", source.name);
-                                                    ds.copied_timer = 2.0;
-                                                });
-                                            }
-                                        } else if ui.small_button("Open").clicked() {
-                                            ui.ctx().open_url(egui::OpenUrl::new_tab(source.address_or_url));
+                                    if !source.is_url {
+                                        if ui.small_button("Copy").clicked() {
+                                            ui.output_mut(|o| {
+                                                o.copied_text = source.address_or_url.to_string();
+                                            });
+                                            with_state(|ds| {
+                                                ds.copied_message = format!("Copied {}", source.name);
+                                                ds.copied_timer = 2.0;
+                                            });
                                         }
-                                    });
+                                    } else if ui.small_button("Open").clicked() {
+                                        ui.ctx().open_url(egui::OpenUrl::new_tab(source.address_or_url));
+                                    }
                                 });
                             });
                         });
-                        ui.add_space(4.0);
+                    });
+                    ui.add_space(4.0);
+                }
+
+                // Copied feedback
+                with_state(|ds| {
+                    if ds.copied_timer > 0.0 {
+                        ui.label(
+                            RichText::new(&ds.copied_message)
+                                .color(theme.success())
+                                .size(theme.font_size_small),
+                        );
+                        ds.copied_timer -= ctx.input(|i| i.predicted_dt);
                     }
                 });
 
-            // Copied feedback
-            with_state(|ds| {
-                if ds.copied_timer > 0.0 {
-                    ui.label(
-                        RichText::new(&ds.copied_message)
-                            .color(theme.success())
-                            .size(theme.font_size_small),
-                    );
-                    ds.copied_timer -= ctx.input(|i| i.predicted_dt);
-                }
+                ui.add_space(theme.spacing_md);
+
+                // FAQ section
+                widgets::collapsible_section(ui, "FAQ", false, |ui| {
+                    for entry in FAQ {
+                        ui.add_space(theme.spacing_xs);
+                        ui.label(
+                            RichText::new(entry.question)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                        ui.label(
+                            RichText::new(entry.answer)
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
+                        );
+                    }
+                });
             });
-
-            ui.add_space(theme.spacing_md);
-
-            // FAQ section
-            widgets::collapsible_section(ui, "FAQ", false, |ui| {
-                for entry in FAQ {
-                    ui.add_space(theme.spacing_xs);
-                    ui.label(
-                        RichText::new(entry.question)
-                            .color(theme.text_primary())
-                            .strong(),
-                    );
-                    ui.label(
-                        RichText::new(entry.answer)
-                            .size(theme.font_size_small)
-                            .color(theme.text_secondary()),
-                    );
-                }
-            });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = crate::gui::GuiPage::EscapeMenu;
-            }
         });
 }

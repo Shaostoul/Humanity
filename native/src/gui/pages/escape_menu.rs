@@ -26,6 +26,9 @@ struct NavItem {
 /// Draw the RGB header nav bar at the top of the screen.
 /// Reusable across all pages (escape menu, tool pages, etc.).
 pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
+    // Keep repainting so the RGB channeling animation stays smooth
+    ctx.request_repaint();
+
     egui::TopBottomPanel::top("escape_nav_bar")
         .frame(Frame::none().fill(BG_BAR).inner_margin(egui::Margin::symmetric(8, 4)))
         .show(ctx, |ui| {
@@ -209,14 +212,32 @@ pub fn draw(ctx: &egui::Context, state: &mut GuiState) {
         });
 }
 
+/// Convert HSV to RGB Color32.
+fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {
+    let i = (h * 6.0).floor() as i32;
+    let f = h * 6.0 - i as f32;
+    let p = v * (1.0 - s);
+    let q = v * (1.0 - f * s);
+    let t = v * (1.0 - (1.0 - f) * s);
+    let (r, g, b) = match i % 6 {
+        0 => (v, t, p),
+        1 => (q, v, p),
+        2 => (p, v, t),
+        3 => (p, q, v),
+        4 => (t, p, v),
+        _ => (v, p, q),
+    };
+    Color32::from_rgb((r * 255.0) as u8, (g * 255.0) as u8, (b * 255.0) as u8)
+}
+
 /// Draw a group of nav buttons with a colored underline.
+/// Active button gets an RGB channeling animation cycling through hues.
 fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, state: &mut GuiState) {
     for item in items {
         let is_active = std::mem::discriminant(&state.active_page)
             == std::mem::discriminant(&item.page);
 
         let text_color = if is_active { Color32::WHITE } else { TEXT_MUTED };
-        let underline_alpha = if is_active { 255 } else { 80 };
 
         let response = ui.add(
             egui::Button::new(RichText::new(item.label).size(11.0).color(text_color))
@@ -224,16 +245,23 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, state: &mut G
                 .min_size(Vec2::new(0.0, 28.0)),
         );
 
-        // Draw colored underline
+        // Draw colored underline — active buttons get RGB channeling animation
         let rect = response.rect;
         let painter = ui.painter();
+        let underline_color = if is_active {
+            let time = ui.ctx().input(|i| i.time) as f32;
+            let hue = (time * 0.3) % 1.0;
+            hsv_to_rgb(hue, 0.8, 1.0)
+        } else {
+            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 80)
+        };
         painter.rect_filled(
             egui::Rect::from_min_size(
                 egui::pos2(rect.left() + 2.0, rect.bottom() - 3.0),
                 Vec2::new(rect.width() - 4.0, 3.0),
             ),
             Rounding::same(2),
-            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), underline_alpha),
+            underline_color,
         );
 
         if response.clicked() {

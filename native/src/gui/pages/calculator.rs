@@ -1,19 +1,19 @@
 //! Calculator page — basic arithmetic with expression display and history.
 
-use egui::{RichText, Vec2};
+use egui::{Color32, Frame, RichText, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Calculator")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(520.0, 420.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
+            ui.label(RichText::new("Calculator").size(theme.font_size_title).color(theme.text_primary()));
+            ui.add_space(theme.spacing_sm);
+
             ui.horizontal(|ui| {
-                // ── Left: calculator pad ──
+                // Left: calculator pad
                 ui.vertical(|ui| {
                     ui.set_min_width(280.0);
 
@@ -71,7 +71,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.add_space(theme.spacing_md);
 
-                // ── Right: history ──
+                // Right: history
                 ui.vertical(|ui| {
                     ui.set_min_width(200.0);
                     ui.label(
@@ -81,7 +81,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     ui.add_space(theme.spacing_xs);
 
-                    egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+                    ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
                         if state.calc_history.is_empty() {
                             ui.label(
                                 RichText::new("No calculations yet")
@@ -105,11 +105,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = crate::gui::GuiPage::EscapeMenu;
-            }
         });
 }
 

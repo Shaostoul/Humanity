@@ -3,18 +3,14 @@
 //! Search bar at top, category filter sidebar on left, listing cards grid,
 //! detail modal on click, and "Create Listing" form.
 
-use egui::{Color32, RichText, Rounding, ScrollArea, Vec2};
-use crate::gui::{GuiPage, GuiState, GuiListing};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
+use crate::gui::{GuiState, GuiListing};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
 const CATEGORIES: &[&str] = &["All", "Tools", "Materials", "Food", "Equipment", "Services", "Other"];
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let screen = ctx.screen_rect();
-    let painter = ctx.layer_painter(egui::LayerId::background());
-    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 200));
-
     // Detail modal (drawn first so it overlays everything)
     let mut close_detail = false;
     if let Some(sel_idx) = state.listing_selected {
@@ -86,19 +82,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         state.listing_selected = None;
     }
 
-    egui::Window::new("Marketplace")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(900.0, 600.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Marketplace").size(theme.font_size_title).color(theme.text_primary()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::secondary_button(ui, theme, "Back") {
-                        state.active_page = GuiPage::EscapeMenu;
-                    }
                     if widgets::primary_button(ui, theme, "+ Create Listing") {
                         state.listing_show_new_form = !state.listing_show_new_form;
                     }
@@ -219,7 +209,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.label(RichText::new("Create one to get started.").color(theme.text_secondary()));
                         });
                     } else {
-                        ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+                        ScrollArea::vertical().show(ui, |ui| {
                             // 2-column card grid
                             let mut iter = filtered.iter();
                             loop {

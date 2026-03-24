@@ -1,6 +1,6 @@
 //! Curated Resources page — context-aware (Real/Sim) resource directory.
 
-use egui::{Color32, RichText, Rounding, Vec2};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -115,17 +115,14 @@ fn with_state<R>(f: impl FnOnce(&mut ResourcesPageState) -> R) -> R {
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let is_real = state.context_real;
 
-    egui::Window::new("Resources")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(640.0, 480.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("Resources")
-                        .size(theme.font_size_heading)
+                        .size(theme.font_size_title)
                         .color(theme.text_primary()),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -200,9 +197,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     cols[1].add_space(theme.spacing_xs);
 
-                    egui::ScrollArea::vertical()
+                    ScrollArea::vertical()
                         .id_salt("resource_cards")
-                        .max_height(360.0)
                         .show(&mut cols[1], |ui| {
                             for res in resources {
                                 widgets::card(ui, theme, |ui| {
@@ -228,10 +224,5 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         });
                 });
             });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = crate::gui::GuiPage::EscapeMenu;
-            }
         });
 }

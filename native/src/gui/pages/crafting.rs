@@ -1,7 +1,7 @@
 //! Crafting page — recipe browser with ingredient check against inventory.
 
-use egui::{RichText, Rounding, Stroke, Vec2};
-use crate::gui::{GuiPage, GuiRecipe, GuiState};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
+use crate::gui::{GuiState, GuiRecipe};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -12,20 +12,17 @@ const CATEGORIES: &[&str] = &[
 ];
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Crafting")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(640.0, 480.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Crafting")
-                    .size(theme.font_size_heading)
+                    .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_sm);
 
-            // ── Category filter ──
+            // Category filter
             ui.horizontal(|ui| {
                 for (i, cat) in CATEGORIES.iter().enumerate() {
                     let is_active = state.craft_category == i;
@@ -46,7 +43,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
 
             ui.horizontal(|ui| {
-                // ── Left: recipe list ──
+                // Left: recipe list
                 ui.vertical(|ui| {
                     ui.set_min_width(220.0);
                     ui.set_max_width(220.0);
@@ -58,7 +55,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         Some(CATEGORIES[state.craft_category])
                     };
 
-                    egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+                    ScrollArea::vertical().show(ui, |ui| {
                         let filtered: Vec<_> = state
                             .craft_recipes
                             .iter()
@@ -112,7 +109,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.separator();
 
-                // ── Right: recipe detail ──
+                // Right: recipe detail
                 ui.vertical(|ui| {
                     if let Some(idx) = state.craft_selected {
                         if let Some(recipe) = state.craft_recipes.get(idx) {
@@ -179,13 +176,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             ui.add_space(theme.spacing_md);
 
-                            // Craft button — enabled only if all inputs are met
+                            // Craft button
                             let can_craft = recipe.inputs.iter().all(|(item_id, qty)| {
                                 count_in_inventory(state, item_id) >= *qty
                             });
                             ui.add_enabled_ui(can_craft, |ui| {
                                 if widgets::primary_button(ui, theme, "Craft") {
-                                    // Placeholder: would deduct items and start crafting timer
                                     state.craft_status = format!("Crafting {}...", recipe.name);
                                 }
                             });
@@ -208,11 +204,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = GuiPage::EscapeMenu;
-            }
         });
 }
 

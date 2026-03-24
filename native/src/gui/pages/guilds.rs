@@ -1,20 +1,17 @@
 //! Guilds page — guild list, detail panel, create form.
 
-use egui::{Color32, RichText, Rounding, Stroke, Vec2};
-use crate::gui::{GuiGuild, GuiPage, GuiState};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use crate::gui::{GuiGuild, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Guilds")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(620.0, 480.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Guilds")
-                    .size(theme.font_size_heading)
+                    .size(theme.font_size_title)
                     .color(theme.text_primary()),
             );
             ui.add_space(theme.spacing_sm);
@@ -32,12 +29,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
 
             ui.horizontal(|ui| {
-                // ── Left: guild list ──
+                // Left: guild list
                 ui.vertical(|ui| {
                     ui.set_min_width(240.0);
                     ui.set_max_width(240.0);
 
-                    egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
+                    ScrollArea::vertical().show(ui, |ui| {
                         let search = state.guild_search.to_lowercase();
                         let filtered: Vec<_> = state
                             .guilds
@@ -86,7 +83,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .size(theme.font_size_small)
                                                 .color(theme.text_muted()),
                                         );
-                                        // Description preview
                                         let preview: String = guild.description.chars().take(40).collect();
                                         let preview = if guild.description.len() > 40 {
                                             format!("{}...", preview)
@@ -110,7 +106,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.separator();
 
-                // ── Right: detail or create form ──
+                // Right: detail or create form
                 ui.vertical(|ui| {
                     if state.guild_show_create {
                         // Create guild form
@@ -176,7 +172,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                             // Member list
                             widgets::card_with_header(ui, theme, &format!("Members ({})", guild.members.len()), |ui| {
-                                egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
+                                ScrollArea::vertical().id_salt("guild_members").max_height(120.0).show(ui, |ui| {
                                     for member in &guild.members {
                                         ui.label(
                                             RichText::new(member)
@@ -221,10 +217,5 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = GuiPage::EscapeMenu;
-            }
         });
 }

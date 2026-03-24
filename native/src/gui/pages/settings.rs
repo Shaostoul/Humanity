@@ -2,19 +2,19 @@
 //! Toggles and sliders write to GuiState.settings; lib.rs reads these
 //! and applies them to the camera, controller, window, and audio manager.
 
-use egui::{RichText, Vec2};
-use crate::gui::{GuiPage, GuiState, SettingsCategory, VERSION};
+use egui::{Color32, Frame, RichText, ScrollArea};
+use crate::gui::{GuiState, SettingsCategory, VERSION};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::updater::{UpdateChannel, UpdateState};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Settings")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(520.0, 450.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
+            ui.label(RichText::new("Settings").size(theme.font_size_title).color(theme.text_primary()));
+            ui.add_space(theme.spacing_sm);
+
             // Tab bar
             let tabs = ["Graphics", "Audio", "Controls", "Updates"];
             let mut active = match state.settings.category {
@@ -35,49 +35,44 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.separator();
             ui.add_space(theme.spacing_sm);
 
-            match state.settings.category {
-                SettingsCategory::Graphics => {
-                    if widgets::toggle(ui, theme, "Fullscreen", &mut state.settings.fullscreen) {
-                        state.settings_dirty = true;
+            ScrollArea::vertical().show(ui, |ui| {
+                match state.settings.category {
+                    SettingsCategory::Graphics => {
+                        if widgets::toggle(ui, theme, "Fullscreen", &mut state.settings.fullscreen) {
+                            state.settings_dirty = true;
+                        }
+                        if widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync) {
+                            state.settings_dirty = true;
+                        }
+                        if widgets::labeled_slider(ui, theme, "FOV", &mut state.settings.fov, 60.0..=120.0) {
+                            state.settings_dirty = true;
+                        }
+                        if widgets::labeled_slider(ui, theme, "Render Distance", &mut state.settings.render_distance, 50.0..=2000.0) {
+                            state.settings_dirty = true;
+                        }
                     }
-                    if widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync) {
-                        state.settings_dirty = true;
+                    SettingsCategory::Audio => {
+                        if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
+                            state.settings_dirty = true;
+                        }
+                        if widgets::labeled_slider(ui, theme, "Music Volume", &mut state.settings.music_volume, 0.0..=1.0) {
+                            state.settings_dirty = true;
+                        }
+                        if widgets::labeled_slider(ui, theme, "SFX Volume", &mut state.settings.sfx_volume, 0.0..=1.0) {
+                            state.settings_dirty = true;
+                        }
                     }
-                    if widgets::labeled_slider(ui, theme, "FOV", &mut state.settings.fov, 60.0..=120.0) {
-                        state.settings_dirty = true;
+                    SettingsCategory::Controls => {
+                        if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.5..=10.0) {
+                            state.settings_dirty = true;
+                        }
+                        if widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y) {
+                            state.settings_dirty = true;
+                        }
                     }
-                    if widgets::labeled_slider(ui, theme, "Render Distance", &mut state.settings.render_distance, 50.0..=2000.0) {
-                        state.settings_dirty = true;
+                    SettingsCategory::Updates => {
+                        draw_updates_tab(ui, theme, state);
                     }
-                }
-                SettingsCategory::Audio => {
-                    if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
-                        state.settings_dirty = true;
-                    }
-                    if widgets::labeled_slider(ui, theme, "Music Volume", &mut state.settings.music_volume, 0.0..=1.0) {
-                        state.settings_dirty = true;
-                    }
-                    if widgets::labeled_slider(ui, theme, "SFX Volume", &mut state.settings.sfx_volume, 0.0..=1.0) {
-                        state.settings_dirty = true;
-                    }
-                }
-                SettingsCategory::Controls => {
-                    if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.5..=10.0) {
-                        state.settings_dirty = true;
-                    }
-                    if widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y) {
-                        state.settings_dirty = true;
-                    }
-                }
-                SettingsCategory::Updates => {
-                    draw_updates_tab(ui, theme, state);
-                }
-            }
-
-            ui.add_space(theme.spacing_lg);
-            ui.horizontal(|ui| {
-                if widgets::secondary_button(ui, theme, "Back") {
-                    state.active_page = GuiPage::MainMenu;
                 }
             });
         });

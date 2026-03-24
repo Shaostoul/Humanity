@@ -3,8 +3,8 @@
 //! Left sidebar: planet list (clickable). Center: orbit visualization.
 //! Right panel: selected planet details. Context-aware for Real/Sim.
 
-use egui::{Color32, Pos2, RichText, Rounding, Stroke, Vec2};
-use crate::gui::{GuiPage, GuiState};
+use egui::{Color32, Frame, Pos2, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -24,23 +24,13 @@ fn planet_color(name: &str) -> Color32 {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let screen = ctx.screen_rect();
-    let painter = ctx.layer_painter(egui::LayerId::background());
-    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 200));
-
-    egui::Window::new("Maps")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(900.0, 600.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Solar System Map").size(theme.font_size_title).color(theme.text_primary()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::secondary_button(ui, theme, "Back") {
-                        state.active_page = GuiPage::EscapeMenu;
-                    }
                     let mode_text = if state.context_real { "Real" } else { "Sim" };
                     ui.label(RichText::new(mode_text).color(theme.accent()).size(theme.font_size_small));
                 });

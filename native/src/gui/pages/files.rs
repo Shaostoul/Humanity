@@ -1,6 +1,6 @@
 //! File Browser page — browse data/ directory, view and edit text files.
 
-use egui::{RichText, Rounding, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -132,7 +132,6 @@ fn draw_tree(
             });
             let resp = ui.selectable_label(is_selected, label_text);
             if resp.clicked() {
-                // Load file content
                 match std::fs::read_to_string(&*path) {
                     Ok(text) => {
                         *content = text;
@@ -146,7 +145,6 @@ fn draw_tree(
                     }
                 }
                 *selected = Some(path.clone());
-                // Update breadcrumbs
                 *breadcrumbs = path
                     .components()
                     .filter_map(|c| {
@@ -184,12 +182,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     });
 
-    egui::Window::new("File Browser")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(700.0, 500.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
+            ui.label(RichText::new("File Browser").size(theme.font_size_title).color(theme.text_primary()));
+            ui.add_space(theme.spacing_xs);
+
             // Breadcrumb navigation
             with_state(|fs| {
                 ui.horizontal(|ui| {
@@ -211,9 +209,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .size(theme.font_size_body)
                         .color(theme.text_secondary()),
                 );
-                egui::ScrollArea::vertical()
+                ScrollArea::vertical()
                     .id_salt("file_tree")
-                    .max_height(380.0)
                     .show(&mut cols[0], |ui| {
                         with_state(|fs| {
                             if let Some(ref mut root) = fs.root {
@@ -239,9 +236,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // Right panel: file content viewer
                 with_state(|fs| {
                     if fs.selected_file.is_some() {
-                        egui::ScrollArea::vertical()
+                        ScrollArea::vertical()
                             .id_salt("file_content")
-                            .max_height(360.0)
                             .show(&mut cols[1], |ui| {
                                 let resp = ui.add(
                                     egui::TextEdit::multiline(&mut fs.file_content)
@@ -289,10 +285,5 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = crate::gui::GuiPage::EscapeMenu;
-            }
         });
 }

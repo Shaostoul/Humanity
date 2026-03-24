@@ -3,8 +3,8 @@
 //! Columns: Todo, In Progress, Done. Each card shows title, description
 //! preview, priority badge, assignee, and labels. Filter bar at top.
 
-use egui::{Color32, RichText, Rounding, ScrollArea, Stroke, Vec2};
-use crate::gui::{GuiPage, GuiState, TaskPriority, TaskStatus, GuiTask};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
+use crate::gui::{GuiState, TaskPriority, TaskStatus, GuiTask};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -35,23 +35,13 @@ fn status_label(status: TaskStatus) -> &'static str {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let screen = ctx.screen_rect();
-    let painter = ctx.layer_painter(egui::LayerId::background());
-    painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 200));
-
-    egui::Window::new("Task Board")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(900.0, 600.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Task Board").size(theme.font_size_title).color(theme.text_primary()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if widgets::secondary_button(ui, theme, "Back") {
-                        state.active_page = GuiPage::EscapeMenu;
-                    }
                     if widgets::primary_button(ui, theme, "+ New Task") {
                         state.task_show_new_form = !state.task_show_new_form;
                     }
@@ -193,7 +183,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.label(RichText::new("No tasks").color(theme.text_muted()));
                         }
 
-                        ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
+                        ScrollArea::vertical().show(ui, |ui| {
                             for &idx in &col_tasks {
                                 let task = &state.tasks[idx];
                                 let pc = priority_color(theme, task.priority);

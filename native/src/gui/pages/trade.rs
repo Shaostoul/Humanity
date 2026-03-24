@@ -1,6 +1,6 @@
 //! P2P Trading page — view, create, and manage trades with other players.
 
-use egui::{Color32, RichText, Rounding, Vec2};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -106,17 +106,14 @@ fn with_state<R>(f: impl FnOnce(&mut TradePageState) -> R) -> R {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    egui::Window::new("Trade")
-        .resizable(false)
-        .collapsible(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(620.0, 480.0))
+    egui::CentralPanel::default()
+        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("P2P Trading")
-                        .size(theme.font_size_heading)
+                        .size(theme.font_size_title)
                         .color(theme.text_primary()),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -174,9 +171,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .size(theme.font_size_body)
                         .color(theme.text_secondary()),
                 );
-                egui::ScrollArea::vertical()
+                ScrollArea::vertical()
                     .id_salt("trade_list")
-                    .max_height(340.0)
                     .show(&mut cols[0], |ui| {
                         with_state(|ts| {
                             for (i, trade) in ts.trades.iter().enumerate() {
@@ -348,10 +344,5 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             });
-
-            ui.add_space(theme.spacing_sm);
-            if widgets::secondary_button(ui, theme, "Close") {
-                state.active_page = crate::gui::GuiPage::EscapeMenu;
-            }
         });
 }
