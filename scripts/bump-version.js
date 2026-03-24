@@ -116,4 +116,11 @@ if (fs.existsSync(manifestPath)) {
   console.log('  skipped app/web/manifest.json (not found — run bundle-web first)');
 }
 
+// 10. native/Cargo.toml — version = "X.Y.Z"
+replaceInFile(
+  'native/Cargo.toml',
+  `version = "${oldVersion}"`,
+  `version = "${newVersion}"`
+);
+
 console.log(`\nVersion bumped: ${oldVersion} -> ${newVersion}`);
