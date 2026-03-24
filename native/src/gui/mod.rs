@@ -215,6 +215,37 @@ pub struct GuiGuild {
     pub is_member: bool,
 }
 
+/// A chat message received from or sent to the relay server.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ChatMessage {
+    pub sender_name: String,
+    pub sender_key: String,
+    pub content: String,
+    pub timestamp: String,
+    pub channel: String,
+}
+
+/// A user visible in the chat user list.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ChatUser {
+    pub name: String,
+    pub public_key: String,
+    pub role: String,
+    pub status: String,
+}
+
+/// A channel in the channel list.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ChatChannel {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -223,7 +254,12 @@ pub struct GuiState {
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
-    pub chat_messages: Vec<String>,
+    pub chat_messages: Vec<ChatMessage>,
+    pub chat_channels: Vec<ChatChannel>,
+    pub chat_active_channel: String,
+    pub chat_users: Vec<ChatUser>,
+    pub ws_client: Option<crate::net::ws_client::WsClient>,
+    pub ws_status: String,
     pub selected_slot: Option<usize>,
     pub fps: f32,
     pub updater: crate::updater::Updater,
@@ -366,6 +402,15 @@ impl Default for GuiState {
             settings: SettingsState::default(),
             chat_input: String::new(),
             chat_messages: Vec::new(),
+            chat_channels: vec![
+                ChatChannel { id: "general".into(), name: "general".into(), description: "General discussion".into(), category: "Text".into() },
+                ChatChannel { id: "stream".into(), name: "stream".into(), description: "Live stream chat".into(), category: "Text".into() },
+                ChatChannel { id: "dev".into(), name: "dev".into(), description: "Development".into(), category: "Text".into() },
+            ],
+            chat_active_channel: "general".to_string(),
+            chat_users: Vec::new(),
+            ws_client: None,
+            ws_status: "Not connected".to_string(),
             selected_slot: None,
             fps: 0.0,
             updater: crate::updater::Updater::new(VERSION),

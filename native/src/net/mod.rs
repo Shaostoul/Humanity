@@ -9,3 +9,5 @@ pub mod protocol;
 pub mod client;
 #[cfg(feature = "native")]
 pub mod sync;
+#[cfg(feature = "native")]
+pub mod ws_client;

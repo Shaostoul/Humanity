@@ -620,6 +620,163 @@ mod native_app {
                         });
                     }
 
+                    // ── Poll WebSocket messages from relay server ──
+                    if let Some(ref mut ws) = state.gui_state.ws_client {
+                        let messages = ws.poll_messages();
+                        if !ws.is_connected() {
+                            state.gui_state.ws_status = "Disconnected".to_string();
+                        }
+                        for raw in messages {
+                            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                                match val.get("type").and_then(|t| t.as_str()) {
+                                    Some("chat") => {
+                                        let sender_key = val.get("from")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        // Skip our own messages (already added locally)
+                                        if sender_key == state.gui_state.profile_public_key {
+                                            continue;
+                                        }
+                                        let sender_name = val.get("from_name")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Anonymous")
+                                            .to_string();
+                                        let content = val.get("content")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        let timestamp = val.get("timestamp")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        let channel = val.get("channel")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("general")
+                                            .to_string();
+                                        state.gui_state.chat_messages.push(
+                                            crate::gui::ChatMessage {
+                                                sender_name,
+                                                sender_key,
+                                                content,
+                                                timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
+                                                channel,
+                                            },
+                                        );
+                                        // Bound message buffer
+                                        while state.gui_state.chat_messages.len() > 200 {
+                                            state.gui_state.chat_messages.remove(0);
+                                        }
+                                    }
+                                    Some("peer_list") => {
+                                        state.gui_state.chat_users.clear();
+                                        state.gui_state.ws_status = "Connected".to_string();
+                                        if let Some(peers) = val.get("peers").and_then(|v| v.as_array()) {
+                                            for peer in peers {
+                                                let name = peer.get("display_name")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("Anonymous")
+                                                    .to_string();
+                                                let key = peer.get("public_key")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let role = peer.get("role")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let status = peer.get("status")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("online")
+                                                    .to_string();
+                                                state.gui_state.chat_users.push(
+                                                    crate::gui::ChatUser { name, public_key: key, role, status },
+                                                );
+                                            }
+                                        }
+                                    }
+                                    Some("peer_joined") => {
+                                        let name = val.get("display_name")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("Anonymous")
+                                            .to_string();
+                                        let key = val.get("public_key")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        let role = val.get("role")
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        // Add if not already present
+                                        if !state.gui_state.chat_users.iter().any(|u| u.public_key == key) {
+                                            state.gui_state.chat_users.push(
+                                                crate::gui::ChatUser { name, public_key: key, role, status: "online".into() },
+                                            );
+                                        }
+                                    }
+                                    Some("peer_left") => {
+                                        if let Some(key) = val.get("public_key").and_then(|v| v.as_str()) {
+                                            state.gui_state.chat_users.retain(|u| u.public_key != key);
+                                        }
+                                    }
+                                    Some("channel_list") => {
+                                        if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
+                                            state.gui_state.chat_channels.clear();
+                                            for ch in channels {
+                                                let id = ch.get("id")
+                                                    .or_else(|| ch.get("name"))
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("general")
+                                                    .to_string();
+                                                let name = ch.get("name")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or(&id)
+                                                    .to_string();
+                                                let description = ch.get("description")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let category = ch.get("category_name")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("Text")
+                                                    .to_string();
+                                                state.gui_state.chat_channels.push(
+                                                    crate::gui::ChatChannel { id, name, description, category },
+                                                );
+                                            }
+                                        }
+                                    }
+                                    Some("system") => {
+                                        if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
+                                            log::info!("Relay system message: {}", msg);
+                                            // Add as a system message in current channel
+                                            state.gui_state.chat_messages.push(
+                                                crate::gui::ChatMessage {
+                                                    sender_name: "System".to_string(),
+                                                    sender_key: String::new(),
+                                                    content: msg.to_string(),
+                                                    timestamp: crate::gui::pages::chat::format_timestamp(
+                                                        std::time::SystemTime::now()
+                                                            .duration_since(std::time::UNIX_EPOCH)
+                                                            .unwrap_or_default()
+                                                            .as_millis() as u64,
+                                                    ),
+                                                    channel: state.gui_state.chat_active_channel.clone(),
+                                                },
+                                            );
+                                        }
+                                    }
+                                    Some("name_taken") => {
+                                        state.gui_state.ws_status = "Name taken - try another".to_string();
+                                    }
+                                    _ => {
+                                        // Ignore other message types for now
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Track page before egui frame for cursor grab transitions
                     let page_before_frame = state.gui_state.active_page;
 
