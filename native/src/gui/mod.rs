@@ -87,6 +87,23 @@ pub struct GuiState {
     /// Set true when an update notification toast should show.
     pub update_toast_visible: bool,
 
+    // ── Onboarding state ──
+
+    /// Whether the user has completed first-run onboarding.
+    pub onboarding_complete: bool,
+    /// Current onboarding step (0 = welcome, 1 = server connect, 2 = identity, 3 = done).
+    pub onboarding_step: u8,
+    /// Server URL input field.
+    pub server_url: String,
+    /// Whether currently connected to a server.
+    pub server_connected: bool,
+    /// User display name input.
+    pub user_name: String,
+    /// Real/Sim context mode. true = real (default), false = sim.
+    pub context_real: bool,
+    /// Default page to load after onboarding (Chat by default).
+    pub default_page: GuiPage,
+
     // ── Bridged game state (written by lib.rs each frame) ──
 
     /// Player health fraction (0.0 to 1.0). Updated from ECS Health component.
@@ -121,6 +138,14 @@ impl Default for GuiState {
             fps: 0.0,
             updater: crate::updater::Updater::new(VERSION),
             update_toast_visible: false,
+
+            onboarding_complete: false,
+            onboarding_step: 0,
+            server_url: "https://united-humanity.us".to_string(),
+            server_connected: false,
+            user_name: String::new(),
+            context_real: true,
+            default_page: GuiPage::Chat,
 
             player_health: 1.0,
             player_health_max: 100.0,
