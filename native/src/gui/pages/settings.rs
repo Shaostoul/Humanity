@@ -135,6 +135,69 @@ fn draw_account(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("No seed phrase generated yet.").color(theme.warning()).size(theme.font_size_small));
                 });
         }
+
+        ui.add_space(theme.spacing_lg);
+
+        // ── Recover from Seed Phrase ──
+        ui.label(RichText::new("Recover Identity from Seed Phrase").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new("Paste your 24-word seed phrase to restore your identity from the website or another device.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_xs);
+
+        if widgets::secondary_button(ui, theme, if state.settings.seed_phrase_show_recover { "Cancel Recovery" } else { "Recover from Seed Phrase" }) {
+            state.settings.seed_phrase_show_recover = !state.settings.seed_phrase_show_recover;
+            state.settings.seed_phrase_recovery_status.clear();
+        }
+
+        if state.settings.seed_phrase_show_recover {
+            ui.add_space(theme.spacing_sm);
+            ui.label(RichText::new("Enter your 24-word seed phrase:").color(theme.text_secondary()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_xs);
+
+            ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
+                .desired_width(ui.available_width())
+                .desired_rows(3)
+                .hint_text("word1 word2 word3 ... (24 words)"));
+
+            ui.add_space(theme.spacing_sm);
+
+            if widgets::primary_button(ui, theme, "  Recover Identity  ") {
+                let phrase = state.settings.seed_phrase_input.trim().to_string();
+                match crate::net::identity::derive_keypair_from_mnemonic(&phrase) {
+                    Ok((pubkey_hex, privkey_bytes)) => {
+                        state.settings.seed_phrase_recovery_status = format!("Identity recovered! Public key: {}...{}", &pubkey_hex[..8], &pubkey_hex[pubkey_hex.len()-8..]);
+                        state.profile_public_key = pubkey_hex;
+                        state.private_key_bytes = Some(privkey_bytes);
+                        // Disconnect existing connection so auto-connect uses new identity
+                        if let Some(ref mut ws) = state.ws_client {
+                            ws.disconnect();
+                        }
+                        state.ws_client = None;
+                        state.ws_status = "Reconnecting with recovered identity...".to_string();
+                        state.identity_recovered = true;
+                        state.history_fetched = false;
+                        // Save config with new identity
+                        crate::config::AppConfig::from_gui_state(state).save();
+                        // Clear the input
+                        state.settings.seed_phrase_input.clear();
+                        state.settings.seed_phrase_show_recover = false;
+                    }
+                    Err(e) => {
+                        state.settings.seed_phrase_recovery_status = format!("Error: {}", e);
+                    }
+                }
+            }
+
+            if !state.settings.seed_phrase_recovery_status.is_empty() {
+                ui.add_space(theme.spacing_xs);
+                let color = if state.settings.seed_phrase_recovery_status.starts_with("Error") {
+                    theme.danger()
+                } else {
+                    Color32::from_rgb(46, 204, 113)
+                };
+                ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(color).size(theme.font_size_small));
+            }
+        }
     });
 }
 

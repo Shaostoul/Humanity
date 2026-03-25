@@ -3,7 +3,7 @@
 //! First-run: walks user through welcome, server connection, identity setup.
 //! Returning user: shows the main hub with quick-access buttons.
 
-use egui::{Align2, Area, Color32, RichText, Vec2};
+use egui::{Align2, Color32, RichText, Vec2};
 use crate::gui::{GuiPage, GuiState, VERSION};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -27,7 +27,7 @@ fn draw_onboarding(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .title_bar(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(500.0, 420.0))
+        .fixed_size(Vec2::new(500.0, 520.0))
         .frame(egui::Frame::window(&ctx.style()).fill(Color32::from_rgb(18, 18, 24)))
         .show(ctx, |ui| {
             match state.onboarding_step {
@@ -159,7 +159,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             "Choose a display name. Your cryptographic identity\n\
              (Ed25519 key) is generated automatically."
         ).size(13.0).color(theme.text_secondary()));
-        ui.add_space(24.0);
+        ui.add_space(16.0);
     });
 
     ui.horizontal(|ui| {
@@ -176,7 +176,7 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         );
     });
 
-    ui.add_space(16.0);
+    ui.add_space(12.0);
 
     // Context mode selection
     ui.horizontal(|ui| {
@@ -192,14 +192,76 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(40.0);
         ui.radio_value(&mut state.context_real, false, "Sim (game mode, simulation notifications)");
     });
+
+    ui.add_space(12.0);
+
+    // ── Recover from Seed Phrase ──
     ui.horizontal(|ui| {
         ui.add_space(40.0);
-        ui.label(RichText::new(
-            "You can switch between Real and Sim anytime."
-        ).size(11.0).color(theme.text_muted()));
+        if ui.small_button(
+            if state.settings.seed_phrase_show_recover { "Cancel recovery" } else { "Recover existing identity from seed phrase" }
+        ).clicked() {
+            state.settings.seed_phrase_show_recover = !state.settings.seed_phrase_show_recover;
+            state.settings.seed_phrase_recovery_status.clear();
+        }
     });
 
-    ui.add_space(24.0);
+    if state.settings.seed_phrase_show_recover {
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.add_space(40.0);
+            ui.vertical(|ui| {
+                ui.add(egui::TextEdit::multiline(&mut state.settings.seed_phrase_input)
+                    .desired_width(380.0)
+                    .desired_rows(2)
+                    .hint_text("Enter your 24-word seed phrase"));
+                ui.add_space(4.0);
+                if widgets::primary_button(ui, theme, "Recover") {
+                    let phrase = state.settings.seed_phrase_input.trim().to_string();
+                    match crate::net::identity::derive_keypair_from_mnemonic(&phrase) {
+                        Ok((pubkey_hex, privkey_bytes)) => {
+                            state.settings.seed_phrase_recovery_status = format!(
+                                "Recovered: {}...{}", &pubkey_hex[..8], &pubkey_hex[pubkey_hex.len()-8..]
+                            );
+                            state.profile_public_key = pubkey_hex;
+                            state.private_key_bytes = Some(privkey_bytes);
+                            state.identity_recovered = true;
+                            state.settings.seed_phrase_input.clear();
+                            state.settings.seed_phrase_show_recover = false;
+                        }
+                        Err(e) => {
+                            state.settings.seed_phrase_recovery_status = format!("Error: {}", e);
+                        }
+                    }
+                }
+                if !state.settings.seed_phrase_recovery_status.is_empty() {
+                    let color = if state.settings.seed_phrase_recovery_status.starts_with("Error") {
+                        Color32::from_rgb(231, 76, 60)
+                    } else {
+                        Color32::from_rgb(46, 204, 113)
+                    };
+                    ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(color).size(11.0));
+                }
+            });
+        });
+    }
+
+    // Show current public key if set
+    if !state.profile_public_key.is_empty() {
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.add_space(40.0);
+            let key = &state.profile_public_key;
+            let display = if key.len() > 16 {
+                format!("Identity: {}...{}", &key[..8], &key[key.len()-8..])
+            } else {
+                format!("Identity: {}", key)
+            };
+            ui.label(RichText::new(display).size(11.0).color(Color32::from_rgb(46, 204, 113)));
+        });
+    }
+
+    ui.add_space(16.0);
     ui.vertical_centered(|ui| {
         if widgets::primary_button(ui, theme, "  Finish Setup  ") {
             state.onboarding_step = 3;

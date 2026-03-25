@@ -11,3 +11,5 @@ pub mod client;
 pub mod sync;
 #[cfg(feature = "native")]
 pub mod ws_client;
+#[cfg(feature = "native")]
+pub mod identity;

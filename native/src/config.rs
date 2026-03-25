@@ -27,6 +27,9 @@ pub struct AppConfig {
     pub fullscreen: bool,
     #[serde(default = "default_true")]
     pub vsync: bool,
+    /// Ed25519 private key bytes (hex-encoded for JSON storage).
+    #[serde(default)]
+    pub private_key_hex: String,
 }
 
 fn default_fov() -> f32 { 90.0 }
@@ -71,6 +74,9 @@ impl AppConfig {
 
     /// Build an AppConfig snapshot from the current GuiState.
     pub fn from_gui_state(state: &crate::gui::GuiState) -> Self {
+        let private_key_hex = state.private_key_bytes.as_ref()
+            .map(|bytes| bytes.iter().map(|b| format!("{:02x}", b)).collect::<String>())
+            .unwrap_or_default();
         Self {
             server_url: state.server_url.clone(),
             user_name: state.user_name.clone(),
@@ -84,6 +90,7 @@ impl AppConfig {
             sfx_volume: state.settings.sfx_volume,
             fullscreen: state.settings.fullscreen,
             vsync: state.settings.vsync,
+            private_key_hex,
         }
     }
 
@@ -101,5 +108,17 @@ impl AppConfig {
         state.settings.sfx_volume = self.sfx_volume;
         state.settings.fullscreen = self.fullscreen;
         state.settings.vsync = self.vsync;
+        // Restore private key bytes from hex
+        if !self.private_key_hex.is_empty() {
+            if let Ok(bytes) = (0..self.private_key_hex.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&self.private_key_hex[i..i+2], 16))
+                .collect::<Result<Vec<u8>, _>>()
+            {
+                if bytes.len() == 32 {
+                    state.private_key_bytes = Some(bytes);
+                }
+            }
+        }
     }
 }

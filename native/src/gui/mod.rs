@@ -432,6 +432,12 @@ pub struct GuiState {
     pub settings_dirty: bool,
     /// Request to quit the application.
     pub quit_requested: bool,
+    /// Set to true when identity has been recovered from seed phrase and WS needs reconnect.
+    pub identity_recovered: bool,
+    /// The Ed25519 private key bytes (32 bytes) for signing, if available.
+    pub private_key_bytes: Option<Vec<u8>>,
+    /// Whether initial channel history has been fetched after connecting.
+    pub history_fetched: bool,
 }
 
 #[cfg(feature = "native")]
@@ -606,6 +612,9 @@ impl Default for GuiState {
             weather: None,
             settings_dirty: false,
             quit_requested: false,
+            identity_recovered: false,
+            private_key_bytes: None,
+            history_fetched: false,
         }
     }
 }
@@ -689,6 +698,10 @@ pub struct SettingsState {
     pub online_status_visible: bool,
     // Data
     pub seed_phrase_visible: bool,
+    // Seed phrase recovery
+    pub seed_phrase_input: String,
+    pub seed_phrase_recovery_status: String,
+    pub seed_phrase_show_recover: bool,
 }
 
 #[cfg(feature = "native")]
@@ -717,6 +730,9 @@ impl Default for SettingsState {
             profile_visible: true,
             online_status_visible: true,
             seed_phrase_visible: false,
+            seed_phrase_input: String::new(),
+            seed_phrase_recovery_status: String::new(),
+            seed_phrase_show_recover: false,
         }
     }
 }

@@ -701,9 +701,10 @@ mod native_app {
                                     Some("peer_list") => {
                                         state.gui_state.chat_users.clear();
                                         state.gui_state.ws_status = "Connected".to_string();
+                                        state.gui_state.server_connected = true;
                                         // Request tasks from server on connect
                                         if let Some(ref ws_client) = state.gui_state.ws_client {
-                                            let get_tasks = serde_json::json!({"type": "get_tasks"});
+                                            let get_tasks = serde_json::json!({"type": "task_list"});
                                             ws_client.send(&get_tasks.to_string());
                                         }
                                         if let Some(peers) = val.get("peers").and_then(|v| v.as_array()) {
@@ -802,6 +803,119 @@ mod native_app {
                                             );
                                         }
                                     }
+                                    Some("full_user_list") => {
+                                        // Full user list includes online + offline users
+                                        if let Some(users) = val.get("users").and_then(|v| v.as_array()) {
+                                            state.gui_state.chat_users.clear();
+                                            for user in users {
+                                                let name = user.get("name")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("Anonymous")
+                                                    .to_string();
+                                                let key = user.get("public_key")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let role = user.get("role")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let online = user.get("online")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
+                                                let status = if online {
+                                                    user.get("status")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or("online")
+                                                        .to_string()
+                                                } else {
+                                                    "offline".to_string()
+                                                };
+                                                state.gui_state.chat_users.push(
+                                                    crate::gui::ChatUser { name, public_key: key, role, status },
+                                                );
+                                            }
+                                            log::info!("Received full user list: {} users", state.gui_state.chat_users.len());
+                                        }
+                                    }
+                                    Some("voice_channel_list") => {
+                                        // Voice channels received from server — log for now
+                                        if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
+                                            log::info!("Received {} voice channels", channels.len());
+                                        }
+                                    }
+                                    Some("profile_data") => {
+                                        // Our own profile data from the server
+                                        if let Some(name) = val.get("name").and_then(|v| v.as_str()) {
+                                            state.gui_state.profile_name = name.to_string();
+                                        }
+                                        if let Some(bio) = val.get("bio").and_then(|v| v.as_str()) {
+                                            state.gui_state.profile_bio = bio.to_string();
+                                        }
+                                        if let Some(avatar) = val.get("avatar_url").and_then(|v| v.as_str()) {
+                                            state.gui_state.profile_network_avatar = avatar.to_string();
+                                        }
+                                        log::info!("Received profile data from server");
+                                    }
+                                    Some("reactions_sync") | Some("pins_sync") | Some("dm_list")
+                                    | Some("follow_list") | Some("group_list") | Some("member_joined") => {
+                                        // Acknowledged but not yet rendered in native UI
+                                        log::debug!("Received server message type: {:?}", val.get("type"));
+                                    }
+                                    Some("task_list_response") => {
+                                        // Task list response from the WebSocket task_list request
+                                        if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
+                                            state.gui_state.tasks.clear();
+                                            for task in tasks {
+                                                let id = task.get("id")
+                                                    .and_then(|v| v.as_u64())
+                                                    .unwrap_or(0) as u32;
+                                                let title = task.get("title")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let description = task.get("description")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let status_str = task.get("status")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("todo");
+                                                let status = match status_str {
+                                                    "in_progress" => crate::gui::TaskStatus::InProgress,
+                                                    "done" => crate::gui::TaskStatus::Done,
+                                                    _ => crate::gui::TaskStatus::Todo,
+                                                };
+                                                let priority_str = task.get("priority")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("medium");
+                                                let priority = match priority_str {
+                                                    "low" => crate::gui::TaskPriority::Low,
+                                                    "high" => crate::gui::TaskPriority::High,
+                                                    "critical" => crate::gui::TaskPriority::Critical,
+                                                    _ => crate::gui::TaskPriority::Medium,
+                                                };
+                                                let assignee = task.get("assignee")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let labels: Vec<String> = task.get("labels")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .split(',')
+                                                    .filter(|s| !s.is_empty())
+                                                    .map(|s| s.trim().to_string())
+                                                    .collect();
+                                                state.gui_state.tasks.push(
+                                                    crate::gui::GuiTask { id, title, description, priority, status, assignee, labels },
+                                                );
+                                                if id >= state.gui_state.task_next_id {
+                                                    state.gui_state.task_next_id = id + 1;
+                                                }
+                                            }
+                                            log::info!("Received {} tasks from server (task_list_response)", state.gui_state.tasks.len());
+                                        }
+                                    }
                                     Some("name_taken") => {
                                         state.gui_state.ws_status = "Name taken - try another".to_string();
                                     }
@@ -863,6 +977,70 @@ mod native_app {
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    // ── Fetch channel history via HTTP after connecting ──
+                    if !state.gui_state.history_fetched
+                        && state.gui_state.ws_client.as_ref().map_or(false, |c| c.is_connected())
+                        && !state.gui_state.server_url.is_empty()
+                    {
+                        state.gui_state.history_fetched = true;
+                        let base_url = state.gui_state.server_url.trim_end_matches('/').to_string();
+                        let channel = state.gui_state.chat_active_channel.clone();
+                        let api_url = format!("{}/api/messages?limit=50&channel={}", base_url, channel);
+                        match ureq::get(&api_url).call() {
+                            Ok(resp) => {
+                                if let Ok(body) = resp.into_string() {
+                                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&body) {
+                                        if let Some(messages) = data.get("messages").and_then(|v| v.as_array()) {
+                                            for msg in messages {
+                                                let sender_name = msg.get("sender_name")
+                                                    .or_else(|| msg.get("from_name"))
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("Anonymous")
+                                                    .to_string();
+                                                let sender_key = msg.get("sender_key")
+                                                    .or_else(|| msg.get("from"))
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let content = msg.get("content")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let timestamp = msg.get("timestamp")
+                                                    .and_then(|v| v.as_u64())
+                                                    .unwrap_or(0);
+                                                let ch = msg.get("channel")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("general")
+                                                    .to_string();
+                                                state.gui_state.chat_messages.push(
+                                                    crate::gui::ChatMessage {
+                                                        sender_name,
+                                                        sender_key,
+                                                        content,
+                                                        timestamp: crate::gui::pages::chat::format_timestamp(timestamp),
+                                                        channel: ch,
+                                                    },
+                                                );
+                                            }
+                                            log::info!("Fetched {} history messages for #{}", messages.len(), channel);
+                                        }
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("Failed to fetch message history: {}", e);
+                            }
+                        }
+                    }
+
+                    // ── Reset history_fetched when disconnected so we re-fetch on reconnect ──
+                    if state.gui_state.ws_client.as_ref().map_or(true, |c| !c.is_connected()) {
+                        if state.gui_state.history_fetched {
+                            state.gui_state.history_fetched = false;
                         }
                     }
 
