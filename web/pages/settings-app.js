@@ -1981,12 +1981,33 @@ function settingsShowNonExtractableOverlay() {
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
   overlay.querySelector('#ne-cancel').addEventListener('click', function() { overlay.remove(); });
-  overlay.querySelector('#ne-rotate').addEventListener('click', function() {
-    overlay.remove();
-    if (typeof openKeyRotationModal === 'function') {
-      openKeyRotationModal();
-    } else {
-      settingsAlert('Key rotation is not available. Please use the chat page to rotate your key.');
+  overlay.querySelector('#ne-rotate').addEventListener('click', async function() {
+    var btn = overlay.querySelector('#ne-rotate');
+    btn.disabled = true; btn.textContent = 'Generating...';
+    try {
+      // Generate new extractable keypair directly (no WebSocket needed)
+      var newKp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+      var rawPub = await crypto.subtle.exportKey('raw', newKp.publicKey);
+      var newKeyHex = bufToHex(rawPub);
+
+      // Store in IndexedDB
+      var db = await openKeyDB();
+      await storeKeypair(db, newKeyHex, { privateKey: newKp.privateKey, publicKey: newKp.publicKey });
+
+      // Backup to localStorage
+      try {
+        var jwk = await crypto.subtle.exportKey('jwk', newKp.privateKey);
+        localStorage.setItem('humanity_key', newKeyHex);
+        localStorage.setItem('humanity_key_backup', JSON.stringify({
+          publicKeyHex: newKeyHex, jwk: jwk, rotated: true, rotated_at: Date.now()
+        }));
+      } catch(e2) { console.warn('localStorage backup failed:', e2); }
+
+      btn.textContent = 'Done! Reloading...';
+      setTimeout(function() { location.reload(); }, 1500);
+    } catch(e) {
+      btn.disabled = false; btn.textContent = 'Rotate Key';
+      settingsAlert('Error: ' + e.message);
     }
   });
 }
