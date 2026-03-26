@@ -62,11 +62,17 @@ pub enum UpdateState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReleaseInfo {
     pub tag_name: String,
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub body: String,
+    #[serde(default)]
     pub published_at: String,
+    #[serde(default)]
     pub assets: Vec<ReleaseAsset>,
+    #[serde(default)]
     pub prerelease: bool,
+    #[serde(default)]
     pub draft: bool,
 }
 
