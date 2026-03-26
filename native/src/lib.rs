@@ -1022,21 +1022,28 @@ mod native_app {
                                         // Private server-to-user message (rate limit, errors, command responses)
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             crate::debug::push_debug(format!("Private: {}", msg));
-                                            // Show as system message in chat
-                                            state.gui_state.chat_messages.push(
-                                                crate::gui::ChatMessage {
-                                                    sender_name: "Server".to_string(),
-                                                    sender_key: String::new(),
-                                                    content: msg.to_string(),
-                                                    timestamp: crate::gui::pages::chat::format_timestamp(
-                                                        std::time::SystemTime::now()
-                                                            .duration_since(std::time::UNIX_EPOCH)
-                                                            .unwrap_or_default()
-                                                            .as_millis() as u64,
-                                                    ),
-                                                    channel: state.gui_state.chat_active_channel.clone(),
-                                                },
-                                            );
+                                            // Filter out profile validation noise (not relevant to chat)
+                                            let is_profile_noise = msg.contains("Profile URL")
+                                                || msg.contains("must start with https://")
+                                                || msg.starts_with("__sync_data__")
+                                                || msg == "sync_ack";
+                                            if !is_profile_noise {
+                                                // Show as system message in chat
+                                                state.gui_state.chat_messages.push(
+                                                    crate::gui::ChatMessage {
+                                                        sender_name: "System".to_string(),
+                                                        sender_key: String::new(),
+                                                        content: msg.to_string(),
+                                                        timestamp: crate::gui::pages::chat::format_timestamp(
+                                                            std::time::SystemTime::now()
+                                                                .duration_since(std::time::UNIX_EPOCH)
+                                                                .unwrap_or_default()
+                                                                .as_millis() as u64,
+                                                        ),
+                                                        channel: state.gui_state.chat_active_channel.clone(),
+                                                    },
+                                                );
+                                            }
                                         }
                                     }
                                     _ => {
