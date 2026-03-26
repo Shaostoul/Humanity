@@ -677,6 +677,8 @@ mod native_app {
                         }
                         for raw in messages {
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
+                                let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+                                log::debug!("WS recv: type={} keys={:?}", msg_type, val.as_object().map(|o| o.keys().collect::<Vec<_>>()));
                                 match val.get("type").and_then(|t| t.as_str()) {
                                     Some("chat") => {
                                         let sender_key = val.get("from")
@@ -717,6 +719,8 @@ mod native_app {
                                         }
                                     }
                                     Some("peer_list") => {
+                                        let peer_count = val.get("peers").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                                        log::info!("peer_list received: {} peers", peer_count);
                                         state.gui_state.chat_users.clear();
                                         state.gui_state.ws_status = "Connected".to_string();
                                         state.gui_state.server_connected = true;
@@ -822,6 +826,8 @@ mod native_app {
                                         }
                                     }
                                     Some("full_user_list") => {
+                                        let user_count = val.get("users").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+                                        log::info!("full_user_list received: {} users", user_count);
                                         // Full user list includes online + offline users
                                         if let Some(users) = val.get("users").and_then(|v| v.as_array()) {
                                             state.gui_state.chat_users.clear();
