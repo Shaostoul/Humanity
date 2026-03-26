@@ -964,7 +964,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     "timestamp": ts,
                                     "channel": channel,
                                 });
-                                client.send(&chat_msg.to_string());
+                                let json_str = chat_msg.to_string();
+                                crate::debug::push_debug(format!("WS >>> {}", json_str));
+                                client.send(&json_str);
                             }
                         }
 

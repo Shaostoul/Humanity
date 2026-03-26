@@ -122,28 +122,35 @@ fn run_connection(
     tx_to_game: mpsc::Sender<String>,
 ) {
     log::info!("WsClient: connecting to {}", url);
+    crate::debug::push_debug(format!("WS connecting to {}", url));
 
     let connect_result = tungstenite::connect(&url);
     let (mut socket, _response) = match connect_result {
         Ok(pair) => pair,
         Err(e) => {
             log::error!("WsClient: connection failed: {}", e);
+            crate::debug::push_debug(format!("WS connection FAILED: {}", e));
             let _ = tx_to_game.send("__DISCONNECTED__".to_string());
             return;
         }
     };
 
     log::info!("WsClient: connected to {}", url);
+    crate::debug::push_debug(format!("WS connected to {}", url));
     let _ = tx_to_game.send("__CONNECTED__".to_string());
 
-    // Send identify message (matches the relay's RelayMessage::Identify)
+    // Send identify message (matches the relay's RelayMessage::Identify).
+    // The server's RelayMessage::Identify expects: public_key, display_name (Option<String>).
     let identify = serde_json::json!({
         "type": "identify",
         "public_key": pubkey,
         "display_name": name,
     });
-    if let Err(e) = socket.send(tungstenite::Message::Text(identify.to_string())) {
+    let identify_json = identify.to_string();
+    crate::debug::push_debug(format!("WS >>> {}", identify_json));
+    if let Err(e) = socket.send(tungstenite::Message::Text(identify_json)) {
         log::error!("WsClient: failed to send identify: {}", e);
+        crate::debug::push_debug(format!("WS identify FAILED: {}", e));
         let _ = tx_to_game.send("__DISCONNECTED__".to_string());
         return;
     }
@@ -199,8 +206,12 @@ fn set_nonblocking(
         tungstenite::stream::MaybeTlsStream::Plain(s) => {
             let _ = s.set_nonblocking(true);
         }
-        _ => {
-            log::warn!("WsClient: could not set non-blocking mode on TLS stream variant");
+        tungstenite::stream::MaybeTlsStream::NativeTls(tls_stream) => {
+            let _ = tls_stream.get_mut().set_nonblocking(true);
+        }
+        other => {
+            // Fallback: try to get the inner stream for any other TLS variant
+            log::warn!("WsClient: unhandled TLS stream variant {:?}, non-blocking not set", std::mem::discriminant(other));
         }
     }
 }

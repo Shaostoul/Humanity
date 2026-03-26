@@ -479,6 +479,13 @@ pub struct GuiState {
     pub private_key_bytes: Option<Vec<u8>>,
     /// Whether initial channel history has been fetched after connecting.
     pub history_fetched: bool,
+
+    // ── Debug console state ──
+
+    /// Whether the F12 debug console overlay is visible.
+    pub debug_console_visible: bool,
+    /// Ring buffer of timestamped debug log lines for the overlay.
+    pub debug_log: Vec<String>,
 }
 
 #[cfg(feature = "native")]
@@ -664,6 +671,8 @@ impl Default for GuiState {
             identity_recovered: false,
             private_key_bytes: None,
             history_fetched: false,
+            debug_console_visible: false,
+            debug_log: Vec::new(),
         }
     }
 }

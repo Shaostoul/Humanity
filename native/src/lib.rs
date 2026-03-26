@@ -39,6 +39,8 @@ pub mod config;
 #[cfg(feature = "native")]
 pub mod updater;
 
+pub mod debug;
+
 #[cfg(feature = "wasm")]
 pub mod wasm_entry;
 
@@ -673,9 +675,17 @@ mod native_app {
                     if let Some(ref mut ws) = state.gui_state.ws_client {
                         let messages = ws.poll_messages();
                         if !ws.is_connected() {
+                            if !ws_dropped {
+                                crate::debug::push_debug("WS connection lost");
+                            }
                             ws_dropped = true;
                         }
                         for raw in messages {
+                            // Log raw message to debug console (truncate long messages)
+                            {
+                                let preview = if raw.len() > 300 { format!("{}...", &raw[..300]) } else { raw.clone() };
+                                crate::debug::push_debug(format!("WS <<< {}", preview));
+                            }
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
                                 let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
                                 log::debug!("WS recv: type={} keys={:?}", msg_type, val.as_object().map(|o| o.keys().collect::<Vec<_>>()));
@@ -721,6 +731,7 @@ mod native_app {
                                     Some("peer_list") => {
                                         let peer_count = val.get("peers").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
                                         log::info!("peer_list received: {} peers", peer_count);
+                                        crate::debug::push_debug(format!("Identified OK, {} peers online", peer_count));
                                         state.gui_state.chat_users.clear();
                                         state.gui_state.ws_status = "Connected".to_string();
                                         state.gui_state.server_connected = true;
@@ -808,6 +819,7 @@ mod native_app {
                                     Some("system") => {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);
+                                            crate::debug::push_debug(format!("System: {}", msg));
                                             // Add as a system message in current channel
                                             state.gui_state.chat_messages.push(
                                                 crate::gui::ChatMessage {
@@ -941,7 +953,9 @@ mod native_app {
                                         }
                                     }
                                     Some("name_taken") => {
-                                        state.gui_state.ws_status = "Name taken - try another".to_string();
+                                        let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("Name taken");
+                                        crate::debug::push_debug(format!("Server rejected name: {}", msg));
+                                        state.gui_state.ws_status = format!("Name error: {}", msg);
                                     }
                                     Some("task_list") => {
                                         if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {
@@ -996,8 +1010,31 @@ mod native_app {
                                             log::info!("Received {} tasks from server", state.gui_state.tasks.len());
                                         }
                                     }
+                                    Some("private") => {
+                                        // Private server-to-user message (rate limit, errors, command responses)
+                                        if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
+                                            crate::debug::push_debug(format!("Private: {}", msg));
+                                            // Show as system message in chat
+                                            state.gui_state.chat_messages.push(
+                                                crate::gui::ChatMessage {
+                                                    sender_name: "Server".to_string(),
+                                                    sender_key: String::new(),
+                                                    content: msg.to_string(),
+                                                    timestamp: crate::gui::pages::chat::format_timestamp(
+                                                        std::time::SystemTime::now()
+                                                            .duration_since(std::time::UNIX_EPOCH)
+                                                            .unwrap_or_default()
+                                                            .as_millis() as u64,
+                                                    ),
+                                                    channel: state.gui_state.chat_active_channel.clone(),
+                                                },
+                                            );
+                                        }
+                                    }
                                     _ => {
-                                        // Ignore other message types for now
+                                        // Log unhandled message types to debug console
+                                        let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+                                        crate::debug::push_debug(format!("Unhandled WS type: {}", msg_type));
                                     }
                                 }
                             }
@@ -1141,6 +1178,16 @@ mod native_app {
                     };
                     match scene_result {
                         Ok((surface_texture, view)) => {
+                            // Drain global debug log into GuiState each frame
+                            {
+                                let new_entries = crate::debug::drain_debug_log();
+                                state.gui_state.debug_log.extend(new_entries);
+                                // Cap at 500 entries
+                                while state.gui_state.debug_log.len() > 500 {
+                                    state.gui_state.debug_log.remove(0);
+                                }
+                            }
+
                             // Run egui frame
                             let raw_input = state.egui_state.take_egui_input(&state.window);
                             let full_output = state.egui_ctx.run(raw_input, |ctx| {
@@ -1199,6 +1246,13 @@ mod native_app {
                                 if state.gui_state.active_page == GuiPage::None && state.gui_state.show_chat {
                                     chat::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
+
+                                // Draw debug console overlay (F12 toggle, on top of everything)
+                                crate::debug::draw_debug_console(
+                                    ctx,
+                                    &mut state.gui_state.debug_log,
+                                    &mut state.gui_state.debug_console_visible,
+                                );
 
                                 // Quit requested from main menu
                                 if state.gui_state.quit_requested {
