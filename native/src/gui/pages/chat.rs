@@ -162,6 +162,41 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(8.0);
 
         if state.ws_client.is_none() {
+            // Show server URL input if empty
+            if state.server_url.is_empty() {
+                state.server_url = "https://united-humanity.us".to_string();
+            }
+
+            ui.horizontal(|ui| {
+                ui.add_space(4.0);
+                ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(4.0);
+                let input = egui::TextEdit::singleline(&mut state.server_url)
+                    .desired_width(LEFT_PANEL_WIDTH - 16.0)
+                    .font(egui::TextStyle::Small);
+                ui.add(input);
+            });
+            ui.add_space(4.0);
+
+            // Name input if empty
+            if state.user_name.is_empty() {
+                state.user_name = "Desktop User".to_string();
+            }
+            ui.horizontal(|ui| {
+                ui.add_space(4.0);
+                ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(4.0);
+                let input = egui::TextEdit::singleline(&mut state.user_name)
+                    .desired_width(LEFT_PANEL_WIDTH - 16.0)
+                    .font(egui::TextStyle::Small);
+                ui.add(input);
+            });
+            ui.add_space(4.0);
+
             if ui
                 .add(
                     egui::Button::new(
@@ -176,20 +211,20 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             {
                 // Convert https:// URL to wss:// WebSocket URL
                 let ws_url = derive_ws_url(&state.server_url);
-                let name = if state.user_name.is_empty() {
-                    "Desktop User".to_string()
-                } else {
-                    state.user_name.clone()
-                };
+                let name = state.user_name.clone();
                 let pubkey = if state.profile_public_key.is_empty() {
                     generate_random_hex_key()
                 } else {
                     state.profile_public_key.clone()
                 };
+                log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
                 state.ws_client = Some(crate::net::ws_client::WsClient::connect(
                     &ws_url, &name, &pubkey,
                 ));
                 state.ws_status = "Connecting...".to_string();
+
+                // Save config so it persists
+                crate::config::AppConfig::from_gui_state(state).save();
             }
         } else if state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
             if ui
