@@ -13,10 +13,10 @@ use crate::gui::{GuiPage, GuiState, VERSION};
 const RED: Color32 = Color32::from_rgb(231, 76, 60);
 const GREEN: Color32 = Color32::from_rgb(46, 204, 113);
 const BLUE: Color32 = Color32::from_rgb(52, 152, 219);
-const ACCENT: Color32 = Color32::from_rgb(237, 140, 36);
-const BG_DARK: Color32 = Color32::from_rgb(18, 18, 22);
-const BG_BAR: Color32 = Color32::from_rgb(24, 24, 30);
-const TEXT_MUTED: Color32 = Color32::from_rgb(120, 120, 130);
+const ACCENT: Color32 = Color32::from_rgb(0xED, 0x8C, 0x24);     // #ED8C24
+const BG_DARK: Color32 = Color32::from_rgb(0x0a, 0x0a, 0x0c);   // #0a0a0c
+const BG_BAR: Color32 = Color32::from_rgb(0x0f, 0x0f, 0x12);    // #0f0f12 (nav bar)
+const TEXT_MUTED: Color32 = Color32::from_rgb(0x6a, 0x6a, 0x75); // #6a6a75
 
 struct NavItem {
     label: &'static str,
@@ -39,7 +39,7 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
                 let brand = ui.add(
                     egui::Button::new(RichText::new("H").size(14.0).strong().color(ACCENT))
                         .min_size(Vec2::new(28.0, 28.0))
-                        .rounding(Rounding::same(4)),
+                        .rounding(Rounding::same(6)),
                 );
                 if brand.clicked() {
                     state.active_page = GuiPage::None;
@@ -96,7 +96,7 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
                     let sim_color = if sim_active {
                         Color32::from_rgb(108, 92, 231)
                     } else {
-                        Color32::from_rgb(60, 60, 70)
+                        Color32::from_rgb(0x2a, 0x2a, 0x35)
                     };
                     let sim_btn = ui.add(
                         egui::Button::new(
@@ -120,7 +120,7 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
                     let real_color = if real_active {
                         ACCENT
                     } else {
-                        Color32::from_rgb(60, 60, 70)
+                        Color32::from_rgb(0x2a, 0x2a, 0x35)
                     };
                     let real_btn = ui.add(
                         egui::Button::new(
@@ -206,7 +206,7 @@ pub fn draw(ctx: &egui::Context, state: &mut GuiState) {
                 ui.label(
                     RichText::new(format!("v{}", VERSION))
                         .size(11.0)
-                        .color(Color32::from_rgb(60, 60, 70)),
+                        .color(TEXT_MUTED),
                 );
             });
         });
@@ -267,7 +267,7 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, state: &mut G
             egui::Button::new(RichText::new(item.label).size(11.0).color(text_color))
                 .fill(bg_fill)
                 .stroke(border_stroke)
-                .rounding(Rounding::same(4))
+                .rounding(Rounding::same(6))
                 .min_size(Vec2::new(0.0, 28.0)),
         );
 
@@ -278,7 +278,7 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, state: &mut G
             let hover_color = Color32::from_rgb(52, 152, 219); // BLUE
             painter.rect_stroke(
                 rect,
-                Rounding::same(4),
+                Rounding::same(6),
                 Stroke::new(2.0, hover_color),
                 egui::StrokeKind::Outside,
             );
@@ -292,5 +292,5 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, state: &mut G
 
 /// Small dot separator between nav groups.
 fn separator_dot(ui: &mut egui::Ui) {
-    ui.label(RichText::new("·").size(14.0).color(Color32::from_rgb(50, 50, 60)));
+    ui.label(RichText::new("·").size(14.0).color(Color32::from_rgb(0x2a, 0x2a, 0x35)));
 }

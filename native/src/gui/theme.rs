@@ -76,26 +76,39 @@ impl Theme {
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
+    /// Colors are matched to the web theme.css for visual consistency.
     pub fn apply_to_egui(&self, ctx: &Context) {
         let mut visuals = Visuals::dark();
 
-        visuals.panel_fill = self.bg_primary();
-        visuals.window_fill = self.bg_secondary();
-        visuals.faint_bg_color = self.bg_card();
-        visuals.extreme_bg_color = Self::c32(&self.bg_tertiary);
-        visuals.override_text_color = Some(self.text_primary());
+        // Panel and window fills matched to website
+        visuals.panel_fill = self.bg_primary();                        // #0a0a0c
+        visuals.window_fill = self.bg_secondary();                    // #141418
+        visuals.faint_bg_color = self.bg_card();                      // #1a1a22
+        visuals.extreme_bg_color = Self::c32(&self.bg_tertiary);     // #252530
+        visuals.override_text_color = Some(self.text_primary());     // #e8e8ea
 
-        // Widget colors (rounding is read-only in egui 0.31, set via style)
-        visuals.widgets.inactive.bg_fill = self.bg_card();
+        // Noninteractive widgets (labels, separators)
+        visuals.widgets.noninteractive.bg_fill = self.bg_secondary();  // #141418
+        visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, self.text_primary()); // #e8e8ea
+
+        // Inactive widgets (buttons at rest)
+        visuals.widgets.inactive.bg_fill = self.bg_card();             // #1a1a22
         visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, self.text_secondary());
-        visuals.widgets.hovered.bg_fill = self.accent_hover();
-        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, self.text_on_accent());
-        visuals.widgets.active.bg_fill = self.accent_pressed();
+
+        // Hovered widgets
+        visuals.widgets.hovered.bg_fill = Self::c32(&self.bg_tertiary); // #252530
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, self.text_primary());
+
+        // Active (pressed) widgets
+        visuals.widgets.active.bg_fill = self.accent();                // #ED8C24
         visuals.widgets.active.fg_stroke = Stroke::new(1.0, self.text_on_accent());
 
-        visuals.selection.bg_fill = self.accent();
+        // Selection
+        visuals.selection.bg_fill = self.accent();                     // #ED8C24
         visuals.selection.stroke = Stroke::new(1.0, self.text_on_accent());
-        visuals.window_stroke = Stroke::new(1.0, self.border());
+
+        // Window border
+        visuals.window_stroke = Stroke::new(1.0, self.border());      // #2a2a35
 
         ctx.set_visuals(visuals);
 
@@ -136,24 +149,24 @@ pub fn load_theme() -> Theme {
 
 fn default_theme() -> Theme {
     Theme {
-        bg_primary: (0.08, 0.08, 0.10, 1.0),
-        bg_secondary: (0.12, 0.12, 0.15, 1.0),
-        bg_tertiary: (0.16, 0.16, 0.20, 1.0),
-        bg_card: (0.14, 0.14, 0.18, 1.0),
+        bg_primary: (0.039, 0.039, 0.047, 1.0),       // #0a0a0c
+        bg_secondary: (0.078, 0.078, 0.094, 1.0),     // #141418
+        bg_tertiary: (0.145, 0.145, 0.188, 1.0),      // #252530
+        bg_card: (0.102, 0.102, 0.133, 1.0),           // #1a1a22
         bg_modal: (0.0, 0.0, 0.0, 0.7),
-        accent: (0.93, 0.55, 0.14, 1.0),
+        accent: (0.929, 0.549, 0.141, 1.0),            // #ED8C24
         accent_hover: (1.0, 0.65, 0.24, 1.0),
         accent_pressed: (0.8, 0.45, 0.10, 1.0),
-        text_primary: (0.93, 0.93, 0.93, 1.0),
-        text_secondary: (0.6, 0.6, 0.65, 1.0),
-        text_muted: (0.4, 0.4, 0.45, 1.0),
+        text_primary: (0.910, 0.910, 0.918, 1.0),     // #e8e8ea
+        text_secondary: (0.533, 0.533, 0.580, 1.0),   // #888894
+        text_muted: (0.416, 0.416, 0.459, 1.0),       // #6a6a75
         text_on_accent: (0.05, 0.05, 0.05, 1.0),
         success: (0.2, 0.75, 0.3, 1.0),
         warning: (0.95, 0.75, 0.1, 1.0),
         danger: (0.9, 0.25, 0.2, 1.0),
         info: (0.2, 0.5, 0.9, 1.0),
-        border: (0.25, 0.25, 0.30, 1.0),
-        border_focus: (0.93, 0.55, 0.14, 1.0),
+        border: (0.165, 0.165, 0.208, 1.0),            // #2a2a35
+        border_focus: (0.929, 0.549, 0.141, 1.0),      // #ED8C24
         badge_admin: (0.9, 0.5, 0.13, 1.0),
         badge_mod: (0.15, 0.68, 0.38, 1.0),
         badge_verified: (0.2, 0.58, 0.85, 1.0),
