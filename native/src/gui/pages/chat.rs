@@ -1,11 +1,11 @@
 //! 3-panel chat page matching the website layout.
 //!
-//! LEFT:   Server info, channel list, voice channels
-//! MIDDLE: Message feed with input bar
-//! RIGHT:  Online users list
+//! LEFT:   Collapsible DMs (red), Groups (green), Servers (blue), Connection settings
+//! MIDDLE: Channel header, message feed, input bar
+//! RIGHT:  Friends list, Server members list
 
 use egui::{Color32, Frame, RichText, ScrollArea, Stroke, Vec2};
-use crate::gui::{ChatMessage, GuiState};
+use crate::gui::{ChatMessage, ChatUser, GuiState};
 use crate::gui::theme::Theme;
 
 /// Maximum messages kept in the local chat buffer.
@@ -16,28 +16,77 @@ const LEFT_PANEL_WIDTH: f32 = 220.0;
 /// Right panel width in points.
 const RIGHT_PANEL_WIDTH: f32 = 220.0;
 
+// ── Section collapse state (persists across frames via thread_local) ──
+
+use std::cell::RefCell;
+
+#[derive(Debug)]
+struct CollapseState {
+    connection: bool,
+    dms: bool,
+    groups: bool,
+    servers: bool,
+    friends: bool,
+    members: bool,
+}
+
+impl Default for CollapseState {
+    fn default() -> Self {
+        Self {
+            connection: true, // collapsed by default
+            dms: false,
+            groups: false,
+            servers: false,
+            friends: false,
+            members: false,
+        }
+    }
+}
+
+thread_local! {
+    static COLLAPSE: RefCell<CollapseState> = RefCell::new(CollapseState::default());
+}
+
+fn with_collapse<R>(f: impl FnOnce(&mut CollapseState) -> R) -> R {
+    COLLAPSE.with(|c| f(&mut c.borrow_mut()))
+}
+
+// ── Section tint colors (matching website rgba values) ──
+
+const DM_BG: Color32 = Color32::from_rgba_premultiplied(45, 15, 15, 255);
+const DM_ROW_BG: Color32 = Color32::from_rgba_premultiplied(55, 20, 20, 255);
+const DM_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(70, 25, 25, 255);
+
+const GROUP_BG: Color32 = Color32::from_rgba_premultiplied(15, 45, 15, 255);
+const GROUP_ROW_BG: Color32 = Color32::from_rgba_premultiplied(20, 55, 20, 255);
+const GROUP_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(25, 70, 25, 255);
+
+const SERVER_BG: Color32 = Color32::from_rgba_premultiplied(15, 15, 45, 255);
+const SERVER_ROW_BG: Color32 = Color32::from_rgba_premultiplied(20, 20, 55, 255);
+const SERVER_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(25, 25, 70, 255);
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // ── LEFT PANEL: Channels ──
+    // ── LEFT PANEL ──
     egui::SidePanel::left("chat_left_panel")
         .exact_width(LEFT_PANEL_WIDTH)
         .resizable(false)
-        .frame(Frame::none().fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
+        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
         .show(ctx, |ui| {
             draw_left_panel(ui, theme, state);
         });
 
-    // ── RIGHT PANEL: Users ──
+    // ── RIGHT PANEL ──
     egui::SidePanel::right("chat_right_panel")
         .exact_width(RIGHT_PANEL_WIDTH)
         .resizable(false)
-        .frame(Frame::none().fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
+        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
         .show(ctx, |ui| {
             draw_right_panel(ui, theme, state);
         });
 
-    // ── MIDDLE PANEL: Messages ──
+    // ── CENTER PANEL ──
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(0.0))
+        .frame(Frame::NONE.fill(Color32::from_rgb(20, 20, 25)).inner_margin(0.0))
         .show(ctx, |ui| {
             draw_center_panel(ui, theme, state);
         });
@@ -46,305 +95,666 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
 
 fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // Server header
-    ui.allocate_ui_with_layout(
-        Vec2::new(ui.available_width(), 48.0),
-        egui::Layout::left_to_right(egui::Align::Center),
-        |ui| {
-            ui.add_space(12.0);
-            ui.label(
-                RichText::new("HumanityOS")
-                    .size(theme.font_size_heading)
-                    .color(theme.text_primary())
-                    .strong(),
-            );
-        },
-    );
+    // ── Connection status bar ──
+    let is_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
 
-    // Connection status
-    ui.horizontal(|ui| {
-        ui.add_space(12.0);
-        let (dot_color, status_text) = if state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
-            let online_count = state.chat_users.len();
-            (theme.success(), format!("{} online", online_count))
-        } else {
-            (theme.danger(), state.ws_status.clone())
-        };
-        let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-        ui.painter().circle_filled(rect.center(), 4.0, dot_color);
-        ui.label(RichText::new(status_text).size(theme.font_size_small).color(theme.text_muted()));
-    });
-
-    ui.add_space(8.0);
-    ui.separator();
-    ui.add_space(4.0);
-
-    // ── Text Channels ──
-    ui.horizontal(|ui| {
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new("TEXT CHANNELS")
-                .size(theme.font_size_small - 1.0)
-                .color(theme.text_muted())
-                .strong(),
-        );
-    });
-    ui.add_space(4.0);
-
-    let active = state.chat_active_channel.clone();
-    for ch in state.chat_channels.clone() {
-        if ch.category != "Voice" {
-            let is_active = ch.id == active;
-            let bg = if is_active {
-                Color32::from_rgb(50, 50, 58)
-            } else {
-                Color32::TRANSPARENT
-            };
-            let text_color = if is_active {
-                theme.text_primary()
-            } else {
-                theme.text_secondary()
-            };
-
-            let response = ui
-                .allocate_ui_with_layout(
-                    Vec2::new(ui.available_width(), 30.0),
-                    egui::Layout::left_to_right(egui::Align::Center),
-                    |ui| {
-                        let full_rect = ui.max_rect();
-                        ui.painter().rect_filled(full_rect, 4.0, bg);
-                        ui.add_space(12.0);
-                        ui.label(
-                            RichText::new(format!("# {}", ch.name))
-                                .size(theme.font_size_body)
-                                .color(text_color),
-                        );
-                    },
-                )
-                .response;
-
-            if response.hovered() {
-                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
-            }
-            if response.clicked() {
-                state.chat_active_channel = ch.id.clone();
-            }
-        }
-    }
-
-    ui.add_space(12.0);
-
-    // ── Voice Channels ──
-    ui.horizontal(|ui| {
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new("VOICE CHANNELS")
-                .size(theme.font_size_small - 1.0)
-                .color(theme.text_muted())
-                .strong(),
-        );
-    });
-    ui.add_space(4.0);
-
-    for label in &["Lounge", "Dev Talk"] {
+    if is_connected {
+        // Compact connected indicator
         ui.horizontal(|ui| {
-            ui.add_space(16.0);
+            ui.add_space(12.0);
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+            ui.painter().circle_filled(rect.center(), 4.0, theme.success());
             ui.label(
-                RichText::new(format!("  {}", label))
-                    .size(theme.font_size_body)
+                RichText::new(format!("Connected ({} online)", state.chat_users.iter().filter(|u| u.status != "offline").count()))
+                    .size(theme.font_size_small)
                     .color(theme.text_muted()),
             );
         });
+    } else {
+        // Prominent connect section when disconnected
+        Frame::NONE
+            .fill(Color32::from_rgb(40, 30, 30))
+            .inner_margin(egui::Margin::symmetric(8, 8))
+            .show(ui, |ui| {
+                ui.label(
+                    RichText::new("Not Connected")
+                        .size(theme.font_size_body)
+                        .color(theme.danger())
+                        .strong(),
+                );
+                ui.add_space(4.0);
+
+                if state.server_url.is_empty() {
+                    state.server_url = "https://united-humanity.us".to_string();
+                }
+                if state.user_name.is_empty() {
+                    state.user_name = "Desktop User".to_string();
+                }
+
+                ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.server_url)
+                        .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                        .font(egui::TextStyle::Small),
+                );
+                ui.add_space(2.0);
+                ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.user_name)
+                        .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                        .font(egui::TextStyle::Small),
+                );
+                ui.add_space(4.0);
+
+                if ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new("Connect")
+                                .size(theme.font_size_body)
+                                .color(theme.text_on_accent()),
+                        )
+                        .fill(theme.accent())
+                        .min_size(Vec2::new(LEFT_PANEL_WIDTH - 32.0, 32.0)),
+                    )
+                    .clicked()
+                {
+                    let ws_url = derive_ws_url(&state.server_url);
+                    let name = state.user_name.clone();
+                    let pubkey = if state.profile_public_key.is_empty() {
+                        generate_random_hex_key()
+                    } else {
+                        state.profile_public_key.clone()
+                    };
+                    log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
+                    state.ws_client = Some(crate::net::ws_client::WsClient::connect(
+                        &ws_url, &name, &pubkey,
+                    ));
+                    state.ws_status = "Connecting...".to_string();
+                    crate::config::AppConfig::from_gui_state(state).save();
+                }
+            });
     }
 
-    // ── Bottom: Connect / Add Server ──
-    ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-        ui.add_space(8.0);
+    ui.add_space(2.0);
 
-        if state.ws_client.is_none() {
-            // Show server URL input if empty
-            if state.server_url.is_empty() {
-                state.server_url = "https://united-humanity.us".to_string();
-            }
-
-            ui.horizontal(|ui| {
-                ui.add_space(4.0);
-                ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
-            });
-            ui.horizontal(|ui| {
-                ui.add_space(4.0);
-                let input = egui::TextEdit::singleline(&mut state.server_url)
-                    .desired_width(LEFT_PANEL_WIDTH - 16.0)
-                    .font(egui::TextStyle::Small);
-                ui.add(input);
-            });
-            ui.add_space(4.0);
-
-            // Name input if empty
-            if state.user_name.is_empty() {
-                state.user_name = "Desktop User".to_string();
-            }
-            ui.horizontal(|ui| {
-                ui.add_space(4.0);
-                ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
-            });
-            ui.horizontal(|ui| {
-                ui.add_space(4.0);
-                let input = egui::TextEdit::singleline(&mut state.user_name)
-                    .desired_width(LEFT_PANEL_WIDTH - 16.0)
-                    .font(egui::TextStyle::Small);
-                ui.add(input);
-            });
-            ui.add_space(4.0);
-
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new("Connect")
-                            .size(theme.font_size_body)
-                            .color(theme.text_on_accent()),
-                    )
-                    .fill(theme.accent())
-                    .min_size(Vec2::new(LEFT_PANEL_WIDTH - 24.0, 32.0)),
-                )
-                .clicked()
-            {
-                // Convert https:// URL to wss:// WebSocket URL
-                let ws_url = derive_ws_url(&state.server_url);
-                let name = state.user_name.clone();
-                let pubkey = if state.profile_public_key.is_empty() {
-                    generate_random_hex_key()
-                } else {
-                    state.profile_public_key.clone()
-                };
-                log::info!("Connecting to {} as {} (key: {})", ws_url, name, &pubkey[..8]);
-                state.ws_client = Some(crate::net::ws_client::WsClient::connect(
-                    &ws_url, &name, &pubkey,
-                ));
-                state.ws_status = "Connecting...".to_string();
-
-                // Save config so it persists
-                crate::config::AppConfig::from_gui_state(state).save();
-            }
-        } else if state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new("Disconnect")
-                            .size(theme.font_size_body)
-                            .color(theme.text_primary()),
-                    )
-                    .fill(Color32::from_rgb(60, 30, 30))
-                    .min_size(Vec2::new(LEFT_PANEL_WIDTH - 24.0, 32.0)),
-                )
-                .clicked()
-            {
-                if let Some(ref mut client) = state.ws_client {
-                    client.disconnect();
-                }
-                state.ws_client = None;
-                state.ws_status = "Disconnected".to_string();
-                state.chat_users.clear();
-            }
+    // Collapsible connection settings (when connected, to allow changing server/disconnect)
+    if is_connected {
+        let conn_collapsed = with_collapse(|c| c.connection);
+        if section_header(ui, "Connection", conn_collapsed, Color32::from_rgb(40, 40, 48)) {
+            with_collapse(|c| c.connection = !c.connection);
         }
+        if !conn_collapsed {
+            Frame::NONE
+                .fill(Color32::from_rgb(35, 35, 42))
+                .inner_margin(egui::Margin::symmetric(8, 4))
+                .show(ui, |ui| {
+                    ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut state.server_url)
+                            .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                            .font(egui::TextStyle::Small),
+                    );
+                    ui.add_space(2.0);
+                    ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut state.user_name)
+                            .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                            .font(egui::TextStyle::Small),
+                    );
+                    ui.add_space(4.0);
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new("Disconnect")
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_primary()),
+                            )
+                            .fill(Color32::from_rgb(60, 30, 30))
+                            .min_size(Vec2::new(LEFT_PANEL_WIDTH - 32.0, 26.0)),
+                        )
+                        .clicked()
+                    {
+                        if let Some(ref mut client) = state.ws_client {
+                            client.disconnect();
+                        }
+                        state.ws_client = None;
+                        state.ws_status = "Disconnected".to_string();
+                        state.chat_users.clear();
+                    }
+                });
+        }
+    }
 
-        ui.add_space(4.0);
-    });
+    // ── Scrollable section area ──
+    ScrollArea::vertical()
+        .id_salt("chat_left_scroll")
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            // ── DMs Section (red tint) ──
+            draw_dm_section(ui, theme, state);
+
+            // ── Groups Section (green tint) ──
+            draw_groups_section(ui, theme, state);
+
+            // ── Servers Section (blue tint) ──
+            draw_servers_section(ui, theme, state);
+        });
+}
+
+// ── DMs Section ──
+
+fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let collapsed = with_collapse(|c| c.dms);
+    let dm_count = state.chat_dms.len();
+
+    if tinted_section_header(ui, &format!("DMs ({})", dm_count), collapsed, DM_BG) {
+        with_collapse(|c| c.dms = !c.dms);
+    }
+
+    if !collapsed {
+        Frame::NONE
+            .fill(DM_BG)
+            .inner_margin(egui::Margin::symmetric(0, 2))
+            .show(ui, |ui| {
+                if state.chat_dms.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(16.0);
+                        ui.label(
+                            RichText::new("No conversations yet")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    });
+                    ui.add_space(4.0);
+                }
+
+                let dms = state.chat_dms.clone();
+                for dm in &dms {
+                    let response = ui
+                        .allocate_ui_with_layout(
+                            Vec2::new(ui.available_width(), 38.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                let full_rect = ui.max_rect();
+                                let bg = if ui.rect_contains_pointer(full_rect) {
+                                    DM_ROW_HOVER
+                                } else {
+                                    DM_ROW_BG
+                                };
+                                ui.painter().rect_filled(full_rect, 0.0, bg);
+
+                                ui.add_space(12.0);
+
+                                // Unread dot
+                                if dm.unread {
+                                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(6.0), egui::Sense::hover());
+                                    ui.painter().circle_filled(rect.center(), 3.0, theme.accent());
+                                }
+
+                                ui.vertical(|ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(&dm.user_name)
+                                                .size(theme.font_size_body)
+                                                .color(if dm.unread { theme.text_primary() } else { theme.text_secondary() })
+                                                .strong(),
+                                        );
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            ui.add_space(8.0);
+                                            ui.label(
+                                                RichText::new(&dm.timestamp)
+                                                    .size(theme.font_size_small - 2.0)
+                                                    .color(theme.text_muted()),
+                                            );
+                                        });
+                                    });
+                                    if !dm.last_message.is_empty() {
+                                        ui.label(
+                                            RichText::new(truncate_str(&dm.last_message, 30))
+                                                .size(theme.font_size_small - 1.0)
+                                                .color(theme.text_muted()),
+                                        );
+                                    }
+                                });
+                            },
+                        )
+                        .response;
+
+                    if response.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                }
+            });
+    }
+}
+
+// ── Groups Section ──
+
+fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let collapsed = with_collapse(|c| c.groups);
+    let group_count = state.chat_groups.len();
+
+    if tinted_section_header(ui, &format!("Groups ({})", group_count), collapsed, GROUP_BG) {
+        with_collapse(|c| c.groups = !c.groups);
+    }
+
+    if !collapsed {
+        Frame::NONE
+            .fill(GROUP_BG)
+            .inner_margin(egui::Margin::symmetric(0, 2))
+            .show(ui, |ui| {
+                if state.chat_groups.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.add_space(16.0);
+                        ui.label(
+                            RichText::new("No groups yet")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    });
+                    ui.add_space(4.0);
+                }
+
+                let groups = state.chat_groups.clone();
+                for group in &groups {
+                    let response = ui
+                        .allocate_ui_with_layout(
+                            Vec2::new(ui.available_width(), 30.0),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                let full_rect = ui.max_rect();
+                                let bg = if ui.rect_contains_pointer(full_rect) {
+                                    GROUP_ROW_HOVER
+                                } else {
+                                    GROUP_ROW_BG
+                                };
+                                ui.painter().rect_filled(full_rect, 0.0, bg);
+                                ui.add_space(12.0);
+                                ui.label(
+                                    RichText::new(&group.name)
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_primary()),
+                                );
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.add_space(8.0);
+                                    ui.label(
+                                        RichText::new(format!("{} members", group.member_count))
+                                            .size(theme.font_size_small - 1.0)
+                                            .color(theme.text_muted()),
+                                    );
+                                });
+                            },
+                        )
+                        .response;
+
+                    if response.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                }
+
+                // Create/Join group buttons
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    if ui.add(egui::Button::new(
+                        RichText::new("Create Group").size(theme.font_size_small).color(theme.text_secondary()),
+                    ).fill(Color32::TRANSPARENT)).clicked() {
+                        // placeholder
+                    }
+                    if ui.add(egui::Button::new(
+                        RichText::new("Join Group").size(theme.font_size_small).color(theme.text_secondary()),
+                    ).fill(Color32::TRANSPARENT)).clicked() {
+                        // placeholder
+                    }
+                });
+                ui.add_space(2.0);
+            });
+    }
+}
+
+// ── Servers Section ──
+
+fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let collapsed = with_collapse(|c| c.servers);
+
+    // Build a virtual server from the current connection
+    let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    let virtual_server_count = if connected { 1 } else { 0 } + state.chat_servers.len();
+
+    if tinted_section_header(ui, &format!("Servers ({})", virtual_server_count), collapsed, SERVER_BG) {
+        with_collapse(|c| c.servers = !c.servers);
+    }
+
+    if !collapsed {
+        Frame::NONE
+            .fill(SERVER_BG)
+            .inner_margin(egui::Margin::symmetric(0, 2))
+            .show(ui, |ui| {
+                // Current connected server (virtual entry)
+                if connected {
+                    // Server name header
+                    ui.horizontal(|ui| {
+                        ui.add_space(12.0);
+                        let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+                        ui.painter().circle_filled(rect.center(), 4.0, theme.success());
+                        ui.label(
+                            RichText::new(server_display_name(&state.server_url))
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                    });
+                    ui.add_space(4.0);
+
+                    // Text channels
+                    ui.horizontal(|ui| {
+                        ui.add_space(16.0);
+                        ui.label(
+                            RichText::new("TEXT CHANNELS")
+                                .size(theme.font_size_small - 2.0)
+                                .color(theme.text_muted())
+                                .strong(),
+                        );
+                    });
+                    ui.add_space(2.0);
+
+                    let active = state.chat_active_channel.clone();
+                    let channels = state.chat_channels.clone();
+                    for ch in &channels {
+                        if ch.category == "Voice" {
+                            continue;
+                        }
+                        let is_active = ch.id == active;
+                        let bg = if is_active {
+                            Color32::from_rgba_premultiplied(40, 40, 80, 255)
+                        } else {
+                            SERVER_ROW_BG
+                        };
+
+                        let response = ui
+                            .allocate_ui_with_layout(
+                                Vec2::new(ui.available_width(), 26.0),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    let full_rect = ui.max_rect();
+                                    let hover = ui.rect_contains_pointer(full_rect);
+                                    let fill = if hover && !is_active { SERVER_ROW_HOVER } else { bg };
+                                    ui.painter().rect_filled(full_rect, 0.0, fill);
+                                    ui.add_space(20.0);
+                                    let text_color = if is_active {
+                                        theme.text_primary()
+                                    } else {
+                                        theme.text_secondary()
+                                    };
+                                    ui.label(
+                                        RichText::new(format!("# {}", ch.name))
+                                            .size(theme.font_size_body)
+                                            .color(text_color),
+                                    );
+                                },
+                            )
+                            .response;
+
+                        if response.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if response.clicked() {
+                            state.chat_active_channel = ch.id.clone();
+                            state.chat_messages.clear();
+                            state.history_fetched = false;
+                        }
+                    }
+
+                    ui.add_space(6.0);
+
+                    // Voice channels
+                    let voice_channels: Vec<&crate::gui::ChatChannel> = channels.iter().filter(|c| c.category == "Voice").collect();
+                    if !voice_channels.is_empty() {
+                        ui.horizontal(|ui| {
+                            ui.add_space(16.0);
+                            ui.label(
+                                RichText::new("VOICE CHANNELS")
+                                    .size(theme.font_size_small - 2.0)
+                                    .color(theme.text_muted())
+                                    .strong(),
+                            );
+                        });
+                        ui.add_space(2.0);
+
+                        for vc in &voice_channels {
+                            ui.horizontal(|ui| {
+                                ui.add_space(20.0);
+                                ui.label(
+                                    RichText::new(format!("  {}", vc.name))
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_muted()),
+                                );
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.add_space(8.0);
+                                    if ui.add(egui::Button::new(
+                                        RichText::new("Join").size(theme.font_size_small - 1.0).color(theme.text_secondary()),
+                                    ).fill(Color32::TRANSPARENT)).clicked() {
+                                        // placeholder
+                                    }
+                                });
+                            });
+                        }
+                    } else {
+                        // Default voice channels if none from server
+                        ui.horizontal(|ui| {
+                            ui.add_space(16.0);
+                            ui.label(
+                                RichText::new("VOICE CHANNELS")
+                                    .size(theme.font_size_small - 2.0)
+                                    .color(theme.text_muted())
+                                    .strong(),
+                            );
+                        });
+                        ui.add_space(2.0);
+                        for label in &["Lounge", "Dev Talk"] {
+                            ui.horizontal(|ui| {
+                                ui.add_space(20.0);
+                                ui.label(
+                                    RichText::new(format!("  {}", label))
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_muted()),
+                                );
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.add_space(8.0);
+                                    if ui.add(egui::Button::new(
+                                        RichText::new("Join").size(theme.font_size_small - 1.0).color(theme.text_secondary()),
+                                    ).fill(Color32::TRANSPARENT)).clicked() {
+                                        // placeholder
+                                    }
+                                });
+                            });
+                        }
+                    }
+
+                    ui.add_space(4.0);
+                }
+
+                // Additional servers from chat_servers list
+                for server in state.chat_servers.clone().iter() {
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(12.0);
+                        ui.label(
+                            RichText::new(&server.name)
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary())
+                                .strong(),
+                        );
+                    });
+                    for ch in &server.channels {
+                        ui.horizontal(|ui| {
+                            ui.add_space(20.0);
+                            ui.label(
+                                RichText::new(format!("# {}", ch.name))
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_secondary()),
+                            );
+                        });
+                    }
+                }
+
+                // + Add Server button
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    if ui.add(egui::Button::new(
+                        RichText::new("+ Add Server").size(theme.font_size_small).color(theme.text_secondary()),
+                    ).fill(Color32::TRANSPARENT)).clicked() {
+                        // placeholder
+                    }
+                });
+                ui.add_space(4.0);
+            });
+    }
 }
 
 // ─────────────────────────────── RIGHT PANEL ──────────────────────────────
 
 fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // Header
-    ui.allocate_ui_with_layout(
-        Vec2::new(ui.available_width(), 48.0),
-        egui::Layout::left_to_right(egui::Align::Center),
-        |ui| {
-            ui.add_space(12.0);
-            ui.label(
-                RichText::new("People & Streams")
-                    .size(theme.font_size_body)
-                    .color(theme.text_primary())
-                    .strong(),
-            );
-        },
-    );
-
-    ui.separator();
-    ui.add_space(4.0);
-
-    // Online count
-    ui.horizontal(|ui| {
-        ui.add_space(12.0);
-        ui.label(
-            RichText::new(format!("ONLINE  {}", state.chat_users.len()))
-                .size(theme.font_size_small - 1.0)
-                .color(theme.text_muted())
-                .strong(),
-        );
-    });
-    ui.add_space(4.0);
-
-    // User list
     ScrollArea::vertical()
-        .id_salt("chat_users_scroll")
+        .id_salt("chat_right_scroll")
+        .auto_shrink([false, false])
         .show(ui, |ui| {
-            for user in &state.chat_users {
-                ui.horizontal(|ui| {
-                    ui.add_space(12.0);
+            // ── Friends Section ──
+            draw_friends_section(ui, theme, state);
 
-                    // Online dot
-                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-                    let dot_color = match user.status.as_str() {
-                        "away" => theme.warning(),
-                        "busy" | "dnd" => theme.danger(),
-                        _ => theme.success(),
-                    };
-                    ui.painter().circle_filled(rect.center(), 4.0, dot_color);
+            ui.add_space(4.0);
 
-                    // Name
-                    ui.label(
-                        RichText::new(&user.name)
-                            .size(theme.font_size_body)
-                            .color(theme.text_primary()),
-                    );
+            // ── Server Members Section ──
+            draw_members_section(ui, theme, state);
+        });
+}
 
-                    // Role badge
-                    if !user.role.is_empty() && user.role != "member" {
-                        let badge_color = match user.role.as_str() {
-                            "admin" => Theme::c32(&theme.badge_admin),
-                            "moderator" | "mod" => Theme::c32(&theme.badge_mod),
-                            _ => theme.text_muted(),
-                        };
-                        ui.label(
-                            RichText::new(&user.role)
-                                .size(theme.font_size_small - 1.0)
-                                .color(badge_color)
-                                .strong(),
-                        );
+fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let collapsed = with_collapse(|c| c.friends);
+    let friend_count = state.chat_friends.len();
+
+    if section_header(ui, &format!("Friends ({})", friend_count), collapsed, Color32::from_rgb(35, 35, 42)) {
+        with_collapse(|c| c.friends = !c.friends);
+    }
+
+    if !collapsed {
+        if state.chat_friends.is_empty() {
+            ui.horizontal(|ui| {
+                ui.add_space(12.0);
+                ui.label(
+                    RichText::new("No friends added yet")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            });
+            ui.add_space(4.0);
+        }
+
+        for friend in state.chat_friends.clone().iter() {
+            ui.horizontal(|ui| {
+                ui.add_space(12.0);
+
+                // Online/offline dot
+                let dot_color = if friend.status == "offline" {
+                    Color32::from_rgb(100, 100, 100)
+                } else {
+                    theme.success()
+                };
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+                ui.painter().circle_filled(rect.center(), 4.0, dot_color);
+
+                // Name
+                ui.label(
+                    RichText::new(&friend.name)
+                        .size(theme.font_size_body)
+                        .color(theme.text_primary()),
+                );
+
+                // Role badges
+                draw_role_badges(ui, theme, &friend.role);
+
+                // Action buttons (DM, call)
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.add_space(8.0);
+                    if ui.add(egui::Button::new(
+                        RichText::new("DM").size(theme.font_size_small - 1.0).color(theme.text_muted()),
+                    ).fill(Color32::TRANSPARENT)).clicked() {
+                        // placeholder
                     }
                 });
-            }
+            });
+        }
+    }
+}
 
-            if state.chat_users.is_empty() {
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(12.0);
-                    ui.label(
-                        RichText::new("No users online")
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                    );
-                });
-            }
+fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let collapsed = with_collapse(|c| c.members);
+    let member_count = state.chat_users.len();
+    let server_name = server_display_name(&state.server_url);
+
+    if section_header(ui, &format!("{} ({})", server_name, member_count), collapsed, Color32::from_rgb(35, 35, 42)) {
+        with_collapse(|c| c.members = !c.members);
+    }
+
+    if !collapsed {
+        if state.chat_users.is_empty() {
+            ui.horizontal(|ui| {
+                ui.add_space(12.0);
+                ui.label(
+                    RichText::new("No users online")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            });
+            ui.add_space(4.0);
+        }
+
+        // Sort: online first, then alphabetical
+        let mut users = state.chat_users.clone();
+        users.sort_by(|a, b| {
+            let a_online = a.status != "offline";
+            let b_online = b.status != "offline";
+            b_online.cmp(&a_online).then(a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
+
+        for user in &users {
+            ui.horizontal(|ui| {
+                ui.add_space(12.0);
+
+                // Online/offline dot
+                let dot_color = match user.status.as_str() {
+                    "offline" => Color32::from_rgb(100, 100, 100),
+                    "away" => theme.warning(),
+                    "busy" | "dnd" => theme.danger(),
+                    _ => theme.success(),
+                };
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+                ui.painter().circle_filled(rect.center(), 4.0, dot_color);
+
+                // Name
+                let name_color = if user.status == "offline" {
+                    theme.text_muted()
+                } else {
+                    theme.text_primary()
+                };
+                ui.label(
+                    RichText::new(&user.name)
+                        .size(theme.font_size_body)
+                        .color(name_color),
+                );
+
+                // Role badges
+                draw_role_badges(ui, theme, &user.role);
+            });
+        }
+    }
 }
 
 // ─────────────────────────────── CENTER PANEL ─────────────────────────────
 
 fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // ── Channel header ──
-    Frame::none()
+    Frame::NONE
         .fill(Color32::from_rgb(25, 25, 30))
         .inner_margin(egui::Margin::symmetric(16, 10))
         .stroke(Stroke::new(1.0, Color32::from_rgb(40, 40, 48)))
@@ -357,7 +767,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .strong(),
                 );
 
-                // Find description for current channel
                 let desc = state
                     .chat_channels
                     .iter()
@@ -428,7 +837,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         ui.add_space(16.0);
 
                         if new_group {
-                            // Avatar placeholder: colored circle from name hash
+                            // Avatar circle from name hash
                             let color = name_color(&msg.sender_name);
                             let (rect, _) =
                                 ui.allocate_exact_size(Vec2::splat(32.0), egui::Sense::hover());
@@ -448,7 +857,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 Color32::WHITE,
                             );
                         } else {
-                            // Indent to align with messages in the same group
                             ui.add_space(36.0);
                         }
 
@@ -488,7 +896,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     );
 
     ui.allocate_ui_at_rect(input_rect, |ui| {
-        Frame::none()
+        Frame::NONE
             .fill(Color32::from_rgb(25, 25, 30))
             .inner_margin(egui::Margin::symmetric(16, 8))
             .show(ui, |ui| {
@@ -536,7 +944,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                         }
 
-                        // Also store locally (so the user sees their own message immediately)
+                        // Store locally so user sees their own message immediately
                         let now = chrono_now_str();
                         state.chat_messages.push(ChatMessage {
                             sender_name: if state.user_name.is_empty() {
@@ -550,7 +958,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             channel,
                         });
 
-                        // Bound the buffer
                         while state.chat_messages.len() > MAX_MESSAGES {
                             state.chat_messages.remove(0);
                         }
@@ -559,7 +966,6 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         response.request_focus();
                     }
 
-                    // Re-focus on enter
                     if enter_pressed {
                         response.request_focus();
                     }
@@ -568,7 +974,144 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-// ─────────────────────────────── Helpers ───────────────────────────────────
+// ─────────────────────────────── UI Helpers ──────────────────────────────
+
+/// Draw a collapsible section header with a tinted background.
+/// Returns true if the header was clicked (toggle).
+fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) -> bool {
+    let response = ui
+        .allocate_ui_with_layout(
+            Vec2::new(ui.available_width(), 28.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                let full_rect = ui.max_rect();
+                // Slightly brighter header bg
+                let header_bg = Color32::from_rgba_premultiplied(
+                    bg.r().saturating_add(15),
+                    bg.g().saturating_add(15),
+                    bg.b().saturating_add(15),
+                    bg.a(),
+                );
+                ui.painter().rect_filled(full_rect, 0.0, header_bg);
+                ui.add_space(8.0);
+
+                let arrow = if collapsed { "\u{25B8}" } else { "\u{25BE}" };
+                ui.label(
+                    RichText::new(arrow)
+                        .size(12.0)
+                        .color(Color32::from_rgb(180, 180, 180)),
+                );
+                ui.label(
+                    RichText::new(label)
+                        .size(12.0)
+                        .color(Color32::from_rgb(200, 200, 200))
+                        .strong(),
+                );
+            },
+        )
+        .response;
+
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response.clicked()
+}
+
+/// Draw a plain collapsible section header (for right panel).
+fn section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) -> bool {
+    let response = ui
+        .allocate_ui_with_layout(
+            Vec2::new(ui.available_width(), 32.0),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                let full_rect = ui.max_rect();
+                ui.painter().rect_filled(full_rect, 0.0, bg);
+                ui.add_space(10.0);
+
+                let arrow = if collapsed { "\u{25B8}" } else { "\u{25BE}" };
+                ui.label(
+                    RichText::new(arrow)
+                        .size(12.0)
+                        .color(Color32::from_rgb(180, 180, 180)),
+                );
+                ui.label(
+                    RichText::new(label)
+                        .size(13.0)
+                        .color(Color32::from_rgb(200, 200, 200))
+                        .strong(),
+                );
+            },
+        )
+        .response;
+
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    response.clicked()
+}
+
+/// Draw colored role badge pills (A=admin red, M=mod orange, V=verified blue).
+fn draw_role_badges(ui: &mut egui::Ui, theme: &Theme, role: &str) {
+    if role.is_empty() || role == "member" {
+        return;
+    }
+
+    let (badge_char, badge_color) = match role {
+        "admin" => ("A", Theme::c32(&theme.badge_admin)),
+        "moderator" | "mod" => ("M", Theme::c32(&theme.badge_mod)),
+        "verified" => ("V", Theme::c32(&theme.badge_verified)),
+        "donor" => ("D", Theme::c32(&theme.badge_donor)),
+        _ => return,
+    };
+
+    let text = RichText::new(badge_char)
+        .size(theme.font_size_small - 2.0)
+        .color(Color32::WHITE)
+        .strong();
+
+    let galley = ui.fonts(|f| f.layout_no_wrap(badge_char.to_string(), egui::FontId::proportional(theme.font_size_small - 2.0), Color32::WHITE));
+    let badge_width = galley.size().x + 8.0;
+    let badge_height = 16.0;
+
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(badge_width, badge_height), egui::Sense::hover());
+    ui.painter().rect_filled(rect, 3.0, badge_color);
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        badge_char,
+        egui::FontId::proportional(theme.font_size_small - 2.0),
+        Color32::WHITE,
+    );
+    let _ = text; // suppress unused warning
+}
+
+/// Extract a display name from a server URL.
+fn server_display_name(url: &str) -> String {
+    let cleaned = url
+        .replace("https://", "")
+        .replace("http://", "")
+        .replace("wss://", "")
+        .replace("ws://", "")
+        .trim_end_matches('/')
+        .trim_end_matches("/ws")
+        .to_string();
+    if cleaned.is_empty() {
+        "Server".to_string()
+    } else {
+        cleaned
+    }
+}
+
+/// Truncate a string to max chars, adding "..." if truncated.
+fn truncate_str(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max])
+    }
+}
+
+// ─────────────────────────────── Shared Helpers ──────────────────────────
 
 /// Convert an HTTPS URL to a WSS URL for the relay.
 pub fn derive_ws_url(url: &str) -> String {
@@ -595,7 +1138,6 @@ pub fn generate_random_hex_key() -> String {
 fn name_color(name: &str) -> Color32 {
     let hash: u32 = name.bytes().fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
     let hue = (hash % 360) as f32;
-    // HSL to RGB (simplified, saturation=0.5, lightness=0.45)
     let s = 0.5_f32;
     let l = 0.45_f32;
     let c = (1.0 - (2.0 * l - 1.0).abs()) * s;

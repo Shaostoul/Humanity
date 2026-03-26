@@ -246,6 +246,35 @@ pub struct ChatChannel {
     pub category: String,
 }
 
+/// A DM conversation entry for the left panel.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ChatDm {
+    pub user_name: String,
+    pub user_key: String,
+    pub last_message: String,
+    pub timestamp: String,
+    pub unread: bool,
+}
+
+/// A group chat entry for the left panel.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ChatGroup {
+    pub name: String,
+    pub id: String,
+    pub member_count: u32,
+}
+
+/// A server entry for the left panel (each server has text + voice channels).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct ChatServer {
+    pub name: String,
+    pub channels: Vec<ChatChannel>,
+    pub voice_channels: Vec<String>,
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -258,6 +287,10 @@ pub struct GuiState {
     pub chat_channels: Vec<ChatChannel>,
     pub chat_active_channel: String,
     pub chat_users: Vec<ChatUser>,
+    pub chat_dms: Vec<ChatDm>,
+    pub chat_groups: Vec<ChatGroup>,
+    pub chat_servers: Vec<ChatServer>,
+    pub chat_friends: Vec<ChatUser>,
     pub ws_client: Option<crate::net::ws_client::WsClient>,
     pub ws_status: String,
     pub selected_slot: Option<usize>,
@@ -457,6 +490,10 @@ impl Default for GuiState {
             ],
             chat_active_channel: "general".to_string(),
             chat_users: Vec::new(),
+            chat_dms: Vec::new(),
+            chat_groups: Vec::new(),
+            chat_servers: Vec::new(),
+            chat_friends: Vec::new(),
             ws_client: None,
             ws_status: "Not connected".to_string(),
             selected_slot: None,
