@@ -824,16 +824,31 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     });
                 }
 
+                // Track alternating user colors
                 let mut last_sender = String::new();
+                let mut sender_parity = false; // toggles each time sender changes
+                let bg_even = Color32::from_rgb(2, 2, 2);
+                let bg_odd = Color32::from_rgb(4, 4, 4);
+
                 for msg in &filtered {
                     let new_group = msg.sender_name != last_sender;
+                    if new_group {
+                        sender_parity = !sender_parity;
+                    }
                     last_sender = msg.sender_name.clone();
 
                     if new_group {
                         ui.add_space(8.0);
                     }
 
-                    ui.horizontal(|ui| {
+                    // Paint row background based on sender parity
+                    let row_bg = if sender_parity { bg_even } else { bg_odd };
+                    let row_response = ui.horizontal(|ui| {
+                        let full_rect = egui::Rect::from_min_size(
+                            ui.cursor().min,
+                            Vec2::new(ui.available_width(), ui.spacing().interact_size.y.max(28.0)),
+                        );
+                        ui.painter().rect_filled(full_rect, 0.0, row_bg);
                         ui.add_space(16.0);
 
                         if new_group {
