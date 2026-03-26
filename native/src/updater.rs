@@ -10,10 +10,20 @@
 //! - Self-replace: renames running exe, swaps in new binary, prompts restart
 
 #[cfg(feature = "native")]
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[cfg(feature = "native")]
 use std::path::PathBuf;
+
+/// Deserialize a JSON null as an empty string instead of failing.
+#[cfg(feature = "native")]
+fn deserialize_null_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
+}
 
 /// Update channel preference stored in settings.
 #[cfg(feature = "native")]
@@ -62,11 +72,11 @@ pub enum UpdateState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReleaseInfo {
     pub tag_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_string")]
     pub name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_string")]
     pub body: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_string")]
     pub published_at: String,
     #[serde(default)]
     pub assets: Vec<ReleaseAsset>,
