@@ -820,6 +820,10 @@ mod native_app {
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {
                                             log::info!("Relay system message: {}", msg);
                                             crate::debug::push_debug(format!("System: {}", msg));
+                                            // Filter out internal sync messages from chat display
+                                            if msg.starts_with("__sync_data__") || msg == "sync_ack" {
+                                                continue;
+                                            }
                                             // Add as a system message in current channel
                                             state.gui_state.chat_messages.push(
                                                 crate::gui::ChatMessage {
@@ -892,6 +896,10 @@ mod native_app {
                                             state.gui_state.profile_network_avatar = avatar.to_string();
                                         }
                                         log::info!("Received profile data from server");
+                                    }
+                                    Some("sync_data") | Some("sync_ack") | Some("vault_sync") => {
+                                        // Vault sync messages - handle silently, don't display in chat
+                                        crate::debug::push_debug("Vault sync message received (hidden)");
                                     }
                                     Some("reactions_sync") | Some("pins_sync") | Some("dm_list")
                                     | Some("follow_list") | Some("group_list") | Some("member_joined") => {

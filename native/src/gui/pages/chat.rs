@@ -851,59 +851,56 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     // Paint row background based on sender parity
                     let row_bg = if sender_parity { bg_even } else { bg_odd };
-                    let row_response = ui.horizontal(|ui| {
-                        let full_rect = egui::Rect::from_min_size(
-                            ui.cursor().min,
-                            Vec2::new(ui.available_width(), ui.spacing().interact_size.y.max(28.0)),
-                        );
-                        ui.painter().rect_filled(full_rect, 0.0, row_bg);
-                        ui.add_space(16.0);
+                    Frame::NONE.fill(row_bg).show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.add_space(16.0);
 
-                        if new_group {
-                            // Avatar circle from name hash
-                            let color = name_color(&msg.sender_name);
-                            let (rect, _) =
-                                ui.allocate_exact_size(Vec2::splat(32.0), egui::Sense::hover());
-                            ui.painter().circle_filled(rect.center(), 14.0, color);
-                            let initial = msg
-                                .sender_name
-                                .chars()
-                                .next()
-                                .unwrap_or('?')
-                                .to_uppercase()
-                                .to_string();
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                initial,
-                                egui::FontId::proportional(14.0),
-                                Color32::WHITE,
-                            );
-                        } else {
-                            ui.add_space(36.0);
-                        }
-
-                        ui.vertical(|ui| {
                             if new_group {
-                                ui.horizontal(|ui| {
-                                    ui.label(
-                                        RichText::new(&msg.sender_name)
-                                            .size(theme.font_size_body)
-                                            .color(theme.text_primary())
-                                            .strong(),
-                                    );
-                                    ui.label(
-                                        RichText::new(&msg.timestamp)
-                                            .size(theme.font_size_small - 1.0)
-                                            .color(theme.text_muted()),
-                                    );
-                                });
+                                // Avatar circle from name hash
+                                let color = name_color(&msg.sender_name);
+                                let (rect, _) =
+                                    ui.allocate_exact_size(Vec2::splat(32.0), egui::Sense::hover());
+                                ui.painter().circle_filled(rect.center(), 14.0, color);
+                                let initial = msg
+                                    .sender_name
+                                    .chars()
+                                    .next()
+                                    .unwrap_or('?')
+                                    .to_uppercase()
+                                    .to_string();
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    initial,
+                                    egui::FontId::proportional(14.0),
+                                    Color32::WHITE,
+                                );
+                            } else {
+                                ui.add_space(36.0);
                             }
-                            ui.label(
-                                RichText::new(&msg.content)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary()),
-                            );
+
+                            ui.vertical(|ui| {
+                                if new_group {
+                                    ui.horizontal(|ui| {
+                                        ui.label(
+                                            RichText::new(&msg.sender_name)
+                                                .size(theme.font_size_body)
+                                                .color(theme.text_primary())
+                                                .strong(),
+                                        );
+                                        ui.label(
+                                            RichText::new(&msg.timestamp)
+                                                .size(theme.font_size_small - 1.0)
+                                                .color(theme.text_muted()),
+                                        );
+                                    });
+                                }
+                                ui.label(
+                                    RichText::new(&msg.content)
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_primary()),
+                                );
+                            });
                         });
                     });
                 }
