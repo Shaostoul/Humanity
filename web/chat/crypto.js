@@ -886,7 +886,7 @@ async function generateMnemonic() {
     try {
       const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
       const seed = extractSeedFromPkcs8(pkcs8);
-      return mnemonicFromSeed(seed);
+      return await mnemonicFromSeed(seed);
     } catch (e) { console.warn('generateMnemonic: in-memory export failed, trying localStorage backup'); }
   }
   // Try 2: fall back to localStorage PKCS8 backup (survives IndexedDB extractable flag loss)
@@ -907,7 +907,7 @@ async function generateMnemonic() {
           await storeKeypair(db, backup.publicKeyHex, { privateKey: fixedKey, publicKey: fixedPub });
           console.log('generateMnemonic: fixed extractable key from localStorage backup');
         } catch (fixErr) { console.warn('Could not fix key in IndexedDB:', fixErr); }
-        return mnemonicFromSeed(seed);
+        return await mnemonicFromSeed(seed);
       }
     }
   } catch (e2) { console.error('generateMnemonic: localStorage fallback also failed:', e2); }
