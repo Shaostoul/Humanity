@@ -13,3 +13,5 @@ pub mod sync;
 pub mod ws_client;
 #[cfg(feature = "native")]
 pub mod identity;
+#[cfg(feature = "native")]
+pub mod bip39_wordlist;

@@ -45,12 +45,12 @@ fn decode_words_to_entropy(mnemonic_str: &str) -> Result<Vec<u8>, String> {
         return Err(format!("Expected 24 words, got {}", words.len()));
     }
 
-    // Use the bip39 crate's word list for lookup
-    let word_list = bip39::Language::English.word_list();
+    // Use our custom wordlist (matches the web client's bip39-english.js)
+    let word_list = &super::bip39_wordlist::WORDLIST;
     let mut bits = Vec::with_capacity(264);
 
     for word in &words {
-        let idx = word_list.iter().position(|w| w == word)
+        let idx = word_list.iter().position(|w| *w == *word)
             .ok_or_else(|| format!("Unknown BIP39 word: '{}'", word))?;
         for bit in (0..11).rev() {
             bits.push(((idx >> bit) & 1) as u8);
