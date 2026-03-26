@@ -344,6 +344,14 @@ mod native_app {
             let config = crate::config::AppConfig::load();
             config.apply_to_gui_state(&mut gui_state);
 
+            // Clean up .old files from previous updates
+            crate::updater::Updater::cleanup_old_versions();
+
+            // Auto-check for updates on startup (if enabled)
+            if gui_state.updater.channel == crate::updater::UpdateChannel::AlwaysLatest {
+                gui_state.updater.check_now();
+            }
+
             // If returning user with onboarding done, go to hub instead of onboarding
             if gui_state.onboarding_complete {
                 gui_state.active_page = GuiPage::MainMenu;
@@ -586,6 +594,12 @@ mod native_app {
 
                     // Update FPS counter
                     state.gui_state.fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
+
+                    // Poll updater for background thread results
+                    if state.gui_state.updater.poll(dt as f64) {
+                        // An update just became available -- show toast
+                        state.gui_state.update_toast_visible = true;
+                    }
 
                     // ── Bridge ECS/DataStore state into GuiState for GUI pages ──
 

@@ -486,8 +486,18 @@ fn draw_updates(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
             if let UpdateState::Available { version, .. } = &state.updater.state {
                 let ver = version.clone();
-                if widgets::primary_button(ui, theme, "Download Update") {
+                if widgets::primary_button(ui, theme, "Download & Install") {
                     state.updater.download_version(&ver);
+                }
+            }
+
+            if let UpdateState::Ready { .. } = &state.updater.state {
+                if widgets::primary_button(ui, theme, "Restart to Apply") {
+                    // Relaunch the current exe and quit
+                    if let Ok(exe) = std::env::current_exe() {
+                        let _ = std::process::Command::new(&exe).spawn();
+                    }
+                    state.quit_requested = true;
                 }
             }
         });
@@ -496,6 +506,22 @@ fn draw_updates(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if let UpdateState::Downloading { progress, .. } = &state.updater.state {
             ui.add_space(theme.spacing_sm);
             widgets::progress_bar(ui, theme, *progress, Some("Downloading..."));
+        }
+
+        // Release notes
+        if let UpdateState::Available { ref release_notes, .. } = &state.updater.state {
+            if !release_notes.is_empty() {
+                ui.add_space(theme.spacing_md);
+                ui.label(RichText::new("Release Notes").color(theme.text_secondary()).strong());
+                ui.add_space(theme.spacing_xs);
+                egui::Frame::none()
+                    .fill(Color32::from_rgb(30, 30, 38))
+                    .rounding(Rounding::same(4))
+                    .inner_margin(8.0)
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(release_notes).color(theme.text_muted()).size(theme.font_size_small));
+                    });
+            }
         }
     });
 
