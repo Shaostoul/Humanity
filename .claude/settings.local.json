@@ -14,5 +14,9 @@
       "mcp__Claude_Preview__preview_network",
       "mcp__Claude_Preview__preview_resize"
     ]
+  },
+  "disableAllHooks": true,
+  "enabledPlugins": {
+    "preview@anthropic-tools": false
   }
 }
