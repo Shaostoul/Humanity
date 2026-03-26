@@ -161,9 +161,30 @@ fn run_connection(
     loop {
         // ── Send outbound messages ──
         while let Ok(msg) = rx_from_game.try_recv() {
-            if socket.send(tungstenite::Message::Text(msg)).is_err() {
-                let _ = tx_to_game.send("__DISCONNECTED__".to_string());
-                return;
+            match socket.send(tungstenite::Message::Text(msg)) {
+                Ok(_) => {
+                    // Flush to ensure TLS actually sends the data
+                    if let Err(e) = socket.flush() {
+                        log::warn!("WsClient: flush error after send: {}", e);
+                        // WouldBlock on flush is OK, data is buffered
+                        if e.to_string().contains("WouldBlock") {
+                            continue;
+                        }
+                        let _ = tx_to_game.send("__DISCONNECTED__".to_string());
+                        return;
+                    }
+                }
+                Err(tungstenite::Error::Io(ref e))
+                    if e.kind() == std::io::ErrorKind::WouldBlock =>
+                {
+                    // Socket busy, try again next iteration
+                    log::debug!("WsClient: send WouldBlock, will retry");
+                }
+                Err(e) => {
+                    log::warn!("WsClient: send error: {}", e);
+                    let _ = tx_to_game.send("__DISCONNECTED__".to_string());
+                    return;
+                }
             }
         }
 
