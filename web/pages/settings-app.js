@@ -1922,8 +1922,12 @@ function settingsOpenRestore() {
 
 async function settingsOpenSeed() {
   var mnemonic;
-  try { mnemonic = await generateMnemonic(); } catch(e) { settingsAlert('Seed phrase unavailable: ' + e.message); return; }
-  if (!mnemonic) { settingsAlert('Seed phrase unavailable — key may be non-extractable.'); return; }
+  try { mnemonic = await generateMnemonic(); } catch(e) { mnemonic = null; }
+  if (!mnemonic) {
+    // Key is non-extractable (created before backup support). Offer rotation.
+    settingsShowNonExtractableOverlay();
+    return;
+  }
   var words = mnemonic.trim().split(/\s+/);
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
@@ -1948,6 +1952,42 @@ async function settingsOpenSeed() {
       overlay.querySelector('#set-seed-msg').textContent = '✓ Copied — write it down, then clear clipboard';
       overlay.querySelector('#set-seed-copy').textContent = 'Copied!';
     });
+  });
+}
+
+/**
+ * Show overlay explaining that the current key is non-extractable and offering
+ * a "Rotate Key" action to generate a new extractable keypair with seed phrase.
+ */
+function settingsShowNonExtractableOverlay() {
+  var overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
+  overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
+    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">Seed Phrase Unavailable</h2>' +
+    '<p style="font-size:.82rem;color:#ccc;line-height:1.6;margin:0 0 var(--space-xl)">' +
+      'Your key was created before backup support was added. The private key stored in your browser ' +
+      'is marked as non-extractable, so a seed phrase cannot be generated from it.' +
+    '</p>' +
+    '<div style="background:#0f1a0f;border:1px solid #1a3a1a;border-radius:8px;padding:var(--space-xl);margin-bottom:var(--space-xl);font-size:.8rem;color:#8cc88c;line-height:1.6">' +
+      '<strong style="color:#4ec87a">Solution: Rotate your key.</strong><br>' +
+      'This generates a new extractable keypair with full seed phrase backup. ' +
+      'Your profile, messages, and reputation transfer automatically via a dual-signature certificate.' +
+    '</div>' +
+    '<div style="display:flex;gap:var(--space-md);justify-content:flex-end">' +
+      '<button id="ne-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
+      '<button id="ne-rotate" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>' +
+    '</div>' +
+  '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('#ne-cancel').addEventListener('click', function() { overlay.remove(); });
+  overlay.querySelector('#ne-rotate').addEventListener('click', function() {
+    overlay.remove();
+    if (typeof openKeyRotationModal === 'function') {
+      openKeyRotationModal();
+    } else {
+      settingsAlert('Key rotation is not available. Please use the chat page to rotate your key.');
+    }
   });
 }
 

@@ -1039,134 +1039,16 @@ function doRemoveKeyProtection() {
 
 /**
  * Open the key rotation modal.
- * Rotation is a serious, irreversible action: explains the consequences in
- * plain language before letting the user proceed.
+ * Delegates to the shared openKeyRotationModal() in crypto.js.
+ * Kept as a thin wrapper for backward compatibility with any callers.
  */
-function openKeyRotationModal() {
-  const overlay = document.createElement('div');
-  overlay.id = 'key-rotation-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:6000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
-  overlay.innerHTML = `
-    <div style="background:var(--bg-secondary);border:1px solid #3a1515;border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:520px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--danger);margin:0 0 var(--space-md)">🔄 Rotate Identity Key</h2>
-      <p style="font-size:.8rem;color:var(--text-muted);line-height:1.55;margin:0 0 var(--space-xl)">
-        This generates a <strong style="color:var(--text)">brand new identity</strong> and signs a certificate proving
-        it was authorised by your current key. Peers who see the rotation will know the new key is yours.
-      </p>
-      <div style="background:#100000;border:1px solid #3a1515;border-radius:var(--radius);padding:var(--space-xl) var(--space-xl);margin-bottom:var(--space-xl);font-size:.78rem;color:var(--danger);line-height:1.55">
-        ⚠ <strong>This is permanent.</strong> Your old key will be marked as rotated.<br>
-        Back up your current seed phrase <em>before</em> rotating — you may need it to prove ownership later.<br>
-        Followers and friends linked to your old key will need to update their contact list.
-      </div>
-      <div style="margin-bottom:var(--space-xl)">
-        <label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:var(--space-sm)">Type ROTATE to confirm</label>
-        <input id="kr-confirm" type="text" placeholder="ROTATE" autocomplete="off"
-          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.88rem;outline:none">
-      </div>
-      <div id="kr-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
-      <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button onclick="document.getElementById('key-rotation-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="kr-btn" onclick="doKeyRotation()"
-          style="background:var(--danger);color:#fff;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.getElementById('kr-confirm').focus();
-}
+// openKeyRotationModal and doKeyRotation are now defined in crypto.js
+// and available globally on any page that loads crypto.js.
 
-async function doKeyRotation() {
-  const confirm = document.getElementById('kr-confirm').value.trim();
-  const msg     = document.getElementById('kr-msg');
-  const btn     = document.getElementById('kr-btn');
+// Legacy stubs removed -- the canonical implementations live in crypto.js.
+// If chat-profile.js is loaded after crypto.js, the global functions are already available.
 
-  if (confirm !== 'ROTATE') {
-    msg.innerHTML = '<span style="color:var(--danger)">Type ROTATE (all caps) to confirm.</span>';
-    return;
-  }
-  if (!myIdentity || !myIdentity.canSign) {
-    msg.innerHTML = '<span style="color:var(--danger)">Current identity is not signable — cannot rotate.</span>';
-    return;
-  }
-
-  btn.disabled = true; btn.textContent = 'Generating…'; msg.textContent = '';
-
-  try {
-    // 1. Generate the new keypair
-    const newKp  = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
-    const rawPub = await crypto.subtle.exportKey('raw', newKp.publicKey);
-    const newKeyHex = Array.from(new Uint8Array(rawPub)).map(b => b.toString(16).padStart(2,'0')).join('');
-
-    const ts = Date.now();
-
-    // 2. Sign with OLD key: sign(new_key + "\n" + timestamp)
-    const payloadOld = `${newKeyHex}\n${ts}`;
-    const sigBufOld  = await crypto.subtle.sign('Ed25519', myIdentity.privateKey, new TextEncoder().encode(payloadOld));
-    const sigByOld   = Array.from(new Uint8Array(sigBufOld)).map(b => b.toString(16).padStart(2,'0')).join('');
-
-    // 3. Sign with NEW key: sign(old_key + "\n" + timestamp)
-    const payloadNew = `${myIdentity.publicKeyHex}\n${ts}`;
-    const sigBufNew  = await crypto.subtle.sign('Ed25519', newKp.privateKey, new TextEncoder().encode(payloadNew));
-    const sigByNew   = Array.from(new Uint8Array(sigBufNew)).map(b => b.toString(16).padStart(2,'0')).join('');
-
-    // 4. Send rotation certificate to relay
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      msg.innerHTML = '<span style="color:var(--danger)">Not connected to relay — connect first, then rotate.</span>';
-      btn.disabled = false; btn.textContent = 'Rotate Key';
-      return;
-    }
-    ws.send(JSON.stringify({
-      type: 'key_rotation',
-      old_key:   myIdentity.publicKeyHex,
-      new_key:   newKeyHex,
-      sig_by_old: sigByOld,
-      sig_by_new: sigByNew,
-      timestamp:  ts
-    }));
-
-    // 5. Store new identity and reload
-    msg.innerHTML = '<span style="color:var(--success)">✓ Rotation sent — storing new identity and reloading…</span>';
-    btn.textContent = 'Done';
-
-    // Store new keypair using existing loadOrCreateIdentity infrastructure
-    await storeNewRotatedIdentity(newKp, newKeyHex);
-    setTimeout(() => location.reload(), 2000);
-
-  } catch(e) {
-    msg.innerHTML = `<span style="color:var(--danger)">Error: ${e.message}</span>`;
-    btn.disabled = false; btn.textContent = 'Rotate Key';
-  }
-}
-
-/**
- * Store the newly generated keypair as the active identity.
- * Writes to IndexedDB and localStorage backup so the next page load uses it.
- */
-async function storeNewRotatedIdentity(keypair, publicKeyHex) {
-  // Write to localStorage backup first (always accessible)
-  try {
-    const jwk = await crypto.subtle.exportKey('jwk', keypair.privateKey);
-    localStorage.setItem('humanity_key', publicKeyHex);
-    localStorage.setItem('humanity_key_backup', JSON.stringify({
-      publicKeyHex, jwk, rotated: true, rotated_at: Date.now()
-    }));
-  } catch(e) { console.warn('localStorage backup of rotated key failed:', e); }
-
-  // Write to IndexedDB (same pattern as crypto.js storeKeypair)
-  try {
-    const db = await new Promise((res, rej) => {
-      const req = indexedDB.open('humanity_identity_v2', 1);
-      req.onsuccess = () => res(req.result);
-      req.onerror   = () => rej(req.error);
-    });
-    const tx    = db.transaction('keypairs', 'readwrite');
-    const store = tx.objectStore('keypairs');
-    store.put({ id: publicKeyHex, privateKey: keypair.privateKey, publicKey: keypair.publicKey });
-    localStorage.setItem('humanity_key', publicKeyHex);
-  } catch(e) { console.warn('IndexedDB store of rotated key failed (localStorage backup is set):', e); }
-}
+// doKeyRotation and storeNewRotatedIdentity moved to crypto.js (_storeRotatedIdentity)
 
 /** Force re-render user list with updated block indicators. */
 function rerenderUserList() {

@@ -1007,3 +1007,159 @@ async function downloadEncryptedMnemonic(mnemonic, passphrase) {
   a.download = 'humanity-phrase-backup.json';
   a.click();
 }
+
+// ── Key Rotation (shared across chat + settings pages) ──
+
+/**
+ * Open the key rotation modal.
+ * Generates a new extractable Ed25519 keypair, dual-signs a rotation
+ * certificate, sends it to the relay, and stores the new identity.
+ * Works from any page that loads crypto.js (chat, settings, etc.).
+ */
+function openKeyRotationModal() {
+  const overlay = document.createElement('div');
+  overlay.id = 'key-rotation-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl,1.5rem);box-sizing:border-box;';
+  overlay.innerHTML =
+    '<div style="background:var(--bg-secondary,#181818);border:1px solid #3a1515;border-radius:var(--radius-lg,14px);padding:var(--space-2xl,1.75rem);width:100%;max-width:520px;font-family:\'Segoe UI\',system-ui,sans-serif;color:var(--text,#e0e0e0)">' +
+      '<h2 style="font-size:1rem;font-weight:700;color:var(--danger,#e55);margin:0 0 var(--space-md,.75rem)">Rotate Identity Key</h2>' +
+      '<p style="font-size:.8rem;color:var(--text-muted,#888);line-height:1.55;margin:0 0 var(--space-xl,1.5rem)">' +
+        'This generates a <strong style="color:var(--text,#e0e0e0)">brand new identity</strong> and signs a certificate proving ' +
+        'it was authorised by your current key. Peers who see the rotation will know the new key is yours.' +
+      '</p>' +
+      '<div style="background:#100000;border:1px solid #3a1515;border-radius:var(--radius,8px);padding:var(--space-xl,1.5rem);margin-bottom:var(--space-xl,1.5rem);font-size:.78rem;color:var(--danger,#e55);line-height:1.55">' +
+        '<strong>This is permanent.</strong> Your old key will be marked as rotated.<br>' +
+        'Followers and friends linked to your old key will need to update their contact list.' +
+      '</div>' +
+      '<div style="margin-bottom:var(--space-xl,1.5rem)">' +
+        '<label style="display:block;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted,#888);margin-bottom:var(--space-sm,.5rem)">Type ROTATE to confirm</label>' +
+        '<input id="kr-confirm" type="text" placeholder="ROTATE" autocomplete="off" ' +
+          'style="width:100%;background:var(--bg,#111);border:1px solid var(--border,#2a2a2a);border-radius:var(--radius,8px);padding:var(--space-md,.75rem) var(--space-lg,1rem);color:var(--text,#e0e0e0);font-size:.88rem;outline:none;box-sizing:border-box">' +
+      '</div>' +
+      '<div id="kr-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg,1rem)"></div>' +
+      '<div style="display:flex;gap:var(--space-lg,1rem);justify-content:flex-end">' +
+        '<button id="kr-cancel-btn" style="background:none;border:1px solid var(--border,#2a2a2a);color:var(--text-muted,#888);border-radius:var(--radius,8px);padding:var(--space-md,.75rem) var(--space-xl,1.5rem);font-size:.82rem;cursor:pointer">Cancel</button>' +
+        '<button id="kr-btn" style="background:var(--danger,#e55);color:#fff;border:none;border-radius:var(--radius,8px);padding:var(--space-md,.75rem) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+  overlay.querySelector('#kr-cancel-btn').addEventListener('click', function() { overlay.remove(); });
+  overlay.querySelector('#kr-btn').addEventListener('click', function() { doKeyRotation(); });
+  overlay.querySelector('#kr-confirm').focus();
+}
+
+/**
+ * Execute the key rotation: generate new keypair, dual-sign, send to relay, store.
+ * Uses a temporary WebSocket if no global `ws` is available (e.g., from settings page).
+ */
+async function doKeyRotation() {
+  const confirmInput = document.getElementById('kr-confirm');
+  const msg = document.getElementById('kr-msg');
+  const btn = document.getElementById('kr-btn');
+
+  if (!confirmInput || confirmInput.value.trim() !== 'ROTATE') {
+    if (msg) msg.innerHTML = '<span style="color:var(--danger,#e55)">Type ROTATE (all caps) to confirm.</span>';
+    return;
+  }
+  if (!myIdentity || !myIdentity.canSign) {
+    if (msg) msg.innerHTML = '<span style="color:var(--danger,#e55)">Current identity is not signable. Cannot rotate.</span>';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Generating...';
+  if (msg) msg.textContent = '';
+
+  try {
+    // 1. Generate new extractable keypair
+    const newKp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+    const rawPub = await crypto.subtle.exportKey('raw', newKp.publicKey);
+    const newKeyHex = bufToHex(rawPub);
+
+    const ts = Date.now();
+
+    // 2. Old key signs new key
+    const payloadOld = newKeyHex + '\n' + ts;
+    const sigBufOld = await crypto.subtle.sign('Ed25519', myIdentity.privateKey, new TextEncoder().encode(payloadOld));
+    const sigByOld = bufToHex(sigBufOld);
+
+    // 3. New key signs old key
+    const payloadNew = myIdentity.publicKeyHex + '\n' + ts;
+    const sigBufNew = await crypto.subtle.sign('Ed25519', newKp.privateKey, new TextEncoder().encode(payloadNew));
+    const sigByNew = bufToHex(sigBufNew);
+
+    // 4. Send rotation certificate via WebSocket (use existing or open temporary)
+    const rotationMsg = JSON.stringify({
+      type: 'key_rotation',
+      old_key: myIdentity.publicKeyHex,
+      new_key: newKeyHex,
+      sig_by_old: sigByOld,
+      sig_by_new: sigByNew,
+      timestamp: ts
+    });
+
+    await _sendRotationToRelay(rotationMsg, msg, btn);
+
+    // 5. Store new identity in IndexedDB + localStorage
+    if (msg) msg.innerHTML = '<span style="color:var(--success,#4ec87a)">Rotation sent. Storing new identity...</span>';
+    await _storeRotatedIdentity(newKp, newKeyHex);
+
+    if (msg) msg.innerHTML = '<span style="color:var(--success,#4ec87a)">Done! Reloading with new identity...</span>';
+    btn.textContent = 'Done';
+    setTimeout(function() { location.reload(); }, 2000);
+
+  } catch(e) {
+    if (msg) msg.innerHTML = '<span style="color:var(--danger,#e55)">Error: ' + e.message + '</span>';
+    btn.disabled = false; btn.textContent = 'Rotate Key';
+  }
+}
+
+/** Send rotation message via existing global ws or open a temporary connection. */
+async function _sendRotationToRelay(rotationMsg, msgEl, btn) {
+  // If a global ws is open (chat page), use it directly
+  if (typeof ws !== 'undefined' && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(rotationMsg);
+    return;
+  }
+
+  // Otherwise open a temporary WebSocket (settings page, etc.)
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var url = proto + '//' + location.host + '/ws';
+
+  return new Promise(function(resolve, reject) {
+    var tempWs = new WebSocket(url);
+    var timeout = setTimeout(function() {
+      tempWs.close();
+      reject(new Error('WebSocket connection timed out. Check your network and try again.'));
+    }, 10000);
+
+    tempWs.onopen = function() {
+      tempWs.send(rotationMsg);
+      clearTimeout(timeout);
+      // Wait briefly for server to process, then close
+      setTimeout(function() { tempWs.close(); resolve(); }, 500);
+    };
+    tempWs.onerror = function() {
+      clearTimeout(timeout);
+      reject(new Error('Could not connect to relay server. Check your network and try again.'));
+    };
+  });
+}
+
+/** Store rotated keypair into IndexedDB (canonical store) and localStorage backup. */
+async function _storeRotatedIdentity(keypair, publicKeyHex) {
+  // Write to IndexedDB using the same DB/store as crypto.js
+  try {
+    var db = await openKeyDB();
+    await storeKeypair(db, publicKeyHex, { privateKey: keypair.privateKey, publicKey: keypair.publicKey });
+  } catch(e) { console.warn('IndexedDB store of rotated key failed:', e); }
+
+  // Also write localStorage backup (JWK) for resilience
+  try {
+    var jwk = await crypto.subtle.exportKey('jwk', keypair.privateKey);
+    localStorage.setItem('humanity_key', publicKeyHex);
+    localStorage.setItem('humanity_key_backup', JSON.stringify({
+      publicKeyHex: publicKeyHex, jwk: jwk, rotated: true, rotated_at: Date.now()
+    }));
+  } catch(e) { console.warn('localStorage backup of rotated key failed:', e); }
+}
