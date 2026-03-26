@@ -646,11 +646,14 @@ mod native_app {
                         });
                     }
 
-                    // ── Auto-connect to server if configured but not connected ──
+                    // ── Auto-connect to server if configured but not connected (initial connect only) ──
                     if !state.gui_state.server_url.is_empty()
                         && state.gui_state.ws_client.is_none()
                         && !state.gui_state.user_name.is_empty()
                         && state.gui_state.onboarding_complete
+                        && !state.gui_state.ws_manually_disconnected
+                        && state.gui_state.ws_reconnect_timer <= 0.0
+                        && state.gui_state.ws_reconnect_attempts == 0
                     {
                         let ws_url = crate::gui::pages::chat::derive_ws_url(&state.gui_state.server_url);
                         let name = state.gui_state.user_name.clone();
@@ -666,10 +669,11 @@ mod native_app {
                     }
 
                     // ── Poll WebSocket messages from relay server ──
+                    let mut ws_dropped = false;
                     if let Some(ref mut ws) = state.gui_state.ws_client {
                         let messages = ws.poll_messages();
                         if !ws.is_connected() {
-                            state.gui_state.ws_status = "Disconnected".to_string();
+                            ws_dropped = true;
                         }
                         for raw in messages {
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
@@ -992,6 +996,60 @@ mod native_app {
                                 }
                             }
                         }
+                    }
+
+                    // ── Drop dead WebSocket client and start reconnect timer ──
+                    if ws_dropped {
+                        state.gui_state.ws_client = None;
+                        if !state.gui_state.ws_manually_disconnected {
+                            log::info!("WebSocket disconnected, will reconnect in {}s (attempt {})",
+                                state.gui_state.ws_reconnect_delay as u32,
+                                state.gui_state.ws_reconnect_attempts + 1);
+                            state.gui_state.ws_reconnect_timer = state.gui_state.ws_reconnect_delay;
+                            state.gui_state.ws_status = format!("Reconnecting in {}s...",
+                                state.gui_state.ws_reconnect_delay as u32);
+                        } else {
+                            state.gui_state.ws_status = "Disconnected".to_string();
+                        }
+                    }
+
+                    // ── WebSocket auto-reconnect with exponential backoff ──
+                    if state.gui_state.ws_client.is_none()
+                        && !state.gui_state.ws_manually_disconnected
+                        && state.gui_state.ws_reconnect_timer > 0.0
+                    {
+                        state.gui_state.ws_reconnect_timer -= dt;
+                        let secs_left = state.gui_state.ws_reconnect_timer.ceil() as u32;
+                        state.gui_state.ws_status = format!("Reconnecting in {}s...", secs_left.max(1));
+
+                        if state.gui_state.ws_reconnect_timer <= 0.0 {
+                            // Attempt reconnect
+                            let ws_url = crate::gui::pages::chat::derive_ws_url(&state.gui_state.server_url);
+                            let name = state.gui_state.user_name.clone();
+                            let pubkey = if state.gui_state.profile_public_key.is_empty() {
+                                crate::gui::pages::chat::generate_random_hex_key()
+                            } else {
+                                state.gui_state.profile_public_key.clone()
+                            };
+                            log::info!("Attempting WebSocket reconnect (attempt {})", state.gui_state.ws_reconnect_attempts + 1);
+                            state.gui_state.ws_client = Some(
+                                crate::net::ws_client::WsClient::connect(&ws_url, &name, &pubkey),
+                            );
+                            state.gui_state.ws_reconnect_attempts += 1;
+                            // Exponential backoff: 5s -> 10s -> 20s -> 40s -> 60s (max)
+                            state.gui_state.ws_reconnect_delay = (state.gui_state.ws_reconnect_delay * 2.0).min(60.0);
+                            state.gui_state.ws_status = "Reconnecting...".to_string();
+                        }
+                    }
+
+                    // ── Reset backoff on successful connection ──
+                    if state.gui_state.ws_client.as_ref().map_or(false, |c| c.is_connected()) {
+                        if state.gui_state.ws_reconnect_attempts > 0 {
+                            log::info!("WebSocket reconnected after {} attempts", state.gui_state.ws_reconnect_attempts);
+                        }
+                        state.gui_state.ws_reconnect_delay = 5.0;
+                        state.gui_state.ws_reconnect_attempts = 0;
+                        state.gui_state.ws_reconnect_timer = 0.0;
                     }
 
                     // ── Fetch channel history via HTTP after connecting ──

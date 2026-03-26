@@ -170,6 +170,10 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         &ws_url, &name, &pubkey,
                     ));
                     state.ws_status = "Connecting...".to_string();
+                    state.ws_manually_disconnected = false;
+                    state.ws_reconnect_timer = 0.0;
+                    state.ws_reconnect_delay = 5.0;
+                    state.ws_reconnect_attempts = 0;
                     crate::config::AppConfig::from_gui_state(state).save();
                 }
             });
@@ -219,6 +223,10 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                         state.ws_client = None;
                         state.ws_status = "Disconnected".to_string();
+                        state.ws_manually_disconnected = true;
+                        state.ws_reconnect_timer = 0.0;
+                        state.ws_reconnect_delay = 5.0;
+                        state.ws_reconnect_attempts = 0;
                         state.chat_users.clear();
                     }
                 });
@@ -951,6 +959,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 let chat_msg = serde_json::json!({
                                     "type": "chat",
                                     "from": state.profile_public_key,
+                                    "from_name": if state.user_name.is_empty() { "Anonymous".to_string() } else { state.user_name.clone() },
                                     "content": content,
                                     "timestamp": ts,
                                     "channel": channel,

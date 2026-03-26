@@ -293,6 +293,14 @@ pub struct GuiState {
     pub chat_friends: Vec<ChatUser>,
     pub ws_client: Option<crate::net::ws_client::WsClient>,
     pub ws_status: String,
+    /// Whether the user manually disconnected (suppresses auto-reconnect).
+    pub ws_manually_disconnected: bool,
+    /// Countdown to next reconnect attempt (seconds).
+    pub ws_reconnect_timer: f32,
+    /// Current reconnect delay with exponential backoff (seconds).
+    pub ws_reconnect_delay: f32,
+    /// Number of consecutive failed reconnect attempts.
+    pub ws_reconnect_attempts: u32,
     pub selected_slot: Option<usize>,
     pub fps: f32,
     pub updater: crate::updater::Updater,
@@ -496,6 +504,10 @@ impl Default for GuiState {
             chat_friends: Vec::new(),
             ws_client: None,
             ws_status: "Not connected".to_string(),
+            ws_manually_disconnected: false,
+            ws_reconnect_timer: 0.0,
+            ws_reconnect_delay: 5.0,
+            ws_reconnect_attempts: 0,
             selected_slot: None,
             fps: 0.0,
             updater: crate::updater::Updater::new(VERSION),

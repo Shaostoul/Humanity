@@ -2543,7 +2543,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-engine"
-version = "0.56.0"
+version = "0.56.1"
 dependencies = [
  "bip39",
  "bytemuck",
