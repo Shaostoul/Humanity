@@ -2004,6 +2004,13 @@ function settingsShowNonExtractableOverlay() {
         }));
       } catch(e2) { console.warn('localStorage backup failed:', e2); }
 
+      // Update in-memory identity so View Seed works without reload
+      myIdentity = {
+        publicKeyHex: newKeyHex,
+        privateKey: newKp.privateKey,
+        publicKey: newKp.publicKey,
+        canSign: true
+      };
       btn.textContent = 'Done! Reloading...';
       setTimeout(function() { location.reload(); }, 1500);
     } catch(e) {

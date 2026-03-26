@@ -881,12 +881,37 @@ async function seedFromMnemonic(mnemonic) {
  * @returns {Promise<string|null>} Mnemonic string or null if unavailable.
  */
 async function generateMnemonic() {
-  if (!myIdentity || !myIdentity.privateKey) return null;
+  // Try 1: export from in-memory CryptoKey
+  if (myIdentity && myIdentity.privateKey) {
+    try {
+      const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
+      const seed = extractSeedFromPkcs8(pkcs8);
+      return mnemonicFromSeed(seed);
+    } catch (e) { console.warn('generateMnemonic: in-memory export failed, trying localStorage backup'); }
+  }
+  // Try 2: fall back to localStorage PKCS8 backup (survives IndexedDB extractable flag loss)
   try {
-    const pkcs8 = await crypto.subtle.exportKey('pkcs8', myIdentity.privateKey);
-    const seed = extractSeedFromPkcs8(pkcs8);
-    return mnemonicFromSeed(seed);
-  } catch (e) { console.error('generateMnemonic failed:', e); return null; }
+    const raw = localStorage.getItem('humanity_key_backup');
+    if (raw) {
+      const backup = JSON.parse(raw);
+      if (backup.privateKeyPkcs8) {
+        const pkcs8Buf = Uint8Array.from(atob(backup.privateKeyPkcs8), c => c.charCodeAt(0));
+        const seed = extractSeedFromPkcs8(pkcs8Buf.buffer);
+        // Also fix the in-memory key and IndexedDB for future use
+        try {
+          const fixedKey = await crypto.subtle.importKey('pkcs8', pkcs8Buf, 'Ed25519', true, ['sign']);
+          const pubBuf = hexToBuf(backup.publicKeyHex);
+          const fixedPub = await crypto.subtle.importKey('raw', pubBuf, 'Ed25519', true, ['verify']);
+          if (myIdentity) { myIdentity.privateKey = fixedKey; myIdentity.publicKey = fixedPub; }
+          const db = await openKeyDB();
+          await storeKeypair(db, backup.publicKeyHex, { privateKey: fixedKey, publicKey: fixedPub });
+          console.log('generateMnemonic: fixed extractable key from localStorage backup');
+        } catch (fixErr) { console.warn('Could not fix key in IndexedDB:', fixErr); }
+        return mnemonicFromSeed(seed);
+      }
+    }
+  } catch (e2) { console.error('generateMnemonic: localStorage fallback also failed:', e2); }
+  return null;
 }
 
 /**
