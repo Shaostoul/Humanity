@@ -1994,12 +1994,13 @@ function settingsShowNonExtractableOverlay() {
       var db = await openKeyDB();
       await storeKeypair(db, newKeyHex, { privateKey: newKp.privateKey, publicKey: newKp.publicKey });
 
-      // Backup to localStorage
+      // Backup to localStorage (must use PKCS8 format to match restoreKeyFromLocalStorage)
       try {
-        var jwk = await crypto.subtle.exportKey('jwk', newKp.privateKey);
+        var pkcs8 = await crypto.subtle.exportKey('pkcs8', newKp.privateKey);
+        var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pkcs8)));
         localStorage.setItem('humanity_key', newKeyHex);
         localStorage.setItem('humanity_key_backup', JSON.stringify({
-          publicKeyHex: newKeyHex, jwk: jwk, rotated: true, rotated_at: Date.now()
+          publicKeyHex: newKeyHex, privateKeyPkcs8: b64
         }));
       } catch(e2) { console.warn('localStorage backup failed:', e2); }
 
