@@ -2456,13 +2456,11 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                 break;
             }
 
-            // Don't echo chat/typing/delete/edit messages back to the sender.
+            // Don't echo typing indicators back to the sender.
+            // Chat messages ARE echoed to support multi-device (web + native same key).
+            // Each client deduplicates by timestamp if needed.
             let should_skip = match &msg {
-                RelayMessage::Chat { from, .. } => from == &my_key_for_broadcast,
                 RelayMessage::Typing { from, .. } => from == &my_key_for_broadcast,
-                RelayMessage::Delete { from, .. } => from == &my_key_for_broadcast,
-                RelayMessage::Reaction { from, .. } => from == &my_key_for_broadcast,
-                RelayMessage::Edit { from, .. } => from == &my_key_for_broadcast,
                 _ => false,
             };
             if should_skip {
