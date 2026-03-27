@@ -625,6 +625,20 @@ pub struct GuiState {
 
     // ── Studio state ──
     pub studio: StudioState,
+
+    // ── Chat panel collapse state (persisted in config) ──
+    pub chat_connection_collapsed: bool,
+    pub chat_dm_collapsed: bool,
+    pub chat_groups_collapsed: bool,
+    pub chat_servers_collapsed: bool,
+    pub chat_friends_collapsed: bool,
+    pub chat_members_collapsed: bool,
+
+    // ── Chat panel resize/lock state ──
+    pub chat_left_panel_locked: bool,
+    pub chat_right_panel_locked: bool,
+    pub chat_left_panel_width: f32,
+    pub chat_right_panel_width: f32,
 }
 
 #[cfg(feature = "native")]
@@ -822,6 +836,20 @@ impl Default for GuiState {
             debug_console_visible: false,
             debug_log: Vec::new(),
             studio: StudioState::default(),
+
+            // Chat panel collapse state (all expanded by default except connection)
+            chat_connection_collapsed: true,
+            chat_dm_collapsed: false,
+            chat_groups_collapsed: false,
+            chat_servers_collapsed: false,
+            chat_friends_collapsed: false,
+            chat_members_collapsed: false,
+
+            // Chat panel resize/lock state
+            chat_left_panel_locked: false,
+            chat_right_panel_locked: false,
+            chat_left_panel_width: 220.0,
+            chat_right_panel_width: 220.0,
         }
     }
 }

@@ -11,45 +11,10 @@ use crate::gui::theme::Theme;
 /// Maximum messages kept in the local chat buffer.
 const MAX_MESSAGES: usize = 200;
 
-/// Left panel width in points.
-const LEFT_PANEL_WIDTH: f32 = 220.0;
-/// Right panel width in points.
-const RIGHT_PANEL_WIDTH: f32 = 220.0;
-
-// ── Section collapse state (persists across frames via thread_local) ──
-
-use std::cell::RefCell;
-
-#[derive(Debug)]
-struct CollapseState {
-    connection: bool,
-    dms: bool,
-    groups: bool,
-    servers: bool,
-    friends: bool,
-    members: bool,
-}
-
-impl Default for CollapseState {
-    fn default() -> Self {
-        Self {
-            connection: true, // collapsed by default
-            dms: false,
-            groups: false,
-            servers: false,
-            friends: false,
-            members: false,
-        }
-    }
-}
-
-thread_local! {
-    static COLLAPSE: RefCell<CollapseState> = RefCell::new(CollapseState::default());
-}
-
-fn with_collapse<R>(f: impl FnOnce(&mut CollapseState) -> R) -> R {
-    COLLAPSE.with(|c| f(&mut c.borrow_mut()))
-}
+/// Minimum panel width in points.
+const MIN_PANEL_WIDTH: f32 = 150.0;
+/// Maximum panel width in points.
+const MAX_PANEL_WIDTH: f32 = 400.0;
 
 // ── Section tint colors (matching website rgba values) ──
 
@@ -67,22 +32,54 @@ const SERVER_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(25, 25, 70, 2
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // ── LEFT PANEL ──
-    egui::SidePanel::left("chat_left_panel")
-        .exact_width(LEFT_PANEL_WIDTH)
-        .resizable(false)
+    let left_panel = egui::SidePanel::left("chat_left_panel")
         .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
-        .show(ctx, |ui| {
-            draw_left_panel(ui, theme, state);
-        });
+        .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
+    let left_panel = if state.chat_left_panel_locked {
+        left_panel.exact_width(state.chat_left_panel_width).resizable(false)
+    } else {
+        left_panel.default_width(state.chat_left_panel_width).resizable(true)
+    };
+    let mut left_lock_toggled = false;
+    let left_response = left_panel.show(ctx, |ui| {
+        if draw_panel_lock_button(ui, theme, state.chat_left_panel_locked) {
+            left_lock_toggled = true;
+        }
+        draw_left_panel(ui, theme, state);
+    });
+    if left_lock_toggled {
+        state.chat_left_panel_locked = !state.chat_left_panel_locked;
+        crate::config::AppConfig::from_gui_state(state).save();
+    }
+    // Track the actual rendered width so it persists
+    if !state.chat_left_panel_locked {
+        state.chat_left_panel_width = left_response.response.rect.width();
+    }
 
     // ── RIGHT PANEL ──
-    egui::SidePanel::right("chat_right_panel")
-        .exact_width(RIGHT_PANEL_WIDTH)
-        .resizable(false)
+    let right_panel = egui::SidePanel::right("chat_right_panel")
         .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
-        .show(ctx, |ui| {
-            draw_right_panel(ui, theme, state);
-        });
+        .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
+    let right_panel = if state.chat_right_panel_locked {
+        right_panel.exact_width(state.chat_right_panel_width).resizable(false)
+    } else {
+        right_panel.default_width(state.chat_right_panel_width).resizable(true)
+    };
+    let mut right_lock_toggled = false;
+    let right_response = right_panel.show(ctx, |ui| {
+        if draw_panel_lock_button(ui, theme, state.chat_right_panel_locked) {
+            right_lock_toggled = true;
+        }
+        draw_right_panel(ui, theme, state);
+    });
+    if right_lock_toggled {
+        state.chat_right_panel_locked = !state.chat_right_panel_locked;
+        crate::config::AppConfig::from_gui_state(state).save();
+    }
+    // Track the actual rendered width so it persists
+    if !state.chat_right_panel_locked {
+        state.chat_right_panel_width = right_response.response.rect.width();
+    }
 
     // ── CENTER PANEL ──
     egui::CentralPanel::default()
@@ -150,14 +147,14 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
                 ui.add(
                     egui::TextEdit::singleline(&mut state.server_url)
-                        .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                        .desired_width(ui.available_width() - 24.0)
                         .font(egui::TextStyle::Small),
                 );
                 ui.add_space(2.0);
                 ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
                 ui.add(
                     egui::TextEdit::singleline(&mut state.user_name)
-                        .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                        .desired_width(ui.available_width() - 24.0)
                         .font(egui::TextStyle::Small),
                 );
                 ui.add_space(4.0);
@@ -170,7 +167,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 .color(theme.text_on_accent()),
                         )
                         .fill(theme.accent())
-                        .min_size(Vec2::new(LEFT_PANEL_WIDTH - 32.0, 32.0)),
+                        .min_size(Vec2::new(ui.available_width() - 32.0, 32.0)),
                     )
                     .clicked()
                 {
@@ -199,9 +196,10 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // Collapsible connection settings (when connected, to allow changing server/disconnect)
     if is_connected {
-        let conn_collapsed = with_collapse(|c| c.connection);
+        let conn_collapsed = state.chat_connection_collapsed;
         if section_header(ui, "Connection", conn_collapsed, Color32::from_rgb(40, 40, 48)) {
-            with_collapse(|c| c.connection = !c.connection);
+            state.chat_connection_collapsed = !state.chat_connection_collapsed;
+            crate::config::AppConfig::from_gui_state(state).save();
         }
         if !conn_collapsed {
             Frame::NONE
@@ -211,14 +209,14 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
                     ui.add(
                         egui::TextEdit::singleline(&mut state.server_url)
-                            .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                            .desired_width(ui.available_width() - 24.0)
                             .font(egui::TextStyle::Small),
                     );
                     ui.add_space(2.0);
                     ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
                     ui.add(
                         egui::TextEdit::singleline(&mut state.user_name)
-                            .desired_width(LEFT_PANEL_WIDTH - 24.0)
+                            .desired_width(ui.available_width() - 24.0)
                             .font(egui::TextStyle::Small),
                     );
                     ui.add_space(4.0);
@@ -230,7 +228,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     .color(theme.text_primary()),
                             )
                             .fill(Color32::from_rgb(60, 30, 30))
-                            .min_size(Vec2::new(LEFT_PANEL_WIDTH - 32.0, 26.0)),
+                            .min_size(Vec2::new(ui.available_width() - 32.0, 26.0)),
                         )
                         .clicked()
                     {
@@ -268,11 +266,12 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── DMs Section ──
 
 fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let collapsed = with_collapse(|c| c.dms);
+    let collapsed = state.chat_dm_collapsed;
     let dm_count = state.chat_dms.len();
 
     if tinted_section_header(ui, &format!("DMs ({})", dm_count), collapsed, DM_BG) {
-        with_collapse(|c| c.dms = !c.dms);
+        state.chat_dm_collapsed = !state.chat_dm_collapsed;
+        crate::config::AppConfig::from_gui_state(state).save();
     }
 
     if !collapsed {
@@ -344,11 +343,12 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── Groups Section ──
 
 fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let collapsed = with_collapse(|c| c.groups);
+    let collapsed = state.chat_groups_collapsed;
     let group_count = state.chat_groups.len();
 
     if tinted_section_header(ui, &format!("Groups ({})", group_count), collapsed, GROUP_BG) {
-        with_collapse(|c| c.groups = !c.groups);
+        state.chat_groups_collapsed = !state.chat_groups_collapsed;
+        crate::config::AppConfig::from_gui_state(state).save();
     }
 
     if !collapsed {
@@ -427,14 +427,15 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── Servers Section ──
 
 fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let collapsed = with_collapse(|c| c.servers);
+    let collapsed = state.chat_servers_collapsed;
 
     // Build a virtual server from the current connection
     let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
     let virtual_server_count = if connected { 1 } else { 0 } + state.chat_servers.len();
 
     if tinted_section_header(ui, &format!("Servers ({})", virtual_server_count), collapsed, SERVER_BG) {
-        with_collapse(|c| c.servers = !c.servers);
+        state.chat_servers_collapsed = !state.chat_servers_collapsed;
+        crate::config::AppConfig::from_gui_state(state).save();
     }
 
     if !collapsed {
@@ -757,11 +758,12 @@ fn draw_user_row(
 }
 
 fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let collapsed = with_collapse(|c| c.friends);
+    let collapsed = state.chat_friends_collapsed;
     let friend_count = state.chat_friends.len();
 
     if section_header(ui, &format!("Friends ({})", friend_count), collapsed, Color32::from_rgb(35, 35, 42)) {
-        with_collapse(|c| c.friends = !c.friends);
+        state.chat_friends_collapsed = !state.chat_friends_collapsed;
+        crate::config::AppConfig::from_gui_state(state).save();
     }
 
     if !collapsed {
@@ -788,12 +790,13 @@ fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 }
 
 fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let collapsed = with_collapse(|c| c.members);
+    let collapsed = state.chat_members_collapsed;
     let member_count = state.chat_users.len();
     let server_name = server_display_name(&state.server_url);
 
     if section_header(ui, &format!("{} ({})", server_name, member_count), collapsed, Color32::from_rgb(35, 35, 42)) {
-        with_collapse(|c| c.members = !c.members);
+        state.chat_members_collapsed = !state.chat_members_collapsed;
+        crate::config::AppConfig::from_gui_state(state).save();
     }
 
     if !collapsed {
@@ -990,10 +993,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     .unwrap_or_default()
                                     .as_millis() as u64;
 
+                                // Resolve display name: prefer user_name, fall back to peer list, then "Anonymous"
+                                let display_name = if !state.user_name.is_empty() {
+                                    state.user_name.clone()
+                                } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
+                                    if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "Anonymous".to_string() }
+                                } else {
+                                    "Anonymous".to_string()
+                                };
+
                                 let chat_msg = serde_json::json!({
                                     "type": "chat",
                                     "from": state.profile_public_key,
-                                    "from_name": if state.user_name.is_empty() { "Anonymous".to_string() } else { state.user_name.clone() },
+                                    "from_name": display_name,
                                     "content": content,
                                     "timestamp": ts,
                                     "channel": channel,
@@ -1013,12 +1025,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                         // Store locally so user sees their own message immediately
                         let now = chrono_now_str();
+                        let local_name = if !state.user_name.is_empty() {
+                            state.user_name.clone()
+                        } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
+                            if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "You".to_string() }
+                        } else {
+                            "You".to_string()
+                        };
                         state.chat_messages.push(ChatMessage {
-                            sender_name: if state.user_name.is_empty() {
-                                "You".to_string()
-                            } else {
-                                state.user_name.clone()
-                            },
+                            sender_name: local_name,
                             sender_key: state.profile_public_key.clone(),
                             content,
                             timestamp: now,
@@ -1616,6 +1631,29 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
 }
 
 // ─────────────────────────────── UI Helpers ──────────────────────────────
+
+/// Draw a lock/unlock toggle button at the top of a panel.
+/// Returns true if the button was clicked (toggle lock state).
+fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bool {
+    let icon = if locked { "\u{1F512}" } else { "\u{1F513}" }; // locked/unlocked padlock
+    let tooltip = if locked { "Unlock panel width" } else { "Lock panel width" };
+    let response = ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(4.0);
+            let btn = ui.add(
+                egui::Button::new(
+                    RichText::new(icon)
+                        .size(11.0)
+                        .color(if locked { Color32::from_rgb(200, 180, 100) } else { Color32::from_rgb(140, 140, 140) }),
+                )
+                .fill(Color32::TRANSPARENT)
+                .frame(false),
+            ).on_hover_text(tooltip);
+            btn.clicked()
+        }).inner
+    }).inner;
+    response
+}
 
 /// Draw a collapsible section header with a tinted background.
 /// Returns true if the header was clicked (toggle).

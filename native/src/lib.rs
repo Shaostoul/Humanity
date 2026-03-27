@@ -780,6 +780,15 @@ mod native_app {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("online")
                                                     .to_string();
+                                                // If this peer is us and our local name is empty, adopt the server's display_name
+                                                if key == state.gui_state.profile_public_key
+                                                    && state.gui_state.user_name.is_empty()
+                                                    && name != "Anonymous"
+                                                {
+                                                    log::info!("Adopting display name from server: {}", name);
+                                                    state.gui_state.user_name = name.clone();
+                                                    crate::config::AppConfig::from_gui_state(&state.gui_state).save();
+                                                }
                                                 state.gui_state.chat_users.push(
                                                     crate::gui::ChatUser { name, public_key: key, role, status },
                                                 );

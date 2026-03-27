@@ -30,6 +30,30 @@ pub struct AppConfig {
     /// Ed25519 private key bytes (hex-encoded for JSON storage).
     #[serde(default)]
     pub private_key_hex: String,
+
+    // Chat panel collapse state
+    #[serde(default = "default_true")]
+    pub chat_connection_collapsed: bool,
+    #[serde(default)]
+    pub chat_dm_collapsed: bool,
+    #[serde(default)]
+    pub chat_groups_collapsed: bool,
+    #[serde(default)]
+    pub chat_servers_collapsed: bool,
+    #[serde(default)]
+    pub chat_friends_collapsed: bool,
+    #[serde(default)]
+    pub chat_members_collapsed: bool,
+
+    // Chat panel resize/lock state
+    #[serde(default)]
+    pub chat_left_panel_locked: bool,
+    #[serde(default)]
+    pub chat_right_panel_locked: bool,
+    #[serde(default = "default_panel_width")]
+    pub chat_left_panel_width: f32,
+    #[serde(default = "default_panel_width")]
+    pub chat_right_panel_width: f32,
 }
 
 fn default_fov() -> f32 { 90.0 }
@@ -38,6 +62,7 @@ fn default_master_volume() -> f32 { 0.8 }
 fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
 fn default_true() -> bool { true }
+fn default_panel_width() -> f32 { 220.0 }
 
 impl AppConfig {
     pub fn config_path() -> std::path::PathBuf {
@@ -91,6 +116,16 @@ impl AppConfig {
             fullscreen: state.settings.fullscreen,
             vsync: state.settings.vsync,
             private_key_hex,
+            chat_connection_collapsed: state.chat_connection_collapsed,
+            chat_dm_collapsed: state.chat_dm_collapsed,
+            chat_groups_collapsed: state.chat_groups_collapsed,
+            chat_servers_collapsed: state.chat_servers_collapsed,
+            chat_friends_collapsed: state.chat_friends_collapsed,
+            chat_members_collapsed: state.chat_members_collapsed,
+            chat_left_panel_locked: state.chat_left_panel_locked,
+            chat_right_panel_locked: state.chat_right_panel_locked,
+            chat_left_panel_width: state.chat_left_panel_width,
+            chat_right_panel_width: state.chat_right_panel_width,
         }
     }
 
@@ -108,6 +143,17 @@ impl AppConfig {
         state.settings.sfx_volume = self.sfx_volume;
         state.settings.fullscreen = self.fullscreen;
         state.settings.vsync = self.vsync;
+        // Chat panel state
+        state.chat_connection_collapsed = self.chat_connection_collapsed;
+        state.chat_dm_collapsed = self.chat_dm_collapsed;
+        state.chat_groups_collapsed = self.chat_groups_collapsed;
+        state.chat_servers_collapsed = self.chat_servers_collapsed;
+        state.chat_friends_collapsed = self.chat_friends_collapsed;
+        state.chat_members_collapsed = self.chat_members_collapsed;
+        state.chat_left_panel_locked = self.chat_left_panel_locked;
+        state.chat_right_panel_locked = self.chat_right_panel_locked;
+        state.chat_left_panel_width = self.chat_left_panel_width;
+        state.chat_right_panel_width = self.chat_right_panel_width;
         // Restore private key bytes from hex
         if !self.private_key_hex.is_empty() {
             if let Ok(bytes) = (0..self.private_key_hex.len())
