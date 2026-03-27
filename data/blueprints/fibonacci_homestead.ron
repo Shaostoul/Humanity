@@ -1,0 +1,399 @@
+// HumanityOS Fibonacci Homestead Blueprint
+// Spiral homestead following the Fibonacci sequence.
+// Rooms scale from 1x1 personal space to 233+ ranch land.
+// Material IDs reference items.csv and materials.csv.
+
+FibonacciHomestead(
+    name: "Fibonacci Homestead",
+    description: "Spiral homestead following the Fibonacci sequence. Rooms scale from 1x1 personal space to 233+ ranch land.",
+    version: 1,
+
+    rooms: [
+        // F1 (1x1): Computer - personal workstation
+        Room(
+            id: "computer",
+            name: "Computer",
+            size: (x: 1.0, y: 2.5, z: 1.0),
+            fibonacci_index: 1,
+            purpose: "Personal workstation",
+            tier: "core",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 4),
+                    ("glass_pane_0", 1),
+                    ("wire_0", 2),
+                    ("computer_terminal_0", 1),
+                ],
+                power_watts: 500,
+                water_liters_per_day: 0,
+            ),
+            environment_notes: "Must be climate controlled. Radiation shielded in space or nuclear scenarios.",
+        ),
+
+        // F1 (1x1): Network Hub - communications
+        Room(
+            id: "network",
+            name: "Network Hub",
+            size: (x: 1.0, y: 2.5, z: 1.0),
+            fibonacci_index: 1,
+            purpose: "Communications, shopping, internet access",
+            tier: "core",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 4),
+                    ("wire_0", 4),
+                    ("radio_0", 1),
+                    ("battery_pack_0", 2),
+                ],
+                power_watts: 200,
+                water_liters_per_day: 0,
+            ),
+            environment_notes: "Antenna must have line of sight or relay connection.",
+        ),
+
+        // F2 (2x2): Respawner / Medbay - medical, bathroom, spawn point
+        Room(
+            id: "respawner",
+            name: "Respawner / Medbay",
+            size: (x: 2.0, y: 2.5, z: 2.0),
+            fibonacci_index: 2,
+            purpose: "Medical bay, bathroom, surgery, spawn point",
+            tier: "core",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 16),
+                    ("glass_pane_0", 2),
+                    ("wire_0", 4),
+                    ("surgical_kit_0", 1),
+                    ("medkit_0", 2),
+                    ("water_purifier_0", 1),
+                ],
+                power_watts: 1000,
+                water_liters_per_day: 50,
+            ),
+            environment_notes: "Sterile environment. Water recycling essential in space. This is where you wake up.",
+        ),
+
+        // F3 (3x3): Wetroom - shower, laundry, water recycling
+        Room(
+            id: "wetroom",
+            name: "Wetroom",
+            size: (x: 3.0, y: 2.5, z: 3.0),
+            fibonacci_index: 3,
+            purpose: "Shower, laundry, water recycling",
+            tier: "core",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 12),
+                    ("glass_pane_0", 2),
+                    ("wire_0", 3),
+                    ("water_pump_0", 1),
+                    ("water_purifier_0", 1),
+                    ("washing_machine_0", 1),
+                    ("heater_0", 1),
+                ],
+                power_watts: 2000,
+                water_liters_per_day: 150,
+            ),
+            environment_notes: "Waterproof walls and floor. Drain system required. Greywater feeds garden tier.",
+        ),
+
+        // F5 (5x5): Bedroom - sleeping, personal storage
+        Room(
+            id: "bedroom",
+            name: "Bedroom",
+            size: (x: 5.0, y: 2.5, z: 5.0),
+            fibonacci_index: 5,
+            purpose: "Sleeping quarters, personal storage, privacy",
+            tier: "residential",
+            requirements: (
+                materials: [
+                    ("wood_plank_0", 40),
+                    ("steel_ingot_0", 8),
+                    ("glass_pane_0", 2),
+                    ("wire_0", 2),
+                    ("bed_double_0", 1),
+                    ("wardrobe_0", 1),
+                    ("nightstand_0", 2),
+                    ("lamp_desk_0", 1),
+                ],
+                power_watts: 200,
+                water_liters_per_day: 0,
+            ),
+            environment_notes: "Sound insulation important. Blackout capability for sleep cycles.",
+        ),
+
+        // F8 (8x8): Kitchen - cooking, food storage, dining
+        Room(
+            id: "kitchen",
+            name: "Kitchen",
+            size: (x: 8.0, y: 2.5, z: 8.0),
+            fibonacci_index: 8,
+            purpose: "Cooking, food preservation, dining",
+            tier: "residential",
+            requirements: (
+                materials: [
+                    ("wood_plank_0", 30),
+                    ("steel_ingot_0", 16),
+                    ("glass_pane_0", 4),
+                    ("wire_0", 6),
+                    ("stove_0", 1),
+                    ("oven_0", 1),
+                    ("fridge_0", 1),
+                    ("water_purifier_0", 1),
+                    ("table_dining_0", 1),
+                    ("chair_0", 4),
+                    ("cabinet_0", 3),
+                ],
+                power_watts: 3000,
+                water_liters_per_day: 40,
+            ),
+            environment_notes: "Ventilation critical. Fire suppression required. Separate greywater drain.",
+        ),
+
+        // F13 (13x13): Living Room - social space, recreation
+        Room(
+            id: "livingroom",
+            name: "Living Room",
+            size: (x: 13.0, y: 3.0, z: 13.0),
+            fibonacci_index: 13,
+            purpose: "Social gathering, recreation, community meetings",
+            tier: "residential",
+            requirements: (
+                materials: [
+                    ("wood_plank_0", 60),
+                    ("steel_ingot_0", 10),
+                    ("glass_pane_0", 6),
+                    ("wire_0", 4),
+                    ("couch_0", 2),
+                    ("chair_0", 4),
+                    ("table_dining_0", 1),
+                    ("bookcase_0", 2),
+                    ("lamp_floor_0", 3),
+                    ("rug_0", 2),
+                ],
+                power_watts: 800,
+                water_liters_per_day: 0,
+            ),
+            environment_notes: "Largest indoor social space. Good acoustics. Natural light preferred.",
+        ),
+
+        // F21 (21x21): Study / Workshop - learning, crafting, research
+        Room(
+            id: "study",
+            name: "Study / Workshop",
+            size: (x: 21.0, y: 3.0, z: 21.0),
+            fibonacci_index: 21,
+            purpose: "Learning, crafting, research, fabrication",
+            tier: "industrial",
+            requirements: (
+                materials: [
+                    ("wood_plank_0", 50),
+                    ("steel_ingot_0", 24),
+                    ("glass_pane_0", 8),
+                    ("wire_0", 10),
+                    ("concrete_block_0", 20),
+                    ("workbench_0", 2),
+                    ("electronics_bench_0", 1),
+                    ("printer_3d_0", 1),
+                    ("desk_0", 2),
+                    ("shelf_0", 6),
+                    ("toolbox_0", 2),
+                ],
+                power_watts: 5000,
+                water_liters_per_day: 10,
+            ),
+            environment_notes: "Dust extraction needed. ESD protection for electronics area. Heavy load bearing floor.",
+        ),
+
+        // F34 (34x34): Garden - food production, hydroponics, composting
+        Room(
+            id: "garden",
+            name: "Garden",
+            size: (x: 34.0, y: 4.0, z: 34.0),
+            fibonacci_index: 34,
+            purpose: "Food production, hydroponics, composting, greenhouse",
+            tier: "industrial",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 30),
+                    ("glass_pane_0", 40),
+                    ("wire_0", 8),
+                    ("concrete_block_0", 30),
+                    ("soil_bag_0", 50),
+                    ("fertilizer_0", 20),
+                    ("irrigation_system_0", 1),
+                    ("greenhouse_0", 2),
+                    ("composter_0", 2),
+                    ("water_pump_0", 1),
+                    ("solar_panel_0", 4),
+                ],
+                power_watts: 3000,
+                water_liters_per_day: 500,
+            ),
+            environment_notes: "Maximum sunlight exposure. Sealed in space with artificial grow lights. Composting feeds soil cycle.",
+        ),
+
+        // F55 (55x55): Garage - vehicle storage, maintenance, fuel
+        Room(
+            id: "garage",
+            name: "Garage",
+            size: (x: 55.0, y: 5.0, z: 55.0),
+            fibonacci_index: 55,
+            purpose: "Vehicle storage, maintenance, fuel depot, heavy machinery",
+            tier: "industrial",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 60),
+                    ("concrete_block_0", 80),
+                    ("glass_pane_0", 8),
+                    ("wire_0", 12),
+                    ("workbench_0", 2),
+                    ("anvil_station_0", 1),
+                    ("forge_0", 1),
+                    ("fuel_drum_0", 4),
+                    ("locker_0", 4),
+                    ("generator_portable_0", 1),
+                ],
+                power_watts: 8000,
+                water_liters_per_day: 20,
+            ),
+            environment_notes: "Reinforced floor for heavy vehicles. Ventilation for fumes. Fire suppression mandatory. Roll-up doors.",
+        ),
+
+        // F89 (89x89): Depot - bulk storage, logistics, trade
+        Room(
+            id: "depot",
+            name: "Depot",
+            size: (x: 89.0, y: 6.0, z: 89.0),
+            fibonacci_index: 89,
+            purpose: "Bulk storage, logistics hub, trade staging, resource stockpile",
+            tier: "industrial",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 100),
+                    ("concrete_block_0", 120),
+                    ("wire_0", 16),
+                    ("grain_silo_0", 2),
+                    ("water_tank_0", 4),
+                    ("fuel_drum_0", 8),
+                    ("crate_0", 20),
+                    ("locker_0", 8),
+                    ("battery_bank_0", 1),
+                    ("solar_panel_0", 8),
+                ],
+                power_watts: 5000,
+                water_liters_per_day: 30,
+            ),
+            environment_notes: "Loading dock access. Inventory tracking system. Climate zones for perishables vs dry goods.",
+        ),
+
+        // F144 (144x144): Hangar - large vehicles, spacecraft, assembly
+        Room(
+            id: "hangar",
+            name: "Hangar",
+            size: (x: 144.0, y: 12.0, z: 144.0),
+            fibonacci_index: 144,
+            purpose: "Large vehicle and spacecraft storage, assembly, launch pad",
+            tier: "exterior",
+            requirements: (
+                materials: [
+                    ("steel_ingot_0", 200),
+                    ("concrete_block_0", 200),
+                    ("aluminum_ingot_0", 40),
+                    ("glass_pane_0", 20),
+                    ("wire_0", 30),
+                    ("fuel_drum_0", 16),
+                    ("battery_bank_0", 2),
+                    ("solar_panel_0", 12),
+                    ("generator_portable_0", 2),
+                    ("sawmill_0", 1),
+                    ("smelter_0", 1),
+                    ("fuel_refinery_0", 1),
+                ],
+                power_watts: 20000,
+                water_liters_per_day: 50,
+            ),
+            environment_notes: "Massive doors or open roof. Crane infrastructure. Runway or launch pad adjacent. Pressurization optional.",
+        ),
+
+        // F233+ (233x233+): Ranch - open land, livestock, large scale agriculture
+        Room(
+            id: "ranch",
+            name: "Ranch",
+            size: (x: 233.0, y: 0.0, z: 233.0),
+            fibonacci_index: 233,
+            purpose: "Open land, livestock, large scale agriculture, forestry, resource extraction",
+            tier: "exterior",
+            requirements: (
+                materials: [
+                    ("wood_plank_0", 200),
+                    ("steel_ingot_0", 50),
+                    ("wire_0", 40),
+                    ("concrete_block_0", 40),
+                    ("rope_0", 30),
+                    ("irrigation_system_0", 4),
+                    ("water_pump_0", 2),
+                    ("wind_turbine_small_0", 2),
+                    ("solar_panel_0", 8),
+                    ("tractor_0", 1),
+                    ("grain_silo_0", 4),
+                    ("water_tank_0", 4),
+                    ("composter_0", 4),
+                ],
+                power_watts: 10000,
+                water_liters_per_day: 2000,
+            ),
+            environment_notes: "Fencing for livestock. Windbreaks. Water access (well, river, or cistern). Not viable in space without terraforming.",
+        ),
+    ],
+
+    tiers: [
+        Tier(
+            id: "core",
+            name: "Core",
+            description: "Hardened inner rooms. Survive any disaster. Pressurized in space.",
+            wall_thickness_cm: 30,
+            radiation_shielding: true,
+        ),
+        Tier(
+            id: "residential",
+            name: "Residential",
+            description: "Standard living spaces. Protected but lighter construction.",
+            wall_thickness_cm: 15,
+            radiation_shielding: false,
+        ),
+        Tier(
+            id: "industrial",
+            name: "Industrial",
+            description: "Work and production spaces. Expendable in emergencies.",
+            wall_thickness_cm: 10,
+            radiation_shielding: false,
+        ),
+        Tier(
+            id: "exterior",
+            name: "Exterior",
+            description: "Open or lightly enclosed spaces. First to be damaged.",
+            wall_thickness_cm: 0,
+            radiation_shielding: false,
+        ),
+    ],
+
+    build_order: [
+        "respawner",
+        "computer",
+        "network",
+        "wetroom",
+        "bedroom",
+        "kitchen",
+        "livingroom",
+        "study",
+        "garden",
+        "garage",
+        "depot",
+        "hangar",
+        "ranch",
+    ],
+
+    scaling_notes: "Solo: rooms 1-8. Family: rooms 1-13. Community: rooms 1-55. Colony: all rooms. Build outward, never rebuild inner rooms.",
+)

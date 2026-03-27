@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "id": "identity",
+      "color": "red",
+      "items": [
+        { "id": "chat", "label": "Chat", "icon": "network", "tooltip": "Chat, voice, and streaming", "path": "/chat" },
+        { "id": "wallet", "label": "Wallet", "icon": "coin", "tooltip": "Solana wallet, send, receive", "path": "/wallet" },
+        { "id": "donate", "label": "Donate", "icon": "heart", "tooltip": "Support the project", "path": "/donate" }
+      ]
+    },
+    {
+      "id": "activities",
+      "color": "green",
+      "items": [
+        { "id": "profile", "label": "Profile", "icon": "profile", "tooltip": "Your identity and stats", "path": "/profile" },
+        { "id": "tasks", "label": "Tasks", "icon": "tasklist", "tooltip": "Task board and projects", "path": "/tasks" },
+        { "id": "inventory", "label": "Inventory", "icon": "inventory", "tooltip": "Items and equipment", "path": "/inventory" },
+        { "id": "maps", "label": "Maps", "icon": "map", "tooltip": "Solar system and world maps", "path": "/maps" },
+        { "id": "market", "label": "Market", "icon": "market", "tooltip": "Buy, sell, and trade", "path": "/market" },
+        { "id": "crafting", "label": "Crafting", "icon": "crafting", "tooltip": "Recipes and crafting queue", "path": "/crafting" },
+        { "id": "civilization", "label": "Civilization", "icon": "globe", "tooltip": "Community infrastructure and governance", "path": "/civilization" }
+      ]
+    },
+    {
+      "id": "system",
+      "color": "blue",
+      "items": [
+        { "id": "settings", "label": "Settings", "icon": "settings", "tooltip": "App configuration", "path": "/settings" },
+        { "id": "tools", "label": "Tools", "icon": "dev", "tooltip": "Open source tools catalog", "path": "/tools" },
+        { "id": "bugs", "label": "Bugs", "icon": "bug", "tooltip": "Report and track bugs", "path": "/bugs" }
+      ]
+    }
+  ],
+  "context_toggle": {
+    "key": "humanity_context",
+    "options": ["real", "sim"],
+    "default": "real"
+  },
+  "web_only": ["download"],
+  "native_only": ["play"]
+}

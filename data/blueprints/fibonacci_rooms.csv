@@ -1,0 +1,18 @@
+# HumanityOS Fibonacci Homestead Room Index
+# Quick-reference CSV for all rooms in the Fibonacci Homestead blueprint.
+# Full material requirements and environment notes are in fibonacci_homestead.ron.
+#
+id,name,fibonacci_index,size_x,size_y,size_z,tier,purpose,power_watts,water_liters_per_day
+computer,Computer,1,1.0,2.5,1.0,core,Personal workstation,500,0
+network,Network Hub,1,1.0,2.5,1.0,core,Communications and internet access,200,0
+respawner,Respawner / Medbay,2,2.0,2.5,2.0,core,Medical bay and spawn point,1000,50
+wetroom,Wetroom,3,3.0,2.5,3.0,core,Shower and laundry and water recycling,2000,150
+bedroom,Bedroom,5,5.0,2.5,5.0,residential,Sleeping quarters and personal storage,200,0
+kitchen,Kitchen,8,8.0,2.5,8.0,residential,Cooking and food preservation and dining,3000,40
+livingroom,Living Room,13,13.0,3.0,13.0,residential,Social gathering and recreation,800,0
+study,Study / Workshop,21,21.0,3.0,21.0,industrial,Learning and crafting and research,5000,10
+garden,Garden,34,34.0,4.0,34.0,industrial,Food production and hydroponics,3000,500
+garage,Garage,55,55.0,5.0,55.0,industrial,Vehicle storage and maintenance,8000,20
+depot,Depot,89,89.0,6.0,89.0,industrial,Bulk storage and logistics,5000,30
+hangar,Hangar,144,144.0,12.0,144.0,exterior,Large vehicle and spacecraft assembly,20000,50
+ranch,Ranch,233,233.0,0.0,233.0,exterior,Open land and livestock and agriculture,10000,2000
