@@ -93,6 +93,10 @@ pub fn draw_debug_console(ctx: &egui::Context, debug_log: &mut Vec<String>, visi
                             if ui.small_button("Clear").clicked() {
                                 debug_log.clear();
                             }
+                            if ui.small_button("Copy").clicked() {
+                                let all_text = debug_log.join("\n");
+                                ui.ctx().copy_text(all_text);
+                            }
                             ui.label(
                                 egui::RichText::new(format!("{} entries", debug_log.len()))
                                     .size(11.0)

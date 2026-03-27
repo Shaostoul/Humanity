@@ -164,14 +164,15 @@ fn run_connection(
             match socket.send(tungstenite::Message::Text(msg)) {
                 Ok(_) => {
                     // Flush to ensure TLS actually sends the data
-                    if let Err(e) = socket.flush() {
-                        log::warn!("WsClient: flush error after send: {}", e);
-                        // WouldBlock on flush is OK, data is buffered
-                        if e.to_string().contains("WouldBlock") {
-                            continue;
+                    match socket.flush() {
+                        Ok(_) => {}
+                        Err(tungstenite::Error::Io(ref e))
+                            if e.kind() == std::io::ErrorKind::WouldBlock => {}
+                        Err(e) => {
+                            log::warn!("WsClient: flush error: {}", e);
+                            let _ = tx_to_game.send("__DISCONNECTED__".to_string());
+                            return;
                         }
-                        let _ = tx_to_game.send("__DISCONNECTED__".to_string());
-                        return;
                     }
                 }
                 Err(tungstenite::Error::Io(ref e))
@@ -209,8 +210,15 @@ fn run_connection(
                 // No data yet, sleep briefly to avoid busy-spin
                 thread::sleep(Duration::from_millis(5));
             }
+            Err(tungstenite::Error::Protocol(
+                tungstenite::error::ProtocolError::ResetWithoutClosingHandshake,
+            )) => {
+                log::warn!("WsClient: connection reset without close handshake");
+                let _ = tx_to_game.send("__DISCONNECTED__".to_string());
+                return;
+            }
             Err(e) => {
-                log::warn!("WsClient: read error: {}", e);
+                log::warn!("WsClient: read error (type: {:?}): {}", std::mem::discriminant(&e), e);
                 let _ = tx_to_game.send("__DISCONNECTED__".to_string());
                 return;
             }
