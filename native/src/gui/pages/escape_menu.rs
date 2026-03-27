@@ -1,4 +1,4 @@
-//! Escape menu with RGB-colored header nav bar.
+//! RGB-colored header nav bar for all tool pages.
 //!
 //! Mirrors the web shell.js color-coded navigation:
 //! - Red group: identity pages (never change with context)
@@ -144,73 +144,6 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
         });
 }
 
-/// Draw the escape menu center content (Resume, Main Menu, Quit).
-/// The nav bar is drawn separately by the engine for all pages.
-pub fn draw(ctx: &egui::Context, state: &mut GuiState) {
-    // Center content area with Resume and secondary nav
-    egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::TRANSPARENT))
-        .show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(ui.available_height() * 0.3);
-
-                ui.label(
-                    RichText::new("HumanityOS")
-                        .size(36.0)
-                        .color(ACCENT),
-                );
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new("End poverty. Unite humanity.")
-                        .size(14.0)
-                        .color(TEXT_MUTED),
-                );
-                ui.add_space(24.0);
-
-                // Resume button
-                if ui
-                    .add_sized(
-                        Vec2::new(200.0, 40.0),
-                        egui::Button::new(RichText::new("Resume").size(16.0).color(Color32::WHITE))
-                            .fill(ACCENT),
-                    )
-                    .clicked()
-                {
-                    state.active_page = GuiPage::None;
-                }
-
-                ui.add_space(16.0);
-
-                // Secondary row
-                ui.horizontal(|ui| {
-                    ui.add_space((ui.available_width() - 200.0) / 2.0);
-                    if ui
-                        .add_sized(Vec2::new(90.0, 28.0), egui::Button::new("Main Menu"))
-                        .clicked()
-                    {
-                        state.active_page = GuiPage::MainMenu;
-                    }
-                    ui.add_space(8.0);
-                    if ui
-                        .add_sized(
-                            Vec2::new(90.0, 28.0),
-                            egui::Button::new(RichText::new("Quit").color(RED)),
-                        )
-                        .clicked()
-                    {
-                        state.quit_requested = true;
-                    }
-                });
-
-                ui.add_space(12.0);
-                ui.label(
-                    RichText::new(format!("v{}", VERSION))
-                        .size(11.0)
-                        .color(TEXT_MUTED),
-                );
-            });
-        });
-}
 
 /// Convert HSV to RGB Color32.
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> Color32 {

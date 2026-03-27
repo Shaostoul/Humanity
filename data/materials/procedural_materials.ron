@@ -1,0 +1,227 @@
+// Procedural material presets for the PBR pipeline.
+// Each entry references a shader in assets/shaders/procedural/ and provides
+// parameter values for common real-world materials.
+[
+    // ── Brick variants ──
+    (
+        name: "Red Brick",
+        shader: "brick",
+        params: {
+            "brick_color": (0.7, 0.2, 0.15),
+            "mortar_color": (0.6, 0.6, 0.55),
+            "brick_size": (0.25, 0.065),
+            "mortar_width": 0.005,
+            "color_variation": 0.3,
+        },
+    ),
+    (
+        name: "Yellow Brick",
+        shader: "brick",
+        params: {
+            "brick_color": (0.78, 0.68, 0.42),
+            "mortar_color": (0.55, 0.55, 0.50),
+            "brick_size": (0.23, 0.06),
+            "mortar_width": 0.005,
+            "color_variation": 0.15,
+        },
+    ),
+    (
+        name: "Dark Brick",
+        shader: "brick",
+        params: {
+            "brick_color": (0.3, 0.15, 0.12),
+            "mortar_color": (0.35, 0.35, 0.32),
+            "brick_size": (0.25, 0.065),
+            "mortar_width": 0.006,
+            "color_variation": 0.2,
+        },
+    ),
+
+    // ── Metal variants ──
+    (
+        name: "Brushed Steel",
+        shader: "metal",
+        params: {
+            "base_color": (0.6, 0.6, 0.62),
+            "roughness": 0.35,
+            "metallic": 1.0,
+            "scratch_intensity": 0.6,
+            "rust_amount": 0.0,
+        },
+    ),
+    (
+        name: "Rusted Iron",
+        shader: "metal",
+        params: {
+            "base_color": (0.45, 0.42, 0.40),
+            "roughness": 0.5,
+            "metallic": 0.9,
+            "scratch_intensity": 0.3,
+            "rust_amount": 0.6,
+        },
+    ),
+    (
+        name: "Copper",
+        shader: "metal",
+        params: {
+            "base_color": (0.72, 0.45, 0.20),
+            "roughness": 0.3,
+            "metallic": 1.0,
+            "scratch_intensity": 0.4,
+            "rust_amount": 0.0,
+        },
+    ),
+    (
+        name: "Weathered Copper",
+        shader: "metal",
+        params: {
+            "base_color": (0.72, 0.45, 0.20),
+            "roughness": 0.4,
+            "metallic": 0.8,
+            "scratch_intensity": 0.2,
+            "rust_amount": 0.5,
+        },
+    ),
+
+    // ── Wood variants ──
+    (
+        name: "Oak",
+        shader: "wood",
+        params: {
+            "ring_spacing": 0.04,
+            "grain_color": (0.55, 0.38, 0.22),
+            "ring_color": (0.40, 0.25, 0.13),
+            "knot_density": 0.15,
+        },
+    ),
+    (
+        name: "Pine",
+        shader: "wood",
+        params: {
+            "ring_spacing": 0.06,
+            "grain_color": (0.75, 0.60, 0.40),
+            "ring_color": (0.60, 0.42, 0.25),
+            "knot_density": 0.25,
+        },
+    ),
+    (
+        name: "Walnut",
+        shader: "wood",
+        params: {
+            "ring_spacing": 0.035,
+            "grain_color": (0.35, 0.22, 0.12),
+            "ring_color": (0.22, 0.12, 0.06),
+            "knot_density": 0.08,
+        },
+    ),
+    (
+        name: "Birch",
+        shader: "wood",
+        params: {
+            "ring_spacing": 0.05,
+            "grain_color": (0.82, 0.72, 0.58),
+            "ring_color": (0.70, 0.58, 0.42),
+            "knot_density": 0.05,
+        },
+    ),
+
+    // ── Concrete variants ──
+    (
+        name: "Concrete Wall",
+        shader: "concrete",
+        params: {
+            "base_color": (0.6, 0.6, 0.58),
+            "roughness": 0.9,
+            "aggregate_size": 0.02,
+            "crack_density": 0.3,
+        },
+    ),
+    (
+        name: "Smooth Concrete",
+        shader: "concrete",
+        params: {
+            "base_color": (0.65, 0.65, 0.63),
+            "roughness": 0.7,
+            "aggregate_size": 0.008,
+            "crack_density": 0.1,
+        },
+    ),
+    (
+        name: "Cracked Sidewalk",
+        shader: "concrete",
+        params: {
+            "base_color": (0.55, 0.55, 0.52),
+            "roughness": 0.95,
+            "aggregate_size": 0.025,
+            "crack_density": 0.7,
+        },
+    ),
+
+    // ── Fabric variants ──
+    (
+        name: "Canvas",
+        shader: "fabric",
+        params: {
+            "weave_type": 0,
+            "thread_size": 0.008,
+            "warp_color": (0.72, 0.68, 0.58),
+            "weft_color": (0.70, 0.66, 0.56),
+        },
+    ),
+    (
+        name: "Denim",
+        shader: "fabric",
+        params: {
+            "weave_type": 1,
+            "thread_size": 0.005,
+            "warp_color": (0.15, 0.25, 0.55),
+            "weft_color": (0.75, 0.75, 0.72),
+        },
+    ),
+    (
+        name: "Silk",
+        shader: "fabric",
+        params: {
+            "weave_type": 2,
+            "thread_size": 0.003,
+            "warp_color": (0.85, 0.20, 0.25),
+            "weft_color": (0.82, 0.18, 0.22),
+        },
+    ),
+    (
+        name: "Burlap",
+        shader: "fabric",
+        params: {
+            "weave_type": 0,
+            "thread_size": 0.015,
+            "warp_color": (0.55, 0.45, 0.30),
+            "weft_color": (0.50, 0.40, 0.28),
+        },
+    ),
+
+    // ── Aperiodic variants ──
+    (
+        name: "Quasicrystal Tile",
+        shader: "aperiodic",
+        params: {
+            "tile_size": 0.1,
+            "num_variants": 4,
+        },
+    ),
+    (
+        name: "Fine Mosaic",
+        shader: "aperiodic",
+        params: {
+            "tile_size": 0.04,
+            "num_variants": 8,
+        },
+    ),
+    (
+        name: "Large Paving",
+        shader: "aperiodic",
+        params: {
+            "tile_size": 0.2,
+            "num_variants": 3,
+        },
+    ),
+]

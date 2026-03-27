@@ -444,14 +444,16 @@ mod native_app {
                     if let PhysicalKey::Code(key) = event.physical_key {
                         let pressed = event.state.is_pressed();
 
-                        // Escape: None -> EscapeMenu, EscapeMenu -> None, any page -> EscapeMenu
+                        // Escape: None -> reopen last_page, any page -> save to last_page and return to game
                         if key == KeyCode::Escape && pressed {
                             let old_page = state.gui_state.active_page;
                             state.gui_state.active_page = match old_page {
-                                GuiPage::None => GuiPage::EscapeMenu,
-                                GuiPage::EscapeMenu => GuiPage::None,
+                                GuiPage::None => state.gui_state.last_page,
                                 GuiPage::MainMenu => GuiPage::MainMenu, // don't escape from title
-                                _ => GuiPage::EscapeMenu, // any tool page -> back to menu
+                                other => {
+                                    state.gui_state.last_page = other;
+                                    GuiPage::None
+                                }
                             };
                             // Update cursor grab based on page transition
                             let new_page = state.gui_state.active_page;
@@ -1250,9 +1252,6 @@ mod native_app {
                                 match state.gui_state.active_page {
                                     GuiPage::MainMenu => {
                                         main_menu::draw(ctx, &state.theme, &mut state.gui_state);
-                                    }
-                                    GuiPage::EscapeMenu => {
-                                        escape_menu::draw(ctx, &mut state.gui_state);
                                     }
                                     GuiPage::Settings => {
                                         settings::draw(ctx, &mut state.theme, &mut state.gui_state);

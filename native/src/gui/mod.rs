@@ -22,8 +22,6 @@ pub enum GuiPage {
     None,
     /// Title screen: Play, Settings, Quit.
     MainMenu,
-    /// Escape menu: full nav to all pages.
-    EscapeMenu,
     // ── Tool pages ──
     Settings,
     Inventory,
@@ -279,6 +277,8 @@ pub struct ChatServer {
 #[cfg(feature = "native")]
 pub struct GuiState {
     pub active_page: GuiPage,
+    /// Last page visited before returning to game view. Escape reopens this page.
+    pub last_page: GuiPage,
     pub show_chat: bool,
     pub show_hud: bool,
     pub settings: SettingsState,
@@ -504,6 +504,7 @@ impl Default for GuiState {
     fn default() -> Self {
         Self {
             active_page: GuiPage::MainMenu,
+            last_page: GuiPage::Chat,
             show_chat: false,
             show_hud: true,
             settings: SettingsState::default(),
