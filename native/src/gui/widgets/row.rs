@@ -268,7 +268,7 @@ pub fn message_row(
 }
 
 /// Generate an RGB color cycling through the hue spectrum over time.
-fn rgb_from_time(time: f64) -> Color32 {
+pub fn rgb_from_time(time: f64) -> Color32 {
     let hue = ((time * 30.0) % 360.0) as f32; // 12-second full cycle
     let s = 1.0_f32;
     let l = 0.5_f32;

@@ -235,6 +235,18 @@ mod native_app {
                     .expect("Failed to create window"),
             );
 
+            // Set window icon from embedded PNG
+            {
+                let icon_bytes = include_bytes!("../assets/icon.png");
+                if let Ok(img) = image::load_from_memory(icon_bytes) {
+                    let rgba = img.to_rgba8();
+                    let (w, h) = (rgba.width(), rgba.height());
+                    if let Ok(icon) = winit::window::Icon::from_rgba(rgba.into_raw(), w, h) {
+                        window.set_window_icon(Some(icon));
+                    }
+                }
+            }
+
             // Initialize renderer (block on async)
             let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
 
