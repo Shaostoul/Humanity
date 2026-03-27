@@ -4,7 +4,7 @@
 //! MIDDLE: Channel header, message feed, input bar
 //! RIGHT:  Friends list, Server members list
 
-use egui::{Color32, Frame, RichText, ScrollArea, Stroke, Vec2};
+use egui::{Align, Color32, Frame, Layout, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::{ChatMessage, ChatUser, GuiState};
 use crate::gui::theme::Theme;
 
@@ -102,6 +102,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if state.show_channel_edit_modal {
         draw_edit_channel_modal(ctx, theme, state);
     }
+
+    // ── CREATE GROUP MODAL ──
+    if state.show_create_group_modal {
+        draw_create_group_modal(ctx, theme, state);
+    }
+
+    // ── JOIN GROUP MODAL ──
+    if state.show_join_group_modal {
+        draw_join_group_modal(ctx, theme, state);
+    }
 }
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
@@ -111,30 +121,60 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let is_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
 
     if is_connected {
-        // Compact connected indicator
-        ui.horizontal(|ui| {
-            ui.add_space(theme.item_padding);
-            let dot_sz = theme.status_dot_size;
-            let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-            ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.success());
-            ui.label(
-                RichText::new(format!("Connected ({} online)", state.chat_users.iter().filter(|u| u.status != "offline").count()))
-                    .size(theme.small_size)
-                    .color(theme.text_muted()),
-            );
-        });
+        // Connected: green dot + server name + online count + disconnect button
+        Frame::NONE
+            .fill(Color32::from_rgb(25, 30, 25))
+            .inner_margin(egui::Margin::symmetric(8, 6))
+            .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    let dot_sz = theme.status_dot_size;
+                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
+                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.success());
+                    let online_count = state.chat_users.iter().filter(|u| u.status != "offline").count();
+                    ui.label(
+                        RichText::new(format!("{} ({} online)", server_display_name(&state.server_url), online_count))
+                            .size(theme.small_size)
+                            .color(theme.text_primary()),
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if ui.add(egui::Button::new(
+                            RichText::new("X")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        ).fill(Color32::TRANSPARENT).frame(false)).on_hover_text("Disconnect").clicked() {
+                            if let Some(ref mut client) = state.ws_client {
+                                client.disconnect();
+                            }
+                            state.ws_client = None;
+                            state.ws_status = "Disconnected".to_string();
+                            state.ws_manually_disconnected = true;
+                            state.ws_reconnect_timer = 0.0;
+                            state.ws_reconnect_delay = 5.0;
+                            state.ws_reconnect_attempts = 0;
+                            state.chat_users.clear();
+                        }
+                    });
+                });
+            });
     } else {
-        // Prominent connect section when disconnected
+        // Disconnected: red dot + "Not connected" + server/name inputs + Connect button
         Frame::NONE
             .fill(Color32::from_rgb(40, 30, 30))
             .inner_margin(egui::Margin::symmetric(8, 8))
             .show(ui, |ui| {
-                ui.label(
-                    RichText::new("Not Connected")
-                        .size(theme.font_size_body)
-                        .color(theme.danger())
-                        .strong(),
-                );
+                ui.set_min_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    let dot_sz = theme.status_dot_size;
+                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
+                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.danger());
+                    ui.label(
+                        RichText::new("Not connected")
+                            .size(theme.font_size_body)
+                            .color(theme.danger())
+                            .strong(),
+                    );
+                });
                 ui.add_space(4.0);
 
                 if state.server_url.is_empty() {
@@ -194,59 +234,6 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.add_space(2.0);
 
-    // Collapsible connection settings (when connected, to allow changing server/disconnect)
-    if is_connected {
-        let conn_collapsed = state.chat_connection_collapsed;
-        if section_header(ui, "Connection", conn_collapsed, Color32::from_rgb(40, 40, 48)) {
-            state.chat_connection_collapsed = !state.chat_connection_collapsed;
-            crate::config::AppConfig::from_gui_state(state).save();
-        }
-        if !conn_collapsed {
-            Frame::NONE
-                .fill(Color32::from_rgb(35, 35, 42))
-                .inner_margin(egui::Margin::symmetric(8, 4))
-                .show(ui, |ui| {
-                    ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut state.server_url)
-                            .desired_width(ui.available_width() - 24.0)
-                            .font(egui::TextStyle::Small),
-                    );
-                    ui.add_space(2.0);
-                    ui.label(RichText::new("Name:").size(theme.font_size_small).color(theme.text_muted()));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut state.user_name)
-                            .desired_width(ui.available_width() - 24.0)
-                            .font(egui::TextStyle::Small),
-                    );
-                    ui.add_space(4.0);
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new("Disconnect")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_primary()),
-                            )
-                            .fill(Color32::from_rgb(60, 30, 30))
-                            .min_size(Vec2::new(ui.available_width() - 32.0, 26.0)),
-                        )
-                        .clicked()
-                    {
-                        if let Some(ref mut client) = state.ws_client {
-                            client.disconnect();
-                        }
-                        state.ws_client = None;
-                        state.ws_status = "Disconnected".to_string();
-                        state.ws_manually_disconnected = true;
-                        state.ws_reconnect_timer = 0.0;
-                        state.ws_reconnect_delay = 5.0;
-                        state.ws_reconnect_attempts = 0;
-                        state.chat_users.clear();
-                    }
-                });
-        }
-    }
-
     // ── Scrollable section area ──
     ScrollArea::vertical()
         .id_salt("chat_left_scroll")
@@ -279,6 +266,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .fill(DM_BG)
             .inner_margin(egui::Margin::symmetric(0, 2))
             .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
                 if state.chat_dms.is_empty() {
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
@@ -356,6 +344,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .fill(GROUP_BG)
             .inner_margin(egui::Margin::symmetric(0, 2))
             .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
                 if state.chat_groups.is_empty() {
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
@@ -409,14 +398,16 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal(|ui| {
                     ui.add_space(8.0);
                     if ui.add(egui::Button::new(
-                        RichText::new("Create Group").size(theme.font_size_small).color(theme.text_secondary()),
+                        RichText::new("+ Create Group").size(theme.font_size_small).color(theme.text_secondary()),
                     ).fill(Color32::TRANSPARENT)).clicked() {
-                        // placeholder
+                        state.show_create_group_modal = true;
+                        state.new_group_name.clear();
                     }
                     if ui.add(egui::Button::new(
                         RichText::new("Join Group").size(theme.font_size_small).color(theme.text_secondary()),
                     ).fill(Color32::TRANSPARENT)).clicked() {
-                        // placeholder
+                        state.show_join_group_modal = true;
+                        state.join_group_invite_code.clear();
                     }
                 });
                 ui.add_space(2.0);
@@ -443,6 +434,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             .fill(SERVER_BG)
             .inner_margin(egui::Margin::symmetric(0, 2))
             .show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
                 // Current connected server (virtual entry)
                 if connected {
                     // Server name header
@@ -473,6 +465,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     // Track which channel had a gear icon click
                     let mut gear_click_id: Option<String> = None;
 
+                    let ctx_time = ui.ctx().input(|i| i.time);
                     for (idx, ch) in channels.iter().enumerate() {
                         let is_active = ch.id == active;
                         let accent = theme.accent();
@@ -486,11 +479,16 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             SERVER_ROW_BG
                         };
 
+                        // Check if the edit modal is open for THIS channel (for RGB border on cog)
+                        let edit_modal_for_this = state.show_channel_edit_modal
+                            && state.edit_channel_id == ch.id;
+
                         let response = ui
                             .allocate_ui_with_layout(
                                 Vec2::new(ui.available_width(), theme.row_height),
-                                egui::Layout::left_to_right(egui::Align::Center),
+                                Layout::left_to_right(Align::Center),
                                 |ui| {
+                                    ui.set_min_height(theme.row_height);
                                     let full_rect = ui.max_rect();
                                     let hover = ui.rect_contains_pointer(full_rect);
                                     let fill = if hover && !is_active { SERVER_ROW_HOVER } else { bg };
@@ -526,32 +524,93 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     );
 
                                     // Voice Join/Leave button + gear icon on the right
-                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                         ui.add_space(theme.item_padding);
-                                        if ch.voice_joined {
-                                            if ui.add(egui::Button::new(
-                                                RichText::new("Leave")
-                                                    .size(theme.font_size_small - 1.0)
-                                                    .color(theme.danger()),
-                                            ).fill(Color32::TRANSPARENT)).clicked() {
-                                                voice_toggle_idx = Some((idx, false));
-                                            }
-                                        } else {
-                                            if ui.add(egui::Button::new(
-                                                RichText::new("\u{1F3A4}")
-                                                    .size(theme.font_size_small)
-                                                    .color(theme.text_muted()),
-                                            ).fill(Color32::TRANSPARENT)).clicked() {
-                                                voice_toggle_idx = Some((idx, true));
+
+                                        // Mic icon (only if voice_enabled)
+                                        if ch.voice_enabled {
+                                            if ch.voice_joined {
+                                                let mic_resp = ui.add(egui::Button::new(
+                                                    RichText::new("Leave")
+                                                        .size(theme.font_size_small - 1.0)
+                                                        .color(theme.danger()),
+                                                ).fill(Color32::TRANSPARENT));
+                                                if mic_resp.clicked() {
+                                                    voice_toggle_idx = Some((idx, false));
+                                                }
+                                            } else {
+                                                let mic_color = if false { Color32::WHITE } else { Color32::from_rgb(120, 120, 130) };
+                                                let mic_resp = ui.add(egui::Button::new(
+                                                    RichText::new("\u{1F3A4}")
+                                                        .size(theme.font_size_small)
+                                                        .color(mic_color),
+                                                ).fill(Color32::TRANSPARENT).frame(false));
+                                                // Hover effect for mic icon
+                                                if mic_resp.hovered() {
+                                                    ui.painter().rect_stroke(
+                                                        mic_resp.rect,
+                                                        Rounding::same(3),
+                                                        Stroke::new(1.0, Color32::from_rgb(52, 152, 219)),
+                                                        egui::StrokeKind::Outside,
+                                                    );
+                                                    // Re-draw with white color on hover
+                                                    ui.painter().text(
+                                                        mic_resp.rect.center(),
+                                                        egui::Align2::CENTER_CENTER,
+                                                        "\u{1F3A4}",
+                                                        egui::FontId::proportional(theme.font_size_small),
+                                                        Color32::WHITE,
+                                                    );
+                                                }
+                                                if mic_resp.clicked() {
+                                                    voice_toggle_idx = Some((idx, true));
+                                                }
                                             }
                                         }
+
                                         // Gear icon for admin/mod to edit channel
                                         if is_channel_admin {
-                                            if ui.add(egui::Button::new(
+                                            let gear_color = if edit_modal_for_this {
+                                                Color32::WHITE
+                                            } else {
+                                                Color32::from_rgb(120, 120, 130)
+                                            };
+                                            let gear_resp = ui.add(egui::Button::new(
                                                 RichText::new("\u{2699}")
                                                     .size(12.0)
-                                                    .color(theme.text_muted()),
-                                            ).fill(Color32::TRANSPARENT).frame(false)).clicked() {
+                                                    .color(gear_color),
+                                            ).fill(Color32::TRANSPARENT).frame(false));
+
+                                            // Hover effect for cog icon
+                                            if gear_resp.hovered() && !edit_modal_for_this {
+                                                ui.painter().rect_stroke(
+                                                    gear_resp.rect,
+                                                    Rounding::same(3),
+                                                    Stroke::new(1.0, Color32::from_rgb(52, 152, 219)),
+                                                    egui::StrokeKind::Outside,
+                                                );
+                                                ui.painter().text(
+                                                    gear_resp.rect.center(),
+                                                    egui::Align2::CENTER_CENTER,
+                                                    "\u{2699}",
+                                                    egui::FontId::proportional(12.0),
+                                                    Color32::WHITE,
+                                                );
+                                            }
+
+                                            // RGB animated border when edit modal is open for this channel
+                                            if edit_modal_for_this {
+                                                let rgb_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
+                                                ui.painter().rect_stroke(
+                                                    gear_resp.rect,
+                                                    Rounding::same(3),
+                                                    Stroke::new(1.5, rgb_color),
+                                                    egui::StrokeKind::Outside,
+                                                );
+                                                ui.ctx().request_repaint();
+                                            }
+
+                                            if gear_resp.clicked() {
                                                 gear_click_id = Some(ch.id.clone());
                                             }
                                         }
@@ -1519,6 +1578,19 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                     .desired_width(300.0),
             );
 
+            ui.add_space(8.0);
+
+            // Voice enabled toggle (Bug 6)
+            let mut voice_enabled = state.chat_channels.iter()
+                .find(|c| c.id == state.edit_channel_id)
+                .map(|c| c.voice_enabled)
+                .unwrap_or(true);
+            if ui.checkbox(&mut voice_enabled, RichText::new("Voice enabled").size(theme.font_size_small).color(theme.text_secondary())).changed() {
+                if let Some(ch) = state.chat_channels.iter_mut().find(|c| c.id == state.edit_channel_id) {
+                    ch.voice_enabled = voice_enabled;
+                }
+            }
+
             ui.add_space(12.0);
 
             // Save changes
@@ -1628,6 +1700,144 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
             }
         });
     state.show_channel_edit_modal = open;
+}
+
+// ─────────────────────────────── Create Group Modal ─────────────────────
+
+fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let mut open = state.show_create_group_modal;
+    egui::Window::new("Create Group")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .fixed_size(Vec2::new(340.0, 0.0))
+        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new("Group Name")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut state.new_group_name)
+                    .desired_width(300.0)
+                    .hint_text("e.g. My Team"),
+            );
+
+            ui.add_space(12.0);
+
+            ui.horizontal(|ui| {
+                let name_valid = !state.new_group_name.trim().is_empty();
+                if ui.add_enabled(
+                    name_valid,
+                    egui::Button::new(
+                        RichText::new("Create")
+                            .size(theme.font_size_body)
+                            .color(theme.text_on_accent()),
+                    )
+                    .fill(if name_valid { theme.accent() } else { Color32::from_rgb(60, 60, 70) })
+                    .min_size(Vec2::new(100.0, 30.0)),
+                ).clicked() {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({
+                                "type": "group_create",
+                                "name": state.new_group_name.trim(),
+                            });
+                            client.send(&msg.to_string());
+                            log::info!("Group create requested: {}", state.new_group_name.trim());
+                            crate::debug::push_debug(format!("Group create: {}", state.new_group_name.trim()));
+                        }
+                    }
+                    state.show_create_group_modal = false;
+                }
+
+                ui.add_space(8.0);
+
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Cancel")
+                            .size(theme.font_size_body)
+                            .color(theme.text_secondary()),
+                    )
+                    .fill(Color32::from_rgb(40, 40, 48))
+                    .min_size(Vec2::new(100.0, 30.0)),
+                ).clicked() {
+                    state.show_create_group_modal = false;
+                }
+            });
+        });
+    state.show_create_group_modal = open;
+}
+
+// ─────────────────────────────── Join Group Modal ──────────────────────
+
+fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let mut open = state.show_join_group_modal;
+    egui::Window::new("Join Group")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .fixed_size(Vec2::new(340.0, 0.0))
+        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .show(ctx, |ui| {
+            ui.label(
+                RichText::new("Invite Code")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut state.join_group_invite_code)
+                    .desired_width(300.0)
+                    .hint_text("Paste invite code here"),
+            );
+
+            ui.add_space(12.0);
+
+            ui.horizontal(|ui| {
+                let code_valid = !state.join_group_invite_code.trim().is_empty();
+                if ui.add_enabled(
+                    code_valid,
+                    egui::Button::new(
+                        RichText::new("Join")
+                            .size(theme.font_size_body)
+                            .color(theme.text_on_accent()),
+                    )
+                    .fill(if code_valid { theme.accent() } else { Color32::from_rgb(60, 60, 70) })
+                    .min_size(Vec2::new(100.0, 30.0)),
+                ).clicked() {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({
+                                "type": "group_join",
+                                "invite_code": state.join_group_invite_code.trim(),
+                            });
+                            client.send(&msg.to_string());
+                            log::info!("Group join requested with invite code");
+                            crate::debug::push_debug("Group join requested".to_string());
+                        }
+                    }
+                    state.show_join_group_modal = false;
+                }
+
+                ui.add_space(8.0);
+
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Cancel")
+                            .size(theme.font_size_body)
+                            .color(theme.text_secondary()),
+                    )
+                    .fill(Color32::from_rgb(40, 40, 48))
+                    .min_size(Vec2::new(100.0, 30.0)),
+                ).clicked() {
+                    state.show_join_group_modal = false;
+                }
+            });
+        });
+    state.show_join_group_modal = open;
 }
 
 // ─────────────────────────────── UI Helpers ──────────────────────────────

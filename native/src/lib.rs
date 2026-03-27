@@ -842,7 +842,7 @@ mod native_app {
                                                     .unwrap_or("Text")
                                                     .to_string();
                                                 state.gui_state.chat_channels.push(
-                                                    crate::gui::ChatChannel { id, name, description, category, voice_joined: false },
+                                                    crate::gui::ChatChannel { id, name, description, category, voice_joined: false, voice_enabled: true },
                                                 );
                                             }
                                         }
@@ -935,6 +935,7 @@ mod native_app {
                                                             description: String::new(),
                                                             category: "Text".to_string(),
                                                             voice_joined: false,
+                                                            voice_enabled: true,
                                                         },
                                                     );
                                                 }
@@ -970,7 +971,43 @@ mod native_app {
                                             log::info!("Follow list received: {} friends matched from {} keys", state.gui_state.chat_friends.len(), follow_keys.len());
                                         }
                                     }
-                                    Some("reactions_sync") | Some("pins_sync") | Some("dm_list")
+                                    Some("dm_list") => {
+                                        if let Some(conversations) = val.get("conversations").and_then(|v| v.as_array()) {
+                                            state.gui_state.chat_dms.clear();
+                                            for conv in conversations {
+                                                let partner_name = conv.get("partner_name")
+                                                    .or_else(|| conv.get("name"))
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("Unknown")
+                                                    .to_string();
+                                                let partner_key = conv.get("partner_key")
+                                                    .or_else(|| conv.get("key"))
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let last_message = conv.get("last_message")
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                let timestamp = conv.get("timestamp")
+                                                    .and_then(|v| v.as_u64())
+                                                    .map(crate::gui::pages::chat::format_timestamp)
+                                                    .unwrap_or_default();
+                                                let unread = conv.get("unread")
+                                                    .and_then(|v| v.as_bool())
+                                                    .unwrap_or(false);
+                                                state.gui_state.chat_dms.push(crate::gui::ChatDm {
+                                                    user_name: partner_name,
+                                                    user_key: partner_key,
+                                                    last_message,
+                                                    timestamp,
+                                                    unread,
+                                                });
+                                            }
+                                            log::info!("DM list received: {} conversations", state.gui_state.chat_dms.len());
+                                        }
+                                    }
+                                    Some("reactions_sync") | Some("pins_sync")
                                     | Some("group_list") | Some("member_joined") => {
                                         // Acknowledged but not yet rendered in native UI
                                         log::debug!("Received server message type: {:?}", val.get("type"));

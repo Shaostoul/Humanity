@@ -245,6 +245,8 @@ pub struct ChatChannel {
     pub category: String,
     /// Whether voice is currently active/joined for this channel.
     pub voice_joined: bool,
+    /// Whether voice is enabled for this channel (shows mic icon).
+    pub voice_enabled: bool,
 }
 
 /// A DM conversation entry for the left panel.
@@ -608,6 +610,14 @@ pub struct GuiState {
     pub new_channel_name: String,
     pub new_channel_description: String,
 
+    // ── Create group modal ──
+    pub show_create_group_modal: bool,
+    pub new_group_name: String,
+
+    // ── Join group modal ──
+    pub show_join_group_modal: bool,
+    pub join_group_invite_code: String,
+
     // ── Channel edit modal ──
     pub show_channel_edit_modal: bool,
     pub edit_channel_id: String,
@@ -828,6 +838,10 @@ impl Default for GuiState {
             show_create_channel_modal: false,
             new_channel_name: String::new(),
             new_channel_description: String::new(),
+            show_create_group_modal: false,
+            new_group_name: String::new(),
+            show_join_group_modal: false,
+            join_group_invite_code: String::new(),
             show_channel_edit_modal: false,
             edit_channel_id: String::new(),
             edit_channel_name: String::new(),
