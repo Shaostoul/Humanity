@@ -672,6 +672,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bs58"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
 name = "built"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2543,9 +2552,12 @@ dependencies = [
 
 [[package]]
 name = "humanity-engine"
-version = "0.81.0"
+version = "0.82.0"
 dependencies = [
+ "aes-gcm",
+ "base64 0.22.1",
  "bip39",
+ "bs58",
  "bytemuck",
  "console_error_panic_hook",
  "console_log",
@@ -2566,12 +2578,14 @@ dependencies = [
  "log",
  "noise",
  "notify",
+ "pbkdf2",
  "pollster 0.4.0",
  "rand 0.8.5",
  "rapier3d",
  "ron",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "toml 0.8.23",
  "tungstenite 0.24.0",
@@ -4361,6 +4375,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "password-hash"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4371,6 +4396,18 @@ name = "pastey"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
+
+[[package]]
+name = "pbkdf2"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
+dependencies = [
+ "digest",
+ "hmac",
+ "password-hash",
+ "sha2",
+]
 
 [[package]]
 name = "pem-rfc7468"

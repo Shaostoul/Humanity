@@ -14,6 +14,18 @@ pub mod pages;
 #[cfg(feature = "native")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// What the passphrase prompt is for.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PassphraseMode {
+    /// Setting a new passphrase (first time or migration from plaintext).
+    SetNew,
+    /// Unlocking an existing encrypted key.
+    Unlock,
+    /// Changing the passphrase (requires old + new).
+    Change,
+}
+
 /// Which page/overlay is currently active.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -596,6 +608,32 @@ pub struct GuiState {
     /// Whether initial channel history has been fetched after connecting.
     pub history_fetched: bool,
 
+    // ── Passphrase / key encryption state ──
+
+    /// Whether a passphrase prompt is needed before the key is usable.
+    pub passphrase_needed: bool,
+    /// What mode the passphrase prompt is in.
+    pub passphrase_mode: PassphraseMode,
+    /// Input field for the passphrase.
+    pub passphrase_input: String,
+    /// Input field for confirming a new passphrase.
+    pub passphrase_confirm: String,
+    /// Input field for the old passphrase (change mode).
+    pub passphrase_old_input: String,
+    /// Status/error message for the passphrase prompt.
+    pub passphrase_status: String,
+    /// The encrypted private key (base64), persisted through save cycles.
+    pub encrypted_private_key: String,
+    /// The PBKDF2 salt (base64), persisted through save cycles.
+    pub key_salt: String,
+
+    // ── Donation address config ──
+
+    /// Admin-configurable Solana donation address.
+    pub donate_solana_address: String,
+    /// Admin-configurable Bitcoin donation address.
+    pub donate_btc_address: String,
+
     // ── Chat user profile modal ──
 
     /// Whether the user profile modal is open.
@@ -832,6 +870,16 @@ impl Default for GuiState {
             identity_recovered: false,
             private_key_bytes: None,
             history_fetched: false,
+            passphrase_needed: false,
+            passphrase_mode: PassphraseMode::Unlock,
+            passphrase_input: String::new(),
+            passphrase_confirm: String::new(),
+            passphrase_old_input: String::new(),
+            passphrase_status: String::new(),
+            encrypted_private_key: String::new(),
+            key_salt: String::new(),
+            donate_solana_address: String::new(),
+            donate_btc_address: String::new(),
             chat_user_modal_open: false,
             chat_user_modal_name: String::new(),
             chat_user_modal_key: String::new(),

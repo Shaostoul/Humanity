@@ -1366,6 +1366,11 @@ mod native_app {
                                     chat::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
+                                // Passphrase modal overlay (blocks interaction until resolved)
+                                if state.gui_state.passphrase_needed {
+                                    crate::gui::pages::passphrase_modal::draw(ctx, &state.theme, &mut state.gui_state);
+                                }
+
                                 // Draw debug console overlay (F12 toggle, on top of everything)
                                 crate::debug::draw_debug_console(
                                     ctx,

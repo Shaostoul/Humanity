@@ -25,3 +25,4 @@ pub mod resources;
 pub mod donate;
 pub mod tools;
 pub mod studio;
+pub mod passphrase_modal;

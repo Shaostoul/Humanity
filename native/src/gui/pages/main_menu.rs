@@ -228,6 +228,9 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             state.identity_recovered = true;
                             state.settings.seed_phrase_input.clear();
                             state.settings.seed_phrase_show_recover = false;
+                            // Prompt for passphrase to encrypt the recovered key
+                            state.passphrase_needed = true;
+                            state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
                         }
                         Err(e) => {
                             state.settings.seed_phrase_recovery_status = format!("Error: {}", e);

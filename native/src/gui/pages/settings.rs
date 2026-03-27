@@ -178,8 +178,9 @@ fn draw_account(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         state.ws_status = "Reconnecting with recovered identity...".to_string();
                         state.identity_recovered = true;
                         state.history_fetched = false;
-                        // Save config with new identity
-                        crate::config::AppConfig::from_gui_state(state).save();
+                        // Prompt for passphrase to encrypt the recovered key
+                        state.passphrase_needed = true;
+                        state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
                         // Clear the input
                         state.settings.seed_phrase_input.clear();
                         state.settings.seed_phrase_show_recover = false;
@@ -199,6 +200,70 @@ fn draw_account(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 };
                 ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(color).size(theme.font_size_small));
             }
+        }
+    });
+
+    ui.add_space(theme.spacing_md);
+
+    // Change Passphrase section
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new("Key Encryption").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+
+        if !state.encrypted_private_key.is_empty() {
+            ui.label(RichText::new("Your private key is encrypted with a passphrase.")
+                .color(theme.text_muted()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_sm);
+            if widgets::secondary_button(ui, theme, "Change Passphrase") {
+                state.passphrase_needed = true;
+                state.passphrase_mode = crate::gui::PassphraseMode::Change;
+                state.passphrase_status.clear();
+            }
+        } else if state.private_key_bytes.is_some() {
+            ui.label(RichText::new("Your private key is not encrypted. Set a passphrase to protect it.")
+                .color(theme.warning()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_sm);
+            if widgets::primary_button(ui, theme, "Set Passphrase") {
+                state.passphrase_needed = true;
+                state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
+                state.passphrase_status.clear();
+            }
+        } else {
+            ui.label(RichText::new("No private key loaded.")
+                .color(theme.text_muted()).size(theme.font_size_small));
+        }
+    });
+
+    ui.add_space(theme.spacing_md);
+
+    // Donation Addresses section (admin/owner)
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new("Donation Addresses").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(RichText::new("Configure donation addresses shown on the Donate page.")
+            .color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_sm);
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Solana (SOL):").color(theme.text_secondary()));
+            ui.add(egui::TextEdit::singleline(&mut state.donate_solana_address)
+                .desired_width(300.0)
+                .hint_text("Base58 Solana address"));
+        });
+
+        ui.add_space(theme.spacing_xs);
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Bitcoin (BTC):").color(theme.text_secondary()));
+            ui.add(egui::TextEdit::singleline(&mut state.donate_btc_address)
+                .desired_width(300.0)
+                .hint_text("Bitcoin address (bc1...)"));
+        });
+
+        ui.add_space(theme.spacing_sm);
+
+        if widgets::secondary_button(ui, theme, "Save Addresses") {
+            crate::config::AppConfig::from_gui_state(state).save();
         }
     });
 }
