@@ -2802,6 +2802,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                             _ => {} // Fall through to normal RelayMessage handling
                         }
                     }
+                    if let Err(deser_err) = serde_json::from_str::<RelayMessage>(&text).as_ref() {
+                        tracing::warn!("RelayMessage deserialization failed: {} | raw: {}", deser_err, &text[..text.len().min(200)]);
+                    }
                     if let Ok(relay_msg) = serde_json::from_str::<RelayMessage>(&text) {
                         match relay_msg {
                             RelayMessage::Chat { content, timestamp, signature, channel, reply_to, .. } => {
