@@ -835,74 +835,38 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Track alternating user colors
                 let mut last_sender = String::new();
                 let mut sender_parity = false; // toggles each time sender changes
-                let bg_even = Color32::from_rgb(2, 2, 2);
-                let bg_odd = Color32::from_rgb(4, 4, 4);
+                let bg_even = Color32::from_rgb(0, 0, 0);
+                let bg_odd = Color32::from_rgb(3, 3, 3);
+                let ctx_time = ui.ctx().input(|i| i.time);
+
+                // Remove default item spacing so rows sit flush
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
 
                 for msg in &filtered {
-                    let new_group = msg.sender_name != last_sender;
-                    if new_group {
+                    let show_header = msg.sender_name != last_sender;
+                    if show_header {
                         sender_parity = !sender_parity;
                     }
                     last_sender = msg.sender_name.clone();
 
-                    if new_group {
-                        ui.add_space(8.0);
-                    }
-
-                    // Paint row background based on sender parity
                     let row_bg = if sender_parity { bg_even } else { bg_odd };
-                    Frame::NONE.fill(row_bg).show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.add_space(16.0);
+                    let icon_color = name_color(&msg.sender_name);
+                    let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
+                    let content_lines: Vec<&str> = vec![msg.content.as_str()];
 
-                            if new_group {
-                                // Avatar circle from name hash
-                                let color = name_color(&msg.sender_name);
-                                let (rect, _) =
-                                    ui.allocate_exact_size(Vec2::splat(32.0), egui::Sense::hover());
-                                ui.painter().circle_filled(rect.center(), 14.0, color);
-                                let initial = msg
-                                    .sender_name
-                                    .chars()
-                                    .next()
-                                    .unwrap_or('?')
-                                    .to_uppercase()
-                                    .to_string();
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    initial,
-                                    egui::FontId::proportional(14.0),
-                                    Color32::WHITE,
-                                );
-                            } else {
-                                ui.add_space(36.0);
-                            }
-
-                            ui.vertical(|ui| {
-                                if new_group {
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            RichText::new(&msg.sender_name)
-                                                .size(theme.font_size_body)
-                                                .color(theme.text_primary())
-                                                .strong(),
-                                        );
-                                        ui.label(
-                                            RichText::new(&msg.timestamp)
-                                                .size(theme.font_size_small - 1.0)
-                                                .color(theme.text_muted()),
-                                        );
-                                    });
-                                }
-                                ui.label(
-                                    RichText::new(&msg.content)
-                                        .size(theme.font_size_body)
-                                        .color(theme.text_primary()),
-                                );
-                            });
-                        });
-                    });
+                    let _response = crate::gui::widgets::row::message_row(
+                        ui,
+                        icon_letter,
+                        icon_color,
+                        &msg.sender_name,
+                        &msg.timestamp,
+                        &content_lines,
+                        show_header,
+                        row_bg,
+                        false, // channeling
+                        ctx_time,
+                    );
+                    // _response can be used to open profile modals on click
                 }
 
                 ui.add_space(8.0);

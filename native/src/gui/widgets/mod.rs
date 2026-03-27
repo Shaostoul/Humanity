@@ -1,5 +1,7 @@
 //! Reusable egui widgets styled by the HumanityOS theme.
 
+pub mod row;
+
 use egui::{Color32, RichText, Rounding, Stroke, Ui, Vec2};
 use super::theme::Theme;
 
