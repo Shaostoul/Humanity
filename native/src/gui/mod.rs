@@ -603,6 +603,19 @@ pub struct GuiState {
     /// Public key of the user shown in the modal.
     pub chat_user_modal_key: String,
 
+    // ── Channel create modal ──
+    pub show_create_channel_modal: bool,
+    pub new_channel_name: String,
+    pub new_channel_description: String,
+
+    // ── Channel edit modal ──
+    pub show_channel_edit_modal: bool,
+    pub edit_channel_id: String,
+    pub edit_channel_name: String,
+    pub edit_channel_description: String,
+    /// Whether the delete confirmation is showing in the edit modal.
+    pub edit_channel_confirm_delete: bool,
+
     // ── Debug console state ──
 
     /// Whether the F12 debug console overlay is visible.
@@ -798,6 +811,14 @@ impl Default for GuiState {
             chat_user_modal_open: false,
             chat_user_modal_name: String::new(),
             chat_user_modal_key: String::new(),
+            show_create_channel_modal: false,
+            new_channel_name: String::new(),
+            new_channel_description: String::new(),
+            show_channel_edit_modal: false,
+            edit_channel_id: String::new(),
+            edit_channel_name: String::new(),
+            edit_channel_description: String::new(),
+            edit_channel_confirm_delete: false,
             debug_console_visible: false,
             debug_log: Vec::new(),
             studio: StudioState::default(),
