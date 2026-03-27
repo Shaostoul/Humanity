@@ -909,8 +909,20 @@ mod native_app {
                                         // Vault sync messages - handle silently, don't display in chat
                                         crate::debug::push_debug("Vault sync message received (hidden)");
                                     }
+                                    Some("follow_list") => {
+                                        if let Some(following) = val.get("following").and_then(|v| v.as_array()) {
+                                            let follow_keys: Vec<String> = following.iter()
+                                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                                .collect();
+                                            state.gui_state.chat_friends = state.gui_state.chat_users.iter()
+                                                .filter(|u| follow_keys.contains(&u.public_key))
+                                                .cloned()
+                                                .collect();
+                                            log::info!("Follow list received: {} friends matched from {} keys", state.gui_state.chat_friends.len(), follow_keys.len());
+                                        }
+                                    }
                                     Some("reactions_sync") | Some("pins_sync") | Some("dm_list")
-                                    | Some("follow_list") | Some("group_list") | Some("member_joined") => {
+                                    | Some("group_list") | Some("member_joined") => {
                                         // Acknowledged but not yet rendered in native UI
                                         log::debug!("Received server message type: {:?}", val.get("type"));
                                     }

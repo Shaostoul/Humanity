@@ -482,6 +482,15 @@ pub struct GuiState {
     /// Whether initial channel history has been fetched after connecting.
     pub history_fetched: bool,
 
+    // ── Chat user profile modal ──
+
+    /// Whether the user profile modal is open.
+    pub chat_user_modal_open: bool,
+    /// Display name of the user shown in the modal.
+    pub chat_user_modal_name: String,
+    /// Public key of the user shown in the modal.
+    pub chat_user_modal_key: String,
+
     // ── Debug console state ──
 
     /// Whether the F12 debug console overlay is visible.
@@ -674,6 +683,9 @@ impl Default for GuiState {
             identity_recovered: false,
             private_key_bytes: None,
             history_fetched: false,
+            chat_user_modal_open: false,
+            chat_user_modal_name: String::new(),
+            chat_user_modal_key: String::new(),
             debug_console_visible: false,
             debug_log: Vec::new(),
         }

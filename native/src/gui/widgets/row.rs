@@ -73,7 +73,7 @@ pub fn message_row(
 
         let name_galley = painter.layout_no_wrap(
             name.to_string(),
-            egui::FontId::proportional(13.0),
+            egui::FontId::proportional(14.0),
             Color32::WHITE,
         );
         let ts_galley = painter.layout_no_wrap(
@@ -189,7 +189,7 @@ pub fn message_row(
             button_rect,
             0.0,
             egui::Stroke::new(1.0, btn_border_color),
-            StrokeKind::Outside,
+            StrokeKind::Inside,
         );
 
         // Icon circle + letter

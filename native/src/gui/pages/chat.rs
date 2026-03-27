@@ -90,6 +90,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             draw_center_panel(ui, theme, state);
         });
+
+    // ── USER PROFILE MODAL ──
+    if state.chat_user_modal_open {
+        draw_user_modal(ctx, theme, state);
+    }
 }
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
@@ -835,8 +840,8 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Track alternating user colors
                 let mut last_sender = String::new();
                 let mut sender_parity = false; // toggles each time sender changes
-                let bg_even = Color32::from_rgb(0, 0, 0);
-                let bg_odd = Color32::from_rgb(3, 3, 3);
+                let bg_even = Color32::from_rgb(8, 8, 10);
+                let bg_odd = Color32::from_rgb(16, 16, 20);
                 let ctx_time = ui.ctx().input(|i| i.time);
 
                 // Remove default item spacing so rows sit flush
@@ -852,7 +857,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let row_bg = if sender_parity { bg_even } else { bg_odd };
                     let icon_color = name_color(&msg.sender_name);
                     let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
-                    let _response = crate::gui::widgets::row::message_row(
+                    let response = crate::gui::widgets::row::message_row(
                         ui,
                         icon_letter,
                         icon_color,
@@ -864,7 +869,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         false, // channeling
                         ctx_time,
                     );
-                    // _response can be used to open profile modals on click
+                    if response.clicked() && show_header {
+                        state.chat_user_modal_open = true;
+                        state.chat_user_modal_name = msg.sender_name.clone();
+                        state.chat_user_modal_key = msg.sender_key.clone();
+                    }
                 }
 
                 ui.add_space(8.0);
@@ -964,6 +973,172 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             });
     });
+}
+
+// ─────────────────────────────── User Profile Modal ────────────────────────
+
+fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let mut open = state.chat_user_modal_open;
+    egui::Window::new("User Profile")
+        .open(&mut open)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .fixed_size(Vec2::new(320.0, 0.0))
+        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .show(ctx, |ui| {
+            let name = state.chat_user_modal_name.clone();
+            let key = state.chat_user_modal_key.clone();
+
+            // Avatar circle with initial
+            ui.vertical_centered(|ui| {
+                let icon_color = name_color(&name);
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(64.0), egui::Sense::hover());
+                ui.painter().circle_filled(rect.center(), 30.0, icon_color);
+                let initial = name.chars().next().unwrap_or('?').to_uppercase().to_string();
+                ui.painter().text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    &initial,
+                    egui::FontId::proportional(28.0),
+                    Color32::WHITE,
+                );
+            });
+
+            ui.add_space(8.0);
+
+            // Display name (bold)
+            ui.vertical_centered(|ui| {
+                ui.label(
+                    RichText::new(&name)
+                        .size(theme.font_size_heading)
+                        .color(theme.text_primary())
+                        .strong(),
+                );
+            });
+
+            ui.add_space(4.0);
+
+            // Role badge
+            let user_role = state.chat_users.iter()
+                .find(|u| u.public_key == key)
+                .map(|u| u.role.clone())
+                .unwrap_or_default();
+            if !user_role.is_empty() && user_role != "member" {
+                ui.vertical_centered(|ui| {
+                    draw_role_badges(ui, theme, &user_role);
+                });
+                ui.add_space(4.0);
+            }
+
+            // Online/offline status
+            let user_status = state.chat_users.iter()
+                .find(|u| u.public_key == key)
+                .map(|u| u.status.clone())
+                .unwrap_or_else(|| "offline".to_string());
+            ui.vertical_centered(|ui| {
+                let (dot_color, status_text) = match user_status.as_str() {
+                    "offline" => (Color32::from_rgb(100, 100, 100), "Offline"),
+                    "away" => (theme.warning(), "Away"),
+                    "busy" | "dnd" => (theme.danger(), "Do Not Disturb"),
+                    _ => (theme.success(), "Online"),
+                };
+                ui.horizontal(|ui| {
+                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+                    ui.painter().circle_filled(rect.center(), 4.0, dot_color);
+                    ui.label(
+                        RichText::new(status_text)
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                });
+            });
+
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(4.0);
+
+            // Public key (truncated) with Copy button
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Key:")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                let display_key = if key.len() > 16 {
+                    format!("{}...{}", &key[..8], &key[key.len()-8..])
+                } else {
+                    key.clone()
+                };
+                ui.label(
+                    RichText::new(&display_key)
+                        .size(theme.font_size_small)
+                        .color(theme.text_secondary()),
+                );
+                if ui.add(egui::Button::new(
+                    RichText::new("Copy").size(theme.font_size_small - 1.0).color(theme.text_muted()),
+                ).fill(Color32::from_rgb(45, 45, 55))).clicked() {
+                    ui.ctx().copy_text(key.clone());
+                }
+            });
+
+            ui.add_space(12.0);
+
+            // Action buttons
+            ui.vertical_centered(|ui| {
+                ui.horizontal(|ui| {
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Follow")
+                                .size(theme.font_size_body)
+                                .color(theme.text_on_accent()),
+                        )
+                        .fill(theme.accent())
+                        .min_size(Vec2::new(90.0, 30.0)),
+                    ).clicked() {
+                        // Send follow request via WebSocket
+                        if let Some(ref client) = state.ws_client {
+                            if client.is_connected() {
+                                let msg = serde_json::json!({
+                                    "type": "follow",
+                                    "target": key,
+                                });
+                                client.send(&msg.to_string());
+                            }
+                        }
+                    }
+
+                    ui.add_space(8.0);
+
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Send DM")
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary()),
+                        )
+                        .fill(Color32::from_rgb(45, 45, 55))
+                        .min_size(Vec2::new(90.0, 30.0)),
+                    ).clicked() {
+                        // Placeholder for DM functionality
+                    }
+                });
+
+                ui.add_space(8.0);
+
+                if ui.add(
+                    egui::Button::new(
+                        RichText::new("Close")
+                            .size(theme.font_size_body)
+                            .color(theme.text_secondary()),
+                    )
+                    .fill(Color32::from_rgb(40, 40, 48))
+                    .min_size(Vec2::new(190.0, 28.0)),
+                ).clicked() {
+                    state.chat_user_modal_open = false;
+                }
+            });
+        });
+    state.chat_user_modal_open = open;
 }
 
 // ─────────────────────────────── UI Helpers ──────────────────────────────
