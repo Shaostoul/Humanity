@@ -833,7 +833,7 @@ mod native_app {
                                                     .unwrap_or("Text")
                                                     .to_string();
                                                 state.gui_state.chat_channels.push(
-                                                    crate::gui::ChatChannel { id, name, description, category },
+                                                    crate::gui::ChatChannel { id, name, description, category, voice_joined: false },
                                                 );
                                             }
                                         }
@@ -901,9 +901,35 @@ mod native_app {
                                         }
                                     }
                                     Some("voice_channel_list") => {
-                                        // Voice channels received from server — log for now
+                                        // Voice channels received from server
                                         if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
                                             log::info!("Received {} voice channels", channels.len());
+                                            // Add voice channels that don't already exist as text channels
+                                            for vc in channels {
+                                                let vc_name = vc.get("name")
+                                                    .or_else(|| vc.get("id"))
+                                                    .and_then(|v| v.as_str())
+                                                    .unwrap_or("")
+                                                    .to_string();
+                                                if vc_name.is_empty() { continue; }
+                                                // If a text channel with same name exists, skip (voice is merged in UI)
+                                                let exists = state.gui_state.chat_channels.iter().any(|c| c.name == vc_name || c.id == vc_name);
+                                                if !exists {
+                                                    let vc_id = vc.get("id")
+                                                        .and_then(|v| v.as_str())
+                                                        .unwrap_or(&vc_name)
+                                                        .to_string();
+                                                    state.gui_state.chat_channels.push(
+                                                        crate::gui::ChatChannel {
+                                                            id: vc_id,
+                                                            name: vc_name,
+                                                            description: String::new(),
+                                                            category: "Text".to_string(),
+                                                            voice_joined: false,
+                                                        },
+                                                    );
+                                                }
+                                            }
                                         }
                                     }
                                     Some("profile_data") => {

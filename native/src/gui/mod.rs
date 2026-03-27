@@ -242,6 +242,8 @@ pub struct ChatChannel {
     pub name: String,
     pub description: String,
     pub category: String,
+    /// Whether voice is currently active/joined for this channel.
+    pub voice_joined: bool,
 }
 
 /// A DM conversation entry for the left panel.
@@ -511,11 +513,7 @@ impl Default for GuiState {
             chat_input: String::new(),
             chat_messages: Vec::new(),
             chat_sent_timestamps: Vec::new(),
-            chat_channels: vec![
-                ChatChannel { id: "general".into(), name: "general".into(), description: "General discussion".into(), category: "Text".into() },
-                ChatChannel { id: "stream".into(), name: "stream".into(), description: "Live stream chat".into(), category: "Text".into() },
-                ChatChannel { id: "dev".into(), name: "dev".into(), description: "Development".into(), category: "Text".into() },
-            ],
+            chat_channels: Vec::new(),
             chat_active_channel: "general".to_string(),
             chat_users: Vec::new(),
             chat_dms: Vec::new(),

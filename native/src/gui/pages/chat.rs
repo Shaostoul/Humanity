@@ -447,26 +447,16 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 .strong(),
                         );
                     });
-                    ui.add_space(4.0);
-
-                    // Text channels
-                    ui.horizontal(|ui| {
-                        ui.add_space(16.0);
-                        ui.label(
-                            RichText::new("TEXT CHANNELS")
-                                .size(theme.small_size)
-                                .color(theme.text_muted())
-                                .strong(),
-                        );
-                    });
                     ui.add_space(2.0);
 
+                    // Merged channels: each row shows # name with voice Join/Leave on the right
                     let active = state.chat_active_channel.clone();
                     let channels = state.chat_channels.clone();
-                    for ch in &channels {
-                        if ch.category == "Voice" {
-                            continue;
-                        }
+
+                    // Track which channel index had a voice toggle click
+                    let mut voice_toggle_idx: Option<(usize, bool)> = None;
+
+                    for (idx, ch) in channels.iter().enumerate() {
                         let is_active = ch.id == active;
                         let accent = theme.accent();
                         let bg = if is_active {
@@ -502,11 +492,43 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     } else {
                                         theme.text_secondary()
                                     };
+
+                                    // Green speaker icon if voice is active on this channel
+                                    if ch.voice_joined {
+                                        ui.label(
+                                            RichText::new("\u{1F50A}")
+                                                .size(theme.body_size - 2.0)
+                                                .color(theme.success()),
+                                        );
+                                    }
+
                                     ui.label(
                                         RichText::new(format!("# {}", ch.name))
                                             .size(theme.body_size)
                                             .color(text_color),
                                     );
+
+                                    // Voice Join/Leave button on the right
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.add_space(theme.item_padding);
+                                        if ch.voice_joined {
+                                            if ui.add(egui::Button::new(
+                                                RichText::new("Leave")
+                                                    .size(theme.font_size_small - 1.0)
+                                                    .color(theme.danger()),
+                                            ).fill(Color32::TRANSPARENT)).clicked() {
+                                                voice_toggle_idx = Some((idx, false));
+                                            }
+                                        } else {
+                                            if ui.add(egui::Button::new(
+                                                RichText::new("\u{1F3A4}")
+                                                    .size(theme.font_size_small)
+                                                    .color(theme.text_muted()),
+                                            ).fill(Color32::TRANSPARENT)).clicked() {
+                                                voice_toggle_idx = Some((idx, true));
+                                            }
+                                        }
+                                    });
                                 },
                             )
                             .response;
@@ -514,106 +536,53 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         if response.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
-                        if response.clicked() {
+                        if response.clicked() && voice_toggle_idx.is_none() {
                             state.chat_active_channel = ch.id.clone();
                             state.chat_messages.clear();
                             state.history_fetched = false;
                         }
                     }
 
-                    ui.add_space(6.0);
-
-                    // Voice channels
-                    let voice_channels: Vec<&crate::gui::ChatChannel> = channels.iter().filter(|c| c.category == "Voice").collect();
-                    if !voice_channels.is_empty() {
-                        ui.horizontal(|ui| {
-                            ui.add_space(16.0);
-                            ui.label(
-                                RichText::new("VOICE CHANNELS")
-                                    .size(theme.font_size_small - 2.0)
-                                    .color(theme.text_muted())
-                                    .strong(),
-                            );
-                        });
-                        ui.add_space(2.0);
-
-                        for vc in &voice_channels {
-                            ui.horizontal(|ui| {
-                                ui.add_space(20.0);
-                                ui.label(
-                                    RichText::new(format!("  {}", vc.name))
-                                        .size(theme.font_size_body)
-                                        .color(theme.text_muted()),
-                                );
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.add_space(8.0);
-                                    if ui.add(egui::Button::new(
-                                        RichText::new("Join").size(theme.font_size_small - 1.0).color(theme.accent()),
-                                    ).fill(Color32::TRANSPARENT)).clicked() {
-                                        let vc_name = vc.name.clone();
-                                        log::info!("Voice join requested: {}", vc_name);
-                                        crate::debug::push_debug(format!("Voice: join requested for channel '{}'", vc_name));
-                                        if let Some(ref client) = state.ws_client {
-                                            if client.is_connected() {
-                                                let msg = serde_json::json!({
-                                                    "type": "voice_join",
-                                                    "channel": vc_name,
-                                                });
-                                                client.send(&msg.to_string());
-                                            }
-                                        }
-                                    }
-                                });
-                            });
-                        }
-                    } else {
-                        // Default voice channels if none from server
-                        ui.horizontal(|ui| {
-                            ui.add_space(16.0);
-                            ui.label(
-                                RichText::new("VOICE CHANNELS")
-                                    .size(theme.font_size_small - 2.0)
-                                    .color(theme.text_muted())
-                                    .strong(),
-                            );
-                        });
-                        ui.add_space(2.0);
-                        for label in &["Lounge", "Dev Talk"] {
-                            ui.horizontal(|ui| {
-                                ui.add_space(20.0);
-                                ui.label(
-                                    RichText::new(format!("  {}", label))
-                                        .size(theme.font_size_body)
-                                        .color(theme.text_muted()),
-                                );
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.add_space(8.0);
-                                    if ui.add(egui::Button::new(
-                                        RichText::new("Join").size(theme.font_size_small - 1.0).color(theme.accent()),
-                                    ).fill(Color32::TRANSPARENT)).clicked() {
-                                        log::info!("Voice join requested: {}", label);
-                                        crate::debug::push_debug(format!("Voice: join requested for channel '{}'", label));
-                                        if let Some(ref client) = state.ws_client {
-                                            if client.is_connected() {
-                                                let msg = serde_json::json!({
-                                                    "type": "voice_join",
-                                                    "channel": label,
-                                                });
-                                                client.send(&msg.to_string());
-                                            }
-                                        }
-                                    }
-                                });
-                            });
+                    // Apply voice toggle after the loop
+                    if let Some((idx, joining)) = voice_toggle_idx {
+                        if let Some(ch) = state.chat_channels.get_mut(idx) {
+                            let ch_name = ch.name.clone();
+                            ch.voice_joined = joining;
+                            let msg_type = if joining { "voice_join" } else { "voice_leave" };
+                            log::info!("Voice {} requested: {}", msg_type, ch_name);
+                            crate::debug::push_debug(format!("Voice: {} for channel '{}'", msg_type, ch_name));
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let msg = serde_json::json!({
+                                        "type": msg_type,
+                                        "channel": ch_name,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
                         }
                     }
 
-                    ui.add_space(4.0);
+                    // + Create Channel (admin/mod only)
+                    let viewer_role = viewer_role(state);
+                    if viewer_role == "admin" || viewer_role == "moderator" || viewer_role == "mod" {
+                        ui.add_space(2.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(theme.item_padding * 2.0);
+                            if ui.add(egui::Button::new(
+                                RichText::new("+ Create Channel").size(theme.font_size_small).color(theme.text_muted()),
+                            ).fill(Color32::TRANSPARENT)).clicked() {
+                                // placeholder
+                            }
+                        });
+                    }
+
+                    ui.add_space(2.0);
                 }
 
                 // Additional servers from chat_servers list
                 for server in state.chat_servers.clone().iter() {
-                    ui.add_space(4.0);
+                    ui.add_space(2.0);
                     ui.horizontal(|ui| {
                         ui.add_space(12.0);
                         ui.label(
@@ -634,20 +603,20 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         });
                     }
                 }
-
-                // + Add Server button
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(8.0);
-                    if ui.add(egui::Button::new(
-                        RichText::new("+ Add Server").size(theme.font_size_small).color(theme.text_secondary()),
-                    ).fill(Color32::TRANSPARENT)).clicked() {
-                        // placeholder
-                    }
-                });
-                ui.add_space(4.0);
             });
     }
+
+    // + Add Server button (outside the server card)
+    ui.add_space(2.0);
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        if ui.add(egui::Button::new(
+            RichText::new("+ Add Server").size(theme.font_size_small).color(theme.text_secondary()),
+        ).fill(Color32::TRANSPARENT)).clicked() {
+            // placeholder
+        }
+    });
+    ui.add_space(2.0);
 }
 
 // ─────────────────────────────── RIGHT PANEL ──────────────────────────────
@@ -1117,29 +1086,27 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             ui.add_space(8.0);
 
-            // Display name (bold)
-            ui.vertical_centered(|ui| {
-                ui.label(
-                    RichText::new(&name)
-                        .size(theme.font_size_heading)
-                        .color(theme.text_primary())
-                        .strong(),
-                );
-            });
-
-            ui.add_space(4.0);
-
-            // Role badge
+            // Display name (bold) + role badge
             let user_role = state.chat_users.iter()
                 .find(|u| u.public_key == key)
                 .map(|u| u.role.clone())
                 .unwrap_or_default();
-            if !user_role.is_empty() && user_role != "member" {
-                ui.vertical_centered(|ui| {
-                    draw_role_badges(ui, theme, &user_role);
+
+            ui.vertical_centered(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(&name)
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary())
+                            .strong(),
+                    );
+                    if !user_role.is_empty() && user_role != "member" {
+                        draw_role_badges(ui, theme, &user_role);
+                    }
                 });
-                ui.add_space(4.0);
-            }
+            });
+
+            ui.add_space(4.0);
 
             // Online/offline status
             let user_status = state.chat_users.iter()
@@ -1194,32 +1161,21 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             ui.add_space(12.0);
 
+            // Determine relationship state
+            let is_following = state.chat_friends.iter().any(|f| f.public_key == key);
+
+            // Check if target user is streaming (simple heuristic: check chat_users for streaming status)
+            // For now we check if the user has "streaming" in their status or role metadata
+            let is_streaming = state.chat_users.iter()
+                .find(|u| u.public_key == key)
+                .map(|u| u.status == "streaming")
+                .unwrap_or(false);
+
             // Action buttons
+            let btn_width = 140.0;
             ui.vertical_centered(|ui| {
+                // Row 1: Send DM (always) + Follow/Unfollow toggle
                 ui.horizontal(|ui| {
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("Follow")
-                                .size(theme.font_size_body)
-                                .color(theme.text_on_accent()),
-                        )
-                        .fill(theme.accent())
-                        .min_size(Vec2::new(90.0, 30.0)),
-                    ).clicked() {
-                        // Send follow request via WebSocket
-                        if let Some(ref client) = state.ws_client {
-                            if client.is_connected() {
-                                let msg = serde_json::json!({
-                                    "type": "follow",
-                                    "target": key,
-                                });
-                                client.send(&msg.to_string());
-                            }
-                        }
-                    }
-
-                    ui.add_space(8.0);
-
                     if ui.add(
                         egui::Button::new(
                             RichText::new("Send DM")
@@ -1227,11 +1183,196 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .color(theme.text_primary()),
                         )
                         .fill(Color32::from_rgb(45, 45, 55))
-                        .min_size(Vec2::new(90.0, 30.0)),
+                        .min_size(Vec2::new(btn_width, 30.0)),
                     ).clicked() {
                         // Placeholder for DM functionality
                     }
+
+                    ui.add_space(4.0);
+
+                    if is_following {
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Unfollow")
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_secondary()),
+                            )
+                            .fill(Color32::from_rgb(50, 35, 35))
+                            .min_size(Vec2::new(btn_width, 30.0)),
+                        ).clicked() {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let msg = serde_json::json!({
+                                        "type": "unfollow",
+                                        "target": key,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
+                            // Remove from local friends list immediately
+                            state.chat_friends.retain(|f| f.public_key != key);
+                        }
+                    } else {
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Follow")
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_on_accent()),
+                            )
+                            .fill(theme.accent())
+                            .min_size(Vec2::new(btn_width, 30.0)),
+                        ).clicked() {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let msg = serde_json::json!({
+                                        "type": "follow",
+                                        "target": key,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
+                        }
+                    }
                 });
+
+                // Watch Stream (only if user is streaming)
+                if is_streaming {
+                    ui.add_space(4.0);
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Watch Stream")
+                                .size(theme.font_size_body)
+                                .color(theme.text_on_accent()),
+                        )
+                        .fill(Color32::from_rgb(100, 50, 150))
+                        .min_size(Vec2::new(btn_width * 2.0 + 4.0, 30.0)),
+                    ).clicked() {
+                        // Placeholder for stream watching
+                    }
+                }
+
+                // Moderator section (only if viewer is mod or admin)
+                let my_role = viewer_role(state);
+                let is_mod = my_role == "moderator" || my_role == "mod" || my_role == "admin";
+                let is_admin = my_role == "admin";
+
+                if is_mod {
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("Moderation")
+                            .size(theme.font_size_small)
+                            .color(theme.warning())
+                            .strong(),
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Mute")
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()),
+                            )
+                            .fill(Color32::from_rgb(60, 50, 30))
+                            .min_size(Vec2::new(btn_width, 28.0)),
+                        ).clicked() {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let msg = serde_json::json!({
+                                        "type": "mod_action",
+                                        "action": "mute",
+                                        "target": key,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
+                        }
+
+                        ui.add_space(4.0);
+
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Kick")
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()),
+                            )
+                            .fill(Color32::from_rgb(70, 40, 30))
+                            .min_size(Vec2::new(btn_width, 28.0)),
+                        ).clicked() {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let msg = serde_json::json!({
+                                        "type": "mod_action",
+                                        "action": "kick",
+                                        "target": key,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Admin section (only if viewer is admin)
+                if is_admin {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("Admin")
+                            .size(theme.font_size_small)
+                            .color(theme.danger())
+                            .strong(),
+                    );
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Ban")
+                                    .size(theme.font_size_body)
+                                    .color(Color32::WHITE),
+                            )
+                            .fill(Color32::from_rgb(120, 30, 30))
+                            .min_size(Vec2::new(90.0, 28.0)),
+                        ).clicked() {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let msg = serde_json::json!({
+                                        "type": "mod_action",
+                                        "action": "ban",
+                                        "target": key,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
+                        }
+
+                        ui.add_space(4.0);
+
+                        let target_is_mod = user_role == "moderator" || user_role == "mod";
+                        let mod_btn_label = if target_is_mod { "Unmod" } else { "Mod" };
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new(mod_btn_label)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()),
+                            )
+                            .fill(Color32::from_rgb(50, 50, 70))
+                            .min_size(Vec2::new(90.0, 28.0)),
+                        ).clicked() {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let action = if target_is_mod { "unmod" } else { "mod" };
+                                    let msg = serde_json::json!({
+                                        "type": "mod_action",
+                                        "action": action,
+                                        "target": key,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
+                        }
+                    });
+                }
 
                 ui.add_space(8.0);
 
@@ -1242,7 +1383,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_secondary()),
                     )
                     .fill(Color32::from_rgb(40, 40, 48))
-                    .min_size(Vec2::new(190.0, 28.0)),
+                    .min_size(Vec2::new(btn_width * 2.0 + 4.0, 28.0)),
                 ).clicked() {
                     state.chat_user_modal_open = false;
                 }
@@ -1360,6 +1501,17 @@ fn draw_role_badges(ui: &mut egui::Ui, theme: &Theme, role: &str) {
         Color32::WHITE,
     );
     let _ = text; // suppress unused warning
+}
+
+/// Get the viewer's own role by matching their public key in the user list.
+fn viewer_role(state: &GuiState) -> String {
+    if state.profile_public_key.is_empty() {
+        return String::new();
+    }
+    state.chat_users.iter()
+        .find(|u| u.public_key == state.profile_public_key)
+        .map(|u| u.role.clone())
+        .unwrap_or_default()
 }
 
 /// Extract a display name from a server URL.
