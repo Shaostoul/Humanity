@@ -70,6 +70,7 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
                     NavItem { label: "Market", page: GuiPage::Market },
                     NavItem { label: "Crafting", page: GuiPage::Crafting },
                     NavItem { label: "Civilization", page: GuiPage::Civilization },
+                    NavItem { label: "Studio", page: GuiPage::Studio },
                 ];
                 nav_group(ui, &green_items, GREEN, state);
 

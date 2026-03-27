@@ -43,6 +43,7 @@ pub enum GuiPage {
     Resources,
     Donate,
     Tools,
+    Studio,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.
@@ -275,6 +276,115 @@ pub struct ChatServer {
     pub voice_channels: Vec<String>,
 }
 
+/// Studio source type variants.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub enum StudioSourceType {
+    Camera(u32),
+    Screen(u32),
+    Microphone(u32),
+    ChatOverlay,
+    Image(String),
+    Text(String),
+    Timer,
+}
+
+/// A source in the broadcasting studio.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct StudioSource {
+    pub name: String,
+    pub source_type: StudioSourceType,
+    pub visible: bool,
+    /// Normalized position (0.0..1.0) within the preview area.
+    pub position: (f32, f32),
+    /// Normalized size (0.0..1.0) within the preview area.
+    pub size: (f32, f32),
+    pub opacity: f32,
+    pub z_order: u32,
+}
+
+/// A scene preset storing which sources are active.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct StudioScene {
+    pub name: String,
+    pub is_default: bool,
+    /// Per-source visibility override (indexed same as StudioState.sources).
+    pub source_visibility: Vec<bool>,
+}
+
+/// All state for the broadcasting studio page.
+#[cfg(feature = "native")]
+pub struct StudioState {
+    pub scenes: Vec<StudioScene>,
+    pub active_scene_index: usize,
+    pub sources: Vec<StudioSource>,
+    pub selected_source_index: Option<usize>,
+    pub is_live: bool,
+    pub is_paused: bool,
+    pub is_afk: bool,
+    pub afk_start_time: f64,
+    pub live_start_time: f64,
+    pub stream_platform: String,
+    pub stream_key: String,
+    pub stream_server_url: String,
+    pub stream_resolution: String,
+    pub stream_bitrate: u32,
+    pub stream_fps: u32,
+    pub chat_overlay_channel: String,
+    pub chat_overlay_font_size: f32,
+    pub chat_overlay_position: String,
+    pub chat_overlay_opacity: f32,
+    pub chat_overlay_max_messages: u32,
+    pub chat_overlay_bg_opacity: f32,
+}
+
+#[cfg(feature = "native")]
+impl Default for StudioState {
+    fn default() -> Self {
+        let default_scenes = vec![
+            StudioScene { name: "Main".into(), is_default: true, source_visibility: vec![true, true, true, true] },
+            StudioScene { name: "Starting Soon".into(), is_default: true, source_visibility: vec![false, false, false, true] },
+            StudioScene { name: "BRB".into(), is_default: true, source_visibility: vec![false, false, false, true] },
+            StudioScene { name: "Intermission".into(), is_default: true, source_visibility: vec![false, false, false, true] },
+            StudioScene { name: "Ending".into(), is_default: true, source_visibility: vec![false, false, false, true] },
+            StudioScene { name: "Screen Share".into(), is_default: true, source_visibility: vec![false, true, true, false] },
+            StudioScene { name: "Camera Only".into(), is_default: true, source_visibility: vec![true, false, true, false] },
+            StudioScene { name: "Chat Only".into(), is_default: true, source_visibility: vec![false, false, false, true] },
+        ];
+        let default_sources = vec![
+            StudioSource { name: "Camera 1".into(), source_type: StudioSourceType::Camera(0), visible: true, position: (0.0, 0.0), size: (0.7, 0.7), opacity: 1.0, z_order: 0 },
+            StudioSource { name: "Screen Capture".into(), source_type: StudioSourceType::Screen(0), visible: true, position: (0.0, 0.0), size: (1.0, 1.0), opacity: 1.0, z_order: 1 },
+            StudioSource { name: "Microphone".into(), source_type: StudioSourceType::Microphone(0), visible: true, position: (0.0, 0.0), size: (0.0, 0.0), opacity: 1.0, z_order: 2 },
+            StudioSource { name: "Chat Overlay".into(), source_type: StudioSourceType::ChatOverlay, visible: true, position: (0.7, 0.05), size: (0.28, 0.9), opacity: 0.8, z_order: 3 },
+        ];
+        Self {
+            scenes: default_scenes,
+            active_scene_index: 0,
+            sources: default_sources,
+            selected_source_index: None,
+            is_live: false,
+            is_paused: false,
+            is_afk: false,
+            afk_start_time: 0.0,
+            live_start_time: 0.0,
+            stream_platform: "HumanityOS Server".into(),
+            stream_key: String::new(),
+            stream_server_url: "wss://united-humanity.us/ws".into(),
+            stream_resolution: "1920x1080".into(),
+            stream_bitrate: 3500,
+            stream_fps: 30,
+            chat_overlay_channel: "general".into(),
+            chat_overlay_font_size: 14.0,
+            chat_overlay_position: "Top-Right".into(),
+            chat_overlay_opacity: 0.8,
+            chat_overlay_max_messages: 15,
+            chat_overlay_bg_opacity: 0.3,
+        }
+    }
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -499,6 +609,9 @@ pub struct GuiState {
     pub debug_console_visible: bool,
     /// Ring buffer of timestamped debug log lines for the overlay.
     pub debug_log: Vec<String>,
+
+    // ── Studio state ──
+    pub studio: StudioState,
 }
 
 #[cfg(feature = "native")]
@@ -687,6 +800,7 @@ impl Default for GuiState {
             chat_user_modal_key: String::new(),
             debug_console_visible: false,
             debug_log: Vec::new(),
+            studio: StudioState::default(),
         }
     }
 }

@@ -24,3 +24,4 @@ pub mod bugs;
 pub mod resources;
 pub mod donate;
 pub mod tools;
+pub mod studio;

@@ -56,7 +56,7 @@ mod native_app {
     use crate::gui::pages::{
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
-        wallet, crafting, guilds, trade, files, bugs, resources, donate, tools,
+        wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
     };
     use crate::hot_reload::HotReloadCoordinator;
     use crate::hot_reload::data_store::DataStore;
@@ -1306,6 +1306,7 @@ mod native_app {
                                     GuiPage::Resources => resources::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Donate => donate::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::None => {}
                                 }
 
