@@ -712,6 +712,7 @@ fn default_planets() -> Vec<GuiPlanet> {
 pub enum SettingsCategory {
     Account,
     Appearance,
+    Widgets,
     Notifications,
     Wallet,
     Audio,

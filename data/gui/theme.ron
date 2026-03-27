@@ -51,4 +51,29 @@
     sidebar_width: 280.0,
     card_padding: 16.0,
     modal_width: 480.0,
+
+    // Widget variables — shared across all widgets for consistent UI
+    // Spacing
+    row_gap: 2.0,
+    section_gap: 4.0,
+    item_padding: 4.0,
+    panel_margin: 8.0,
+
+    // Sizing
+    icon_size: 32.0,
+    icon_small: 16.0,
+    row_height: 18.0,
+    header_height: 36.0,
+    border_width: 1.0,
+    status_dot_size: 8.0,
+
+    // Fonts
+    name_size: 14.0,
+    body_size: 14.0,
+    small_size: 11.0,
+    heading_size: 18.0,
+    title_size: 24.0,
+
+    // Borders
+    border_radius_widget: 0.0,
 )

@@ -1243,7 +1243,7 @@ mod native_app {
                                         escape_menu::draw(ctx, &mut state.gui_state);
                                     }
                                     GuiPage::Settings => {
-                                        settings::draw(ctx, &state.theme, &mut state.gui_state);
+                                        settings::draw(ctx, &mut state.theme, &mut state.gui_state);
                                     }
                                     GuiPage::Inventory => {
                                         inventory::draw(ctx, &state.theme, &mut state.gui_state);

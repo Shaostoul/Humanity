@@ -2,11 +2,11 @@
 //! Provides typed access to all styling variables and applies them to egui.
 
 use egui::{Color32, Context, Rounding, Stroke, Vec2, Visuals};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 type C = (f32, f32, f32, f32);
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Theme {
     pub bg_primary: C,
     pub bg_secondary: C,
@@ -48,6 +48,47 @@ pub struct Theme {
     pub sidebar_width: f32,
     pub card_padding: f32,
     pub modal_width: f32,
+
+    // Widget variables -- shared across all widgets for consistent UI
+    // Spacing
+    #[serde(default = "default_row_gap")]
+    pub row_gap: f32,
+    #[serde(default = "default_section_gap")]
+    pub section_gap: f32,
+    #[serde(default = "default_item_padding")]
+    pub item_padding: f32,
+    #[serde(default = "default_panel_margin")]
+    pub panel_margin: f32,
+
+    // Sizing
+    #[serde(default = "default_icon_size")]
+    pub icon_size: f32,
+    #[serde(default = "default_icon_small")]
+    pub icon_small: f32,
+    #[serde(default = "default_row_height")]
+    pub row_height: f32,
+    #[serde(default = "default_header_height")]
+    pub header_height: f32,
+    #[serde(default = "default_border_width")]
+    pub border_width: f32,
+    #[serde(default = "default_status_dot_size")]
+    pub status_dot_size: f32,
+
+    // Fonts
+    #[serde(default = "default_name_size")]
+    pub name_size: f32,
+    #[serde(default = "default_body_size")]
+    pub body_size: f32,
+    #[serde(default = "default_small_size")]
+    pub small_size: f32,
+    #[serde(default = "default_heading_size")]
+    pub heading_size: f32,
+    #[serde(default = "default_title_size")]
+    pub title_size: f32,
+
+    // Borders
+    #[serde(default = "default_border_radius_widget")]
+    pub border_radius_widget: f32,
 }
 
 impl Theme {
@@ -74,6 +115,57 @@ impl Theme {
     pub fn warning(&self) -> Color32 { Self::c32(&self.warning) }
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
+
+    /// Icon circle radius (half icon_size minus border padding).
+    pub fn icon_radius(&self) -> f32 { self.icon_size / 2.0 - 2.0 }
+
+    /// Half of row_gap, used as inner gap between elements.
+    pub fn half_gap(&self) -> f32 { self.row_gap / 2.0 }
+
+    /// Save the current theme to data/gui/theme.ron.
+    pub fn save(&self) {
+        let paths = [
+            std::path::PathBuf::from("data/gui/theme.ron"),
+            std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.join("data/gui/theme.ron")))
+                .unwrap_or_default(),
+        ];
+
+        let pretty = ron::ser::PrettyConfig::default();
+        if let Ok(serialized) = ron::ser::to_string_pretty(self, pretty) {
+            for path in &paths {
+                if path.exists() || path.parent().map_or(false, |p| p.exists()) {
+                    if let Err(e) = std::fs::write(path, &serialized) {
+                        log::warn!("Failed to save theme to {}: {}", path.display(), e);
+                    } else {
+                        log::info!("Saved theme to {}", path.display());
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Reset only the widget variables to their defaults while keeping colors.
+    pub fn reset_widget_defaults(&mut self) {
+        self.row_gap = 2.0;
+        self.section_gap = 4.0;
+        self.item_padding = 4.0;
+        self.panel_margin = 8.0;
+        self.icon_size = 32.0;
+        self.icon_small = 16.0;
+        self.row_height = 18.0;
+        self.header_height = 36.0;
+        self.border_width = 1.0;
+        self.status_dot_size = 8.0;
+        self.name_size = 14.0;
+        self.body_size = 14.0;
+        self.small_size = 11.0;
+        self.heading_size = 18.0;
+        self.title_size = 24.0;
+        self.border_radius_widget = 0.0;
+    }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
     /// Colors are matched to the web theme.css for visual consistency.
@@ -147,6 +239,24 @@ pub fn load_theme() -> Theme {
     default_theme()
 }
 
+// Serde default functions for widget variables (backward-compatible RON loading)
+fn default_row_gap() -> f32 { 2.0 }
+fn default_section_gap() -> f32 { 4.0 }
+fn default_item_padding() -> f32 { 4.0 }
+fn default_panel_margin() -> f32 { 8.0 }
+fn default_icon_size() -> f32 { 32.0 }
+fn default_icon_small() -> f32 { 16.0 }
+fn default_row_height() -> f32 { 18.0 }
+fn default_header_height() -> f32 { 36.0 }
+fn default_border_width() -> f32 { 1.0 }
+fn default_status_dot_size() -> f32 { 8.0 }
+fn default_name_size() -> f32 { 14.0 }
+fn default_body_size() -> f32 { 14.0 }
+fn default_small_size() -> f32 { 11.0 }
+fn default_heading_size() -> f32 { 18.0 }
+fn default_title_size() -> f32 { 24.0 }
+fn default_border_radius_widget() -> f32 { 0.0 }
+
 fn default_theme() -> Theme {
     Theme {
         bg_primary: (0.039, 0.039, 0.047, 1.0),       // #0a0a0c
@@ -189,5 +299,22 @@ fn default_theme() -> Theme {
         sidebar_width: 280.0,
         card_padding: 16.0,
         modal_width: 480.0,
+        // Widget variables
+        row_gap: 2.0,
+        section_gap: 4.0,
+        item_padding: 4.0,
+        panel_margin: 8.0,
+        icon_size: 32.0,
+        icon_small: 16.0,
+        row_height: 18.0,
+        header_height: 36.0,
+        border_width: 1.0,
+        status_dot_size: 8.0,
+        name_size: 14.0,
+        body_size: 14.0,
+        small_size: 11.0,
+        heading_size: 18.0,
+        title_size: 24.0,
+        border_radius_widget: 0.0,
     }
 }

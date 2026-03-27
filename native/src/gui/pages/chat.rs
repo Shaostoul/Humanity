@@ -106,12 +106,13 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if is_connected {
         // Compact connected indicator
         ui.horizontal(|ui| {
-            ui.add_space(12.0);
-            let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-            ui.painter().circle_filled(rect.center(), 4.0, theme.success());
+            ui.add_space(theme.item_padding);
+            let dot_sz = theme.status_dot_size;
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
+            ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.success());
             ui.label(
                 RichText::new(format!("Connected ({} online)", state.chat_users.iter().filter(|u| u.status != "offline").count()))
-                    .size(theme.font_size_small)
+                    .size(theme.small_size)
                     .color(theme.text_muted()),
             );
         });
@@ -285,7 +286,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 for dm in &dms {
                     let response = ui
                         .allocate_ui_with_layout(
-                            Vec2::new(ui.available_width(), 38.0),
+                            Vec2::new(ui.available_width(), theme.row_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
                                 let full_rect = ui.max_rect();
@@ -296,38 +297,27 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 };
                                 ui.painter().rect_filled(full_rect, 0.0, bg);
 
-                                ui.add_space(12.0);
+                                ui.add_space(theme.item_padding);
 
                                 // Unread dot
                                 if dm.unread {
-                                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(6.0), egui::Sense::hover());
-                                    ui.painter().circle_filled(rect.center(), 3.0, theme.accent());
+                                    let dot_sz = theme.status_dot_size * 0.75;
+                                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
+                                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.accent());
                                 }
 
-                                ui.vertical(|ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            RichText::new(&dm.user_name)
-                                                .size(theme.font_size_body)
-                                                .color(if dm.unread { theme.text_primary() } else { theme.text_secondary() })
-                                                .strong(),
-                                        );
-                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                            ui.add_space(8.0);
-                                            ui.label(
-                                                RichText::new(&dm.timestamp)
-                                                    .size(theme.font_size_small - 2.0)
-                                                    .color(theme.text_muted()),
-                                            );
-                                        });
-                                    });
-                                    if !dm.last_message.is_empty() {
-                                        ui.label(
-                                            RichText::new(truncate_str(&dm.last_message, 30))
-                                                .size(theme.font_size_small - 1.0)
-                                                .color(theme.text_muted()),
-                                        );
-                                    }
+                                ui.label(
+                                    RichText::new(&dm.user_name)
+                                        .size(theme.body_size)
+                                        .color(if dm.unread { theme.text_primary() } else { theme.text_secondary() }),
+                                );
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.add_space(theme.item_padding);
+                                    ui.label(
+                                        RichText::new(&dm.timestamp)
+                                            .size(theme.small_size)
+                                            .color(theme.text_muted()),
+                                    );
                                 });
                             },
                         )
@@ -372,7 +362,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 for group in &groups {
                     let response = ui
                         .allocate_ui_with_layout(
-                            Vec2::new(ui.available_width(), 30.0),
+                            Vec2::new(ui.available_width(), theme.row_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
                                 let full_rect = ui.max_rect();
@@ -382,17 +372,17 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     GROUP_ROW_BG
                                 };
                                 ui.painter().rect_filled(full_rect, 0.0, bg);
-                                ui.add_space(12.0);
+                                ui.add_space(theme.item_padding);
                                 ui.label(
                                     RichText::new(&group.name)
-                                        .size(theme.font_size_body)
+                                        .size(theme.body_size)
                                         .color(theme.text_primary()),
                                 );
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.add_space(8.0);
+                                    ui.add_space(theme.item_padding);
                                     ui.label(
                                         RichText::new(format!("{} members", group.member_count))
-                                            .size(theme.font_size_small - 1.0)
+                                            .size(theme.small_size)
                                             .color(theme.text_muted()),
                                     );
                                 });
@@ -446,12 +436,13 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 if connected {
                     // Server name header
                     ui.horizontal(|ui| {
-                        ui.add_space(12.0);
-                        let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-                        ui.painter().circle_filled(rect.center(), 4.0, theme.success());
+                        ui.add_space(theme.item_padding);
+                        let dot_sz = theme.status_dot_size;
+                        let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
+                        ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.success());
                         ui.label(
                             RichText::new(server_display_name(&state.server_url))
-                                .size(theme.font_size_body)
+                                .size(theme.body_size)
                                 .color(theme.text_primary())
                                 .strong(),
                         );
@@ -463,7 +454,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         ui.add_space(16.0);
                         ui.label(
                             RichText::new("TEXT CHANNELS")
-                                .size(theme.font_size_small - 2.0)
+                                .size(theme.small_size)
                                 .color(theme.text_muted())
                                 .strong(),
                         );
@@ -485,14 +476,14 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
                         let response = ui
                             .allocate_ui_with_layout(
-                                Vec2::new(ui.available_width(), 26.0),
+                                Vec2::new(ui.available_width(), theme.row_height),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
                                     let full_rect = ui.max_rect();
                                     let hover = ui.rect_contains_pointer(full_rect);
                                     let fill = if hover && !is_active { SERVER_ROW_HOVER } else { bg };
                                     ui.painter().rect_filled(full_rect, 0.0, fill);
-                                    ui.add_space(20.0);
+                                    ui.add_space(theme.item_padding * 2.0);
                                     let text_color = if is_active {
                                         theme.text_primary()
                                     } else {
@@ -500,7 +491,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     };
                                     ui.label(
                                         RichText::new(format!("# {}", ch.name))
-                                            .size(theme.font_size_body)
+                                            .size(theme.body_size)
                                             .color(text_color),
                                     );
                                 },
@@ -665,7 +656,7 @@ fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
         for friend in state.chat_friends.clone().iter() {
             ui.horizontal(|ui| {
-                ui.add_space(12.0);
+                ui.add_space(theme.item_padding);
 
                 // Online/offline dot
                 let dot_color = if friend.status == "offline" {
@@ -673,13 +664,14 @@ fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 } else {
                     theme.success()
                 };
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-                ui.painter().circle_filled(rect.center(), 4.0, dot_color);
+                let dot_sz = theme.status_dot_size;
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
+                ui.painter().circle_filled(rect.center(), dot_sz / 2.0, dot_color);
 
                 // Name
                 ui.label(
                     RichText::new(&friend.name)
-                        .size(theme.font_size_body)
+                        .size(theme.body_size)
                         .color(theme.text_primary()),
                 );
 
@@ -688,9 +680,9 @@ fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
                 // Action buttons (DM, call)
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(8.0);
+                    ui.add_space(theme.item_padding);
                     if ui.add(egui::Button::new(
-                        RichText::new("DM").size(theme.font_size_small - 1.0).color(theme.text_muted()),
+                        RichText::new("DM").size(theme.small_size).color(theme.text_muted()),
                     ).fill(Color32::TRANSPARENT)).clicked() {
                         // placeholder
                     }
@@ -732,7 +724,7 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
         for user in &users {
             ui.horizontal(|ui| {
-                ui.add_space(12.0);
+                ui.add_space(theme.item_padding);
 
                 // Online/offline dot
                 let dot_color = match user.status.as_str() {
@@ -741,8 +733,9 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     "busy" | "dnd" => theme.danger(),
                     _ => theme.success(),
                 };
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-                ui.painter().circle_filled(rect.center(), 4.0, dot_color);
+                let dot_sz = theme.status_dot_size;
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
+                ui.painter().circle_filled(rect.center(), dot_sz / 2.0, dot_color);
 
                 // Name
                 let name_color = if user.status == "offline" {
@@ -752,7 +745,7 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 };
                 ui.label(
                     RichText::new(&user.name)
-                        .size(theme.font_size_body)
+                        .size(theme.body_size)
                         .color(name_color),
                 );
 
@@ -859,6 +852,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
                     let response = crate::gui::widgets::row::message_row(
                         ui,
+                        theme,
                         icon_letter,
                         icon_color,
                         &msg.sender_name,
