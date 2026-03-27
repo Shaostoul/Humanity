@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.69.0"
+version = "0.70.0"
 edition = "2021"
 
 [[bin]]
@@ -73,3 +73,6 @@ wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 console_log = { version = "0.2", optional = true }
+
+[build-dependencies]
+winres = "0.1"

@@ -2543,7 +2543,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-engine"
-version = "0.68.0"
+version = "0.69.0"
 dependencies = [
  "bip39",
  "bytemuck",
@@ -2573,7 +2573,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "toml",
+ "toml 0.8.23",
  "tungstenite 0.24.0",
  "ureq",
  "wasm-bindgen",
@@ -2581,6 +2581,7 @@ dependencies = [
  "web-sys",
  "wgpu 24.0.5",
  "winit 0.30.13",
+ "winres",
 ]
 
 [[package]]
@@ -6106,6 +6107,15 @@ dependencies = [
 
 [[package]]
 name = "toml"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "toml"
 version = "0.8.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc1beb996b9d83529a9e75c17a1686767d148d70663143c7854d8b4a09ced362"
@@ -7732,6 +7742,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a90e88e4667264a994d34e6d1ab2d26d398dcdca8b7f52bec8668957517fc7d8"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winres"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b68db261ef59e9e52806f688020631e987592bd83619edccda9c47d42cde4f6c"
+dependencies = [
+ "toml 0.5.11",
 ]
 
 [[package]]
