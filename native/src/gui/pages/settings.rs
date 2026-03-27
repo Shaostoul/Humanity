@@ -493,18 +493,11 @@ fn draw_updates(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
             if let UpdateState::Ready { .. } = &state.updater.state {
                 if widgets::primary_button(ui, theme, "Restart to Apply") {
-                    // The running exe was renamed to .exe.old during apply.
-                    // current_exe() now points to the .old path.
-                    // Strip .old to get the path of the NEW exe.
-                    if let Ok(exe) = std::env::current_exe() {
-                        let exe_str = exe.to_string_lossy().to_string();
-                        let new_exe = if exe_str.ends_with(".old") {
-                            std::path::PathBuf::from(exe_str.trim_end_matches(".old"))
-                        } else {
-                            exe
-                        };
-                        let _ = std::process::Command::new(&new_exe).spawn();
-                    }
+                    // Use the exe path captured at startup (before any renames).
+                    // After apply_update, the new binary is at this path.
+                    let new_exe = &state.updater.exe_path;
+                    log::info!("Restarting from: {}", new_exe.display());
+                    let _ = std::process::Command::new(new_exe).spawn();
                     state.quit_requested = true;
                 }
             }

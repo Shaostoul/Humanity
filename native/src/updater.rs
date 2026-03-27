@@ -117,6 +117,9 @@ pub struct Updater {
     last_check_elapsed: f64,
     /// Receiver for background thread results.
     rx: Option<std::sync::mpsc::Receiver<UpdateMsg>>,
+    /// Path to the exe captured at startup (before any renames).
+    /// Used for restart after update.
+    pub exe_path: PathBuf,
 }
 
 #[cfg(feature = "native")]
@@ -130,6 +133,7 @@ impl Updater {
             check_interval: 3600.0,
             last_check_elapsed: 0.0,
             rx: None,
+            exe_path: std::env::current_exe().unwrap_or_else(|_| PathBuf::from("HumanityOS.exe")),
         }
     }
 
@@ -469,23 +473,32 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
     // The .old file will be cleaned up on next launch.
     let old_path = exe_path.with_extension("exe.old");
 
-    // Remove any existing .old file first
-    let _ = std::fs::remove_file(&old_path);
+    log::info!("Updater: exe_path = {}", exe_path.display());
+    log::info!("Updater: update_path = {}", update_path.display());
+    log::info!("Updater: old_path = {}", old_path.display());
+    log::info!("Updater: update file size = {} bytes",
+        std::fs::metadata(update_path).map(|m| m.len()).unwrap_or(0));
 
+    // Remove any existing .old file first
+    if old_path.exists() {
+        log::info!("Updater: removing existing .old file");
+        let _ = std::fs::remove_file(&old_path);
+    }
+
+    log::info!("Updater: renaming running exe to .old");
     std::fs::rename(exe_path, &old_path)
         .map_err(|e| format!("Failed to rename current exe to .old: {}", e))?;
 
+    log::info!("Updater: renaming .update to exe path");
     if let Err(e) = std::fs::rename(update_path, exe_path) {
         // Try to restore the original if the swap failed
+        log::error!("Updater: swap failed, restoring original: {}", e);
         let _ = std::fs::rename(&old_path, exe_path);
         return Err(format!("Failed to install update binary: {}", e));
     }
 
-    log::info!(
-        "Update applied: {} renamed to {}, new binary installed",
-        exe_path.display(),
-        old_path.display()
-    );
+    log::info!("Updater: SUCCESS. New binary at {}, old at {}",
+        exe_path.display(), old_path.display());
     Ok(())
 }
 
