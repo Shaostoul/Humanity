@@ -493,11 +493,39 @@ fn draw_updates(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
             if let UpdateState::Ready { .. } = &state.updater.state {
                 if widgets::primary_button(ui, theme, "Restart to Apply") {
-                    // Use the exe path captured at startup (before any renames).
-                    // After apply_update, the new binary is at this path.
-                    let new_exe = &state.updater.exe_path;
-                    log::info!("Restarting from: {}", new_exe.display());
-                    let _ = std::process::Command::new(new_exe).spawn();
+                    // Read the restart target from restart_target.txt (written
+                    // before the binary swap) to get the correct exe path.
+                    let target = crate::updater::read_restart_target(&state.updater.exe_path);
+                    crate::debug::push_debug(format!("Updater: restart target = {}", target.display()));
+                    log::info!("Restarting from: {}", target.display());
+
+                    #[cfg(target_os = "windows")]
+                    {
+                        // Use a batch script to wait for this process to exit
+                        // before launching the new binary. This avoids the race
+                        // where the old process hasn't fully released the exe.
+                        match crate::updater::create_restart_script(&target) {
+                            Ok(bat) => {
+                                crate::debug::push_debug(format!("Updater: launching restart script {}", bat.display()));
+                                use std::os::windows::process::CommandExt;
+                                let _ = std::process::Command::new("cmd")
+                                    .args(["/C", &bat.to_string_lossy()])
+                                    .creation_flags(0x00000008) // DETACHED_PROCESS
+                                    .spawn();
+                            }
+                            Err(e) => {
+                                // Fallback: try direct spawn if batch script fails
+                                crate::debug::push_debug(format!("Updater: batch script failed ({}), trying direct spawn", e));
+                                log::warn!("Updater: batch script failed: {}", e);
+                                let _ = std::process::Command::new(&target).spawn();
+                            }
+                        }
+                    }
+                    #[cfg(not(target_os = "windows"))]
+                    {
+                        let _ = std::process::Command::new(&target).spawn();
+                    }
+
                     state.quit_requested = true;
                 }
             }
