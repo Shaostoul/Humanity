@@ -852,15 +852,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let row_bg = if sender_parity { bg_even } else { bg_odd };
                     let icon_color = name_color(&msg.sender_name);
                     let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
-                    let content_lines: Vec<&str> = vec![msg.content.as_str()];
-
                     let _response = crate::gui::widgets::row::message_row(
                         ui,
                         icon_letter,
                         icon_color,
                         &msg.sender_name,
                         &msg.timestamp,
-                        &content_lines,
+                        &msg.content,
                         show_header,
                         row_bg,
                         false, // channeling

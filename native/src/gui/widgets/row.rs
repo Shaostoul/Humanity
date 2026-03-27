@@ -1,26 +1,25 @@
 //! Universal message/item row widget.
 //!
-//! Renders a header (icon + name + timestamp) with content lines beside and
-//! below it. Reusable for chat messages, inventory items, file browser entries,
-//! etc.
+//! Renders a header (icon + name + timestamp) with word-wrapped content beside
+//! and below it. Reusable for chat messages, inventory items, file browser
+//! entries, etc.
 //!
 //! Layout (from pixel spec):
 //! ```text
 //! +--1px top border (RGB when channeling)------------------------------+
 //! | 1px gap                                                            |
-//! | +--1px--+ +--1px--------+  1px | text row 1                       |
+//! | +--1px--+ +--1px--------+  1px | wrapped text row 1               |
 //! | |1px gap| |1px gap      |  gap |                                   |
 //! | |32x32  | |15px name    |      |                                   |
 //! | | icon  | |2px gap      | -----+--                                 |
-//! | |       | |15px time    |      | text row 2                        |
+//! | |       | |15px time    |      | wrapped text row 2                |
 //! | |1px gap| |1px gap      |      |                                   |
 //! | +--1px--+ +--1px--------+      |                                   |
 //! | 1px gap                                                            |
 //! +--1px bottom border---------------------------------------------+
 //!   2px gap
-//!   text row 3 (full width, no border)
+//!   wrapped text row 3+ (full width, no border)
 //!   2px gap
-//!   text row 4 ...
 //! ```
 
 use egui::{Color32, Rect, Sense, Vec2};
@@ -33,33 +32,32 @@ const HOVER_BLUE: Color32 = Color32::from_rgb(52, 152, 219);
 /// + 1px gap + 1px border + 1px gap + 1px border = 36px outer total.
 const HEADER_HEIGHT: f32 = 36.0;
 
-/// Height per content row below the header: 2px gap + 16px text = 18px pitch.
-const CONTENT_ROW_HEIGHT: f32 = 18.0;
+/// Font size for content text beside the header.
+const SIDE_FONT_SIZE: f32 = 13.0;
 
-/// Height per content row inside the header (text rows 1 and 2): 15px.
-const HEADER_TEXT_HEIGHT: f32 = 15.0;
+/// Font size for content text below the header.
+const BELOW_FONT_SIZE: f32 = 14.0;
 
-/// Render a universal row with optional header and content lines.
+/// Render a universal row with optional header and word-wrapped content.
 ///
 /// The header displays a bordered icon box and a bordered name/timestamp box
-/// side by side, with the first two content lines beside them. Content lines
-/// 3+ render below at full width.
+/// side by side, with the first ~2 lines of content beside them (word-wrapped
+/// to fit the available width). Remaining content wraps below at full width.
 ///
-/// When `show_header` is false (same-user continuation), only content lines
-/// are drawn with 2px gaps between them.
+/// When `show_header` is false (same-user continuation), all content renders
+/// below at full width, word-wrapped.
 ///
-/// When `channeling` is true, the top and bottom 1px borders animate through
-/// the RGB spectrum.
+/// When `channeling` is true, the button border animates through the RGB
+/// spectrum.
 ///
-/// Returns the `Response` for the header button area (icon + name boxes).
-/// If the header is hidden, returns the response for the full content area.
+/// Returns the `Response` for the allocated area.
 pub fn message_row(
     ui: &mut egui::Ui,
     icon_letter: char,
     icon_color: Color32,
     name: &str,
     timestamp: &str,
-    content_lines: &[&str],
+    content: &str,
     show_header: bool,
     bg_color: Color32,
     channeling: bool,
@@ -67,60 +65,12 @@ pub fn message_row(
 ) -> egui::Response {
     let full_width = ui.available_width();
     let border_color = Color32::from_rgb(42, 42, 53); // #2a2a35
-
-    // How many content lines go beside the header (rows 1 and 2)?
-    let header_content_count = if show_header {
-        content_lines.len().min(2)
-    } else {
-        0
-    };
-    // How many content lines go below the header?
-    let below_count = if show_header {
-        content_lines.len().saturating_sub(2)
-    } else {
-        content_lines.len()
-    };
-
-    // Total height calculation
-    let header_h = if show_header { HEADER_HEIGHT } else { 0.0 };
-    // Below-header rows: each is 2px gap + 16px text = 18px
-    let below_h = below_count as f32 * CONTENT_ROW_HEIGHT;
-    let total_height = header_h + below_h;
-
-    if total_height <= 0.0 {
-        // Nothing to draw; return a dummy response
-        let (_, resp) = ui.allocate_exact_size(Vec2::ZERO, Sense::click());
-        return resp;
-    }
-
-    let (full_rect, response) =
-        ui.allocate_exact_size(Vec2::new(full_width, total_height), Sense::click());
-
-    if !ui.is_rect_visible(full_rect) {
-        if channeling {
-            ui.ctx().request_repaint();
-        }
-        return response;
-    }
-
+    let text_color = Color32::from_rgb(232, 232, 234);
     let painter = ui.painter();
 
-    // Fill background across the full rect
-    painter.rect_filled(full_rect, 0.0, bg_color);
-
     if show_header {
-        let hx = full_rect.min.x;
-        let hy = full_rect.min.y;
+        // ── Measure header elements to determine button width ──
 
-        // Determine if the mouse is over the icon+name button area for hover
-        let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
-
-        // ── Icon box dimensions ──
-        // Outer: 36x36 (1 border + 1 gap + 32 content + 1 gap + 1 border)
-        let icon_outer = Rect::from_min_size(egui::pos2(hx, hy), Vec2::new(36.0, 36.0));
-
-        // ── Name/timestamp box dimensions ──
-        // Measure text widths to size the name box
         let name_galley = painter.layout_no_wrap(
             name.to_string(),
             egui::FontId::proportional(13.0),
@@ -132,27 +82,102 @@ pub fn message_row(
             Color32::from_rgb(106, 106, 117),
         );
         let text_content_w = name_galley.size().x.max(ts_galley.size().x);
-        // Inner padding: 1px border + 1px gap on each side = 4px total horizontal
         let name_box_w = (text_content_w + 4.0).ceil();
-        let name_box_outer = Rect::from_min_size(
-            egui::pos2(hx + 36.0 + 1.0, hy), // 1px gap between icon box and name box
-            Vec2::new(name_box_w, 36.0),
+
+        // Button right edge: 36px icon box + 1px gap + name_box_w
+        let button_right_x = 36.0 + 1.0 + name_box_w;
+
+        // ── Side text: word-wrapped galley beside the header ──
+        let side_text_x_offset = button_right_x + 4.0; // 2px gap each side
+        let side_width = (full_width - side_text_x_offset - 2.0).max(30.0);
+
+        let side_galley = painter.layout(
+            content.to_string(),
+            egui::FontId::proportional(SIDE_FONT_SIZE),
+            text_color,
+            side_width,
         );
 
-        // The clickable "button" area = icon box + gap + name box
+        // Determine how many galley rows fit beside the header (max 2 lines in 36px).
+        // Each line is ~15px; with the name at y+2 and timestamp at y+19, we can fit
+        // rows whose top is within the 32px inner area (y+2 to y+34).
+        let max_side_y = 32.0; // inner height available
+        let side_rows = &side_galley.rows;
+        let mut side_line_count = 0usize;
+        for row in side_rows.iter() {
+            if row.rect.min.y < max_side_y && side_line_count < 2 {
+                side_line_count += 1;
+            } else {
+                break;
+            }
+        }
+
+        // ── Determine below-header text ──
+        // Count characters across the side rows to find the split point.
+        let below_text = if side_line_count < side_rows.len() {
+            let mut char_count = 0usize;
+            for row_idx in 0..side_line_count {
+                char_count += side_rows[row_idx].glyphs.len();
+                if side_rows[row_idx].ends_with_newline {
+                    char_count += 1; // account for the \n omitted from glyphs
+                }
+            }
+            // Convert char count to byte offset
+            let byte_offset: usize = content.char_indices()
+                .nth(char_count)
+                .map(|(idx, _)| idx)
+                .unwrap_or(content.len());
+            content[byte_offset..].trim_start_matches([' ', '\n', '\r'])
+        } else {
+            "" // all content fits beside the header
+        };
+
+        // Create below-header galley if there's overflow text
+        let below_width = (full_width - 4.0).max(30.0); // 2px margin each side
+        let below_galley = if !below_text.is_empty() {
+            Some(painter.layout(
+                below_text.to_string(),
+                egui::FontId::proportional(BELOW_FONT_SIZE),
+                text_color,
+                below_width,
+            ))
+        } else {
+            None
+        };
+
+        let below_h = below_galley.as_ref().map_or(0.0, |g| g.size().y + 4.0); // 2px gap top + 2px bottom
+        let total_height = HEADER_HEIGHT + below_h;
+
+        // ── Allocate and draw ──
+        let (full_rect, response) =
+            ui.allocate_exact_size(Vec2::new(full_width, total_height), Sense::click());
+
+        if !ui.is_rect_visible(full_rect) {
+            if channeling {
+                ui.ctx().request_repaint();
+            }
+            return response;
+        }
+
+        let painter = ui.painter();
+        painter.rect_filled(full_rect, 0.0, bg_color);
+
+        let hx = full_rect.min.x;
+        let hy = full_rect.min.y;
+
+        // Hover detection for button area
+        let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
+        let icon_outer = Rect::from_min_size(egui::pos2(hx, hy), Vec2::new(36.0, 36.0));
+        let name_box_outer = Rect::from_min_size(
+            egui::pos2(hx + 37.0, hy),
+            Vec2::new(name_box_w, 36.0),
+        );
         let button_rect = Rect::from_min_max(icon_outer.min, name_box_outer.max);
         let button_hovered = pointer_pos
             .map(|p| button_rect.contains(p))
             .unwrap_or(false);
-        let active_border = if channeling {
-            rgb_from_time(ctx_time)
-        } else if button_hovered {
-            HOVER_BLUE
-        } else {
-            border_color
-        };
 
-        // ── Button border (wraps ONLY icon + name/timestamp, not text rows) ──
+        // Button border
         let btn_border_color = if channeling {
             rgb_from_time(ctx_time)
         } else if button_hovered {
@@ -167,13 +192,11 @@ pub fn message_row(
             StrokeKind::Outside,
         );
 
-        // ── Icon box: inside the button border, no separate border needed ──
-        // Inner area starts at (hx+1+1, hy+1+1), size 32x32
+        // Icon circle + letter
         let icon_inner = Rect::from_min_size(
             egui::pos2(hx + 2.0, hy + 2.0),
             Vec2::new(32.0, 32.0),
         );
-        // Draw icon circle and letter
         painter.circle_filled(icon_inner.center(), 14.0, icon_color);
         painter.text(
             icon_inner.center(),
@@ -183,79 +206,85 @@ pub fn message_row(
             Color32::WHITE,
         );
 
-        // ── Name/timestamp: inside the button border, separated from icon by a vertical line ──
+        // Vertical separator between icon and name
         painter.line_segment(
-            [egui::pos2(name_box_outer.min.x - 0.5, hy + 2.0), egui::pos2(name_box_outer.min.x - 0.5, hy + 34.0)],
+            [
+                egui::pos2(name_box_outer.min.x - 0.5, hy + 2.0),
+                egui::pos2(name_box_outer.min.x - 0.5, hy + 34.0),
+            ],
             egui::Stroke::new(1.0, border_color),
         );
-        // Name text: inside at (left + 1border + 1gap, top + 1border + 1gap)
+
+        // Name and timestamp text
         let name_x = name_box_outer.min.x + 2.0;
         let name_y = name_box_outer.min.y + 2.0;
         painter.galley(egui::pos2(name_x, name_y), name_galley, Color32::WHITE);
-        // 2px gap between name and timestamp
-        let ts_y = name_y + HEADER_TEXT_HEIGHT + 2.0;
-        painter.galley(egui::pos2(name_x, ts_y), ts_galley, Color32::from_rgb(106, 106, 117));
+        let ts_y = name_y + 15.0 + 2.0;
+        painter.galley(
+            egui::pos2(name_x, ts_y),
+            ts_galley,
+            Color32::from_rgb(106, 106, 117),
+        );
 
-        // ── Text rows 1 and 2: right of name box, aligned with name and timestamp ──
-        let text_start_x = name_box_outer.max.x + 2.0; // 1px gap + 1px visual separation
-        let text_color = Color32::from_rgb(232, 232, 234);
-
-        if header_content_count >= 1 {
-            // Text row 1: vertically aligned with the name line
-            painter.text(
-                egui::pos2(text_start_x, name_y),
-                egui::Align2::LEFT_TOP,
-                content_lines[0],
-                egui::FontId::proportional(13.0),
-                text_color,
+        // ── Draw side text (word-wrapped, clipped to header height) ──
+        // We draw the side galley but clip it so only the first side_line_count
+        // rows are visible within the header area.
+        if !content.is_empty() {
+            let side_text_pos = egui::pos2(hx + side_text_x_offset, hy + 2.0);
+            let clip_rect = Rect::from_min_size(
+                side_text_pos,
+                Vec2::new(side_width, 32.0), // clip to inner header height
             );
-        }
-        if header_content_count >= 2 {
-            // Text row 2: vertically aligned with the timestamp line
-            painter.text(
-                egui::pos2(text_start_x, ts_y),
-                egui::Align2::LEFT_TOP,
-                content_lines[1],
-                egui::FontId::proportional(13.0),
-                text_color,
-            );
+            // Use a clipped painter so text doesn't overflow the header area
+            let clipped = painter.with_clip_rect(clip_rect);
+            clipped.galley(side_text_pos, side_galley, text_color);
         }
 
-        // ── Content rows 3+ below the header ──
-        let below_start_y = hy + HEADER_HEIGHT;
-        for i in 0..below_count {
-            let line_idx = i + 2; // content_lines index (skip first 2)
-            let row_y = below_start_y + (i as f32 * CONTENT_ROW_HEIGHT);
-            // 2px gap then 16px text
-            painter.text(
-                egui::pos2(hx + 2.0, row_y + 2.0),
-                egui::Align2::LEFT_TOP,
-                content_lines[line_idx],
-                egui::FontId::proportional(14.0),
-                text_color,
-            );
+        // ── Draw below-header text ──
+        if let Some(galley) = below_galley {
+            let below_y = hy + HEADER_HEIGHT + 2.0;
+            painter.galley(egui::pos2(hx + 2.0, below_y), galley, text_color);
         }
+
+        if channeling {
+            ui.ctx().request_repaint();
+        }
+
+        response
     } else {
-        // No header -- continuation rows only
-        let text_color = Color32::from_rgb(232, 232, 234);
-        for (i, line) in content_lines.iter().enumerate() {
-            let row_y = full_rect.min.y + (i as f32 * CONTENT_ROW_HEIGHT);
-            // 2px gap then 16px text
-            painter.text(
-                egui::pos2(full_rect.min.x + 2.0, row_y + 2.0),
-                egui::Align2::LEFT_TOP,
-                *line,
-                egui::FontId::proportional(14.0),
-                text_color,
-            );
+        // ── No header: continuation rows, full-width word wrap ──
+        let wrap_width = (full_width - 4.0).max(30.0);
+
+        if content.is_empty() {
+            let (_, resp) = ui.allocate_exact_size(Vec2::ZERO, Sense::click());
+            return resp;
         }
-    }
 
-    if channeling {
-        ui.ctx().request_repaint();
-    }
+        let galley = painter.layout(
+            content.to_string(),
+            egui::FontId::proportional(BELOW_FONT_SIZE),
+            text_color,
+            wrap_width,
+        );
 
-    response
+        let total_height = galley.size().y + 4.0; // 2px top + 2px bottom margin
+        let (full_rect, response) =
+            ui.allocate_exact_size(Vec2::new(full_width, total_height), Sense::click());
+
+        if !ui.is_rect_visible(full_rect) {
+            return response;
+        }
+
+        let painter = ui.painter();
+        painter.rect_filled(full_rect, 0.0, bg_color);
+        painter.galley(
+            egui::pos2(full_rect.min.x + 2.0, full_rect.min.y + 2.0),
+            galley,
+            text_color,
+        );
+
+        response
+    }
 }
 
 /// Generate an RGB color cycling through the hue spectrum over time.
