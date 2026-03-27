@@ -964,6 +964,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 let json_str = chat_msg.to_string();
                                 crate::debug::push_debug(format!("WS >>> {}", json_str));
                                 client.send(&json_str);
+
+                                // Track timestamp for dedup when server echoes it back
+                                state.chat_sent_timestamps.push(ts);
+                                // Keep only last 20 timestamps
+                                if state.chat_sent_timestamps.len() > 20 {
+                                    state.chat_sent_timestamps.remove(0);
+                                }
                             }
                         }
 

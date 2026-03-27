@@ -695,8 +695,16 @@ mod native_app {
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("")
                                             .to_string();
-                                        // Skip our own messages (already added locally)
-                                        if sender_key == state.gui_state.profile_public_key {
+                                        let msg_timestamp = val.get("timestamp")
+                                            .and_then(|v| v.as_u64())
+                                            .unwrap_or(0);
+                                        // Skip only messages WE sent from THIS client
+                                        // (already added locally). Check by matching
+                                        // our key + exact timestamp in recent sent list.
+                                        if sender_key == state.gui_state.profile_public_key
+                                            && state.gui_state.chat_sent_timestamps.contains(&msg_timestamp)
+                                        {
+                                            state.gui_state.chat_sent_timestamps.retain(|&t| t != msg_timestamp);
                                             continue;
                                         }
                                         let sender_name = val.get("from_name")

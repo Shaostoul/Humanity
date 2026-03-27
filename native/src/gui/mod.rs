@@ -284,6 +284,8 @@ pub struct GuiState {
     pub settings: SettingsState,
     pub chat_input: String,
     pub chat_messages: Vec<ChatMessage>,
+    /// Timestamps of messages sent from THIS client (for dedup on echo).
+    pub chat_sent_timestamps: Vec<u64>,
     pub chat_channels: Vec<ChatChannel>,
     pub chat_active_channel: String,
     pub chat_users: Vec<ChatUser>,
@@ -498,6 +500,7 @@ impl Default for GuiState {
             settings: SettingsState::default(),
             chat_input: String::new(),
             chat_messages: Vec::new(),
+            chat_sent_timestamps: Vec::new(),
             chat_channels: vec![
                 ChatChannel { id: "general".into(), name: "general".into(), description: "General discussion".into(), category: "Text".into() },
                 ChatChannel { id: "stream".into(), name: "stream".into(), description: "Live stream chat".into(), category: "Text".into() },
