@@ -6,6 +6,38 @@
     "enabled": true,
     "goal_usd": 100000,
     "goal_label": "Full-time development for 1 year",
+    "addresses": [
+      {
+        "network": "GitHub Sponsors",
+        "type": "url",
+        "value": "https://github.com/sponsors/Shaostoul",
+        "label": "Recurring or one-time"
+      },
+      {
+        "network": "Solana (SOL)",
+        "type": "address",
+        "value": "",
+        "label": "Send SOL or SPL tokens"
+      },
+      {
+        "network": "Bitcoin (BTC)",
+        "type": "address",
+        "value": "",
+        "label": "Send BTC"
+      },
+      {
+        "network": "Ethereum (ETH)",
+        "type": "address",
+        "value": "",
+        "label": "Send ETH or ERC-20 tokens"
+      },
+      {
+        "network": "Monero (XMR)",
+        "type": "address",
+        "value": "",
+        "label": "Private cryptocurrency"
+      }
+    ],
     "sources": [
       {
         "type": "github_sponsors",

@@ -240,10 +240,11 @@ fn draw_account(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new("Donation Addresses").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Configure donation addresses shown on the Donate page.")
+        ui.label(RichText::new("Configure donation addresses shown on the Donate page. Supports any cryptocurrency or URL.")
             .color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_sm);
 
+        // Legacy fields (kept for backward compatibility)
         ui.horizontal(|ui| {
             ui.label(RichText::new("Solana (SOL):").color(theme.text_secondary()));
             ui.add(egui::TextEdit::singleline(&mut state.donate_solana_address)
@@ -260,9 +261,129 @@ fn draw_account(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .hint_text("Bitcoin address (bc1...)"));
         });
 
+        ui.add_space(theme.spacing_md);
+        ui.separator();
         ui.add_space(theme.spacing_sm);
 
-        if widgets::secondary_button(ui, theme, "Save Addresses") {
+        // Dynamic addresses list
+        ui.label(RichText::new("Additional Addresses").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+
+        let mut remove_idx: Option<usize> = None;
+        let mut swap_up_idx: Option<usize> = None;
+
+        for (i, addr) in state.donate_addresses.iter_mut().enumerate() {
+            let frame = egui::Frame::none()
+                .fill(theme.bg_secondary())
+                .rounding(egui::Rounding::same(4))
+                .inner_margin(8.0);
+
+            frame.show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(format!("{}.", i + 1)).color(theme.text_muted()).size(theme.font_size_small));
+
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Network:").color(theme.text_muted()).size(theme.font_size_small));
+                            ui.add(egui::TextEdit::singleline(&mut addr.network)
+                                .desired_width(150.0)
+                                .hint_text("e.g. Ethereum (ETH)"));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Value:").color(theme.text_muted()).size(theme.font_size_small));
+                            ui.add(egui::TextEdit::singleline(&mut addr.value)
+                                .desired_width(250.0)
+                                .hint_text("Address or URL"));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Label:").color(theme.text_muted()).size(theme.font_size_small));
+                            ui.add(egui::TextEdit::singleline(&mut addr.label)
+                                .desired_width(200.0)
+                                .hint_text("Short description"));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Type:").color(theme.text_muted()).size(theme.font_size_small));
+                            egui::ComboBox::from_id_salt(format!("donate_type_{}", i))
+                                .selected_text(&addr.addr_type)
+                                .width(100.0)
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut addr.addr_type, "address".into(), "address");
+                                    ui.selectable_value(&mut addr.addr_type, "url".into(), "url");
+                                });
+                        });
+                    });
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.small_button("X").clicked() {
+                            remove_idx = Some(i);
+                        }
+                        if i > 0 && ui.small_button("Up").clicked() {
+                            swap_up_idx = Some(i);
+                        }
+                    });
+                });
+            });
+            ui.add_space(4.0);
+        }
+
+        // Process removals and reordering
+        if let Some(idx) = remove_idx {
+            state.donate_addresses.remove(idx);
+        }
+        if let Some(idx) = swap_up_idx {
+            state.donate_addresses.swap(idx, idx - 1);
+        }
+
+        ui.add_space(theme.spacing_sm);
+
+        // Add new address form
+        ui.label(RichText::new("Add Address").color(theme.text_muted()).size(theme.font_size_small));
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Network:").color(theme.text_muted()).size(theme.font_size_small));
+            ui.add(egui::TextEdit::singleline(&mut state.donate_new_network)
+                .desired_width(150.0)
+                .hint_text("e.g. Monero (XMR)"));
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Value:").color(theme.text_muted()).size(theme.font_size_small));
+            ui.add(egui::TextEdit::singleline(&mut state.donate_new_value)
+                .desired_width(250.0)
+                .hint_text("Address or URL"));
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Label:").color(theme.text_muted()).size(theme.font_size_small));
+            ui.add(egui::TextEdit::singleline(&mut state.donate_new_label)
+                .desired_width(200.0)
+                .hint_text("Short description"));
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Type:").color(theme.text_muted()).size(theme.font_size_small));
+            egui::ComboBox::from_id_salt("donate_new_type")
+                .selected_text(&state.donate_new_type)
+                .width(100.0)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut state.donate_new_type, "address".into(), "address");
+                    ui.selectable_value(&mut state.donate_new_type, "url".into(), "url");
+                });
+        });
+
+        ui.add_space(theme.spacing_xs);
+        if widgets::secondary_button(ui, theme, "Add Address") && !state.donate_new_network.is_empty() {
+            state.donate_addresses.push(crate::gui::DonateAddress {
+                network: state.donate_new_network.clone(),
+                addr_type: state.donate_new_type.clone(),
+                value: state.donate_new_value.clone(),
+                label: state.donate_new_label.clone(),
+            });
+            state.donate_new_network.clear();
+            state.donate_new_value.clear();
+            state.donate_new_label.clear();
+            state.donate_new_type = "address".into();
+        }
+
+        ui.add_space(theme.spacing_sm);
+
+        if widgets::secondary_button(ui, theme, "Save All Addresses") {
             crate::config::AppConfig::from_gui_state(state).save();
         }
     });

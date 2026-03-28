@@ -75,6 +75,21 @@ pub struct AppConfig {
     pub donate_solana_address: String,
     #[serde(default)]
     pub donate_btc_address: String,
+    /// Dynamic donation addresses (new flexible format).
+    #[serde(default)]
+    pub donate_addresses: Vec<DonateAddressConfig>,
+}
+
+/// Serializable donation address entry for config persistence.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DonateAddressConfig {
+    pub network: String,
+    #[serde(default)]
+    pub addr_type: String,
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub label: String,
 }
 
 fn default_fov() -> f32 { 90.0 }
@@ -257,6 +272,12 @@ impl AppConfig {
             chat_right_panel_width: state.chat_right_panel_width,
             donate_solana_address: state.donate_solana_address.clone(),
             donate_btc_address: state.donate_btc_address.clone(),
+            donate_addresses: state.donate_addresses.iter().map(|a| DonateAddressConfig {
+                network: a.network.clone(),
+                addr_type: a.addr_type.clone(),
+                value: a.value.clone(),
+                label: a.label.clone(),
+            }).collect(),
         }
     }
 
@@ -289,6 +310,12 @@ impl AppConfig {
         // Donation addresses
         state.donate_solana_address = self.donate_solana_address.clone();
         state.donate_btc_address = self.donate_btc_address.clone();
+        state.donate_addresses = self.donate_addresses.iter().map(|a| crate::gui::DonateAddress {
+            network: a.network.clone(),
+            addr_type: a.addr_type.clone(),
+            value: a.value.clone(),
+            label: a.label.clone(),
+        }).collect();
 
         // Store encrypted key fields so they persist through save cycles
         state.encrypted_private_key = self.encrypted_private_key.clone();

@@ -1,5 +1,6 @@
 /**
- * Donate page logic — fetches funding config, renders source cards,
+ * Donate page logic — fetches funding config, renders source cards
+ * dynamically from the flexible addresses array (or legacy sources),
  * queries blockchain balances client-side, animates progress bar.
  */
 (function () {
@@ -10,7 +11,34 @@
 
   // ── State ──
   let fundingConfig = null;
-  let totals = { github: 0, solana: 0, bitcoin: 0, total: 0 };
+  let totals = { total: 0 };
+
+  // ── Network icon colors for the colored-circle abbreviation display ──
+  var networkColors = {
+    'github sponsors': '#c678dd',
+    'solana (sol)':    '#9945ff',
+    'bitcoin (btc)':   '#f7931a',
+    'ethereum (eth)':  '#627eea',
+    'monero (xmr)':    '#ff6600',
+    'litecoin (ltc)':  '#bfbbbb',
+    'polygon (matic)': '#8247e5',
+    'avalanche (avax)':'#e84142',
+    'cardano (ada)':   '#0033ad',
+    'dogecoin (doge)': '#c2a633'
+  };
+
+  /** Extract a short abbreviation from network name, e.g. "Solana (SOL)" -> "SOL" */
+  function networkAbbrev(name) {
+    var match = name.match(/\(([^)]+)\)/);
+    if (match) return match[1];
+    // Fallback: first 3 chars uppercase
+    return name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+  }
+
+  /** Get icon color for a network name (case-insensitive lookup, fallback to accent) */
+  function networkColor(name) {
+    return networkColors[name.toLowerCase()] || '#4a9';
+  }
 
   // ── Helpers ──
 
@@ -21,7 +49,7 @@
 
   /** Copy text to clipboard, show "Copied!" feedback on button */
   function copyAddress(addr, btnEl) {
-    if (!addr || addr === 'Coming soon') return;
+    if (!addr) return;
     navigator.clipboard.writeText(addr).then(function () {
       btnEl.textContent = 'Copied!';
       btnEl.classList.add('copied');
@@ -30,7 +58,6 @@
         btnEl.classList.remove('copied');
       }, 2000);
     }).catch(function () {
-      // Fallback for insecure contexts
       var ta = document.createElement('textarea');
       ta.value = addr;
       ta.style.position = 'fixed';
@@ -50,13 +77,12 @@
 
   /** Generate a QR code SVG for the given text, append to container */
   function renderQR(container, text) {
-    if (!text || text === 'Coming soon' || typeof qrcode === 'undefined') return;
+    if (!text || typeof qrcode === 'undefined') return;
     try {
       var qr = qrcode(0, 'M');
       qr.addData(text);
       qr.make();
       container.innerHTML = qr.createSvgTag(3, 2);
-      // Style the SVG for dark/light theme
       var svg = container.querySelector('svg');
       if (svg) {
         svg.style.width = '120px';
@@ -66,8 +92,13 @@
         svg.style.borderRadius = '6px';
       }
     } catch (e) {
-      // QR generation failed — just show text address
+      // QR generation failed
     }
+  }
+
+  /** Minimal HTML escape */
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // ── Progress bar ──
@@ -82,13 +113,71 @@
     document.getElementById('progress-goal').textContent = fmtUSD(goal);
     document.getElementById('progress-pct').textContent = pct.toFixed(1) + '%';
 
-    // Animate fill after a brief delay so the transition is visible
     requestAnimationFrame(function () {
       document.getElementById('progress-fill').style.width = pct + '%';
     });
   }
 
-  // ── Source card rendering ──
+  // ── Dynamic address card rendering (new flexible format) ──
+
+  function renderAddressCards(addresses) {
+    var grid = document.getElementById('source-grid');
+    grid.innerHTML = '';
+
+    addresses.forEach(function (entry, idx) {
+      var card = document.createElement('div');
+      card.className = 'source-card';
+
+      var abbrev = networkAbbrev(entry.network);
+      var color = networkColor(entry.network);
+      var label = entry.label || '';
+      var value = entry.value || '';
+      var hasValue = value && value.length > 0;
+
+      // Icon: colored circle with abbreviation
+      var iconHtml = '<span class="source-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:' + color + ';color:#fff;font-size:0.7rem;font-weight:700;flex-shrink:0;">' + escHtml(abbrev) + '</span>';
+
+      if (entry.type === 'url') {
+        // URL-based source (e.g. GitHub Sponsors)
+        card.innerHTML =
+          '<h3>' + iconHtml + ' ' + escHtml(entry.network) + '</h3>' +
+          '<p>' + escHtml(label) + '</p>' +
+          (hasValue
+            ? '<a href="' + escHtml(value) + '" target="_blank" rel="noopener" class="btn-sponsor">Open</a>'
+            : '<div class="coming-soon">Link coming soon</div>');
+      } else {
+        // Address-based source (crypto address)
+        var qrId = 'qr-addr-' + idx;
+        card.innerHTML =
+          '<h3>' + iconHtml + ' ' + escHtml(entry.network) + '</h3>' +
+          '<p>' + escHtml(label) + '</p>' +
+          (hasValue
+            ? '<div class="addr-row"><span class="addr-text">' + escHtml(value) + '</span>' +
+              '<button class="btn-copy" onclick="window.__donateCopy(\'' + escHtml(value) + '\', this)">Copy</button></div>' +
+              '<div class="qr-container" id="' + qrId + '"></div>'
+            : '<div class="coming-soon">Address coming soon</div>');
+      }
+
+      grid.appendChild(card);
+    });
+
+    // Render QR codes after cards are in the DOM
+    addresses.forEach(function (entry, idx) {
+      if (entry.type === 'address' && entry.value) {
+        var qrEl = document.getElementById('qr-addr-' + idx);
+        if (qrEl) {
+          // Prefix with protocol for Bitcoin-style URI
+          var qrText = entry.value;
+          var netLower = entry.network.toLowerCase();
+          if (netLower.includes('bitcoin')) qrText = 'bitcoin:' + entry.value;
+          else if (netLower.includes('ethereum')) qrText = 'ethereum:' + entry.value;
+          renderQR(qrEl, qrText);
+        }
+      }
+    });
+  }
+
+  // ── Legacy source card rendering (backward compatible) ──
 
   function renderSourceCards(sources) {
     var grid = document.getElementById('source-grid');
@@ -147,34 +236,22 @@
     });
   }
 
-  /** Minimal HTML escape */
-  function escHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-  }
+  // ── Breakdown (works with both formats) ──
 
-  // ── Breakdown ──
-
-  function renderBreakdown(sources) {
+  function renderBreakdown(entries) {
     var section = document.getElementById('breakdown-section');
     var rows = document.getElementById('breakdown-rows');
     rows.innerHTML = '';
 
-    var labels = {
-      github_sponsors: 'GitHub Sponsors',
-      solana: 'Solana wallet',
-      bitcoin: 'Bitcoin wallet'
-    };
-
-    var hasData = false;
-    sources.forEach(function (src) {
-      var amt = totals[src.type === 'github_sponsors' ? 'github' : src.type] || 0;
+    entries.forEach(function (entry) {
+      // Determine label: new format uses .network, legacy uses type-based labels
+      var label = entry.network || entry.label || entry.type || 'Unknown';
       var row = document.createElement('div');
       row.className = 'breakdown-row';
       row.innerHTML =
-        '<span class="label">' + (labels[src.type] || src.type) + '</span>' +
-        '<span class="value">' + fmtUSD(amt) + '</span>';
+        '<span class="label">' + escHtml(label) + '</span>' +
+        '<span class="value">' + fmtUSD(0) + '</span>';
       rows.appendChild(row);
-      if (amt > 0) hasData = true;
     });
 
     // Total row
@@ -188,17 +265,11 @@
     section.style.display = '';
   }
 
-  // ── Blockchain balance queries (placeholders) ──
+  // ── Blockchain balance queries ──
 
-  /**
-   * Fetch Solana wallet balance in USD.
-   * Uses public Solana RPC + CoinGecko for price conversion.
-   * Returns 0 for now until addresses are configured.
-   */
   async function fetchSolanaBalance(address) {
-    if (!address || address === 'Coming soon') return 0;
+    if (!address) return 0;
     try {
-      // Query SOL balance via public RPC
       var resp = await fetch('https://api.mainnet-beta.solana.com', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -212,7 +283,6 @@
       var lamports = (data.result && data.result.value) || 0;
       var sol = lamports / 1e9;
 
-      // Get SOL price in USD
       var priceResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
       var priceData = await priceResp.json();
       var solPrice = (priceData.solana && priceData.solana.usd) || 0;
@@ -223,17 +293,11 @@
     }
   }
 
-  /**
-   * Fetch Bitcoin wallet balance in USD.
-   * Uses mempool.space public API + CoinGecko for price.
-   * Returns 0 for now until addresses are configured.
-   */
   async function fetchBitcoinBalance(address) {
-    if (!address || address === 'Coming soon') return 0;
+    if (!address) return 0;
     try {
       var resp = await fetch('https://mempool.space/api/address/' + address);
       var data = await resp.json();
-      // chain_stats.funded_txo_sum - chain_stats.spent_txo_sum = balance in sats
       var funded = (data.chain_stats && data.chain_stats.funded_txo_sum) || 0;
       var spent = (data.chain_stats && data.chain_stats.spent_txo_sum) || 0;
       var btc = (funded - spent) / 1e8;
@@ -271,39 +335,45 @@
     } catch (e) { /* quota exceeded or private mode */ }
   }
 
-  // ── Fetch totals ──
+  // ── Fetch totals (works with both new addresses and legacy sources) ──
 
-  async function fetchTotals(sources) {
-    // Try cache first
+  async function fetchTotals(addresses) {
     var cached = loadCache();
     if (cached && cached.totals) {
       totals = cached.totals;
       return;
     }
 
-    var solSource = sources.find(function (s) { return s.type === 'solana'; });
-    var btcSource = sources.find(function (s) { return s.type === 'bitcoin'; });
+    var total = 0;
 
-    var solBal = solSource ? await fetchSolanaBalance(solSource.address) : 0;
-    var btcBal = btcSource ? await fetchBitcoinBalance(btcSource.address) : 0;
+    for (var i = 0; i < addresses.length; i++) {
+      var entry = addresses[i];
+      var addr = entry.value || entry.address || '';
+      if (!addr) continue;
 
-    totals.solana = solBal;
-    totals.bitcoin = btcBal;
-    totals.github = 0; // No public API — manual entry in config
-    totals.total = solBal + btcBal + totals.github;
+      var netLower = (entry.network || entry.type || '').toLowerCase();
+      if (netLower.includes('solana') || entry.type === 'solana') {
+        var bal = await fetchSolanaBalance(addr);
+        total += bal;
+      } else if (netLower.includes('bitcoin') || entry.type === 'bitcoin') {
+        var bal = await fetchBitcoinBalance(addr);
+        total += bal;
+      }
+    }
 
+    totals.total = total;
     saveCache(totals);
   }
 
-  // ── Default config (used when server-info has no funding block) ──
+  // ── Default config ──
 
   var defaultConfig = {
     goal_usd: 100000,
     goal_label: 'Full-time development for 1 year',
-    sources: [
-      { type: 'github_sponsors', url: 'https://github.com/sponsors/Shaostoul' },
-      { type: 'solana', address: 'Coming soon' },
-      { type: 'bitcoin', address: 'Coming soon' }
+    addresses: [
+      { network: 'GitHub Sponsors', type: 'url', value: 'https://github.com/sponsors/Shaostoul', label: 'Recurring or one-time' },
+      { network: 'Solana (SOL)', type: 'address', value: '', label: 'Send SOL or SPL tokens' },
+      { network: 'Bitcoin (BTC)', type: 'address', value: '', label: 'Send BTC' }
     ],
     display_progress: true
   };
@@ -311,7 +381,6 @@
   // ── Init ──
 
   async function init() {
-    // Fetch server-info for funding config
     try {
       var resp = await fetch('/api/server-info');
       var info = await resp.json();
@@ -320,13 +389,24 @@
       fundingConfig = defaultConfig;
     }
 
-    var sources = fundingConfig.sources || defaultConfig.sources;
+    // Prefer new "addresses" array; fall back to legacy "sources"
+    var useNewFormat = Array.isArray(fundingConfig.addresses) && fundingConfig.addresses.length > 0;
+    var entries = useNewFormat ? fundingConfig.addresses : fundingConfig.sources;
 
-    // Render cards immediately (addresses might be "Coming soon")
-    renderSourceCards(sources);
+    if (!entries || entries.length === 0) {
+      entries = defaultConfig.addresses;
+      useNewFormat = true;
+    }
 
-    // Fetch balances and update
-    await fetchTotals(sources);
+    // Render cards using appropriate renderer
+    if (useNewFormat) {
+      renderAddressCards(entries);
+    } else {
+      renderSourceCards(entries);
+    }
+
+    // Fetch balances
+    await fetchTotals(entries);
 
     // Progress bar
     if (fundingConfig.display_progress !== false) {
@@ -337,7 +417,7 @@
     }
 
     // Breakdown
-    renderBreakdown(sources);
+    renderBreakdown(entries);
   }
 
   // Expose copy function for inline onclick handlers

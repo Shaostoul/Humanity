@@ -195,8 +195,19 @@ Detect and display NFTs with Metaplex metadata.
 - Web: `web/shared/wallet.js`
 
 ### Donation Page
-Funding tracker with progress bar, multi-source support (GitHub Sponsors, Solana, Bitcoin).
+Funding tracker with progress bar, dynamic multi-crypto address support (unlimited networks).
 - Web: `web/pages/donate.html`, `web/pages/donate-app.js`
+- Native: `native/src/gui/pages/donate.rs`
+- Data: `data/server-config.json` (funding.addresses array)
+
+### Wallet Guide
+Step-by-step beginner guide for all wallet operations (receive, send, buy, sell, swap, backup, glossary).
+- Web: `web/pages/wallet-guide.html`, `web/pages/wallet-guide-app.js`
+- Access: "?" help icon on wallet page tab bar
+
+### Admin Donation Address Management
+Admin settings UI for adding, editing, removing, and reordering donation addresses.
+- Native: `native/src/gui/pages/settings.rs` (Donation Addresses section)
 
 ---
 

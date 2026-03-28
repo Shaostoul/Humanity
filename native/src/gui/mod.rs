@@ -14,6 +14,20 @@ pub mod pages;
 #[cfg(feature = "native")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// A single donation address entry (for the dynamic addresses array).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct DonateAddress {
+    /// Network display name, e.g. "Solana (SOL)", "Bitcoin (BTC)"
+    pub network: String,
+    /// Type: "address" or "url"
+    pub addr_type: String,
+    /// The address or URL value
+    pub value: String,
+    /// Human-readable label, e.g. "Send SOL or SPL tokens"
+    pub label: String,
+}
+
 /// What the passphrase prompt is for.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -629,10 +643,20 @@ pub struct GuiState {
 
     // ── Donation address config ──
 
-    /// Admin-configurable Solana donation address.
+    /// Admin-configurable Solana donation address (legacy).
     pub donate_solana_address: String,
-    /// Admin-configurable Bitcoin donation address.
+    /// Admin-configurable Bitcoin donation address (legacy).
     pub donate_btc_address: String,
+    /// Dynamic donation addresses fetched from server config.
+    pub donate_addresses: Vec<DonateAddress>,
+    /// Temp fields for the "Add Address" form in settings.
+    pub donate_new_network: String,
+    /// Temp type for new address ("address" or "url").
+    pub donate_new_type: String,
+    /// Temp value for new address.
+    pub donate_new_value: String,
+    /// Temp label for new address.
+    pub donate_new_label: String,
 
     // ── Chat user profile modal ──
 
@@ -880,6 +904,11 @@ impl Default for GuiState {
             key_salt: String::new(),
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
+            donate_addresses: Vec::new(),
+            donate_new_network: String::new(),
+            donate_new_type: "address".into(),
+            donate_new_value: String::new(),
+            donate_new_label: String::new(),
             chat_user_modal_open: false,
             chat_user_modal_name: String::new(),
             chat_user_modal_key: String::new(),

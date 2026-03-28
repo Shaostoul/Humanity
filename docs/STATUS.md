@@ -102,10 +102,12 @@ Everything in this section is **built and working**.
 | Token swaps | ✅ | Jupiter API integration, slippage settings, price impact warnings (v0.25.0) |
 | Staking | ✅ | Validator picker, stake/unstake flows (v0.25.0) |
 | NFT support | ✅ | Detection, Metaplex metadata, grid display with detail modals (v0.25.0) |
-| Donation page | ✅ | Progress bar, source cards (GitHub/Solana/Bitcoin), FAQ (v0.25.0) |
-| Server funding config | ✅ | data/server-config.json with owner_key, funding sources (v0.25.0) |
+| Donation page | ✅ | Progress bar, dynamic multi-crypto address cards, FAQ (v0.25.0, enhanced v0.73.0) |
+| Server funding config | ✅ | data/server-config.json with flexible addresses array supporting unlimited networks (v0.25.0, enhanced v0.73.0) |
 | Wallet settings | ✅ | Network selection, custom RPC URL, nav balance toggle (v0.25.0) |
 | Wallet on profile | ✅ | Solana address and balance shown on profile cards (v0.25.0) |
+| Wallet guide | ✅ | 9-section beginner guide: wallet basics, send, receive, buy, sell, swap, backup, glossary (v0.73.0) |
+| Admin donation addresses | ✅ | Add/edit/remove/reorder donation addresses in native settings, dynamic rendering in web+native (v0.73.0) |
 
 ---
 
