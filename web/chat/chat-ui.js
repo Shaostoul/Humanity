@@ -1260,13 +1260,17 @@ var federatedServersFetched = false;
     }
     voiceHtml += '</div>';
 
+    // Scratch Pad channel (always first, local-only)
+    const scratchActive = activeChannel === '__scratch__' && !activeDmPartner && !activeGroupId;
+    const scratchHtml = `<div class="channel-item scratch-pad-item${scratchActive ? ' active' : ''}" data-channel-id="__scratch__" title="Local workspace. Nothing sent to anyone." style="color:var(--warning,#e0a030);font-style:italic;">scratch-pad</div>`;
+
     let html = `<div class="server-group${isCollapsed ? ' collapsed' : ''}" data-server="Humanity">
       <div class="server-group-header" data-server-toggle="Humanity" style="font-weight:bold;">
         <span class="collapse-arrow">▼</span>
         <span class="srv-name">🟢 🅷 Humanity</span>
         ${pinnedBtnsHtml}
       </div>
-      <div class="server-group-channels">${channelsHtml}${createChannelBtn}${voiceHtml}</div>
+      <div class="server-group-channels">${scratchHtml}${channelsHtml}${createChannelBtn}${voiceHtml}</div>
     </div>`;
 
     // Federated servers.

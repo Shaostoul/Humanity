@@ -63,6 +63,92 @@ let identityConfirmed = false;
 let activeChannel = localStorage.getItem('humanity_channel') || 'general';
 let channelList = [];
 let replyTarget = null; // { author, body, fromKey, timestamp, element }
+
+// ── Scratch Pad (local-only channel) ──
+const SCRATCH_PAD_ID = '__scratch__';
+const SCRATCH_PAD_CHANNEL = {
+  id: SCRATCH_PAD_ID,
+  name: 'scratch-pad',
+  description: 'Local only. Nothing sent to the server. Test formatting, take notes, run /commands.',
+  read_only: false,
+  voice_enabled: false,
+  federated: false,
+};
+
+/** Check if currently viewing the scratch pad. */
+function isScratchPad() {
+  return activeChannel === SCRATCH_PAD_ID;
+}
+
+/** Load scratch pad messages from localStorage. */
+function loadScratchPadMessages() {
+  try {
+    return JSON.parse(localStorage.getItem('hos_scratch_msgs') || '[]');
+  } catch { return []; }
+}
+
+/** Save scratch pad messages to localStorage. */
+function saveScratchPadMessages(msgs) {
+  // Keep last 500 messages to avoid bloating storage.
+  if (msgs.length > 500) msgs = msgs.slice(-500);
+  localStorage.setItem('hos_scratch_msgs', JSON.stringify(msgs));
+}
+
+/** Handle scratch pad slash commands. Returns true if handled. */
+function handleScratchCommand(content) {
+  const parts = content.split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+  const arg = parts.slice(1).join(' ');
+
+  switch (cmd) {
+    case '/clear':
+      saveScratchPadMessages([]);
+      document.getElementById('messages').innerHTML = '';
+      addSystemMessage('Scratch pad cleared.');
+      return true;
+    case '/echo':
+      addChatMessage('Echo', arg || '(empty)', Date.now(), '__system__', false, false, null, null);
+      return true;
+    case '/time':
+      addChatMessage('System', new Date().toLocaleString(), Date.now(), '__system__', false, false, null, null);
+      return true;
+    case '/markdown':
+    case '/md':
+      addChatMessage('Preview', arg || '**bold** *italic* `code` ~~strike~~', Date.now(), '__system__', false, false, null, null);
+      return true;
+    case '/help':
+      addSystemMessage(
+        'Scratch Pad Commands:\\n' +
+        '/clear - Clear all scratch messages\\n' +
+        '/echo <text> - Echo text back\\n' +
+        '/md <text> - Preview markdown rendering\\n' +
+        '/time - Show current time\\n' +
+        '/count - Show message count\\n' +
+        '/export - Copy all messages to clipboard\\n' +
+        '/help - Show this help'
+      );
+      return true;
+    case '/count': {
+      const msgs = loadScratchPadMessages();
+      addSystemMessage('Scratch pad has ' + msgs.length + ' message(s).');
+      return true;
+    }
+    case '/export': {
+      const msgs = loadScratchPadMessages();
+      const text = msgs.map(m => '[' + new Date(m.timestamp).toLocaleString() + '] ' + m.from_name + ': ' + m.content).join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        addSystemMessage('Copied ' + msgs.length + ' messages to clipboard.');
+      });
+      return true;
+    }
+    default:
+      if (content.startsWith('/')) {
+        addSystemMessage('Unknown command: ' + cmd + '. Type /help for available commands.');
+        return true;
+      }
+      return false;
+  }
+}
 let peerData = {};
 
 function resolveSenderName(rawName, fromKey) {
@@ -936,7 +1022,26 @@ async function handleMessage(msg) {
 async function sendMessage() {
   const input = document.getElementById('msg-input');
   let content = input.value.trim();
-  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!content) return;
+
+  // ── Scratch Pad: handle locally, never send to server ──
+  if (isScratchPad()) {
+    input.value = '';
+    input.style.height = 'auto';
+    // Check for slash commands first.
+    if (handleScratchCommand(content)) return;
+    // Otherwise, store and display as a local message.
+    const timestamp = Date.now();
+    const msg = { from_name: myName || 'You', from: myKey || '__local__', content, timestamp };
+    const msgs = loadScratchPadMessages();
+    msgs.push(msg);
+    saveScratchPadMessages(msgs);
+    addChatMessage(msg.from_name, content, timestamp, msg.from, false, false, null, null);
+    input.focus();
+    return;
+  }
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
   if (!identityConfirmed || !myKey || !myName || myName.toLowerCase() === 'anonymous') {
     addNotice('Identity still initializing. Please retry in a moment.', 'yellow', 6);
     return;
@@ -1521,6 +1626,19 @@ function switchChannel(channelId) {
   if (typeof renderGroupList === 'function') renderGroupList(); // Deselect active group
   updateChannelHeader();
   updateInputForChannel();
+
+  // ── Scratch Pad: load from localStorage instead of server ──
+  if (channelId === SCRATCH_PAD_ID) {
+    const msgs = loadScratchPadMessages();
+    msgs.forEach(m => {
+      addChatMessage(m.from_name, m.content, m.timestamp, m.from, false, false, null, null);
+    });
+    if (msgs.length === 0) {
+      addSystemMessage('Scratch Pad: your private workspace. Nothing leaves your browser. Type /help for commands.');
+    }
+    return;
+  }
+
   // Load pins for the new channel.
   loadPinsForChannel(channelId);
   // Close pin list when switching channels.
@@ -1532,9 +1650,18 @@ function switchChannel(channelId) {
 }
 
 function updateInputForChannel() {
-  const ch = channelList.find(c => c.id === activeChannel);
   const input = document.getElementById('msg-input');
   const sendBtn = document.getElementById('send-btn');
+
+  // Scratch pad is always writable with a custom placeholder.
+  if (isScratchPad()) {
+    input.disabled = false;
+    input.placeholder = 'Scratch pad: type anything or /help for commands...';
+    sendBtn.disabled = false;
+    return;
+  }
+
+  const ch = channelList.find(c => c.id === activeChannel);
   // Check if the current user is admin/mod.
   const myRole = (peerData[myKey] && peerData[myKey].role) ? peerData[myKey].role : '';
   const isStaff = myRole === 'admin' || myRole === 'mod';
@@ -1552,6 +1679,12 @@ function updateInputForChannel() {
 
 function updateChannelHeader() {
   const header = document.getElementById('channel-header');
+  // Scratch pad gets a special header.
+  if (isScratchPad()) {
+    header.innerHTML = '<span class="ch-name" style="color:var(--warning,#e0a030);"># scratch-pad</span><span class="ch-desc">Local only. Nothing sent to anyone.</span>';
+    header.style.display = 'block';
+    return;
+  }
   const ch = channelList.find(c => c.id === activeChannel);
   if (ch) {
     const lock = ch.read_only ? ' ' + hosIcon('lock', 14) : '';

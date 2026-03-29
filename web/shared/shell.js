@@ -46,9 +46,16 @@
       var xhr = new XMLHttpRequest();
       xhr.open('GET', '/shared/icons.js', false);
       xhr.send();
-      if (xhr.status === 200) { var s = document.createElement('script'); s.textContent = xhr.responseText; document.head.appendChild(s); }
+      if (xhr.status === 200) {
+        var s = document.createElement('script');
+        s.textContent = xhr.responseText;
+        document.head.appendChild(s);
+      }
     } catch(e) {
-      // Fallback: async load (icons may render on next repaint)
+      console.warn('[HOS] Sync icon load failed:', e);
+    }
+    // If sync load didn't work, try async
+    if (!window.hosIcon) {
       var iconsScript = document.createElement('script');
       iconsScript.src = '/shared/icons.js';
       document.head.appendChild(iconsScript);
@@ -1145,7 +1152,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.83.1';
+    var CURRENT_VERSION = '0.84.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

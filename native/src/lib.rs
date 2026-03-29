@@ -1007,8 +1007,23 @@ mod native_app {
                                             log::info!("DM list received: {} conversations", state.gui_state.chat_dms.len());
                                         }
                                     }
+                                    Some("group_list") => {
+                                        if let Some(groups) = val.get("groups").and_then(|v| v.as_array()) {
+                                            state.gui_state.chat_groups.clear();
+                                            for g in groups {
+                                                let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let id = g.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                state.gui_state.chat_groups.push(crate::gui::ChatGroup {
+                                                    name,
+                                                    id,
+                                                    member_count: 0,
+                                                });
+                                            }
+                                            log::info!("Group list received: {} groups", state.gui_state.chat_groups.len());
+                                        }
+                                    }
                                     Some("reactions_sync") | Some("pins_sync")
-                                    | Some("group_list") | Some("member_joined") => {
+                                    | Some("member_joined") => {
                                         // Acknowledged but not yet rendered in native UI
                                         log::debug!("Received server message type: {:?}", val.get("type"));
                                     }

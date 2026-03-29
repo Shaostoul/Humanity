@@ -511,17 +511,27 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     // Green speaker icon if voice is active on this channel
                                     if ch.voice_joined {
                                         ui.label(
-                                            RichText::new("\u{1F50A}")
+                                            RichText::new("[)))")
                                                 .size(theme.body_size - 2.0)
                                                 .color(theme.success()),
                                         );
                                     }
 
-                                    ui.label(
-                                        RichText::new(format!("# {}", ch.name))
-                                            .size(theme.body_size)
-                                            .color(text_color),
+                                    // Channel name as clickable button (not label)
+                                    let name_btn = ui.add(
+                                        egui::Button::new(
+                                            RichText::new(format!("# {}", ch.name))
+                                                .size(theme.body_size)
+                                                .color(text_color),
+                                        )
+                                        .frame(false)
+                                        .fill(Color32::TRANSPARENT),
                                     );
+                                    if name_btn.clicked() {
+                                        state.chat_active_channel = ch.id.clone();
+                                        state.chat_messages.clear();
+                                        state.history_fetched = false;
+                                    }
 
                                     // Voice Join/Leave button + gear icon on the right
                                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -541,7 +551,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                             } else {
                                                 let mic_color = if false { Color32::WHITE } else { Color32::from_rgb(120, 120, 130) };
                                                 let mic_resp = ui.add(egui::Button::new(
-                                                    RichText::new("\u{1F3A4}")
+                                                    RichText::new("Mic")
                                                         .size(theme.font_size_small)
                                                         .color(mic_color),
                                                 ).fill(Color32::TRANSPARENT).frame(false));
@@ -557,7 +567,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                                     ui.painter().text(
                                                         mic_resp.rect.center(),
                                                         egui::Align2::CENTER_CENTER,
-                                                        "\u{1F3A4}",
+                                                        "Mic",
                                                         egui::FontId::proportional(theme.font_size_small),
                                                         Color32::WHITE,
                                                     );
@@ -576,7 +586,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                                 Color32::from_rgb(120, 120, 130)
                                             };
                                             let gear_resp = ui.add(egui::Button::new(
-                                                RichText::new("\u{2699}")
+                                                RichText::new("*")
                                                     .size(12.0)
                                                     .color(gear_color),
                                             ).fill(Color32::TRANSPARENT).frame(false));
@@ -592,7 +602,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                                 ui.painter().text(
                                                     gear_resp.rect.center(),
                                                     egui::Align2::CENTER_CENTER,
-                                                    "\u{2699}",
+                                                    "*",
                                                     egui::FontId::proportional(12.0),
                                                     Color32::WHITE,
                                                 );
@@ -1456,9 +1466,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 // ─────────────────────────────── Create Channel Modal ──────────────────────
 
 fn draw_create_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let mut open = state.show_create_channel_modal;
     egui::Window::new("Create Channel")
-        .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -1534,15 +1542,12 @@ fn draw_create_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gui
                 }
             });
         });
-    state.show_create_channel_modal = open;
 }
 
 // ─────────────────────────────── Edit Channel Modal ──────────────────────
 
 fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let mut open = state.show_channel_edit_modal;
     egui::Window::new("Edit Channel")
-        .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -1699,15 +1704,12 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                 });
             }
         });
-    state.show_channel_edit_modal = open;
 }
 
 // ─────────────────────────────── Create Group Modal ─────────────────────
 
 fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let mut open = state.show_create_group_modal;
     egui::Window::new("Create Group")
-        .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -1768,15 +1770,12 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                 }
             });
         });
-    state.show_create_group_modal = open;
 }
 
 // ─────────────────────────────── Join Group Modal ──────────────────────
 
 fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let mut open = state.show_join_group_modal;
     egui::Window::new("Join Group")
-        .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -1837,7 +1836,6 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 }
             });
         });
-    state.show_join_group_modal = open;
 }
 
 // ─────────────────────────────── UI Helpers ──────────────────────────────
@@ -1845,7 +1843,7 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 /// Draw a lock/unlock toggle button at the top of a panel.
 /// Returns true if the button was clicked (toggle lock state).
 fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bool {
-    let icon = if locked { "\u{1F512}" } else { "\u{1F513}" }; // locked/unlocked padlock
+    let icon = if locked { "[=]" } else { "[/]" }; // locked/unlocked
     let tooltip = if locked { "Unlock panel width" } else { "Lock panel width" };
     let response = ui.horizontal(|ui| {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1884,7 +1882,7 @@ fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Co
                 ui.painter().rect_filled(full_rect, 0.0, header_bg);
                 ui.add_space(8.0);
 
-                let arrow = if collapsed { "\u{25B8}" } else { "\u{25BE}" };
+                let arrow = if collapsed { ">" } else { "v" };
                 ui.label(
                     RichText::new(arrow)
                         .size(12.0)
@@ -1917,7 +1915,7 @@ fn section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) 
                 ui.painter().rect_filled(full_rect, 0.0, bg);
                 ui.add_space(10.0);
 
-                let arrow = if collapsed { "\u{25B8}" } else { "\u{25BE}" };
+                let arrow = if collapsed { ">" } else { "v" };
                 ui.label(
                     RichText::new(arrow)
                         .size(12.0)
