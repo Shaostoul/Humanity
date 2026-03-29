@@ -205,6 +205,7 @@ mod native_app {
         system_runner: SystemRunner,
         data_store: DataStore,
         star_renderer: Option<crate::renderer::stars::StarRenderer>,
+        floating_origin: crate::renderer::floating_origin::FloatingOrigin,
         planet: Option<PlanetRenderer>,
         planet_mesh: Option<usize>,
         planet_material: usize,
@@ -450,6 +451,7 @@ mod native_app {
                 system_runner,
                 data_store,
                 star_renderer,
+                floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
                 planet,
                 planet_mesh,
                 planet_material,
@@ -593,6 +595,17 @@ mod native_app {
 
                     // Update camera from input
                     state.controller.update_camera(&mut state.camera, dt);
+
+                    // Accumulate camera movement into f64 world position, reset f32
+                    state.camera.world_position += glam::DVec3::new(
+                        state.camera.position.x as f64,
+                        state.camera.position.y as f64,
+                        state.camera.position.z as f64,
+                    );
+                    state.camera.position = Vec3::ZERO;
+
+                    // Update floating origin to match camera world position
+                    state.floating_origin.camera_world_pos = state.camera.world_position;
 
                     // Sync camera state into DataStore for game systems
                     state.data_store.insert("camera_position", state.camera.position);

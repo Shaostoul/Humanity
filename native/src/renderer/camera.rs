@@ -9,7 +9,7 @@
 //! winit key codes (native) and string key names (WASM).
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Quat, Vec3};
+use glam::{DVec3, Mat4, Quat, Vec3};
 
 // ── GPU uniform ──────────────────────────────────────────────
 
@@ -82,6 +82,12 @@ pub struct Camera {
     pub far: f32,
     pub projection: Projection,
 
+    /// Absolute world position in meters (f64 precision).
+    /// Updated each frame by accumulating the f32 `position` delta.
+    /// The camera controller moves `position` (f32), which gets
+    /// accumulated into `world_position` (f64) and reset to zero.
+    pub world_position: DVec3,
+
     // Mode
     pub mode: CameraMode,
 
@@ -121,7 +127,7 @@ impl Camera {
             fov_degrees: 90.0,
             aspect: 16.0 / 9.0,
             near: 0.1,
-            far: 10000.0,
+            far: 1_000_000_000.0, // 1 billion meters = 1 million km
             projection: Projection::Perspective,
 
             mode: CameraMode::FirstPerson,
@@ -137,6 +143,8 @@ impl Camera {
             orbit_distance_min: 1.0,
             orbit_distance_max: 1000.0,
             ortho_size: 10.0,
+
+            world_position: DVec3::ZERO,
 
             transition: None,
         }

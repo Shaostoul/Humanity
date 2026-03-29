@@ -4,6 +4,7 @@
 //! Supports both native (winit window) and WASM (canvas) targets.
 
 pub mod camera;
+pub mod floating_origin;
 pub mod mesh;
 pub mod multi_scale;
 pub mod pipeline;
