@@ -1,0 +1,36 @@
+id,formula,name,density_kg_m3,flammable,explosive_range_percent_low,explosive_range_percent_high,toxic,asphyxiant,color,odor,auto_ignition_temp_k,description
+hydrogen,H2,Hydrogen,0.0899,true,4.0,75.0,false,true,colorless,odorless,773,Lightest gas; extremely wide explosive range; clean-burning fuel
+helium,He,Helium,0.1785,false,0,0,false,true,colorless,odorless,,Inert noble gas; lifting gas; cryogenic coolant; non-flammable
+nitrogen,N2,Nitrogen,1.251,false,0,0,false,true,colorless,odorless,,78% of atmosphere; inert; displaces oxygen in enclosed spaces causing asphyxiation
+oxygen,O2,Oxygen,1.429,false,0,0,false,false,colorless,odorless,,21% of atmosphere; supports combustion; essential for respiration
+argon,Ar,Argon,1.784,false,0,0,false,true,colorless,odorless,,Third most abundant atmospheric gas; welding shield gas; inert
+carbon_dioxide,CO2,Carbon Dioxide,1.977,false,0,0,false,true,colorless,odorless,,Exhaled gas; greenhouse effect; carbonation; asphyxiant at high concentration
+carbon_monoxide,CO,Carbon Monoxide,1.250,true,12.5,74.0,true,false,colorless,odorless,882,Silent killer; binds hemoglobin irreversibly; incomplete combustion product
+methane,CH4,Methane,0.657,true,5.0,15.0,false,true,colorless,odorless,813,Natural gas primary component; potent greenhouse gas; swamp gas
+ethane,C2H6,Ethane,1.356,true,3.0,12.4,false,true,colorless,odorless,788,Found in natural gas; petrochemical feedstock
+propane,C3H8,Propane,1.830,true,2.1,9.5,false,true,colorless,odorless,723,LPG fuel; easily liquefied for portable use; odorant added for safety
+butane,C4H10,Butane,2.489,true,1.8,8.4,false,true,colorless,odorless,678,Lighter fuel; LPG component; refrigerant; easily liquefied
+acetylene,C2H2,Acetylene,1.097,true,2.5,100.0,false,true,colorless,garlic-like,578,Welding fuel; extremely wide explosive range; unstable under pressure
+ammonia,NH3,Ammonia,0.730,true,15.0,28.0,true,false,colorless,pungent,924,Refrigerant; fertilizer feedstock; detectable at 5 ppm; corrosive to lungs
+chlorine,Cl2,Chlorine,3.214,false,0,0,true,false,yellow-green,pungent,,Highly toxic; water disinfectant; used as WWI chemical weapon
+fluorine,F2,Fluorine,1.696,false,0,0,true,false,pale_yellow,pungent,,Most reactive element; toxic; reacts with almost everything including glass
+hydrogen_sulfide,H2S,Hydrogen Sulfide,1.363,true,4.0,44.0,true,false,colorless,rotten_eggs,533,Deadens smell sense at high concentration; produced by decomposition
+sulfur_dioxide,SO2,Sulfur Dioxide,2.619,false,0,0,true,false,colorless,pungent,,Volcanic gas; acid rain precursor; preservative (E220); respiratory irritant
+nitrogen_dioxide,NO2,Nitrogen Dioxide,1.880,false,0,0,true,false,brown,pungent,,Smog component; forms nitric acid with water; toxic oxidizer
+ozone,O3,Ozone,2.14,false,0,0,true,false,pale_blue,sharp_metallic,,Stratospheric UV shield; ground-level pollutant; powerful oxidizer
+radon,Rn,Radon,9.73,false,0,0,true,false,colorless,odorless,,Radioactive noble gas; seeps from soil; second leading cause of lung cancer
+neon,Ne,Neon,0.900,false,0,0,false,true,colorless,odorless,,Noble gas; reddish-orange neon signs; fifth most abundant gas in atmosphere
+krypton,Kr,Krypton,3.749,false,0,0,false,true,colorless,odorless,,Noble gas; used in photographic flash and fluorescent lighting
+xenon,Xe,Xenon,5.894,false,0,0,false,true,colorless,odorless,,Noble gas; anesthetic properties; ion thruster propellant; headlamp gas
+nitrous_oxide,N2O,Nitrous Oxide,1.977,false,0,0,false,true,colorless,slightly_sweet,,Laughing gas; dental anesthetic; whipped cream propellant; oxidizer
+phosgene,COCl2,Phosgene,4.248,false,0,0,true,false,colorless,fresh_hay,,WWI chemical weapon; insidious delayed lung damage; industrial chemical
+hydrogen_cyanide,HCN,Hydrogen Cyanide,0.687,true,5.6,40.0,true,false,colorless,bitter_almonds,811,Extremely toxic; blocks cellular respiration; used in pest fumigation
+ethylene,C2H4,Ethylene,1.178,true,2.7,36.0,false,true,colorless,sweet_musky,763,Plant ripening hormone; most-produced organic chemical; plastic feedstock
+phosphine,PH3,Phosphine,1.379,true,1.8,98.0,true,false,colorless,garlic_fish,311,Extremely toxic fumigant; pyrophoric at low concentrations; semiconductor dopant
+silane,SiH4,Silane,1.313,true,1.4,96.0,true,false,colorless,repulsive,,Pyrophoric gas; semiconductor manufacturing; ignites spontaneously in air
+diborane,B2H6,Diborane,1.131,true,0.8,98.0,true,false,colorless,sweet_nauseating,,Extremely reactive rocket fuel; toxic; reacts with water
+chlorine_trifluoride,ClF3,Chlorine Trifluoride,3.799,false,0,0,true,false,colorless,pungent,,Hypergolic with nearly everything; more reactive than fluorine; incendiary
+methyl_mercaptan,CH3SH,Methyl Mercaptan,1.93,true,3.9,21.8,true,false,colorless,rotten_cabbage,573,Added to natural gas as odorant; detected at ppb levels; produced by decay
+hydrogen_chloride,HCl,Hydrogen Chloride,1.639,false,0,0,true,false,colorless,pungent,,Forms hydrochloric acid with moisture; corrosive; throat and lung irritant
+sulfur_hexafluoride,SF6,Sulfur Hexafluoride,6.17,false,0,0,false,true,colorless,odorless,,Extremely potent greenhouse gas; electrical insulator; deepens voice
+natural_gas,CH4_C2H6,Natural Gas (mixed),0.8,true,4.4,15.0,false,true,colorless,mercaptan_added,813,Fossil fuel mixture mostly methane; odorant added for leak detection

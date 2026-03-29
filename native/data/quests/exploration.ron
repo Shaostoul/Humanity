@@ -1,0 +1,56 @@
+// HumanityOS Quest Chain: Exploration
+// Quests that drive players to explore the surrounding environment.
+
+[
+    (
+        id: "exploration_first_survey",
+        name: "Initial Survey",
+        description: "Explore your immediate surroundings and gather information about the local environment.",
+        steps: [
+            (
+                description: "Survey the northern region",
+                objective: Travel(destination: "region_north"),
+            ),
+            (
+                description: "Survey the southern region",
+                objective: Travel(destination: "region_south"),
+            ),
+            (
+                description: "Gather environmental soil samples (5)",
+                objective: Gather(item_id: "soil_sample", quantity: 5),
+            ),
+            (
+                description: "Locate a water source",
+                objective: Travel(destination: "water_source"),
+            ),
+        ],
+        rewards: [
+            ("map_compass", 1),
+        ],
+        prerequisite: Some("tutorial_first_habitat"),
+    ),
+
+    (
+        id: "exploration_distant_lands",
+        name: "Distant Expeditions",
+        description: "Venture far from your habitat to discover new resources and locations.",
+        steps: [
+            (
+                description: "Construct an exploration rover",
+                objective: Build(blueprint_id: "rover"),
+            ),
+            (
+                description: "Explore distant regions",
+                objective: Travel(destination: "distant_region"),
+            ),
+            (
+                description: "Discover rare mineral deposits (3)",
+                objective: Gather(item_id: "rare_mineral", quantity: 3),
+            ),
+        ],
+        rewards: [
+            ("multimeter", 1),
+        ],
+        prerequisite: Some("exploration_first_survey"),
+    ),
+]

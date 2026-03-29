@@ -1,0 +1,52 @@
+// HumanityOS Quest Chain: Construction
+// Advanced building quests unlocked after tutorial completion.
+
+[
+    (
+        id: "construction_advanced_habitat",
+        name: "Advanced Habitat Construction",
+        description: "Expand your habitat with more sophisticated construction techniques and materials.",
+        steps: [
+            (
+                description: "Craft reinforced steel beams (10)",
+                objective: Craft(recipe_id: "steel_beam", quantity: 10),
+            ),
+            (
+                description: "Construct a dedicated workshop room",
+                objective: Build(blueprint_id: "room_workshop"),
+            ),
+            (
+                description: "Add ventilation systems for air quality (3)",
+                objective: Build(blueprint_id: "ventilation_system"),
+            ),
+        ],
+        rewards: [
+            ("welding_torch", 1),
+        ],
+        prerequisite: Some("tutorial_first_habitat"),
+    ),
+
+    (
+        id: "construction_multi_level",
+        name: "Multi-Level Construction",
+        description: "Learn to build upward with multi-story construction techniques.",
+        steps: [
+            (
+                description: "Construct a staircase between levels",
+                objective: Build(blueprint_id: "staircase"),
+            ),
+            (
+                description: "Build a second floor with floor tiles (20)",
+                objective: Build(blueprint_id: "floor_tile"),
+            ),
+            (
+                description: "Gather steel ingots for upper walls (16)",
+                objective: Gather(item_id: "steel_ingot", quantity: 16),
+            ),
+        ],
+        rewards: [
+            ("steel_ingot", 20),
+        ],
+        prerequisite: Some("construction_advanced_habitat"),
+    ),
+]

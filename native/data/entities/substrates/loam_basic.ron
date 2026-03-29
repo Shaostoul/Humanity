@@ -1,0 +1,16 @@
+// data/entities/substrates/loam_basic.ron
+(
+  substrate_type_id: "loam_basic",
+  common_name: "Loam (basic)",
+  default_volume_m3: 0.25,
+  water_capacity_l_per_m3: 250.0,
+  drain_rate: 0.15,
+  aeration_index: 0.7,
+
+  nitrate_mg_per_m3: 60000.0,
+  phosphate_mg_per_m3: 30000.0,
+  potassium_mg_per_m3: 80000.0,
+
+  ph: 6.5,
+  organic_matter_index: 0.08,
+)

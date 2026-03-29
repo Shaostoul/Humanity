@@ -1,0 +1,1075 @@
+{
+  "categories": {
+    "space": "Space & Astronomy",
+    "engineering": "Engineering",
+    "materials": "Materials",
+    "survival": "Survival",
+    "building": "Crafting & Building",
+    "gaming": "Gaming & Engine",
+    "crypto": "Crypto & Identity"
+  },
+  "terms": {
+    "orbit": {
+      "term": "Orbit",
+      "category": "space",
+      "definition": "The curved path an object takes around a star, planet, or moon due to gravity. Described by parameters like eccentricity, inclination, and semi-major axis.",
+      "link": "https://en.wikipedia.org/wiki/Orbit"
+    },
+    "eccentricity": {
+      "term": "Eccentricity",
+      "category": "space",
+      "definition": "A measure of how much an orbit deviates from a perfect circle. A value of 0 is circular, values approaching 1 are highly elongated ellipses.",
+      "link": "https://en.wikipedia.org/wiki/Orbital_eccentricity"
+    },
+    "semi-major axis": {
+      "term": "Semi-Major Axis",
+      "category": "space",
+      "definition": "Half the longest diameter of an elliptical orbit. It defines the size of an orbit and is used to calculate orbital period.",
+      "link": "https://en.wikipedia.org/wiki/Semi-major_and_semi-minor_axes"
+    },
+    "inclination": {
+      "term": "Inclination",
+      "category": "space",
+      "definition": "The angle between an orbit's plane and a reference plane (usually the ecliptic for solar system objects). 0 degrees means the orbit lies in the reference plane.",
+      "link": "https://en.wikipedia.org/wiki/Orbital_inclination"
+    },
+    "perihelion": {
+      "term": "Perihelion",
+      "category": "space",
+      "definition": "The point in an orbit closest to the Sun. Earth reaches perihelion around January 3 each year, at about 147.1 million km.",
+      "link": "https://en.wikipedia.org/wiki/Perihelion_and_aphelion"
+    },
+    "aphelion": {
+      "term": "Aphelion",
+      "category": "space",
+      "definition": "The point in an orbit farthest from the Sun. Earth reaches aphelion around July 4 each year, at about 152.1 million km.",
+      "link": "https://en.wikipedia.org/wiki/Perihelion_and_aphelion"
+    },
+    "heliosphere": {
+      "term": "Heliosphere",
+      "category": "space",
+      "definition": "The vast bubble-like region of space dominated by the solar wind, extending far beyond the orbit of Pluto. It shields the solar system from interstellar radiation.",
+      "link": "https://en.wikipedia.org/wiki/Heliosphere"
+    },
+    "heliopause": {
+      "term": "Heliopause",
+      "category": "space",
+      "definition": "The boundary where the solar wind's pressure is balanced by the interstellar medium. It marks the outer edge of the heliosphere, about 123 AU from the Sun.",
+      "link": "https://en.wikipedia.org/wiki/Heliopause"
+    },
+    "oort cloud": {
+      "term": "Oort Cloud",
+      "category": "space",
+      "definition": "A theoretical spherical shell of icy objects surrounding the solar system at distances of 2,000 to 100,000 AU. Believed to be the source of long-period comets.",
+      "link": "https://en.wikipedia.org/wiki/Oort_cloud"
+    },
+    "kuiper belt": {
+      "term": "Kuiper Belt",
+      "category": "space",
+      "definition": "A region of the solar system beyond Neptune (30-50 AU) containing thousands of icy bodies including dwarf planets like Pluto and Makemake.",
+      "link": "https://en.wikipedia.org/wiki/Kuiper_belt"
+    },
+    "asteroid belt": {
+      "term": "Asteroid Belt",
+      "category": "space",
+      "definition": "A region between Mars and Jupiter (2.2-3.2 AU) containing millions of rocky bodies. Despite popular imagery, objects are widely spaced.",
+      "link": "https://en.wikipedia.org/wiki/Asteroid_belt"
+    },
+    "dwarf planet": {
+      "term": "Dwarf Planet",
+      "category": "space",
+      "definition": "A celestial body orbiting the Sun that is massive enough for gravity to make it round, but has not cleared its orbital neighborhood of other debris. Examples: Pluto, Ceres, Eris.",
+      "link": "https://en.wikipedia.org/wiki/Dwarf_planet"
+    },
+    "gas giant": {
+      "term": "Gas Giant",
+      "category": "space",
+      "definition": "A large planet composed primarily of hydrogen and helium, lacking a well-defined solid surface. Jupiter and Saturn are the solar system's gas giants.",
+      "link": "https://en.wikipedia.org/wiki/Gas_giant"
+    },
+    "ice giant": {
+      "term": "Ice Giant",
+      "category": "space",
+      "definition": "A giant planet composed mainly of elements heavier than hydrogen and helium, such as water, ammonia, and methane. Uranus and Neptune are ice giants.",
+      "link": "https://en.wikipedia.org/wiki/Ice_giant"
+    },
+    "terrestrial planet": {
+      "term": "Terrestrial Planet",
+      "category": "space",
+      "definition": "A rocky planet with a solid surface, composed primarily of silicate rocks and metals. Mercury, Venus, Earth, and Mars are the solar system's terrestrial planets.",
+      "link": "https://en.wikipedia.org/wiki/Terrestrial_planet"
+    },
+    "albedo": {
+      "term": "Albedo",
+      "category": "space",
+      "definition": "The fraction of sunlight reflected by a surface, from 0 (absorbs all light) to 1 (reflects all light). Fresh snow has an albedo around 0.9; asphalt around 0.04.",
+      "link": "https://en.wikipedia.org/wiki/Albedo"
+    },
+    "au": {
+      "term": "AU (Astronomical Unit)",
+      "category": "space",
+      "definition": "The average distance from the Earth to the Sun, approximately 149.6 million km (93 million miles). Used as a standard unit for measuring distances within the solar system.",
+      "link": "https://en.wikipedia.org/wiki/Astronomical_unit"
+    },
+    "light-year": {
+      "term": "Light-Year",
+      "category": "space",
+      "definition": "The distance light travels in one year in a vacuum: approximately 9.461 trillion km (5.879 trillion miles). Used to measure interstellar and intergalactic distances.",
+      "link": "https://en.wikipedia.org/wiki/Light-year"
+    },
+    "parsec": {
+      "term": "Parsec",
+      "category": "space",
+      "definition": "A unit of distance equal to about 3.26 light-years (30.86 trillion km). Defined as the distance at which one AU subtends an angle of one arcsecond.",
+      "link": "https://en.wikipedia.org/wiki/Parsec"
+    },
+    "red dwarf": {
+      "term": "Red Dwarf",
+      "category": "space",
+      "definition": "A small, cool star with a surface temperature below 4,000 K and a mass less than 0.6 solar masses. The most common type of star in the Milky Way.",
+      "link": "https://en.wikipedia.org/wiki/Red_dwarf"
+    },
+    "neutron star": {
+      "term": "Neutron Star",
+      "category": "space",
+      "definition": "The ultra-dense collapsed core of a massive star after a supernova. A teaspoon of neutron star material would weigh about 6 billion tonnes on Earth.",
+      "link": "https://en.wikipedia.org/wiki/Neutron_star"
+    },
+    "black hole": {
+      "term": "Black Hole",
+      "category": "space",
+      "definition": "A region of spacetime where gravity is so strong that nothing, not even light, can escape once past the event horizon. Formed from collapsed massive stars or found at galaxy centers.",
+      "link": "https://en.wikipedia.org/wiki/Black_hole"
+    },
+    "nebula": {
+      "term": "Nebula",
+      "category": "space",
+      "definition": "A giant cloud of gas and dust in space. Some nebulae are regions where new stars are born; others are the remnants of dead or dying stars.",
+      "link": "https://en.wikipedia.org/wiki/Nebula"
+    },
+    "galaxy": {
+      "term": "Galaxy",
+      "category": "space",
+      "definition": "A gravitationally bound system of stars, gas, dust, and dark matter. The Milky Way contains 100-400 billion stars and is about 100,000 light-years across.",
+      "link": "https://en.wikipedia.org/wiki/Galaxy"
+    },
+    "solar wind": {
+      "term": "Solar Wind",
+      "category": "space",
+      "definition": "A continuous stream of charged particles (mostly protons and electrons) released from the Sun's corona at speeds of 300-800 km/s.",
+      "link": "https://en.wikipedia.org/wiki/Solar_wind"
+    },
+    "magnetosphere": {
+      "term": "Magnetosphere",
+      "category": "space",
+      "definition": "The region around a planet dominated by its magnetic field. Earth's magnetosphere deflects solar wind and traps charged particles in the Van Allen belts.",
+      "link": "https://en.wikipedia.org/wiki/Magnetosphere"
+    },
+    "lagrange point": {
+      "term": "Lagrange Point",
+      "category": "space",
+      "definition": "One of five positions (L1-L5) in a two-body orbital system where a small object can maintain a stable position relative to both large bodies. L2 hosts the James Webb Space Telescope.",
+      "link": "https://en.wikipedia.org/wiki/Lagrange_point"
+    },
+    "escape velocity": {
+      "term": "Escape Velocity",
+      "category": "space",
+      "definition": "The minimum speed an object needs to escape a celestial body's gravitational pull without further propulsion. Earth's escape velocity is about 11.2 km/s.",
+      "link": "https://en.wikipedia.org/wiki/Escape_velocity"
+    },
+    "orbital period": {
+      "term": "Orbital Period",
+      "category": "space",
+      "definition": "The time it takes for an object to complete one full orbit around another body. Earth's orbital period around the Sun is approximately 365.25 days.",
+      "link": "https://en.wikipedia.org/wiki/Orbital_period"
+    },
+    "synodic period": {
+      "term": "Synodic Period",
+      "category": "space",
+      "definition": "The time between two successive conjunctions of a planet with the Sun as seen from Earth. It determines how often a planet appears in the same position in the sky.",
+      "link": "https://en.wikipedia.org/wiki/Synodic_period"
+    },
+    "sidereal period": {
+      "term": "Sidereal Period",
+      "category": "space",
+      "definition": "The time for a celestial object to complete one orbit relative to the fixed stars. Earth's sidereal day is about 23 hours 56 minutes.",
+      "link": "https://en.wikipedia.org/wiki/Sidereal_time"
+    },
+    "retrograde": {
+      "term": "Retrograde",
+      "category": "space",
+      "definition": "Motion or rotation in the opposite direction to the primary body's rotation. Venus rotates retrograde, and planets appear to move retrograde when Earth overtakes them.",
+      "link": "https://en.wikipedia.org/wiki/Retrograde_and_prograde_motion"
+    },
+    "prograde": {
+      "term": "Prograde",
+      "category": "space",
+      "definition": "Motion or rotation in the same direction as the primary body's rotation. Most planets orbit the Sun prograde (counterclockwise when viewed from above the north pole).",
+      "link": "https://en.wikipedia.org/wiki/Retrograde_and_prograde_motion"
+    },
+    "barycenter": {
+      "term": "Barycenter",
+      "category": "space",
+      "definition": "The common center of mass around which two or more bodies orbit. The Earth-Moon barycenter is about 4,670 km from Earth's center (inside Earth).",
+      "link": "https://en.wikipedia.org/wiki/Barycenter"
+    },
+    "tidal locking": {
+      "term": "Tidal Locking",
+      "category": "space",
+      "definition": "When a body's orbital period matches its rotational period, causing the same face to always point toward the body it orbits. The Moon is tidally locked to Earth.",
+      "link": "https://en.wikipedia.org/wiki/Tidal_locking"
+    },
+    "roche limit": {
+      "term": "Roche Limit",
+      "category": "space",
+      "definition": "The minimum distance at which a celestial body held together only by gravity can orbit without being torn apart by tidal forces. Planetary rings form within this limit.",
+      "link": "https://en.wikipedia.org/wiki/Roche_limit"
+    },
+    "combustion engine": {
+      "term": "Combustion Engine",
+      "category": "engineering",
+      "definition": "A heat engine that converts chemical energy from fuel into mechanical work by burning the fuel inside cylinders. Internal combustion engines power most cars and trucks.",
+      "link": "https://en.wikipedia.org/wiki/Internal_combustion_engine"
+    },
+    "electric motor": {
+      "term": "Electric Motor",
+      "category": "engineering",
+      "definition": "A device that converts electrical energy into mechanical motion using electromagnetic interactions. Efficiency typically ranges from 85-95%, far higher than combustion engines.",
+      "link": "https://en.wikipedia.org/wiki/Electric_motor"
+    },
+    "torque": {
+      "term": "Torque",
+      "category": "engineering",
+      "definition": "A rotational force that causes an object to spin. Measured in newton-meters (Nm) or foot-pounds (ft-lb). Higher torque means more twisting power.",
+      "link": "https://en.wikipedia.org/wiki/Torque"
+    },
+    "horsepower": {
+      "term": "Horsepower",
+      "category": "engineering",
+      "definition": "A unit of power equal to approximately 746 watts. Originally defined by James Watt to compare steam engine output to draft horses.",
+      "link": "https://en.wikipedia.org/wiki/Horsepower"
+    },
+    "rpm": {
+      "term": "RPM (Revolutions Per Minute)",
+      "category": "engineering",
+      "definition": "A measure of rotational speed indicating how many complete turns an object makes in one minute. Car engines typically idle at 600-1000 RPM.",
+      "link": "https://en.wikipedia.org/wiki/Revolutions_per_minute"
+    },
+    "gear ratio": {
+      "term": "Gear Ratio",
+      "category": "engineering",
+      "definition": "The ratio of teeth between two meshing gears, determining the trade-off between speed and torque. A 3:1 ratio triples torque but reduces speed by a third.",
+      "link": "https://en.wikipedia.org/wiki/Gear_ratio"
+    },
+    "hydraulic": {
+      "term": "Hydraulic",
+      "category": "engineering",
+      "definition": "A system that uses pressurized liquid (usually oil) to transmit force. Hydraulic systems can multiply force, powering heavy machinery like excavators and brakes.",
+      "link": "https://en.wikipedia.org/wiki/Hydraulics"
+    },
+    "pneumatic": {
+      "term": "Pneumatic",
+      "category": "engineering",
+      "definition": "A system that uses compressed air or gas to transmit force and do work. Commonly used in tools like nail guns, jackhammers, and air brakes.",
+      "link": "https://en.wikipedia.org/wiki/Pneumatics"
+    },
+    "tensile strength": {
+      "term": "Tensile Strength",
+      "category": "engineering",
+      "definition": "The maximum stress a material can withstand while being stretched before breaking. Measured in pascals (Pa) or PSI. Steel: ~400-550 MPa; spider silk: ~1,000 MPa.",
+      "link": "https://en.wikipedia.org/wiki/Ultimate_tensile_strength"
+    },
+    "yield strength": {
+      "term": "Yield Strength",
+      "category": "engineering",
+      "definition": "The stress at which a material begins to deform permanently (plastically). Below yield strength, the material returns to its original shape when the load is removed.",
+      "link": "https://en.wikipedia.org/wiki/Yield_(engineering)"
+    },
+    "thermal conductivity": {
+      "term": "Thermal Conductivity",
+      "category": "engineering",
+      "definition": "A measure of how well a material conducts heat, in watts per meter-kelvin (W/mK). Copper: 401, aluminum: 237, wood: 0.12, air: 0.024.",
+      "link": "https://en.wikipedia.org/wiki/Thermal_conductivity"
+    },
+    "resistivity": {
+      "term": "Resistivity",
+      "category": "engineering",
+      "definition": "A material's intrinsic resistance to electric current flow, measured in ohm-meters. Lower resistivity means better conductivity. Copper: 1.68e-8; rubber: ~1e13.",
+      "link": "https://en.wikipedia.org/wiki/Electrical_resistivity_and_conductivity"
+    },
+    "capacitance": {
+      "term": "Capacitance",
+      "category": "engineering",
+      "definition": "The ability of a component to store electrical charge, measured in farads (F). Capacitors store and release energy quickly, smoothing voltage in circuits.",
+      "link": "https://en.wikipedia.org/wiki/Capacitance"
+    },
+    "inductance": {
+      "term": "Inductance",
+      "category": "engineering",
+      "definition": "The tendency of an electrical conductor to oppose changes in current flow by generating a magnetic field. Measured in henries (H). Used in transformers and filters.",
+      "link": "https://en.wikipedia.org/wiki/Inductance"
+    },
+    "voltage": {
+      "term": "Voltage",
+      "category": "engineering",
+      "definition": "The electrical potential difference between two points, measured in volts (V). It is the 'pressure' that pushes electric charge through a circuit.",
+      "link": "https://en.wikipedia.org/wiki/Voltage"
+    },
+    "amperage": {
+      "term": "Amperage",
+      "category": "engineering",
+      "definition": "The flow rate of electric charge through a conductor, measured in amperes (A). One amp equals one coulomb of charge passing a point per second.",
+      "link": "https://en.wikipedia.org/wiki/Electric_current"
+    },
+    "wattage": {
+      "term": "Wattage",
+      "category": "engineering",
+      "definition": "The rate of energy transfer or consumption, measured in watts (W). Watts = volts x amps. A typical household circuit handles 1,800-2,400 watts.",
+      "link": "https://en.wikipedia.org/wiki/Watt"
+    },
+    "ohm": {
+      "term": "Ohm",
+      "category": "engineering",
+      "definition": "The SI unit of electrical resistance. One ohm allows one ampere of current to flow when one volt of potential difference is applied. Ohm's law: V = IR.",
+      "link": "https://en.wikipedia.org/wiki/Ohm"
+    },
+    "transistor": {
+      "term": "Transistor",
+      "category": "engineering",
+      "definition": "A semiconductor device used to amplify or switch electronic signals. The fundamental building block of modern electronics; a modern CPU contains billions.",
+      "link": "https://en.wikipedia.org/wiki/Transistor"
+    },
+    "semiconductor": {
+      "term": "Semiconductor",
+      "category": "engineering",
+      "definition": "A material with electrical conductivity between a conductor and an insulator. Silicon is the most common. Doping with impurities controls conductivity for electronic devices.",
+      "link": "https://en.wikipedia.org/wiki/Semiconductor"
+    },
+    "alloy": {
+      "term": "Alloy",
+      "category": "engineering",
+      "definition": "A mixture of metals (or a metal with other elements) designed to have specific properties. Examples: steel (iron+carbon), bronze (copper+tin), brass (copper+zinc).",
+      "link": "https://en.wikipedia.org/wiki/Alloy"
+    },
+    "tempering": {
+      "term": "Tempering",
+      "category": "engineering",
+      "definition": "A heat treatment process that reduces the brittleness of hardened steel by reheating it to a temperature below critical point, then cooling. Balances hardness with toughness.",
+      "link": "https://en.wikipedia.org/wiki/Tempering_(metallurgy)"
+    },
+    "annealing": {
+      "term": "Annealing",
+      "category": "engineering",
+      "definition": "A heat treatment process where a material is heated and slowly cooled to relieve internal stresses, increase ductility, and refine grain structure.",
+      "link": "https://en.wikipedia.org/wiki/Annealing_(materials_science)"
+    },
+    "welding": {
+      "term": "Welding",
+      "category": "engineering",
+      "definition": "A fabrication process that joins materials by melting the workpieces together, often with a filler material. Common types: MIG, TIG, stick, and spot welding.",
+      "link": "https://en.wikipedia.org/wiki/Welding"
+    },
+    "forging": {
+      "term": "Forging",
+      "category": "engineering",
+      "definition": "Shaping metal by applying compressive forces, usually with a hammer or press. Forging aligns the grain structure, producing parts stronger than cast equivalents.",
+      "link": "https://en.wikipedia.org/wiki/Forging"
+    },
+    "casting": {
+      "term": "Casting",
+      "category": "engineering",
+      "definition": "A manufacturing process where molten material is poured into a mold and allowed to solidify. Used for complex shapes that would be difficult to machine.",
+      "link": "https://en.wikipedia.org/wiki/Casting_(metalworking)"
+    },
+    "hemp": {
+      "term": "Hemp",
+      "category": "materials",
+      "definition": "A variety of the Cannabis sativa plant grown for industrial use. Strong natural fiber used for textiles, rope, paper, and building materials. One of the oldest cultivated crops.",
+      "link": "https://en.wikipedia.org/wiki/Hemp"
+    },
+    "cotton": {
+      "term": "Cotton",
+      "category": "materials",
+      "definition": "A soft, fluffy natural fiber from the cotton plant's seed pods. The most widely used natural textile fiber, known for breathability and comfort.",
+      "link": "https://en.wikipedia.org/wiki/Cotton"
+    },
+    "polyester": {
+      "term": "Polyester",
+      "category": "materials",
+      "definition": "A synthetic polymer fiber made from petroleum-based chemicals. Durable, wrinkle-resistant, and quick-drying. The world's most produced synthetic fiber.",
+      "link": "https://en.wikipedia.org/wiki/Polyester"
+    },
+    "nylon": {
+      "term": "Nylon",
+      "category": "materials",
+      "definition": "A synthetic thermoplastic polymer. Strong, elastic, and resistant to abrasion. Used in clothing, rope, parachutes, and mechanical parts like gears and bearings.",
+      "link": "https://en.wikipedia.org/wiki/Nylon"
+    },
+    "kevlar": {
+      "term": "Kevlar",
+      "category": "materials",
+      "definition": "An aramid fiber five times stronger than steel by weight. Used in body armor, tires, racing sails, and aerospace applications. Heat-resistant to 427 degrees C.",
+      "link": "https://en.wikipedia.org/wiki/Kevlar"
+    },
+    "carbon fiber": {
+      "term": "Carbon Fiber",
+      "category": "materials",
+      "definition": "Extremely strong, lightweight fibers made of carbon atoms bonded in a crystalline structure. Tensile strength up to 7 GPa. Used in aerospace, sports equipment, and vehicles.",
+      "link": "https://en.wikipedia.org/wiki/Carbon_fiber"
+    },
+    "fiberglass": {
+      "term": "Fiberglass",
+      "category": "materials",
+      "definition": "A composite material made of glass fibers embedded in a polymer resin. Lightweight, strong, and corrosion-resistant. Used in boats, insulation, and car bodies.",
+      "link": "https://en.wikipedia.org/wiki/Fiberglass"
+    },
+    "steel": {
+      "term": "Steel",
+      "category": "materials",
+      "definition": "An alloy of iron and carbon (0.2-2.1% carbon). The most widely used metal, with thousands of grades varying in strength, hardness, and corrosion resistance.",
+      "link": "https://en.wikipedia.org/wiki/Steel"
+    },
+    "aluminum": {
+      "term": "Aluminum",
+      "category": "materials",
+      "definition": "A lightweight, silvery metal with excellent corrosion resistance due to its oxide layer. Density is about one-third that of steel. Widely used in aerospace and packaging.",
+      "link": "https://en.wikipedia.org/wiki/Aluminium"
+    },
+    "titanium": {
+      "term": "Titanium",
+      "category": "materials",
+      "definition": "A strong, lightweight, corrosion-resistant metal. As strong as steel but 45% lighter. Used in aerospace, medical implants, and high-performance applications.",
+      "link": "https://en.wikipedia.org/wiki/Titanium"
+    },
+    "copper": {
+      "term": "Copper",
+      "category": "materials",
+      "definition": "A reddish-orange metal with excellent electrical and thermal conductivity. Used in wiring, plumbing, electronics, and as a base for alloys like brass and bronze.",
+      "link": "https://en.wikipedia.org/wiki/Copper"
+    },
+    "brass": {
+      "term": "Brass",
+      "category": "materials",
+      "definition": "An alloy of copper and zinc with a gold-like appearance. Corrosion-resistant, antimicrobial, and easy to machine. Used in fittings, instruments, and decorative items.",
+      "link": "https://en.wikipedia.org/wiki/Brass"
+    },
+    "bronze": {
+      "term": "Bronze",
+      "category": "materials",
+      "definition": "An alloy primarily of copper and tin. Harder than pure copper, corrosion-resistant, and historically significant as the first widely used metal alloy (Bronze Age).",
+      "link": "https://en.wikipedia.org/wiki/Bronze"
+    },
+    "iron": {
+      "term": "Iron",
+      "category": "materials",
+      "definition": "The most common element on Earth by mass. A silvery-gray metal that is the primary component of steel. Pure iron is relatively soft; alloying greatly increases strength.",
+      "link": "https://en.wikipedia.org/wiki/Iron"
+    },
+    "nickel": {
+      "term": "Nickel",
+      "category": "materials",
+      "definition": "A hard, silvery-white metal resistant to corrosion. Used in stainless steel, batteries (NiMH, NiCd), coins, and high-temperature superalloys for jet engines.",
+      "link": "https://en.wikipedia.org/wiki/Nickel"
+    },
+    "cobalt": {
+      "term": "Cobalt",
+      "category": "materials",
+      "definition": "A hard, lustrous, silver-blue metal. Critical for lithium-ion battery cathodes, superalloys, and blue pigments. Most production comes from the Democratic Republic of Congo.",
+      "link": "https://en.wikipedia.org/wiki/Cobalt"
+    },
+    "tungsten": {
+      "term": "Tungsten",
+      "category": "materials",
+      "definition": "The metal with the highest melting point (3,422 degrees C) and highest tensile strength at temperatures above 1,650 degrees C. Used in cutting tools, light bulb filaments, and armor.",
+      "link": "https://en.wikipedia.org/wiki/Tungsten"
+    },
+    "platinum": {
+      "term": "Platinum",
+      "category": "materials",
+      "definition": "A dense, precious, silvery-white metal. Highly resistant to corrosion. Used in catalytic converters, jewelry, laboratory equipment, and cancer treatment drugs.",
+      "link": "https://en.wikipedia.org/wiki/Platinum"
+    },
+    "silicon": {
+      "term": "Silicon",
+      "category": "materials",
+      "definition": "A metalloid and the second most abundant element in Earth's crust. The foundation of modern electronics as the primary semiconductor material. Also used in glass and concrete.",
+      "link": "https://en.wikipedia.org/wiki/Silicon"
+    },
+    "ceramic": {
+      "term": "Ceramic",
+      "category": "materials",
+      "definition": "An inorganic, nonmetallic solid prepared by heating and cooling. Extremely hard, heat-resistant, and electrically insulating. Used in tiles, pottery, and high-tech applications.",
+      "link": "https://en.wikipedia.org/wiki/Ceramic"
+    },
+    "concrete": {
+      "term": "Concrete",
+      "category": "materials",
+      "definition": "A composite material of cement, water, and aggregates (sand, gravel). The most widely used construction material in the world. Strong in compression but weak in tension.",
+      "link": "https://en.wikipedia.org/wiki/Concrete"
+    },
+    "plywood": {
+      "term": "Plywood",
+      "category": "materials",
+      "definition": "An engineered wood made from thin layers (plies) of wood veneer glued together with alternating grain directions. This cross-graining reduces warping and increases strength.",
+      "link": "https://en.wikipedia.org/wiki/Plywood"
+    },
+    "hardwood": {
+      "term": "Hardwood",
+      "category": "materials",
+      "definition": "Wood from angiosperm (flowering, broad-leaved) trees like oak, maple, walnut, and mahogany. Generally denser and more durable than softwoods, used for furniture and flooring.",
+      "link": "https://en.wikipedia.org/wiki/Hardwood"
+    },
+    "softwood": {
+      "term": "Softwood",
+      "category": "materials",
+      "definition": "Wood from gymnosperm trees (conifers) like pine, spruce, and cedar. Grows faster than hardwood and is the primary material for construction lumber and paper pulp.",
+      "link": "https://en.wikipedia.org/wiki/Softwood"
+    },
+    "bamboo": {
+      "term": "Bamboo",
+      "category": "materials",
+      "definition": "A fast-growing grass with a tensile strength comparable to steel. Used in construction, textiles, paper, and food. Some species grow up to 91 cm per day.",
+      "link": "https://en.wikipedia.org/wiki/Bamboo"
+    },
+    "leather": {
+      "term": "Leather",
+      "category": "materials",
+      "definition": "A durable material made by tanning animal hides, typically cattle. Flexible, breathable, and long-lasting. Used for clothing, footwear, upholstery, and accessories.",
+      "link": "https://en.wikipedia.org/wiki/Leather"
+    },
+    "rubber": {
+      "term": "Rubber",
+      "category": "materials",
+      "definition": "An elastic polymer, either natural (from rubber tree latex) or synthetic (from petroleum). Excellent for seals, tires, hoses, and vibration dampening.",
+      "link": "https://en.wikipedia.org/wiki/Rubber"
+    },
+    "glass": {
+      "term": "Glass",
+      "category": "materials",
+      "definition": "An amorphous solid typically made by rapidly cooling molten silica. Transparent, hard, and chemically inert. Used in windows, lenses, containers, and fiber optics.",
+      "link": "https://en.wikipedia.org/wiki/Glass"
+    },
+    "polycarbonate": {
+      "term": "Polycarbonate",
+      "category": "materials",
+      "definition": "A strong, transparent thermoplastic. Impact resistance is 250 times greater than glass. Used in eyewear, bulletproof windows, phone cases, and medical devices.",
+      "link": "https://en.wikipedia.org/wiki/Polycarbonate"
+    },
+    "shelter": {
+      "term": "Shelter",
+      "category": "survival",
+      "definition": "A structure providing protection from weather, temperature extremes, and hazards. In survival, shelter is often the first priority after immediate safety.",
+      "link": "https://en.wikipedia.org/wiki/Shelter_(building)"
+    },
+    "potable water": {
+      "term": "Potable Water",
+      "category": "survival",
+      "definition": "Water that is safe to drink, free of harmful pathogens and contaminants. An average person needs 2-3 liters per day in temperate conditions, more in heat or exertion.",
+      "link": "https://en.wikipedia.org/wiki/Drinking_water"
+    },
+    "filtration": {
+      "term": "Filtration",
+      "category": "survival",
+      "definition": "The process of removing particles and some pathogens from water by passing it through a porous material. Filters can use sand, ceramic, activated carbon, or membranes.",
+      "link": "https://en.wikipedia.org/wiki/Water_purification"
+    },
+    "purification": {
+      "term": "Purification",
+      "category": "survival",
+      "definition": "The process of removing or killing pathogens in water. Methods include boiling (1 minute at a rolling boil), chemical treatment (iodine, chlorine), and UV light exposure.",
+      "link": "https://en.wikipedia.org/wiki/Water_purification"
+    },
+    "tinder": {
+      "term": "Tinder",
+      "category": "survival",
+      "definition": "Dry, easily combustible material used to start a fire. Examples: dry leaves, bark shavings, cotton balls, dryer lint. Must catch a spark and sustain a small flame.",
+      "link": "https://en.wikipedia.org/wiki/Tinder"
+    },
+    "kindling": {
+      "term": "Kindling",
+      "category": "survival",
+      "definition": "Small sticks and twigs used to build a fire after tinder ignites. Typically pencil-thickness or smaller. Bridges the gap between tinder flame and larger fuel wood.",
+      "link": "https://en.wikipedia.org/wiki/Kindling_(fire)"
+    },
+    "hypothermia": {
+      "term": "Hypothermia",
+      "category": "survival",
+      "definition": "A dangerous drop in core body temperature below 35 degrees C (95 degrees F). Symptoms progress from shivering to confusion, drowsiness, and cardiac arrest if untreated.",
+      "link": "https://en.wikipedia.org/wiki/Hypothermia"
+    },
+    "dehydration": {
+      "term": "Dehydration",
+      "category": "survival",
+      "definition": "A deficit of total body water caused by insufficient intake or excess loss. Losing just 2% body weight in water impairs cognitive and physical performance.",
+      "link": "https://en.wikipedia.org/wiki/Dehydration"
+    },
+    "calorie": {
+      "term": "Calorie",
+      "category": "survival",
+      "definition": "A unit of energy. In nutrition, 'calorie' usually means kilocalorie (kcal). Average adults need 1,800-2,500 kcal per day; strenuous activity can require 3,000-5,000+ kcal.",
+      "link": "https://en.wikipedia.org/wiki/Calorie"
+    },
+    "protein": {
+      "term": "Protein",
+      "category": "survival",
+      "definition": "A macronutrient made of amino acids, essential for building and repairing tissue. Recommended intake is 0.8 g per kg body weight daily. Sources: meat, fish, legumes, dairy.",
+      "link": "https://en.wikipedia.org/wiki/Protein_(nutrient)"
+    },
+    "carbohydrate": {
+      "term": "Carbohydrate",
+      "category": "survival",
+      "definition": "A macronutrient that provides the body's primary energy source. Includes sugars, starches, and fiber. Found in grains, fruits, vegetables, and legumes.",
+      "link": "https://en.wikipedia.org/wiki/Carbohydrate"
+    },
+    "fat": {
+      "term": "Fat",
+      "category": "survival",
+      "definition": "A macronutrient providing 9 kcal per gram (more than twice protein or carbs). Essential for hormone production, nutrient absorption, and insulation. Includes saturated and unsaturated types.",
+      "link": "https://en.wikipedia.org/wiki/Fat"
+    },
+    "vitamin": {
+      "term": "Vitamin",
+      "category": "survival",
+      "definition": "An organic compound required in small quantities for normal metabolism. 13 essential vitamins: A, C, D, E, K, and 8 B vitamins. Deficiencies cause specific diseases.",
+      "link": "https://en.wikipedia.org/wiki/Vitamin"
+    },
+    "mineral": {
+      "term": "Mineral (nutrition)",
+      "category": "survival",
+      "definition": "Inorganic elements essential for body functions. Major minerals: calcium, phosphorus, magnesium, sodium, potassium, chloride. Trace minerals: iron, zinc, copper, selenium.",
+      "link": "https://en.wikipedia.org/wiki/Mineral_(nutrient)"
+    },
+    "first aid": {
+      "term": "First Aid",
+      "category": "survival",
+      "definition": "Initial emergency care given to an injured or ill person before professional medical treatment. Priorities: airway, breathing, circulation (ABCs), then bleeding control.",
+      "link": "https://en.wikipedia.org/wiki/First_aid"
+    },
+    "tourniquet": {
+      "term": "Tourniquet",
+      "category": "survival",
+      "definition": "A device used to stop severe bleeding in a limb by compressing blood vessels. Applied 2-3 inches above the wound. Modern combat tourniquets save lives in minutes.",
+      "link": "https://en.wikipedia.org/wiki/Tourniquet"
+    },
+    "splint": {
+      "term": "Splint",
+      "category": "survival",
+      "definition": "A rigid or semi-rigid device used to immobilize a fractured or injured limb. Can be improvised from sticks, boards, or rolled-up magazines padded with cloth.",
+      "link": "https://en.wikipedia.org/wiki/Splint_(medicine)"
+    },
+    "suture": {
+      "term": "Suture",
+      "category": "survival",
+      "definition": "A stitch or series of stitches used to close a wound. Materials include absorbable (gut, polyglycolic acid) and non-absorbable (nylon, silk) threads.",
+      "link": "https://en.wikipedia.org/wiki/Surgical_suture"
+    },
+    "antiseptic": {
+      "term": "Antiseptic",
+      "category": "survival",
+      "definition": "A substance applied to living tissue to reduce infection by killing or inhibiting microorganisms. Examples: iodine, hydrogen peroxide, alcohol, chlorhexidine.",
+      "link": "https://en.wikipedia.org/wiki/Antiseptic"
+    },
+    "antibiotics": {
+      "term": "Antibiotics",
+      "category": "survival",
+      "definition": "Medications that kill or inhibit the growth of bacteria. Only effective against bacterial infections, not viruses. Overuse leads to antibiotic-resistant bacteria.",
+      "link": "https://en.wikipedia.org/wiki/Antibiotic"
+    },
+    "blueprint": {
+      "term": "Blueprint",
+      "category": "building",
+      "definition": "A detailed technical drawing or plan for construction or manufacturing. In gaming contexts, a template defining the structure, components, and assembly of a buildable object.",
+      "link": "https://en.wikipedia.org/wiki/Blueprint"
+    },
+    "foundation": {
+      "term": "Foundation",
+      "category": "building",
+      "definition": "The structural base that transfers a building's load to the ground. Types include slab, crawl space, basement, pier, and pile foundations depending on soil and conditions.",
+      "link": "https://en.wikipedia.org/wiki/Foundation_(engineering)"
+    },
+    "load-bearing": {
+      "term": "Load-Bearing",
+      "category": "building",
+      "definition": "A structural element that carries and transfers weight from above to the foundation. Load-bearing walls cannot be removed without alternative support or the structure may collapse.",
+      "link": "https://en.wikipedia.org/wiki/Load-bearing_wall"
+    },
+    "stud": {
+      "term": "Stud (construction)",
+      "category": "building",
+      "definition": "A vertical framing member in a wall, typically 2x4 or 2x6 lumber spaced 16 or 24 inches apart. Studs form the skeleton of wood-framed walls.",
+      "link": "https://en.wikipedia.org/wiki/Wall_stud"
+    },
+    "joist": {
+      "term": "Joist",
+      "category": "building",
+      "definition": "A horizontal structural member that spans an open space, typically between beams, to support a floor or ceiling. Common sizes: 2x8, 2x10, or 2x12 lumber.",
+      "link": "https://en.wikipedia.org/wiki/Joist"
+    },
+    "rafter": {
+      "term": "Rafter",
+      "category": "building",
+      "definition": "A sloped structural member that extends from the ridge of a roof to the eaves, supporting the roof deck and shingles. Cut individually and installed on-site.",
+      "link": "https://en.wikipedia.org/wiki/Rafter"
+    },
+    "truss": {
+      "term": "Truss",
+      "category": "building",
+      "definition": "A prefabricated triangulated framework that spans long distances with high strength-to-weight ratio. Used in roofs, bridges, and towers. Triangles resist deformation.",
+      "link": "https://en.wikipedia.org/wiki/Truss"
+    },
+    "drywall": {
+      "term": "Drywall",
+      "category": "building",
+      "definition": "A panel of gypsum plaster pressed between two thick sheets of paper, used to make interior walls and ceilings. Standard thickness: 1/2 inch. Also called sheetrock or plasterboard.",
+      "link": "https://en.wikipedia.org/wiki/Drywall"
+    },
+    "insulation": {
+      "term": "Insulation",
+      "category": "building",
+      "definition": "Material that reduces heat transfer between the interior and exterior of a building. Types: fiberglass batts, spray foam, cellulose, rigid foam board, mineral wool.",
+      "link": "https://en.wikipedia.org/wiki/Building_insulation"
+    },
+    "r-value": {
+      "term": "R-Value",
+      "category": "building",
+      "definition": "A measure of thermal resistance in insulation. Higher R-value means better insulating ability. Recommended values vary by climate zone: R-13 to R-60 for attics in cold climates.",
+      "link": "https://en.wikipedia.org/wiki/R-value_(insulation)"
+    },
+    "btu": {
+      "term": "BTU (British Thermal Unit)",
+      "category": "building",
+      "definition": "A unit of heat energy. One BTU raises one pound of water by 1 degree F. Used to rate heating/cooling capacity: a typical room AC unit is 5,000-12,000 BTU.",
+      "link": "https://en.wikipedia.org/wiki/British_thermal_unit"
+    },
+    "hvac": {
+      "term": "HVAC",
+      "category": "building",
+      "definition": "Heating, Ventilation, and Air Conditioning. The technology of indoor climate control. Systems regulate temperature, humidity, and air quality in buildings.",
+      "link": "https://en.wikipedia.org/wiki/Heating,_ventilation,_and_air_conditioning"
+    },
+    "plumbing": {
+      "term": "Plumbing",
+      "category": "building",
+      "definition": "The system of pipes, fixtures, and fittings for water supply and waste removal in a building. Materials include copper, PVC, PEX, and galvanized steel.",
+      "link": "https://en.wikipedia.org/wiki/Plumbing"
+    },
+    "wiring": {
+      "term": "Wiring",
+      "category": "building",
+      "definition": "The system of electrical conductors that distribute power throughout a building. Residential wiring typically uses copper wire in NM (Romex) cable rated for 15 or 20 amps.",
+      "link": "https://en.wikipedia.org/wiki/Electrical_wiring"
+    },
+    "circuit breaker": {
+      "term": "Circuit Breaker",
+      "category": "building",
+      "definition": "A safety device that automatically interrupts electrical current when it exceeds a safe level, preventing wire overheating and fires. Resettable alternative to fuses.",
+      "link": "https://en.wikipedia.org/wiki/Circuit_breaker"
+    },
+    "grounding": {
+      "term": "Grounding",
+      "category": "building",
+      "definition": "Connecting an electrical system to the earth to provide a safe path for fault currents. Prevents electric shock and equipment damage. The green or bare wire in circuits.",
+      "link": "https://en.wikipedia.org/wiki/Ground_(electricity)"
+    },
+    "solder": {
+      "term": "Solder",
+      "category": "building",
+      "definition": "A fusible metal alloy used to join metal workpieces by melting between them. Electronics solder is typically tin-lead or lead-free tin-silver-copper alloy.",
+      "link": "https://en.wikipedia.org/wiki/Solder"
+    },
+    "rivet": {
+      "term": "Rivet",
+      "category": "building",
+      "definition": "A permanent mechanical fastener with a head on one end. Installed by deforming the tail end to clamp pieces together. Used in bridges, aircraft, and structural steel.",
+      "link": "https://en.wikipedia.org/wiki/Rivet"
+    },
+    "bolt": {
+      "term": "Bolt",
+      "category": "building",
+      "definition": "A threaded fastener used with a nut to clamp materials together. Unlike screws, bolts are tightened by turning the nut. Grades indicate tensile strength (Grade 5, 8, etc.).",
+      "link": "https://en.wikipedia.org/wiki/Bolt_(fastener)"
+    },
+    "nut": {
+      "term": "Nut (fastener)",
+      "category": "building",
+      "definition": "A threaded metal piece that mates with a bolt to secure joints. Types include hex, lock (nylon insert), wing, castle, and flanged nuts.",
+      "link": "https://en.wikipedia.org/wiki/Nut_(hardware)"
+    },
+    "washer": {
+      "term": "Washer",
+      "category": "building",
+      "definition": "A thin disc placed under a nut or bolt head to distribute load, prevent loosening, or protect the surface. Types: flat, lock (split), spring, and fender washers.",
+      "link": "https://en.wikipedia.org/wiki/Washer_(hardware)"
+    },
+    "gasket": {
+      "term": "Gasket",
+      "category": "building",
+      "definition": "A compressible seal placed between two surfaces to prevent leaks of fluids or gases under pressure. Materials: rubber, cork, paper, metal, or composite.",
+      "link": "https://en.wikipedia.org/wiki/Gasket"
+    },
+    "bearing": {
+      "term": "Bearing",
+      "category": "building",
+      "definition": "A machine element that constrains relative motion to the desired direction and reduces friction. Types: ball, roller, plain (sleeve), and thrust bearings.",
+      "link": "https://en.wikipedia.org/wiki/Bearing_(mechanical)"
+    },
+    "bushing": {
+      "term": "Bushing",
+      "category": "building",
+      "definition": "A cylindrical lining that reduces friction and wear between rotating shafts and stationary supports. Similar to a plain bearing but typically a separate removable component.",
+      "link": "https://en.wikipedia.org/wiki/Bushing_(bearing)"
+    },
+    "cam": {
+      "term": "Cam",
+      "category": "building",
+      "definition": "A rotating or sliding piece in a mechanism that converts rotary motion to linear motion. Used in engines (camshafts open/close valves) and many industrial machines.",
+      "link": "https://en.wikipedia.org/wiki/Cam"
+    },
+    "crankshaft": {
+      "term": "Crankshaft",
+      "category": "building",
+      "definition": "A shaft with offset cranks that converts the linear (reciprocating) motion of pistons into rotational motion. The backbone of internal combustion engines.",
+      "link": "https://en.wikipedia.org/wiki/Crankshaft"
+    },
+    "piston": {
+      "term": "Piston",
+      "category": "building",
+      "definition": "A cylindrical component that moves up and down inside an engine cylinder. Connected to the crankshaft via a connecting rod. Compresses fuel-air mixture and transmits combustion force.",
+      "link": "https://en.wikipedia.org/wiki/Piston"
+    },
+    "ecs": {
+      "term": "ECS (Entity Component System)",
+      "category": "gaming",
+      "definition": "An architectural pattern for game engines where entities are IDs, components are data, and systems are logic. Enables cache-friendly iteration and flexible composition over inheritance.",
+      "link": "https://en.wikipedia.org/wiki/Entity_component_system"
+    },
+    "component": {
+      "term": "Component (ECS)",
+      "category": "gaming",
+      "definition": "A plain data struct attached to an entity in an ECS architecture. Contains no logic. Examples: Position, Velocity, Health, Sprite. Multiple components compose an entity's behavior.",
+      "link": "https://en.wikipedia.org/wiki/Entity_component_system"
+    },
+    "system": {
+      "term": "System (ECS)",
+      "category": "gaming",
+      "definition": "A function or object that operates on entities with specific component combinations. Systems contain the game logic: physics, rendering, AI, input handling.",
+      "link": "https://en.wikipedia.org/wiki/Entity_component_system"
+    },
+    "entity": {
+      "term": "Entity",
+      "category": "gaming",
+      "definition": "A unique identifier (usually an integer) in an ECS that represents a game object. Has no data or behavior of its own; identity comes from attached components.",
+      "link": "https://en.wikipedia.org/wiki/Entity_component_system"
+    },
+    "tick": {
+      "term": "Tick",
+      "category": "gaming",
+      "definition": "A single update cycle of the game loop. Each tick, systems process entities, physics advance, and the world state updates. Server tick rate determines simulation frequency.",
+      "link": "https://en.wikipedia.org/wiki/Game_loop"
+    },
+    "delta time": {
+      "term": "Delta Time",
+      "category": "gaming",
+      "definition": "The elapsed time between the current and previous frame (dt). Used to make movement frame-rate-independent: position += velocity * dt. Typically measured in seconds.",
+      "link": "https://en.wikipedia.org/wiki/Delta_timing"
+    },
+    "interpolation": {
+      "term": "Interpolation",
+      "category": "gaming",
+      "definition": "Estimating values between two known data points. In games, used to smooth movement between physics ticks or network updates. Linear interpolation (lerp) is the simplest form.",
+      "link": "https://en.wikipedia.org/wiki/Interpolation"
+    },
+    "dead reckoning": {
+      "term": "Dead Reckoning",
+      "category": "gaming",
+      "definition": "Predicting an entity's future position using its last known position, velocity, and acceleration. Used in networked games to reduce perceived latency between server updates.",
+      "link": "https://en.wikipedia.org/wiki/Dead_reckoning"
+    },
+    "lod": {
+      "term": "LOD (Level of Detail)",
+      "category": "gaming",
+      "definition": "A technique that reduces the complexity of 3D models based on distance from the camera. Distant objects use fewer polygons, improving rendering performance without visible quality loss.",
+      "link": "https://en.wikipedia.org/wiki/Level_of_detail_(computer_graphics)"
+    },
+    "frustum culling": {
+      "term": "Frustum Culling",
+      "category": "gaming",
+      "definition": "An optimization that skips rendering objects outside the camera's view pyramid (frustum). Typically eliminates 50-90% of scene objects from the rendering pipeline.",
+      "link": "https://en.wikipedia.org/wiki/Hidden-surface_determination#Viewing-frustum_culling"
+    },
+    "octree": {
+      "term": "Octree",
+      "category": "gaming",
+      "definition": "A tree data structure where each node has exactly eight children, used to partition 3D space. Efficient for spatial queries, collision detection, and sparse voxel storage.",
+      "link": "https://en.wikipedia.org/wiki/Octree"
+    },
+    "voxel": {
+      "term": "Voxel",
+      "category": "gaming",
+      "definition": "A 3D pixel representing a value on a regular grid in three-dimensional space. Used in games like Minecraft for destructible terrain and in medical imaging (CT/MRI scans).",
+      "link": "https://en.wikipedia.org/wiki/Voxel"
+    },
+    "icosphere": {
+      "term": "Icosphere",
+      "category": "gaming",
+      "definition": "A sphere mesh created by subdividing an icosahedron (20-faced polyhedron). Produces more uniform triangle sizes than UV spheres, making it ideal for planet rendering with LOD.",
+      "link": "https://en.wikipedia.org/wiki/Geodesic_polyhedron"
+    },
+    "mesh": {
+      "term": "Mesh",
+      "category": "gaming",
+      "definition": "A collection of vertices, edges, and faces that define the shape of a 3D object. Triangle meshes are the most common format used by GPUs for real-time rendering.",
+      "link": "https://en.wikipedia.org/wiki/Polygon_mesh"
+    },
+    "vertex": {
+      "term": "Vertex",
+      "category": "gaming",
+      "definition": "A point in 3D space defined by its position (x, y, z). Vertices also carry attributes like normal vectors, UV coordinates, and vertex colors used during rendering.",
+      "link": "https://en.wikipedia.org/wiki/Vertex_(computer_graphics)"
+    },
+    "normal": {
+      "term": "Normal (vector)",
+      "category": "gaming",
+      "definition": "A unit vector perpendicular to a surface at a given point. Used to calculate how light interacts with a surface. Smooth normals are interpolated across faces for curved appearance.",
+      "link": "https://en.wikipedia.org/wiki/Normal_(geometry)"
+    },
+    "uv": {
+      "term": "UV Coordinates",
+      "category": "gaming",
+      "definition": "A 2D coordinate system used to map textures onto 3D surfaces. U and V represent horizontal and vertical axes of the texture. UV unwrapping is the process of creating this mapping.",
+      "link": "https://en.wikipedia.org/wiki/UV_mapping"
+    },
+    "shader": {
+      "term": "Shader",
+      "category": "gaming",
+      "definition": "A program that runs on the GPU to determine how pixels and vertices are rendered. Vertex shaders transform geometry; fragment (pixel) shaders determine final color.",
+      "link": "https://en.wikipedia.org/wiki/Shader"
+    },
+    "render pipeline": {
+      "term": "Render Pipeline",
+      "category": "gaming",
+      "definition": "The sequence of steps the GPU takes to transform 3D scene data into a 2D image: vertex processing, rasterization, fragment processing, and output merging.",
+      "link": "https://en.wikipedia.org/wiki/Graphics_pipeline"
+    },
+    "draw call": {
+      "term": "Draw Call",
+      "category": "gaming",
+      "definition": "A command from the CPU to the GPU to render a set of geometry. Each draw call has overhead, so minimizing their count through batching and instancing is key to performance.",
+      "link": "https://en.wikipedia.org/wiki/Draw_call"
+    },
+    "instancing": {
+      "term": "Instancing",
+      "category": "gaming",
+      "definition": "A GPU technique that renders multiple copies of the same mesh with a single draw call, each with different transforms. Ideal for trees, grass, particles, and repeated objects.",
+      "link": "https://en.wikipedia.org/wiki/Geometry_instancing"
+    },
+    "batch rendering": {
+      "term": "Batch Rendering",
+      "category": "gaming",
+      "definition": "Combining multiple objects that share the same material/shader into a single draw call. Reduces CPU-GPU communication overhead and dramatically improves frame rates.",
+      "link": null
+    },
+    "ed25519": {
+      "term": "Ed25519",
+      "category": "crypto",
+      "definition": "A public-key digital signature algorithm using Curve25519. Produces 64-byte signatures with 32-byte keys. Fast, secure, and deterministic. Used in SSH, TLS, and blockchain systems.",
+      "link": "https://en.wikipedia.org/wiki/EdDSA#Ed25519"
+    },
+    "public key": {
+      "term": "Public Key",
+      "category": "crypto",
+      "definition": "The shareable half of a cryptographic key pair. Used to verify signatures and encrypt messages. In HumanityOS, your public key is your identity and wallet address.",
+      "link": "https://en.wikipedia.org/wiki/Public-key_cryptography"
+    },
+    "private key": {
+      "term": "Private Key",
+      "category": "crypto",
+      "definition": "The secret half of a cryptographic key pair. Used to create signatures and decrypt messages. Must never be shared. Loss means permanent loss of access to the identity.",
+      "link": "https://en.wikipedia.org/wiki/Public-key_cryptography"
+    },
+    "seed phrase": {
+      "term": "Seed Phrase",
+      "category": "crypto",
+      "definition": "A human-readable backup of a cryptographic key, typically 12 or 24 English words generated from a random number. Can regenerate the full key pair. Must be stored securely offline.",
+      "link": "https://en.wikipedia.org/wiki/Cryptocurrency_wallet#Seed_phrases"
+    },
+    "bip39": {
+      "term": "BIP39",
+      "category": "crypto",
+      "definition": "Bitcoin Improvement Proposal 39, a standard for generating mnemonic seed phrases from entropy. Uses a wordlist of 2,048 English words. Adopted widely beyond Bitcoin.",
+      "link": "https://en.wikipedia.org/wiki/Cryptocurrency_wallet#Seed_phrases"
+    },
+    "self-custody": {
+      "term": "Self-Custody",
+      "category": "crypto",
+      "definition": "Holding your own cryptographic keys rather than entrusting them to a third party. Gives full control over assets and identity but requires personal responsibility for key security.",
+      "link": null
+    },
+    "custodial": {
+      "term": "Custodial",
+      "category": "crypto",
+      "definition": "A service where a third party holds and manages your cryptographic keys on your behalf (like a bank holding your money). Convenient but introduces counterparty risk.",
+      "link": null
+    },
+    "noncustodial": {
+      "term": "Non-Custodial",
+      "category": "crypto",
+      "definition": "A wallet or service where only you hold the private keys. No third party can access, freeze, or move your funds. Requires safeguarding your own seed phrase or key file.",
+      "link": null
+    },
+    "solana": {
+      "term": "Solana",
+      "category": "crypto",
+      "definition": "A high-performance blockchain supporting up to 65,000 transactions per second with ~400ms block times. Uses Proof of Stake with Proof of History for ordering. HumanityOS's chosen chain.",
+      "link": "https://en.wikipedia.org/wiki/Solana_(blockchain_platform)"
+    },
+    "spl token": {
+      "term": "SPL Token",
+      "category": "crypto",
+      "definition": "Solana Program Library token standard, equivalent to Ethereum's ERC-20. Defines how fungible and non-fungible tokens are created and transferred on the Solana blockchain.",
+      "link": null
+    },
+    "staking": {
+      "term": "Staking",
+      "category": "crypto",
+      "definition": "Locking cryptocurrency in a network to support blockchain operations (validation, security). Stakers earn rewards proportional to their stake. Helps secure Proof of Stake networks.",
+      "link": "https://en.wikipedia.org/wiki/Proof_of_stake"
+    },
+    "validator": {
+      "term": "Validator",
+      "category": "crypto",
+      "definition": "A node that participates in blockchain consensus by verifying transactions and proposing new blocks. Validators stake tokens as collateral and earn rewards for honest behavior.",
+      "link": "https://en.wikipedia.org/wiki/Proof_of_stake"
+    },
+    "transaction": {
+      "term": "Transaction",
+      "category": "crypto",
+      "definition": "A signed instruction submitted to the blockchain to transfer tokens, execute a smart contract, or modify on-chain state. Each transaction has a unique signature for verification.",
+      "link": "https://en.wikipedia.org/wiki/Cryptocurrency#Transactions"
+    },
+    "signature": {
+      "term": "Signature (crypto)",
+      "category": "crypto",
+      "definition": "A cryptographic proof that a message was created by the holder of a specific private key. Anyone with the public key can verify it, but cannot forge it.",
+      "link": "https://en.wikipedia.org/wiki/Digital_signature"
+    },
+    "hash": {
+      "term": "Hash",
+      "category": "crypto",
+      "definition": "A fixed-size output produced by a hash function from arbitrary input. Even a tiny change in input produces a completely different hash. Used for data integrity and passwords.",
+      "link": "https://en.wikipedia.org/wiki/Cryptographic_hash_function"
+    },
+    "blake3": {
+      "term": "BLAKE3",
+      "category": "crypto",
+      "definition": "A cryptographic hash function that is significantly faster than SHA-256 while maintaining security. Supports parallel processing. Used in many modern systems for hashing and key derivation.",
+      "link": "https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE3"
+    },
+    "cbor": {
+      "term": "CBOR",
+      "category": "crypto",
+      "definition": "Concise Binary Object Representation: a binary data serialization format similar to JSON but smaller and faster to parse. Used in IoT, WebAuthn, and COSE (cryptographic message format).",
+      "link": "https://en.wikipedia.org/wiki/CBOR"
+    }
+  }
+}

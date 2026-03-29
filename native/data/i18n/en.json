@@ -1,0 +1,45 @@
+{
+  "meta": { "language": "English", "code": "en", "direction": "ltr" },
+  "nav": {
+    "home": "Home",
+    "chat": "Chat",
+    "profile": "Profile",
+    "civilization": "Civilization",
+    "tasks": "Tasks",
+    "inventory": "Inventory",
+    "maps": "Maps",
+    "market": "Market",
+    "settings": "Settings",
+    "download": "Download",
+    "donate": "Donate",
+    "tools": "Tools",
+    "files": "Files"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "confirm": "Confirm",
+    "close": "Close",
+    "refresh": "Refresh",
+    "real": "Real",
+    "sim": "Sim"
+  },
+  "chat": {
+    "type_message": "Type a message...",
+    "send": "Send",
+    "online": "online",
+    "connected": "Connected",
+    "disconnected": "Disconnected"
+  },
+  "settings": {
+    "language": "Language",
+    "theme": "Theme",
+    "notifications": "Notifications",
+    "privacy": "Privacy"
+  }
+}

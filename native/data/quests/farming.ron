@@ -1,0 +1,53 @@
+// HumanityOS Quest Chain: Farming
+// Advanced agricultural quests for food production scaling.
+
+[
+    (
+        id: "farming_greenhouse",
+        name: "Greenhouse Construction",
+        description: "Build a controlled environment for year-round food production.",
+        steps: [
+            (
+                description: "Collect glass panels for greenhouse walls (20)",
+                objective: Gather(item_id: "glass_panels", quantity: 20),
+            ),
+            (
+                description: "Construct the greenhouse structure",
+                objective: Build(blueprint_id: "greenhouse"),
+            ),
+            (
+                description: "Add climate control for temperature regulation",
+                objective: Build(blueprint_id: "climate_controller"),
+            ),
+        ],
+        rewards: [
+            ("strawberry_seeds", 5),
+            ("pepper_seeds", 5),
+        ],
+        prerequisite: Some("tutorial_farming_basics"),
+    ),
+
+    (
+        id: "farming_automation",
+        name: "Automated Farming",
+        description: "Implement automated systems to manage your crops efficiently.",
+        steps: [
+            (
+                description: "Install automated irrigation system (5)",
+                objective: Build(blueprint_id: "irrigation_system"),
+            ),
+            (
+                description: "Build a farming robot",
+                objective: Craft(recipe_id: "farm_bot", quantity: 1),
+            ),
+            (
+                description: "Harvest 10 crops using automation",
+                objective: Harvest(crop_id: "any", quantity: 10),
+            ),
+        ],
+        rewards: [
+            ("fertilizer", 20),
+        ],
+        prerequisite: Some("farming_greenhouse"),
+    ),
+]

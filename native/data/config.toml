@@ -1,0 +1,26 @@
+# HumanityOS Game Configuration
+# Master config loaded at startup. Hot-reloadable via F5.
+
+[graphics]
+window_title = "HumanityOS"           # Title shown on the application window
+fullscreen = true                      # Start in fullscreen mode
+vsync = true                           # Enable vertical sync to avoid tearing
+msaa_samples = 4                       # MSAA sample count (1, 2, 4, or 8)
+target_fps = 120                       # Target frames per second for render pacing
+global_illumination = 0.25             # Ambient/global light intensity [0.0 - 1.0]
+
+[system]
+log_level = "info"                     # Log verbosity: error, warn, info, debug, trace
+enable_vr = false                      # Enable VR subsystem at startup
+
+[paths]
+# All paths relative to the game installation root
+data = "data"                          # Directory containing game data files
+assets = "assets"                      # Directory containing binary/runtime assets
+saves = "saves"                        # Directory to write save files
+
+[accessibility]
+show_control_indicators = false        # Show on-screen control indicators
+colorblind_mode = "none"               # Colorblind assist: none, protanopia, deuteranopia, tritanopia
+ui_scale = 1.0                         # Global UI scale multiplier [0.5 - 3.0]
+text_to_speech = false                 # Enable text-to-speech for UI elements

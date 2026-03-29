@@ -1,0 +1,45 @@
+{
+  "meta": { "language": "日本語", "code": "ja", "direction": "ltr" },
+  "nav": {
+    "home": "ホーム",
+    "chat": "チャット",
+    "profile": "プロフィール",
+    "civilization": "文明",
+    "tasks": "タスク",
+    "inventory": "インベントリ",
+    "maps": "マップ",
+    "market": "マーケット",
+    "settings": "設定",
+    "download": "ダウンロード",
+    "donate": "寄付",
+    "tools": "ツール",
+    "files": "ファイル"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "search": "検索",
+    "loading": "読み込み中...",
+    "error": "エラーが発生しました",
+    "confirm": "確認",
+    "close": "閉じる",
+    "refresh": "更新",
+    "real": "リアル",
+    "sim": "シム"
+  },
+  "chat": {
+    "type_message": "メッセージを入力...",
+    "send": "送信",
+    "online": "オンライン",
+    "connected": "接続済み",
+    "disconnected": "切断済み"
+  },
+  "settings": {
+    "language": "言語",
+    "theme": "テーマ",
+    "notifications": "通知",
+    "privacy": "プライバシー"
+  }
+}

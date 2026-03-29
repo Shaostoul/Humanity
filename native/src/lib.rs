@@ -209,12 +209,10 @@ mod native_app {
         planet: Option<PlanetRenderer>,
         planet_mesh: Option<usize>,
         planet_material: usize,
-        cube_mesh: usize,
-        plane_mesh: usize,
-        cube_material: usize,
-        green_material: usize,
-        blue_material: usize,
-        yellow_material: usize,
+        /// Homestead floor meshes (mesh_idx, material_idx) per room.
+        homestead_floors: Vec<(usize, usize)>,
+        /// Homestead walls mesh + material.
+        homestead_walls: Option<(usize, usize)>,
         start_time: Instant,
         last_frame: Instant,
         // egui integration
@@ -259,22 +257,28 @@ mod native_app {
             // Initialize renderer (block on async)
             let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
 
-            // Create meshes
-            let cube_mesh = renderer.add_mesh(Mesh::cube(&renderer.device));
-            let plane_mesh = renderer.add_mesh(Mesh::plane(&renderer.device));
-
-            // Create materials
-            let cube_material =
-                renderer.add_material([0.8, 0.3, 0.2, 1.0], 0.0, 0.5);
-            let green_material =
-                renderer.add_material([0.3, 0.5, 0.3, 1.0], 0.0, 0.8);
-            let blue_material =
-                renderer.add_material([0.2, 0.4, 0.8, 1.0], 0.3, 0.4);
-            let yellow_material =
-                renderer.add_material([0.9, 0.8, 0.2, 1.0], 0.0, 0.6);
+            // Generate Fibonacci homestead meshes
+            let homestead = crate::ship::fibonacci::generate_homestead();
+            let mut homestead_floors = Vec::new();
+            for (verts, indices, color) in homestead.floors {
+                let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &verts, &indices));
+                let mat_idx = renderer.add_material(color, 0.0, 0.8);
+                homestead_floors.push((mesh_idx, mat_idx));
+            }
+            let homestead_walls = if !homestead.walls.0.is_empty() {
+                let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &homestead.walls.0, &homestead.walls.1));
+                let mat_idx = renderer.add_material([0.5, 0.5, 0.5, 1.0], 0.0, 0.7);
+                Some((mesh_idx, mat_idx))
+            } else {
+                None
+            };
+            log::info!("Homestead: {} floor meshes, walls: {}", homestead_floors.len(), homestead_walls.is_some());
 
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
+            // Start player in the living room (center of 8x8 room at position 18,0,1)
+            camera.world_position = glam::DVec3::new(22.0, 1.7, 5.0);
+            camera.position = Vec3::ZERO; // position is always zero with floating origin
 
             let controller = CameraController::new(5.0, 3.0);
 
@@ -455,12 +459,8 @@ mod native_app {
                 planet,
                 planet_mesh,
                 planet_material,
-                cube_mesh,
-                plane_mesh,
-                cube_material,
-                green_material,
-                blue_material,
-                yellow_material,
+                homestead_floors,
+                homestead_walls,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 egui_ctx,
@@ -621,48 +621,33 @@ mod native_app {
                         &state.data_store,
                     );
 
-                    // Spinning cube
-                    let elapsed = (now - state.start_time).as_secs_f32();
-                    let cube_rotation =
-                        Quat::from_euler(glam::EulerRot::YXZ, elapsed * 0.7, elapsed * 0.5, 0.0);
+                    // Build render objects from homestead meshes
+                    let mut all_objects: Vec<RenderObject> = Vec::new();
 
-                    let objects = [
-                        // Center cube (spinning, red)
-                        RenderObject {
-                            position: Vec3::new(0.0, 1.0, 0.0),
-                            rotation: cube_rotation,
-                            scale: Vec3::ONE,
-                            mesh: state.cube_mesh,
-                            material: state.cube_material,
-                        },
-                        // Blue cube at +X
-                        RenderObject {
-                            position: Vec3::new(4.0, 0.5, 0.0),
+                    // Homestead floors (each room is its own colored mesh)
+                    for &(mesh_idx, mat_idx) in &state.homestead_floors {
+                        all_objects.push(RenderObject {
+                            position: Vec3::ZERO, // rooms already have absolute local positions baked in
                             rotation: Quat::IDENTITY,
                             scale: Vec3::ONE,
-                            mesh: state.cube_mesh,
-                            material: state.blue_material,
-                        },
-                        // Yellow cube at -Z
-                        RenderObject {
-                            position: Vec3::new(0.0, 0.5, -4.0),
-                            rotation: Quat::from_rotation_y(0.5),
-                            scale: Vec3::splat(0.7),
-                            mesh: state.cube_mesh,
-                            material: state.yellow_material,
-                        },
-                        // Ground plane
-                        RenderObject {
+                            mesh: mesh_idx,
+                            material: mat_idx,
+                        });
+                    }
+
+                    // Homestead walls
+                    if let Some((mesh_idx, mat_idx)) = state.homestead_walls {
+                        all_objects.push(RenderObject {
                             position: Vec3::ZERO,
                             rotation: Quat::IDENTITY,
                             scale: Vec3::ONE,
-                            mesh: state.plane_mesh,
-                            material: state.green_material,
-                        },
-                    ];
+                            mesh: mesh_idx,
+                            material: mat_idx,
+                        });
+                    }
 
-                    // Add planet to render list if loaded
-                    let mut all_objects = objects.to_vec();
+                    // Planet (if loaded)
+                    let elapsed = (now - state.start_time).as_secs_f32();
                     if let (Some(_planet), Some(mesh_idx)) = (&state.planet, state.planet_mesh) {
                         all_objects.push(RenderObject {
                             position: Vec3::new(0.0, 5.0, -20.0),

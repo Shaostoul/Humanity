@@ -1,0 +1,6 @@
+id,name,classification,min_radius,max_radius,density,description
+carbonaceous,Carbonaceous Chondrite,C,50,500,1.3,Dark carbon-rich body with water ice and organic compounds
+silicaceous,Silicaceous,S,30,300,2.7,Rocky body rich in silicate minerals and moderate metals
+metallic,Metallic,M,20,200,5.3,Dense iron-nickel body with platinum group metals
+icy,Icy Body,C,100,800,1.0,Volatile-rich body from the outer belt with abundant water ice
+pallasite,Pallasite,M,10,100,4.8,Rare mixed iron-olivine body with exposed crystal structures

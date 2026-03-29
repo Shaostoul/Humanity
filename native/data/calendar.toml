@@ -1,0 +1,39 @@
+# HumanityOS Calendar Events
+# Recurring and one-time events for the game calendar system.
+# Events use UTC timestamps. Recurrence: "yearly", "monthly", "weekly", or omit for one-time.
+
+[[events]]
+id = "evt-founding-day"
+title = "Fleet Founding Day"
+description = "Annual celebration of the fleet's founding."
+datetime_utc = "2026-01-01T12:00:00Z"
+location = "Habitat Plaza"
+all_day = false
+color_hex = "#4287f5"
+recurrence = "yearly"
+
+[[events]]
+id = "evt-shaostoul-birthday"
+title = "Shaostoul's Birthday"
+description = "Birthday of Michael Boisson (Shaostoul), founder of the project."
+datetime_utc = "1988-01-29T12:00:00Z"
+all_day = true
+color_hex = "#4287f5"
+recurrence = "yearly"
+
+[[events]]
+id = "evt-calendar-feature"
+title = "Calendar Feature Birthday"
+description = "The calendar feature was officially added to the project."
+datetime_utc = "2025-08-12T12:00:00Z"
+all_day = true
+color_hex = "#FF8833"
+
+[[events]]
+id = "evt-systems-milestone"
+title = "Calendar, Inventory, Skills Functional"
+description = "The calendar, inventory, and skills systems reached baseline functionality."
+datetime_utc = "2025-08-21T12:00:00Z"
+all_day = true
+color_hex = "#4287f5"
+recurrence = "yearly"

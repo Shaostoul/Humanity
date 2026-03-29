@@ -1,0 +1,81 @@
+(
+    name: "Tomato", // The name of the plant species or variety
+    root_type: "Fibrous", // The type of root system; enum-like string from options like Taproot, Fibrous, Aerial, etc.
+    suitable_methods: ["Soil-Based", "Hydroponics", "Aeroponics"], // List of suitable growing methods; array of strings
+    min_growing_area_sq_m: 0.186, // Minimum growing area in square meters per plant for year-round sustenance
+    growth_cycle_days: 60, // Growth cycle in days to harvest (from seed to first fruit; multiple harvests possible)
+    growth_stages: [ // Growth stages with stage-specific nutrient needs and changes
+        (
+            name: "Seedling", // Early establishment; high N for root/leaf development; lower overall nutrients to avoid burn
+            duration_days: 14,
+            npk_ppm: (100, 50, 100), // N-focused for initial growth
+        ),
+        (
+            name: "Vegetative", // Leaf and stem growth; increase N for biomass
+            duration_days: 30,
+            npk_ppm: (200, 50, 200), // Higher N to promote foliage
+        ),
+        (
+            name: "Flowering", // Bloom initiation; shift to P for flower set
+            duration_days: 10,
+            npk_ppm: (150, 100, 200), // Balanced with more P
+        ),
+        (
+            name: "Fruiting", // Fruit development/ripening; high K for quality and yield
+            duration_days: None, // Ongoing until end of season
+            npk_ppm: (100, 100, 300), // Lower N, higher K to reduce vegetative growth and enhance fruit
+        ),
+    ],
+    rotation_group: "Solanaceae", // Crop rotation group; string e.g., "Nightshade Family"
+    variety_traits: { "DiseaseResistant": true, "Heirloom": false }, // Plant variety specifics; map for custom traits
+    pollination_type: "Self", // Pollination type; enum-like string e.g., "Self", "Wind", "Insect"
+    support_needed: true, // Support needed; bool for trellises, etc.
+    pruning: ( // Pruning details for game functionality (e.g., action that boosts yield or prevents disease)
+        needed: true,
+        frequency: "Weekly", // Suggested timing; in game, could trigger events
+        effect: "Increases yield by 20%", // Gameplay impact, e.g., multiplier on outputs
+    ),
+    dormancy_days: None, // Dormancy period; bool or duration in days
+    monitoring_params: ["pH", "EC", "Temperature"], // Monitoring parameters; list of strings e.g., ["pH", "EC"]
+    common_pests: ["Aphids", "Spider Mites"], // List of common pests; array of strings
+    common_diseases: ["Blight", "Powdery Mildew"], // List of common diseases; array of strings
+    beneficial_microbes: ["Mycorrhizae"], // Beneficial microbes; descriptive string or list
+    inputs: ( // Grouped inputs required for growth
+        ph_range: (5.5, 6.5), // pH range as a tuple (min, max)
+        daily_water_liters: 1.5, // Daily water needs in liters per plant; based on evapotranspiration
+        et_crop_factor: 1.0, // Crop factor (Kc) for evapotranspiration formula; unitless, typically 0.8-1.2
+        et_reference_mm_day: None, // Reference evapotranspiration (ETo) in mm/day; location-dependent, use for ET = Kc * ETo
+        suitable_watering_methods: ["Drip", "Misting"], // Suitable watering methods; array of strings
+        water_ec_ms_cm: 1.5, // Water quality requirements; e.g., EC in mS/cm
+        dli_mol_m2_day: 20.0, // Daily Light Integral (DLI) in mol/m²/day
+        ppfd_umol_m2_s: 400.0, // Photosynthetic Photon Flux Density (PPFD) in µmol/m²/s
+        photoperiod_hours: 14, // Photoperiod in hours per day
+        light_conversion_factor: 0.0036, // Light formula parameters; DLI = PPFD * hours * 0.0036
+        temp_range_c: (18.3, 23.9), // Temperature range in °C as a tuple (min, max)
+        humidity_range_percent: (40.0, 60.0), // Humidity range in % as a tuple (min, max)
+        co2_ppm: 800, // CO2 needs in ppm (supplemental for optimal growth)
+        o2_percent: 21.0, // O2 needs; typically ambient 21%, but for closed systems
+        air_circulation_m_s: 0.5, // Air circulation needs; flow rate in m/s (e.g., 0.5 for moderate)
+        media_type: "Rockwool", // Soil or media type; string e.g., "Loamy" or "Rockwool"
+        root_room_cubic_m: 0.014, // Space or root room needs in cubic meters
+        root_aeration_need: 0.8, // Root-specific: Aeration need factor (0-1; higher for oxygen-loving roots)
+        fertilizer_sources: ["Compost Tea", "Worm Castings"], // Reliable fertilizer sources; array for this plant
+        prefers_aerated_tea: true, // Aerated vs non-aerated preference; bool true for aerated
+        fertilizer_schedule: "Weekly during growth", // Fertilizer timing; descriptive string or schedule map
+    ),
+    outputs: ( // Grouped outputs from the plant
+        caloric_yield: 500.0, // Caloric yield per plant per harvest cycle (in calories; e.g., from fruits)
+        harvestable_parts_kg: { // Breakdown of yields by plant part; in kg per harvest
+            "fruit": 2.27, // Main edible yield (tomatoes); multiple harvests possible without killing plant
+            "leaves": 0.0, // Typically not harvested, but could be for teas
+            "roots": 0.0, // Not edible/harvested
+            "stems": 0.0, // For compost
+        },
+        destructive_harvest: false, // Bool: Does harvesting kill the plant? False for fruit-only picks
+        o2_production_l_day: 5.0, // Estimated O2 production in liters per day (all plants photosynthesize; value based on mature plant size)
+        co2_consumption_g_day: 10.0, // Estimated CO2 consumption in grams per day (standard for photosynthesis; scalable by biomass)
+        waste_for_compost: true, // Bool if plant waste suitable for composting/tea
+    ),
+    custom_var1: None, // Any other custom variables; set to None if not applicable
+    custom_var2: None, // Any other custom variables; set to None if not applicable
+)

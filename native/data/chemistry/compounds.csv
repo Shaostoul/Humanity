@@ -1,0 +1,133 @@
+id,formula,name,category,molecular_weight,density,melting_point_k,boiling_point_k,solubility_water,ph,flammable,explosive,toxic,lethal_dose_mg_kg,state_at_stp,description
+water,H2O,Water,oxide,18.015,1.0,273.15,373.15,miscible,7.0,false,false,false,0,liquid,Universal solvent essential for all known life
+carbon_dioxide,CO2,Carbon Dioxide,gas,44.01,1.977,194.65,,1.45g/L,3.9,false,false,false,0,gas,Greenhouse gas; product of combustion and respiration; used in carbonation
+carbon_monoxide,CO,Carbon Monoxide,gas,28.01,1.25,68.15,81.65,0.027g/L,,false,false,true,2000,gas,Odorless toxic gas; binds hemoglobin 200x stronger than oxygen
+iron_oxide,Fe2O3,Iron(III) Oxide (Rust),oxide,159.69,5.24,1839,,insoluble,,false,false,false,0,solid,Common rust; red pigment; iron ore (hematite)
+alumina,Al2O3,Aluminum Oxide (Alumina),oxide,101.96,3.95,2345,3250,insoluble,,false,false,false,0,solid,Extremely hard ceramic; used in abrasives and refractories; sapphire/ruby base
+silica,SiO2,Silicon Dioxide (Silica),oxide,60.08,2.65,1986,2503,insoluble,,false,false,false,0,solid,Main component of sand and glass; most abundant mineral in earths crust
+titanium_dioxide,TiO2,Titanium Dioxide,oxide,79.87,4.23,2116,3245,insoluble,,false,false,false,0,solid,Brilliant white pigment; used in paint and sunscreen; photocatalyst
+calcium_oxide,CaO,Calcium Oxide (Quicklime),oxide,56.08,3.34,2886,3123,reacts,,false,false,false,0,solid,Caustic powder; reacts exothermically with water; used in cement
+sulfur_dioxide,SO2,Sulfur Dioxide,oxide,64.07,2.62,200.75,263.05,94g/L,1.5,false,false,true,6000,gas,Pungent toxic gas; volcanic emission; used as preservative; causes acid rain
+nitrogen_dioxide,NO2,Nitrogen Dioxide,oxide,46.01,1.88,261.9,294.3,reacts,,false,false,true,138,gas,Reddish-brown toxic gas; component of smog; forms nitric acid with water
+nitric_oxide,NO,Nitric Oxide,oxide,30.01,1.34,109.5,121.4,0.032g/L,,false,false,true,0,gas,Signaling molecule in body; vasodilator; forms NO2 in air
+nitrous_oxide,N2O,Nitrous Oxide,oxide,44.01,1.98,182.29,184.67,1.5g/L,,false,false,false,0,gas,Laughing gas; anesthetic; greenhouse gas; oxidizer for rocket motors
+phosphorus_pentoxide,P2O5,Phosphorus Pentoxide,oxide,141.94,2.39,613,633,reacts,,false,false,true,0,solid,Powerful desiccant; reacts violently with water to form phosphoric acid
+hydrochloric_acid,HCl,Hydrochloric Acid,acid,36.46,1.19,247.15,321,,0.1,false,false,true,900,liquid,Strong mineral acid; stomach acid component; used in metal cleaning
+sulfuric_acid,H2SO4,Sulfuric Acid,acid,98.08,1.84,283.46,610,,0.3,false,false,true,2140,liquid,Most-produced industrial chemical; strong dehydrating agent; battery acid
+nitric_acid,HNO3,Nitric Acid,acid,63.01,1.51,231.15,356,,1.0,false,false,true,430,liquid,Strong oxidizing acid; used in fertilizer and explosives production
+phosphoric_acid,H3PO4,Phosphoric Acid,acid,98.0,1.885,315.5,431,,1.5,false,false,false,0,liquid,Used in soft drinks and fertilizers; rust converter; food additive
+acetic_acid,CH3COOH,Acetic Acid,acid,60.05,1.049,289.75,391.05,miscible,2.4,true,false,false,3310,liquid,Vinegar component; solvent; precursor to many chemicals
+citric_acid,C6H8O7,Citric Acid,acid,192.12,1.665,426,,592g/L,2.2,false,false,false,6730,solid,Found in citrus fruits; food preservative; metabolic intermediate
+carbonic_acid,H2CO3,Carbonic Acid,acid,62.03,1.0,,,only in solution,3.6,false,false,false,0,liquid,Weak acid formed when CO2 dissolves in water; carbonated drinks
+hydrofluoric_acid,HF,Hydrofluoric Acid,acid,20.01,1.15,189.65,292.65,miscible,1.0,false,false,true,25,liquid,Extremely dangerous acid; dissolves glass; causes deep tissue burns
+sodium_hydroxide,NaOH,Sodium Hydroxide (Lye),hydroxide,40.0,2.13,596,1661,1110g/L,14.0,false,false,true,2000,solid,Strong base; used in soap-making and drain cleaning; caustic
+potassium_hydroxide,KOH,Potassium Hydroxide,hydroxide,56.11,2.044,633,1600,1210g/L,14.0,false,false,true,365,solid,Strong base; used in biodiesel and alkaline batteries
+calcium_hydroxide,Ca(OH)2,Calcium Hydroxide (Slaked Lime),hydroxide,74.09,2.211,853,,1.5g/L,12.4,false,false,false,7340,solid,Mild base used in mortar and water treatment
+ammonia,NH3,Ammonia,hydroxide,17.03,0.73,195.42,239.81,899g/L,11.6,true,false,true,350,gas,Pungent gas; major fertilizer feedstock; refrigerant; toxic at high concentrations
+sodium_chloride,NaCl,Sodium Chloride (Table Salt),salt,58.44,2.165,1074,1686,360g/L,7.0,false,false,false,3000,solid,Essential mineral; food preservation; de-icing; most common salt
+potassium_chloride,KCl,Potassium Chloride,salt,74.55,1.984,1043,1693,340g/L,7.0,false,false,false,2500,solid,Fertilizer; salt substitute; used in lethal injection protocols
+calcium_carbonate,CaCO3,Calcium Carbonate (Limestone),salt,100.09,2.711,1612,,0.013g/L,9.0,false,false,false,6450,solid,Limestone and chalk; antacid; cement ingredient; shells and coral
+sodium_bicarbonate,NaHCO3,Sodium Bicarbonate (Baking Soda),salt,84.01,2.20,323,,96g/L,8.3,false,false,false,4220,solid,Baking leavener; antacid; fire extinguisher; cleaning agent
+gypsum,CaSO4_2H2O,Calcium Sulfate Dihydrate (Gypsum),mineral,172.17,2.32,423,,2.0g/L,7.0,false,false,false,0,solid,Plaster and drywall material; natural mineral; used in cement
+saltpeter,KNO3,Potassium Nitrate (Saltpeter),salt,101.10,2.109,607,,316g/L,7.0,false,true,false,3750,solid,Gunpowder oxidizer; fertilizer; food preservative; strong oxidizer
+sodium_carbonate,Na2CO3,Sodium Carbonate (Soda Ash),salt,105.99,2.54,1124,1873,217g/L,11.6,false,false,false,4090,solid,Glass-making; water softener; detergent builder
+sodium_sulfate,Na2SO4,Sodium Sulfate,salt,142.04,2.68,1157,1702,195g/L,7.0,false,false,false,5989,solid,Used in detergents and glass manufacturing; Glaubers salt
+ammonium_chloride,NH4Cl,Ammonium Chloride,salt,53.49,1.527,611,,297g/L,4.6,false,false,false,1650,solid,Used in soldering flux and dry cells; expectorant in medicine
+calcium_chloride,CaCl2,Calcium Chloride,salt,110.98,2.15,1048,2208,745g/L,7.0,false,false,false,1000,solid,De-icing agent; desiccant; highly hygroscopic; generates heat dissolving
+sodium_nitrate,NaNO3,Sodium Nitrate (Chile Saltpeter),salt,84.99,2.257,581,,876g/L,7.0,false,true,false,3236,solid,Fertilizer and food preservative; oxidizer; mined in Chile
+methane,CH4,Methane,hydrocarbon,16.04,0.657,90.69,111.66,0.022g/L,,true,true,false,0,gas,Simplest hydrocarbon; natural gas main component; potent greenhouse gas
+ethane,C2H6,Ethane,hydrocarbon,30.07,1.356,90.37,184.55,0.057g/L,,true,true,false,0,gas,Second simplest alkane; petrochemical feedstock; found in natural gas
+propane,C3H8,Propane,hydrocarbon,44.10,1.83,85.46,231.04,0.039g/L,,true,true,false,0,gas,Common fuel for heating and grills; LPG component; easily liquefied
+butane,C4H10,Butane,hydrocarbon,58.12,2.48,134.85,272.66,0.061g/L,,true,true,false,0,gas,Lighter fuel; LPG component; aerosol propellant
+octane,C8H18,Octane,hydrocarbon,114.23,0.703,216.38,398.83,insoluble,,true,true,false,0,liquid,Gasoline reference compound; defines octane rating scale
+benzene,C6H6,Benzene,hydrocarbon,78.11,0.879,278.68,353.23,1.79g/L,,true,false,true,930,liquid,Simplest aromatic hydrocarbon; carcinogenic; important chemical feedstock
+toluene,C7H8,Toluene,hydrocarbon,92.14,0.867,178.18,383.78,0.52g/L,,true,false,true,636,liquid,Aromatic solvent; paint thinner; precursor to TNT
+ethylene,C2H4,Ethylene,hydrocarbon,28.05,1.178,104.0,169.42,0.131g/L,,true,true,false,0,gas,Most-produced organic compound; fruit ripening hormone; plastic feedstock
+acetylene,C2H2,Acetylene,hydrocarbon,26.04,1.097,192.3,189.15,1.0g/L,,true,true,false,0,gas,Welding fuel with hottest flame; explosive when compressed; triple bond
+ethanol,C2H5OH,Ethanol,organic,46.07,0.789,159.05,351.44,miscible,,true,false,false,7060,liquid,Drinking alcohol; biofuel; solvent; antiseptic; produced by fermentation
+methanol,CH3OH,Methanol,organic,32.04,0.792,175.47,337.7,miscible,,true,false,true,100,liquid,Toxic alcohol causing blindness; fuel; solvent; antifreeze component
+isopropanol,C3H7OH,Isopropanol,organic,60.10,0.786,185.26,355.41,miscible,,true,false,false,5045,liquid,Rubbing alcohol; common disinfectant; solvent; less toxic than methanol
+glycerol,C3H8O3,Glycerol,organic,92.09,1.261,291.15,563,,miscible,,false,false,false,0,liquid,Sweet syrupy liquid; moisturizer; used in food and nitroglycerin production
+formaldehyde,CH2O,Formaldehyde,organic,30.03,0.815,181,254,miscible,,true,false,true,100,gas,Pungent preservative (formalin); carcinogenic; used in resins and plastics
+acetone,C3H6O,Acetone,organic,58.08,0.784,178.5,329.2,miscible,,true,false,false,5800,liquid,Common solvent; nail polish remover; naturally produced in body
+formic_acid,CH2O2,Formic Acid,organic,46.03,1.22,281.55,373.95,miscible,2.3,true,false,true,1100,liquid,Simplest carboxylic acid; found in ant venom; leather tanning
+oxalic_acid,C2H2O4,Oxalic Acid,organic,90.03,1.9,462,,143g/L,1.3,false,false,true,375,solid,Found in rhubarb leaves; forms kidney stones; rust remover
+urea,CH4N2O,Urea,organic,60.06,1.32,406,,1079g/L,7.0,false,false,false,8471,solid,Nitrogen fertilizer; found in urine; used in diesel exhaust treatment
+glucose,C6H12O6,Glucose,organic,180.16,1.54,423,,909g/L,,false,false,false,25800,solid,Primary energy source for cells; blood sugar; fermentation substrate
+sucrose,C12H22O11,Sucrose,organic,342.30,1.587,459,,2000g/L,,false,false,false,29700,solid,Table sugar; extracted from sugarcane and beets
+ethyl_acetate,C4H8O2,Ethyl Acetate,organic,88.11,0.902,189.55,350.21,83g/L,,true,false,false,5620,liquid,Fruity-smelling solvent; nail polish remover; decaffeination agent
+dimethyl_sulfoxide,C2H6OS,DMSO,organic,78.13,1.10,291.67,462,,miscible,,true,false,false,14500,liquid,Powerful solvent; penetrates skin rapidly; used in cryopreservation
+hydrogen_peroxide,H2O2,Hydrogen Peroxide,oxide,34.01,1.45,272.72,423.35,miscible,4.5,false,true,true,1232,liquid,Oxidizer and bleach; antiseptic; rocket propellant at high concentrations
+hydrogen_gas,H2,Hydrogen,gas,2.016,0.0899,14.01,20.28,0.0016g/L,,true,true,false,0,gas,Lightest gas; clean fuel producing only water; extremely flammable
+oxygen_gas,O2,Oxygen,gas,32.00,1.429,54.36,90.20,0.040g/L,,false,false,false,0,gas,Essential for respiration; supports combustion; 21% of atmosphere
+nitrogen_gas,N2,Nitrogen,gas,28.01,1.251,63.15,77.36,0.018g/L,,false,false,false,0,gas,Inert diatomic gas; 78% of atmosphere; used for inerting and cryogenics
+helium_gas,He,Helium,gas,4.003,0.1785,,4.22,0.0015g/L,,false,false,false,0,gas,Lightest noble gas; used in balloons and cryogenics; non-flammable
+argon_gas,Ar,Argon,gas,39.95,1.784,83.80,87.30,0.034g/L,,false,false,false,0,gas,Third most abundant atmospheric gas; inert; welding shield gas
+ozone,O3,Ozone,gas,48.00,2.14,80.7,161.3,0.57g/L,,false,false,true,0,gas,Powerful oxidizer; stratospheric UV shield; ground-level pollutant; toxic
+radon_gas,Rn,Radon,gas,222.0,9.73,202,211.3,0.23g/L,,false,false,true,0,gas,Radioactive noble gas; leading cause of lung cancer after smoking
+chlorine_gas,Cl2,Chlorine,gas,70.90,3.214,171.6,239.11,7.3g/L,,false,false,true,137,gas,Greenish-yellow toxic gas; water purification; WWI chemical weapon
+fluorine_gas,F2,Fluorine,gas,38.00,1.696,53.53,85.03,reacts,,false,false,true,0,gas,Most reactive element; pale yellow toxic gas; attacks nearly all materials
+tnt,C6H2(NO2)3CH3,Trinitrotoluene (TNT),explosive,227.13,1.654,354,,insoluble,,false,true,true,795,solid,Standard military explosive; stable and safe to handle; reference for blast yield
+nitroglycerin,C3H5N3O9,Nitroglycerin,explosive,227.09,1.6,286,323,1.8g/L,,false,true,true,105,liquid,Powerful but shock-sensitive explosive; vasodilator in medicine; dynamite component
+ammonium_nitrate,NH4NO3,Ammonium Nitrate,explosive,80.04,1.725,443,,1900g/L,,false,true,false,2217,solid,Fertilizer and explosive; detonates when heated under confinement
+rdx,C3H6N6O6,RDX (Cyclotrimethylenetrinitramine),explosive,222.12,1.82,477,,insoluble,,false,true,true,100,solid,Military explosive; main component of C-4 plastic explosive
+hmx,C4H8N8O8,HMX,explosive,296.16,1.91,551,,0.005g/L,,false,true,true,200,solid,More powerful than RDX; used in shaped charges and rocket propellants
+petn,C5H8N4O12,PETN,explosive,316.14,1.77,414.4,,insoluble,,false,true,true,128,solid,Detonation cord explosive; also used as vasodilator medication
+picric_acid,C6H3N3O7,Picric Acid,explosive,229.10,1.763,395.5,,12.7g/L,1.0,false,true,true,200,solid,Early high explosive; yellow dye; forms dangerous metal salts
+black_powder,KNO3_S_C,Black Powder (Gunpowder),explosive,,,,,insoluble,,false,true,false,0,solid,Oldest explosive; mixture of potassium nitrate 75% + charcoal 15% + sulfur 10%
+hydrogen_cyanide,HCN,Hydrogen Cyanide,poison,27.03,0.687,259.16,298.85,miscible,,true,false,true,1.0,liquid,Extremely toxic; bitter almond odor; blocks cellular respiration
+arsenic_trioxide,As2O3,Arsenic Trioxide,poison,197.84,3.74,585,738,20g/L,,false,false,true,14.6,solid,Historic poison king; odorless white powder; used in rat poison and glass
+phosgene,COCl2,Phosgene,poison,98.92,4.25,145.37,280.71,reacts,,false,false,true,5,gas,WWI chemical weapon; smells of fresh hay; insidious delayed-onset lung damage
+sodium_cyanide,NaCN,Sodium Cyanide,poison,49.01,1.595,836,1769,370g/L,11.0,false,false,true,6.4,solid,Used in gold mining extraction; extremely toxic; releases HCN with acid
+potassium_cyanide,KCN,Potassium Cyanide,poison,65.12,1.52,907,,716g/L,11.0,false,false,true,5.0,solid,Historical poison and suicide pill; used in gold plating; bitter almond smell
+strychnine,C21H22N2O2,Strychnine,poison,334.41,1.36,543,,0.43g/L,,false,false,true,2.0,solid,Convulsant poison from Strychnos nux-vomica; formerly used as rat poison
+aspirin,C9H8O4,Aspirin (Acetylsalicylic Acid),medicine,180.16,1.40,408,,4.6g/L,3.5,false,false,false,200,solid,Common pain reliever and anti-inflammatory; blood thinner; fever reducer
+penicillin_g,C16H18N2O4S,Penicillin G,medicine,334.39,1.41,,,,6.5,false,false,false,8000,solid,First antibiotic; discovered by Fleming; revolutionized medicine
+morphine,C17H19NO3,Morphine,medicine,285.34,1.32,528,,0.15g/L,8.0,false,false,true,461,solid,Powerful opiate painkiller from opium poppy; highly addictive; schedule II
+epinephrine,C9H13NO3,Epinephrine (Adrenaline),medicine,183.20,1.28,484,,slightly,,false,false,false,62,solid,Fight-or-flight hormone; treats anaphylaxis; cardiac stimulant
+insulin,C257H383N65O77S6,Insulin,medicine,5808,,,,soluble,,false,false,false,0,solid,Peptide hormone regulating blood sugar; essential for diabetics
+quinine,C20H24N2O2,Quinine,medicine,324.42,1.22,450,,0.5g/L,,false,false,true,500,solid,Anti-malaria drug from cinchona bark; bitter flavor in tonic water
+ibuprofen,C13H18O2,Ibuprofen,medicine,206.28,1.03,349,,0.021g/L,,false,false,false,636,solid,NSAID pain reliever and anti-inflammatory; OTC medication
+caffeine,C8H10N4O2,Caffeine,organic,194.19,1.23,509,,21.7g/L,,false,false,false,192,solid,Stimulant found in coffee and tea; worlds most consumed psychoactive drug
+nicotine,C10H14N2,Nicotine,organic,162.23,1.01,247,520,miscible,,false,false,true,50,liquid,Addictive stimulant in tobacco; toxic alkaloid; used as insecticide
+capsaicin,C18H27NO3,Capsaicin,organic,305.41,1.08,335,,0.013g/L,,false,false,false,118,solid,Active component of chili peppers; pain relief cream ingredient
+thc,C21H30O2,THC (Tetrahydrocannabinol),organic,314.46,1.04,346,,insoluble,,false,false,false,1270,solid,Primary psychoactive compound in cannabis; medical and recreational use
+penicillamine,C5H11NO2S,Penicillamine,medicine,149.21,1.16,475,,soluble,,false,false,false,365,solid,Chelation therapy drug for heavy metal poisoning; Wilson disease treatment
+polyethylene,(C2H4)n,Polyethylene (PE),polymer,,,383,,,,,false,false,false,0,solid,Most common plastic; bags and bottles; low and high density forms
+polypropylene,(C3H6)n,Polypropylene (PP),polymer,,,443,,,,,false,false,false,0,solid,Rigid plastic for containers and automotive parts; recyclable
+pvc,(C2H3Cl)n,Polyvinyl Chloride (PVC),polymer,,,373,,,,,false,false,false,0,solid,Rigid or flexible plastic for pipes and insulation; releases HCl when burned
+nylon_66,(C12H22N2O2)n,Nylon 6-6,polymer,,,538,,,,,false,false,false,0,solid,Strong synthetic fiber; gears and bearings; first commercial synthetic polymer
+kevlar,(C14H10N2O2)n,Kevlar (Poly-p-phenyleneterephthalamide),polymer,,,773,,,,,false,false,false,0,solid,Ultra-strong aramid fiber; body armor and tire reinforcement; 5x stronger than steel
+teflon,(C2F4)n,Teflon (PTFE),polymer,,,600,,,,,false,false,false,0,solid,Non-stick coating; extremely low friction; chemically inert; heat resistant
+silicone,(SiO(CH3)2)n,Silicone (Polydimethylsiloxane),polymer,,,230,,,,,false,false,false,0,liquid,Flexible polymer; sealants and implants; heat resistant; water repellent
+polycarbonate,(C16H14O3)n,Polycarbonate (PC),polymer,,,420,,,,,false,false,false,0,solid,Transparent impact-resistant plastic; bulletproof glass; CDs and eyewear
+abs,(C8H8_C4H6_C3H3N)n,ABS (Acrylonitrile Butadiene Styrene),polymer,,,378,,,,,false,false,false,0,solid,Tough thermoplastic; LEGO bricks; 3D printing filament; automotive trim
+epoxy,C21H25ClO5,Epoxy Resin,polymer,,,423,,,,,false,false,true,11400,solid,Two-part adhesive and coating; fiberglass matrix; excellent chemical resistance
+sodium_hypochlorite,NaClO,Sodium Hypochlorite (Bleach),salt,74.44,1.11,291,,miscible,12.0,false,false,true,8910,liquid,Common bleach and disinfectant; water purification; generates chlorine gas with acid
+calcium_hypochlorite,Ca(ClO)2,Calcium Hypochlorite (Pool Shock),salt,142.98,2.35,373,,210g/L,11.0,false,false,true,850,solid,Pool disinfectant; stronger than liquid bleach; strong oxidizer
+potassium_permanganate,KMnO4,Potassium Permanganate,salt,158.03,2.703,513,,64g/L,,false,false,true,1090,solid,Purple oxidizer; water treatment; wound antiseptic; fire starter
+sodium_fluoride,NaF,Sodium Fluoride,salt,41.99,2.56,1266,1968,40g/L,,false,false,true,52,solid,Toothpaste additive; water fluoridation; rat poison at high doses
+boric_acid,H3BO3,Boric Acid,acid,61.83,1.435,444,,47g/L,5.1,false,false,false,2660,solid,Mild antiseptic; insecticide; flame retardant; used in fiberglass
+chromium_trioxide,CrO3,Chromium Trioxide,oxide,99.99,2.70,470,523,625g/L,,false,false,true,80,solid,Chrome plating chemical; powerful oxidizer; Cr(VI) is carcinogenic
+sodium_dichromate,Na2Cr2O7,Sodium Dichromate,salt,261.97,2.52,629,,730g/L,,false,false,true,50,solid,Strong oxidizer; leather tanning; highly carcinogenic Cr(VI) compound
+magnesium_sulfate,MgSO4,Magnesium Sulfate (Epsom Salt),salt,120.37,2.66,1397,,357g/L,7.0,false,false,false,0,solid,Bath salt for muscle relaxation; laxative; agricultural fertilizer
+zinc_oxide,ZnO,Zinc Oxide,oxide,81.38,5.606,2248,,0.004g/L,,false,false,false,7950,solid,Sunscreen ingredient; calamine lotion; rubber vulcanization
+copper_sulfate,CuSO4,Copper(II) Sulfate,salt,159.61,3.60,833,,203g/L,,false,false,true,300,solid,Blue crystal; fungicide; algaecide; copper plating; toxic if ingested
+ferrous_sulfate,FeSO4,Ferrous Sulfate,salt,151.91,3.65,337,,256g/L,3.7,false,false,false,319,solid,Iron supplement; treats anemia; moss killer; water treatment coagulant
+silver_nitrate,AgNO3,Silver Nitrate,salt,169.87,4.35,485,717,2160g/L,,false,false,true,1173,solid,Photography chemical; cauterizing agent; antimicrobial; stains skin black
+mercury_chloride,HgCl2,Mercuric Chloride,salt,271.52,5.43,549,577,69g/L,,false,false,true,1,solid,Extremely toxic mercury compound; formerly used as disinfectant and preservative
+lead_acetate,Pb(C2H3O2)2,Lead(II) Acetate,salt,325.29,3.25,548,,443g/L,,false,false,true,100,solid,Sweet-tasting toxic lead compound; historically called sugar of lead
+methyl_isocyanate,CH3NCO,Methyl Isocyanate (MIC),organic,57.05,0.96,256,312,reacts,,true,false,true,21,liquid,Extremely toxic industrial chemical; cause of Bhopal disaster; pesticide intermediate
+dimethyl_mercury,(CH3)2Hg,Dimethyl Mercury,organic,230.66,3.07,154,366,insoluble,,true,false,true,0.05,liquid,Supertoxic organomercury; penetrates latex gloves; lethal in microliters
+sodium_azide,NaN3,Sodium Azide,salt,65.01,1.846,548,,417g/L,,false,true,true,27,solid,Airbag propellant; biochemistry preservative; extremely toxic; forms HN3 with acid
+phosphine,PH3,Phosphine,gas,34.00,1.379,139.37,185.40,0.26g/L,,true,true,true,11,gas,Extremely toxic fumigant gas; generated by metal phosphides; garlic-like odor
+hydrogen_sulfide,H2S,Hydrogen Sulfide,gas,34.08,1.36,187.65,212.85,3.8g/L,,true,false,true,713,gas,Rotten egg smell; toxic at low ppm; produced by decomposition; sewer gas
+diethyl_ether,C4H10O,Diethyl Ether,organic,74.12,0.713,156.85,307.75,69g/L,,true,true,false,1215,liquid,Historic first anesthetic; extremely flammable; forms explosive peroxides
+chloroform,CHCl3,Chloroform,organic,119.38,1.489,209.75,334.35,8g/L,,false,false,true,908,liquid,Historic anesthetic; solvent; possible carcinogen; sweet-smelling
+sodium_thiosulfate,Na2S2O3,Sodium Thiosulfate,salt,158.11,1.667,321,,700g/L,7.0,false,false,false,0,solid,Photography fixer; cyanide poisoning antidote; dechlorination agent
+potassium_iodide,KI,Potassium Iodide,salt,166.0,3.123,954,1603,1400g/L,7.0,false,false,false,2779,solid,Thyroid protection from radiation; iodine supplement; expectorant
+calcium_fluoride,CaF2,Calcium Fluoride (Fluorspar),mineral,78.07,3.18,1691,2806,0.016g/L,,false,false,false,0,solid,Optical material; flux in steelmaking; natural source of fluorine
+lithium_carbonate,Li2CO3,Lithium Carbonate,salt,73.89,2.11,996,1583,13g/L,11.0,false,false,true,531,solid,Psychiatric medication for bipolar disorder; ceramic glaze; battery material
+magnesium_hydroxide,Mg(OH)2,Magnesium Hydroxide (Milk of Magnesia),hydroxide,58.32,2.345,623,,0.009g/L,10.5,false,false,false,8500,solid,Antacid and laxative; flame retardant; water treatment
+aluminum_chloride,AlCl3,Aluminum Chloride,salt,133.34,2.48,465,453,soluble,,false,false,true,3450,solid,Catalyst in chemical reactions; antiperspirant active ingredient
+tungsten_hexafluoride,WF6,Tungsten Hexafluoride,salt,297.83,12.4,275.15,290.35,reacts,,false,false,true,0,gas,Densest known gas; used in semiconductor manufacturing; highly toxic

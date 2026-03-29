@@ -1,0 +1,84 @@
+// HumanityOS Quest Chain: Tutorial
+// These quests guide new players through core mechanics.
+// Format: Vec<QuestDef> — see engine/src/systems/quests/mod.rs
+
+[
+    (
+        id: "tutorial_first_habitat",
+        name: "Build First Habitat",
+        description: "Welcome! Start by building your first living space to establish a basic habitat for survival.",
+        steps: [
+            (
+                description: "Place foundation floor tiles (10)",
+                objective: Build(blueprint_id: "floor_tile"),
+            ),
+            (
+                description: "Construct basic walls (8)",
+                objective: Build(blueprint_id: "wall_basic"),
+            ),
+            (
+                description: "Install an entrance door",
+                objective: Build(blueprint_id: "door_basic"),
+            ),
+            (
+                description: "Add basic lighting (2)",
+                objective: Build(blueprint_id: "light_basic"),
+            ),
+        ],
+        rewards: [
+            ("concrete_mix", 20),
+            ("basic_toolkit", 1),
+        ],
+        prerequisite: None,
+    ),
+
+    (
+        id: "tutorial_farming_basics",
+        name: "Start Farming",
+        description: "Establish a sustainable food source by learning the basics of farming and growing your first crops.",
+        steps: [
+            (
+                description: "Prepare soil for planting (3 plots)",
+                objective: Build(blueprint_id: "farm_plot"),
+            ),
+            (
+                description: "Plant your first potato seeds (3)",
+                objective: Harvest(crop_id: "potato", quantity: 3),
+            ),
+            (
+                description: "Harvest mature crops (6 potatoes)",
+                objective: Gather(item_id: "fresh_potato", quantity: 6),
+            ),
+        ],
+        rewards: [
+            ("tomato_seeds", 5),
+            ("carrot_seeds", 5),
+            ("fertilizer", 5),
+        ],
+        prerequisite: Some("tutorial_first_habitat"),
+    ),
+
+    (
+        id: "tutorial_power_grid",
+        name: "Power Systems",
+        description: "Learn to generate and distribute power throughout your habitat using basic electrical systems.",
+        steps: [
+            (
+                description: "Construct a solar power generator",
+                objective: Build(blueprint_id: "generator_solar"),
+            ),
+            (
+                description: "Run power cables to connect systems (10)",
+                objective: Craft(recipe_id: "power_cable", quantity: 10),
+            ),
+            (
+                description: "Add energy storage battery",
+                objective: Build(blueprint_id: "battery_basic"),
+            ),
+        ],
+        rewards: [
+            ("copper_wire", 20),
+        ],
+        prerequisite: Some("tutorial_first_habitat"),
+    ),
+]
