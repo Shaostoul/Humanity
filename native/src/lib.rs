@@ -197,6 +197,7 @@ mod native_app {
         game_world: GameWorld,
         system_runner: SystemRunner,
         data_store: DataStore,
+        star_renderer: Option<crate::renderer::stars::StarRenderer>,
         planet: Option<PlanetRenderer>,
         planet_mesh: Option<usize>,
         planet_material: usize,
@@ -371,6 +372,20 @@ mod native_app {
                 gui_state.active_page = GuiPage::MainMenu;
             }
 
+            // Load star skybox from CSV
+            let star_csv = data_dir.join("stars.csv");
+            let star_renderer = crate::renderer::stars::StarRenderer::new(
+                &renderer.device,
+                &renderer.queue,
+                renderer.surface_format(),
+                &star_csv,
+            );
+            if star_renderer.is_some() {
+                log::info!("Star skybox initialized");
+            } else {
+                log::warn!("Star skybox not loaded (missing {})", star_csv.display());
+            }
+
             // Try to load a planet from data files
             let planet_material = renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
             let (planet, planet_mesh) = match asset_manager.load_ron::<PlanetDef>("planets/earth.ron") {
@@ -398,6 +413,7 @@ mod native_app {
                 game_world,
                 system_runner,
                 data_store,
+                star_renderer,
                 planet,
                 planet_mesh,
                 planet_material,
@@ -1309,8 +1325,40 @@ mod native_app {
                             a: 1.0,
                         })
                     } else {
-                        // In-game: full 3D scene render
-                        state.renderer.render_scene(&state.camera, &all_objects)
+                        // In-game: render stars first, then scene objects on top
+                        match state.renderer.acquire_surface() {
+                            Ok((output, view)) => {
+                                // Pass 1: Stars (clear to black + draw star points)
+                                if let Some(ref star_r) = state.star_renderer {
+                                    star_r.update_camera(&state.renderer.queue, &state.camera);
+                                    let mut encoder = state.renderer.device.create_command_encoder(
+                                        &wgpu::CommandEncoderDescriptor { label: Some("Star Encoder") },
+                                    );
+                                    {
+                                        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                                            label: Some("Star Pass"),
+                                            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                                                view: &view,
+                                                resolve_target: None,
+                                                ops: wgpu::Operations {
+                                                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                                    store: wgpu::StoreOp::Store,
+                                                },
+                                            })],
+                                            depth_stencil_attachment: None,
+                                            ..Default::default()
+                                        });
+                                        star_r.render_pass(&mut pass);
+                                    }
+                                    state.renderer.queue.submit(std::iter::once(encoder.finish()));
+                                }
+
+                                // Pass 2: Scene objects (LoadOp::Load preserves stars)
+                                state.renderer.render_scene_onto(&state.camera, &all_objects, &view);
+                                Ok((output, view))
+                            }
+                            Err(e) => Err(e),
+                        }
                     };
                     match scene_result {
                         Ok((surface_texture, view)) => {

@@ -9,6 +9,7 @@ pub mod multi_scale;
 pub mod pipeline;
 pub mod shader_loader;
 pub mod sky;
+pub mod stars;
 
 use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};
@@ -426,6 +427,97 @@ impl Renderer {
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
+        Ok((output, view))
+    }
+
+    /// Render 3D objects onto an already-acquired surface texture.
+    /// Uses LoadOp::Load to preserve existing content (e.g. stars rendered first).
+    pub fn render_scene_onto(
+        &self,
+        camera: &Camera,
+        objects: &[RenderObject],
+        view: &wgpu::TextureView,
+    ) {
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&camera.uniforms()),
+        );
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Scene Overlay Encoder"),
+            });
+
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Scene Overlay Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // preserve star background
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+
+            render_pass.set_pipeline(&self.pipeline.render_pipeline);
+            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+
+            for obj in objects {
+                let mesh = match self.meshes.get(obj.mesh) {
+                    Some(m) => m,
+                    None => continue,
+                };
+                let material = match self.materials.get(obj.material) {
+                    Some(m) => m,
+                    None => continue,
+                };
+
+                let model = Mat4::from_scale_rotation_translation(
+                    obj.scale,
+                    obj.rotation,
+                    obj.position,
+                );
+                let normal_matrix = model.inverse().transpose();
+                let object_uniforms = ObjectUniforms {
+                    model: model.to_cols_array_2d(),
+                    normal_matrix: normal_matrix.to_cols_array_2d(),
+                };
+                self.queue.write_buffer(
+                    &self.object_buffer,
+                    0,
+                    bytemuck::bytes_of(&object_uniforms),
+                );
+
+                render_pass.set_bind_group(1, &self.object_bind_group, &[]);
+                render_pass.set_bind_group(2, &material.bind_group, &[]);
+                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            }
+        }
+
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// Acquire surface and clear to black, returning the texture for star + scene rendering.
+    pub fn acquire_surface(&self) -> Result<(wgpu::SurfaceTexture, wgpu::TextureView), wgpu::SurfaceError> {
+        let output = self.surface.get_current_texture()?;
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
         Ok((output, view))
     }
 
