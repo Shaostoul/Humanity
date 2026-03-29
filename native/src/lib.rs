@@ -87,22 +87,29 @@ mod native_app {
         let exe = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
 
-        for candidate in &[
-            exe_dir.join("data"),
-            exe_dir.join("content").join("data"),
-            exe_dir.parent().unwrap_or(exe_dir).join("data"),
-            exe_dir.parent().unwrap_or(exe_dir).join("content").join("data"),
-            // Dev mode: repo root data directory
-            PathBuf::from("data"),
-        ] {
+        // Walk up from exe directory, checking each level for data/
+        let mut dir = exe_dir;
+        for _ in 0..5 {
+            let candidate = dir.join("data");
             if candidate.exists() && candidate.is_dir() {
                 log::info!("Data directory: {}", candidate.display());
-                return candidate.clone();
+                return candidate;
+            }
+            match dir.parent() {
+                Some(parent) => dir = parent,
+                None => break,
             }
         }
 
+        // Fallback: CWD
+        let cwd_data = PathBuf::from("data");
+        if cwd_data.exists() && cwd_data.is_dir() {
+            log::info!("Data directory (CWD): {}", cwd_data.display());
+            return cwd_data;
+        }
+
         log::warn!("No data directory found, using ./data");
-        PathBuf::from("data")
+        cwd_data
     }
 
     /// Extract embedded data files to disk on first run.
@@ -372,8 +379,35 @@ mod native_app {
                 gui_state.active_page = GuiPage::MainMenu;
             }
 
-            // Load star skybox from CSV
-            let star_csv = data_dir.join("stars.csv");
+            // Load star skybox from CSV — search multiple locations
+            let star_csv = {
+                let primary = data_dir.join("stars.csv");
+                if primary.exists() {
+                    primary
+                } else {
+                    // Walk up from exe to find repo-level data/stars.csv
+                    let exe = std::env::current_exe().unwrap_or_default();
+                    let exe_dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+                    let mut found = None;
+                    let mut search_dir = exe_dir.clone();
+                    for i in 0..6 {
+                        let candidate = search_dir.join("data").join("stars.csv");
+                        crate::debug::push_debug(format!("Star search [{}]: {} (exists: {})", i, candidate.display(), candidate.exists()));
+                        if candidate.exists() {
+                            found = Some(candidate);
+                            break;
+                        }
+                        // Go up one level
+                        if let Some(parent) = search_dir.parent() {
+                            search_dir = parent.to_path_buf();
+                        } else {
+                            break;
+                        }
+                    }
+                    found.unwrap_or(primary)
+                }
+            };
+            crate::debug::push_debug(format!("Star CSV path: {} (exists: {})", star_csv.display(), star_csv.exists()));
             let star_renderer = crate::renderer::stars::StarRenderer::new(
                 &renderer.device,
                 &renderer.queue,
@@ -382,8 +416,10 @@ mod native_app {
             );
             if star_renderer.is_some() {
                 log::info!("Star skybox initialized");
+                crate::debug::push_debug("Star skybox: loaded successfully");
             } else {
                 log::warn!("Star skybox not loaded (missing {})", star_csv.display());
+                crate::debug::push_debug(format!("Star skybox: FAILED to load from {}", star_csv.display()));
             }
 
             // Try to load a planet from data files

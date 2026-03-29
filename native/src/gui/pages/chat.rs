@@ -181,7 +181,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.server_url = "https://united-humanity.us".to_string();
                 }
                 if state.user_name.is_empty() {
-                    state.user_name = "Desktop User".to_string();
+                    state.user_name = "DesktopUser".to_string();
                 }
 
                 ui.label(RichText::new("Server:").size(theme.font_size_small).color(theme.text_muted()));
