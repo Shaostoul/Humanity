@@ -87,21 +87,34 @@ mod native_app {
         let exe = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
 
-        // Walk up from exe directory, checking each level for data/
-        let mut dir = exe_dir;
+        // Search order:
+        // 1. data/ next to exe (installed layout: HumanityOS/HumanityOS.exe + HumanityOS/data/)
+        // 2. Walk up parents (dev mode: exe in target/release/, data/ at repo root)
+        // 3. CWD/data/ (cargo run sets CWD to project root)
+
+        // Check next to exe first
+        let beside_exe = exe_dir.join("data");
+        if beside_exe.exists() && beside_exe.is_dir() {
+            log::info!("Data directory (beside exe): {}", beside_exe.display());
+            return beside_exe;
+        }
+
+        // Walk up from exe (handles target/release/ -> repo root)
+        let mut dir = exe_dir.to_path_buf();
         for _ in 0..5 {
-            let candidate = dir.join("data");
-            if candidate.exists() && candidate.is_dir() {
-                log::info!("Data directory: {}", candidate.display());
-                return candidate;
-            }
-            match dir.parent() {
-                Some(parent) => dir = parent,
-                None => break,
+            if let Some(parent) = dir.parent() {
+                let candidate = parent.join("data");
+                if candidate.exists() && candidate.is_dir() {
+                    log::info!("Data directory (parent walk): {}", candidate.display());
+                    return candidate;
+                }
+                dir = parent.to_path_buf();
+            } else {
+                break;
             }
         }
 
-        // Fallback: CWD
+        // CWD fallback (cargo run)
         let cwd_data = PathBuf::from("data");
         if cwd_data.exists() && cwd_data.is_dir() {
             log::info!("Data directory (CWD): {}", cwd_data.display());
@@ -384,34 +397,8 @@ mod native_app {
                 gui_state.active_page = GuiPage::MainMenu;
             }
 
-            // Load star skybox from CSV — search multiple locations
-            let star_csv = {
-                let primary = data_dir.join("stars.csv");
-                if primary.exists() {
-                    primary
-                } else {
-                    // Walk up from exe to find repo-level data/stars.csv
-                    let exe = std::env::current_exe().unwrap_or_default();
-                    let exe_dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-                    let mut found = None;
-                    let mut search_dir = exe_dir.clone();
-                    for i in 0..6 {
-                        let candidate = search_dir.join("data").join("stars.csv");
-                        crate::debug::push_debug(format!("Star search [{}]: {} (exists: {})", i, candidate.display(), candidate.exists()));
-                        if candidate.exists() {
-                            found = Some(candidate);
-                            break;
-                        }
-                        // Go up one level
-                        if let Some(parent) = search_dir.parent() {
-                            search_dir = parent.to_path_buf();
-                        } else {
-                            break;
-                        }
-                    }
-                    found.unwrap_or(primary)
-                }
-            };
+            // Load star skybox from CSV (data_dir already resolved by find_data_dir)
+            let star_csv = data_dir.join("stars.csv");
             crate::debug::push_debug(format!("Star CSV path: {} (exists: {})", star_csv.display(), star_csv.exists()));
             let star_renderer = crate::renderer::stars::StarRenderer::new(
                 &renderer.device,

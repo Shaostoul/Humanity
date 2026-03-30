@@ -1,0 +1,8 @@
+{
+  "name": "Example Mod",
+  "version": "1.0.0",
+  "author": "HumanityOS",
+  "description": "An example mod showing the folder structure. Does nothing.",
+  "priority": 100,
+  "enabled": false
+}

@@ -66,17 +66,25 @@ jobs:
       - name: Build native engine (release)
         run: cargo build --release --target ${{ matrix.target }} -p humanity-engine
 
-      - name: Copy binary
+      - name: Bundle binary with data
         shell: bash
         run: |
-          mkdir -p dist
-          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+          mkdir -p dist/HumanityOS
+          cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/HumanityOS/${{ matrix.asset_name }}
+          # Copy game data and assets
+          cp -r data/ dist/HumanityOS/data/
+          cp -r assets/icons/ dist/HumanityOS/assets/icons/
+          cp -r assets/shaders/ dist/HumanityOS/assets/shaders/
+          # Remove large audio placeholders if they exist
+          rm -rf dist/HumanityOS/data/audio/sfx/* dist/HumanityOS/data/audio/music/* dist/HumanityOS/data/audio/ambient/* 2>/dev/null || true
+          # Create zip
+          cd dist && tar czf HumanityOS-${{ matrix.label }}.tar.gz HumanityOS/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: humanity-${{ matrix.label }}
-          path: dist/${{ matrix.asset_name }}
+          path: dist/HumanityOS-${{ matrix.label }}.tar.gz
 
       - name: Publish to Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -84,7 +92,7 @@ jobs:
         with:
           draft: false
           generate_release_notes: false
-          files: dist/${{ matrix.asset_name }}
+          files: dist/HumanityOS-${{ matrix.label }}.tar.gz
 
   # Bundle data files alongside the binary
   bundle-data:

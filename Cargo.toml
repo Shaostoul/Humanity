@@ -23,6 +23,4 @@ members = [
     "native/crates/core-snapshot-sync",
     "native/crates/core-planet-icosphere",
 ]
-exclude = [
-    "app",
-]
+exclude = []
