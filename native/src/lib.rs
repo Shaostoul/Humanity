@@ -226,6 +226,10 @@ mod native_app {
         homestead_floors: Vec<(usize, usize)>,
         /// Homestead walls mesh + material.
         homestead_walls: Option<(usize, usize)>,
+        /// Solar system hologram bodies (mesh_idx, material_idx, local_position).
+        hologram_objects: Vec<(usize, usize, Vec3)>,
+        /// Ship world position (GEO orbit coordinates).
+        ship_world_pos: glam::DVec3,
         start_time: Instant,
         last_frame: Instant,
         // egui integration
@@ -287,10 +291,26 @@ mod native_app {
             };
             log::info!("Homestead: {} floor meshes, walls: {}", homestead_floors.len(), homestead_walls.is_some());
 
+            // Generate solar system hologram for the bedroom
+            let hologram = crate::renderer::hologram::generate_hologram();
+            let mut hologram_objects: Vec<(usize, usize, Vec3)> = Vec::new(); // mesh_idx, mat_idx, local_pos
+            for body in &hologram.bodies {
+                let mesh_idx = renderer.add_mesh(
+                    crate::renderer::hologram::sphere_mesh(&renderer.device, body.radius, 8, 12)
+                );
+                let mat_idx = renderer.add_material(body.color, 0.3, 0.4);
+                hologram_objects.push((mesh_idx, mat_idx, body.local_position));
+            }
+            log::info!("Hologram: {} bodies", hologram_objects.len());
+
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
-            camera.position = Vec3::ZERO; // position is always zero with floating origin
-            // world_position set later after planet loading (GEO above Washington)
+            // Player starts in the F5 bedroom of the homestead
+            // Bedroom at room position (8, 0, 1) with dims (3, 3, 3)
+            // Center at eye height: (9.5, 1.7, 2.5)
+            camera.position = Vec3::new(9.5, 1.7, 2.5);
+            // Ship is at origin. No floating origin needed for gameplay.
+            // Floating origin only matters for rendering distant planets.
 
             let controller = CameraController::new(5.0, 3.0);
 
@@ -433,22 +453,22 @@ mod native_app {
                 }
             };
 
-            // Place player at geosynchronous orbit above Silverdale, WA
-            // Lat 47.6°N, Lon 122.3°W, altitude 35,786 km (GEO radius 42,164 km)
-            {
+            // Ship is at origin. Planets are rendered at visual offsets.
+            // GEO above Silverdale, WA: this is the ship's LOGICAL position
+            // used to compute where Earth appears visually, but the ship itself
+            // stays at (0,0,0) for physics/gameplay sanity.
+            let ship_world_pos = {
                 let lat_rad = 47.6_f64.to_radians();
                 let lon_rad = (-122.3_f64).to_radians();
-                let geo_radius = 42_164_000.0_f64; // meters from Earth center
-                let geo_x = geo_radius * lat_rad.cos() * lon_rad.cos();
-                let geo_y = geo_radius * lat_rad.sin();
-                let geo_z = geo_radius * lat_rad.cos() * lon_rad.sin();
-                camera.world_position = glam::DVec3::new(geo_x, geo_y, geo_z);
-                // Look toward Earth (toward origin)
-                let to_earth = -glam::DVec3::new(geo_x, geo_y, geo_z).normalize();
-                camera.yaw = to_earth.x.atan2(-to_earth.z) as f32;
-                camera.pitch = to_earth.y.asin() as f32;
-                log::info!("Player at GEO: ({:.0}, {:.0}, {:.0}) meters", geo_x, geo_y, geo_z);
-            }
+                let geo_radius = 42_164_000.0_f64;
+                glam::DVec3::new(
+                    geo_radius * lat_rad.cos() * lon_rad.cos(),
+                    geo_radius * lat_rad.sin(),
+                    geo_radius * lat_rad.cos() * lon_rad.sin(),
+                )
+            };
+            log::info!("Ship logical position: GEO above WA ({:.0} km from Earth center)",
+                ship_world_pos.length() / 1000.0);
 
             self.state = Some(EngineState {
                 window,
@@ -467,6 +487,8 @@ mod native_app {
                 planet_material,
                 homestead_floors,
                 homestead_walls,
+                hologram_objects,
+                ship_world_pos,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 egui_ctx,
@@ -602,16 +624,8 @@ mod native_app {
                     // Update camera from input
                     state.controller.update_camera(&mut state.camera, dt);
 
-                    // Accumulate camera movement into f64 world position, reset f32
-                    state.camera.world_position += glam::DVec3::new(
-                        state.camera.position.x as f64,
-                        state.camera.position.y as f64,
-                        state.camera.position.z as f64,
-                    );
-                    state.camera.position = Vec3::ZERO;
-
-                    // Update floating origin to match camera world position
-                    state.floating_origin.camera_world_pos = state.camera.world_position;
+                    // Camera stays in local ship coords (no floating origin reset)
+                    // Floating origin is only used for rendering distant bodies
 
                     // Sync camera state into DataStore for game systems
                     state.data_store.insert("camera_position", state.camera.position);
@@ -630,18 +644,16 @@ mod native_app {
                     // Build render objects from homestead meshes
                     let mut all_objects: Vec<RenderObject> = Vec::new();
 
-                    // Homestead floors (each room is its own colored mesh)
+                    // Homestead at origin — vertex positions are in ship-local coords
                     for &(mesh_idx, mat_idx) in &state.homestead_floors {
                         all_objects.push(RenderObject {
-                            position: Vec3::ZERO, // rooms already have absolute local positions baked in
+                            position: Vec3::ZERO,
                             rotation: Quat::IDENTITY,
                             scale: Vec3::ONE,
                             mesh: mesh_idx,
                             material: mat_idx,
                         });
                     }
-
-                    // Homestead walls
                     if let Some((mesh_idx, mat_idx)) = state.homestead_walls {
                         all_objects.push(RenderObject {
                             position: Vec3::ZERO,
@@ -652,35 +664,59 @@ mod native_app {
                         });
                     }
 
-                    // Planet (if loaded) — rendered at real scale via floating origin
+                    // Solar system hologram in the bedroom ceiling
+                    let hologram_center = Vec3::new(9.5, 2.5, 2.5);
+                    for &(mesh_idx, mat_idx, local_pos) in &state.hologram_objects {
+                        all_objects.push(RenderObject {
+                            position: hologram_center + local_pos,
+                            rotation: Quat::IDENTITY,
+                            scale: Vec3::ONE,
+                            mesh: mesh_idx,
+                            material: mat_idx,
+                        });
+                    }
+
+                    // Planet rendered at visual offset from ship
+                    // Ship is at origin, Earth is at -ship_world_pos (below us)
                     let elapsed = (now - state.start_time).as_secs_f32();
                     if let (Some(ref mut planet), Some(mesh_idx)) = (&mut state.planet, state.planet_mesh) {
-                        // Update LOD based on camera distance
-                        if planet.update_lod(state.camera.world_position) {
-                            // LOD changed, rebuild mesh
+                        // Earth position relative to ship (ship at GEO, Earth at world origin)
+                        let earth_offset = -state.ship_world_pos;
+                        let cam_world = glam::DVec3::new(
+                            state.camera.position.x as f64,
+                            state.camera.position.y as f64,
+                            state.camera.position.z as f64,
+                        );
+                        let dist_to_earth = (earth_offset - cam_world).length();
+
+                        // Update LOD based on distance
+                        // Trick: set planet world_position to earth_offset for LOD calc
+                        planet.world_position = earth_offset;
+                        if planet.update_lod(cam_world) {
                             let ico = planet.icosphere();
                             state.renderer.meshes[mesh_idx] = Mesh::from_icosphere(&state.renderer.device, ico, 1.0);
                             log::info!("Planet LOD changed: {:?}, {} faces", planet.lod(), planet.face_count());
                         }
 
-                        // Convert planet world position to camera-relative render position
-                        let render_pos = state.floating_origin.to_render_pos(planet.world_position);
-                        // Scale = planet radius in meters
+                        // Render position: Earth center relative to camera
+                        // Since camera is near origin (inside ship), this is approximately earth_offset
+                        let render_pos = Vec3::new(
+                            earth_offset.x as f32,
+                            earth_offset.y as f32,
+                            earth_offset.z as f32,
+                        );
                         let scale = planet.def.radius as f32;
-                        let dist = state.floating_origin.distance_to(planet.world_position);
 
-                        // Log planet render info once
+                        // Log once
                         static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
                         if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
                             crate::debug::push_debug(format!(
-                                "Planet render: pos=({:.0},{:.0},{:.0}), scale={:.0}, dist={:.0}km, LOD={:?}",
-                                render_pos.x, render_pos.y, render_pos.z, scale, dist / 1000.0, planet.lod()
+                                "Earth: offset=({:.0},{:.0},{:.0}), scale={:.0}, dist={:.0}km, LOD={:?}",
+                                render_pos.x, render_pos.y, render_pos.z, scale, dist_to_earth / 1000.0, planet.lod()
                             ));
                         }
 
-                        // Slow rotation for visual interest
                         let rotation = Quat::from_rotation_y(elapsed * 0.01);
-
                         all_objects.push(RenderObject {
                             position: render_pos,
                             rotation,
