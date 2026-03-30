@@ -289,9 +289,8 @@ mod native_app {
 
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
-            // Start player in the living room (center of 8x8 room at position 18,0,1)
-            camera.world_position = glam::DVec3::new(22.0, 1.7, 5.0);
             camera.position = Vec3::ZERO; // position is always zero with floating origin
+            // world_position set later after planet loading (GEO above Washington)
 
             let controller = CameraController::new(5.0, 3.0);
 
@@ -414,15 +413,18 @@ mod native_app {
                 crate::debug::push_debug(format!("Star skybox: FAILED to load from {}", star_csv.display()));
             }
 
-            // Try to load a planet from data files
+            // Load Earth at origin, player at GEO above Washington State
             let planet_material = renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
             let (planet, planet_mesh) = match asset_manager.load_ron::<PlanetDef>("planets/earth.ron") {
                 Ok(def) => {
-                    log::info!("Loaded planet: {} (radius: {}m)", def.name, def.radius);
-                    let mut pr = PlanetRenderer::new(def.clone(), Vec3::new(0.0, 0.0, -20.0));
-                    // Start at a viewable LOD (subdivision 2 for demo)
+                    log::info!("Loaded planet: {} (radius: {}m, orbital_radius: {}m)", def.name, def.radius, def.orbital_radius);
+                    // Earth at world origin
+                    let mut pr = PlanetRenderer::new(def.clone(), glam::DVec3::ZERO);
+                    // Initial LOD based on GEO distance (~42,164 km from center)
+                    pr.update_lod(camera.world_position);
                     let ico = pr.icosphere();
-                    let mesh_idx = renderer.add_mesh(Mesh::from_icosphere(&renderer.device, ico, 5.0));
+                    // Mesh scale = planet radius in meters (rendered via floating origin)
+                    let mesh_idx = renderer.add_mesh(Mesh::from_icosphere(&renderer.device, ico, 1.0));
                     (Some(pr), Some(mesh_idx))
                 }
                 Err(e) => {
@@ -430,6 +432,23 @@ mod native_app {
                     (None, None)
                 }
             };
+
+            // Place player at geosynchronous orbit above Silverdale, WA
+            // Lat 47.6°N, Lon 122.3°W, altitude 35,786 km (GEO radius 42,164 km)
+            {
+                let lat_rad = 47.6_f64.to_radians();
+                let lon_rad = (-122.3_f64).to_radians();
+                let geo_radius = 42_164_000.0_f64; // meters from Earth center
+                let geo_x = geo_radius * lat_rad.cos() * lon_rad.cos();
+                let geo_y = geo_radius * lat_rad.sin();
+                let geo_z = geo_radius * lat_rad.cos() * lon_rad.sin();
+                camera.world_position = glam::DVec3::new(geo_x, geo_y, geo_z);
+                // Look toward Earth (toward origin)
+                let to_earth = -glam::DVec3::new(geo_x, geo_y, geo_z).normalize();
+                camera.yaw = to_earth.x.atan2(-to_earth.z) as f32;
+                camera.pitch = to_earth.y.asin() as f32;
+                log::info!("Player at GEO: ({:.0}, {:.0}, {:.0}) meters", geo_x, geo_y, geo_z);
+            }
 
             self.state = Some(EngineState {
                 window,
@@ -633,13 +652,39 @@ mod native_app {
                         });
                     }
 
-                    // Planet (if loaded)
+                    // Planet (if loaded) — rendered at real scale via floating origin
                     let elapsed = (now - state.start_time).as_secs_f32();
-                    if let (Some(_planet), Some(mesh_idx)) = (&state.planet, state.planet_mesh) {
+                    if let (Some(ref mut planet), Some(mesh_idx)) = (&mut state.planet, state.planet_mesh) {
+                        // Update LOD based on camera distance
+                        if planet.update_lod(state.camera.world_position) {
+                            // LOD changed, rebuild mesh
+                            let ico = planet.icosphere();
+                            state.renderer.meshes[mesh_idx] = Mesh::from_icosphere(&state.renderer.device, ico, 1.0);
+                            log::info!("Planet LOD changed: {:?}, {} faces", planet.lod(), planet.face_count());
+                        }
+
+                        // Convert planet world position to camera-relative render position
+                        let render_pos = state.floating_origin.to_render_pos(planet.world_position);
+                        // Scale = planet radius in meters
+                        let scale = planet.def.radius as f32;
+                        let dist = state.floating_origin.distance_to(planet.world_position);
+
+                        // Log planet render info once
+                        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                        if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                            crate::debug::push_debug(format!(
+                                "Planet render: pos=({:.0},{:.0},{:.0}), scale={:.0}, dist={:.0}km, LOD={:?}",
+                                render_pos.x, render_pos.y, render_pos.z, scale, dist / 1000.0, planet.lod()
+                            ));
+                        }
+
+                        // Slow rotation for visual interest
+                        let rotation = Quat::from_rotation_y(elapsed * 0.01);
+
                         all_objects.push(RenderObject {
-                            position: Vec3::new(0.0, 5.0, -20.0),
-                            rotation: Quat::from_rotation_y(elapsed * 0.1),
-                            scale: Vec3::ONE,
+                            position: render_pos,
+                            rotation,
+                            scale: Vec3::splat(scale),
                             mesh: mesh_idx,
                             material: state.planet_material,
                         });

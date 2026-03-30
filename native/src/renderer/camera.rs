@@ -237,7 +237,8 @@ impl Camera {
                 } else {
                     self.fov_degrees
                 };
-                Mat4::perspective_rh(fov.to_radians(), self.aspect, self.near, self.far)
+                // Reverse-Z: swap near/far for better far-field depth precision
+                Mat4::perspective_rh(fov.to_radians(), self.aspect, self.far, self.near)
             }
             Projection::Orthographic => {
                 let half_w = self.ortho_size * self.aspect;

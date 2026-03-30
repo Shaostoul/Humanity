@@ -6,7 +6,7 @@
 //! progressively subdivided icosphere as the camera approaches, down to
 //! 0.5m resolution heightmap at surface level.
 
-use glam::Vec3;
+use glam::{DVec3, Vec3};
 use serde::{Deserialize, Serialize};
 
 use super::icosphere::Icosphere;
@@ -113,7 +113,8 @@ impl PlanetLod {
 /// Manages the rendering state for a single planet.
 pub struct PlanetRenderer {
     pub def: PlanetDef,
-    pub position: Vec3, // world-space position of the planet center
+    /// World-space position of the planet center (f64 meters).
+    pub world_position: DVec3,
     current_lod: PlanetLod,
     /// Cached icosphere at the current subdivision level.
     icosphere: Icosphere,
@@ -122,20 +123,20 @@ pub struct PlanetRenderer {
 
 impl PlanetRenderer {
     /// Create a renderer for a planet at the given world position.
-    pub fn new(def: PlanetDef, position: Vec3) -> Self {
+    pub fn new(def: PlanetDef, world_position: DVec3) -> Self {
         let icosphere = Icosphere::new();
         Self {
             def,
-            position,
+            world_position,
             current_lod: PlanetLod::Billboard,
             icosphere,
             icosphere_level: 0,
         }
     }
 
-    /// Update LOD based on camera distance. Returns true if LOD changed.
-    pub fn update_lod(&mut self, camera_pos: Vec3) -> bool {
-        let distance = (camera_pos - self.position).length() as f64;
+    /// Update LOD based on camera distance (f64). Returns true if LOD changed.
+    pub fn update_lod(&mut self, camera_pos: DVec3) -> bool {
+        let distance = (camera_pos - self.world_position).length();
         let new_lod = PlanetLod::from_distance(distance, self.def.radius);
 
         if new_lod != self.current_lod {
