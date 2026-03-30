@@ -305,10 +305,11 @@ mod native_app {
 
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
-            // Player starts in the F5 bedroom of the homestead
-            // Bedroom at room position (8, 0, 1) with dims (3, 3, 3)
-            // Center at eye height: (9.5, 1.7, 2.5)
-            camera.position = Vec3::new(9.5, 1.7, 2.5);
+            // Player starts in the F3 bedroom of the homestead
+            // Bedroom at room position (2, 0, 0) with dims (3, 3, 3)
+            // Center at eye height: (3.5, 1.7, 1.5)
+            camera.position = Vec3::new(3.5, 1.7, 1.5);
+            camera.pitch = 0.0; // look straight ahead, not down
             // Ship is at origin. No floating origin needed for gameplay.
             // Floating origin only matters for rendering distant planets.
 
@@ -665,7 +666,8 @@ mod native_app {
                     }
 
                     // Solar system hologram in the bedroom ceiling
-                    let hologram_center = Vec3::new(9.5, 2.5, 2.5);
+                    // Bedroom center at (3.5, 2.5, 1.5) — near ceiling of 3m tall room
+                    let hologram_center = Vec3::new(3.5, 2.5, 1.5);
                     for &(mesh_idx, mat_idx, local_pos) in &state.hologram_objects {
                         all_objects.push(RenderObject {
                             position: hologram_center + local_pos,
@@ -676,9 +678,11 @@ mod native_app {
                         });
                     }
 
-                    // Planet rendered at visual offset from ship
-                    // Ship is at origin, Earth is at -ship_world_pos (below us)
+                    // Planet disabled for now - focusing on homestead gameplay first
+                    // TODO: Re-enable with proper multi-scale rendering
                     let elapsed = (now - state.start_time).as_secs_f32();
+                    let _ = elapsed; // suppress unused warning
+                    if false {
                     if let (Some(ref mut planet), Some(mesh_idx)) = (&mut state.planet, state.planet_mesh) {
                         // Earth position relative to ship (ship at GEO, Earth at world origin)
                         let earth_offset = -state.ship_world_pos;
@@ -725,6 +729,7 @@ mod native_app {
                             material: state.planet_material,
                         });
                     }
+                    } // end disabled planet block
 
                     // Update FPS counter
                     state.gui_state.fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
