@@ -1,0 +1,19 @@
+// HumanityOS Player Spawn Configuration
+// Defines where the player starts and the initial scene setup.
+// Room IDs reference the Fibonacci homestead ship layout.
+
+(
+    // Player starts in the F5 bedroom of their Fibonacci homestead
+    spawn_room: "bedroom",
+    spawn_position: (2.5, 1.7, 2.5),  // center of 5x5 room, eye height 1.7m
+    spawn_yaw: 0.0,                    // looking north (toward window/door)
+
+    // The homestead ship's world position
+    // Geosynchronous orbit above Silverdale, WA (lat 47.6N, lon 122.3W)
+    homestead_orbit: (
+        body: "earth",
+        altitude_km: 35786.0,
+        latitude_deg: 47.6,
+        longitude_deg: -122.3,
+    ),
+)

@@ -1,0 +1,645 @@
+// HumanityOS Solar System Definition
+// All celestial bodies loaded at runtime. Real astronomical data from NASA/JPL.
+// Units: meters, seconds, kilograms, degrees.
+// Epoch: J2000.0 (2000-01-01 12:00 TT)
+
+(
+    bodies: [
+
+        // ── THE SUN ──────────────────────────────────────────────
+
+        (
+            name: "Sun",
+            body_type: Star,
+            parent: None,
+            radius_m: 695700000.0,
+            mass_kg: 1.989e30,
+            orbital_radius_m: 0.0,
+            orbital_period_s: 0.0,
+            orbital_eccentricity: 0.0,
+            orbital_inclination_deg: 0.0,
+            rotation_period_s: 2192832.0,         // 25.38 days (sidereal, equatorial)
+            axial_tilt_deg: 7.25,
+            color: (1.0, 0.95, 0.8, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── PLANETS ──────────────────────────────────────────────
+
+        (
+            name: "Mercury",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 2439700.0,
+            mass_kg: 3.301e23,
+            orbital_radius_m: 57909050000.0,       // 0.387 AU
+            orbital_period_s: 7600521.6,            // 87.969 days
+            orbital_eccentricity: 0.2056,
+            orbital_inclination_deg: 7.005,
+            rotation_period_s: 5067014.4,           // 58.646 days
+            axial_tilt_deg: 0.034,
+            color: (0.6, 0.55, 0.5, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Venus",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 6051800.0,
+            mass_kg: 4.867e24,
+            orbital_radius_m: 108208000000.0,      // 0.723 AU
+            orbital_period_s: 19414149.6,           // 224.701 days
+            orbital_eccentricity: 0.0067,
+            orbital_inclination_deg: 3.3947,
+            rotation_period_s: 20996798.4,          // 243.025 days (retrograde)
+            axial_tilt_deg: 177.36,                 // retrograde rotation
+            color: (0.9, 0.8, 0.5, 1.0),
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Earth",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 6371000.0,
+            mass_kg: 5.972e24,
+            orbital_radius_m: 149597870700.0,      // 1.000 AU
+            orbital_period_s: 31558149.8,           // 365.256 days (sidereal)
+            orbital_eccentricity: 0.0167086,
+            orbital_inclination_deg: 0.0,           // reference plane
+            rotation_period_s: 86164.1,             // sidereal day
+            axial_tilt_deg: 23.4393,
+            color: (0.2, 0.4, 0.8, 1.0),
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Mars",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 3389500.0,
+            mass_kg: 6.417e23,
+            orbital_radius_m: 227939200000.0,      // 1.524 AU
+            orbital_period_s: 59354294.4,           // 686.980 days
+            orbital_eccentricity: 0.0934,
+            orbital_inclination_deg: 1.8506,
+            rotation_period_s: 88642.7,             // 1.026 days
+            axial_tilt_deg: 25.19,
+            color: (0.8, 0.4, 0.2, 1.0),
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Jupiter",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 69911000.0,
+            mass_kg: 1.898e27,
+            orbital_radius_m: 778570000000.0,      // 5.203 AU
+            orbital_period_s: 374335776.0,          // 4332.59 days
+            orbital_eccentricity: 0.0489,
+            orbital_inclination_deg: 1.3033,
+            rotation_period_s: 35730.0,             // 9.925 hours
+            axial_tilt_deg: 3.13,
+            color: (0.8, 0.7, 0.5, 1.0),
+            has_atmosphere: true,
+            has_rings: true,
+        ),
+
+        (
+            name: "Saturn",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 58232000.0,
+            mass_kg: 5.683e26,
+            orbital_radius_m: 1433530000000.0,     // 9.583 AU
+            orbital_period_s: 929596608.0,          // 10759.22 days
+            orbital_eccentricity: 0.0565,
+            orbital_inclination_deg: 2.4845,
+            rotation_period_s: 38018.0,             // 10.56 hours
+            axial_tilt_deg: 26.73,
+            color: (0.9, 0.8, 0.55, 1.0),
+            has_atmosphere: true,
+            has_rings: true,
+        ),
+
+        (
+            name: "Uranus",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 25362000.0,
+            mass_kg: 8.681e25,
+            orbital_radius_m: 2872460000000.0,     // 19.201 AU
+            orbital_period_s: 2651370019.2,         // 30688.5 days
+            orbital_eccentricity: 0.0457,
+            orbital_inclination_deg: 0.7699,
+            rotation_period_s: 62064.0,             // 17.24 hours (retrograde)
+            axial_tilt_deg: 97.77,                  // extreme axial tilt
+            color: (0.6, 0.8, 0.9, 1.0),
+            has_atmosphere: true,
+            has_rings: true,
+        ),
+
+        (
+            name: "Neptune",
+            body_type: Planet,
+            parent: Some("Sun"),
+            radius_m: 24622000.0,
+            mass_kg: 1.024e26,
+            orbital_radius_m: 4495060000000.0,     // 30.070 AU
+            orbital_period_s: 5200418560.0,         // 60182.0 days
+            orbital_eccentricity: 0.0113,
+            orbital_inclination_deg: 1.7692,
+            rotation_period_s: 57996.0,             // 16.11 hours
+            axial_tilt_deg: 28.32,
+            color: (0.3, 0.4, 0.9, 1.0),
+            has_atmosphere: true,
+            has_rings: true,
+        ),
+
+        // ── DWARF PLANETS ────────────────────────────────────────
+
+        (
+            name: "Ceres",
+            body_type: DwarfPlanet,
+            parent: Some("Sun"),
+            radius_m: 473000.0,
+            mass_kg: 9.393e20,
+            orbital_radius_m: 413690604000.0,      // 2.766 AU
+            orbital_period_s: 145036320.0,          // 1679.82 days
+            orbital_eccentricity: 0.0758,
+            orbital_inclination_deg: 10.594,
+            rotation_period_s: 32667.6,             // 9.074 hours
+            axial_tilt_deg: 4.0,
+            color: (0.55, 0.5, 0.45, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Pluto",
+            body_type: DwarfPlanet,
+            parent: Some("Sun"),
+            radius_m: 1188300.0,
+            mass_kg: 1.303e22,
+            orbital_radius_m: 5906380000000.0,     // 39.482 AU
+            orbital_period_s: 7824268800.0,         // 90560.0 days (247.94 years)
+            orbital_eccentricity: 0.2488,
+            orbital_inclination_deg: 17.16,
+            rotation_period_s: 551856.7,            // 6.387 days (retrograde)
+            axial_tilt_deg: 119.51,
+            color: (0.7, 0.6, 0.5, 1.0),
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Haumea",
+            body_type: DwarfPlanet,
+            parent: Some("Sun"),
+            radius_m: 816000.0,                    // mean radius (highly elongated)
+            mass_kg: 4.006e21,
+            orbital_radius_m: 6452000000000.0,     // 43.13 AU
+            orbital_period_s: 8942016000.0,         // 103468.0 days (283.28 years)
+            orbital_eccentricity: 0.1912,
+            orbital_inclination_deg: 28.19,
+            rotation_period_s: 14112.0,             // 3.92 hours (fastest large body)
+            axial_tilt_deg: 126.0,
+            color: (0.85, 0.85, 0.85, 1.0),
+            has_atmosphere: false,
+            has_rings: true,
+        ),
+
+        (
+            name: "Makemake",
+            body_type: DwarfPlanet,
+            parent: Some("Sun"),
+            radius_m: 715000.0,
+            mass_kg: 3.1e21,
+            orbital_radius_m: 6850000000000.0,     // 45.79 AU
+            orbital_period_s: 9786240000.0,         // 113226.0 days (309.88 years)
+            orbital_eccentricity: 0.1559,
+            orbital_inclination_deg: 28.96,
+            rotation_period_s: 82080.0,             // 22.8 hours
+            axial_tilt_deg: 0.0,                    // unknown, assumed 0
+            color: (0.75, 0.65, 0.55, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Eris",
+            body_type: DwarfPlanet,
+            parent: Some("Sun"),
+            radius_m: 1163000.0,
+            mass_kg: 1.66e22,
+            orbital_radius_m: 10125000000000.0,    // 67.67 AU
+            orbital_period_s: 17578022400.0,        // 203500.0 days (557 years)
+            orbital_eccentricity: 0.4407,
+            orbital_inclination_deg: 44.04,
+            rotation_period_s: 93240.0,             // 25.9 hours
+            axial_tilt_deg: 78.0,
+            color: (0.85, 0.85, 0.85, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── EARTH'S MOON ────────────────────────────────────────
+
+        (
+            name: "Moon",
+            body_type: Moon,
+            parent: Some("Earth"),
+            radius_m: 1737400.0,
+            mass_kg: 7.342e22,
+            orbital_radius_m: 384400000.0,
+            orbital_period_s: 2360591.5,            // 27.322 days (sidereal)
+            orbital_eccentricity: 0.0549,
+            orbital_inclination_deg: 5.145,
+            rotation_period_s: 2360591.5,           // tidally locked
+            axial_tilt_deg: 1.5424,
+            color: (0.6, 0.6, 0.6, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── MARS MOONS ──────────────────────────────────────────
+
+        (
+            name: "Phobos",
+            body_type: Moon,
+            parent: Some("Mars"),
+            radius_m: 11267.0,                     // mean radius
+            mass_kg: 1.0659e16,
+            orbital_radius_m: 9376000.0,
+            orbital_period_s: 27553.8,              // 0.319 days
+            orbital_eccentricity: 0.0151,
+            orbital_inclination_deg: 1.093,
+            rotation_period_s: 27553.8,             // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.4, 0.35, 0.3, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Deimos",
+            body_type: Moon,
+            parent: Some("Mars"),
+            radius_m: 6200.0,                      // mean radius
+            mass_kg: 1.4762e15,
+            orbital_radius_m: 23463200.0,
+            orbital_period_s: 109123.2,             // 1.263 days
+            orbital_eccentricity: 0.00033,
+            orbital_inclination_deg: 0.93,
+            rotation_period_s: 109123.2,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.45, 0.4, 0.35, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── JUPITER GALILEAN MOONS ──────────────────────────────
+
+        (
+            name: "Io",
+            body_type: Moon,
+            parent: Some("Jupiter"),
+            radius_m: 1821600.0,
+            mass_kg: 8.932e22,
+            orbital_radius_m: 421700000.0,
+            orbital_period_s: 152853.5,             // 1.769 days
+            orbital_eccentricity: 0.0041,
+            orbital_inclination_deg: 0.036,
+            rotation_period_s: 152853.5,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.9, 0.8, 0.3, 1.0),           // sulfur-yellow
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Europa",
+            body_type: Moon,
+            parent: Some("Jupiter"),
+            radius_m: 1560800.0,
+            mass_kg: 4.800e22,
+            orbital_radius_m: 671034000.0,
+            orbital_period_s: 306822.0,             // 3.551 days
+            orbital_eccentricity: 0.009,
+            orbital_inclination_deg: 0.466,
+            rotation_period_s: 306822.0,            // tidally locked
+            axial_tilt_deg: 0.1,
+            color: (0.8, 0.75, 0.65, 1.0),         // ice-streaked tan
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Ganymede",
+            body_type: Moon,
+            parent: Some("Jupiter"),
+            radius_m: 2634100.0,
+            mass_kg: 1.482e23,
+            orbital_radius_m: 1070412000.0,
+            orbital_period_s: 618153.4,             // 7.155 days
+            orbital_eccentricity: 0.0013,
+            orbital_inclination_deg: 0.177,
+            rotation_period_s: 618153.4,            // tidally locked
+            axial_tilt_deg: 0.33,
+            color: (0.55, 0.5, 0.45, 1.0),
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Callisto",
+            body_type: Moon,
+            parent: Some("Jupiter"),
+            radius_m: 2410300.0,
+            mass_kg: 1.076e23,
+            orbital_radius_m: 1882709000.0,
+            orbital_period_s: 1441931.2,            // 16.689 days
+            orbital_eccentricity: 0.0074,
+            orbital_inclination_deg: 0.192,
+            rotation_period_s: 1441931.2,           // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.35, 0.3, 0.25, 1.0),         // dark, heavily cratered
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── SATURN MOONS ────────────────────────────────────────
+
+        (
+            name: "Mimas",
+            body_type: Moon,
+            parent: Some("Saturn"),
+            radius_m: 198200.0,
+            mass_kg: 3.749e19,
+            orbital_radius_m: 185539000.0,
+            orbital_period_s: 81388.8,              // 0.942 days
+            orbital_eccentricity: 0.0196,
+            orbital_inclination_deg: 1.574,
+            rotation_period_s: 81388.8,             // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.7, 0.7, 0.7, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Enceladus",
+            body_type: Moon,
+            parent: Some("Saturn"),
+            radius_m: 252100.0,
+            mass_kg: 1.080e20,
+            orbital_radius_m: 237948000.0,
+            orbital_period_s: 118386.8,             // 1.370 days
+            orbital_eccentricity: 0.0047,
+            orbital_inclination_deg: 0.009,
+            rotation_period_s: 118386.8,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.95, 0.95, 0.95, 1.0),        // bright white ice
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Tethys",
+            body_type: Moon,
+            parent: Some("Saturn"),
+            radius_m: 531100.0,
+            mass_kg: 6.175e20,
+            orbital_radius_m: 294619000.0,
+            orbital_period_s: 163036.8,             // 1.888 days
+            orbital_eccentricity: 0.0001,
+            orbital_inclination_deg: 1.12,
+            rotation_period_s: 163036.8,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.8, 0.8, 0.8, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Dione",
+            body_type: Moon,
+            parent: Some("Saturn"),
+            radius_m: 561400.0,
+            mass_kg: 1.095e21,
+            orbital_radius_m: 377396000.0,
+            orbital_period_s: 236469.5,             // 2.737 days
+            orbital_eccentricity: 0.0022,
+            orbital_inclination_deg: 0.019,
+            rotation_period_s: 236469.5,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.75, 0.75, 0.75, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Rhea",
+            body_type: Moon,
+            parent: Some("Saturn"),
+            radius_m: 763800.0,
+            mass_kg: 2.307e21,
+            orbital_radius_m: 527108000.0,
+            orbital_period_s: 390373.5,             // 4.518 days
+            orbital_eccentricity: 0.0013,
+            orbital_inclination_deg: 0.345,
+            rotation_period_s: 390373.5,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.7, 0.7, 0.7, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Titan",
+            body_type: Moon,
+            parent: Some("Saturn"),
+            radius_m: 2574730.0,
+            mass_kg: 1.3452e23,
+            orbital_radius_m: 1221870000.0,
+            orbital_period_s: 1377648.0,            // 15.945 days
+            orbital_eccentricity: 0.0288,
+            orbital_inclination_deg: 0.3485,
+            rotation_period_s: 1377648.0,           // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.7, 0.55, 0.3, 1.0),          // orange haze
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        (
+            name: "Iapetus",
+            body_type: Moon,
+            parent: Some("Saturn"),
+            radius_m: 734500.0,
+            mass_kg: 1.806e21,
+            orbital_radius_m: 3560820000.0,
+            orbital_period_s: 6853377.6,            // 79.322 days
+            orbital_eccentricity: 0.0286,
+            orbital_inclination_deg: 15.47,
+            rotation_period_s: 6853377.6,           // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.4, 0.35, 0.3, 1.0),          // two-toned (dark/bright)
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── URANUS MOONS ────────────────────────────────────────
+
+        (
+            name: "Miranda",
+            body_type: Moon,
+            parent: Some("Uranus"),
+            radius_m: 235800.0,
+            mass_kg: 6.59e19,
+            orbital_radius_m: 129390000.0,
+            orbital_period_s: 121997.6,             // 1.413 days
+            orbital_eccentricity: 0.0013,
+            orbital_inclination_deg: 4.232,
+            rotation_period_s: 121997.6,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.6, 0.6, 0.6, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Ariel",
+            body_type: Moon,
+            parent: Some("Uranus"),
+            radius_m: 578900.0,
+            mass_kg: 1.353e21,
+            orbital_radius_m: 191020000.0,
+            orbital_period_s: 217728.0,             // 2.520 days
+            orbital_eccentricity: 0.0012,
+            orbital_inclination_deg: 0.041,
+            rotation_period_s: 217728.0,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.65, 0.65, 0.65, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Titania",
+            body_type: Moon,
+            parent: Some("Uranus"),
+            radius_m: 788400.0,
+            mass_kg: 3.527e21,
+            orbital_radius_m: 435910000.0,
+            orbital_period_s: 752218.0,             // 8.706 days
+            orbital_eccentricity: 0.0011,
+            orbital_inclination_deg: 0.079,
+            rotation_period_s: 752218.0,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.6, 0.55, 0.5, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        (
+            name: "Oberon",
+            body_type: Moon,
+            parent: Some("Uranus"),
+            radius_m: 761400.0,
+            mass_kg: 3.014e21,
+            orbital_radius_m: 583520000.0,
+            orbital_period_s: 1163260.8,            // 13.463 days
+            orbital_eccentricity: 0.0014,
+            orbital_inclination_deg: 0.058,
+            rotation_period_s: 1163260.8,           // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.55, 0.5, 0.45, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── NEPTUNE MOONS ───────────────────────────────────────
+
+        (
+            name: "Triton",
+            body_type: Moon,
+            parent: Some("Neptune"),
+            radius_m: 1353400.0,
+            mass_kg: 2.14e22,
+            orbital_radius_m: 354759000.0,
+            orbital_period_s: 507773.0,             // 5.877 days (retrograde)
+            orbital_eccentricity: 0.00002,
+            orbital_inclination_deg: 156.885,       // retrograde orbit
+            rotation_period_s: 507773.0,            // tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.7, 0.7, 0.75, 1.0),
+            has_atmosphere: true,
+            has_rings: false,
+        ),
+
+        // ── PLUTO MOONS ─────────────────────────────────────────
+
+        (
+            name: "Charon",
+            body_type: Moon,
+            parent: Some("Pluto"),
+            radius_m: 606000.0,
+            mass_kg: 1.586e21,
+            orbital_radius_m: 19591400.0,
+            orbital_period_s: 551856.7,             // 6.387 days
+            orbital_eccentricity: 0.0002,
+            orbital_inclination_deg: 0.08,
+            rotation_period_s: 551856.7,            // mutually tidally locked
+            axial_tilt_deg: 0.0,
+            color: (0.5, 0.45, 0.4, 1.0),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── ASTEROID BELT ───────────────────────────────────────
+
+        (
+            name: "Asteroid Belt",
+            body_type: AsteroidBelt,
+            parent: Some("Sun"),
+            radius_m: 0.0,                         // not a single body
+            mass_kg: 2.39e21,                       // total belt mass
+            orbital_radius_m: 414000000000.0,       // 2.77 AU (center)
+            orbital_period_s: 0.0,
+            orbital_eccentricity: 0.0,
+            orbital_inclination_deg: 0.0,
+            rotation_period_s: 0.0,
+            axial_tilt_deg: 0.0,
+            color: (0.5, 0.45, 0.4, 0.3),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+
+        // ── KUIPER BELT ─────────────────────────────────────────
+
+        (
+            name: "Kuiper Belt",
+            body_type: AsteroidBelt,
+            parent: Some("Sun"),
+            radius_m: 0.0,
+            mass_kg: 3.0e22,                        // estimated total mass
+            orbital_radius_m: 6000000000000.0,      // ~40 AU (center)
+            orbital_period_s: 0.0,
+            orbital_eccentricity: 0.0,
+            orbital_inclination_deg: 0.0,
+            rotation_period_s: 0.0,
+            axial_tilt_deg: 0.0,
+            color: (0.4, 0.35, 0.3, 0.2),
+            has_atmosphere: false,
+            has_rings: false,
+        ),
+    ],
+)

@@ -1,0 +1,15 @@
+// HumanityOS Player Entity Definition
+// Default stats for a new player character.
+// Overridden by save data when loading an existing game.
+
+(
+    name: "Player",
+    health: 100.0,
+    max_health: 100.0,
+    eye_height: 1.7,        // meters
+    walk_speed: 5.0,         // m/s
+    run_speed: 10.0,         // m/s
+    jump_velocity: 5.0,      // m/s upward
+    inventory_slots: 36,
+    starting_items: [],
+)

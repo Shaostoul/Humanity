@@ -5,6 +5,7 @@
 
 pub mod camera;
 pub mod floating_origin;
+pub mod hologram;
 pub mod mesh;
 pub mod multi_scale;
 pub mod pipeline;
