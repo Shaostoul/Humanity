@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-03-24 | **Version:** v0.43.0
+> **Last updated:** 2026-04-01 | **Version:** v0.88.0
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
