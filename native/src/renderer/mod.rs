@@ -75,8 +75,10 @@ impl Renderer {
         let width = size.width.max(1);
         let height = size.height.max(1);
 
+        // Prefer DX12 on Windows to avoid Vulkan overlay layer crashes (e.g. Epic Games, Steam).
+        // Falls back to Vulkan if DX12 isn't available.
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends: wgpu::Backends::DX12 | wgpu::Backends::VULKAN,
             ..Default::default()
         });
 

@@ -319,6 +319,11 @@ const FALLBACK_STAR_SHADER: &str = r#"
 struct CameraUniforms {
     view_proj: mat4x4<f32>,
     view_pos: vec4<f32>,
+    light0: vec4<f32>, light1: vec4<f32>, light2: vec4<f32>, light3: vec4<f32>,
+    light4: vec4<f32>, light5: vec4<f32>, light6: vec4<f32>, light7: vec4<f32>,
+    light0_color: vec4<f32>, light1_color: vec4<f32>, light2_color: vec4<f32>, light3_color: vec4<f32>,
+    light4_color: vec4<f32>, light5_color: vec4<f32>, light6_color: vec4<f32>, light7_color: vec4<f32>,
+    light_count: vec4<f32>,
 };
 @group(0) @binding(0)
 var<uniform> camera: CameraUniforms;
