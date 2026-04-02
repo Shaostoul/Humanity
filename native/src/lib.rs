@@ -365,7 +365,7 @@ mod native_app {
                     && !orbit_radii_used.iter().any(|&r| (r - body.orbit_radius).abs() < 0.01)
                 {
                     let ring_mesh_idx = renderer.add_mesh(
-                        crate::renderer::hologram::orbit_ring_mesh(&renderer.device, body.orbit_radius, 64)
+                        crate::renderer::hologram::orbit_ring_mesh(&renderer.device, body.orbit_radius, 128)
                     );
                     hologram_orbits.push((ring_mesh_idx, orbit_mat));
                     orbit_radii_used.push(body.orbit_radius);

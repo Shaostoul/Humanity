@@ -476,8 +476,8 @@ pub fn pin_marker_mesh(device: &wgpu::Device, head_radius: f32, stem_height: f32
 
 /// Generate an orbit ring mesh as a tube torus in the XZ plane.
 pub fn orbit_ring_mesh(device: &wgpu::Device, radius: f32, segments: u32) -> Mesh {
-    let tube_r = 0.006; // 6mm radius tube for visibility
-    let tube_sides: u32 = 6;
+    let tube_r = 0.004; // 4mm radius tube (thinner, cleaner)
+    let tube_sides: u32 = 12; // Round cross-section (was 6 = hexagonal)
 
     let ring_verts = segments;
     let mut vertices = Vec::with_capacity(((ring_verts + 1) * (tube_sides + 1)) as usize);

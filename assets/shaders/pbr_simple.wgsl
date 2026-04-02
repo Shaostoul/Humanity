@@ -1,10 +1,9 @@
-// pbr_simple.wgsl — Simple PBR-lite shader for solid-color meshes.
-// Uses separate bind groups for camera, object transform, and material.
+// pbr_simple.wgsl — Cook-Torrance GGX PBR shader with procedural materials.
 //
 // Bind groups:
-//   Group 0: Camera uniforms (view_proj matrix)
-//   Group 1: Object uniforms (model matrix, normal matrix)
-//   Group 2: Material uniforms (base_color, metallic, roughness)
+//   Group 0: Camera (view_proj, view_pos)
+//   Group 1: Object (model, normal_matrix) — dynamic offset
+//   Group 2: Material (base_color, params: metallic/roughness/material_type)
 
 struct CameraUniforms {
     view_proj: mat4x4<f32>,
@@ -18,7 +17,7 @@ struct ObjectUniforms {
 
 struct MaterialUniforms {
     base_color: vec4<f32>,
-    // x = metallic, y = roughness, z = unused, w = unused
+    // x = metallic, y = roughness, z = material_type, w = unused
     params: vec4<f32>,
 };
 
@@ -45,83 +44,276 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     let world_pos = object.model * vec4<f32>(vertex.position, 1.0);
     out.world_position = world_pos.xyz;
     out.clip_position = camera.view_proj * world_pos;
-    // Transform normal by the normal matrix (inverse transpose of model)
     out.world_normal = normalize((object.normal_matrix * vec4<f32>(vertex.normal, 0.0)).xyz);
     out.uv = vertex.uv;
     return out;
 }
 
-// Simple directional light + ambient for PBR-lite
-const LIGHT_DIR: vec3<f32> = vec3<f32>(0.3, 1.0, 0.5);
-const LIGHT_COLOR: vec3<f32> = vec3<f32>(1.0, 0.98, 0.95);
-const AMBIENT: vec3<f32> = vec3<f32>(0.15, 0.15, 0.2);
+// ── Lighting ──
 
-// Procedural grid pattern using world position.
-// Creates subtle panel lines on surfaces (floors, walls).
+const PI: f32 = 3.14159265359;
+
+// Main directional light (warm sunlight from upper-right)
+const LIGHT_DIR: vec3<f32> = vec3<f32>(0.3, 1.0, 0.5);
+const LIGHT_COLOR: vec3<f32> = vec3<f32>(1.0, 0.95, 0.9);
+const LIGHT_INTENSITY: f32 = 2.5;
+
+// Fill light (cool, from lower-left, softer)
+const FILL_DIR: vec3<f32> = vec3<f32>(-0.5, 0.3, -0.3);
+const FILL_COLOR: vec3<f32> = vec3<f32>(0.4, 0.5, 0.7);
+const FILL_INTENSITY: f32 = 0.6;
+
+// Ambient
+const AMBIENT_COLOR: vec3<f32> = vec3<f32>(0.03, 0.03, 0.05);
+
+// ── GGX PBR Functions ──
+
+// Normal Distribution Function (Trowbridge-Reitz GGX)
+fn distribution_ggx(n_dot_h: f32, roughness: f32) -> f32 {
+    let a = roughness * roughness;
+    let a2 = a * a;
+    let denom = n_dot_h * n_dot_h * (a2 - 1.0) + 1.0;
+    return a2 / (PI * denom * denom);
+}
+
+// Geometry function (Schlick-GGX)
+fn geometry_schlick_ggx(n_dot_v: f32, roughness: f32) -> f32 {
+    let r = roughness + 1.0;
+    let k = (r * r) / 8.0;
+    return n_dot_v / (n_dot_v * (1.0 - k) + k);
+}
+
+// Smith's method: combined geometry for both view and light directions
+fn geometry_smith(n_dot_v: f32, n_dot_l: f32, roughness: f32) -> f32 {
+    return geometry_schlick_ggx(n_dot_v, roughness) * geometry_schlick_ggx(n_dot_l, roughness);
+}
+
+// Fresnel-Schlick approximation
+fn fresnel_schlick(cos_theta: f32, f0: vec3<f32>) -> vec3<f32> {
+    let t = clamp(1.0 - cos_theta, 0.0, 1.0);
+    let t2 = t * t;
+    return f0 + (vec3<f32>(1.0) - f0) * (t2 * t2 * t);
+}
+
+// ── Procedural Patterns ──
+
+// Hash function for procedural noise
+fn hash21(p: vec2<f32>) -> f32 {
+    var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
+    p3 = p3 + vec3<f32>(dot(p3, vec3<f32>(p3.y + 33.33, p3.z + 33.33, p3.x + 33.33)));
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+// Value noise
+fn value_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * (3.0 - 2.0 * f); // smoothstep
+
+    let a = hash21(i);
+    let b = hash21(i + vec2<f32>(1.0, 0.0));
+    let c = hash21(i + vec2<f32>(0.0, 1.0));
+    let d = hash21(i + vec2<f32>(1.0, 1.0));
+
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// FBM (fractal Brownian motion) — 4 octaves
+fn fbm(p: vec2<f32>) -> f32 {
+    var value = 0.0;
+    var amplitude = 0.5;
+    var frequency = 1.0;
+    var pp = p;
+    for (var i = 0; i < 4; i = i + 1) {
+        value = value + amplitude * value_noise(pp * frequency);
+        frequency = frequency * 2.0;
+        amplitude = amplitude * 0.5;
+    }
+    return value;
+}
+
+// Panel seam grid (1m panels with 3cm seam lines)
 fn grid_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
-    // Pick two axes based on which face we're on (dominant normal component)
     var u: f32;
     var v: f32;
     let an = abs(normal);
     if an.y > an.x && an.y > an.z {
-        // Horizontal surface (floor/ceiling): use XZ
         u = world_pos.x;
         v = world_pos.z;
     } else if an.x > an.z {
-        // Vertical wall facing X: use YZ
         u = world_pos.y;
         v = world_pos.z;
     } else {
-        // Vertical wall facing Z: use XY
         u = world_pos.x;
         v = world_pos.y;
     }
-
-    // 1m grid with thin seam lines (~3cm wide)
     let seam_width = 0.03;
     let fu = fract(u);
     let fv = fract(v);
-    let su = step(seam_width, fu) * step(fu, 1.0 - seam_width);
-    let sv = step(seam_width, fv) * step(fv, 1.0 - seam_width);
-    // Panel interior = 1.0, seam = 0.0
+    let su = smoothstep(0.0, seam_width, fu) * smoothstep(0.0, seam_width, 1.0 - fu);
+    let sv = smoothstep(0.0, seam_width, fv) * smoothstep(0.0, seam_width, 1.0 - fv);
     return su * sv;
 }
+
+// Brushed metal pattern (directional micro-scratches)
+fn brushed_metal(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
+    var u: f32;
+    let an = abs(normal);
+    if an.y > an.x && an.y > an.z {
+        u = world_pos.x;
+    } else if an.x > an.z {
+        u = world_pos.y;
+    } else {
+        u = world_pos.x;
+    }
+    // Fine horizontal scratches
+    let scratch = value_noise(vec2<f32>(u * 200.0, 0.0));
+    return mix(0.85, 1.0, scratch);
+}
+
+// Concrete texture (rough, speckled surface)
+fn concrete_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    let an = abs(normal);
+    var uv: vec2<f32>;
+    if an.y > an.x && an.y > an.z {
+        uv = world_pos.xz;
+    } else if an.x > an.z {
+        uv = world_pos.yz;
+    } else {
+        uv = world_pos.xy;
+    }
+    let noise = fbm(uv * 3.0);
+    let speckle = value_noise(uv * 40.0) * 0.08;
+    // Slightly varied grey
+    let base = 0.55 + noise * 0.15 + speckle;
+    return vec3<f32>(base, base * 0.98, base * 0.96);
+}
+
+// Wood grain pattern
+fn wood_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
+    let an = abs(normal);
+    var uv: vec2<f32>;
+    if an.y > an.x && an.y > an.z {
+        uv = world_pos.xz;
+    } else if an.x > an.z {
+        uv = world_pos.yz;
+    } else {
+        uv = world_pos.xy;
+    }
+    // Ring pattern along one axis
+    let ring = sin(uv.x * 25.0 + fbm(uv * 2.0) * 6.0) * 0.5 + 0.5;
+    let grain = value_noise(vec2<f32>(uv.x * 2.0, uv.y * 80.0)) * 0.1;
+    // Warm wood tones
+    let dark = vec3<f32>(0.35, 0.2, 0.1);
+    let light = vec3<f32>(0.6, 0.4, 0.2);
+    return mix(dark, light, ring) + vec3<f32>(grain);
+}
+
+// ── Cook-Torrance BRDF Evaluation ──
+
+fn evaluate_light(
+    light_dir: vec3<f32>,
+    light_color: vec3<f32>,
+    light_intensity: f32,
+    normal: vec3<f32>,
+    view_dir: vec3<f32>,
+    albedo: vec3<f32>,
+    metallic: f32,
+    roughness: f32,
+    f0: vec3<f32>,
+) -> vec3<f32> {
+    let l = normalize(light_dir);
+    let h = normalize(view_dir + l);
+
+    let n_dot_l = max(dot(normal, l), 0.0);
+    let n_dot_v = max(dot(normal, view_dir), 0.001);
+    let n_dot_h = max(dot(normal, h), 0.0);
+    let h_dot_v = max(dot(h, view_dir), 0.0);
+
+    // Cook-Torrance specular BRDF
+    let ndf = distribution_ggx(n_dot_h, roughness);
+    let geo = geometry_smith(n_dot_v, n_dot_l, roughness);
+    let fresnel = fresnel_schlick(h_dot_v, f0);
+
+    let numerator = ndf * geo * fresnel;
+    let denominator = 4.0 * n_dot_v * n_dot_l + 0.0001;
+    let specular = numerator / denominator;
+
+    // Energy conservation: diffuse is reduced by specular reflection
+    let ks = fresnel;
+    var kd = vec3<f32>(1.0) - ks;
+    kd = kd * (1.0 - metallic); // Metals have no diffuse
+
+    let diffuse = kd * albedo / PI;
+
+    return (diffuse + specular) * light_color * light_intensity * n_dot_l;
+}
+
+// ── Fragment Shader ──
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let normal = normalize(in.world_normal);
-    let light_dir = normalize(LIGHT_DIR);
     let view_dir = normalize(camera.view_pos.xyz - in.world_position);
-    let half_dir = normalize(light_dir + view_dir);
 
-    var base_color = material.base_color.rgb;
-    let metallic = material.params.x;
-    let roughness = material.params.y;
+    var albedo = material.base_color.rgb;
+    var metallic = material.params.x;
+    var roughness = material.params.y;
+    let material_type = material.params.z;
 
-    // Apply procedural grid pattern (subtle panel seams)
-    // Only on non-metallic surfaces (walls/floors), not on hologram spheres
-    if metallic < 0.1 && roughness > 0.5 {
-        let panel = grid_pattern(in.world_position, normal);
-        // Seams are slightly darker than panel surface
-        base_color = base_color * mix(0.7, 1.0, panel);
+    // Apply procedural material based on type
+    if material_type < 0.5 {
+        // Type 0: Default panel grid (walls, floors)
+        if metallic < 0.1 && roughness > 0.3 {
+            let panel = grid_pattern(in.world_position, normal);
+            albedo = albedo * mix(0.65, 1.0, panel);
+            // Slight roughness variation in seams
+            roughness = mix(roughness + 0.1, roughness, panel);
+        }
+    } else if material_type < 1.5 {
+        // Type 1: Brushed metal (metallic surfaces)
+        let scratch = brushed_metal(in.world_position, normal);
+        albedo = albedo * scratch;
+        // Micro-roughness from scratches
+        roughness = roughness + (1.0 - scratch) * 0.15;
+    } else if material_type < 2.5 {
+        // Type 2: Concrete
+        albedo = concrete_pattern(in.world_position, normal) * albedo * 2.0;
+        roughness = roughness + fbm(in.world_position.xz * 5.0) * 0.1;
+    } else if material_type < 3.5 {
+        // Type 3: Wood
+        albedo = wood_pattern(in.world_position, normal);
+        roughness = 0.5 + value_noise(in.world_position.xz * 10.0) * 0.2;
+        metallic = 0.0;
     }
 
-    // Diffuse (Lambert)
-    let n_dot_l = max(dot(normal, light_dir), 0.0);
-    let diffuse = base_color * LIGHT_COLOR * n_dot_l * (1.0 - metallic);
+    // Fresnel reflectance at normal incidence
+    // Dielectrics: 0.04, metals: tinted by albedo
+    let f0 = mix(vec3<f32>(0.04), albedo, metallic);
 
-    // Specular (Blinn-Phong approximation)
-    let shininess = max((1.0 - roughness) * 128.0, 1.0);
-    let n_dot_h = max(dot(normal, half_dir), 0.0);
-    let specular = LIGHT_COLOR * pow(n_dot_h, shininess) * mix(vec3<f32>(0.04), base_color, metallic);
+    // Evaluate main directional light
+    var lo = evaluate_light(LIGHT_DIR, LIGHT_COLOR, LIGHT_INTENSITY, normal, view_dir, albedo, metallic, roughness, f0);
 
-    // Ambient
-    let ambient = base_color * AMBIENT;
+    // Evaluate fill light
+    lo = lo + evaluate_light(FILL_DIR, FILL_COLOR, FILL_INTENSITY, normal, view_dir, albedo, metallic, roughness, f0);
 
-    let color = ambient + diffuse + specular;
+    // Ambient (simple hemisphere: warm from above, cool from below)
+    let sky_factor = normal.y * 0.5 + 0.5;
+    let ambient = albedo * mix(
+        vec3<f32>(0.02, 0.02, 0.03),  // ground ambient
+        vec3<f32>(0.06, 0.06, 0.08),  // sky ambient
+        sky_factor,
+    );
 
-    // Simple tone mapping
-    let mapped = color / (color + vec3<f32>(1.0));
+    var color = ambient + lo;
 
-    return vec4<f32>(mapped, material.base_color.a);
+    // ACES-like tone mapping (more filmic than Reinhard)
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    color = clamp((color * (a * color + vec3<f32>(b))) / (color * (c * color + vec3<f32>(d)) + vec3<f32>(e)), vec3<f32>(0.0), vec3<f32>(1.0));
+
+    return vec4<f32>(color, material.base_color.a);
 }
