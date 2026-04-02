@@ -253,6 +253,8 @@ mod native_app {
         targeted_planet: Option<String>,
         /// Hologram room center (from data-driven layout).
         hologram_room_center: Vec3,
+        /// Room ceiling lights: (position, color, intensity, radius).
+        room_lights: Vec<(Vec3, [f32; 3], f32, f32)>,
         /// Ship world position (GEO orbit coordinates).
         ship_world_pos: glam::DVec3,
         start_time: Instant,
@@ -304,27 +306,36 @@ mod native_app {
             let mut homestead_floors = Vec::new();
             for (verts, indices, color, material_type) in homestead.floors {
                 let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &verts, &indices));
-                // Use material_type for PBR: 0=grid panels, 1=brushed metal, 2=concrete, 3=wood
-                let mat_idx = renderer.add_material(color, 0.0, 0.8);
+                let mat_idx = renderer.add_material_typed(color, 0.0, 0.8, material_type as f32);
                 homestead_floors.push((mesh_idx, mat_idx));
-                let _ = material_type; // TODO: pass material_type to shader via params.z
             }
             let homestead_walls = if !homestead.walls.0.is_empty() {
                 let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &homestead.walls.0, &homestead.walls.1));
-                let mat_idx = renderer.add_material([0.5, 0.5, 0.5, 1.0], 0.0, 0.7);
+                // Walls use grid panels (type 0) with slightly metallic grey
+                let mat_idx = renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
                 Some((mesh_idx, mat_idx))
             } else {
                 None
             };
+
+            // Collect room ceiling lights: warm white point light at center, 0.1m below ceiling
+            let room_lights: Vec<(Vec3, [f32; 3], f32, f32)> = homestead.room_info.iter().map(|r| {
+                let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
+                let room_size = r.dimensions.x.max(r.dimensions.z);
+                let intensity = (room_size * 0.5).clamp(2.0, 15.0); // bigger rooms = brighter
+                let radius = room_size * 1.5; // light reaches 1.5x room size
+                (light_pos, [1.0, 0.95, 0.85], intensity, radius) // warm white
+            }).collect();
+
             // Find hologram and spawn rooms from data-driven layout
             let hologram_room_center = homestead.room_info.iter()
                 .find(|r| r.is_hologram_room)
                 .map(|r| r.center);
             let spawn_room = homestead.room_info.iter()
                 .find(|r| r.is_spawn_room);
-            log::info!("Homestead: {} rooms, {} floor meshes, walls: {}, hologram_room: {:?}, spawn_room: {:?}",
+            log::info!("Homestead: {} rooms, {} floor meshes, walls: {}, {} lights, hologram: {:?}, spawn: {:?}",
                 homestead.room_info.len(), homestead_floors.len(), homestead_walls.is_some(),
-                hologram_room_center, spawn_room.map(|r| &r.id));
+                room_lights.len(), hologram_room_center, spawn_room.map(|r| &r.id));
 
             // Initialize data directory early (needed for hologram + asset loading)
             let data_dir = find_data_dir();
@@ -609,6 +620,7 @@ mod native_app {
                 hologram_pins,
                 targeted_planet: None,
                 hologram_room_center: hologram_room_center.unwrap_or(Vec3::new(-0.5, 1.0, 2.5)),
+                room_lights,
                 ship_world_pos,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
@@ -1628,6 +1640,20 @@ mod native_app {
                                         star_r.render_pass(&mut pass);
                                     }
                                     state.renderer.queue.submit(std::iter::once(encoder.finish()));
+                                }
+
+                                // Update point lights (up to 8 nearest to camera)
+                                {
+                                    let cam_pos = state.camera.position;
+                                    let mut lights = state.room_lights.clone();
+                                    // Sort by distance to camera, take nearest 8
+                                    lights.sort_by(|a, b| {
+                                        let da = (a.0 - cam_pos).length_squared();
+                                        let db = (b.0 - cam_pos).length_squared();
+                                        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+                                    });
+                                    lights.truncate(8);
+                                    state.renderer.set_point_lights(&lights);
                                 }
 
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars)

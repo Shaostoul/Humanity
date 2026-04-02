@@ -8,6 +8,26 @@
 struct CameraUniforms {
     view_proj: mat4x4<f32>,
     view_pos: vec4<f32>,
+    // Point lights: xyz = position, w = intensity. Up to 8 lights.
+    light0: vec4<f32>,
+    light1: vec4<f32>,
+    light2: vec4<f32>,
+    light3: vec4<f32>,
+    light4: vec4<f32>,
+    light5: vec4<f32>,
+    light6: vec4<f32>,
+    light7: vec4<f32>,
+    // xyz = color for each light, w = radius
+    light0_color: vec4<f32>,
+    light1_color: vec4<f32>,
+    light2_color: vec4<f32>,
+    light3_color: vec4<f32>,
+    light4_color: vec4<f32>,
+    light5_color: vec4<f32>,
+    light6_color: vec4<f32>,
+    light7_color: vec4<f32>,
+    // x = number of active point lights
+    light_count: vec4<f32>,
 };
 
 struct ObjectUniforms {
@@ -296,6 +316,35 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // Evaluate fill light
     lo = lo + evaluate_light(FILL_DIR, FILL_COLOR, FILL_INTENSITY, normal, view_dir, albedo, metallic, roughness, f0);
+
+    // Point lights
+    let positions = array<vec4<f32>, 8>(
+        camera.light0, camera.light1, camera.light2, camera.light3,
+        camera.light4, camera.light5, camera.light6, camera.light7,
+    );
+    let colors = array<vec4<f32>, 8>(
+        camera.light0_color, camera.light1_color, camera.light2_color, camera.light3_color,
+        camera.light4_color, camera.light5_color, camera.light6_color, camera.light7_color,
+    );
+    let num_lights = i32(camera.light_count.x);
+    for (var i = 0; i < 8; i = i + 1) {
+        if (i >= num_lights) { break; }
+        let light_pos = positions[i].xyz;
+        let intensity = positions[i].w;
+        let light_color = colors[i].xyz;
+        let radius = colors[i].w;
+
+        let to_light = light_pos - in.world_position;
+        let dist = length(to_light);
+        let light_dir = to_light / max(dist, 0.001);
+
+        // Attenuation: inverse square with radius falloff
+        let attenuation = intensity / (1.0 + dist * dist) * max(1.0 - dist / max(radius, 0.001), 0.0);
+
+        if (attenuation > 0.001) {
+            lo = lo + evaluate_light(light_dir, light_color, attenuation, normal, view_dir, albedo, metallic, roughness, f0);
+        }
+    }
 
     // Ambient (simple hemisphere: warm from above, cool from below)
     let sky_factor = normal.y * 0.5 + 0.5;

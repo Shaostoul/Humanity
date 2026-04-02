@@ -193,6 +193,9 @@ impl StarRenderer {
         let uniforms = CameraUniforms {
             view_proj: star_vp.to_cols_array_2d(),
             view_pos: [0.0, 0.0, 0.0, 1.0],
+            light_positions: [[0.0; 4]; 8],
+            light_colors: [[0.0; 4]; 8],
+            light_count: [0.0; 4],
         };
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&uniforms));
     }

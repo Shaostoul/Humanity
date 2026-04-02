@@ -14,11 +14,18 @@ use glam::{DVec3, Mat4, Quat, Vec3};
 // ── GPU uniform ──────────────────────────────────────────────
 
 /// GPU-side camera uniform data (matches shader CameraUniforms).
+/// Includes up to 8 point lights packed into the uniform buffer.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct CameraUniforms {
     pub view_proj: [[f32; 4]; 4],
     pub view_pos: [f32; 4],
+    /// Point light positions: xyz = position, w = intensity. Up to 8 lights.
+    pub light_positions: [[f32; 4]; 8],
+    /// Point light colors: xyz = color, w = radius.
+    pub light_colors: [[f32; 4]; 8],
+    /// x = number of active point lights, yzw = unused.
+    pub light_count: [f32; 4],
 }
 
 // ── Camera mode enum ─────────────────────────────────────────
@@ -253,12 +260,35 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    /// Build GPU uniform data from current state.
+    /// Build GPU uniform data from current state (no point lights).
     pub fn uniforms(&self) -> CameraUniforms {
         let pos = self.effective_position();
         CameraUniforms {
             view_proj: self.view_projection_matrix().to_cols_array_2d(),
             view_pos: [pos.x, pos.y, pos.z, 1.0],
+            light_positions: [[0.0; 4]; 8],
+            light_colors: [[0.0; 4]; 8],
+            light_count: [0.0, 0.0, 0.0, 0.0],
+        }
+    }
+
+    /// Build GPU uniform data with point lights.
+    /// Each light is (position, color, intensity, radius).
+    pub fn uniforms_with_lights(&self, lights: &[(Vec3, [f32; 3], f32, f32)]) -> CameraUniforms {
+        let pos = self.effective_position();
+        let mut light_positions = [[0.0_f32; 4]; 8];
+        let mut light_colors = [[0.0_f32; 4]; 8];
+        let count = lights.len().min(8);
+        for (i, &(ref lpos, color, intensity, radius)) in lights.iter().take(8).enumerate() {
+            light_positions[i] = [lpos.x, lpos.y, lpos.z, intensity];
+            light_colors[i] = [color[0], color[1], color[2], radius];
+        }
+        CameraUniforms {
+            view_proj: self.view_projection_matrix().to_cols_array_2d(),
+            view_pos: [pos.x, pos.y, pos.z, 1.0],
+            light_positions,
+            light_colors,
+            light_count: [count as f32, 0.0, 0.0, 0.0],
         }
     }
 

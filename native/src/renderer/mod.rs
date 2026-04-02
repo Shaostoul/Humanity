@@ -168,6 +168,9 @@ impl Renderer {
             contents: bytemuck::bytes_of(&CameraUniforms {
                 view_proj: Mat4::IDENTITY.to_cols_array_2d(),
                 view_pos: [0.0; 4],
+                light_positions: [[0.0; 4]; 8],
+                light_colors: [[0.0; 4]; 8],
+                light_count: [0.0; 4],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -258,15 +261,28 @@ impl Renderer {
     }
 
     /// Register a material and return its handle (index).
+    /// Uses material_type = 0.0 (default panel grid).
     pub fn add_material(
         &mut self,
         base_color: [f32; 4],
         metallic: f32,
         roughness: f32,
     ) -> usize {
+        self.add_material_typed(base_color, metallic, roughness, 0.0)
+    }
+
+    /// Register a material with an explicit material_type and return its handle (index).
+    /// material_type: 0 = default panel grid, 1 = brushed metal, 2 = concrete, 3 = wood.
+    pub fn add_material_typed(
+        &mut self,
+        base_color: [f32; 4],
+        metallic: f32,
+        roughness: f32,
+        material_type: f32,
+    ) -> usize {
         let uniforms = MaterialUniforms {
             base_color,
-            params: [metallic, roughness, 0.0, 0.0],
+            params: [metallic, roughness, material_type, 0.0],
         };
         let buffer = self
             .device
@@ -292,6 +308,40 @@ impl Renderer {
             bind_group,
         });
         idx
+    }
+
+    /// Set point lights for the next render call. Up to 8 lights supported.
+    /// Each light: (position, color_rgb, intensity, radius).
+    pub fn set_point_lights(&mut self, lights: &[(Vec3, [f32; 3], f32, f32)]) {
+        let mut light_positions = [[0.0_f32; 4]; 8];
+        let mut light_colors = [[0.0_f32; 4]; 8];
+        let count = lights.len().min(8);
+        for (i, &(pos, color, intensity, radius)) in lights.iter().take(8).enumerate() {
+            light_positions[i] = [pos.x, pos.y, pos.z, intensity];
+            light_colors[i] = [color[0], color[1], color[2], radius];
+        }
+        // Write just the light data portion of the camera uniform buffer.
+        // Offset past view_proj (64 bytes) + view_pos (16 bytes) = 80 bytes.
+        let light_data_offset = 80_u64;
+        // light_positions: 8 * 16 = 128 bytes
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            light_data_offset,
+            bytemuck::cast_slice(&light_positions),
+        );
+        // light_colors: offset 80 + 128 = 208
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            light_data_offset + 128,
+            bytemuck::cast_slice(&light_colors),
+        );
+        // light_count: offset 80 + 128 + 128 = 336
+        let light_count = [count as f32, 0.0_f32, 0.0, 0.0];
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            light_data_offset + 256,
+            bytemuck::cast_slice(&light_count),
+        );
     }
 
     /// Render a frame with the given camera and objects.

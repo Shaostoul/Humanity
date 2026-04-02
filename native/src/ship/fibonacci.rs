@@ -310,6 +310,207 @@ fn wall_box(start: Vec3, end: Vec3, y_base: f32, height: f32, thickness: f32) ->
 }
 
 // ---------------------------------------------------------------------------
+// Doorway detection between adjacent rooms
+// ---------------------------------------------------------------------------
+
+/// Information about a shared wall edge between two rooms.
+#[derive(Debug, Clone)]
+struct SharedEdge {
+    /// Start point of the shared (overlapping) segment
+    start: Vec3,
+    /// End point of the shared segment
+    end: Vec3,
+    /// Which wall of room A this belongs to (0=north, 1=south, 2=west, 3=east)
+    wall_a: usize,
+    /// Which wall of room B this belongs to
+    _wall_b: usize,
+}
+
+/// Check if two rooms share a wall edge. Returns the shared edge info if they do.
+///
+/// Two rooms share a wall when one room's edge aligns with the other's along one
+/// axis (within tolerance for wall thickness) AND they overlap along the
+/// perpendicular axis.
+fn find_shared_edges(
+    pos_a: Vec3, dim_a: Vec3,
+    pos_b: Vec3, dim_b: Vec3,
+) -> Vec<SharedEdge> {
+    let tol = 0.15; // tolerance for wall thickness alignment
+    let mut edges = Vec::new();
+
+    // Room A bounds
+    let a_x0 = pos_a.x;
+    let a_x1 = pos_a.x + dim_a.x;
+    let a_z0 = pos_a.z;
+    let a_z1 = pos_a.z + dim_a.z;
+
+    // Room B bounds
+    let b_x0 = pos_b.x;
+    let b_x1 = pos_b.x + dim_b.x;
+    let b_z0 = pos_b.z;
+    let b_z1 = pos_b.z + dim_b.z;
+
+    // Check A's east wall (x1) vs B's west wall (x0)
+    if (a_x1 - b_x0).abs() < tol {
+        let z_start = a_z0.max(b_z0);
+        let z_end = a_z1.min(b_z1);
+        if z_end - z_start > 0.5 {
+            // Enough overlap for a doorway
+            let x = a_x1;
+            edges.push(SharedEdge {
+                start: Vec3::new(x, 0.0, z_start),
+                end: Vec3::new(x, 0.0, z_end),
+                wall_a: 3, // east
+                _wall_b: 2, // west
+            });
+        }
+    }
+
+    // Check A's west wall (x0) vs B's east wall (x1)
+    if (a_x0 - b_x1).abs() < tol {
+        let z_start = a_z0.max(b_z0);
+        let z_end = a_z1.min(b_z1);
+        if z_end - z_start > 0.5 {
+            let x = a_x0;
+            edges.push(SharedEdge {
+                start: Vec3::new(x, 0.0, z_start),
+                end: Vec3::new(x, 0.0, z_end),
+                wall_a: 2, // west
+                _wall_b: 3, // east
+            });
+        }
+    }
+
+    // Check A's south wall (z1) vs B's north wall (z0)
+    if (a_z1 - b_z0).abs() < tol {
+        let x_start = a_x0.max(b_x0);
+        let x_end = a_x1.min(b_x1);
+        if x_end - x_start > 0.5 {
+            let z = a_z1;
+            edges.push(SharedEdge {
+                start: Vec3::new(x_start, 0.0, z),
+                end: Vec3::new(x_end, 0.0, z),
+                wall_a: 1, // south
+                _wall_b: 0, // north
+            });
+        }
+    }
+
+    // Check A's north wall (z0) vs B's south wall (z1)
+    if (a_z0 - b_z1).abs() < tol {
+        let x_start = a_x0.max(b_x0);
+        let x_end = a_x1.min(b_x1);
+        if x_end - x_start > 0.5 {
+            let z = a_z0;
+            edges.push(SharedEdge {
+                start: Vec3::new(x_start, 0.0, z),
+                end: Vec3::new(x_end, 0.0, z),
+                wall_a: 0, // north
+                _wall_b: 1, // south
+            });
+        }
+    }
+
+    edges
+}
+
+/// For a given wall, compute the wall segments needed after cutting doorways.
+///
+/// Returns a list of (start, end) segments. If no doorway applies, returns
+/// the original wall as a single segment. Also returns lintel info:
+/// (start, end, doorway_height) for each doorway cut.
+fn split_wall_for_doorways(
+    wall_start: Vec3,
+    wall_end: Vec3,
+    wall_idx: usize,
+    shared_edges: &[SharedEdge],
+    wall_height: f32,
+) -> (Vec<(Vec3, Vec3)>, Vec<(Vec3, Vec3, f32)>) {
+    // Collect all doorway cuts that apply to this wall
+    let mut cuts: Vec<(f32, f32)> = Vec::new(); // (position_along_wall_start, position_along_wall_end)
+
+    let wall_dir = wall_end - wall_start;
+    let wall_len = wall_dir.length();
+    if wall_len < 0.01 {
+        return (vec![(wall_start, wall_end)], vec![]);
+    }
+    let wall_norm = wall_dir / wall_len;
+
+    for edge in shared_edges {
+        if edge.wall_a != wall_idx {
+            continue;
+        }
+
+        // Project the shared edge onto the wall's axis to find the overlap
+        let overlap_len = (edge.end - edge.start).length();
+        let doorway_width = (2.0_f32).min(overlap_len * 0.5);
+        if doorway_width < 0.3 {
+            continue; // Too narrow for a doorway
+        }
+
+        // Find the center of the overlap projected onto this wall
+        let edge_center = (edge.start + edge.end) * 0.5;
+        let t_center = (edge_center - wall_start).dot(wall_norm);
+        let t_start = (t_center - doorway_width * 0.5).max(0.0);
+        let t_end = (t_center + doorway_width * 0.5).min(wall_len);
+
+        if t_end - t_start > 0.2 {
+            cuts.push((t_start, t_end));
+        }
+    }
+
+    if cuts.is_empty() {
+        return (vec![(wall_start, wall_end)], vec![]);
+    }
+
+    // Sort cuts by start position
+    cuts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Merge overlapping cuts
+    let mut merged: Vec<(f32, f32)> = Vec::new();
+    for (cs, ce) in &cuts {
+        if let Some(last) = merged.last_mut() {
+            if *cs <= last.1 + 0.01 {
+                last.1 = last.1.max(*ce);
+                continue;
+            }
+        }
+        merged.push((*cs, *ce));
+    }
+
+    // Generate wall segments around the doorway cuts
+    let mut segments = Vec::new();
+    let mut lintels = Vec::new();
+    let mut cursor = 0.0_f32;
+
+    let doorway_height = (2.5_f32).min(wall_height - 0.3);
+
+    for (cut_start, cut_end) in &merged {
+        // Wall segment before the doorway
+        if *cut_start - cursor > 0.01 {
+            let seg_start = wall_start + wall_norm * cursor;
+            let seg_end = wall_start + wall_norm * cut_start;
+            segments.push((seg_start, seg_end));
+        }
+
+        // Lintel above doorway
+        let lintel_start = wall_start + wall_norm * cut_start;
+        let lintel_end = wall_start + wall_norm * cut_end;
+        lintels.push((lintel_start, lintel_end, doorway_height));
+
+        cursor = *cut_end;
+    }
+
+    // Wall segment after the last doorway
+    if wall_len - cursor > 0.01 {
+        let seg_start = wall_start + wall_norm * cursor;
+        segments.push((seg_start, wall_end));
+    }
+
+    (segments, lintels)
+}
+
+// ---------------------------------------------------------------------------
 // Mesh assembly from resolved room positions
 // ---------------------------------------------------------------------------
 
@@ -327,16 +528,43 @@ fn build_meshes(
     let mut all_wall_indices = Vec::new();
     let mut room_info = Vec::new();
 
+    // Pre-compute dimensions and wall heights for all rooms
+    let room_data: Vec<(Vec3, f32)> = rooms.iter().map(|rc| {
+        let dim = Vec3::new(rc.dimensions[0], rc.dimensions[1], rc.dimensions[2]);
+        let wh = if rc.wall_height > 0.0 {
+            rc.wall_height
+        } else {
+            dim.y
+        };
+        (dim, wh)
+    }).collect();
+
+    // Pre-compute shared edges for each room: room_shared_edges[i] = all edges for room i
+    let mut room_shared_edges: Vec<Vec<SharedEdge>> = vec![Vec::new(); rooms.len()];
+    for i in 0..rooms.len() {
+        let (dim_a, wh_a) = room_data[i];
+        if wh_a <= 0.0 { continue; }
+        for j in (i + 1)..rooms.len() {
+            let (dim_b, wh_b) = room_data[j];
+            if wh_b <= 0.0 { continue; }
+            let edges = find_shared_edges(positions[i], dim_a, positions[j], dim_b);
+            for edge in &edges {
+                room_shared_edges[i].push(edge.clone());
+            }
+            // Also compute edges from B's perspective
+            let edges_b = find_shared_edges(positions[j], dim_b, positions[i], dim_a);
+            for edge in &edges_b {
+                room_shared_edges[j].push(edge.clone());
+            }
+        }
+    }
+
     for (i, rc) in rooms.iter().enumerate() {
         let pos = positions[i];
-        let dim = Vec3::new(rc.dimensions[0], rc.dimensions[1], rc.dimensions[2]);
-        let wall_height = if rc.wall_height > 0.0 {
-            rc.wall_height
-        } else if dim.y > 0.0 {
-            dim.y
-        } else {
+        let (dim, wall_height) = room_data[i];
+        if wall_height <= 0.0 {
             continue; // Skip rooms with zero height (open-air like ranch)
-        };
+        }
 
         // Floor
         let (verts, indices) = floor_quad(pos, dim);
@@ -352,7 +580,7 @@ fn build_meshes(
             is_spawn_room: spawn_room == Some(rc.id.as_str()),
         });
 
-        // 4 walls
+        // 4 walls with doorway detection
         let x0 = pos.x;
         let z0 = pos.z;
         let x1 = x0 + dim.x;
@@ -360,17 +588,38 @@ fn build_meshes(
         let y = pos.y;
 
         let walls = [
-            (Vec3::new(x0, y, z0), Vec3::new(x1, y, z0)), // North (min Z)
-            (Vec3::new(x0, y, z1), Vec3::new(x1, y, z1)), // South (max Z)
-            (Vec3::new(x0, y, z0), Vec3::new(x0, y, z1)), // West (min X)
-            (Vec3::new(x1, y, z0), Vec3::new(x1, y, z1)), // East (max X)
+            (Vec3::new(x0, y, z0), Vec3::new(x1, y, z0)), // 0: North (min Z)
+            (Vec3::new(x0, y, z1), Vec3::new(x1, y, z1)), // 1: South (max Z)
+            (Vec3::new(x0, y, z0), Vec3::new(x0, y, z1)), // 2: West (min X)
+            (Vec3::new(x1, y, z0), Vec3::new(x1, y, z1)), // 3: East (max X)
         ];
 
-        for (start, end) in walls {
-            let base_idx = all_wall_verts.len() as u32;
-            let (wv, wi) = wall_box(start, end, y, wall_height, wall_thickness);
-            all_wall_verts.extend(wv);
-            all_wall_indices.extend(wi.iter().map(|idx| idx + base_idx));
+        for (wall_idx, (start, end)) in walls.iter().enumerate() {
+            let (segments, lintels) = split_wall_for_doorways(
+                *start, *end, wall_idx, &room_shared_edges[i], wall_height,
+            );
+
+            // Generate wall segments (full height for solid parts)
+            for (seg_start, seg_end) in &segments {
+                let base_idx = all_wall_verts.len() as u32;
+                let (wv, wi) = wall_box(*seg_start, *seg_end, y, wall_height, wall_thickness);
+                all_wall_verts.extend(wv);
+                all_wall_indices.extend(wi.iter().map(|idx| idx + base_idx));
+            }
+
+            // Generate lintels above doorways
+            for (lintel_start, lintel_end, door_h) in &lintels {
+                let lintel_thickness = wall_height - door_h;
+                if lintel_thickness > 0.01 {
+                    let base_idx = all_wall_verts.len() as u32;
+                    let (wv, wi) = wall_box(
+                        *lintel_start, *lintel_end,
+                        y + door_h, lintel_thickness, wall_thickness,
+                    );
+                    all_wall_verts.extend(wv);
+                    all_wall_indices.extend(wi.iter().map(|idx| idx + base_idx));
+                }
+            }
         }
 
         // Ceiling (visible from below, inside room looking up)
@@ -383,7 +632,8 @@ fn build_meshes(
         ];
         let cb = all_wall_verts.len() as u32;
         all_wall_verts.extend(ceil_verts);
-        all_wall_indices.extend([cb, cb + 2, cb + 1, cb, cb + 3, cb + 2]);
+        // Ceiling visible from below: normal points -Y (into room)
+        all_wall_indices.extend([cb, cb + 1, cb + 2, cb, cb + 2, cb + 3]);
     }
 
     // Also generate floor-only for zero-height rooms (outdoor spaces like ranch)
