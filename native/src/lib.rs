@@ -251,6 +251,8 @@ mod native_app {
         hologram_pins: Vec<(usize, usize, Vec3, String)>,
         /// Currently targeted hologram planet (name, if crosshair is on a pin).
         targeted_planet: Option<String>,
+        /// Hologram room center (from data-driven layout).
+        hologram_room_center: Vec3,
         /// Ship world position (GEO orbit coordinates).
         ship_world_pos: glam::DVec3,
         start_time: Instant,
@@ -300,10 +302,12 @@ mod native_app {
             // Generate Fibonacci homestead meshes
             let homestead = crate::ship::fibonacci::generate_homestead();
             let mut homestead_floors = Vec::new();
-            for (verts, indices, color) in homestead.floors {
+            for (verts, indices, color, material_type) in homestead.floors {
                 let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &verts, &indices));
+                // Use material_type for PBR: 0=grid panels, 1=brushed metal, 2=concrete, 3=wood
                 let mat_idx = renderer.add_material(color, 0.0, 0.8);
                 homestead_floors.push((mesh_idx, mat_idx));
+                let _ = material_type; // TODO: pass material_type to shader via params.z
             }
             let homestead_walls = if !homestead.walls.0.is_empty() {
                 let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &homestead.walls.0, &homestead.walls.1));
@@ -312,7 +316,15 @@ mod native_app {
             } else {
                 None
             };
-            log::info!("Homestead: {} floor meshes, walls: {}", homestead_floors.len(), homestead_walls.is_some());
+            // Find hologram and spawn rooms from data-driven layout
+            let hologram_room_center = homestead.room_info.iter()
+                .find(|r| r.is_hologram_room)
+                .map(|r| r.center);
+            let spawn_room = homestead.room_info.iter()
+                .find(|r| r.is_spawn_room);
+            log::info!("Homestead: {} rooms, {} floor meshes, walls: {}, hologram_room: {:?}, spawn_room: {:?}",
+                homestead.room_info.len(), homestead_floors.len(), homestead_walls.is_some(),
+                hologram_room_center, spawn_room.map(|r| &r.id));
 
             // Initialize data directory early (needed for hologram + asset loading)
             let data_dir = find_data_dir();
@@ -398,13 +410,23 @@ mod native_app {
 
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
-            // Player starts in the F5 kitchen (5x5 room) at eye height, facing the hologram
-            // Kitchen at position (0, 0, -5) with dims (5, 3, 5)
-            // Center = (2.5, 0, -2.5). Player near edge looking toward center.
-            // Stand near south edge of kitchen looking north toward hologram center
-            camera.position = Vec3::new(2.5, 1.7, -1.0);
-            camera.pitch = -0.2; // slightly looking down toward hologram at 1m height
-            camera.yaw = std::f32::consts::PI; // face -Z (north into kitchen)
+            // Player spawns in the designated spawn room (or hologram room as fallback)
+            if let Some(spawn) = spawn_room {
+                // Stand near south edge of room, eye height 1.7m, looking north (-Z)
+                camera.position = Vec3::new(spawn.center.x, 1.7, spawn.center.z + spawn.dimensions.z * 0.35);
+                camera.pitch = -0.2;
+                camera.yaw = std::f32::consts::PI;
+                log::info!("Player spawn in room '{}' at {:?}", spawn.id, camera.position);
+            } else if let Some(holo_center) = hologram_room_center {
+                camera.position = Vec3::new(holo_center.x, 1.7, holo_center.z + 1.5);
+                camera.pitch = -0.2;
+                camera.yaw = std::f32::consts::PI;
+            } else {
+                // Hardcoded fallback: kitchen center
+                camera.position = Vec3::new(-0.5, 1.7, 4.0);
+                camera.pitch = -0.2;
+                camera.yaw = std::f32::consts::PI;
+            }
             // Ship is at origin. No floating origin needed for gameplay.
             // Floating origin only matters for rendering distant planets.
 
@@ -586,6 +608,7 @@ mod native_app {
                 hologram_orbits,
                 hologram_pins,
                 targeted_planet: None,
+                hologram_room_center: hologram_room_center.unwrap_or(Vec3::new(-0.5, 1.0, 2.5)),
                 ship_world_pos,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
@@ -762,9 +785,8 @@ mod native_app {
                         });
                     }
 
-                    // Solar system hologram at 1m height in F5 kitchen (5x5 room)
-                    // Kitchen at pos (0, 0, -5) with dims 5x5: center = (2.5, 0, -2.5)
-                    let hologram_center = Vec3::new(2.5, 1.0, -2.5);
+                    // Solar system hologram centered in the designated hologram room (1m above floor)
+                    let hologram_center = state.hologram_room_center;
 
                     // Orbit rings (centered on hologram)
                     for &(mesh_idx, mat_idx) in &state.hologram_orbits {

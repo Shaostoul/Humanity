@@ -1,0 +1,129 @@
+// HumanityOS Fibonacci Homestead Layout
+// Data-driven room positions, dimensions, materials, and colors.
+// Loaded by native/src/ship/fibonacci.rs at startup.
+// Edit this file to rearrange rooms without recompiling.
+
+HomesteadLayout(
+    hologram_room: Some("kitchen"),
+    spawn_room: Some("kitchen"),
+
+    rooms: [
+        // F1 (1x1): Computer - personal workstation
+        RoomConfig(
+            id: "computer",
+            position: (0.0, 0.0, 0.0),
+            dimensions: (1.0, 3.0, 1.0),
+            material_type: 1,
+            color: (0.3, 0.4, 0.5, 1.0),
+            wall_height: 0.0,
+        ),
+        // F1 (1x1): Network Hub - communications
+        RoomConfig(
+            id: "network",
+            position: (1.0, 0.0, 0.0),
+            dimensions: (1.0, 3.0, 1.0),
+            material_type: 1,
+            color: (0.25, 0.35, 0.5, 1.0),
+            wall_height: 0.0,
+        ),
+        // F2 (2x2): Respawner / Medbay - medical, spawn point
+        RoomConfig(
+            id: "respawner",
+            position: (0.0, 0.0, 1.0),
+            dimensions: (2.0, 3.0, 2.0),
+            material_type: 2,
+            color: (0.5, 0.55, 0.65, 1.0),
+            wall_height: 0.0,
+        ),
+        // F3 (3x3): Wetroom - shower, laundry, water recycling
+        RoomConfig(
+            id: "wetroom",
+            position: (2.0, 0.0, 0.0),
+            dimensions: (3.0, 3.0, 3.0),
+            material_type: 2,
+            color: (0.45, 0.5, 0.55, 1.0),
+            wall_height: 0.0,
+        ),
+        // F5 (5x5): Bedroom - sleeping, personal storage
+        RoomConfig(
+            id: "bedroom",
+            position: (-3.0, 0.0, 0.0),
+            dimensions: (5.0, 3.0, 5.0),
+            material_type: 3,
+            color: (0.5, 0.4, 0.3, 1.0),
+            wall_height: 0.0,
+        ),
+        // F8 (8x8): Kitchen - cooking, food storage, dining
+        RoomConfig(
+            id: "kitchen",
+            position: (-3.0, 0.0, -8.0),
+            dimensions: (8.0, 3.0, 8.0),
+            material_type: 0,
+            color: (0.6, 0.5, 0.25, 1.0),
+            wall_height: 0.0,
+        ),
+        // F13 (13x13): Living Room - social space, recreation
+        RoomConfig(
+            id: "livingroom",
+            position: (-3.0, 0.0, 5.0),
+            dimensions: (13.0, 4.0, 13.0),
+            material_type: 3,
+            color: (0.45, 0.35, 0.2, 1.0),
+            wall_height: 0.0,
+        ),
+        // F21 (21x21): Study / Workshop - learning, crafting, research
+        RoomConfig(
+            id: "study",
+            position: (10.0, 0.0, -8.0),
+            dimensions: (21.0, 6.0, 21.0),
+            material_type: 1,
+            color: (0.4, 0.4, 0.45, 1.0),
+            wall_height: 0.0,
+        ),
+        // F34 (34x34): Garden - food production, hydroponics
+        RoomConfig(
+            id: "garden",
+            position: (-24.0, 0.0, -8.0),
+            dimensions: (34.0, 6.0, 34.0),
+            material_type: 2,
+            color: (0.2, 0.45, 0.2, 1.0),
+            wall_height: 0.0,
+        ),
+        // F55 (55x55): Garage - vehicle storage, maintenance
+        RoomConfig(
+            id: "garage",
+            position: (-24.0, 0.0, 26.0),
+            dimensions: (55.0, 5.0, 55.0),
+            material_type: 2,
+            color: (0.35, 0.35, 0.35, 1.0),
+            wall_height: 0.0,
+        ),
+        // F89 (89x89): Depot - bulk storage, logistics
+        RoomConfig(
+            id: "depot",
+            position: (31.0, 0.0, -8.0),
+            dimensions: (89.0, 6.0, 89.0),
+            material_type: 1,
+            color: (0.25, 0.25, 0.25, 1.0),
+            wall_height: 0.0,
+        ),
+        // F144 (144x144): Hangar - large vehicles, spacecraft
+        RoomConfig(
+            id: "hangar",
+            position: (-24.0, 0.0, -152.0),
+            dimensions: (144.0, 12.0, 144.0),
+            material_type: 1,
+            color: (0.55, 0.55, 0.6, 1.0),
+            wall_height: 0.0,
+        ),
+        // F233 (233x233): Ranch - open land, livestock, agriculture
+        RoomConfig(
+            id: "ranch",
+            position: (-24.0, 0.0, 81.0),
+            dimensions: (233.0, 0.0, 233.0),
+            material_type: 0,
+            color: (0.25, 0.5, 0.2, 1.0),
+            wall_height: 0.0,
+        ),
+    ],
+)

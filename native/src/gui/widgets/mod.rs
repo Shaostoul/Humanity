@@ -1,6 +1,12 @@
 //! Reusable egui widgets styled by the HumanityOS theme.
 
 pub mod row;
+pub mod data_table;
+pub mod search_bar;
+pub mod item_list;
+pub mod stat_display;
+pub mod modal;
+pub mod toolbar;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
