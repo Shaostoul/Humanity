@@ -1029,6 +1029,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .fill(Color32::from_rgb(25, 25, 30))
             .inner_margin(egui::Margin::symmetric(16, 8))
             .show(ui, |ui| {
+                Frame::NONE
+                    .fill(Color32::from_rgb(30, 30, 38))
+                    .rounding(Rounding::same(theme.border_radius_lg as u8))
+                    .stroke(Stroke::new(1.0, theme.border()))
+                    .inner_margin(egui::Margin::symmetric(12, 8))
+                    .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut state.chat_input)
@@ -1120,6 +1126,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     if enter_pressed {
                         response.request_focus();
                     }
+                });
                 });
             });
     });

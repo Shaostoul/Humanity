@@ -54,7 +54,7 @@ impl Pipeline {
                 }],
             });
 
-        // Group 1: Object uniforms (model + normal matrix)
+        // Group 1: Object uniforms (model + normal matrix) with dynamic offset
         let object_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Object Bind Group Layout"),
@@ -63,7 +63,7 @@ impl Pipeline {
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
+                        has_dynamic_offset: true,
                         min_binding_size: wgpu::BufferSize::new(
                             std::mem::size_of::<ObjectUniforms>() as u64,
                         ),

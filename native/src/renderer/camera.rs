@@ -597,16 +597,17 @@ impl CameraController {
             self.is_grounded = false;
         }
 
-        // Apply gravity
-        self.vertical_velocity -= 9.8 * dt;
-        camera.position.y += self.vertical_velocity * dt;
+        // Gravity disabled for space station (no ground reference)
+        // TODO: re-enable when we have proper collision with ship floors
+        // self.vertical_velocity -= 9.8 * dt;
+        // camera.position.y += self.vertical_velocity * dt;
 
-        // Ground collision
-        let ground_height = 0.0_f32;
-        if camera.position.y < ground_height + self.eye_height {
-            camera.position.y = ground_height + self.eye_height;
-            self.vertical_velocity = 0.0;
-            self.is_grounded = true;
+        // Space/Shift for vertical movement (fly mode in space)
+        if self.ascend {
+            camera.position.y += self.speed * dt;
+        }
+        if self.descend {
+            camera.position.y -= self.speed * dt;
         }
     }
 

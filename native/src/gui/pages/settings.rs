@@ -9,8 +9,87 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::updater::{UpdateChannel, UpdateState};
 
+/// Styling params for inline sliders (captured before mutable theme borrows).
+struct SliderStyle {
+    track_color: Color32,
+    track_h: f32,
+    thumb_r: f32,
+    accent: Color32,
+    accent_hover: Color32,
+    font_sm: f32,
+}
+
+impl SliderStyle {
+    fn from_theme(theme: &Theme) -> Self {
+        Self {
+            track_color: theme.slider_track(),
+            track_h: theme.slider_track_height,
+            thumb_r: theme.slider_thumb_radius,
+            accent: theme.accent(),
+            accent_hover: theme.accent_hover(),
+            font_sm: theme.font_size_small,
+        }
+    }
+}
+
+/// Inline slider for the Widgets section where theme fields are mutably borrowed.
+/// Pre-captured styling avoids borrow conflicts with &mut theme.field.
+fn styled_slider(
+    ui: &mut egui::Ui,
+    style: &SliderStyle,
+    label: &str,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    label_color: Color32,
+) -> bool {
+    let min = *range.start();
+    let max = *range.end();
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(
+            Vec2::new(120.0, ui.spacing().interact_size.y),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| { ui.label(RichText::new(label).color(label_color)); },
+        );
+        let desired_width = ui.available_width().min(200.0);
+        let widget_height = style.thumb_r * 2.0 + 4.0;
+        let (rect, response) = ui.allocate_exact_size(
+            Vec2::new(desired_width, widget_height),
+            egui::Sense::click_and_drag(),
+        );
+        let old_val = *value;
+        if response.dragged() || response.clicked() {
+            if let Some(pos) = response.interact_pointer_pos() {
+                let t = ((pos.x - rect.left()) / rect.width()).clamp(0.0, 1.0);
+                *value = min + t * (max - min);
+            }
+        }
+        if ui.is_rect_visible(rect) {
+            let painter = ui.painter();
+            let cy = rect.center().y;
+            let t = if (max - min).abs() < f32::EPSILON { 0.5 } else { (*value - min) / (max - min) };
+            let tx = rect.left() + t * rect.width();
+            let tr = Rounding::same((style.track_h / 2.0) as u8);
+            painter.rect_filled(
+                egui::Rect::from_min_max(egui::pos2(rect.left(), cy - style.track_h / 2.0), egui::pos2(rect.right(), cy + style.track_h / 2.0)),
+                tr, style.track_color,
+            );
+            painter.rect_filled(
+                egui::Rect::from_min_max(egui::pos2(rect.left(), cy - style.track_h / 2.0), egui::pos2(tx, cy + style.track_h / 2.0)),
+                tr, style.accent,
+            );
+            let tc = if response.hovered() || response.dragged() { style.accent_hover } else { style.accent };
+            painter.circle_filled(egui::pos2(tx, cy), style.thumb_r, tc);
+        }
+        changed = (*value - old_val).abs() > f32::EPSILON;
+        let vt = if max <= 4.0 { format!("{:.1}", *value) } else { format!("{:.0}", *value) };
+        ui.label(RichText::new(vt).color(label_color).size(style.font_sm));
+    });
+    changed
+}
+
 pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
-    // Left sidebar with category list
+    // Left sidebar: Table of Contents with jump links
     egui::SidePanel::left("settings_sidebar")
         .default_width(180.0)
         .min_width(140.0)
@@ -59,37 +138,102 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                 .min_size(Vec2::new(ui.available_width(), 28.0));
 
                 if ui.add(btn).clicked() {
-                    state.settings.category = *cat;
+                    state.settings.scroll_to_section = Some(*cat);
                 }
             }
         });
 
-    // Right content area
+    // Right content area: all sections in one infinite scroll
     egui::CentralPanel::default()
         .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
         .show(ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
-                match state.settings.category {
-                    SettingsCategory::Account => draw_account(ui, theme, state),
-                    SettingsCategory::Appearance => draw_appearance(ui, theme, state),
-                    SettingsCategory::Widgets => draw_widgets(ui, theme, state),
-                    SettingsCategory::Notifications => draw_notifications(ui, theme, state),
-                    SettingsCategory::Wallet => draw_wallet(ui, theme, state),
-                    SettingsCategory::Audio => draw_audio(ui, theme, state),
-                    SettingsCategory::Graphics => draw_graphics(ui, theme, state),
-                    SettingsCategory::Controls => draw_controls(ui, theme, state),
-                    SettingsCategory::Privacy => draw_privacy(ui, theme, state),
-                    SettingsCategory::Data => draw_data(ui, theme, state),
-                    SettingsCategory::Updates => draw_updates(ui, theme, state),
-                }
-            });
+            ScrollArea::vertical()
+                .id_salt("settings_scroll")
+                .show(ui, |ui| {
+                    let visible_top = ui.clip_rect().top();
+                    let mut section_rects: Vec<(SettingsCategory, egui::Rect)> = Vec::new();
+                    let categories_order = [
+                        SettingsCategory::Account,
+                        SettingsCategory::Appearance,
+                        SettingsCategory::Widgets,
+                        SettingsCategory::Notifications,
+                        SettingsCategory::Wallet,
+                        SettingsCategory::Audio,
+                        SettingsCategory::Graphics,
+                        SettingsCategory::Controls,
+                        SettingsCategory::Privacy,
+                        SettingsCategory::Data,
+                        SettingsCategory::Updates,
+                    ];
+
+                    for (i, cat) in categories_order.iter().enumerate() {
+                        if i > 0 {
+                            ui.add_space(theme.spacing_xl);
+                            ui.separator();
+                            ui.add_space(theme.spacing_md);
+                        }
+
+                        // Section heading
+                        let heading_text = match cat {
+                            SettingsCategory::Account => "Account",
+                            SettingsCategory::Appearance => "Appearance",
+                            SettingsCategory::Widgets => "Widgets",
+                            SettingsCategory::Notifications => "Notifications",
+                            SettingsCategory::Wallet => "Wallet",
+                            SettingsCategory::Audio => "Audio",
+                            SettingsCategory::Graphics => "Graphics",
+                            SettingsCategory::Controls => "Controls",
+                            SettingsCategory::Privacy => "Privacy",
+                            SettingsCategory::Data => "Data",
+                            SettingsCategory::Updates => "Updates",
+                        };
+                        let heading_response = ui.label(
+                            RichText::new(heading_text)
+                                .size(theme.font_size_title)
+                                .color(theme.text_primary()),
+                        );
+                        section_rects.push((*cat, heading_response.rect));
+                        ui.add_space(theme.spacing_md);
+
+                        // Draw section content
+                        match cat {
+                            SettingsCategory::Account => draw_account_content(ui, theme, state),
+                            SettingsCategory::Appearance => draw_appearance_content(ui, theme, state),
+                            SettingsCategory::Widgets => draw_widgets_content(ui, theme, state),
+                            SettingsCategory::Notifications => draw_notifications_content(ui, theme, state),
+                            SettingsCategory::Wallet => draw_wallet_content(ui, theme, state),
+                            SettingsCategory::Audio => draw_audio_content(ui, theme, state),
+                            SettingsCategory::Graphics => draw_graphics_content(ui, theme, state),
+                            SettingsCategory::Controls => draw_controls_content(ui, theme, state),
+                            SettingsCategory::Privacy => draw_privacy_content(ui, theme, state),
+                            SettingsCategory::Data => draw_data_content(ui, theme, state),
+                            SettingsCategory::Updates => draw_updates_content(ui, theme, state),
+                        }
+                    }
+
+                    // Handle scroll-to-section
+                    if let Some(target) = state.settings.scroll_to_section.take() {
+                        for (cat, rect) in &section_rects {
+                            if *cat == target {
+                                ui.scroll_to_rect(*rect, Some(egui::Align::TOP));
+                                break;
+                            }
+                        }
+                    }
+
+                    // Track which section is currently visible for TOC highlight
+                    let mut active_section = SettingsCategory::Account;
+                    for (cat, rect) in &section_rects {
+                        if rect.top() <= visible_top + 60.0 {
+                            active_section = *cat;
+                        }
+                    }
+                    state.settings.category = active_section;
+                });
         });
 }
 
-fn draw_account(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Account").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         ui.horizontal(|ui| {
             ui.label(RichText::new("Display Name:").color(theme.text_secondary()));
@@ -389,10 +533,7 @@ fn draw_account(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Appearance").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_appearance_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Dark Mode", &mut state.settings.dark_mode) {
             state.settings_dirty = true;
@@ -406,10 +547,7 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_widgets(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Widgets").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     // Capture card styling values before mutable borrows
     let card_bg = theme.bg_card();
     let card_border = theme.border();
@@ -421,6 +559,7 @@ fn draw_widgets(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
 
     let label_color = Color32::from_rgb(136, 136, 148);
     let text_color = Color32::from_rgb(232, 232, 234);
+    let ss = SliderStyle::from_theme(theme);
 
     // Two-column layout: sliders on left, live preview on right
     ui.columns(2, |cols| {
@@ -438,34 +577,13 @@ fn draw_widgets(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Sizing").strong().color(text_color));
                 ui.add_space(4.0);
 
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Icon Size").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.icon_size, 16.0..=64.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Row Height").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.row_height, 14.0..=32.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Row Gap").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.row_gap, 0.0..=8.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Header Height").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.header_height, 24.0..=64.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Border Width").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.border_width, 0.0..=4.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Status Dot").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.status_dot_size, 4.0..=16.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Panel Margin").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.panel_margin, 0.0..=16.0).show_value(true)).changed();
-                });
+                any_changed |= styled_slider(ui, &ss, "Icon Size", &mut theme.icon_size, 16.0..=64.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Row Height", &mut theme.row_height, 14.0..=32.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Row Gap", &mut theme.row_gap, 0.0..=8.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Header Height", &mut theme.header_height, 24.0..=64.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Border Width", &mut theme.border_width, 0.0..=4.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Status Dot", &mut theme.status_dot_size, 4.0..=16.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Panel Margin", &mut theme.panel_margin, 0.0..=16.0, label_color);
             });
 
         ui.add_space(spacing_sm);
@@ -480,22 +598,10 @@ fn draw_widgets(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
                 ui.label(RichText::new("Fonts").strong().color(text_color));
                 ui.add_space(4.0);
 
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Name Font").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.name_size, 10.0..=24.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Body Font").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.body_size, 10.0..=24.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Small Font").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.small_size, 8.0..=16.0).show_value(true)).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Border Radius").color(label_color));
-                    any_changed |= ui.add(egui::Slider::new(&mut theme.border_radius_widget, 0.0..=12.0).show_value(true)).changed();
-                });
+                any_changed |= styled_slider(ui, &ss, "Name Font", &mut theme.name_size, 10.0..=24.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Body Font", &mut theme.body_size, 10.0..=24.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Small Font", &mut theme.small_size, 8.0..=16.0, label_color);
+                any_changed |= styled_slider(ui, &ss, "Border Radius", &mut theme.border_radius_widget, 0.0..=12.0, label_color);
             });
 
         ui.add_space(spacing_sm);
@@ -616,10 +722,7 @@ fn draw_widgets(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_notifications(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Notifications").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::toggle(ui, theme, "Direct Messages", &mut state.settings.notify_dm);
         widgets::toggle(ui, theme, "Mentions", &mut state.settings.notify_mentions);
@@ -643,10 +746,7 @@ fn draw_notifications(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_wallet(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Wallet").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         // Solana address
         ui.horizontal(|ui| {
@@ -705,10 +805,7 @@ fn draw_wallet(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_audio(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Audio").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
             state.settings_dirty = true;
@@ -722,10 +819,7 @@ fn draw_audio(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_graphics(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Graphics").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Fullscreen", &mut state.settings.fullscreen) {
             state.settings_dirty = true;
@@ -742,12 +836,9 @@ fn draw_graphics(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Controls").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
-        if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.5..=10.0) {
+        if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.01..=10.0) {
             state.settings_dirty = true;
         }
         if widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y) {
@@ -787,20 +878,14 @@ fn draw_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_privacy(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Privacy").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible);
         widgets::toggle(ui, theme, "Show Online Status", &mut state.settings.online_status_visible);
     });
 }
 
-fn draw_data(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Data").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new("Export & Backup").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
@@ -830,10 +915,7 @@ fn draw_data(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-fn draw_updates(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    ui.label(RichText::new("Updates").size(theme.font_size_title).color(theme.text_primary()));
-    ui.add_space(theme.spacing_md);
-
+fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         // Current version
         ui.label(RichText::new(format!("Current Version: v{}", VERSION)).strong());

@@ -181,14 +181,15 @@ impl Renderer {
             }],
         });
 
-        // Pre-allocated object uniform buffer — reused each draw call via write_buffer
-        let object_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Object Uniform Buffer"),
-            contents: bytemuck::bytes_of(&ObjectUniforms {
-                model: Mat4::IDENTITY.to_cols_array_2d(),
-                normal_matrix: Mat4::IDENTITY.to_cols_array_2d(),
-            }),
+        // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries.
+        // Each entry is aligned to 256 bytes (wgpu minimum uniform buffer offset alignment).
+        const MAX_OBJECTS: usize = 256;
+        let uniform_align = 256_u64; // minimum uniform buffer offset alignment
+        let object_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Object Uniform Buffer (Dynamic)"),
+            size: uniform_align * MAX_OBJECTS as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
         });
 
         let object_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -196,7 +197,11 @@ impl Renderer {
             layout: &pipeline.object_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
-                resource: object_buffer.as_entire_binding(),
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &object_buffer,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(std::mem::size_of::<ObjectUniforms>() as u64),
+                }),
             }],
         });
 
@@ -390,7 +395,29 @@ impl Renderer {
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
-            for obj in objects {
+            // Upload all object uniforms to the dynamic buffer BEFORE the render pass
+            let uniform_align = 256_u64;
+            for (i, obj) in objects.iter().enumerate() {
+                if i >= 256 { break; } // MAX_OBJECTS
+                let model = Mat4::from_scale_rotation_translation(
+                    obj.scale,
+                    obj.rotation,
+                    obj.position,
+                );
+                let normal_matrix = model.inverse().transpose();
+                let uniforms = ObjectUniforms {
+                    model: model.to_cols_array_2d(),
+                    normal_matrix: normal_matrix.to_cols_array_2d(),
+                };
+                self.queue.write_buffer(
+                    &self.object_buffer,
+                    uniform_align * i as u64,
+                    bytemuck::bytes_of(&uniforms),
+                );
+            }
+
+            for (i, obj) in objects.iter().enumerate() {
+                if i >= 256 { break; }
                 let mesh = match self.meshes.get(obj.mesh) {
                     Some(m) => m,
                     None => continue,
@@ -400,27 +427,8 @@ impl Renderer {
                     None => continue,
                 };
 
-                // Build model matrix
-                let model = Mat4::from_scale_rotation_translation(
-                    obj.scale,
-                    obj.rotation,
-                    obj.position,
-                );
-                let normal_matrix = model.inverse().transpose();
-
-                let object_uniforms = ObjectUniforms {
-                    model: model.to_cols_array_2d(),
-                    normal_matrix: normal_matrix.to_cols_array_2d(),
-                };
-
-                // Reuse pre-allocated object buffer — no per-frame GPU allocation
-                self.queue.write_buffer(
-                    &self.object_buffer,
-                    0,
-                    bytemuck::bytes_of(&object_uniforms),
-                );
-
-                render_pass.set_bind_group(1, &self.object_bind_group, &[]);
+                let dynamic_offset = (uniform_align as u32) * (i as u32);
+                render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
@@ -477,7 +485,29 @@ impl Renderer {
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
-            for obj in objects {
+            // Upload all object uniforms to the dynamic buffer BEFORE the render pass
+            let uniform_align = 256_u64;
+            for (i, obj) in objects.iter().enumerate() {
+                if i >= 256 { break; }
+                let model = Mat4::from_scale_rotation_translation(
+                    obj.scale,
+                    obj.rotation,
+                    obj.position,
+                );
+                let normal_matrix = model.inverse().transpose();
+                let uniforms = ObjectUniforms {
+                    model: model.to_cols_array_2d(),
+                    normal_matrix: normal_matrix.to_cols_array_2d(),
+                };
+                self.queue.write_buffer(
+                    &self.object_buffer,
+                    uniform_align * i as u64,
+                    bytemuck::bytes_of(&uniforms),
+                );
+            }
+
+            for (i, obj) in objects.iter().enumerate() {
+                if i >= 256 { break; }
                 let mesh = match self.meshes.get(obj.mesh) {
                     Some(m) => m,
                     None => continue,
@@ -487,23 +517,8 @@ impl Renderer {
                     None => continue,
                 };
 
-                let model = Mat4::from_scale_rotation_translation(
-                    obj.scale,
-                    obj.rotation,
-                    obj.position,
-                );
-                let normal_matrix = model.inverse().transpose();
-                let object_uniforms = ObjectUniforms {
-                    model: model.to_cols_array_2d(),
-                    normal_matrix: normal_matrix.to_cols_array_2d(),
-                };
-                self.queue.write_buffer(
-                    &self.object_buffer,
-                    0,
-                    bytemuck::bytes_of(&object_uniforms),
-                );
-
-                render_pass.set_bind_group(1, &self.object_bind_group, &[]);
+                let dynamic_offset = (uniform_align as u32) * (i as u32);
+                render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);

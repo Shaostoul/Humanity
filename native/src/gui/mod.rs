@@ -996,6 +996,8 @@ pub enum ProfileSection {
 #[cfg(feature = "native")]
 pub struct SettingsState {
     pub category: SettingsCategory,
+    /// When set, the settings page scrolls to this section and clears the field.
+    pub scroll_to_section: Option<SettingsCategory>,
     // Graphics
     pub fullscreen: bool,
     pub vsync: bool,
@@ -1036,6 +1038,7 @@ impl Default for SettingsState {
     fn default() -> Self {
         Self {
             category: SettingsCategory::Graphics,
+            scroll_to_section: None,
             fullscreen: false,
             vsync: true,
             fov: 90.0,

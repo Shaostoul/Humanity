@@ -56,6 +56,11 @@ pub const SOLAR_BODY_EARTH_RON: &str = include_str!("../../data/solar_system/ear
 pub const SOLAR_BODY_MARS_RON: &str = include_str!("../../data/solar_system/mars.ron");
 pub const SOLAR_BODY_SUN_RON: &str = include_str!("../../data/solar_system/sun.ron");
 
+// ── World data (RON) ───────────────────────────────────────────────
+pub const WORLD_SOLAR_SYSTEM_RON: &str = include_str!("../../data/world/solar_system.ron");
+pub const WORLD_SPAWN_RON: &str = include_str!("../../data/world/spawn.ron");
+pub const WORLD_PLAYER_RON: &str = include_str!("../../data/world/player.ron");
+
 // ── Ship data (RON) ────────────────────────────────────────────────
 pub const SHIP_BRIDGE_RON: &str = include_str!("../../data/ships/bridge.ron");
 pub const SHIP_LAYOUT_MEDIUM_RON: &str = include_str!("../../data/ships/layout_medium.ron");
@@ -156,6 +161,11 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "solar_system/earth.ron" => Some(SOLAR_BODY_EARTH_RON),
         "solar_system/mars.ron" => Some(SOLAR_BODY_MARS_RON),
         "solar_system/sun.ron" => Some(SOLAR_BODY_SUN_RON),
+
+        // RON — World
+        "world/solar_system.ron" => Some(WORLD_SOLAR_SYSTEM_RON),
+        "world/spawn.ron" => Some(WORLD_SPAWN_RON),
+        "world/player.ron" => Some(WORLD_PLAYER_RON),
 
         // RON — Ships
         "ships/bridge.ron" => Some(SHIP_BRIDGE_RON),

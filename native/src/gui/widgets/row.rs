@@ -7,7 +7,7 @@
 //! All sizing, spacing, and font values come from `Theme` widget variables
 //! so changing one value affects the entire UI consistently.
 
-use egui::{Color32, Rect, Sense, Vec2};
+use egui::{Color32, Rect, Rounding, Sense, Vec2};
 use egui::epaint::StrokeKind;
 use crate::gui::theme::Theme;
 
@@ -142,7 +142,7 @@ pub fn message_row(
         }
 
         let painter = ui.painter();
-        painter.rect_filled(full_rect, theme.border_radius_widget, bg_color);
+        painter.rect_filled(full_rect, Rounding::same(8), bg_color);
 
         let hx = full_rect.min.x;
         let hy = full_rect.min.y;
@@ -256,7 +256,7 @@ pub fn message_row(
         }
 
         let painter = ui.painter();
-        painter.rect_filled(full_rect, theme.border_radius_widget, bg_color);
+        painter.rect_filled(full_rect, Rounding::same(8), bg_color);
         painter.galley(
             egui::pos2(full_rect.min.x + 2.0, full_rect.min.y + 2.0),
             galley,

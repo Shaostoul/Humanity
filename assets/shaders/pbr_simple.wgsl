@@ -56,6 +56,37 @@ const LIGHT_DIR: vec3<f32> = vec3<f32>(0.3, 1.0, 0.5);
 const LIGHT_COLOR: vec3<f32> = vec3<f32>(1.0, 0.98, 0.95);
 const AMBIENT: vec3<f32> = vec3<f32>(0.15, 0.15, 0.2);
 
+// Procedural grid pattern using world position.
+// Creates subtle panel lines on surfaces (floors, walls).
+fn grid_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
+    // Pick two axes based on which face we're on (dominant normal component)
+    var u: f32;
+    var v: f32;
+    let an = abs(normal);
+    if an.y > an.x && an.y > an.z {
+        // Horizontal surface (floor/ceiling): use XZ
+        u = world_pos.x;
+        v = world_pos.z;
+    } else if an.x > an.z {
+        // Vertical wall facing X: use YZ
+        u = world_pos.y;
+        v = world_pos.z;
+    } else {
+        // Vertical wall facing Z: use XY
+        u = world_pos.x;
+        v = world_pos.y;
+    }
+
+    // 1m grid with thin seam lines (~3cm wide)
+    let seam_width = 0.03;
+    let fu = fract(u);
+    let fv = fract(v);
+    let su = step(seam_width, fu) * step(fu, 1.0 - seam_width);
+    let sv = step(seam_width, fv) * step(fv, 1.0 - seam_width);
+    // Panel interior = 1.0, seam = 0.0
+    return su * sv;
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let normal = normalize(in.world_normal);
@@ -63,9 +94,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let view_dir = normalize(camera.view_pos.xyz - in.world_position);
     let half_dir = normalize(light_dir + view_dir);
 
-    let base_color = material.base_color.rgb;
+    var base_color = material.base_color.rgb;
     let metallic = material.params.x;
     let roughness = material.params.y;
+
+    // Apply procedural grid pattern (subtle panel seams)
+    // Only on non-metallic surfaces (walls/floors), not on hologram spheres
+    if metallic < 0.1 && roughness > 0.5 {
+        let panel = grid_pattern(in.world_position, normal);
+        // Seams are slightly darker than panel surface
+        base_color = base_color * mix(0.7, 1.0, panel);
+    }
 
     // Diffuse (Lambert)
     let n_dot_l = max(dot(normal, light_dir), 0.0);

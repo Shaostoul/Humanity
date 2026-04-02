@@ -82,31 +82,32 @@ mod native_app {
     use winit::window::{Window, WindowId};
 
     /// Locate the data directory relative to the exe.
-    /// Checks: ./data, ./content/data, ../data, ../content/data
+    /// Prefers a data/ with world/ subdirectory (full repo) over extracted-only data/.
     fn find_data_dir() -> PathBuf {
         let exe = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
 
-        // Search order:
-        // 1. data/ next to exe (installed layout: HumanityOS/HumanityOS.exe + HumanityOS/data/)
-        // 2. Walk up parents (dev mode: exe in target/release/, data/ at repo root)
-        // 3. CWD/data/ (cargo run sets CWD to project root)
+        // Helper: is this a "full" data dir (has world/ with solar_system.ron)?
+        let is_full_data = |p: &PathBuf| -> bool {
+            p.join("world").join("solar_system.ron").exists()
+        };
 
-        // Check next to exe first
+        // Collect all candidate data dirs in priority order
+        let mut candidates: Vec<PathBuf> = Vec::new();
+
+        // 1. data/ next to exe
         let beside_exe = exe_dir.join("data");
         if beside_exe.exists() && beside_exe.is_dir() {
-            log::info!("Data directory (beside exe): {}", beside_exe.display());
-            return beside_exe;
+            candidates.push(beside_exe);
         }
 
-        // Walk up from exe (handles target/release/ -> repo root)
+        // 2. Walk up parents (handles target/release/ -> repo root)
         let mut dir = exe_dir.to_path_buf();
-        for _ in 0..5 {
+        for _ in 0..6 {
             if let Some(parent) = dir.parent() {
                 let candidate = parent.join("data");
-                if candidate.exists() && candidate.is_dir() {
-                    log::info!("Data directory (parent walk): {}", candidate.display());
-                    return candidate;
+                if candidate.exists() && candidate.is_dir() && !candidates.contains(&candidate) {
+                    candidates.push(candidate);
                 }
                 dir = parent.to_path_buf();
             } else {
@@ -114,15 +115,30 @@ mod native_app {
             }
         }
 
-        // CWD fallback (cargo run)
-        let cwd_data = PathBuf::from("data");
-        if cwd_data.exists() && cwd_data.is_dir() {
-            log::info!("Data directory (CWD): {}", cwd_data.display());
-            return cwd_data;
+        // 3. CWD/data/ (cargo run)
+        let cwd_data = std::env::current_dir()
+            .unwrap_or_default()
+            .join("data");
+        if cwd_data.exists() && cwd_data.is_dir() && !candidates.contains(&cwd_data) {
+            candidates.push(cwd_data);
+        }
+
+        // Prefer a "full" data dir (with world/ subdirectory) over extracted-only
+        for c in &candidates {
+            if is_full_data(c) {
+                log::info!("Data directory (full, with world/): {}", c.display());
+                return c.clone();
+            }
+        }
+
+        // Otherwise use first available
+        if let Some(first) = candidates.first() {
+            log::info!("Data directory (partial): {}", first.display());
+            return first.clone();
         }
 
         log::warn!("No data directory found, using ./data");
-        cwd_data
+        PathBuf::from("data")
     }
 
     /// Extract embedded data files to disk on first run.
@@ -166,6 +182,7 @@ mod native_app {
             "entities/plants/tomato.ron", "entities/substrates/loam_basic.ron",
             "entities/substrates/substrate_001.ron",
             "plots/plot_001.ron",
+            "world/solar_system.ron", "world/spawn.ron", "world/player.ron",
             "resources/fertilizer_basic.ron", "resources/water_clean.ron",
             "i18n/en.json", "i18n/es.json", "i18n/fr.json",
             "i18n/ja.json", "i18n/zh.json",
@@ -226,8 +243,14 @@ mod native_app {
         homestead_floors: Vec<(usize, usize)>,
         /// Homestead walls mesh + material.
         homestead_walls: Option<(usize, usize)>,
-        /// Solar system hologram bodies (mesh_idx, material_idx, local_position).
-        hologram_objects: Vec<(usize, usize, Vec3)>,
+        /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
+        hologram_objects: Vec<(usize, usize, Vec3, String)>,
+        /// Hologram orbit rings (mesh_idx, material_idx).
+        hologram_orbits: Vec<(usize, usize)>,
+        /// Hologram pin markers (mesh_idx, material_idx, local_position, name).
+        hologram_pins: Vec<(usize, usize, Vec3, String)>,
+        /// Currently targeted hologram planet (name, if crosshair is on a pin).
+        targeted_planet: Option<String>,
         /// Ship world position (GEO orbit coordinates).
         ship_world_pos: glam::DVec3,
         start_time: Instant,
@@ -291,32 +314,103 @@ mod native_app {
             };
             log::info!("Homestead: {} floor meshes, walls: {}", homestead_floors.len(), homestead_walls.is_some());
 
-            // Generate solar system hologram for the bedroom
-            let hologram = crate::renderer::hologram::generate_hologram();
-            let mut hologram_objects: Vec<(usize, usize, Vec3)> = Vec::new(); // mesh_idx, mat_idx, local_pos
+            // Initialize data directory early (needed for hologram + asset loading)
+            let data_dir = find_data_dir();
+
+            // Load solar system hologram from data/world/solar_system.ron
+            let hologram = match crate::renderer::hologram::load_solar_system(&data_dir) {
+                Some(ss_data) => crate::renderer::hologram::generate_hologram_from_data(&ss_data),
+                None => {
+                    log::warn!("Using fallback hardcoded solar system");
+                    crate::renderer::hologram::generate_hologram_fallback()
+                }
+            };
+
+            let mut hologram_objects: Vec<(usize, usize, Vec3, String)> = Vec::new();
+            let mut hologram_orbits: Vec<(usize, usize)> = Vec::new();
+            let mut hologram_pins: Vec<(usize, usize, Vec3, String)> = Vec::new();
+
+            // Orbit ring material: bright cyan for visibility
+            let orbit_mat = renderer.add_material([0.3, 0.7, 0.9, 0.8], 0.0, 0.3);
+            // Saturn ring material
+            let ring_disc_mat = renderer.add_material([0.8, 0.7, 0.5, 0.6], 0.0, 0.4);
+
+            // Track unique orbit radii to avoid duplicate rings for same orbit
+            let mut orbit_radii_used: Vec<f32> = Vec::new();
+
             for body in &hologram.bodies {
+                // Skip zero-radius bodies (asteroid belts rendered as nothing for now)
+                if body.radius <= 0.0 {
+                    continue;
+                }
+
+                // Planet/moon sphere
+                let stacks = if body.radius > 0.05 { 16 } else { 8 };
+                let slices = if body.radius > 0.05 { 24 } else { 12 };
                 let mesh_idx = renderer.add_mesh(
-                    crate::renderer::hologram::sphere_mesh(&renderer.device, body.radius, 8, 12)
+                    crate::renderer::hologram::sphere_mesh(&renderer.device, body.radius, stacks, slices)
                 );
-                let mat_idx = renderer.add_material(body.color, 0.3, 0.4);
-                hologram_objects.push((mesh_idx, mat_idx, body.local_position));
+                // Stars get emissive (low roughness, high metallic glow)
+                let (metallic, roughness) = if body.body_type == crate::renderer::hologram::BodyType::Star {
+                    (0.0, 0.2)
+                } else {
+                    (0.3, 0.5)
+                };
+                let mat_idx = renderer.add_material(body.color, metallic, roughness);
+                hologram_objects.push((mesh_idx, mat_idx, body.local_position, body.name.clone()));
+
+                // Orbit ring for Sun-orbiting bodies (not moons, not Sun itself)
+                if body.orbit_radius > 0.01
+                    && body.parent.as_deref() == Some("Sun")
+                    && !orbit_radii_used.iter().any(|&r| (r - body.orbit_radius).abs() < 0.01)
+                {
+                    let ring_mesh_idx = renderer.add_mesh(
+                        crate::renderer::hologram::orbit_ring_mesh(&renderer.device, body.orbit_radius, 64)
+                    );
+                    hologram_orbits.push((ring_mesh_idx, orbit_mat));
+                    orbit_radii_used.push(body.orbit_radius);
+                }
+
+                // Saturn-like rings
+                if body.has_rings && body.body_type == crate::renderer::hologram::BodyType::Planet {
+                    let inner_r = body.radius * 1.3;
+                    let outer_r = body.radius * 2.2;
+                    let disc_mesh = renderer.add_mesh(
+                        crate::renderer::hologram::ring_disc_mesh(&renderer.device, inner_r, outer_r, 32)
+                    );
+                    // Rings positioned at same place as planet body
+                    hologram_objects.push((disc_mesh, ring_disc_mat, body.local_position, format!("{} Rings", body.name)));
+                }
+
+                // Pin markers for planets and dwarf planets (not moons, not Sun)
+                if body.body_type == crate::renderer::hologram::BodyType::Planet
+                    || body.body_type == crate::renderer::hologram::BodyType::DwarfPlanet
+                {
+                    let pin_mesh_idx = renderer.add_mesh(
+                        crate::renderer::hologram::pin_marker_mesh(&renderer.device, 0.03, 0.12)
+                    );
+                    let pin_mat = renderer.add_material(body.color, 0.0, 0.5);
+                    let pin_offset = Vec3::new(0.0, body.radius + 0.13, 0.0);
+                    hologram_pins.push((pin_mesh_idx, pin_mat, body.local_position + pin_offset, body.name.clone()));
+                }
             }
-            log::info!("Hologram: {} bodies", hologram_objects.len());
+            log::info!("Hologram: {} bodies, {} orbits, {} pins", hologram_objects.len(), hologram_orbits.len(), hologram_pins.len());
 
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
-            // Player starts in the F3 bedroom of the homestead
-            // Bedroom at room position (2, 0, 0) with dims (3, 3, 3)
-            // Center at eye height: (3.5, 1.7, 1.5)
-            camera.position = Vec3::new(3.5, 1.7, 1.5);
-            camera.pitch = 0.0; // look straight ahead, not down
+            // Player starts in the F5 kitchen (5x5 room) at eye height, facing the hologram
+            // Kitchen at position (0, 0, -5) with dims (5, 3, 5)
+            // Center = (2.5, 0, -2.5). Player near edge looking toward center.
+            // Stand near south edge of kitchen looking north toward hologram center
+            camera.position = Vec3::new(2.5, 1.7, -1.0);
+            camera.pitch = -0.2; // slightly looking down toward hologram at 1m height
+            camera.yaw = std::f32::consts::PI; // face -Z (north into kitchen)
             // Ship is at origin. No floating origin needed for gameplay.
             // Floating origin only matters for rendering distant planets.
 
             let controller = CameraController::new(5.0, 3.0);
 
-            // Initialize data loading system
-            let data_dir = find_data_dir();
+            // Initialize data loading system (data_dir already set above)
             let mut asset_manager = AssetManager::new(data_dir.clone());
             let hot_reload = HotReloadCoordinator::new(&data_dir);
 
@@ -489,6 +583,9 @@ mod native_app {
                 homestead_floors,
                 homestead_walls,
                 hologram_objects,
+                hologram_orbits,
+                hologram_pins,
+                targeted_planet: None,
                 ship_world_pos,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
@@ -665,17 +762,68 @@ mod native_app {
                         });
                     }
 
-                    // Solar system hologram in the bedroom ceiling
-                    // Bedroom center at (3.5, 2.5, 1.5) — near ceiling of 3m tall room
-                    let hologram_center = Vec3::new(3.5, 2.5, 1.5);
-                    for &(mesh_idx, mat_idx, local_pos) in &state.hologram_objects {
+                    // Solar system hologram at 1m height in F5 kitchen (5x5 room)
+                    // Kitchen at pos (0, 0, -5) with dims 5x5: center = (2.5, 0, -2.5)
+                    let hologram_center = Vec3::new(2.5, 1.0, -2.5);
+
+                    // Orbit rings (centered on hologram)
+                    for &(mesh_idx, mat_idx) in &state.hologram_orbits {
                         all_objects.push(RenderObject {
-                            position: hologram_center + local_pos,
+                            position: hologram_center,
                             rotation: Quat::IDENTITY,
                             scale: Vec3::ONE,
                             mesh: mesh_idx,
                             material: mat_idx,
                         });
+                    }
+
+                    // Planet bodies
+                    for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_objects {
+                        all_objects.push(RenderObject {
+                            position: hologram_center + *local_pos,
+                            rotation: Quat::IDENTITY,
+                            scale: Vec3::ONE,
+                            mesh: *mesh_idx,
+                            material: *mat_idx,
+                        });
+                    }
+
+                    // Pin markers above each planet
+                    for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_pins {
+                        all_objects.push(RenderObject {
+                            position: hologram_center + *local_pos,
+                            rotation: Quat::IDENTITY,
+                            scale: Vec3::ONE,
+                            mesh: *mesh_idx,
+                            material: *mat_idx,
+                        });
+                    }
+
+                    // Raycast from camera to detect which planet pin is targeted
+                    {
+                        let ray_origin = state.camera.position;
+                        let ray_dir = state.camera.forward();
+                        let pin_hit_radius = 0.06; // slightly larger than pin head for easy targeting
+                        let mut closest_hit: Option<(f32, String)> = None;
+
+                        for (_mesh_idx, _mat_idx, local_pos, name) in &state.hologram_pins {
+                            let pin_world = hologram_center + *local_pos;
+                            // Sphere-ray intersection with pin head center
+                            let oc = ray_origin - pin_world;
+                            let b = oc.dot(ray_dir);
+                            let c = oc.dot(oc) - pin_hit_radius * pin_hit_radius;
+                            let discriminant = b * b - c;
+                            if discriminant >= 0.0 {
+                                let t = -b - discriminant.sqrt();
+                                if t > 0.0 {
+                                    if closest_hit.as_ref().map_or(true, |(d, _)| t < *d) {
+                                        closest_hit = Some((t, name.clone()));
+                                    }
+                                }
+                            }
+                        }
+
+                        state.targeted_planet = closest_hit.map(|(_, name)| name);
                     }
 
                     // Planet disabled for now - focusing on homestead gameplay first
@@ -1539,6 +1687,54 @@ mod native_app {
                                 // Passphrase modal overlay (blocks interaction until resolved)
                                 if state.gui_state.passphrase_needed {
                                     crate::gui::pages::passphrase_modal::draw(ctx, &state.theme, &mut state.gui_state);
+                                }
+
+                                // Planet info tooltip when targeting a hologram pin
+                                if let Some(ref planet_name) = state.targeted_planet {
+                                    egui::Area::new(egui::Id::new("planet_info_tooltip"))
+                                        .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -60.0))
+                                        .show(ctx, |ui| {
+                                            egui::Frame::popup(ui.style())
+                                                .inner_margin(egui::Margin::same(12))
+                                                .show(ui, |ui| {
+                                                    ui.heading(planet_name);
+                                                    ui.separator();
+                                                    let (resources, status) = match planet_name.as_str() {
+                                                        "Mercury" => ("Iron, Nickel, Silicates", "Unmined"),
+                                                        "Venus" => ("CO2, Sulfuric acid, N2", "Hostile atmosphere"),
+                                                        "Earth" => ("Water, O2, Biomass, Metals", "Inhabited (8B+ pop)"),
+                                                        "Mars" => ("Iron oxide, Water ice, CO2", "Colonization target"),
+                                                        "Jupiter" => ("H2, He, Deuterium", "Gas harvesting potential"),
+                                                        "Saturn" => ("H2, He, Ring ice, Titan CH4", "Ring mining potential"),
+                                                        "Uranus" => ("CH4, H2O, NH3, H2", "Deep ice giant"),
+                                                        "Neptune" => ("CH4, H2, He", "Remote ice giant"),
+                                                        "Ceres" => ("Water ice, Clays, Salts", "Asteroid belt dwarf"),
+                                                        "Pluto" => ("N2 ice, CH4, CO, H2O", "Kuiper belt object"),
+                                                        "Haumea" => ("Crystalline ice", "Elongated, fast spinner"),
+                                                        "Makemake" => ("CH4, C2H6 ices", "Distant TNO"),
+                                                        "Eris" => ("N2, CH4 ices", "Most massive dwarf planet"),
+                                                        _ => ("Unknown", "Uncharted"),
+                                                    };
+                                                    ui.label(format!("Resources: {resources}"));
+                                                    ui.label(format!("Status: {status}"));
+                                                });
+                                        });
+                                }
+
+                                // Crosshair (small dot at screen center when in game)
+                                if state.gui_state.active_page == GuiPage::None {
+                                    let screen = ctx.screen_rect();
+                                    let center = screen.center();
+                                    let painter = ctx.layer_painter(egui::LayerId::new(
+                                        egui::Order::Foreground,
+                                        egui::Id::new("crosshair"),
+                                    ));
+                                    let color = if state.targeted_planet.is_some() {
+                                        egui::Color32::from_rgb(100, 200, 255) // highlight blue when targeting
+                                    } else {
+                                        egui::Color32::from_white_alpha(180)
+                                    };
+                                    painter.circle_filled(center, 3.0, color);
                                 }
 
                                 // Draw debug console overlay (F12 toggle, on top of everything)

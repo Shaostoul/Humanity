@@ -89,6 +89,22 @@ pub struct Theme {
     // Borders
     #[serde(default = "default_border_radius_widget")]
     pub border_radius_widget: f32,
+
+    // Settings layout
+    #[serde(default = "default_settings_label_width")]
+    pub settings_label_width: f32,
+
+    // Slider styling
+    #[serde(default = "default_slider_track_color")]
+    pub slider_track: C,
+    #[serde(default = "default_slider_track_height")]
+    pub slider_track_height: f32,
+    #[serde(default = "default_slider_thumb_radius")]
+    pub slider_thumb_radius: f32,
+
+    // Checkbox styling
+    #[serde(default = "default_checkbox_size")]
+    pub checkbox_size: f32,
 }
 
 impl Theme {
@@ -115,6 +131,7 @@ impl Theme {
     pub fn warning(&self) -> Color32 { Self::c32(&self.warning) }
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
+    pub fn slider_track(&self) -> Color32 { Self::c32(&self.slider_track) }
 
     /// Icon circle radius (half icon_size minus border padding).
     pub fn icon_radius(&self) -> f32 { self.icon_size / 2.0 - 2.0 }
@@ -165,6 +182,11 @@ impl Theme {
         self.heading_size = 18.0;
         self.title_size = 24.0;
         self.border_radius_widget = 0.0;
+        self.settings_label_width = 200.0;
+        self.slider_track = (0.2, 0.2, 0.25, 1.0);
+        self.slider_track_height = 4.0;
+        self.slider_thumb_radius = 7.0;
+        self.checkbox_size = 18.0;
     }
 
     /// Apply this theme to an egui Context (sets visuals, spacing).
@@ -256,6 +278,11 @@ fn default_small_size() -> f32 { 11.0 }
 fn default_heading_size() -> f32 { 18.0 }
 fn default_title_size() -> f32 { 24.0 }
 fn default_border_radius_widget() -> f32 { 0.0 }
+fn default_settings_label_width() -> f32 { 200.0 }
+fn default_slider_track_color() -> C { (0.2, 0.2, 0.25, 1.0) }
+fn default_slider_track_height() -> f32 { 4.0 }
+fn default_slider_thumb_radius() -> f32 { 7.0 }
+fn default_checkbox_size() -> f32 { 18.0 }
 
 fn default_theme() -> Theme {
     Theme {
@@ -316,5 +343,10 @@ fn default_theme() -> Theme {
         heading_size: 18.0,
         title_size: 24.0,
         border_radius_widget: 0.0,
+        settings_label_width: 200.0,
+        slider_track: (0.2, 0.2, 0.25, 1.0),
+        slider_track_height: 4.0,
+        slider_thumb_radius: 7.0,
+        checkbox_size: 18.0,
     }
 }
