@@ -119,6 +119,48 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 - **Version Found**: v0.24.0
 - **Notes**: Superseded by native 3D engine. 2D canvas game is deprecated.
 
+### BUG-024: Desktop app crash on launch (Vulkan overlay segfault)
+- **Status**: Fixed
+- **Version Found**: v0.88.0
+- **Version Fixed**: v0.89.0
+- **Description**: App segfaults before main() runs. Steam overlay DLLs hook into vulkan-1.dll loading during wgpu instance creation, corrupting function pointers. Log shows `wgpu_hal::vulkan::conv` warnings then crash.
+- **Fix**: Set `Backends::DX12` only on Windows in `src/renderer/mod.rs`. Note: wgpu still compiles+loads Vulkan (hardcoded in wgpu-core's Cargo.toml), but DX12 backend selection avoids the crash path on most systems. Full fix requires disabling vulkan cargo feature (blocked by cargo feature unification).
+
+### BUG-025: Empty config values overwrite GUI defaults
+- **Status**: Fixed
+- **Version Found**: v0.88.0
+- **Version Fixed**: v0.89.0
+- **Description**: Fresh `config.json` had empty `server_url` and `user_name` strings. `apply_to_gui_state()` overwrote the hardcoded defaults ("https://united-humanity.us", "Player") with empty strings, preventing auto-connect.
+- **Fix**: Guard with `if !self.server_url.is_empty()` before overwriting in `src/config.rs`.
+
+### BUG-026: Passphrase modal blocks startup
+- **Status**: Fixed
+- **Version Found**: v0.88.0
+- **Version Fixed**: v0.89.0
+- **Description**: `needs_passphrase()` returned true on every launch if an encrypted key existed, forcing a modal dialog before the user could do anything. Zero-knowledge users had no idea what to do.
+- **Fix**: Default to limited mode on startup. Users unlock via Settings > Security when needed. `passphrase_needed` stays false until explicitly triggered.
+
+### BUG-027: Chat message text overlapping header
+- **Status**: Fixed
+- **Version Found**: v0.88.0
+- **Version Fixed**: v0.89.0
+- **Description**: `row.rs` tried to render content text beside the header using complex glyph-count-to-byte-offset splitting. Miscalculated byte boundaries caused text to overflow and overlap.
+- **Fix**: Complete rewrite of `row.rs`. Content now renders full-width below the header line. No splitting logic needed.
+
+### BUG-028: Wrong binary name in deploy workflow
+- **Status**: Fixed
+- **Version Found**: v0.89.0
+- **Version Fixed**: v0.89.0
+- **Description**: `cargo build` produces `target/release/HumanityOS.exe` (per `[[bin]]` in Cargo.toml), but deploy scripts copied `humanity-engine.exe` (the package name). A stale `humanity-engine.exe` from an old build existed in target/, so the copy succeeded silently but deployed an ancient binary that crashed.
+- **Fix**: Always copy `target/release/HumanityOS.exe`. Added to SOP.md. Ran `cargo clean` to remove stale artifacts.
+
+### BUG-029: White window flash on startup
+- **Status**: Partially Fixed
+- **Version Found**: v0.88.0
+- **Version Fixed**: v0.89.0
+- **Description**: Windows OS paints new windows white before the first GPU frame renders. Briefly visible as a white flash before the chat UI appears.
+- **Fix**: Window starts hidden (`with_visible(false)`), renderer initializes, then `set_visible(true)`. Most heavy init is deferred (3D world loads lazily). A brief dark flash may still occur between window show and first egui frame on some systems.
+
 ## Open Bugs
 
 None currently tracked. Report bugs at https://github.com/Shaostoul/Humanity/issues

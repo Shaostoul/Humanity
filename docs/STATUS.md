@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-04-01 | **Version:** v0.88.0
+> **Last updated:** 2026-04-06 | **Version:** v0.89.0
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -205,16 +205,18 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Standalone Rust binary | ✅ | egui + wgpu desktop app, no Tauri dependency |
+| Standalone Rust binary | ✅ | egui + wgpu desktop app, DX12 on Windows, no Tauri dependency |
 | egui GUI system | ✅ | Immediate-mode UI with theme.ron, reusable widgets (v0.36.0) |
-| Main menu page | ✅ | Entry point with navigation to all features (v0.36.0) |
-| Settings page | ✅ | Theme, display, controls configuration (v0.36.0) |
+| Settings page | ✅ | Theme, display, controls, security (key unlock button) (v0.36.0, v0.89.0) |
 | Inventory page | ✅ | Item management UI (v0.36.0) |
-| Chat overlay page | ✅ | In-game chat interface (v0.36.0) |
+| Chat page (3-panel) | ✅ | DMs (red), Groups (green cards), Servers (blue), message feed, input bar (v0.89.0) |
 | HUD page | ✅ | Health, status, interaction prompts (v0.36.0) |
 | Hot-reloadable theme | ✅ | theme.ron for colors, spacing, fonts; live reload (v0.36.0) |
+| Deferred 3D loading | ✅ | Chat loads instantly; 3D world loads on Enter World (v0.89.0) |
+| Zero-friction startup | ✅ | No passphrase prompt, no main menu; returning users go straight to chat (v0.89.0) |
+| Config persistence | ✅ | config.json next to exe; panel widths, collapse state, server URL, key encryption (v0.89.0) |
 
-> **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary replaces it. Source lives in `src/` and `crates/` at the repo root.
+> **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary replaces it. Source lives in `src/` and `crates/` at the repo root. Binary output is `target/release/HumanityOS.exe`.
 
 ---
 
@@ -283,7 +285,7 @@ Everything in this section is **built and working**.
 | Game Engine | 41 | 1 | 0 |
 | Server & Infrastructure | 16 | 0 | 0 |
 | Navigation & UX | 11 | 0 | 0 |
-| Native Desktop Client | 8 | 0 | 0 |
+| Native Desktop Client | 10 | 0 | 0 |
 | Web Tools & Utilities | 8 | 0 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
 | Game Data | 6 | 0 | 0 |

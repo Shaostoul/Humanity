@@ -138,6 +138,65 @@ Humanity/
 
 **Never rename these directories without updating ALL references.** Past restructures (engine/ to native/ in v0.37.0, native/ eliminated in v0.88.0) required updating 26+ files.
 
+## Desktop Build & Deploy (CRITICAL)
+
+### Binary name
+
+The release binary is **`target/release/HumanityOS.exe`** (defined in `[[bin]]` in Cargo.toml). There is NO `humanity-engine.exe` output. If you see one, it's a stale artifact from a previous build and MUST be ignored.
+
+### Build commands
+
+```bash
+# Full release build (~3.5 min from clean, ~20s incremental)
+cargo build --release --features native
+
+# Copy to project root for easy launch
+cp target/release/HumanityOS.exe ./HumanityOS.exe
+```
+
+### Before copying the exe: ALWAYS kill the running process first
+
+```bash
+powershell -Command "Stop-Process -Name HumanityOS -Force -ErrorAction SilentlyContinue"
+```
+
+Do NOT use `taskkill /F /IM` from bash (the `/F` flag gets mangled). Always use PowerShell `Stop-Process`.
+
+### Target directory (build cache)
+
+`target/` is Cargo's build cache. It contains:
+- **Compiled dependencies** (~14GB): Every crate in the dependency tree compiled to `.rlib`/`.d` files, BOTH debug and release profiles, plus build script outputs. This is the bulk.
+- **Incremental compilation data** (~1-3GB): Intermediate artifacts Cargo keeps to speed up recompilation. Only the changed code recompiles instead of everything.
+- **Final binaries** (~18MB each): `HumanityOS.exe`, `humanity-relay.exe`, plus sub-crate binaries.
+- **Build metadata**: `.fingerprint` dirs, dep-info files, examples, tests.
+
+A clean build produces ~1.4GB. After many builds with both debug and release profiles, it balloons to 15GB+ because Cargo never garbage-collects old incremental artifacts.
+
+**To reclaim space:** `cargo clean` deletes everything. Next build is a full rebuild (~3.5 min). Only do this when disk space matters or stale artifacts cause confusion.
+
+**To clean just one profile:** `cargo clean --release` or `cargo clean --profile dev`.
+
+### wgpu backend (DX12 vs Vulkan)
+
+The desktop app uses **DX12-only on Windows** (`src/renderer/mod.rs`). Vulkan is disabled at the backend selection level because:
+- Steam and Epic Games inject overlay DLLs into the Vulkan loader
+- wgpu unconditionally compiles Vulkan support (hardcoded in wgpu's Cargo.toml)
+- Even with `Backends::DX12`, wgpu loads `vulkan-1.dll` and enumerates Vulkan adapters
+- The overlay DLLs corrupt this enumeration, causing a segfault before our code runs
+
+The `Backends::DX12` flag tells wgpu to PREFER DX12 for the actual adapter, but does NOT prevent Vulkan DLL loading. If Steam/Epic overlays cause crashes, the only permanent fix would be disabling the `vulkan` cargo feature on `wgpu-core` (currently impossible due to cargo feature unification with wgpu's `wgc` feature).
+
+**Linux/macOS** use Vulkan and Metal respectively (no overlay issue there).
+
+### egui font limitations
+
+egui's default font (Ubuntu-Light + Hack) only supports:
+- ASCII and extended Latin characters
+- Basic symbols: arrows (U+25B6, U+25BC), geometric shapes (U+25A0, U+25A1), math operators
+- Does NOT support emoji (U+1Fxxx range): no lock, mic, speaker, gear emojis
+
+Use ASCII text or basic Unicode for UI icons. Custom icon fonts can be added via `egui::Context::fonts_mut()` in the future.
+
 ## Web vs Native GUI
 
 - **Web** (web/): HTML/JS/CSS served by the server, runs in browsers
