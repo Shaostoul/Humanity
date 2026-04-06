@@ -2552,7 +2552,7 @@ dependencies = [
 
 [[package]]
 name = "humanity-engine"
-version = "0.88.0"
+version = "0.88.1"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",

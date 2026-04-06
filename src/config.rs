@@ -284,9 +284,16 @@ impl AppConfig {
     /// Apply loaded config values into a GuiState.
     #[cfg(feature = "native")]
     pub fn apply_to_gui_state(&self, state: &mut crate::gui::GuiState) {
-        state.server_url = self.server_url.clone();
-        state.user_name = self.user_name.clone();
-        state.profile_public_key = self.public_key_hex.clone();
+        // Only overwrite if config has non-empty values (preserve defaults)
+        if !self.server_url.is_empty() {
+            state.server_url = self.server_url.clone();
+        }
+        if !self.user_name.is_empty() {
+            state.user_name = self.user_name.clone();
+        }
+        if !self.public_key_hex.is_empty() {
+            state.profile_public_key = self.public_key_hex.clone();
+        }
         state.context_real = self.context_real;
         state.onboarding_complete = self.completed_onboarding;
         state.settings.fov = self.fov;
@@ -321,9 +328,11 @@ impl AppConfig {
         state.encrypted_private_key = self.encrypted_private_key.clone();
         state.key_salt = self.key_salt.clone();
 
-        // Migration: if legacy plaintext key exists, flag for passphrase prompt
+        // Key handling: default to limited mode (no passphrase prompt on startup).
+        // Users can unlock their key later from Settings > Security.
+        // This ensures zero-friction startup for new and returning users.
         if self.needs_key_migration() {
-            // Parse the legacy hex key into bytes for migration
+            // Parse the legacy hex key into bytes silently (available in memory)
             if let Ok(bytes) = (0..self.private_key_hex.len())
                 .step_by(2)
                 .map(|i| u8::from_str_radix(&self.private_key_hex[i..i+2], 16))
@@ -331,16 +340,14 @@ impl AppConfig {
             {
                 if bytes.len() == 32 {
                     state.private_key_bytes = Some(bytes);
-                    state.passphrase_needed = true;
-                    state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
-                    log::info!("Legacy plaintext key found; passphrase required for migration");
+                    log::info!("Legacy plaintext key loaded into memory (encrypt via Settings)");
                 }
             }
         } else if self.needs_passphrase() {
-            // Encrypted key exists; need passphrase to unlock
-            state.passphrase_needed = true;
-            state.passphrase_mode = crate::gui::PassphraseMode::Unlock;
-            log::info!("Encrypted key found; passphrase required to unlock");
+            // Encrypted key exists but we don't prompt on startup.
+            // User can unlock from Settings > Security when they need signing.
+            log::info!("Encrypted key found; running in limited mode (unlock via Settings)");
         }
+        // passphrase_needed stays false — no modal on startup
     }
 }

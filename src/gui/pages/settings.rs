@@ -354,13 +354,24 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui.label(RichText::new("Key Encryption").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
 
-        if !state.encrypted_private_key.is_empty() {
-            ui.label(RichText::new("Your private key is encrypted with a passphrase.")
+        if !state.encrypted_private_key.is_empty() && state.private_key_bytes.is_some() {
+            // Key is encrypted AND unlocked
+            ui.label(RichText::new("Your private key is encrypted and unlocked.")
                 .color(theme.text_muted()).size(theme.font_size_small));
             ui.add_space(theme.spacing_sm);
             if widgets::secondary_button(ui, theme, "Change Passphrase") {
                 state.passphrase_needed = true;
                 state.passphrase_mode = crate::gui::PassphraseMode::Change;
+                state.passphrase_status.clear();
+            }
+        } else if !state.encrypted_private_key.is_empty() && state.private_key_bytes.is_none() {
+            // Key is encrypted but NOT unlocked (limited mode)
+            ui.label(RichText::new("Your private key is locked. Unlock to enable signing and wallet features.")
+                .color(theme.warning()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_sm);
+            if widgets::primary_button(ui, theme, "Unlock Key") {
+                state.passphrase_needed = true;
+                state.passphrase_mode = crate::gui::PassphraseMode::Unlock;
                 state.passphrase_status.clear();
             }
         } else if state.private_key_bytes.is_some() {

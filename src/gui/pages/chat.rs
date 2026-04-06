@@ -269,9 +269,10 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !collapsed {
         Frame::NONE
             .fill(DM_BG)
-            .inner_margin(egui::Margin::symmetric(0, 2))
+            .inner_margin(egui::Margin::symmetric(0, 1))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
+                ui.spacing_mut().item_spacing.y = 0.0;
                 if state.chat_dms.is_empty() {
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
@@ -337,6 +338,8 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     if response.clicked() {
                         state.chat_active_channel = dm_channel;
+                        state.chat_messages.clear();
+                        state.history_fetched = false;
                         // Request DM history from server
                         if let Some(ref client) = state.ws_client {
                             if client.is_connected() {
@@ -377,9 +380,41 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let collapsed = state.chat_groups_collapsed;
     let group_count = state.chat_groups.len();
 
-    if tinted_section_header(ui, &format!("Groups ({})", group_count), collapsed, GROUP_BG) {
+    // Track button clicks from the header
+    let mut create_clicked = false;
+    let mut join_clicked = false;
+
+    if tinted_section_header_with_buttons(
+        ui,
+        &format!("Groups ({})", group_count),
+        collapsed,
+        GROUP_BG,
+        |ui| {
+            // + button (create group)
+            if ui.add(egui::Button::new(
+                RichText::new("+").size(14.0).color(Color32::from_rgb(160, 160, 170)),
+            ).fill(Color32::TRANSPARENT).frame(false)).on_hover_text("Create Group").clicked() {
+                create_clicked = true;
+            }
+            // Join button (arrow icon)
+            if ui.add(egui::Button::new(
+                RichText::new("\u{2192}").size(14.0).color(Color32::from_rgb(160, 160, 170)),
+            ).fill(Color32::TRANSPARENT).frame(false)).on_hover_text("Join Group").clicked() {
+                join_clicked = true;
+            }
+        },
+    ) {
         state.chat_groups_collapsed = !state.chat_groups_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
+    }
+
+    if create_clicked {
+        state.show_create_group_modal = true;
+        state.new_group_name.clear();
+    }
+    if join_clicked {
+        state.show_join_group_modal = true;
+        state.join_group_invite_code.clear();
     }
 
     if !collapsed {
@@ -388,6 +423,8 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             .inner_margin(egui::Margin::symmetric(0, 2))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
+                ui.spacing_mut().item_spacing.y = 1.0;
+
                 if state.chat_groups.is_empty() {
                     ui.horizontal(|ui| {
                         ui.add_space(16.0);
@@ -404,47 +441,54 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 for group in &groups {
                     let group_channel = format!("group:{}", group.id);
                     let is_active = state.chat_active_channel == group_channel;
-                    let response = ui
-                        .allocate_ui_with_layout(
-                            Vec2::new(ui.available_width(), theme.row_height),
-                            egui::Layout::left_to_right(egui::Align::Center),
-                            |ui| {
-                                let full_rect = ui.max_rect();
-                                let bg = if is_active {
-                                    GROUP_ROW_HOVER
-                                } else if ui.rect_contains_pointer(full_rect) {
-                                    GROUP_ROW_HOVER
-                                } else {
-                                    GROUP_ROW_BG
-                                };
-                                ui.painter().rect_filled(full_rect, 0.0, bg);
 
+                    // Card-style group entry (similar to server cards)
+                    let card_response = Frame::NONE
+                        .fill(if is_active { GROUP_ROW_HOVER } else { GROUP_ROW_BG })
+                        .rounding(Rounding::same(4))
+                        .inner_margin(egui::Margin::symmetric(6, 4))
+                        .show(ui, |ui| {
+                            ui.set_min_width(ui.available_width());
+                            ui.horizontal(|ui| {
                                 // Active indicator bar
                                 if is_active {
-                                    let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(3.0, full_rect.height()));
-                                    ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(80, 200, 80));
+                                    let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(3.0, 16.0), egui::Sense::hover());
+                                    ui.painter().rect_filled(bar_rect, 0.0, Color32::from_rgb(80, 200, 80));
                                 }
 
-                                ui.add_space(theme.item_padding);
-                                ui.label(
-                                    RichText::new(&group.name)
-                                        .size(theme.body_size)
-                                        .color(if is_active { theme.text_primary() } else { theme.text_secondary() }),
+                                // Green circle with first letter
+                                let circle_sz = 20.0;
+                                let (circle_rect, _) = ui.allocate_exact_size(Vec2::splat(circle_sz), egui::Sense::hover());
+                                ui.painter().circle_filled(circle_rect.center(), circle_sz / 2.0, Color32::from_rgb(40, 120, 40));
+                                let letter = group.name.chars().next().unwrap_or('G').to_uppercase().to_string();
+                                ui.painter().text(
+                                    circle_rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    &letter,
+                                    egui::FontId::proportional(11.0),
+                                    Color32::WHITE,
                                 );
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.add_space(theme.item_padding);
+
+                                ui.vertical(|ui| {
+                                    ui.label(
+                                        RichText::new(&group.name)
+                                            .size(theme.body_size)
+                                            .color(if is_active { theme.text_primary() } else { theme.text_secondary() }),
+                                    );
                                     ui.label(
                                         RichText::new(format!("{} members", group.member_count))
-                                            .size(theme.small_size)
+                                            .size(theme.small_size - 1.0)
                                             .color(theme.text_muted()),
                                     );
                                 });
-                            },
-                        )
+                            });
+                        })
                         .response;
 
-                    if response.clicked() {
+                    if card_response.clicked() {
                         state.chat_active_channel = group_channel;
+                        state.chat_messages.clear();
+                        state.history_fetched = false;
                         // Request group history from server
                         if let Some(ref client) = state.ws_client {
                             if client.is_connected() {
@@ -456,11 +500,11 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             }
                         }
                     }
-                    if response.hovered() {
+                    if card_response.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     // Right-click context menu on groups
-                    response.context_menu(|ui| {
+                    card_response.context_menu(|ui| {
                         ui.label(RichText::new(&group.name).size(theme.font_size_body).color(theme.text_primary()).strong());
                         ui.separator();
                         if ui.button("Copy Group ID").clicked() {
@@ -476,24 +520,6 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                     });
                 }
-
-                // Create/Join group buttons
-                ui.horizontal(|ui| {
-                    ui.add_space(8.0);
-                    if ui.add(egui::Button::new(
-                        RichText::new("+ Create Group").size(theme.font_size_small).color(theme.text_secondary()),
-                    ).fill(Color32::TRANSPARENT)).clicked() {
-                        state.show_create_group_modal = true;
-                        state.new_group_name.clear();
-                    }
-                    if ui.add(egui::Button::new(
-                        RichText::new("Join Group").size(theme.font_size_small).color(theme.text_secondary()),
-                    ).fill(Color32::TRANSPARENT)).clicked() {
-                        state.show_join_group_modal = true;
-                        state.join_group_invite_code.clear();
-                    }
-                });
-                ui.add_space(2.0);
             });
     }
 }
@@ -515,9 +541,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     if !collapsed {
         Frame::NONE
             .fill(SERVER_BG)
-            .inner_margin(egui::Margin::symmetric(0, 2))
+            .inner_margin(egui::Margin::symmetric(0, 1))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
+                ui.spacing_mut().item_spacing.y = 0.0;
                 // Current connected server (virtual entry)
                 if connected {
                     // Server name header
@@ -533,7 +560,6 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 .strong(),
                         );
                     });
-                    ui.add_space(2.0);
 
                     // Merged channels: each row shows # name with voice Join/Leave on the right
                     let active = state.chat_active_channel.clone();
@@ -584,7 +610,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                         );
                                         ui.painter().rect_filled(bar, 0.0, accent);
                                     }
-                                    ui.add_space(theme.item_padding * 2.0);
+                                    ui.add_space(theme.item_padding + 2.0);
                                     let text_color = if is_active {
                                         theme.text_primary()
                                     } else {
@@ -594,7 +620,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     // Green speaker icon if voice is active on this channel
                                     if ch.voice_joined {
                                         ui.label(
-                                            RichText::new("[)))")
+                                            RichText::new("))")
                                                 .size(theme.body_size - 2.0)
                                                 .color(theme.success()),
                                         );
@@ -634,7 +660,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                             } else {
                                                 let mic_color = if false { Color32::WHITE } else { Color32::from_rgb(120, 120, 130) };
                                                 let mic_resp = ui.add(egui::Button::new(
-                                                    RichText::new("Mic")
+                                                    RichText::new("mic")
                                                         .size(theme.font_size_small)
                                                         .color(mic_color),
                                                 ).fill(Color32::TRANSPARENT).frame(false));
@@ -650,7 +676,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                                     ui.painter().text(
                                                         mic_resp.rect.center(),
                                                         egui::Align2::CENTER_CENTER,
-                                                        "Mic",
+                                                        "mic",
                                                         egui::FontId::proportional(theme.font_size_small),
                                                         Color32::WHITE,
                                                     );
@@ -669,8 +695,8 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                                 Color32::from_rgb(120, 120, 130)
                                             };
                                             let gear_resp = ui.add(egui::Button::new(
-                                                RichText::new("*")
-                                                    .size(12.0)
+                                                RichText::new("cog")
+                                                    .size(14.0)
                                                     .color(gear_color),
                                             ).fill(Color32::TRANSPARENT).frame(false));
 
@@ -685,8 +711,8 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                                 ui.painter().text(
                                                     gear_resp.rect.center(),
                                                     egui::Align2::CENTER_CENTER,
-                                                    "*",
-                                                    egui::FontId::proportional(12.0),
+                                                    "cog",
+                                                    egui::FontId::proportional(14.0),
                                                     Color32::WHITE,
                                                 );
                                             }
@@ -755,9 +781,9 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
                     // + Create Channel (admin/mod only)
                     if is_channel_admin {
-                        ui.add_space(2.0);
+                        ui.add_space(1.0);
                         ui.horizontal(|ui| {
-                            ui.add_space(theme.item_padding * 2.0);
+                            ui.add_space(theme.item_padding + 2.0);
                             if ui.add(egui::Button::new(
                                 RichText::new("+ Create Channel").size(theme.font_size_small).color(theme.text_muted()),
                             ).fill(Color32::TRANSPARENT)).clicked() {
@@ -2020,7 +2046,7 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 /// Draw a lock/unlock toggle button at the top of a panel.
 /// Returns true if the button was clicked (toggle lock state).
 fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bool {
-    let icon = if locked { "[=]" } else { "[/]" }; // locked/unlocked
+    let icon = if locked { "\u{25A0}" } else { "\u{25A1}" }; // locked/unlocked
     let tooltip = if locked { "Unlock panel width" } else { "Lock panel width" };
     let response = ui.horizontal(|ui| {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -2043,6 +2069,19 @@ fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bo
 /// Draw a collapsible section header with a tinted background.
 /// Returns true if the header was clicked (toggle).
 fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) -> bool {
+    tinted_section_header_with_buttons(ui, label, collapsed, bg, |_| {})
+}
+
+/// Draw a tinted section header with optional right-aligned buttons.
+/// The `add_buttons` closure receives the UI in right-to-left layout for adding icon buttons.
+/// Returns true if the header background was clicked (toggle collapse).
+fn tinted_section_header_with_buttons(
+    ui: &mut egui::Ui,
+    label: &str,
+    collapsed: bool,
+    bg: Color32,
+    add_buttons: impl FnOnce(&mut egui::Ui),
+) -> bool {
     let response = ui
         .allocate_ui_with_layout(
             Vec2::new(ui.available_width(), 28.0),
@@ -2059,10 +2098,10 @@ fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Co
                 ui.painter().rect_filled(full_rect, 0.0, header_bg);
                 ui.add_space(8.0);
 
-                let arrow = if collapsed { ">" } else { "v" };
+                let arrow = if collapsed { "\u{25B6}" } else { "\u{25BC}" };
                 ui.label(
                     RichText::new(arrow)
-                        .size(12.0)
+                        .size(10.0)
                         .color(Color32::from_rgb(180, 180, 180)),
                 );
                 ui.label(
@@ -2071,6 +2110,12 @@ fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Co
                         .color(Color32::from_rgb(200, 200, 200))
                         .strong(),
                 );
+
+                // Right-aligned buttons
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.add_space(4.0);
+                    add_buttons(ui);
+                });
             },
         )
         .response;
@@ -2092,10 +2137,10 @@ fn section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) 
                 ui.painter().rect_filled(full_rect, 0.0, bg);
                 ui.add_space(10.0);
 
-                let arrow = if collapsed { ">" } else { "v" };
+                let arrow = if collapsed { "\u{25B6}" } else { "\u{25BC}" };
                 ui.label(
                     RichText::new(arrow)
-                        .size(12.0)
+                        .size(10.0)
                         .color(Color32::from_rgb(180, 180, 180)),
                 );
                 ui.label(

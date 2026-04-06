@@ -214,6 +214,170 @@ mod native_app {
         event_loop.run_app(&mut app).expect("Event loop error");
     }
 
+    /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
+    /// Called once on first Enter World. Keeps app startup instant (chat-first).
+    fn load_world(state: &mut EngineState) {
+        log::info!("Loading 3D world...");
+        let load_start = Instant::now();
+
+        // ── Homestead meshes ──
+        let homestead = crate::ship::fibonacci::generate_homestead();
+        for (verts, indices, color, material_type) in homestead.floors {
+            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &verts, &indices));
+            let mat_idx = state.renderer.add_material_typed(color, 0.0, 0.8, material_type as f32);
+            state.homestead_floors.push((mesh_idx, mat_idx));
+        }
+        if !homestead.walls.0.is_empty() {
+            let mesh_idx = state.renderer.add_mesh(Mesh::from_vertices(&state.renderer.device, &homestead.walls.0, &homestead.walls.1));
+            let mat_idx = state.renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
+            state.homestead_walls = Some((mesh_idx, mat_idx));
+        }
+
+        // Room ceiling lights
+        state.room_lights = homestead.room_info.iter().map(|r| {
+            let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
+            let room_size = r.dimensions.x.max(r.dimensions.z);
+            let intensity = (room_size * 0.5).clamp(2.0, 15.0);
+            let radius = room_size * 1.5;
+            (light_pos, [1.0, 0.95, 0.85], intensity, radius)
+        }).collect();
+
+        // Hologram + spawn rooms
+        let hologram_room_center = homestead.room_info.iter()
+            .find(|r| r.is_hologram_room)
+            .map(|r| r.center);
+        let spawn_room = homestead.room_info.iter()
+            .find(|r| r.is_spawn_room);
+        state.hologram_room_center = hologram_room_center.unwrap_or(Vec3::new(-0.5, 1.0, 2.5));
+
+        // Camera spawn position
+        if let Some(spawn) = spawn_room {
+            state.camera.position = Vec3::new(spawn.center.x, 1.7, spawn.center.z + spawn.dimensions.z * 0.35);
+            state.camera.pitch = -0.2;
+            state.camera.yaw = std::f32::consts::PI;
+        } else if let Some(holo_center) = hologram_room_center {
+            state.camera.position = Vec3::new(holo_center.x, 1.7, holo_center.z + 1.5);
+            state.camera.pitch = -0.2;
+            state.camera.yaw = std::f32::consts::PI;
+        }
+
+        log::info!("Homestead: {} rooms, {} floors, walls: {}, {} lights",
+            homestead.room_info.len(), state.homestead_floors.len(),
+            state.homestead_walls.is_some(), state.room_lights.len());
+
+        // ── Solar system hologram ──
+        let hologram = match crate::renderer::hologram::load_solar_system(&state.data_dir) {
+            Some(ss_data) => crate::renderer::hologram::generate_hologram_from_data(&ss_data),
+            None => {
+                log::warn!("Using fallback hardcoded solar system");
+                crate::renderer::hologram::generate_hologram_fallback()
+            }
+        };
+
+        let orbit_mat = state.renderer.add_material([0.3, 0.7, 0.9, 0.8], 0.0, 0.3);
+        let ring_disc_mat = state.renderer.add_material([0.8, 0.7, 0.5, 0.6], 0.0, 0.4);
+        let mut orbit_radii_used: Vec<f32> = Vec::new();
+
+        for body in &hologram.bodies {
+            if body.radius <= 0.0 { continue; }
+
+            let stacks = if body.radius > 0.05 { 16 } else { 8 };
+            let slices = if body.radius > 0.05 { 24 } else { 12 };
+            let mesh_idx = state.renderer.add_mesh(
+                crate::renderer::hologram::sphere_mesh(&state.renderer.device, body.radius, stacks, slices)
+            );
+            let (metallic, roughness) = if body.body_type == crate::renderer::hologram::BodyType::Star {
+                (0.0, 0.2)
+            } else {
+                (0.3, 0.5)
+            };
+            let mat_idx = state.renderer.add_material(body.color, metallic, roughness);
+            state.hologram_objects.push((mesh_idx, mat_idx, body.local_position, body.name.clone()));
+
+            if body.orbit_radius > 0.01
+                && body.parent.as_deref() == Some("Sun")
+                && !orbit_radii_used.iter().any(|&r| (r - body.orbit_radius).abs() < 0.01)
+            {
+                let ring_mesh_idx = state.renderer.add_mesh(
+                    crate::renderer::hologram::orbit_ring_mesh(&state.renderer.device, body.orbit_radius, 128)
+                );
+                state.hologram_orbits.push((ring_mesh_idx, orbit_mat));
+                orbit_radii_used.push(body.orbit_radius);
+            }
+
+            if body.has_rings && body.body_type == crate::renderer::hologram::BodyType::Planet {
+                let inner_r = body.radius * 1.3;
+                let outer_r = body.radius * 2.2;
+                let disc_mesh = state.renderer.add_mesh(
+                    crate::renderer::hologram::ring_disc_mesh(&state.renderer.device, inner_r, outer_r, 32)
+                );
+                state.hologram_objects.push((disc_mesh, ring_disc_mat, body.local_position, format!("{} Rings", body.name)));
+            }
+
+            if body.body_type == crate::renderer::hologram::BodyType::Planet
+                || body.body_type == crate::renderer::hologram::BodyType::DwarfPlanet
+            {
+                let pin_mesh_idx = state.renderer.add_mesh(
+                    crate::renderer::hologram::pin_marker_mesh(&state.renderer.device, 0.03, 0.12)
+                );
+                let pin_mat = state.renderer.add_material(body.color, 0.0, 0.5);
+                let pin_offset = Vec3::new(0.0, body.radius + 0.13, 0.0);
+                state.hologram_pins.push((pin_mesh_idx, pin_mat, body.local_position + pin_offset, body.name.clone()));
+            }
+        }
+
+        // ── Star skybox ──
+        let star_csv = state.data_dir.join("stars.csv");
+        state.star_renderer = crate::renderer::stars::StarRenderer::new(
+            &state.renderer.device,
+            &state.renderer.queue,
+            state.renderer.surface_format(),
+            &star_csv,
+        );
+
+        // ── Planet ──
+        state.planet_material = state.renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
+        match state.asset_manager.load_ron::<PlanetDef>("planets/earth.ron") {
+            Ok(def) => {
+                let mut pr = PlanetRenderer::new(def.clone(), glam::DVec3::ZERO);
+                pr.update_lod(state.camera.world_position);
+                let ico = pr.icosphere();
+                let mesh_idx = state.renderer.add_mesh(Mesh::from_icosphere(&state.renderer.device, ico, 1.0));
+                state.planet = Some(pr);
+                state.planet_mesh = Some(mesh_idx);
+            }
+            Err(e) => log::warn!("Could not load planet: {e}"),
+        }
+
+        // ── Ship position (GEO above Silverdale, WA) ──
+        let lat_rad = 47.6_f64.to_radians();
+        let lon_rad = (-122.3_f64).to_radians();
+        let geo_radius = 42_164_000.0_f64;
+        state.ship_world_pos = glam::DVec3::new(
+            geo_radius * lat_rad.cos() * lon_rad.cos(),
+            geo_radius * lat_rad.sin(),
+            geo_radius * lat_rad.cos() * lon_rad.sin(),
+        );
+
+        // ── Load CSV game data ──
+        #[derive(Debug, serde::Deserialize)]
+        #[allow(dead_code)]
+        struct ItemRow { id: String, name: String }
+        #[derive(Debug, serde::Deserialize)]
+        #[allow(dead_code)]
+        struct PlantRow { id: String, name: String }
+        #[derive(Debug, serde::Deserialize)]
+        #[allow(dead_code)]
+        struct RecipeRow { id: String, name: String }
+
+        let _ = state.asset_manager.load_csv::<ItemRow>("items.csv");
+        let _ = state.asset_manager.load_csv::<PlantRow>("plants.csv");
+        let _ = state.asset_manager.load_csv::<RecipeRow>("recipes.csv");
+
+        state.world_loaded = true;
+        log::info!("3D world loaded in {:.0}ms", load_start.elapsed().as_millis());
+    }
+
     struct App {
         state: Option<EngineState>,
     }
@@ -265,6 +429,12 @@ mod native_app {
         egui_renderer: egui_wgpu::Renderer,
         gui_state: GuiState,
         theme: Theme,
+        /// Whether the 3D world has been fully initialized.
+        world_loaded: bool,
+        /// Reserved for future use.
+        window_shown: bool,
+        /// Data directory path (resolved once at startup, used for deferred loading).
+        data_dir: PathBuf,
     }
 
     impl ApplicationHandler for App {
@@ -278,7 +448,8 @@ mod native_app {
 
             let window_attrs = Window::default_attributes()
                 .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")))
-                .with_inner_size(winit::dpi::LogicalSize::new(1280, 720));
+                .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
+                .with_visible(false);
 
             let window = Arc::new(
                 event_loop
@@ -301,200 +472,36 @@ mod native_app {
             // Initialize renderer (block on async)
             let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
 
-            // Generate Fibonacci homestead meshes
-            let homestead = crate::ship::fibonacci::generate_homestead();
-            let mut homestead_floors = Vec::new();
-            for (verts, indices, color, material_type) in homestead.floors {
-                let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &verts, &indices));
-                let mat_idx = renderer.add_material_typed(color, 0.0, 0.8, material_type as f32);
-                homestead_floors.push((mesh_idx, mat_idx));
-            }
-            let homestead_walls = if !homestead.walls.0.is_empty() {
-                let mesh_idx = renderer.add_mesh(Mesh::from_vertices(&renderer.device, &homestead.walls.0, &homestead.walls.1));
-                // Walls use grid panels (type 0) with slightly metallic grey
-                let mat_idx = renderer.add_material_typed([0.5, 0.5, 0.5, 1.0], 0.1, 0.6, 0.0);
-                Some((mesh_idx, mat_idx))
-            } else {
-                None
-            };
+            window.set_visible(true);
 
-            // Collect room ceiling lights: warm white point light at center, 0.1m below ceiling
-            let room_lights: Vec<(Vec3, [f32; 3], f32, f32)> = homestead.room_info.iter().map(|r| {
-                let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
-                let room_size = r.dimensions.x.max(r.dimensions.z);
-                let intensity = (room_size * 0.5).clamp(2.0, 15.0); // bigger rooms = brighter
-                let radius = room_size * 1.5; // light reaches 1.5x room size
-                (light_pos, [1.0, 0.95, 0.85], intensity, radius) // warm white
-            }).collect();
-
-            // Find hologram and spawn rooms from data-driven layout
-            let hologram_room_center = homestead.room_info.iter()
-                .find(|r| r.is_hologram_room)
-                .map(|r| r.center);
-            let spawn_room = homestead.room_info.iter()
-                .find(|r| r.is_spawn_room);
-            log::info!("Homestead: {} rooms, {} floor meshes, walls: {}, {} lights, hologram: {:?}, spawn: {:?}",
-                homestead.room_info.len(), homestead_floors.len(), homestead_walls.is_some(),
-                room_lights.len(), hologram_room_center, spawn_room.map(|r| &r.id));
-
-            // Initialize data directory early (needed for hologram + asset loading)
+            // ── DEFERRED: 3D world init is skipped here, done lazily on first Enter World ──
+            // Only set up the data directory path for later use.
             let data_dir = find_data_dir();
 
-            // Load solar system hologram from data/world/solar_system.ron
-            let hologram = match crate::renderer::hologram::load_solar_system(&data_dir) {
-                Some(ss_data) => crate::renderer::hologram::generate_hologram_from_data(&ss_data),
-                None => {
-                    log::warn!("Using fallback hardcoded solar system");
-                    crate::renderer::hologram::generate_hologram_fallback()
-                }
-            };
-
-            let mut hologram_objects: Vec<(usize, usize, Vec3, String)> = Vec::new();
-            let mut hologram_orbits: Vec<(usize, usize)> = Vec::new();
-            let mut hologram_pins: Vec<(usize, usize, Vec3, String)> = Vec::new();
-
-            // Orbit ring material: bright cyan for visibility
-            let orbit_mat = renderer.add_material([0.3, 0.7, 0.9, 0.8], 0.0, 0.3);
-            // Saturn ring material
-            let ring_disc_mat = renderer.add_material([0.8, 0.7, 0.5, 0.6], 0.0, 0.4);
-
-            // Track unique orbit radii to avoid duplicate rings for same orbit
-            let mut orbit_radii_used: Vec<f32> = Vec::new();
-
-            for body in &hologram.bodies {
-                // Skip zero-radius bodies (asteroid belts rendered as nothing for now)
-                if body.radius <= 0.0 {
-                    continue;
-                }
-
-                // Planet/moon sphere
-                let stacks = if body.radius > 0.05 { 16 } else { 8 };
-                let slices = if body.radius > 0.05 { 24 } else { 12 };
-                let mesh_idx = renderer.add_mesh(
-                    crate::renderer::hologram::sphere_mesh(&renderer.device, body.radius, stacks, slices)
-                );
-                // Stars get emissive (low roughness, high metallic glow)
-                let (metallic, roughness) = if body.body_type == crate::renderer::hologram::BodyType::Star {
-                    (0.0, 0.2)
-                } else {
-                    (0.3, 0.5)
-                };
-                let mat_idx = renderer.add_material(body.color, metallic, roughness);
-                hologram_objects.push((mesh_idx, mat_idx, body.local_position, body.name.clone()));
-
-                // Orbit ring for Sun-orbiting bodies (not moons, not Sun itself)
-                if body.orbit_radius > 0.01
-                    && body.parent.as_deref() == Some("Sun")
-                    && !orbit_radii_used.iter().any(|&r| (r - body.orbit_radius).abs() < 0.01)
-                {
-                    let ring_mesh_idx = renderer.add_mesh(
-                        crate::renderer::hologram::orbit_ring_mesh(&renderer.device, body.orbit_radius, 128)
-                    );
-                    hologram_orbits.push((ring_mesh_idx, orbit_mat));
-                    orbit_radii_used.push(body.orbit_radius);
-                }
-
-                // Saturn-like rings
-                if body.has_rings && body.body_type == crate::renderer::hologram::BodyType::Planet {
-                    let inner_r = body.radius * 1.3;
-                    let outer_r = body.radius * 2.2;
-                    let disc_mesh = renderer.add_mesh(
-                        crate::renderer::hologram::ring_disc_mesh(&renderer.device, inner_r, outer_r, 32)
-                    );
-                    // Rings positioned at same place as planet body
-                    hologram_objects.push((disc_mesh, ring_disc_mat, body.local_position, format!("{} Rings", body.name)));
-                }
-
-                // Pin markers for planets and dwarf planets (not moons, not Sun)
-                if body.body_type == crate::renderer::hologram::BodyType::Planet
-                    || body.body_type == crate::renderer::hologram::BodyType::DwarfPlanet
-                {
-                    let pin_mesh_idx = renderer.add_mesh(
-                        crate::renderer::hologram::pin_marker_mesh(&renderer.device, 0.03, 0.12)
-                    );
-                    let pin_mat = renderer.add_material(body.color, 0.0, 0.5);
-                    let pin_offset = Vec3::new(0.0, body.radius + 0.13, 0.0);
-                    hologram_pins.push((pin_mesh_idx, pin_mat, body.local_position + pin_offset, body.name.clone()));
-                }
-            }
-            log::info!("Hologram: {} bodies, {} orbits, {} pins", hologram_objects.len(), hologram_orbits.len(), hologram_pins.len());
-
+            // Minimal camera/controller (needed by struct, but not used until world loads)
             let mut camera = Camera::new();
             camera.aspect = renderer.aspect_ratio();
-            // Player spawns in the designated spawn room (or hologram room as fallback)
-            if let Some(spawn) = spawn_room {
-                // Stand near south edge of room, eye height 1.7m, looking north (-Z)
-                camera.position = Vec3::new(spawn.center.x, 1.7, spawn.center.z + spawn.dimensions.z * 0.35);
-                camera.pitch = -0.2;
-                camera.yaw = std::f32::consts::PI;
-                log::info!("Player spawn in room '{}' at {:?}", spawn.id, camera.position);
-            } else if let Some(holo_center) = hologram_room_center {
-                camera.position = Vec3::new(holo_center.x, 1.7, holo_center.z + 1.5);
-                camera.pitch = -0.2;
-                camera.yaw = std::f32::consts::PI;
-            } else {
-                // Hardcoded fallback: kitchen center
-                camera.position = Vec3::new(-0.5, 1.7, 4.0);
-                camera.pitch = -0.2;
-                camera.yaw = std::f32::consts::PI;
-            }
-            // Ship is at origin. No floating origin needed for gameplay.
-            // Floating origin only matters for rendering distant planets.
-
+            camera.position = Vec3::new(-0.5, 1.7, 4.0);
+            camera.pitch = -0.2;
+            camera.yaw = std::f32::consts::PI;
             let controller = CameraController::new(5.0, 3.0);
 
-            // Initialize data loading system (data_dir already set above)
-            let mut asset_manager = AssetManager::new(data_dir.clone());
+            // Minimal asset/ECS (lightweight, no file I/O)
+            let asset_manager = AssetManager::new(data_dir.clone());
             let hot_reload = HotReloadCoordinator::new(&data_dir);
-
-            // Load core data files at startup
-            // Items
-            #[derive(Debug, serde::Deserialize)]
-            #[allow(dead_code)]
-            struct ItemRow { id: String, name: String }
-            match asset_manager.load_csv::<ItemRow>("items.csv") {
-                Ok(items) => log::info!("Loaded {} items", items.len()),
-                Err(e) => log::warn!("Could not load items.csv: {e}"),
-            }
-
-            // Plants
-            #[derive(Debug, serde::Deserialize)]
-            #[allow(dead_code)]
-            struct PlantRow { id: String, name: String }
-            match asset_manager.load_csv::<PlantRow>("plants.csv") {
-                Ok(plants) => log::info!("Loaded {} plants", plants.len()),
-                Err(e) => log::warn!("Could not load plants.csv: {e}"),
-            }
-
-            // Recipes
-            #[derive(Debug, serde::Deserialize)]
-            #[allow(dead_code)]
-            struct RecipeRow { id: String, name: String }
-            match asset_manager.load_csv::<RecipeRow>("recipes.csv") {
-                Ok(recipes) => log::info!("Loaded {} recipes", recipes.len()),
-                Err(e) => log::warn!("Could not load recipes.csv: {e}"),
-            }
-
-            // Initialize ECS
             let mut game_world = GameWorld::new();
             let mut system_runner = SystemRunner::new();
             let mut data_store = DataStore::new();
-
-            // Seed DataStore with initial shared state
             data_store.insert("input_state", InputState::default());
             data_store.insert("camera_position", Vec3::new(0.0, 2.0, 5.0));
             data_store.insert("camera_forward", Vec3::NEG_Z);
             data_store.insert("camera_yaw", 0.0_f32);
-
-            // Register all game systems (tick order matters)
             system_runner.register(TimeSystem::new());
             system_runner.register(PlayerControllerSystem);
             system_runner.register(InteractionSystem);
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
             system_runner.register(CraftingSystem::new());
-
-            // Spawn a player entity with core components
             game_world.world.spawn((
                 Transform::default(),
                 Velocity::default(),
@@ -503,8 +510,6 @@ mod native_app {
                 Name("Player".to_string()),
                 Inventory::new(36),
             ));
-
-            log::info!("ECS initialized: {} systems registered", system_runner.count());
 
             // Initialize egui
             let egui_ctx = egui::Context::default();
@@ -539,64 +544,10 @@ mod native_app {
                 gui_state.updater.check_now();
             }
 
-            // If returning user with onboarding done, go to hub instead of onboarding
+            // Returning user: skip main menu, go straight to chat
             if gui_state.onboarding_complete {
-                gui_state.active_page = GuiPage::MainMenu;
+                gui_state.active_page = GuiPage::Chat;
             }
-
-            // Load star skybox from CSV (data_dir already resolved by find_data_dir)
-            let star_csv = data_dir.join("stars.csv");
-            crate::debug::push_debug(format!("Star CSV path: {} (exists: {})", star_csv.display(), star_csv.exists()));
-            let star_renderer = crate::renderer::stars::StarRenderer::new(
-                &renderer.device,
-                &renderer.queue,
-                renderer.surface_format(),
-                &star_csv,
-            );
-            if star_renderer.is_some() {
-                log::info!("Star skybox initialized");
-                crate::debug::push_debug("Star skybox: loaded successfully");
-            } else {
-                log::warn!("Star skybox not loaded (missing {})", star_csv.display());
-                crate::debug::push_debug(format!("Star skybox: FAILED to load from {}", star_csv.display()));
-            }
-
-            // Load Earth at origin, player at GEO above Washington State
-            let planet_material = renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
-            let (planet, planet_mesh) = match asset_manager.load_ron::<PlanetDef>("planets/earth.ron") {
-                Ok(def) => {
-                    log::info!("Loaded planet: {} (radius: {}m, orbital_radius: {}m)", def.name, def.radius, def.orbital_radius);
-                    // Earth at world origin
-                    let mut pr = PlanetRenderer::new(def.clone(), glam::DVec3::ZERO);
-                    // Initial LOD based on GEO distance (~42,164 km from center)
-                    pr.update_lod(camera.world_position);
-                    let ico = pr.icosphere();
-                    // Mesh scale = planet radius in meters (rendered via floating origin)
-                    let mesh_idx = renderer.add_mesh(Mesh::from_icosphere(&renderer.device, ico, 1.0));
-                    (Some(pr), Some(mesh_idx))
-                }
-                Err(e) => {
-                    log::warn!("Could not load planet: {e}");
-                    (None, None)
-                }
-            };
-
-            // Ship is at origin. Planets are rendered at visual offsets.
-            // GEO above Silverdale, WA: this is the ship's LOGICAL position
-            // used to compute where Earth appears visually, but the ship itself
-            // stays at (0,0,0) for physics/gameplay sanity.
-            let ship_world_pos = {
-                let lat_rad = 47.6_f64.to_radians();
-                let lon_rad = (-122.3_f64).to_radians();
-                let geo_radius = 42_164_000.0_f64;
-                glam::DVec3::new(
-                    geo_radius * lat_rad.cos() * lon_rad.cos(),
-                    geo_radius * lat_rad.sin(),
-                    geo_radius * lat_rad.cos() * lon_rad.sin(),
-                )
-            };
-            log::info!("Ship logical position: GEO above WA ({:.0} km from Earth center)",
-                ship_world_pos.length() / 1000.0);
 
             self.state = Some(EngineState {
                 window,
@@ -608,20 +559,21 @@ mod native_app {
                 game_world,
                 system_runner,
                 data_store,
-                star_renderer,
+                // 3D world state: empty defaults, loaded lazily on first Enter World
+                star_renderer: None,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
-                planet,
-                planet_mesh,
-                planet_material,
-                homestead_floors,
-                homestead_walls,
-                hologram_objects,
-                hologram_orbits,
-                hologram_pins,
+                planet: None,
+                planet_mesh: None,
+                planet_material: 0,
+                homestead_floors: Vec::new(),
+                homestead_walls: None,
+                hologram_objects: Vec::new(),
+                hologram_orbits: Vec::new(),
+                hologram_pins: Vec::new(),
                 targeted_planet: None,
-                hologram_room_center: hologram_room_center.unwrap_or(Vec3::new(-0.5, 1.0, 2.5)),
-                room_lights,
-                ship_world_pos,
+                hologram_room_center: Vec3::new(-0.5, 1.0, 2.5),
+                room_lights: Vec::new(),
+                ship_world_pos: glam::DVec3::ZERO,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 egui_ctx,
@@ -629,6 +581,9 @@ mod native_app {
                 egui_renderer,
                 gui_state,
                 theme,
+                world_loaded: false,
+                window_shown: false,
+                data_dir,
             });
         }
 
@@ -1690,6 +1645,11 @@ mod native_app {
 
                     // Track page before egui frame for cursor grab transitions
                     let page_before_frame = state.gui_state.active_page;
+
+                    // Lazy-load 3D world on first Enter World (code LOD: chat loads fast, 3D loads when needed)
+                    if state.gui_state.active_page == GuiPage::None && !state.world_loaded {
+                        load_world(state);
+                    }
 
                     // Decide whether to render 3D scene or just a cleared surface
                     let page_active = state.gui_state.active_page != GuiPage::None;

@@ -75,10 +75,21 @@ impl Renderer {
         let width = size.width.max(1);
         let height = size.height.max(1);
 
-        // Prefer DX12 on Windows to avoid Vulkan overlay layer crashes (e.g. Epic Games, Steam).
-        // Falls back to Vulkan if DX12 isn't available.
+        // DX12-only on Windows. wgpu unconditionally compiles Vulkan support
+        // (hardcoded in wgpu's Cargo.toml for wgpu-core). Even with Backends::DX12,
+        // wgpu still loads vulkan-1.dll during instance creation and enumerates
+        // Vulkan adapters. Steam/Epic overlay layers hook into this DLL load and
+        // cause a segfault (STATUS_ACCESS_VIOLATION) before our code runs.
+        //
+        // Vulkan support is available for Linux/non-overlay systems via the
+        // #[cfg(not(target_os = "windows"))] path below.
+        #[cfg(target_os = "windows")]
+        let backends = wgpu::Backends::DX12;
+        #[cfg(not(target_os = "windows"))]
+        let backends = wgpu::Backends::VULKAN | wgpu::Backends::METAL;
+
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::DX12 | wgpu::Backends::VULKAN,
+            backends,
             ..Default::default()
         });
 

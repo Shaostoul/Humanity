@@ -1,8 +1,7 @@
 //! Universal message/item row widget.
 //!
-//! Renders a header (icon + name + timestamp) with word-wrapped content beside
-//! and below it. Reusable for chat messages, inventory items, file browser
-//! entries, etc.
+//! Renders a header (icon + name + timestamp) with word-wrapped content below.
+//! Reusable for chat messages, inventory items, file browser entries, etc.
 //!
 //! All sizing, spacing, and font values come from `Theme` widget variables
 //! so changing one value affects the entire UI consistently.
@@ -16,15 +15,12 @@ const HOVER_BLUE: Color32 = Color32::from_rgb(52, 152, 219);
 
 /// Render a universal row with optional header and word-wrapped content.
 ///
-/// The header displays a bordered icon box and a bordered name/timestamp box
-/// side by side, with the first ~2 lines of content beside them (word-wrapped
-/// to fit the available width). Remaining content wraps below at full width.
+/// Header: bordered icon box + name/timestamp box (clickable).
+/// Content: full-width word-wrapped text below the header.
 ///
-/// When `show_header` is false (same-user continuation), all content renders
-/// below at full width, word-wrapped.
+/// When `show_header` is false (same-user continuation), only content renders.
 ///
-/// When `channeling` is true, the button border animates through the RGB
-/// spectrum.
+/// When `channeling` is true, the button border animates through the RGB spectrum.
 ///
 /// Returns the `Response` for the allocated area.
 pub fn message_row(
@@ -53,8 +49,7 @@ pub fn message_row(
     let painter = ui.painter();
 
     if show_header {
-        // ── Measure header elements to determine button width ──
-
+        // ── Measure header elements ──
         let name_galley = painter.layout_no_wrap(
             name.to_string(),
             egui::FontId::proportional(side_font),
@@ -67,68 +62,23 @@ pub fn message_row(
         );
         let text_content_w = name_galley.size().x.max(ts_galley.size().x);
         let name_box_w = (text_content_w + 4.0).ceil();
-
-        // Icon outer box is header_h x header_h
         let icon_outer_sz = header_h;
-        // Button right edge: icon_outer + gap + name_box_w
-        let button_right_x = icon_outer_sz + gap + name_box_w;
 
-        // ── Side text: word-wrapped galley beside the header ──
-        let side_text_x_offset = button_right_x + 4.0; // 2px gap each side
-        let side_width = (full_width - side_text_x_offset - 2.0).max(30.0);
-
-        let side_galley = painter.layout(
-            content.to_string(),
-            egui::FontId::proportional(side_font),
-            text_color,
-            side_width,
-        );
-
-        // Determine how many galley rows fit beside the header.
-        let max_side_y = icon_sz; // inner height available
-        let side_rows = &side_galley.rows;
-        let mut side_line_count = 0usize;
-        for row in side_rows.iter() {
-            if row.rect.min.y < max_side_y && side_line_count < 2 {
-                side_line_count += 1;
-            } else {
-                break;
-            }
-        }
-
-        // ── Determine below-header text ──
-        let below_text = if side_line_count < side_rows.len() {
-            let mut char_count = 0usize;
-            for row_idx in 0..side_line_count {
-                char_count += side_rows[row_idx].glyphs.len();
-                if side_rows[row_idx].ends_with_newline {
-                    char_count += 1;
-                }
-            }
-            let byte_offset: usize = content.char_indices()
-                .nth(char_count)
-                .map(|(idx, _)| idx)
-                .unwrap_or(content.len());
-            content[byte_offset..].trim_start_matches([' ', '\n', '\r'])
-        } else {
-            ""
-        };
-
-        // Create below-header galley if there's overflow text
-        let below_width = (full_width - 4.0).max(30.0);
-        let below_galley = if !below_text.is_empty() {
+        // ── Content galley: full width below header ──
+        let content_width = (full_width - 4.0).max(30.0);
+        let content_galley = if !content.is_empty() {
             Some(painter.layout(
-                below_text.to_string(),
+                content.to_string(),
                 egui::FontId::proportional(below_font),
                 text_color,
-                below_width,
+                content_width,
             ))
         } else {
             None
         };
 
-        let below_h = below_galley.as_ref().map_or(0.0, |g| g.size().y + 4.0);
-        let total_height = header_h + below_h;
+        let content_h = content_galley.as_ref().map_or(0.0, |g| g.size().y + 4.0);
+        let total_height = header_h + content_h;
 
         // ── Allocate and draw ──
         let (full_rect, response) =
@@ -174,7 +124,7 @@ pub fn message_row(
             StrokeKind::Inside,
         );
 
-        // Icon circle + letter (centered in the icon area with padding)
+        // Icon circle + letter
         let pad = (header_h - icon_sz) / 2.0;
         let icon_inner = Rect::from_min_size(
             egui::pos2(hx + pad, hy + pad),
@@ -209,21 +159,10 @@ pub fn message_row(
             Color32::from_rgb(106, 106, 117),
         );
 
-        // ── Draw side text (word-wrapped, clipped to header height) ──
-        if !content.is_empty() {
-            let side_text_pos = egui::pos2(hx + side_text_x_offset, hy + pad);
-            let clip_rect = Rect::from_min_size(
-                side_text_pos,
-                Vec2::new(side_width, icon_sz),
-            );
-            let clipped = painter.with_clip_rect(clip_rect);
-            clipped.galley(side_text_pos, side_galley, text_color);
-        }
-
-        // ── Draw below-header text ──
-        if let Some(galley) = below_galley {
-            let below_y = hy + header_h + 2.0;
-            painter.galley(egui::pos2(hx + 2.0, below_y), galley, text_color);
+        // ── Content text below header ──
+        if let Some(galley) = content_galley {
+            let content_y = hy + header_h + 2.0;
+            painter.galley(egui::pos2(hx + 2.0, content_y), galley, text_color);
         }
 
         if channeling {

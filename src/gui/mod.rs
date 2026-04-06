@@ -749,7 +749,7 @@ impl Default for GuiState {
             onboarding_step: 0,
             server_url: "https://united-humanity.us".to_string(),
             server_connected: false,
-            user_name: String::new(),
+            user_name: "Player".to_string(),
             context_real: true,
             default_page: GuiPage::Chat,
 
