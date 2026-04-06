@@ -14,8 +14,34 @@ Single source of truth for how HumanityOS development stays in sync across all e
 
 1. **Read `docs/STATUS.md`** first. It lists every built feature, what's partial, and what's next. This prevents re-researching or rebuilding existing features.
 2. **Read `docs/BUGS.md`** to know what's been fixed. Never re-fix a resolved bug.
-3. **Check current version**: `gh release view --repo Shaostoul/Humanity --json tagName`
-4. **Check local version**: look at `web/shared/shell.js` version string
+3. **Sync check** (MANDATORY): Run the version sync check below. If local and GitHub differ, push + tag before doing anything else.
+
+## Version Sync Check (MANDATORY, every session start + before ending)
+
+Local version must always match GitHub. Check and fix drift:
+
+```bash
+# 1. Read local version from Cargo.toml
+node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\"(.+?)\"/m)[1]"
+
+# 2. Read latest GitHub release tag
+gh release list --repo Shaostoul/Humanity --limit 1
+
+# 3. If they differ: push all changes, tag, and create release
+git add -A
+git diff --cached --quiet || git commit -m "v<VERSION>: <description>"
+git push origin main
+git tag v<VERSION>
+git push origin v<VERSION>
+gh release create v<VERSION> --repo Shaostoul/Humanity --title "v<VERSION>" --notes "<summary of changes>"
+```
+
+**Rules:**
+- If local version > GitHub version: push + tag + release immediately
+- If local version < GitHub version: something is wrong, investigate (local should never be behind)
+- If equal: no action needed, proceed with session
+- **At session end**: If any changes were made during the session, ensure they are pushed and GitHub matches local
+- External SSD backup planned at v1.0.0
 
 ## Version Sync Protocol
 
@@ -26,14 +52,13 @@ node scripts/bump-version.js patch   # non-Rust changes (HTML/JS/CSS/docs)
 node scripts/bump-version.js minor   # Rust code changed (requires recompile)
 ```
 
-This updates all 7 locations automatically:
-- `Cargo.toml` (version field)
+This updates all 6 locations automatically:
+- `Cargo.toml` (root package version field)
 - `web/shared/sw.js` (CACHE_NAME bump)
 - `web/pages/settings-app.js` (version tag)
 - `web/pages/ops.html` (debug version)
 - `web/shared/shell.js` (version string)
-- `app/Cargo.toml` (legacy, deprecated)
-- `app/tauri.conf.json` (legacy, deprecated)
+- `web/pages/download.html` (fallback version badge + subtitle)
 
 ## After Every Push
 

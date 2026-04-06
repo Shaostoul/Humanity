@@ -9,7 +9,8 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 > 2. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
 > 3. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
 > 4. Read `docs/SOP.md` for version sync, deploy, and development procedures
-> 5. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
+> 5. **Version sync check**: Compare local `Cargo.toml` version vs `gh release list --limit 1`. If they differ, push + tag + release BEFORE doing anything else. (See SOP.md for full procedure.)
+> 6. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
 
 ## AI Participation
 
@@ -207,18 +208,23 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 - `0.X.Y` → Non-Rust changes only (HTML/JS/CSS/docs/config)
 - `1.0.0` → Reserved for fully functional product
 
+**Session start: Version sync check**
+1. Read local version: `node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\\s*=\\s*\"(.+?)\"/m)[1]"`
+2. Read GitHub version: `gh release list --repo Shaostoul/Humanity --limit 1`
+3. If local > GitHub: push + tag + release immediately (GitHub must match local)
+4. If local < GitHub: investigate (local should never be behind)
+5. If equal: proceed normally
+
 **Before pushing, ALWAYS:**
-1. Check current version: `gh release view --repo Shaostoul/Humanity --json tagName`
-2. Bump the patch (Y) for non-Rust changes, minor (X) for Rust changes
-3. Update ALL version strings (they MUST stay in sync):
-   - `Cargo.toml` → `version`
-   - `web/shared/sw.js` → `CACHE_NAME` (bump number)
-   - `web/pages/settings-app.js` → version tag text
-   - `web/pages/ops.html` → debug version text
-   - `web/activities/download.html` → fallback version badge + subtitle
-   - `web/shared/shell.js` → version string
-4. Commit the version bump IN the same commit (not separate)
-5. After push: `git tag vX.Y.Z && git push origin vX.Y.Z` (only if Rust changed or desktop release needed)
+1. Bump version: `node scripts/bump-version.js [patch|minor]`
+   - This updates all 6 locations: `Cargo.toml`, `sw.js`, `settings-app.js`, `ops.html`, `shell.js`, `download.html`
+2. Commit the version bump IN the same commit (not separate)
+3. Push to main
+4. Tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
+
+**Session end: Verify sync**
+- If any changes were made, confirm GitHub release matches local `Cargo.toml` version
+- Never leave a session with local ahead of GitHub
 
 **Never delete/re-tag** — always increment to next version number.
 

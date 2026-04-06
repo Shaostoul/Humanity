@@ -69,7 +69,7 @@ jobs:
       - name: Bundle binary with data
         shell: bash
         run: |
-          mkdir -p dist/HumanityOS
+          mkdir -p dist/HumanityOS/assets
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/HumanityOS/${{ matrix.asset_name }}
           # Copy game data and assets
           cp -r data/ dist/HumanityOS/data/
