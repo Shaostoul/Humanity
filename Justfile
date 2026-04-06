@@ -65,7 +65,7 @@ sync:
         git reset --hard origin/main && \
         git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
-        cargo build --release --bin humanity-relay 2>&1 | tail -4 && \
+        cargo build --release -p humanity-relay 2>&1 | tail -4 && \
         rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
         rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
@@ -203,15 +203,15 @@ tasks-board:
 
 # Check relay for errors (fast, no binary output)
 check:
-    cargo check --bin humanity-relay
+    cargo check -p humanity-relay
 
 # Build relay binary locally
 build:
-    cargo build --release --bin humanity-relay
+    cargo build --release -p humanity-relay
 
 # Run relay locally for development (uses local SQLite)
 run:
-    cargo run --bin humanity-relay
+    cargo run -p humanity-relay
 
 # Run formatter
 fmt:
@@ -219,7 +219,7 @@ fmt:
 
 # Run clippy linter
 clippy:
-    cargo clippy --bin humanity-relay -- -D warnings
+    cargo clippy -p humanity-relay -- -D warnings
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GAME — native desktop client (Rust/wgpu/egui)
@@ -315,7 +315,7 @@ install-hooks:
     #!/usr/bin/env bash
     # Auto-installed by: just install-hooks
     echo "→ pre-commit: cargo check..."
-    if ! cargo check --bin humanity-relay -q 2>&1; then
+    if ! cargo check -p humanity-relay -q 2>&1; then
         echo "✗ Rust errors found. Fix before committing. (bypass with git commit --no-verify)"
         exit 1
     fi
@@ -335,7 +335,7 @@ watch-web:
 
 # Watch Rust files and auto-check on save (shows errors without building)
 watch-check:
-    watchexec --exts rs --on-busy-update restart -- cargo check --bin humanity-relay 2>&1
+    watchexec --exts rs --on-busy-update restart -- cargo check -p humanity-relay 2>&1
 
 # ══════════════════════════════════════════════════════════════════════════════
 # NEW PAGE — scaffold a new standalone HTML page

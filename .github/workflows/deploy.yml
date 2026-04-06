@@ -30,7 +30,7 @@ jobs:
             git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/
 
             # Build relay binary on the server (no binary upload needed)
-            cargo build --release --bin humanity-relay
+            cargo build --release -p humanity-relay
 
             # Back up current binary
             cp target/release/humanity-relay \
