@@ -13,7 +13,7 @@ Compile the existing Rust game engine (wgpu) to WebAssembly so the same engine r
 ## Architecture
 
 ```
-native/src/              Shared Rust code (renderer, ECS, physics, systems)
+src/              Shared Rust code (renderer, ECS, physics, systems)
   |
   | cargo build --target wasm32-unknown-unknown
   v
@@ -26,7 +26,7 @@ Desktop: engine runs natively via Tauri (winit window, native wgpu)
 Browser: engine runs as WASM, renders to <canvas> via WebGPU
 ```
 
-The shared `native/src/` code has zero platform-specific imports. All platform differences are handled by a `Platform` trait with native and web implementations.
+The shared `src/` code has zero platform-specific imports. All platform differences are handled by a `Platform` trait with native and web implementations.
 
 ## Key Crates
 
@@ -58,7 +58,7 @@ The shared `native/src/` code has zero platform-specific imports. All platform d
 ## Platform Abstraction Layer
 
 ```rust
-// native/src/platform.rs
+// src/platform.rs
 
 #[cfg(target_arch = "wasm32")]
 mod web;
@@ -95,7 +95,7 @@ For browsers without WebGPU, wgpu's GL backend compiles WGSL shaders to GLSL and
 
 ```bash
 # Desktop (existing workflow, unchanged)
-cargo build --release -p humanity-engine
+just build-game  # or: cargo build --release -p HumanityOS
 
 # WASM (new)
 wasm-pack build engine-wasm --target web --out-dir pkg
@@ -191,8 +191,8 @@ Desktop and browser builds are feature-matched. Same game, same experience, same
 
 ## Related Files
 
-- `native/src/` — shared engine code (renderer, ECS, physics, systems)
-- `native/crates/` — 19 engine sub-crates
+- `src/` — shared engine code (renderer, ECS, physics, systems)
+- `crates/` — 19 engine sub-crates
 - `assets/shaders/` — 30 WGSL shaders (already WebGPU-compatible)
 - `docs/design/engine-architecture.md` — master engine reference
 - `docs/design/camera-system.md` — camera system (Phase 2)

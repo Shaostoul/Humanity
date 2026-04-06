@@ -121,9 +121,8 @@ Humanity/
 │       ├── handlers/          ← Extracted relay helpers
 │       ├── storage/           ← SQLite domain modules (17 files)
 │       └── api.rs             ← HTTP REST API endpoints
-├── native/                    ← Rust desktop client (egui GUI + wgpu game engine)
-│   ├── src/                   ← Engine source (gui, renderer, terrain, ship, assets, systems)
-│   └── crates/                ← 19 sub-crates (core, modules, persistence)
+├── src/                       ← Rust desktop client engine source (gui, renderer, terrain, ship, assets, systems)
+├── crates/                    ← 19 sub-crates (core, modules, persistence)
 ├── web/                       ← Web interface (browser + WebView)
 │   ├── chat/                  ← Chat client (app.js, crypto.js, chat-*.js)
 │   ├── pages/                 ← Standalone pages (tasks, maps, settings, etc.)

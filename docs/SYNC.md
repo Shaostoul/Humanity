@@ -5,7 +5,7 @@ Everything that must stay in sync when making changes. Run through this before e
 ## Version Strings (automated)
 
 Run `node scripts/bump-version.js patch|minor` to update all 7 locations:
-- [ ] `native/Cargo.toml` version
+- [ ] `Cargo.toml` version
 - [ ] `web/shared/sw.js` CACHE_NAME
 - [ ] `web/pages/settings-app.js` version tag
 - [ ] `web/pages/ops.html` debug version
@@ -46,17 +46,17 @@ When adding a new API endpoint:
 - [ ] Document in `CLAUDE.md` REST routes section
 
 When adding a new game system:
-- [ ] Create in `native/src/systems/NAME/mod.rs`
-- [ ] Add `pub mod NAME;` to `native/src/systems/mod.rs`
-- [ ] Register in engine loop (`native/src/lib.rs` resumed())
+- [ ] Create in `src/systems/NAME/mod.rs`
+- [ ] Add `pub mod NAME;` to `src/systems/mod.rs`
+- [ ] Register in engine loop (`src/lib.rs` resumed())
 - [ ] Add data files to `data/` if needed
 - [ ] Run `cargo check` for both native and WASM targets
 - [ ] Add to `docs/FEATURES.md`
 
 When adding a new egui page:
-- [ ] Create in `native/src/gui/pages/NAME.rs`
-- [ ] Add to `native/src/gui/pages/mod.rs`
-- [ ] Add `GuiPage::NAME` variant to `native/src/gui/mod.rs`
+- [ ] Create in `src/gui/pages/NAME.rs`
+- [ ] Add to `src/gui/pages/mod.rs`
+- [ ] Add `GuiPage::NAME` variant to `src/gui/mod.rs`
 - [ ] Add draw call in engine loop match statement
 
 When modifying shared data structures:

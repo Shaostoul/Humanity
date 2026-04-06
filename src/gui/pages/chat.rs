@@ -112,6 +112,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if state.show_join_group_modal {
         draw_join_group_modal(ctx, theme, state);
     }
+
+    // ── HELP / COMMANDS MODAL ──
+    if state.show_help_modal {
+        draw_help_modal(ctx, theme, state);
+    }
 }
 
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
@@ -281,18 +286,28 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                 let dms = state.chat_dms.clone();
                 for dm in &dms {
+                    let dm_channel = format!("dm:{}", dm.user_key);
+                    let is_active = state.chat_active_channel == dm_channel;
                     let response = ui
                         .allocate_ui_with_layout(
                             Vec2::new(ui.available_width(), theme.row_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
                                 let full_rect = ui.max_rect();
-                                let bg = if ui.rect_contains_pointer(full_rect) {
+                                let bg = if is_active {
+                                    DM_ROW_HOVER
+                                } else if ui.rect_contains_pointer(full_rect) {
                                     DM_ROW_HOVER
                                 } else {
                                     DM_ROW_BG
                                 };
                                 ui.painter().rect_filled(full_rect, 0.0, bg);
+
+                                // Active indicator bar
+                                if is_active {
+                                    let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(3.0, full_rect.height()));
+                                    ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(200, 80, 80));
+                                }
 
                                 ui.add_space(theme.item_padding);
 
@@ -300,13 +315,13 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 if dm.unread {
                                     let dot_sz = theme.status_dot_size * 0.75;
                                     let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-                                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.accent());
+                                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, Color32::from_rgb(200, 80, 80));
                                 }
 
                                 ui.label(
                                     RichText::new(&dm.user_name)
                                         .size(theme.body_size)
-                                        .color(if dm.unread { theme.text_primary() } else { theme.text_secondary() }),
+                                        .color(if is_active || dm.unread { theme.text_primary() } else { theme.text_secondary() }),
                                 );
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     ui.add_space(theme.item_padding);
@@ -320,9 +335,37 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         )
                         .response;
 
+                    if response.clicked() {
+                        state.chat_active_channel = dm_channel;
+                        // Request DM history from server
+                        if let Some(ref client) = state.ws_client {
+                            if client.is_connected() {
+                                let msg = serde_json::json!({
+                                    "type": "dm_open",
+                                    "partner": dm.user_key,
+                                });
+                                client.send(&msg.to_string());
+                            }
+                        }
+                    }
                     if response.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
+                    // Right-click context menu on DMs
+                    response.context_menu(|ui| {
+                        if ui.button("View Profile").clicked() {
+                            state.chat_user_modal_open = true;
+                            state.chat_user_modal_key = dm.user_key.clone();
+                            ui.close_menu();
+                        }
+                        if ui.button(RichText::new("Close Conversation").color(Color32::from_rgb(200, 80, 80))).clicked() {
+                            state.chat_dms.retain(|d| d.user_key != dm.user_key);
+                            if state.chat_active_channel == format!("dm:{}", dm.user_key) {
+                                state.chat_active_channel = "general".to_string();
+                            }
+                            ui.close_menu();
+                        }
+                    });
                 }
             });
     }
@@ -359,23 +402,34 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                 let groups = state.chat_groups.clone();
                 for group in &groups {
+                    let group_channel = format!("group:{}", group.id);
+                    let is_active = state.chat_active_channel == group_channel;
                     let response = ui
                         .allocate_ui_with_layout(
                             Vec2::new(ui.available_width(), theme.row_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
                                 let full_rect = ui.max_rect();
-                                let bg = if ui.rect_contains_pointer(full_rect) {
+                                let bg = if is_active {
+                                    GROUP_ROW_HOVER
+                                } else if ui.rect_contains_pointer(full_rect) {
                                     GROUP_ROW_HOVER
                                 } else {
                                     GROUP_ROW_BG
                                 };
                                 ui.painter().rect_filled(full_rect, 0.0, bg);
+
+                                // Active indicator bar
+                                if is_active {
+                                    let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(3.0, full_rect.height()));
+                                    ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(80, 200, 80));
+                                }
+
                                 ui.add_space(theme.item_padding);
                                 ui.label(
                                     RichText::new(&group.name)
                                         .size(theme.body_size)
-                                        .color(theme.text_primary()),
+                                        .color(if is_active { theme.text_primary() } else { theme.text_secondary() }),
                                 );
                                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                     ui.add_space(theme.item_padding);
@@ -389,9 +443,38 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         )
                         .response;
 
+                    if response.clicked() {
+                        state.chat_active_channel = group_channel;
+                        // Request group history from server
+                        if let Some(ref client) = state.ws_client {
+                            if client.is_connected() {
+                                let msg = serde_json::json!({
+                                    "type": "group_history_request",
+                                    "group_id": group.id,
+                                });
+                                client.send(&msg.to_string());
+                            }
+                        }
+                    }
                     if response.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
+                    // Right-click context menu on groups
+                    response.context_menu(|ui| {
+                        ui.label(RichText::new(&group.name).size(theme.font_size_body).color(theme.text_primary()).strong());
+                        ui.separator();
+                        if ui.button("Copy Group ID").clicked() {
+                            ui.ctx().copy_text(group.id.clone());
+                            ui.close_menu();
+                        }
+                        if ui.button(RichText::new("Leave Group").color(Color32::from_rgb(200, 80, 80))).clicked() {
+                            state.chat_groups.retain(|g| g.id != group.id);
+                            if state.chat_active_channel == format!("group:{}", group.id) {
+                                state.chat_active_channel = "general".to_string();
+                            }
+                            ui.close_menu();
+                        }
+                    });
                 }
 
                 // Create/Join group buttons
@@ -908,25 +991,65 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         .stroke(Stroke::new(1.0, Color32::from_rgb(40, 40, 48)))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(format!("# {}", state.chat_active_channel))
-                        .size(theme.font_size_heading)
-                        .color(theme.text_primary())
-                        .strong(),
-                );
-
-                let desc = state
-                    .chat_channels
-                    .iter()
-                    .find(|c| c.id == state.chat_active_channel)
-                    .map(|c| c.description.as_str())
-                    .unwrap_or("");
-                if !desc.is_empty() {
+                let ac = state.chat_active_channel.clone();
+                if ac.starts_with("dm:") {
+                    // DM header: back button + partner name
+                    if ui.add(egui::Button::new(
+                        RichText::new("\u{2190} Back").size(theme.font_size_body).color(theme.text_secondary()),
+                    ).fill(Color32::TRANSPARENT)).clicked() {
+                        state.chat_active_channel = "general".to_string();
+                    }
+                    let partner_key = &ac[3..];
+                    let partner_name = state.chat_dms.iter()
+                        .find(|d| d.user_key == partner_key)
+                        .map(|d| d.user_name.clone())
+                        .unwrap_or_else(|| partner_key.to_string());
                     ui.label(
-                        RichText::new(format!("  |  {}", desc))
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
+                        RichText::new(format!("DM: {}", partner_name))
+                            .size(theme.font_size_heading)
+                            .color(Color32::from_rgb(220, 120, 120))
+                            .strong(),
                     );
+                } else if ac.starts_with("group:") {
+                    // Group header: back button + group name
+                    if ui.add(egui::Button::new(
+                        RichText::new("\u{2190} Back").size(theme.font_size_body).color(theme.text_secondary()),
+                    ).fill(Color32::TRANSPARENT)).clicked() {
+                        state.chat_active_channel = "general".to_string();
+                    }
+                    let group_id = &ac[6..];
+                    let group_name = state.chat_groups.iter()
+                        .find(|g| g.id == group_id)
+                        .map(|g| g.name.clone())
+                        .unwrap_or_else(|| group_id.to_string());
+                    ui.label(
+                        RichText::new(format!("Group: {}", group_name))
+                            .size(theme.font_size_heading)
+                            .color(Color32::from_rgb(120, 220, 120))
+                            .strong(),
+                    );
+                } else {
+                    // Normal channel header
+                    ui.label(
+                        RichText::new(format!("# {}", state.chat_active_channel))
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary())
+                            .strong(),
+                    );
+
+                    let desc = state
+                        .chat_channels
+                        .iter()
+                        .find(|c| c.id == state.chat_active_channel)
+                        .map(|c| c.description.as_str())
+                        .unwrap_or("");
+                    if !desc.is_empty() {
+                        ui.label(
+                            RichText::new(format!("  |  {}", desc))
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    }
                 }
             });
         });
@@ -1036,14 +1159,41 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .inner_margin(egui::Margin::symmetric(12, 8))
                     .show(ui, |ui| {
                 ui.horizontal(|ui| {
+                    let hint = if state.chat_active_channel.starts_with("dm:") {
+                        let pk = &state.chat_active_channel[3..];
+                        let name = state.chat_dms.iter().find(|d| d.user_key == pk)
+                            .map(|d| d.user_name.as_str()).unwrap_or("user");
+                        format!("Message {}", name)
+                    } else if state.chat_active_channel.starts_with("group:") {
+                        let gid = &state.chat_active_channel[6..];
+                        let name = state.chat_groups.iter().find(|g| g.id == gid)
+                            .map(|g| g.name.as_str()).unwrap_or("group");
+                        format!("Message {}", name)
+                    } else {
+                        format!("Message #{}", state.chat_active_channel)
+                    };
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut state.chat_input)
-                            .desired_width(ui.available_width() - 70.0)
-                            .hint_text(format!("Message #{}", state.chat_active_channel)),
+                            .desired_width(ui.available_width() - 104.0)
+                            .hint_text(hint),
                     );
 
                     let enter_pressed =
                         response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+
+                    // Help button (?) - opens slash commands reference
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("?")
+                                .size(theme.font_size_body)
+                                .color(theme.text_muted()),
+                        )
+                        .fill(Color32::from_rgb(40, 40, 48))
+                        .min_size(Vec2::new(28.0, 28.0)),
+                    ).clicked() {
+                        state.show_help_modal = !state.show_help_modal;
+                    }
+
                     let send_clicked = ui
                         .add(
                             egui::Button::new(
@@ -1077,15 +1227,36 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     "Anonymous".to_string()
                                 };
 
-                                let chat_msg = serde_json::json!({
-                                    "type": "chat",
-                                    "from": state.profile_public_key,
-                                    "from_name": display_name,
-                                    "content": content,
-                                    "timestamp": ts,
-                                    "channel": channel,
-                                });
-                                let json_str = chat_msg.to_string();
+                                let json_str = if channel.starts_with("dm:") {
+                                    // DM: send as type "dm" with target partner key
+                                    let partner_key = &channel[3..];
+                                    serde_json::json!({
+                                        "type": "dm",
+                                        "from": state.profile_public_key,
+                                        "from_name": display_name,
+                                        "to": partner_key,
+                                        "content": content,
+                                        "timestamp": ts,
+                                    }).to_string()
+                                } else if channel.starts_with("group:") {
+                                    // Group: send as type "group_msg"
+                                    let group_id = &channel[6..];
+                                    serde_json::json!({
+                                        "type": "group_msg",
+                                        "group_id": group_id,
+                                        "content": content,
+                                    }).to_string()
+                                } else {
+                                    // Normal channel chat
+                                    serde_json::json!({
+                                        "type": "chat",
+                                        "from": state.profile_public_key,
+                                        "from_name": display_name,
+                                        "content": content,
+                                        "timestamp": ts,
+                                        "channel": channel,
+                                    }).to_string()
+                                };
                                 crate::debug::push_debug(format!("WS >>> {}", json_str));
                                 client.send(&json_str);
 
@@ -1682,17 +1853,16 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                         .fill(Color32::from_rgb(140, 30, 30))
                         .min_size(Vec2::new(120.0, 28.0)),
                     ).clicked() {
-                        if let Some(ref client) = state.ws_client {
-                            if client.is_connected() {
-                                let msg = serde_json::json!({
-                                    "type": "channel_delete",
-                                    "channel_id": state.edit_channel_id,
-                                });
-                                client.send(&msg.to_string());
-                                log::info!("Channel delete: {}", state.edit_channel_id);
-                            }
+                        // Send as slash command (server handles /channel-delete)
+                        let ch_name = state.edit_channel_id.clone();
+                        send_slash_command(state, &format!("/channel-delete {}", ch_name));
+                        log::info!("Channel delete: {}", ch_name);
+                        // Switch to general if we just deleted the active channel
+                        if state.chat_active_channel == ch_name {
+                            state.chat_active_channel = "general".to_string();
                         }
                         state.show_channel_edit_modal = false;
+                        state.edit_channel_confirm_delete = false;
                     }
 
                     ui.add_space(8.0);
@@ -2085,4 +2255,160 @@ pub fn format_timestamp(ts: u64) -> String {
     let hours = (total_secs % 86400) / 3600;
     let minutes = (total_secs % 3600) / 60;
     format!("{:02}:{:02} UTC", hours, minutes)
+}
+
+/// Send a slash command as a chat message (server handles moderation via slash commands).
+fn send_slash_command(state: &mut GuiState, command: &str) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+            let msg = serde_json::json!({
+                "type": "chat",
+                "from": state.profile_public_key,
+                "from_name": state.user_name,
+                "content": command,
+                "timestamp": ts,
+                "channel": state.chat_active_channel,
+            });
+            client.send(&msg.to_string());
+        }
+    }
+}
+
+// ─────────────────────────────── Help Modal ──────────────────────────────
+
+fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    egui::Window::new("Slash Commands")
+        .collapsible(false)
+        .resizable(true)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .default_size(Vec2::new(460.0, 500.0))
+        .frame(Frame::NONE.fill(Color32::from_rgb(26, 26, 32)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .show(ctx, |ui| {
+            // Close button
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Slash Commands Reference")
+                    .size(theme.font_size_heading).color(theme.text_primary()));
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.add(egui::Button::new(
+                        RichText::new("X").size(theme.font_size_body).color(theme.text_muted()),
+                    ).fill(Color32::TRANSPARENT)).clicked() {
+                        state.show_help_modal = false;
+                    }
+                });
+            });
+            ui.add_space(8.0);
+
+            ScrollArea::vertical()
+                .id_salt("help_modal_scroll")
+                .auto_shrink([false, false])
+                .max_height(440.0)
+                .show(ui, |ui| {
+                    let section_color = Color32::from_rgb(100, 180, 255);
+                    let cmd_color = theme.text_primary();
+                    let desc_color = theme.text_muted();
+
+                    // General
+                    ui.label(RichText::new("General").size(theme.font_size_body + 2.0).color(section_color).strong());
+                    ui.add_space(4.0);
+                    let general_cmds = [
+                        ("/help", "Show available commands"),
+                        ("/link", "Generate a code to link another device"),
+                        ("/revoke <key_prefix>", "Remove a stolen/lost device"),
+                        ("/users", "List all registered users"),
+                        ("/report <name> [reason]", "Report a user"),
+                        ("/dm <name> <message>", "Send a direct message"),
+                        ("/dms", "List your DM conversations"),
+                        ("/edit <text>", "Edit your last message"),
+                        ("/pins", "List pinned messages"),
+                        ("/friend-code", "Generate a shareable friend code"),
+                        ("/redeem <code>", "Redeem a friend code"),
+                        ("/server-list", "List federated servers"),
+                    ];
+                    for (cmd, desc) in &general_cmds {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(*cmd).size(theme.font_size_body).color(cmd_color).monospace());
+                            ui.label(RichText::new(*desc).size(theme.font_size_small).color(desc_color));
+                        });
+                        ui.add_space(2.0);
+                    }
+
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Moderator").size(theme.font_size_body + 2.0).color(Color32::from_rgb(255, 180, 80)).strong());
+                    ui.add_space(4.0);
+                    let mod_cmds = [
+                        ("/kick <name>", "Disconnect a user"),
+                        ("/mute <name>", "Mute a user"),
+                        ("/unmute <name>", "Unmute a user"),
+                        ("/pin", "Pin the last message in the channel"),
+                        ("/unpin <N>", "Unpin a message by index"),
+                        ("/invite", "Generate an invite code (lockdown bypass)"),
+                    ];
+                    for (cmd, desc) in &mod_cmds {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(*cmd).size(theme.font_size_body).color(cmd_color).monospace());
+                            ui.label(RichText::new(*desc).size(theme.font_size_small).color(desc_color));
+                        });
+                        ui.add_space(2.0);
+                    }
+
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Admin").size(theme.font_size_body + 2.0).color(Color32::from_rgb(255, 100, 100)).strong());
+                    ui.add_space(4.0);
+                    let admin_cmds = [
+                        ("/ban <name>", "Ban a user"),
+                        ("/unban <name>", "Unban a user"),
+                        ("/mod <name>", "Make a user a moderator"),
+                        ("/unmod <name>", "Remove moderator role"),
+                        ("/verify <name>", "Mark a user as verified"),
+                        ("/donor <name>", "Mark a user as a donor"),
+                        ("/unverify <name>", "Remove verified status"),
+                        ("/lockdown", "Toggle registration lockdown"),
+                        ("/wipe", "Clear current channel's history"),
+                        ("/wipe-all", "Clear ALL channels' history"),
+                        ("/gc", "Garbage collect inactive names (90 days)"),
+                        ("/channel-create <name> [--readonly] [desc]", "Create a channel"),
+                        ("/channel-delete <name>", "Delete a channel"),
+                        ("/channel-readonly <name>", "Toggle read-only"),
+                        ("/channel-reorder <name> <pos>", "Set channel sort order"),
+                        ("/name-release <name>", "Release a name (account recovery)"),
+                        ("/reports", "View recent reports"),
+                        ("/reports-clear", "Clear all reports"),
+                    ];
+                    for (cmd, desc) in &admin_cmds {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(*cmd).size(theme.font_size_body).color(cmd_color).monospace());
+                            ui.label(RichText::new(*desc).size(theme.font_size_small).color(desc_color));
+                        });
+                        ui.add_space(2.0);
+                    }
+
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Federation").size(theme.font_size_body + 2.0).color(Color32::from_rgb(100, 220, 160)).strong());
+                    ui.add_space(4.0);
+                    let fed_cmds = [
+                        ("/server-add <url> [name]", "Add a federated server"),
+                        ("/server-remove <id>", "Remove a federated server"),
+                        ("/server-trust <id> <0-3>", "Set trust tier"),
+                        ("/server-federate <channel>", "Toggle federation for a channel"),
+                        ("/server-connect", "Connect to all verified servers"),
+                    ];
+                    for (cmd, desc) in &fed_cmds {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(*cmd).size(theme.font_size_body).color(cmd_color).monospace());
+                            ui.label(RichText::new(*desc).size(theme.font_size_small).color(desc_color));
+                        });
+                        ui.add_space(2.0);
+                    }
+
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Formatting Tips").size(theme.font_size_body + 2.0).color(section_color).strong());
+                    ui.add_space(4.0);
+                    ui.label(RichText::new("**bold**, *italic*, `code`, ~~strike~~").size(theme.font_size_body).color(desc_color));
+                    ui.label(RichText::new("Click the reply arrow on any message to reply").size(theme.font_size_body).color(desc_color));
+                });
+        });
 }

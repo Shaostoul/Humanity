@@ -20,7 +20,7 @@ AI does not override constraints.
 
 AI operates under the same authority chain as all components:
 
-`accord/` → `design/` → `data/` → `native/` → `web/tools`
+`accord/` → `design/` → `data/` → `src/` → `web/tools`
 
 AI may not:
 - redefine ethics or harm boundaries

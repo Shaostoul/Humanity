@@ -222,7 +222,25 @@ clippy:
     cargo clippy --bin humanity-relay -- -D warnings
 
 # ══════════════════════════════════════════════════════════════════════════════
-# DESKTOP APP — local-first Tauri wrapper
+# GAME — native desktop client (Rust/wgpu/egui)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Build the game and copy to repo root as HumanityOS.exe
+build-game:
+    cargo build --features native --release
+    cp target/release/HumanityOS.exe HumanityOS.exe
+    @echo "Built: HumanityOS.exe"
+
+# Build and launch the game
+play: build-game
+    ./HumanityOS.exe
+
+# Check game code for errors (fast, no binary)
+check-game:
+    cargo check --features native
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DESKTOP APP — local-first Tauri wrapper (deprecated)
 # ══════════════════════════════════════════════════════════════════════════════
 
 # Bundle web files into app/web/ (run before tauri build)

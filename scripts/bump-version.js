@@ -13,12 +13,12 @@ if (!['patch', 'minor', 'major'].includes(kind)) {
   process.exit(1);
 }
 
-// 1. Read current version from native/Cargo.toml
-const cargoPath = path.join(ROOT, 'native/Cargo.toml');
+// 1. Read current version from Cargo.toml (root)
+const cargoPath = path.join(ROOT, 'Cargo.toml');
 const cargoContent = fs.readFileSync(cargoPath, 'utf8');
 const vMatch = cargoContent.match(/^version\s*=\s*"(\d+\.\d+\.\d+)"/m);
 if (!vMatch) {
-  console.error('Could not find version in native/Cargo.toml');
+  console.error('Could not find version in Cargo.toml');
   process.exit(1);
 }
 const oldVersion = vMatch[1];
@@ -43,8 +43,8 @@ function replaceInFile(relPath, search, replacement) {
   }
 }
 
-// 2. native/Cargo.toml
-replaceInFile('native/Cargo.toml', `version = "${oldVersion}"`, `version = "${newVersion}"`);
+// 2. Cargo.toml (root)
+replaceInFile('Cargo.toml', `version = "${oldVersion}"`, `version = "${newVersion}"`);
 
 // 3. web/shared/sw.js — CACHE_NAME bump
 const swPath = path.join(ROOT, 'web/shared/sw.js');
@@ -68,14 +68,26 @@ replaceInFile('web/pages/ops.html', `'v${oldVersion}'`, `'v${newVersion}'`);
 // 6. web/shared/shell.js
 replaceInFile('web/shared/shell.js', `var CURRENT_VERSION = '${oldVersion}'`, `var CURRENT_VERSION = '${newVersion}'`);
 
-// 7. web/activities/download.html
-const dlPath = path.join(ROOT, 'web/activities/download.html');
+// 7. web/pages/download.html
+const dlPath = path.join(ROOT, 'web/pages/download.html');
 if (fs.existsSync(dlPath)) {
   let dl = fs.readFileSync(dlPath, 'utf8');
   let updated = dl.split(`v${oldVersion}`).join(`v${newVersion}`);
   updated = updated.split(`'${oldVersion}'`).join(`'${newVersion}'`);
   if (updated !== dl) {
     fs.writeFileSync(dlPath, updated, 'utf8');
+    console.log(`  updated web/pages/download.html`);
+  }
+}
+
+// Also check legacy location
+const dlPathLegacy = path.join(ROOT, 'web/activities/download.html');
+if (fs.existsSync(dlPathLegacy)) {
+  let dl = fs.readFileSync(dlPathLegacy, 'utf8');
+  let updated = dl.split(`v${oldVersion}`).join(`v${newVersion}`);
+  updated = updated.split(`'${oldVersion}'`).join(`'${newVersion}'`);
+  if (updated !== dl) {
+    fs.writeFileSync(dlPathLegacy, updated, 'utf8');
     console.log(`  updated web/activities/download.html`);
   }
 }

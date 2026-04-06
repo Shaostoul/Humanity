@@ -11,7 +11,7 @@ When files disagree, use this precedence:
 1. `docs/accord/` (principles, governance, constraints)
 2. `docs/design/` (architecture/system behavior and contracts)
 3. `data/` (structured runtime/canonical datasets)
-4. `server/`, `native/`, `web/` (implementation layers)
+4. `server/`, `src/`, `crates/`, `web/` (implementation layers)
 5. `docs/website/` content is presentation; canonical meaning stays upstream
 
 See also: `docs/website/README.md`.
@@ -21,7 +21,7 @@ See also: `docs/website/README.md`.
 ### Rust workspace (currently compiled members)
 
 - `server/` (relay server)
-- `native/` (game engine + systems)
+- `src/` + `crates/` (game engine + systems)
 
 ### Other implemented runtime surfaces
 - `web/chat/` (web client served by relay)
@@ -54,7 +54,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/architecture_decisions/canonical_encoding_and_hashing.md`
   - `docs/design/network/object_format.md`
 - Implementation now:
-  - `native/crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
+  - `crates/humanity-core/src/{encoding,hash,identity,object,signing}.rs`
 - Status:
   - **Documented: strong**
   - **Implemented: strong (core foundation)**
@@ -93,7 +93,7 @@ Most domain systems are already documented in `docs/design/`, but many are not y
   - `docs/design/engine/`
 - Implementation now:
   - `web/activities/` has web assets/pages
-  - `native/` contains the Rust game engine and systems
+  - `src/` and `crates/` contain the Rust game engine and systems
 - Status:
   - **Documented: medium-strong**
   - **Implemented: early/planned**

@@ -475,6 +475,17 @@ function onIdentityConfirmed() {
   // Request user data sync from server.
   requestSyncLoad();
 
+  // ── URL hash channel navigation ──
+  // If URL has #channelname, switch to that channel (e.g. /chat#dev -> dev)
+  if (location.hash && location.hash !== '#profile') {
+    const hashChannel = location.hash.slice(1).toLowerCase();
+    if (hashChannel) {
+      activeChannel = hashChannel;
+      localStorage.setItem('humanity_channel', hashChannel);
+      history.replaceState(null, '', location.pathname); // clean the hash
+    }
+  }
+
   // Don't load history here — wait for channel_list to arrive,
   // then switchChannel will load it.
   // If channel_list already arrived, load now.

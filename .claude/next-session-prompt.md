@@ -29,9 +29,9 @@ The native Rust desktop client has:
 ## Build & Test
 
 ```bash
-cargo build -p humanity-engine --features native --release
-cp target/release/humanity-engine.exe C:\Humanity\HumanityOS.exe
-# Or just: cargo run -p humanity-engine --features native
+just build-game    # builds + copies to C:\Humanity\HumanityOS.exe
+just play          # builds + launches
+just check-game    # fast error check, no binary
 ```
 
 ## Multi-Agent Workflow

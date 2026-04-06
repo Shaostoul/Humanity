@@ -1,6 +1,6 @@
 # HumanityOS Native Engine Reference
 
-> **Source of truth for AI agents and developers working on `native/src/`.**
+> **Source of truth for AI agents and developers working on `src/`.**
 > Updated: 2026-04-01 | Engine version: 0.88.0 | 32,361 LOC across 97 Rust files
 
 ## Quick Start for AI Agents
@@ -10,16 +10,16 @@
 3. Read `docs/BUGS.md` for known issues
 4. Read `docs/SOP.md` for version/deploy procedures
 5. Check `docs/design/engine-architecture.md` for v1.0 design targets
-6. **Build command:** `cargo build -p humanity-engine --features native`
-7. **Run command:** `cargo run -p humanity-engine --features native`
-8. **Binary output:** `C:\Humanity\HumanityOS.exe` (copy from target/release/)
+6. **Build command:** `just build-game` (or `cargo build -p HumanityOS --features native --release`)
+7. **Run command:** `just play` (or `C:\Humanity\HumanityOS.exe`)
+8. **Binary output:** `C:\Humanity\HumanityOS.exe`
 
 ---
 
 ## Architecture Overview
 
 ```
-native/src/
+src/
   lib.rs              (1,943 LOC) -- Engine init, main loop, system registration
   main.rs             (17 LOC)    -- Entry point, calls lib::run()
   config.rs           (346 LOC)   -- App config, feature flags
@@ -307,17 +307,18 @@ To add a new material type: add an `else if` branch in `fs_main()` checking `mat
 ## Build & Run
 
 ```bash
-# Debug build
-cargo build -p humanity-engine --features native
+# Build game + copy to repo root (preferred)
+just build-game
 
-# Release build (optimized, for testing)
-cargo build -p humanity-engine --features native --release
+# Build and launch
+just play
 
-# Run directly
-cargo run -p humanity-engine --features native
+# Or manually:
+cargo build -p HumanityOS --features native --release
+cp target/release/HumanityOS.exe HumanityOS.exe
 
-# Copy release binary for distribution
-cp target/release/humanity-engine.exe C:\Humanity\HumanityOS.exe
+# Quick check (no binary, fast)
+just check-game
 ```
 
 ### Feature Flags

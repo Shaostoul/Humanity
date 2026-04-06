@@ -27,7 +27,7 @@ node scripts/bump-version.js minor   # Rust code changed (requires recompile)
 ```
 
 This updates all 7 locations automatically:
-- `native/Cargo.toml` (version field)
+- `Cargo.toml` (version field)
 - `web/shared/sw.js` (CACHE_NAME bump)
 - `web/pages/settings-app.js` (version tag)
 - `web/pages/ops.html` (debug version)
@@ -92,7 +92,7 @@ Format:
 
 Before building anything:
 1. Read `docs/STATUS.md` feature list
-2. Search the codebase: `grep -r "feature_name" native/src/ web/ server/src/`
+2. Search the codebase: `grep -r "feature_name" src/ web/ server/src/`
 3. Check the changelog: `grep -i "feature_name" CHANGELOG.md`
 
 If it exists, enhance it. Don't rebuild it.
@@ -102,7 +102,8 @@ If it exists, enhance it. Don't rebuild it.
 ```
 Humanity/
   server/     Rust backend (axum, SQLite, WebSocket relay)
-  native/     Desktop application (Rust, wgpu, egui, rapier3d)
+  src/        Desktop application (Rust, wgpu, egui, rapier3d)
+  crates/     19 sub-crates (core, modules, persistence)
   web/        Website frontend (HTML, JS, CSS)
   data/       Shared game/config data (CSV, TOML, RON, JSON)
   assets/     Shared media (icons, shaders, models, textures)
@@ -110,17 +111,34 @@ Humanity/
   scripts/    Build and deploy tooling
 ```
 
-**Never rename these directories without updating ALL references.** The v0.37.0 restructure (engine/ to native/, ui/ to web/) required updating 26+ files across 4 codebases.
+**Never rename these directories without updating ALL references.** Past restructures (engine/ to native/ in v0.37.0, native/ eliminated in v0.88.0) required updating 26+ files.
 
 ## Web vs Native GUI
 
 - **Web** (web/): HTML/JS/CSS served by the server, runs in browsers
-- **Native** (native/src/gui/): egui immediate-mode UI, runs in the desktop app
+- **Native** (src/gui/): egui immediate-mode UI, runs in the desktop app
 
 Both show the same data but are separate codebases. When adding a feature:
 - Build the web version in web/pages/
 - The native egui version is secondary (built when the desktop app needs it)
 - They connect to the same server API
+
+## Button/Action Wiring Checklist
+
+Every time a UI button or context menu action is added, verify ALL of the following before considering it complete:
+
+1. **Click handler exists**: The `.clicked()` check (or pointer release check) is present and reachable
+2. **Action is dispatched**: The handler actually does something (sends WS message, modifies state, etc.)
+3. **Server supports it**: If the action sends a WebSocket message, confirm the server's relay.rs has a matching handler for that exact message type. Search `server/src/relay.rs` and `server/src/handlers/` for the message type string. If the server uses slash commands (e.g., `/kick`, `/ban`, `/deletechannel`), send as a chat message with the slash command, not a custom message type.
+4. **Borrow checker safe**: In egui, ensure the click handler doesn't try to mutate state that's borrowed elsewhere in the same frame. Use deferred action patterns (collect actions in Phase 1, process in Phase 2) when rendering borrows state immutably.
+5. **State updates propagate**: If the action modifies local state (e.g., removing a message), verify the UI will reflect the change on the next frame.
+6. **Edge cases**: Test with the button's target in different states (e.g., Pin vs Unpin, own message vs others', connected vs disconnected).
+
+Common failure patterns to avoid:
+- Sending a custom WS message type that the server doesn't handle (always check server-side first)
+- Using `allocate_ui_with_layout` for clickable rows (only returns `Sense::hover()`, use `allocate_exact_size` with `Sense::click()` instead)
+- Adding `ui.interact()` that overlaps inner button rects (steals clicks from child widgets)
+- Forgetting to close the menu after a context menu action (`ui.close_menu()`)
 
 ## Commit Standards
 

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Embedded fallback shader used when the on-disk shader can't be loaded.
-const FALLBACK_SHADER: &str = include_str!("../../../assets/shaders/pbr_simple.wgsl");
+const FALLBACK_SHADER: &str = include_str!("../../assets/shaders/pbr_simple.wgsl");
 
 /// Loads and caches WGSL shader modules, recompiling on file change (native only).
 pub struct ShaderLoader {

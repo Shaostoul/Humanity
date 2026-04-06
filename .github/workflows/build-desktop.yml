@@ -19,22 +19,22 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             label: windows-x64
-            artifact_name: humanity-engine.exe
+            artifact_name: HumanityOS.exe
             asset_name: HumanityOS-windows-x64.exe
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             label: linux-x64
-            artifact_name: humanity-engine
+            artifact_name: HumanityOS
             asset_name: HumanityOS-linux-x64
           - os: macos-latest
             target: aarch64-apple-darwin
             label: macos-arm64
-            artifact_name: humanity-engine
+            artifact_name: HumanityOS
             asset_name: HumanityOS-macos-arm64
           - os: macos-latest
             target: x86_64-apple-darwin
             label: macos-x64
-            artifact_name: humanity-engine
+            artifact_name: HumanityOS
             asset_name: HumanityOS-macos-x64
 
     runs-on: ${{ matrix.os }}
@@ -60,11 +60,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ matrix.target }}-cargo-${{ hashFiles('native/Cargo.lock') }}
+          key: ${{ matrix.target }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ matrix.target }}-cargo-
 
       - name: Build native engine (release)
-        run: cargo build --release --target ${{ matrix.target }} -p humanity-engine
+        run: cargo build --release --target ${{ matrix.target }} --features native
 
       - name: Bundle binary with data
         shell: bash

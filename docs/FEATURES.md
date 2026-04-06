@@ -197,7 +197,7 @@ Detect and display NFTs with Metaplex metadata.
 ### Donation Page
 Funding tracker with progress bar, dynamic multi-crypto address support (unlimited networks).
 - Web: `web/pages/donate.html`, `web/pages/donate-app.js`
-- Native: `native/src/gui/pages/donate.rs`
+- Native: `src/gui/pages/donate.rs`
 - Data: `data/server-config.json` (funding.addresses array)
 
 ### Wallet Guide
@@ -207,7 +207,7 @@ Step-by-step beginner guide for all wallet operations (receive, send, buy, sell,
 
 ### Admin Donation Address Management
 Admin settings UI for adding, editing, removing, and reordering donation addresses.
-- Native: `native/src/gui/pages/settings.rs` (Donation Addresses section)
+- Native: `src/gui/pages/settings.rs` (Donation Addresses section)
 
 ---
 
@@ -342,28 +342,28 @@ Server-side game world with entity management, position validation, player sync.
 
 ### egui GUI System
 Immediate-mode UI with theme.ron, reusable widgets, 5 pages.
-- Native: `native/src/gui/` (theme.rs, widgets/, pages/)
+- Native: `src/gui/` (theme.rs, widgets/, pages/)
 - Data: `data/gui/theme.ron`
 
 ### Main Menu
 Title screen with Play, Settings, Quit. Overlays on 3D scene.
-- Native: `native/src/gui/pages/main_menu.rs`
+- Native: `src/gui/pages/main_menu.rs`
 
 ### Settings Page
 Graphics, audio, controls, game, account categories with sliders and toggles.
-- Native: `native/src/gui/pages/settings.rs`
+- Native: `src/gui/pages/settings.rs`
 
 ### Inventory Page
 6-column item grid with selection and detail panel.
-- Native: `native/src/gui/pages/inventory.rs`
+- Native: `src/gui/pages/inventory.rs`
 
 ### Chat Overlay
 Semi-transparent in-game chat. Toggle with Enter key.
-- Native: `native/src/gui/pages/chat.rs`
+- Native: `src/gui/pages/chat.rs`
 
 ### HUD
 Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter.
-- Native: `native/src/gui/pages/hud.rs`
+- Native: `src/gui/pages/hud.rs`
 
 ---
 
@@ -371,71 +371,71 @@ Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter.
 
 ### Three-Mode Camera
 First-person, third-person, orbit/free with smooth transitions.
-- Native: `native/src/renderer/camera.rs`
+- Native: `src/renderer/camera.rs`
 
 ### wgpu Renderer
 PBR-lite rendering with depth buffer, materials, instanced rendering.
-- Native: `native/src/renderer/mod.rs`, `native/src/renderer/pipeline.rs`
+- Native: `src/renderer/mod.rs`, `src/renderer/pipeline.rs`
 
 ### Sky Renderer
 Time-of-day colors (dawn/day/dusk/night) modified by weather.
-- Native: `native/src/renderer/sky.rs`
+- Native: `src/renderer/sky.rs`
 
 ### GLTF Model Loading
 Load .glb/.gltf models with normal and UV fallbacks. Cached by path.
-- Native: `native/src/assets/mod.rs`
+- Native: `src/assets/mod.rs`
 
 ### Instanced Rendering
 Batched drawing for objects sharing mesh and material.
-- Native: `native/src/renderer/mod.rs` (InstanceBatch)
+- Native: `src/renderer/mod.rs` (InstanceBatch)
 
 ### Icosphere Planet Terrain
 Recursive subdivision from icosahedron. LOD from billboard to walkable surface.
-- Native: `native/src/terrain/icosphere.rs`, `native/src/terrain/planet.rs`
+- Native: `src/terrain/icosphere.rs`, `src/terrain/planet.rs`
 - Data: `data/planets/*.ron`
 
 ### Heightmap Terrain Generation
 Procedural terrain from heightmaps with 16 biome types.
-- Native: `native/src/terrain/heightmap.rs`
+- Native: `src/terrain/heightmap.rs`
 
 ### Voxel Asteroids
 Sparse octree storage, greedy meshing, ore veins by classification, mining.
-- Native: `native/src/terrain/asteroid.rs`
+- Native: `src/terrain/asteroid.rs`
 - Data: `data/asteroids/types.csv`
 
 ### Ship Interiors
 Ship layouts from RON, room mesh generation, BFS pathfinding between rooms.
-- Native: `native/src/ship/layout.rs`, `native/src/ship/rooms.rs`
+- Native: `src/ship/layout.rs`, `src/ship/rooms.rs`
 - Data: `data/ships/starter_fleet.ron`
 
 ### Physics (rapier3d)
 Rigid bodies, colliders, raycasting, simulation stepping.
-- Native: `native/src/physics/mod.rs`
+- Native: `src/physics/mod.rs`
 
 ### Audio (kira)
 Sound effects, music, spatial audio with distance falloff, volume controls.
-- Native: `native/src/audio/mod.rs`, `native/src/audio/sounds.rs`
+- Native: `src/audio/mod.rs`, `src/audio/sounds.rs`
 
 ### ECS (hecs)
 System trait, SystemRunner, 20+ components, per-frame tick.
-- Native: `native/src/ecs/systems.rs`, `native/src/ecs/components.rs`
+- Native: `src/ecs/systems.rs`, `src/ecs/components.rs`
 
 ### Hot-Reload
 File watcher (notify) invalidates asset cache per frame.
-- Native: `native/src/hot_reload/`, `native/src/assets/mod.rs`
+- Native: `src/hot_reload/`, `src/assets/mod.rs`
 
 ### Multiplayer Networking
 WebSocket client (tungstenite), message protocol, ECS sync, position interpolation.
-- Native: `native/src/net/protocol.rs`, `native/src/net/client.rs`, `native/src/net/sync.rs`
+- Native: `src/net/protocol.rs`, `src/net/client.rs`, `src/net/sync.rs`
 
 ### Mod Support
 Mod manifest format, directory scanning, load order, path override resolution.
-- Native: `native/src/mods/mod.rs`
+- Native: `src/mods/mod.rs`
 - Data: `data/mods/README.md`, `data/mods/example-mod/mod.json`
 
 ### World Persistence
 Save and load game world state (entities, terrain, player progress).
-- Native: `native/src/persistence.rs`
+- Native: `src/persistence.rs`
 
 ---
 
@@ -443,87 +443,87 @@ Save and load game world state (entities, terrain, player progress).
 
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
-- Native: `native/src/systems/player.rs`
+- Native: `src/systems/player.rs`
 
 ### Interaction System
 Raycast from camera, find nearest interactable entity.
-- Native: `native/src/systems/interaction.rs`
+- Native: `src/systems/interaction.rs`
 
 ### Day/Night Cycle
 GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game day.
-- Native: `native/src/systems/time.rs`
+- Native: `src/systems/time.rs`
 
 ### Weather System
 7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions.
-- Native: `native/src/systems/weather.rs`
+- Native: `src/systems/weather.rs`
 
 ### Hydrological System
 Rain cycle, rivers, aquifers, contamination tracking, water table simulation.
-- Native: `native/src/systems/hydrology.rs`
+- Native: `src/systems/hydrology.rs`
 
 ### Atmospheric System
 Gas tracking, explosions, suffocation, pressure simulation.
-- Native: `native/src/systems/atmosphere.rs`
+- Native: `src/systems/atmosphere.rs`
 
 ### Disaster System
 21 disaster types with chain reactions, severity scaling, black holes.
-- Native: `native/src/systems/disasters.rs`
+- Native: `src/systems/disasters.rs`
 
 ### Farming
 6 growth stages, water/health simulation, seasonal effects.
-- Native: `native/src/systems/farming/mod.rs`
+- Native: `src/systems/farming/mod.rs`
 
 ### Inventory
 ItemStack slots, add/remove/transfer, max stack from data.
-- Native: `native/src/systems/inventory/mod.rs`
+- Native: `src/systems/inventory/mod.rs`
 
 ### Crafting
 Recipe matching from CSV, input validation, timed crafting.
-- Native: `native/src/systems/crafting/mod.rs`
+- Native: `src/systems/crafting/mod.rs`
 - Data: `data/recipes.csv`
 
 ### Construction
 Blueprint placement, snap-to-grid, timed building, material consumption.
-- Native: `native/src/systems/construction/mod.rs`
+- Native: `src/systems/construction/mod.rs`
 - Data: `data/blueprints/basic.ron`
 
 ### Skills/Progression
 20 skills across 5 categories, XP curves, level-up notifications.
-- Native: `native/src/systems/skills/mod.rs`
+- Native: `src/systems/skills/mod.rs`
 - Data: `data/skills/skills.csv`
 
 ### AI Behaviors
 5 behavior types (passive, aggressive, herd, predator, guard) with state machines.
-- Native: `native/src/systems/ai/mod.rs`
+- Native: `src/systems/ai/mod.rs`
 
 ### Vehicles/Mechs
 Enter/exit vehicles, torso twist, jump jets, heat management.
-- Native: `native/src/systems/vehicles/mod.rs`
+- Native: `src/systems/vehicles/mod.rs`
 
 ### Ecology/Disease
 Disease spread by proximity, seasonal effects, population tracking.
-- Native: `native/src/systems/ecology.rs`
+- Native: `src/systems/ecology.rs`
 
 ### Quests
 Data-driven quest progression from RON files. 6 objective types.
-- Native: `native/src/systems/quests/mod.rs`
+- Native: `src/systems/quests/mod.rs`
 - Data: `data/quests/*.ron`
 
 ### Combat
 Damage calculation, status effects.
-- Native: `native/src/systems/combat/`
+- Native: `src/systems/combat/`
 
 ### Economy
 Fleet resource management.
-- Native: `native/src/systems/economy/`
+- Native: `src/systems/economy/`
 
 ### Navigation
 Multi-scale navigation (galaxy, system, orbital, surface).
-- Native: `native/src/systems/navigation/`
+- Native: `src/systems/navigation/`
 
 ### Logistics
 Cargo transport and shipping routes.
-- Native: `native/src/systems/logistics/`
+- Native: `src/systems/logistics/`
 
 ---
 

@@ -1327,6 +1327,94 @@ mod native_app {
                                             log::info!("Group list received: {} groups", state.gui_state.chat_groups.len());
                                         }
                                     }
+                                    Some("dm") => {
+                                        // Incoming DM message
+                                        let from_key = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
+                                        let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        // Determine partner key: if from us, it's the "to" field; otherwise it's the sender
+                                        let partner = if from_key == state.gui_state.profile_public_key {
+                                            val.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string()
+                                        } else {
+                                            from_key.clone()
+                                        };
+                                        let dm_channel = format!("dm:{}", partner);
+                                        state.gui_state.chat_messages.push(crate::gui::ChatMessage {
+                                            sender_name: from_name,
+                                            sender_key: from_key,
+                                            content,
+                                            timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                            channel: dm_channel,
+                                        });
+                                        while state.gui_state.chat_messages.len() > 200 {
+                                            state.gui_state.chat_messages.remove(0);
+                                        }
+                                    }
+                                    Some("dm_history") => {
+                                        // DM conversation history
+                                        let partner = val.get("partner").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let dm_channel = format!("dm:{}", partner);
+                                        // Clear existing DM messages for this partner
+                                        state.gui_state.chat_messages.retain(|m| m.channel != dm_channel);
+                                        if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
+                                            for m in msgs {
+                                                let from_key = m.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let from_name = m.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
+                                                let content = m.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let ts = m.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                state.gui_state.chat_messages.push(crate::gui::ChatMessage {
+                                                    sender_name: from_name,
+                                                    sender_key: from_key,
+                                                    content,
+                                                    timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                                    channel: dm_channel.clone(),
+                                                });
+                                            }
+                                            log::info!("DM history for {}: {} messages", partner, msgs.len());
+                                        }
+                                    }
+                                    Some("group_msg") => {
+                                        // Incoming group message
+                                        let group_id = val.get("group_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let from_key = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
+                                        let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        let group_channel = format!("group:{}", group_id);
+                                        state.gui_state.chat_messages.push(crate::gui::ChatMessage {
+                                            sender_name: from_name,
+                                            sender_key: from_key,
+                                            content,
+                                            timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                            channel: group_channel,
+                                        });
+                                        while state.gui_state.chat_messages.len() > 200 {
+                                            state.gui_state.chat_messages.remove(0);
+                                        }
+                                    }
+                                    Some("group_history") => {
+                                        let group_id = val.get("group_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let group_channel = format!("group:{}", group_id);
+                                        // Clear existing messages for this group
+                                        state.gui_state.chat_messages.retain(|m| m.channel != group_channel);
+                                        if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
+                                            for m in msgs {
+                                                let from_key = m.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let from_name = m.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
+                                                let content = m.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let ts = m.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                state.gui_state.chat_messages.push(crate::gui::ChatMessage {
+                                                    sender_name: from_name,
+                                                    sender_key: from_key,
+                                                    content,
+                                                    timestamp: crate::gui::pages::chat::format_timestamp(ts),
+                                                    channel: group_channel.clone(),
+                                                });
+                                            }
+                                            log::info!("Group history for {}: {} messages", group_id, msgs.len());
+                                        }
+                                    }
                                     Some("reactions_sync") | Some("pins_sync")
                                     | Some("member_joined") => {
                                         // Acknowledged but not yet rendered in native UI

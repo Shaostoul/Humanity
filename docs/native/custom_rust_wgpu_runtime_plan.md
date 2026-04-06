@@ -7,7 +7,7 @@ Build a custom engine runtime in Rust with wgpu, keeping simulation authoritativ
 
 1. `core-*` crates: deterministic simulation law (authoritative)
 2. `engine-*` crates: rendering/input/audio/runtime adapters
-3. `native/game` crates: gameplay composition and UX
+3. Game crates: gameplay composition and UX
 
 ## Initial milestones
 

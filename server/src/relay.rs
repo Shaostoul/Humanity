@@ -3103,7 +3103,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
                                                 let _ = state_clone.broadcast_tx.send(private);
                                             } else {
                                                 let ch_name = trimmed
-                                                    .split_whitespace()
+                                                    .splitn(2, char::is_whitespace)
                                                     .nth(1)
                                                     .unwrap_or("")
                                                     .trim()

@@ -214,7 +214,7 @@ Everything in this section is **built and working**.
 | HUD page | ✅ | Health, status, interaction prompts (v0.36.0) |
 | Hot-reloadable theme | ✅ | theme.ron for colors, spacing, fonts; live reload (v0.36.0) |
 
-> **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary in `native/` replaces it.
+> **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary replaces it. Source lives in `src/` and `crates/` at the repo root.
 
 ---
 

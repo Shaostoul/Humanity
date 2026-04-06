@@ -7,7 +7,7 @@
 **Depends on:** [game-engine.md](game-engine.md) (engine decision), [graphics-pipeline.md](graphics-pipeline.md) (renderer design), [audio-engine.md](audio-engine.md) (audio stack), [educational-gameplay.md](educational-gameplay.md) (skill system philosophy)
 
 > **Implementation vs Design:** This document describes the v1.0 target architecture. As of v0.34.0,
-> the actual implementation lives in `native/src/` (not the sub-crates in `native/crates/` which are
+> the actual implementation lives in `src/` (not the sub-crates in `crates/` which are
 > mostly scaffolds). Key differences from this design:
 > - **GUI**: egui immediate-mode UI (theme.ron, widgets, 5 pages) replaces Tauri WebView (v0.36.0)
 > - **ECS**: Uses `hecs` crate, not a custom archetypal ECS
@@ -73,10 +73,10 @@ These principles are non-negotiable. Every system in the engine must satisfy all
 
 ### Current Implementation (v0.34.0)
 
-The working engine code lives in `native/src/`, structured as a single library crate:
+The working engine code lives in `src/`, structured as a single library crate:
 
 ```
-native/src/
+src/
   lib.rs                        # Engine init, main loop, system registration
   platform.rs                   # Cross-platform abstraction (native/WASM)
   wasm_entry.rs                 # WASM entry point (WebGPU)

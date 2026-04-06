@@ -15,7 +15,7 @@ If a system teaches something false, hides causality, violates constraints, or b
 
 Testing enforces the authority chain:
 
-`accord/` → `design/` → `data/` → `native/`
+`accord/` → `design/` → `data/` → `src/`
 
 Testing must enforce `design/core/accord_constraints.md`, `design/core/simulation_laws.md`, and `design/core/realism_constraints.md`.
 

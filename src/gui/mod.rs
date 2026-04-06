@@ -687,6 +687,8 @@ pub struct GuiState {
     pub edit_channel_description: String,
     /// Whether the delete confirmation is showing in the edit modal.
     pub edit_channel_confirm_delete: bool,
+    /// Whether the slash commands help modal is visible.
+    pub show_help_modal: bool,
 
     // ── Debug console state ──
 
@@ -924,6 +926,7 @@ impl Default for GuiState {
             edit_channel_name: String::new(),
             edit_channel_description: String::new(),
             edit_channel_confirm_delete: false,
+            show_help_modal: false,
             debug_console_visible: false,
             debug_log: Vec::new(),
             studio: StudioState::default(),

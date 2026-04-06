@@ -30,18 +30,18 @@ Each domain owns specific directories. Agents MUST NOT modify files outside thei
 
 | Domain | Owns | Key Files | Priority Gaps |
 |--------|------|-----------|---------------|
-| **Renderer** | `native/src/renderer/`, `assets/shaders/` | mod.rs, camera.rs, hologram.rs, pipeline.rs | Shadow mapping, particles, post-processing, frustum culling |
-| **GUI** | `native/src/gui/` | mod.rs, theme.rs, widgets/, pages/ | Page polish, new pages, widget library |
-| **Systems** | `native/src/systems/` | All game systems | Combat, economy, logistics (stubs to fill) |
-| **Terrain** | `native/src/terrain/`, `native/src/ship/` | planet.rs, asteroid.rs, fibonacci.rs | Terrain streaming, room materials |
-| **Physics** | `native/src/physics/` | mod.rs, collision.rs, fluid.rs | Fluid sim, collision events |
-| **Audio** | `native/src/audio/` | mod.rs, spatial.rs | Spatial 3D audio wiring |
-| **Network** | `native/src/net/` | client.rs, sync.rs, protocol.rs | State replication improvements |
+| **Renderer** | `src/renderer/`, `assets/shaders/` | mod.rs, camera.rs, hologram.rs, pipeline.rs | Shadow mapping, particles, post-processing, frustum culling |
+| **GUI** | `src/gui/` | mod.rs, theme.rs, widgets/, pages/ | Page polish, new pages, widget library |
+| **Systems** | `src/systems/` | All game systems | Combat, economy, logistics (stubs to fill) |
+| **Terrain** | `src/terrain/`, `src/ship/` | planet.rs, asteroid.rs, fibonacci.rs | Terrain streaming, room materials |
+| **Physics** | `src/physics/` | mod.rs, collision.rs, fluid.rs | Fluid sim, collision events |
+| **Audio** | `src/audio/` | mod.rs, spatial.rs | Spatial 3D audio wiring |
+| **Network** | `src/net/` | client.rs, sync.rs, protocol.rs | State replication improvements |
 | **Data** | `data/` | All CSV/TOML/RON/JSON | Content expansion (items, recipes, quests) |
 | **Shaders** | `assets/shaders/` | All .wgsl files | Wire unused shaders, new materials |
 | **Web** | `web/` | All HTML/JS/CSS | Chat, pages, shared components |
 | **Server** | `server/` | relay.rs, api.rs, storage/ | Federation, new endpoints |
-| **Core** | `native/src/lib.rs`, `ecs/`, `assets/` | lib.rs, components.rs, AssetManager | ECS optimization, new components |
+| **Core** | `src/lib.rs`, `ecs/`, `assets/` | lib.rs, components.rs, AssetManager | ECS optimization, new components |
 
 ---
 

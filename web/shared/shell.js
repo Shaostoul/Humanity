@@ -91,7 +91,7 @@
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops') || p.startsWith('/pages/ops'))  active = 'ops';
-    else if (p.startsWith('/download') || p.startsWith('/activities/download'))  active = 'download';
+    else if (p.startsWith('/download'))  active = 'download';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
     else if (p.startsWith('/activities/gardening')) active = 'garden';
@@ -540,7 +540,7 @@
       /* Blue group: system/config */
       '<span class="nav-group-blue">' +
         navTab('/settings', 'settings',  'Settings',  'settings') +
-        navTab('/activities/download', 'download', 'Download', 'download') +
+        navTab('/download', 'download', 'Download', 'download') +
         navTab('/ops',      'ops',       'Ops',       'ops') +
         navTab('/bugs',     'bug',       'Bugs',      'bugs') +
         navTab('/dev',      'dev',       'Dev',       'dev') +
@@ -591,7 +591,7 @@
     '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
       mobileLink('/settings',             'Settings') +
       mobileLink('/bugs',                  'Bug Reports') +
-      mobileLink('/activities/download',   'Download') +
+      mobileLink('/download',   'Download') +
     '</div>' +
     '<div class="mobile-hub-group"><h4>Context</h4>' +
       '<div style="padding:0.5rem 0.55rem;">' + buildContextToggle() + '</div>' +

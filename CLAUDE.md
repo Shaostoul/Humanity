@@ -33,7 +33,7 @@ just logs             # tail server logs
 
 ## Architecture
 
-Three-part split: `server/` (backend), `web/` (website), `native/` (desktop client).
+Three-part split: `server/` (backend), `web/` (website), `src/` (desktop client).
 
 ```
 Web (browser)
@@ -67,17 +67,17 @@ Identity: Ed25519 key = identity = Solana wallet address
 | `server/src/main.rs` | Router setup, CSP middleware, axum config |
 | `server/src/storage/` | 20+ domain modules (messages, channels, tasks, signed_profiles, guilds, reputation, trading, files…) |
 | `server/src/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, utils.rs |
-| `native/src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship, persistence |
-| `native/src/systems/` | 15+ game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat, weather, hydrology, atmosphere, disasters |
-| `native/src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree), heightmap terrain (16 biomes) |
-| `native/src/ship/` | Ship layouts from RON, room mesh generation, BFS pathfinding |
-| `native/src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
-| `native/src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
-| `native/src/audio/` | kira crate: spatial 3D audio, music, SFX, volume controls |
-| `native/src/mods/` | Mod manifest, load order, data override resolution |
-| `native/src/persistence.rs` | World save/load (entities, terrain, player progress) |
-| `native/crates/` | 19 sub-crates (core, modules, persistence, etc.) |
-| `native/src/gui/` | egui immediate-mode GUI: theme, widgets, pages |
+| `src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship, persistence |
+| `src/systems/` | 15+ game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat, weather, hydrology, atmosphere, disasters |
+| `src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree), heightmap terrain (16 biomes) |
+| `src/ship/` | Ship layouts from RON, room mesh generation, BFS pathfinding |
+| `src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
+| `src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
+| `src/audio/` | kira crate: spatial 3D audio, music, SFX, volume controls |
+| `src/mods/` | Mod manifest, load order, data override resolution |
+| `src/persistence.rs` | World save/load (entities, terrain, player progress) |
+| `crates/` | 19 sub-crates (core, modules, persistence, etc.) |
+| `src/gui/` | egui immediate-mode GUI: theme, widgets, pages |
 | `web/chat/app.js` | Core chat logic (~1700 LOC) |
 | `web/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
 | `web/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
@@ -172,7 +172,7 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 
 **Rate limiting**: Fibonacci backoff per public key in `relay.rs`
 
-**Game System trait** (native/src/ecs/systems.rs):
+**Game System trait** (src/ecs/systems.rs):
 ```rust
 trait System: Send + Sync {
     fn name(&self) -> &str;
@@ -211,7 +211,7 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 1. Check current version: `gh release view --repo Shaostoul/Humanity --json tagName`
 2. Bump the patch (Y) for non-Rust changes, minor (X) for Rust changes
 3. Update ALL version strings (they MUST stay in sync):
-   - `native/Cargo.toml` → `version`
+   - `Cargo.toml` → `version`
    - `web/shared/sw.js` → `CACHE_NAME` (bump number)
    - `web/pages/settings-app.js` → version tag text
    - `web/pages/ops.html` → debug version text
@@ -265,7 +265,7 @@ server_members (public_key, name, role, joined_at, last_seen)
 - Tasks scope filter: `activeScope = 'cosmos'` by default; task labels must match or they're filtered out
 - Deploy `git pull` fails if server has local changes → `just sync` fixes it
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
-- **Repo restructure (v0.37.0):** `engine/` renamed to `native/`, `ui/` renamed to `web/`, `app/` (Tauri) deprecated. Old path references in docs, configs, or scripts may need updating.
+- **Repo restructure (v0.37.0):** `engine/` renamed to `native/`, `ui/` renamed to `web/`, `app/` (Tauri) deprecated. In v0.88.0+, `native/` was eliminated: `native/src/` moved to `src/`, `native/crates/` to `crates/`, `native/Cargo.toml` to root `Cargo.toml`.
 
 ## Real/Sim toggle
 

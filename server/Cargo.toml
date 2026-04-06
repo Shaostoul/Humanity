@@ -6,7 +6,7 @@ description = "WebSocket relay server for the Humanity Network"
 license = "CC0-1.0"
 
 [dependencies]
-humanity-core = { path = "../native/crates/humanity-core" }
+humanity-core = { path = "../crates/humanity-core" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

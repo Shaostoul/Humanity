@@ -28,7 +28,7 @@ Highest to lowest authority:
 3. `data/`  
    Canonical structured definitions of entities, resources, and world state.
 
-4. `native/`
+4. `src/` and `crates/`
    Deterministic execution of design over data across time.
 
 5. `web/` and `tools/`
@@ -105,7 +105,7 @@ Data must be:
 
 ---
 
-### Engine Layer (`native/`)
+### Engine Layer (`src/`, `crates/`)
 The engine executes:
 - discrete time progression
 - system updates as pure transformations of state
@@ -140,7 +140,7 @@ A system is a bounded behavioral module that:
 - applies rules over time
 - produces state changes and events
 
-Systems live in `design/systems/` and are implemented in `native/`.
+Systems live in `design/systems/` and are implemented in `src/`.
 
 Systems must not embed schema definitions; they reference `design/schemas/`.
 

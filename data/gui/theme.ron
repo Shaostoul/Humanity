@@ -39,14 +39,14 @@
     sidebar_width: 280.0,
     card_padding: 16.0,
     modal_width: 480.0,
-    row_gap: 8.0,
+    row_gap: 0.0,
     section_gap: 4.0,
     item_padding: 4.0,
-    panel_margin: 8.0,
-    icon_size: 42.0,
+    panel_margin: 0.0,
+    icon_size: 31.557497,
     icon_small: 16.0,
-    row_height: 32.0,
-    header_height: 48.0,
+    row_height: 20.795,
+    header_height: 32.03125,
     border_width: 2.0,
     status_dot_size: 4.0,
     name_size: 18.0,
@@ -54,18 +54,10 @@
     small_size: 11.0,
     heading_size: 18.0,
     title_size: 24.0,
-
-    // Borders
     border_radius_widget: 9.0,
-
-    // Settings layout
     settings_label_width: 200.0,
-
-    // Slider styling
     slider_track: (0.2, 0.2, 0.25, 1.0),
     slider_track_height: 4.0,
     slider_thumb_radius: 7.0,
-
-    // Checkbox styling
     checkbox_size: 18.0,
 )
