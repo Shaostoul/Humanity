@@ -1,63 +1,106 @@
+// HumanityOS Theme Configuration
+// Compact minimalistic values matching the chat page density.
+// Hot-reloadable: edit this file and the entire UI updates.
+
 (
-    bg_primary: (0.039, 0.039, 0.047, 1.0),
-    bg_secondary: (0.078, 0.078, 0.094, 1.0),
-    bg_tertiary: (0.145, 0.145, 0.188, 1.0),
-    bg_card: (0.102, 0.102, 0.133, 1.0),
+    // ── Background colors ──
+    bg_primary: (0.039, 0.039, 0.047, 1.0),    // #0a0a0c (deepest)
+    bg_secondary: (0.078, 0.078, 0.094, 1.0),  // #141418
+    bg_tertiary: (0.145, 0.145, 0.188, 1.0),   // #252530
+    bg_card: (0.102, 0.102, 0.133, 1.0),       // #1a1a22
     bg_modal: (0.0, 0.0, 0.0, 0.7),
-    accent: (0.929, 0.549, 0.141, 1.0),
+
+    // Panel backgrounds (used by all pages)
+    bg_panel: (0.078, 0.078, 0.098, 1.0),       // rgb(20, 20, 25)
+    bg_sidebar: (0.086, 0.086, 0.110, 1.0),     // rgb(22, 22, 28)
+    bg_sidebar_dark: (0.118, 0.118, 0.141, 1.0), // rgb(30, 30, 36)
+
+    // ── Accent colors ──
+    accent: (0.929, 0.549, 0.141, 1.0),        // #ED8C24 HumanityOS orange
     accent_hover: (1.0, 0.65, 0.24, 1.0),
     accent_pressed: (0.8, 0.45, 0.1, 1.0),
+
+    // ── Text colors ──
     text_primary: (0.91, 0.91, 0.918, 1.0),
     text_secondary: (0.533, 0.533, 0.58, 1.0),
     text_muted: (0.416, 0.416, 0.459, 1.0),
     text_on_accent: (0.05, 0.05, 0.05, 1.0),
+
+    // ── Semantic colors ──
     success: (0.2, 0.75, 0.3, 1.0),
     warning: (0.95, 0.75, 0.1, 1.0),
     danger: (0.9, 0.25, 0.2, 1.0),
     info: (0.2, 0.5, 0.9, 1.0),
     border: (0.165, 0.165, 0.208, 1.0),
     border_focus: (0.929, 0.549, 0.141, 1.0),
+
+    // ── Badge colors ──
     badge_admin: (0.9, 0.5, 0.13, 1.0),
     badge_mod: (0.15, 0.68, 0.38, 1.0),
     badge_verified: (0.2, 0.58, 0.85, 1.0),
     badge_donor: (0.61, 0.35, 0.71, 1.0),
     badge_live: (0.9, 0.3, 0.24, 1.0),
-    font_size_small: 12.0,
-    font_size_body: 14.0,
-    font_size_heading: 20.0,
-    font_size_title: 28.0,
-    spacing_xs: 4.0,
-    spacing_sm: 8.0,
-    spacing_md: 16.0,
-    spacing_lg: 24.0,
-    spacing_xl: 32.0,
-    border_radius: 6.0,
-    border_radius_lg: 12.0,
-    button_height: 36.0,
-    button_padding_h: 16.0,
-    input_height: 36.0,
-    sidebar_width: 280.0,
-    card_padding: 16.0,
-    modal_width: 480.0,
-    row_gap: 0.0,
-    section_gap: 4.0,
-    item_padding: 4.0,
-    panel_margin: 0.0,
-    icon_size: 31.557497,
-    icon_small: 16.0,
-    row_height: 20.795,
-    header_height: 32.03125,
-    border_width: 2.0,
-    status_dot_size: 4.0,
-    name_size: 18.0,
-    body_size: 16.0,
+
+    // ── Font sizes (compact) ──
+    font_size_small: 11.0,    // was 12.0
+    font_size_body: 13.0,     // was 14.0
+    font_size_heading: 16.0,  // was 20.0
+    font_size_title: 22.0,    // was 28.0
+
+    // ── Legacy spacing (used by older code) ──
+    spacing_xs: 2.0,   // was 4.0
+    spacing_sm: 4.0,   // was 8.0
+    spacing_md: 8.0,   // was 16.0
+    spacing_lg: 12.0,  // was 24.0
+    spacing_xl: 16.0,  // was 32.0
+
+    // ── Border radii ──
+    border_radius: 4.0,      // was 6.0
+    border_radius_lg: 8.0,   // was 12.0
+
+    // ── Component sizes (compact) ──
+    button_height: 24.0,     // was 36.0 — much tighter
+    button_padding_h: 10.0,  // was 16.0
+    input_height: 24.0,      // was 36.0
+    sidebar_width: 240.0,    // was 280.0
+    card_padding: 8.0,       // was 16.0 — tighter cards
+    modal_width: 440.0,      // was 480.0
+
+    // ── Widget spacing (shared across all widgets) ──
+    row_gap: 2.0,            // tight row spacing
+    section_gap: 4.0,        // between sections
+    item_padding: 4.0,       // inside items
+    panel_margin: 6.0,       // was 8.0 or 0.0 — small but visible
+
+    // ── Widget sizes (match chat density) ──
+    icon_size: 14.0,         // was 31.5 — way smaller
+    icon_small: 12.0,        // was 16.0
+    row_height: 18.0,        // was 20.8 — chat row height
+    header_height: 24.0,     // was 32.0
+    border_width: 1.0,       // was 2.0
+    status_dot_size: 6.0,    // was 4.0 — slightly bigger for visibility
+
+    // ── Widget font sizes (override global) ──
+    name_size: 13.0,         // was 18.0
+    body_size: 13.0,         // was 16.0
     small_size: 11.0,
-    heading_size: 18.0,
-    title_size: 24.0,
-    border_radius_widget: 9.0,
-    settings_label_width: 200.0,
+    heading_size: 15.0,      // was 18.0
+    title_size: 20.0,        // was 24.0
+
+    // ── Widget borders ──
+    border_radius_widget: 3.0,  // was 9.0 — sharper corners
+    settings_label_width: 160.0, // was 200.0 — less wasted space
+
+    // ── Slider ──
     slider_track: (0.2, 0.2, 0.25, 1.0),
     slider_track_height: 4.0,
-    slider_thumb_radius: 7.0,
-    checkbox_size: 18.0,
+    slider_thumb_radius: 6.0,   // was 7.0
+
+    // ── Checkbox ──
+    checkbox_size: 14.0,        // was 18.0
+
+    // ── Badge styling (new) ──
+    badge_padding_h: 5.0,
+    badge_padding_v: 1.0,
+    badge_radius: 3.0,
 )
