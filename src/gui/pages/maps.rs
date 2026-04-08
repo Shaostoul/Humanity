@@ -276,23 +276,23 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_sm);
 
                             widgets::card(ui, theme, |ui| {
-                                detail_row(ui, theme, "Radius", &format!("{:.1} km", body_clone.radius_km));
+                                crate::gui::widgets::detail_row(ui, theme, "Radius", &format!("{:.1} km", body_clone.radius_km));
                                 if body_clone.mass_kg > 0.0 {
-                                    detail_row(ui, theme, "Mass", &format_mass(body_clone.mass_kg));
+                                    crate::gui::widgets::detail_row(ui, theme, "Mass", &format_mass(body_clone.mass_kg));
                                 }
-                                detail_row(ui, theme, "Gravity", &format!("{:.2} m/s2", body_clone.gravity));
-                                detail_row(ui, theme, "Atmosphere", &body_clone.atmosphere_desc);
+                                crate::gui::widgets::detail_row(ui, theme, "Gravity", &format!("{:.2} m/s2", body_clone.gravity));
+                                crate::gui::widgets::detail_row(ui, theme, "Atmosphere", &body_clone.atmosphere_desc);
                                 if body_clone.orbital_period_days > 0.0 {
-                                    detail_row(ui, theme, "Orbital Period", &format!("{:.1} days", body_clone.orbital_period_days));
+                                    crate::gui::widgets::detail_row(ui, theme, "Orbital Period", &format!("{:.1} days", body_clone.orbital_period_days));
                                 }
                                 if body_clone.semi_major_axis_au > 0.0 {
-                                    detail_row(ui, theme, "Orbit Radius", &format!("{:.3} AU", body_clone.semi_major_axis_au));
+                                    crate::gui::widgets::detail_row(ui, theme, "Orbit Radius", &format!("{:.3} AU", body_clone.semi_major_axis_au));
                                 }
                                 if body_clone.mean_temperature_k > 0.0 {
-                                    detail_row(ui, theme, "Temperature", &format!("{:.0} K", body_clone.mean_temperature_k));
+                                    crate::gui::widgets::detail_row(ui, theme, "Temperature", &format!("{:.0} K", body_clone.mean_temperature_k));
                                 }
                                 if !body_clone.moons.is_empty() {
-                                    detail_row(ui, theme, "Moons", &body_clone.moons.len().to_string());
+                                    crate::gui::widgets::detail_row(ui, theme, "Moons", &body_clone.moons.len().to_string());
                                 }
                             });
 
@@ -568,12 +568,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
 }
 
-fn detail_row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(format!("{}:", label)).color(theme.text_secondary()).size(theme.font_size_small));
-        ui.label(RichText::new(value).color(theme.text_primary()).size(theme.font_size_small));
-    });
-}
+// detail_row moved to crate::gui::widgets::detail_row
 
 fn format_mass(kg: f64) -> String {
     if kg >= 1e27 {

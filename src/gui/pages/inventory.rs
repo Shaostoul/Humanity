@@ -152,15 +152,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_sm);
 
                             widgets::card(ui, theme, |ui| {
-                                detail_row(ui, theme, "ID", &item.item_id);
-                                detail_row(ui, theme, "Quantity", &item.quantity.to_string());
-                                detail_row(ui, theme, "Category", &details.category);
-                                detail_row(ui, theme, "Subcategory", &details.subcategory);
-                                detail_row(ui, theme, "Weight", &format!("{:.2} kg", details.weight_kg));
-                                detail_row(ui, theme, "Stack Size", &details.stack_size.to_string());
-                                detail_row(ui, theme, "Material", &details.base_material);
+                                crate::gui::widgets::detail_row(ui, theme, "ID", &item.item_id);
+                                crate::gui::widgets::detail_row(ui, theme, "Quantity", &item.quantity.to_string());
+                                crate::gui::widgets::detail_row(ui, theme, "Category", &details.category);
+                                crate::gui::widgets::detail_row(ui, theme, "Subcategory", &details.subcategory);
+                                crate::gui::widgets::detail_row(ui, theme, "Weight", &format!("{:.2} kg", details.weight_kg));
+                                crate::gui::widgets::detail_row(ui, theme, "Stack Size", &details.stack_size.to_string());
+                                crate::gui::widgets::detail_row(ui, theme, "Material", &details.base_material);
                                 if details.durability > 0 {
-                                    detail_row(ui, theme, "Durability", &details.durability.to_string());
+                                    crate::gui::widgets::detail_row(ui, theme, "Durability", &details.durability.to_string());
                                 }
                             });
 
@@ -171,8 +171,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             }
                         } else {
                             widgets::card(ui, theme, |ui| {
-                                detail_row(ui, theme, "ID", &item.item_id);
-                                detail_row(ui, theme, "Quantity", &item.quantity.to_string());
+                                crate::gui::widgets::detail_row(ui, theme, "ID", &item.item_id);
+                                crate::gui::widgets::detail_row(ui, theme, "Quantity", &item.quantity.to_string());
                             });
                         }
 
@@ -403,9 +403,4 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
 }
 
-fn detail_row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(format!("{}:", label)).color(theme.text_secondary()).size(theme.font_size_small));
-        ui.label(RichText::new(value).color(theme.text_primary()).size(theme.font_size_small));
-    });
-}
+// detail_row moved to crate::gui::widgets::detail_row
