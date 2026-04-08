@@ -94,6 +94,7 @@
     else if (p.startsWith('/download'))  active = 'download';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
+    else if (p.startsWith('/projects'))  active = 'projects';
     else if (p.startsWith('/activities/gardening')) active = 'garden';
     else if (p.startsWith('/donate'))    active = 'donate';
     else if (p.startsWith('/data'))     active = 'data';
@@ -539,6 +540,7 @@
 
       /* Blue group: system/config */
       '<span class="nav-group-blue">' +
+        navTab('/projects', 'folder',    'Projects',  'projects') +
         navTab('/settings', 'settings',  'Settings',  'settings') +
         navTab('/download', 'download', 'Download', 'download') +
         navTab('/ops',      'ops',       'Ops',       'ops') +
