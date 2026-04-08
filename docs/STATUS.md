@@ -1,11 +1,26 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-04-06 | **Version:** v0.89.0
+> **Last updated:** 2026-04-07 | **Version:** v0.90.0
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
 
 **Legend:** ✅ Built/working | ⚠️ Partial/needs work | ❌ Not yet built | 🔜 Next priority
+
+---
+
+## Architecture (v0.90.0)
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Unified binary | ✅ | `server/` and `crates/` merged into `src/relay/`. One binary: `HumanityOS.exe` |
+| Headless mode | ✅ | `HumanityOS --headless` for server-only (VPS, Raspberry Pi) |
+| Default build | ✅ | Includes relay + renderer + game. Feature flags: `native`, `relay`, `wasm` |
+| Zero sub-crates | ✅ | 17 unused crates deleted, zero workspace complexity |
+| Config location | ✅ | `%APPDATA%/HumanityOS/` (stable across exe versions) |
+| Versioned exe archives | ✅ | `v{version}_HumanityOS.exe` in repo root, auto-purge keeps last 5 |
+| Auto version bump | ✅ | `just build-game` bumps version automatically |
+| Launcher scripts | ✅ | Taskbar pinning support |
 
 ---
 
@@ -119,8 +134,8 @@ Everything in this section is **built and working**.
 | Dual-target compilation | ✅ | Native (winit) + WASM (WebGPU) from same codebase (v0.25.0) |
 | Three-mode camera | ✅ | First-person, third-person, orbit with smooth transitions (v0.26.0) |
 | Platform abstraction | ✅ | platform.rs: logging, timing, asset loading across native/WASM |
-| WGSL shaders | ✅ | 30 shaders (planets, PBR, procedural materials) |
-| Game data files | ✅ | 23 crops, 111 items, 35 recipes, quest chains, blueprints |
+| WGSL shaders | ✅ | 41 shaders (planets, PBR, procedural materials, particles, bloom) |
+| Game data files | ✅ | 108 data files, ~3000+ entries across CSV/TOML/RON/JSON |
 | Gardening activity | ✅ | Playable 2D canvas farming (6 crops, save/load) |
 | Data loading (AssetManager) | ✅ | load_csv/toml/ron/json, FileWatcher, HotReloadCoordinator (v0.28.0) |
 | ECS system runner | ✅ | System trait, SystemRunner, 20 game components, per-frame tick (v0.29.0) |
@@ -156,7 +171,10 @@ Everything in this section is **built and working**.
 | Atmospheric system | ✅ | Gas tracking, explosions, suffocation, pressure (v0.42.0) |
 | Disaster system | ✅ | 21 disaster types, chain reactions, severity scaling (v0.42.0) |
 | World persistence | ✅ | Save/load game world state, entities, terrain (v0.42.0) |
-| Engine sub-crates | ⚠️ | 19 crates exist with structure, most implementations are scaffolds |
+| Emissive materials | ✅ | PBR shader emissive support (params.w = emissive_strength) (v0.90.0) |
+| 8 procedural materials | ✅ | Glass, ice, water, leather, crystal, rust, moss, lava (v0.90.0) |
+| Particle system | ✅ | particles.rs + particle.wgsl, 12 data-driven emitter types from particles.ron (v0.90.0) |
+| Bloom post-process | ⚠️ | bloom.rs + bloom.wgsl scaffolding built, needs render loop integration (v0.90.0) |
 
 ---
 
@@ -164,8 +182,8 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Rust/axum/tokio server | ✅ | Production-ready relay |
-| SQLite via rusqlite | ✅ | All data in relay.db |
+| Rust/axum/tokio server | ✅ | Production-ready relay, now part of unified binary |
+| SQLite via rusqlite | ✅ | relay.db at /opt/Humanity/data/ on VPS |
 | REST API | ✅ | 30+ endpoints (messages, tasks, projects, listings, reviews, members, etc.) |
 | Federation Phase 1+2 | ✅ | Server registry, discovery, S2S WebSocket |
 | Signed profile replication | ✅ | signed_profiles table, ProfileGossip between servers (v0.27.0) |
@@ -180,6 +198,7 @@ Everything in this section is **built and working**.
 | Admin analytics dashboard | ✅ | Server metrics, user activity, system health monitoring (v0.40.0) |
 | Guild system | ✅ | Create, join, search guilds with invite codes (v0.41.0) |
 | Reputation system | ✅ | Points, levels, leaderboard for community standing (v0.41.0) |
+| Unified binary deploy | ✅ | systemd service uses `HumanityOS --headless`, relay.db at /opt/Humanity/data/ (v0.90.0) |
 
 ---
 
@@ -205,7 +224,7 @@ Everything in this section is **built and working**.
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Standalone Rust binary | ✅ | egui + wgpu desktop app, DX12 on Windows, no Tauri dependency |
+| Standalone Rust binary | ✅ | egui + wgpu, DX12 on Windows, unified binary with relay (v0.90.0) |
 | egui GUI system | ✅ | Immediate-mode UI with theme.ron, reusable widgets (v0.36.0) |
 | Settings page | ✅ | Theme, display, controls, security (key unlock button) (v0.36.0, v0.89.0) |
 | Inventory page | ✅ | Item management UI (v0.36.0) |
@@ -214,9 +233,14 @@ Everything in this section is **built and working**.
 | Hot-reloadable theme | ✅ | theme.ron for colors, spacing, fonts; live reload (v0.36.0) |
 | Deferred 3D loading | ✅ | Chat loads instantly; 3D world loads on Enter World (v0.89.0) |
 | Zero-friction startup | ✅ | No passphrase prompt, no main menu; returning users go straight to chat (v0.89.0) |
-| Config persistence | ✅ | config.json next to exe; panel widths, collapse state, server URL, key encryption (v0.89.0) |
+| Config persistence | ✅ | config.json at %APPDATA%/HumanityOS/; panel widths, collapse state, server URL, key encryption (v0.89.0, v0.90.0) |
+| 13 universal widgets | ✅ | badge, detail_row, search_bar, sidebar_nav, category_filter, stat_card, button, data_table, icons, item_list, modal, row, toolbar (v0.90.0) |
+| 6 new theme colors | ✅ | bg_panel, bg_sidebar, bg_sidebar_dark, badge styling (v0.90.0) |
+| Slider widget | ✅ | Blue-green-red gradient + animated RGB knob (v0.90.0) |
+| DMs/Groups cog menus | ✅ | Settings cog menus on DMs/Groups headers (v0.90.0) |
+| Server header cog | ✅ | Cog replaces X disconnect button (v0.90.0) |
 
-> **Note:** Tauri v2 desktop wrapper (`app/`) is deprecated. The native Rust binary replaces it. Source lives in `src/` and `crates/` at the repo root. Binary output is `target/release/HumanityOS.exe`.
+> **Note:** Source code lives in `src/` at the repo root (unified binary). `native/` and `server/` directories no longer exist. Binary output is `target/release/HumanityOS.exe`.
 
 ---
 
@@ -232,6 +256,7 @@ Everything in this section is **built and working**.
 | Notes/journal | ✅ | Markdown preview, encrypted notes, daily log (v0.39.0) |
 | Resources page | ✅ | 45 curated real-world resource links across categories (v0.39.0) |
 | Glossary system | ✅ | 150+ terms with definitions, searchable overlay (v0.41.0) |
+| Projects page | ✅ | Project Universe timeline (Dec 2017 ICU through Jan 2026 rename) (v0.90.0) |
 
 ---
 
@@ -256,8 +281,28 @@ Everything in this section is **built and working**.
 | Solar system database | ✅ | 70+ celestial bodies with orbital and physical data (v0.42.0) |
 | Materials database | ✅ | 92 materials with properties (v0.42.0) |
 | Components database | ✅ | 102 components for crafting/construction (v0.42.0) |
-| Items and recipes | ✅ | 306 items, 227 recipes (expanded v0.42.0) |
+| Items and recipes | ✅ | 404 items, 371 recipes (expanded v0.90.0) |
+| Plants database | ✅ | 161 plants with growth stages and requirements (expanded v0.90.0) |
+| Creatures database | ✅ | 123 creatures with behaviors and stats (v0.90.0) |
+| Spells database | ✅ | 149 spells across multiple schools of magic (v0.90.0) |
+| Structures database | ✅ | 163 structures for construction (v0.90.0) |
+| Status effects | ✅ | 80 status effects (buffs, debuffs, conditions) (v0.90.0) |
+| Enchantments | ✅ | 133 enchantments for equipment (v0.90.0) |
+| Trade goods | ✅ | 185 items with balanced pricing (v0.90.0) |
+| Factions | ✅ | Faction definitions with relations and territories (v0.90.0) |
+| Biomes | ✅ | Biome definitions with flora/fauna/climate (v0.90.0) |
+| Tech tree | ✅ | Technology progression tree (v0.90.0) |
+| NPCs | ✅ | NPC definitions with dialogue triggers (v0.90.0) |
+| Dialogues | ✅ | Dialogue trees with branching choices (v0.90.0) |
+| Particles | ✅ | 12 particle emitter definitions for effects (v0.90.0) |
+| Sounds | ✅ | Sound configuration (sounds.toml) (v0.90.0) |
+| Offline behaviors | ✅ | Autonomous agent presets for off-screen NPCs (v0.90.0) |
+| Simulation systems | ✅ | electrical, plumbing, hvac, transportation, fire, docking RON files (v0.90.0) |
+| Real-world systems | ✅ | governance, psychology, medical, food_system, economy, creative_arts, aging_fitness RON files (v0.90.0) |
+| Science systems | ✅ | geology, oceanography, astronomy_tools, genetics, manufacturing, waste_management RON files (v0.90.0) |
+| Data schemas | ✅ | 22 TOML schemas documenting all data formats (v0.90.0) |
 | Platform brand SVGs | ✅ | Steam, Epic, GOG, PlayStation, Xbox icons (v0.41.0) |
+| 108 total data files | ✅ | ~3000+ entries across CSV/TOML/RON/JSON (v0.90.0) |
 
 ---
 
@@ -265,10 +310,11 @@ Everything in this section is **built and working**.
 
 | # | Feature | Category | Why |
 |---|---------|----------|-----|
-| 1 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
-| 2 | 🔜 Advanced trading | Marketplace | Order books, automated matching, trade history |
-| 3 | 🔜 Biome-specific gameplay | Engine | Weather/terrain/ecology integration per biome |
-| 4 | 🔜 Multiplayer world sync | Engine | Full ECS state replication for shared worlds |
+| 1 | 🔜 Bloom render integration | Rendering | bloom.rs + bloom.wgsl built, needs render loop hookup |
+| 2 | 🔜 Map rework | Web | Replace 2D canvas solar system with 3D engine orbit mode |
+| 3 | 🔜 Advanced trading | Marketplace | Order books, automated matching, trade history |
+| 4 | 🔜 Biome-specific gameplay | Engine | Weather/terrain/ecology integration per biome |
+| 5 | 🔜 Multiplayer world sync | Engine | Full ECS state replication for shared worlds |
 
 ---
 
@@ -276,17 +322,18 @@ Everything in this section is **built and working**.
 
 | Category | ✅ Built | ⚠️ Partial | ❌ Missing |
 |----------|---------|-----------|-----------|
+| Architecture | 8 | 0 | 0 |
 | Communication | 15 | 0 | 0 |
 | Identity & Security | 8 | 0 | 0 |
 | Push Notifications | 7 | 0 | 0 |
 | Task Board | 6 | 0 | 0 |
 | Marketplace | 12 | 0 | 0 |
-| Wallet & Funding | 8 | 0 | 0 |
-| Game Engine | 41 | 1 | 0 |
-| Server & Infrastructure | 16 | 0 | 0 |
+| Wallet & Funding | 10 | 0 | 0 |
+| Game Engine | 44 | 1 | 0 |
+| Server & Infrastructure | 17 | 0 | 0 |
 | Navigation & UX | 11 | 0 | 0 |
-| Native Desktop Client | 10 | 0 | 0 |
-| Web Tools & Utilities | 8 | 0 | 0 |
+| Native Desktop Client | 15 | 0 | 0 |
+| Web Tools & Utilities | 9 | 0 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
-| Game Data | 6 | 0 | 0 |
-| **Total** | **152** | **1** | **0** |
+| Game Data | 26 | 0 | 0 |
+| **Total** | **194** | **1** | **0** |

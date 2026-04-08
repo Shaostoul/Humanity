@@ -9,8 +9,7 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 > 2. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
 > 3. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
 > 4. Read `docs/SOP.md` for version sync, deploy, and development procedures
-> 5. **Version sync check**: Compare local `Cargo.toml` version vs `gh release list --limit 1`. If they differ, push + tag + release BEFORE doing anything else. (See SOP.md for full procedure.)
-> 6. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
+> 5. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
 
 ## AI Participation
 
@@ -28,30 +27,50 @@ AI agents are first-class citizens of HumanityOS. See `docs/ai-onboarding.md` fo
 just ship "message"   # commit + push + force-sync VPS  ← daily driver
 just sync             # force-sync VPS now               ← when CI breaks
 just sync-web         # assets only, no rebuild (fast)   ← front-end changes
+just build-game       # bump version, compile, archive versioned exe
+just play             # build-game + launch
+just launch           # launch latest build (no compile)
+just build-relay      # headless server build (no GPU)
 just status           # git + CI + live API health
 just logs             # tail server logs
 ```
 
 ## Architecture
 
-Three-part split: `server/` (backend), `web/` (website), `src/` (desktop client).
+Unified binary: one Rust crate (`src/`) compiles into `HumanityOS.exe`.
+Feature flags control what's included: `native` (full desktop app) or `relay` (headless server).
+No workspace, no sub-crates. Web frontend (`web/`) is plain HTML/JS served by nginx.
 
 ```
-Web (browser)
-  ↕ WebSocket /ws         ← relay.rs  (~5800 LOC, message routing)
-  ↕ HTTP /api/*           ← api.rs    (~2500 LOC, REST endpoints)
+src/                        ← single crate, everything lives here
+  ├ relay/                  ← axum server (was server/src/)
+  │   ├ relay.rs            ← WS message routing (~5800 LOC)
+  │   ├ api.rs              ← REST API handlers (~2500 LOC)
+  │   ├ mod.rs              ← router setup, CSP middleware, axum config
+  │   ├ core/               ← crypto, encoding, identity, signing
+  │   ├ handlers/           ← broadcast, federation, game_state, msg_handlers
+  │   └ storage/            ← 30 domain modules (messages, channels, tasks, guilds, etc.)
+  ├ renderer/               ← wgpu PBR pipeline, camera, bloom, particles, hologram
+  ├ gui/                    ← egui immediate-mode UI (theme, widgets, pages)
+  ├ ecs/                    ← hecs ECS: 20 components, System trait, SystemRunner
+  ├ systems/                ← 15+ game systems (farming, AI, vehicles, quests, etc.)
+  ├ terrain/                ← icosphere planets (LOD), voxel asteroids (sparse octree)
+  ├ ship/                   ← ship layouts from RON, room mesh generation
+  ├ physics/                ← rapier3d: rigid bodies, colliders, raycasting
+  ├ audio/                  ← kira: spatial 3D audio, music, SFX
+  ├ assets/                 ← AssetManager (CSV/TOML/RON/JSON/GLTF), FileWatcher
+  ├ net/                    ← multiplayer networking (WebSocket client, ECS sync)
+  ├ main.rs                 ← entry point: --headless for server, default for desktop
+  └ lib.rs                  ← engine init, main loop
 
-Server: Rust/axum/tokio, SQLite via rusqlite
-Static HTML served by nginx from /var/www/humanity/
+web/                        ← website frontend (HTML/JS/CSS, served by nginx)
+data/                       ← hot-reloadable game data (76 entries: CSV, TOML, RON, JSON)
+schemas/                    ← TOML schema definitions for data files (23 schemas)
+assets/                     ← shared media (icons, shaders, models, textures, audio)
 
-Native Desktop Client: Rust binary with egui GUI + wgpu game engine
-  ├ GUI: egui immediate-mode UI (theme, widgets, pages)
-  ├ ECS: hecs + SystemRunner (System trait, per-frame tick)
-  ├ Physics: rapier3d (rigid bodies, colliders, raycasting)
-  ├ Terrain: icosphere planets (LOD subdivision) + voxel asteroids (sparse octree)
-  ├ Ships: data-driven layouts from RON, room mesh generation
-  ├ Data: AssetManager loads CSV/TOML/RON/JSON from external files
-  └ Hot-reload: notify file watcher, cache invalidation per frame
+Binary modes:
+  HumanityOS                ← full desktop app (renderer + relay + game)
+  HumanityOS --headless     ← server-only mode (relay, no GPU) for VPS
 
 Identity: Ed25519 key = identity = Solana wallet address
   ├ No home servers, no accounts, no passwords
@@ -63,43 +82,56 @@ Identity: Ed25519 key = identity = Solana wallet address
 
 | Path | Role |
 |------|------|
-| `server/src/relay.rs` | WS message routing, rate limiting, auth |
-| `server/src/api.rs` | REST API handlers |
-| `server/src/main.rs` | Router setup, CSP middleware, axum config |
-| `server/src/storage/` | 20+ domain modules (messages, channels, tasks, signed_profiles, guilds, reputation, trading, files…) |
-| `server/src/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, utils.rs |
-| `src/` | Game engine: renderer, ECS, physics, audio, input, hot-reload, terrain, ship, persistence |
+| `src/main.rs` | Entry point: `--headless` for relay, default for desktop |
+| `src/lib.rs` | Engine init, main loop |
+| `src/relay/` | Axum server (WebSocket relay + REST API + SQLite storage) |
+| `src/relay/relay.rs` | WS message routing, rate limiting, auth (~5800 LOC) |
+| `src/relay/api.rs` | REST API handlers (~2500 LOC) |
+| `src/relay/mod.rs` | Router setup, CSP middleware, axum config |
+| `src/relay/core/` | Crypto primitives: encoding, identity, signing, hashing |
+| `src/relay/handlers/` | broadcast.rs, federation.rs, game_state.rs, msg_handlers.rs, utils.rs |
+| `src/relay/storage/` | 30 domain modules (messages, channels, tasks, guilds, reputation, trading, etc.) |
+| `src/renderer/` | wgpu PBR pipeline, camera, sky, stars, instanced rendering |
+| `src/renderer/particles.rs` | Particle system |
+| `src/renderer/bloom.rs` | Bloom post-processing |
+| `src/renderer/hologram.rs` | Hologram renderer |
+| `src/gui/` | egui immediate-mode GUI: theme, widgets, pages |
+| `src/ecs/` | hecs ECS: 20 components, System trait, SystemRunner |
 | `src/systems/` | 15+ game systems: farming, inventory, crafting, time, player, interaction, ai, vehicles, ecology, quests, combat, weather, hydrology, atmosphere, disasters |
 | `src/terrain/` | Icosphere planets (LOD), voxel asteroids (sparse octree), heightmap terrain (16 biomes) |
 | `src/ship/` | Ship layouts from RON, room mesh generation, BFS pathfinding |
 | `src/assets/` | AssetManager (CSV/TOML/RON/GLTF loading), FileWatcher, hot-reload |
 | `src/physics/` | rapier3d wrapper: rigid bodies, colliders, raycasting, simulation step |
 | `src/audio/` | kira crate: spatial 3D audio, music, SFX, volume controls |
+| `src/net/` | Multiplayer networking: WebSocket client, protocol, ECS sync |
 | `src/mods/` | Mod manifest, load order, data override resolution |
 | `src/persistence.rs` | World save/load (entities, terrain, player progress) |
-| `crates/` | 19 sub-crates (core, modules, persistence, etc.) |
-| `src/gui/` | egui immediate-mode GUI: theme, widgets, pages |
+| `src/config.rs` | Configuration management |
+| `src/embedded_data.rs` | Compile-time embedded data |
+| `src/updater.rs` | Auto-update: version check, download, delegate to newer exe |
 | `web/chat/app.js` | Core chat logic (~1700 LOC) |
 | `web/chat/chat-*.js` | messages, dms, social, ui, voice, profile, p2p |
 | `web/chat/crypto.js` | Ed25519/ECDH/AES + BIP39 + backup helpers |
 | `web/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
-| `web/shared/shell.js` | Nav injection IIFE — loaded first on every page |
+| `web/shared/shell.js` | Nav injection IIFE -- loaded first on every page |
 | `web/shared/settings.js` | Settings panel + gear button |
 | `web/shared/glossary.js` | 150+ term glossary overlay |
 | `web/shared/i18n.js` | Localization (5 languages) |
 | `web/shared/accessibility.js` | High contrast, colorblind, reduced motion modes |
-| `web/pages/*.html` | Standalone feature pages — tasks, maps, civilization, settings, etc. |
+| `web/pages/*.html` | Standalone feature pages -- tasks, maps, civilization, settings, etc. |
 | `web/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
-| `web/activities/` | Game/real-world activities — gardening, download, etc. |
-| `assets/` | All shared media — icons, shaders, models, textures, audio |
-| `data/` | Hot-reloadable game data — CSV, TOML, RON, JSON (306 items, 227 recipes, 92 materials, 102 components) |
+| `web/activities/` | Game/real-world activities -- gardening, download, etc. |
+| `assets/` | All shared media -- icons, shaders, models, textures, audio |
+| `schemas/` | TOML schema definitions for data files (23 schemas: items, recipes, biomes, etc.) |
+| `data/` | Hot-reloadable game data -- 76 entries (CSV, TOML, RON, JSON) |
 | `data/chemistry/` | 396 entries: elements, alloys, compounds, gases, toxins |
 | `data/solar_system/` | 70+ celestial bodies, planet RON definitions |
 | `data/glossary.json` | 150+ term definitions for glossary overlay |
 | `data/i18n/` | Translation files (en, es, fr, ja, zh) |
 | `data/tools/` | Open-source tools catalog (37 entries) |
-| `docs/` | ALL documentation — design, accord, history, website |
-| `Justfile` | Dev command runner — `just --list` for all recipes |
+| `docs/` | ALL documentation -- design, accord, history, website |
+| `Justfile` | Dev command runner -- `just --list` for all recipes |
+| `Cargo.toml` | Single crate manifest (no workspace) with feature flags: native, relay, wasm |
 
 ## Script load order (web/chat/)
 
@@ -171,7 +203,7 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 **AES-256-GCM + PBKDF2-SHA256** (vault, notes, backup):
 `deriveKeyFromPassphrase(passphrase, salt)` → CryptoKey (600k iterations)
 
-**Rate limiting**: Fibonacci backoff per public key in `relay.rs`
+**Rate limiting**: Fibonacci backoff per public key in `src/relay/relay.rs`
 
 **Game System trait** (src/ecs/systems.rs):
 ```rust
@@ -191,7 +223,7 @@ Game data in external files next to exe. CSV for items/plants/recipes,
 TOML for config, RON for quests/blueprints/ships/planets. Hot-reloadable
 via notify file watcher. Mods = editing files in the data directory.
 
-**Multiple `impl Storage` blocks** across `storage/*.rs` — Rust allows this within one crate
+**Multiple `impl Storage` blocks** across `src/relay/storage/*.rs` -- Rust allows this within one crate
 
 **Local-first storage** (native binary):
 OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
@@ -230,7 +262,9 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 
 ## Deploy pipeline
 
-Push to `main` → GitHub Actions → SSH to VPS → `cargo build` → rsync + copy → restart relay
+Push to `main` → GitHub Actions → SSH to VPS → `cargo build --features relay --no-default-features` → rsync + copy → restart relay
+
+The VPS runs the same unified binary in headless mode: `HumanityOS --headless`
 
 When CI fails (server has local changes or build error):
 ```bash
@@ -240,7 +274,7 @@ just sync    # fetches, git reset --hard, rebuilds, rsyncs, restarts
 **VPS paths**:
 - Repo: `/opt/Humanity/`
 - Web root: `/var/www/humanity/`
-- Relay binary: `/opt/Humanity/target/release/humanity-relay`
+- Relay binary: `/opt/Humanity/target/release/HumanityOS` (runs with `--headless`)
 - SQLite DB: `/opt/Humanity/data/relay.db`
 - Uploads: `/opt/Humanity/data/uploads/`
 
@@ -267,19 +301,20 @@ server_members (public_key, name, role, joined_at, last_seen)
 
 ## Known gotchas
 
-- `settings.js` has `injectGearButton()` — don't call it on pages that also load `shell.js` (already fixed: guards for `a[href="/settings"]`)
+- `settings.js` has `injectGearButton()` -- don't call it on pages that also load `shell.js` (already fixed: guards for `a[href="/settings"]`)
 - Tasks scope filter: `activeScope = 'cosmos'` by default; task labels must match or they're filtered out
-- Deploy `git pull` fails if server has local changes → `just sync` fixes it
+- Deploy `git pull` fails if server has local changes -> `just sync` fixes it
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
-- **Repo restructure (v0.37.0):** `engine/` renamed to `native/`, `ui/` renamed to `web/`, `app/` (Tauri) deprecated. In v0.88.0+, `native/` was eliminated: `native/src/` moved to `src/`, `native/crates/` to `crates/`, `native/Cargo.toml` to root `Cargo.toml`.
+- **Unified binary (v0.90.0):** `server/` merged into `src/relay/`, `native/` merged into `src/`, `crates/` eliminated. Single `Cargo.toml` at repo root with feature flags (`native`, `relay`, `wasm`). No workspace.
+- VPS builds use `--features relay --no-default-features` (no GPU deps). Desktop uses `--features native` (default).
 
 ## Real/Sim toggle
 
 The Real/Sim toggle switches the UI context between real-life tools and simulation mode. "Sim" was chosen over "Game" because the platform teaches real survival skills through simulation. Both modes share the same tools (inventory, tasks, maps, market) but display different datasets.
 
-## Current targets (v0.43.0)
+## Current targets (v0.90.0)
 
-1. Map rework (replace 2D canvas solar system with 3D engine orbit mode)
-2. Advanced trading (order books, automated matching, trade history)
-3. Biome-specific gameplay (weather/terrain/ecology integration per biome)
-4. Multiplayer world sync (full ECS state replication for shared worlds)
+1. Settings UI polish, chat bubbles, custom widgets (v0.88.0)
+2. Ship-at-origin world, data-driven spawning, hologram renderer (v0.87.0)
+3. PBR rendering, particles, bloom post-processing
+4. Fibonacci ship layout, spiral deck generation
