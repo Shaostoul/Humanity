@@ -95,7 +95,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
         .min_width(140.0)
         .max_width(240.0)
         .frame(Frame::none()
-            .fill(Color32::from_rgb(22, 22, 28))
+            .fill(theme.bg_sidebar())
             .inner_margin(egui::Margin::symmetric(8, 12))
             .stroke(Stroke::new(1.0, theme.border())))
         .show(ctx, |ui| {
@@ -145,7 +145,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
 
     // Right content area: all sections in one infinite scroll
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ScrollArea::vertical()
                 .id_salt("settings_scroll")
@@ -478,7 +478,7 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     });
                 });
             });
-            ui.add_space(4.0);
+            ui.add_space(theme.section_gap);
         }
 
         // Process removals and reordering
@@ -586,7 +586,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
             .stroke(Stroke::new(1.0, card_border))
             .show(ui, |ui| {
                 ui.label(RichText::new("Sizing").strong().color(text_color));
-                ui.add_space(4.0);
+                ui.add_space(theme.section_gap);
 
                 any_changed |= styled_slider(ui, &ss, "Icon Size", &mut theme.icon_size, 16.0..=64.0, label_color);
                 any_changed |= styled_slider(ui, &ss, "Row Height", &mut theme.row_height, 14.0..=32.0, label_color);
@@ -607,7 +607,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
             .stroke(Stroke::new(1.0, card_border))
             .show(ui, |ui| {
                 ui.label(RichText::new("Fonts").strong().color(text_color));
-                ui.add_space(4.0);
+                ui.add_space(theme.section_gap);
 
                 any_changed |= styled_slider(ui, &ss, "Name Font", &mut theme.name_size, 10.0..=24.0, label_color);
                 any_changed |= styled_slider(ui, &ss, "Body Font", &mut theme.body_size, 10.0..=24.0, label_color);
@@ -636,7 +636,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
         let ui = &mut cols[1];
 
         egui::Frame::none()
-            .fill(Color32::from_rgb(20, 20, 25))
+            .fill(theme.bg_panel())
             .rounding(Rounding::same(4))
             .inner_margin(8.0)
             .stroke(Stroke::new(1.0, Color32::from_rgb(42, 42, 53)))
@@ -646,7 +646,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
 
                 // Sample message row (uses actual widget)
                 ui.label(RichText::new("Message Row").size(theme.small_size).color(label_color).strong());
-                ui.add_space(2.0);
+                ui.add_space(theme.row_gap);
                 crate::gui::widgets::row::message_row(
                     ui,
                     theme,
@@ -660,7 +660,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
                     false,
                     0.0,
                 );
-                ui.add_space(4.0);
+                ui.add_space(theme.section_gap);
                 // Continuation row
                 crate::gui::widgets::row::message_row(
                     ui,
@@ -680,7 +680,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
 
                 // Sample channel list item
                 ui.label(RichText::new("Channel List Item").size(theme.small_size).color(label_color).strong());
-                ui.add_space(2.0);
+                ui.add_space(theme.row_gap);
                 ui.allocate_ui_with_layout(
                     Vec2::new(ui.available_width(), theme.row_height),
                     egui::Layout::left_to_right(egui::Align::Center),
@@ -706,7 +706,7 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
 
                 // Sample user list items
                 ui.label(RichText::new("User List Item").size(theme.small_size).color(label_color).strong());
-                ui.add_space(2.0);
+                ui.add_space(theme.row_gap);
                 ui.horizontal(|ui| {
                     ui.add_space(theme.item_padding);
                     let dot_sz = theme.status_dot_size;

@@ -183,7 +183,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     });
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             ui.label(RichText::new("File Browser").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);

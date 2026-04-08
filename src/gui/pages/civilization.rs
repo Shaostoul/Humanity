@@ -11,7 +11,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let title = if is_real { "Community Dashboard" } else { "Colony Dashboard" };
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
@@ -124,7 +124,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     ui.add_space(theme.spacing_sm);
                     let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width().min(500.0), 120.0), egui::Sense::hover());
-                    ui.painter().rect_filled(rect, Rounding::same(8), Color32::from_rgb(25, 25, 32));
+                    ui.painter().rect_filled(rect, Rounding::same(8), theme.bg_sidebar());
                     ui.painter().rect_stroke(rect, Rounding::same(8), Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
                     ui.painter().text(
                         rect.center(),

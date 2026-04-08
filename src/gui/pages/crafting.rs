@@ -70,7 +70,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("craft_categories")
         .default_width(160.0)
         .resizable(false)
-        .frame(Frame::none().fill(Color32::from_rgb(18, 18, 22)).inner_margin(8.0))
+        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Categories")
@@ -99,7 +99,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Crafting")
@@ -179,7 +179,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     .fill(fill)
                                     .rounding(Rounding::same(4))
                                     .stroke(stroke)
-                                    .inner_margin(8.0);
+                                    .inner_margin(theme.panel_margin);
 
                                 frame.show(ui, |ui| {
                                     let resp = ui.vertical(|ui| {
@@ -220,7 +220,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         state.craft_selected = Some(*idx);
                                     }
                                 });
-                                ui.add_space(2.0);
+                                ui.add_space(theme.row_gap);
                             }
                         });
                 });

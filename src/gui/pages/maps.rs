@@ -192,7 +192,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("map_body_list")
         .min_width(160.0)
         .max_width(200.0)
-        .frame(Frame::none().fill(Color32::from_rgb(22, 22, 28)).inner_margin(8.0))
+        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(8.0))
         .show(ctx, |ui| {
             ui.label(RichText::new("Celestial Bodies").size(theme.font_size_heading).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
@@ -227,7 +227,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         }
 
                         ui.label(RichText::new(group_label).size(theme.font_size_small).color(theme.text_muted()));
-                        ui.add_space(2.0);
+                        ui.add_space(theme.row_gap);
 
                         for idx in bodies_in_group {
                             let body = &ps.bodies[idx];
@@ -257,7 +257,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 egui::SidePanel::right("map_body_detail")
                     .min_width(220.0)
                     .max_width(300.0)
-                    .frame(Frame::none().fill(Color32::from_rgb(22, 22, 28)).inner_margin(10.0))
+                    .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(10.0))
                     .show(ctx, |ui| {
                         ScrollArea::vertical().show(ui, |ui| {
                             ui.label(RichText::new(&body_clone.name).size(theme.font_size_title).color(theme.accent()));
@@ -330,7 +330,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             // Header bar
             ui.horizontal(|ui| {
-                ui.add_space(8.0);
+                ui.add_space(theme.panel_margin);
                 ui.label(RichText::new("Solar System Map").size(theme.font_size_heading).color(theme.text_primary()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let mode_text = if state.context_real { "Real" } else { "Sim" };

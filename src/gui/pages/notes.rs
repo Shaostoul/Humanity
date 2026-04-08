@@ -36,7 +36,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("notes_sidebar")
         .default_width(220.0)
         .resizable(true)
-        .frame(Frame::none().fill(Color32::from_rgb(18, 18, 22)).inner_margin(8.0))
+        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(8.0))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Notes")
@@ -157,7 +157,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // Main editor panel
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             if let Some(sel_id) = state.notes_selected {
                 if let Some(note) = state.notes.iter_mut().find(|n| n.id == sel_id) {

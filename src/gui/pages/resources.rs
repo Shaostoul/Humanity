@@ -116,7 +116,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let is_real = state.context_real;
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {

@@ -37,7 +37,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Left panel: scenes + sources
     egui::SidePanel::left("studio_left_panel")
         .exact_width(LEFT_PANEL_WIDTH)
-        .frame(Frame::none().fill(BG_PANEL).inner_margin(8.0))
+        .frame(Frame::none().fill(BG_PANEL).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_left_panel(ui, theme, state);
         });
@@ -45,14 +45,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Right panel: properties + stream settings
     egui::SidePanel::right("studio_right_panel")
         .exact_width(RIGHT_PANEL_WIDTH)
-        .frame(Frame::none().fill(BG_PANEL).inner_margin(8.0))
+        .frame(Frame::none().fill(BG_PANEL).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_right_panel(ui, theme, state);
         });
 
     // Center panel: preview + controls
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(BG_DARK).inner_margin(8.0))
+        .frame(Frame::none().fill(BG_DARK).inner_margin(theme.panel_margin))
         .show(ctx, |ui| {
             draw_center_panel(ui, theme, state);
         });
@@ -68,7 +68,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
         );
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         let active_scene = state.studio.active_scene_index;
         let mut clicked_scene: Option<usize> = None;
@@ -137,7 +137,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
         if ui
             .add(
                 egui::Button::new(
@@ -159,9 +159,9 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
         }
 
-        ui.add_space(16.0);
+        ui.add_space(theme.card_padding);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
 
         // ── Sources ──
         ui.label(
@@ -169,7 +169,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
         );
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         let mut selected = state.studio.selected_source_index;
         let source_count = state.studio.sources.len();
@@ -227,7 +227,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // Z-order up/down buttons for selected source
         if let Some(sel) = selected {
-            ui.add_space(4.0);
+            ui.add_space(theme.section_gap);
             ui.horizontal(|ui| {
                 if sel > 0 {
                     if ui.small_button(RichText::new("Up").size(theme.font_size_small)).clicked() {
@@ -244,7 +244,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
         }
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
         if ui
             .add(
                 egui::Button::new(
@@ -299,7 +299,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             );
         }
     });
-    ui.add_space(4.0);
+    ui.add_space(theme.section_gap);
 
     // ── Preview area ──
     let controls_height = 80.0;
@@ -378,7 +378,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         });
 
-    ui.add_space(8.0);
+    ui.add_space(theme.panel_margin);
 
     // ── Controls bar ──
     ui.horizontal(|ui| {
@@ -457,9 +457,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             state.studio.is_afk = false;
         }
 
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
 
         // AFK button
         let afk_fill = if state.studio.is_afk {
@@ -536,9 +536,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.ctx().request_repaint(); // keep timer updating
         }
 
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
 
         // Audio level meter (placeholder bar)
         ui.label(RichText::new("Audio:").size(theme.font_size_small).color(theme.text_muted()));
@@ -589,7 +589,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
         );
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         if let Some(sel) = state.studio.selected_source_index {
             if sel < state.studio.sources.len() {
@@ -600,7 +600,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         .size(theme.font_size_body)
                         .color(theme.accent()),
                 );
-                ui.add_space(4.0);
+                ui.add_space(theme.section_gap);
 
                 // Position
                 ui.label(RichText::new("Position").size(theme.font_size_small).color(theme.text_secondary()));
@@ -613,7 +613,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.add(egui::Slider::new(&mut src.position.1, 0.0..=1.0).step_by(0.01).show_value(true));
                 });
 
-                ui.add_space(4.0);
+                ui.add_space(theme.section_gap);
 
                 // Size
                 ui.label(RichText::new("Size").size(theme.font_size_small).color(theme.text_secondary()));
@@ -626,18 +626,18 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.add(egui::Slider::new(&mut src.size.1, 0.05..=1.0).step_by(0.01).show_value(true));
                 });
 
-                ui.add_space(4.0);
+                ui.add_space(theme.section_gap);
 
                 // Opacity
                 ui.label(RichText::new("Opacity").size(theme.font_size_small).color(theme.text_secondary()));
                 ui.add(egui::Slider::new(&mut src.opacity, 0.0..=1.0).step_by(0.01).show_value(true));
 
-                ui.add_space(4.0);
+                ui.add_space(theme.section_gap);
 
                 // Visibility toggle
                 ui.checkbox(&mut src.visible, RichText::new("Visible").size(theme.font_size_small).color(theme.text_secondary()));
 
-                ui.add_space(8.0);
+                ui.add_space(theme.panel_margin);
 
                 // Remove source button
                 let remove_clicked;
@@ -674,9 +674,9 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             );
         }
 
-        ui.add_space(16.0);
+        ui.add_space(theme.card_padding);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
 
         // ── Stream Settings ──
         ui.label(
@@ -684,7 +684,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
         );
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         // Platform selector
         ui.label(RichText::new("Platform").size(theme.font_size_small).color(theme.text_secondary()));
@@ -699,7 +699,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // Stream key (hidden for HumanityOS)
         if state.studio.stream_platform != "HumanityOS Server" {
-            ui.add_space(4.0);
+            ui.add_space(theme.section_gap);
             ui.label(RichText::new("Stream Key").size(theme.font_size_small).color(theme.text_secondary()));
             ui.add(
                 egui::TextEdit::singleline(&mut state.studio.stream_key)
@@ -711,7 +711,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // Server URL (for HumanityOS)
         if state.studio.stream_platform == "HumanityOS Server" {
-            ui.add_space(4.0);
+            ui.add_space(theme.section_gap);
             ui.label(RichText::new("Server URL").size(theme.font_size_small).color(theme.text_secondary()));
             ui.add(
                 egui::TextEdit::singleline(&mut state.studio.stream_server_url)
@@ -720,7 +720,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             );
         }
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         // Resolution
         ui.label(RichText::new("Resolution").size(theme.font_size_small).color(theme.text_secondary()));
@@ -733,13 +733,13 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             });
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         // Bitrate
         ui.label(RichText::new("Bitrate (kbps)").size(theme.font_size_small).color(theme.text_secondary()));
         ui.add(egui::Slider::new(&mut state.studio.stream_bitrate, 1000..=10000).step_by(100.0).show_value(true));
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         // FPS
         ui.label(RichText::new("FPS").size(theme.font_size_small).color(theme.text_secondary()));
@@ -752,9 +752,9 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             });
 
-        ui.add_space(16.0);
+        ui.add_space(theme.card_padding);
         ui.separator();
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
 
         // ── Chat Overlay Settings ──
         ui.label(
@@ -762,7 +762,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
         );
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Channel").size(theme.font_size_small).color(theme.text_secondary()));
         ui.add(
@@ -771,12 +771,12 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .hint_text("general"),
         );
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Font Size").size(theme.font_size_small).color(theme.text_secondary()));
         ui.add(egui::Slider::new(&mut state.studio.chat_overlay_font_size, 8.0..=32.0).step_by(1.0).show_value(true));
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Position").size(theme.font_size_small).color(theme.text_secondary()));
         egui::ComboBox::from_id_salt("studio_chat_pos")
@@ -788,17 +788,17 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             });
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Opacity").size(theme.font_size_small).color(theme.text_secondary()));
         ui.add(egui::Slider::new(&mut state.studio.chat_overlay_opacity, 0.0..=1.0).step_by(0.05).show_value(true));
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Max Messages").size(theme.font_size_small).color(theme.text_secondary()));
         ui.add(egui::Slider::new(&mut state.studio.chat_overlay_max_messages, 1..=50).show_value(true));
 
-        ui.add_space(4.0);
+        ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Background Opacity").size(theme.font_size_small).color(theme.text_secondary()));
         ui.add(egui::Slider::new(&mut state.studio.chat_overlay_bg_opacity, 0.0..=1.0).step_by(0.05).show_value(true));

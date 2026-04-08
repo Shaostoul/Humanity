@@ -78,7 +78,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("market_categories")
         .min_width(140.0)
         .max_width(170.0)
-        .frame(Frame::none().fill(Color32::from_rgb(22, 22, 28)).inner_margin(10.0))
+        .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(10.0))
         .show(ctx, |ui| {
             ui.label(RichText::new("Categories").size(theme.font_size_heading).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
@@ -103,7 +103,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         });
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             if showing_detail {
                 // ── Detail view ──

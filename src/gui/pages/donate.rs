@@ -171,7 +171,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let sources = build_donation_sources(state);
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
                 // Hero section
@@ -179,7 +179,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.vertical_centered(|ui| {
                     ui.label(
                         RichText::new("Support HumanityOS")
-                            .size(36.0)
+                            .size(theme.title_size + 8.0)
                             .color(theme.text_primary()),
                     );
                     ui.add_space(theme.spacing_sm);
@@ -405,7 +405,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             );
                         }
                     });
-                    ui.add_space(4.0);
+                    ui.add_space(theme.section_gap);
                 }
 
                 ui.add_space(theme.spacing_xl);

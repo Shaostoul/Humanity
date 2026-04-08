@@ -33,7 +33,7 @@ const SERVER_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(25, 25, 70, 2
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // ── LEFT PANEL ──
     let left_panel = egui::SidePanel::left("chat_left_panel")
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0))
         .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
     let left_panel = if state.chat_left_panel_locked {
         left_panel.exact_width(state.chat_left_panel_width).resizable(false)
@@ -58,7 +58,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // ── RIGHT PANEL ──
     let right_panel = egui::SidePanel::right("chat_right_panel")
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(0.0))
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0))
         .width_range(MIN_PANEL_WIDTH..=MAX_PANEL_WIDTH);
     let right_panel = if state.chat_right_panel_locked {
         right_panel.exact_width(state.chat_right_panel_width).resizable(false)
@@ -83,7 +83,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // ── CENTER PANEL ──
     egui::CentralPanel::default()
-        .frame(Frame::NONE.fill(Color32::from_rgb(20, 20, 25)).inner_margin(0.0))
+        .frame(Frame::NONE.fill(theme.bg_panel()).inner_margin(0.0))
         .show(ctx, |ui| {
             draw_center_panel(ui, theme, state);
         });
@@ -1644,7 +1644,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(320.0, 0.0))
         .title_bar(false)
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).rounding(Rounding::same(8)).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).rounding(Rounding::same(8)).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
         .show(ctx, |ui| {
             let name = state.chat_user_modal_name.clone();
             let key = state.chat_user_modal_key.clone();
@@ -2025,7 +2025,7 @@ fn draw_create_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut Gui
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Channel Name")
@@ -2106,7 +2106,7 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new(format!("Editing: #{}", state.edit_channel_id))
@@ -2272,7 +2272,7 @@ fn draw_create_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Group Name")
@@ -2338,7 +2338,7 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(340.0, 0.0))
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
         .show(ctx, |ui| {
             ui.label(
                 RichText::new("Invite Code")

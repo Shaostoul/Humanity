@@ -130,7 +130,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         egui::SidePanel::right("inv_detail_panel")
             .min_width(220.0)
             .max_width(280.0)
-            .frame(Frame::none().fill(Color32::from_rgb(22, 22, 28)).inner_margin(10.0))
+            .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(10.0))
             .show(ctx, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     if let Some(Some(item)) = state.inventory_items.get(idx) {
@@ -231,7 +231,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             // Header with slot count
             let used = state.inventory_items.iter().filter(|s| s.is_some()).count();

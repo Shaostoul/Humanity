@@ -8,7 +8,7 @@ use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
@@ -50,7 +50,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(format!("{:.4} SOL", state.wallet_balance))
-                                .size(32.0)
+                                .size(theme.title_size)
                                 .color(theme.accent()),
                         );
                     });

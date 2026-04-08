@@ -21,7 +21,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .min_width(160.0)
         .max_width(260.0)
         .frame(Frame::none()
-            .fill(Color32::from_rgb(22, 22, 28))
+            .fill(theme.bg_sidebar())
             .inner_margin(egui::Margin::symmetric(8, 12))
             .stroke(Stroke::new(1.0, theme.border())))
         .show(ctx, |ui| {
@@ -52,7 +52,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     // Right content area
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
                 match state.profile_section {
@@ -75,7 +75,7 @@ fn section_header(ui: &mut egui::Ui, theme: &Theme, label: &str, color: Color32)
         ui.painter().circle_filled(dot_rect.center(), 4.0, color);
         ui.label(RichText::new(label).size(theme.font_size_small).color(color).strong());
     });
-    ui.add_space(2.0);
+    ui.add_space(theme.row_gap);
 }
 
 fn sidebar_item(
@@ -112,10 +112,10 @@ fn sidebar_item(
 fn field_row(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &mut String) {
     ui.horizontal(|ui| {
         ui.label(RichText::new(label).color(theme.text_secondary()).size(theme.font_size_body));
-        ui.add_space(8.0);
+        ui.add_space(theme.panel_margin);
         ui.add(egui::TextEdit::singleline(value).desired_width(200.0));
     });
-    ui.add_space(2.0);
+    ui.add_space(theme.row_gap);
 }
 
 fn draw_body_measurements(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -294,7 +294,7 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.label(RichText::new(format!("{:.0}%", progress * 100.0)).color(theme.text_muted()).size(theme.font_size_small));
             });
             widgets::progress_bar(ui, theme, *progress, None);
-            ui.add_space(4.0);
+            ui.add_space(theme.section_gap);
         }
     });
 }

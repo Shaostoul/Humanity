@@ -83,7 +83,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 egui::SidePanel::right("task_detail_panel")
                     .min_width(280.0)
                     .max_width(360.0)
-                    .frame(Frame::none().fill(Color32::from_rgb(25, 25, 32)).inner_margin(12.0))
+                    .frame(Frame::none().fill(theme.bg_sidebar()).inner_margin(12.0))
                     .show(ctx, |ui| {
                         ScrollArea::vertical().show(ui, |ui| {
                             ui.horizontal(|ui| {
@@ -240,7 +240,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
 
     egui::CentralPanel::default()
-        .frame(Frame::none().fill(Color32::from_rgb(20, 20, 25)).inner_margin(16.0))
+        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             // Header
             ui.horizontal(|ui| {
