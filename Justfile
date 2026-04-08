@@ -248,6 +248,22 @@ bundle-web:
     node scripts/bundle-web.js
 
 # ══════════════════════════════════════════════════════════════════════════════
+# WORKTREE HYGIENE — prevent context rot
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Remove stale git worktrees (keeps main + current). Prevents AI agents
+# from writing to cached stale paths. Run this whenever a worktree drifts
+# behind main, or after long AI sessions.
+clean-worktrees:
+    @bash scripts/clean-worktrees.sh --yes
+
+# List all current worktrees with sizes
+worktrees:
+    @git worktree list
+    @echo ""
+    @du -sh .claude/worktrees/ 2>/dev/null || echo "No worktrees directory"
+
+# ══════════════════════════════════════════════════════════════════════════════
 # SHORTCUTS — convenience
 # ══════════════════════════════════════════════════════════════════════════════
 

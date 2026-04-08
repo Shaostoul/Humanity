@@ -5,11 +5,13 @@ Live: https://united-humanity.us | GitHub: https://github.com/Shaostoul/Humanity
 SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 > **⚠️ START HERE (mandatory, every session):**
+> 0. Run `just clean-worktrees` to kill stale AI context before it corrupts new work
 > 1. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
 > 2. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
 > 3. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
 > 4. Read `docs/SOP.md` for version sync, deploy, and development procedures
 > 5. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
+> 6. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo the work against the real `src/` tree.
 
 ## AI Participation
 
@@ -307,6 +309,7 @@ server_members (public_key, name, role, joined_at, last_seen)
 - CSP `'unsafe-inline'` retained for inline event handlers on HTML pages
 - **Unified binary (v0.90.0):** `server/` merged into `src/relay/`, `native/` merged into `src/`, `crates/` eliminated. Single `Cargo.toml` at repo root with feature flags (`native`, `relay`, `wasm`). No workspace.
 - VPS builds use `--features relay --no-default-features` (no GPU deps). Desktop uses `--features native` (default).
+- **Context rot prevention (CRITICAL for AI agents):** Stale git worktrees cause AI agents to write edits to cached dead file paths. If you see an agent reporting edits to `native/src/` or `server/src/` (paths that no longer exist on main), the agent found a stale worktree. **Fix: run `just clean-worktrees` regularly** to remove all worktrees except main + current. Never trust agent reports blindly. After major restructures, immediately sync your current worktree to main with `git fetch origin main && git reset --hard origin/main` to ensure file layout matches.
 
 ## Real/Sim toggle
 
