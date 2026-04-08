@@ -1,0 +1,562 @@
+# HumanityOS Economy Schema
+# Reference for modders, AI agents, and community contributors.
+#
+# The economy system governs all credit flow: creation (starting balance,
+# passive income, activity earnings), transfer (trading, gifting, marketplace),
+# and destruction (vendor purchases, fees, repair costs, respawn penalties).
+#
+# Data files:
+#   data/economy.ron      -- Core economy configuration (this schema documents it)
+#   data/trade_goods.ron  -- Base credit values for all tradeable items
+#
+# ENGINE INTEGRATION:
+#   ECS -- Economy state is a resource in the hecs World, not a component.
+#     PlayerWallet component on each player entity holds current balance.
+#     TransactionLog stores the last N transactions for audit/display.
+#
+#   Systems:
+#     native/src/systems/economy.rs     -- Passive income ticks, earning payouts
+#     native/src/systems/trading.rs     -- P2P and marketplace transactions
+#     native/src/systems/inventory.rs   -- Item value lookups via trade_goods.ron
+#
+#   Server:
+#     server/src/storage/trading.rs     -- Marketplace listings, order matching
+#     server/src/storage/reputation.rs  -- Reputation ledger (separate from credits)
+#
+# SCALING TO BILLIONS:
+#   Credits are created per-player (not redistributed), so the total money supply
+#   scales linearly with population. NPC vendor prices use logarithmic population
+#   scaling to maintain purchasing power. The player market self-corrects via
+#   supply/demand. No central bank needed.
+
+# ============================================================================
+# CURRENCY
+# ============================================================================
+
+[currency]
+description = "Universal unit of exchange within HumanityOS."
+
+[currency.fields.name]
+type = "string"
+required = true
+description = "Display name of the currency."
+example = "Credits"
+
+[currency.fields.symbol]
+type = "string"
+required = true
+description = "Short symbol used in UI displays and trade interfaces."
+example = "CR"
+
+[currency.fields.decimal_places]
+type = "integer"
+required = true
+description = "Number of decimal subdivisions. 0 = whole units only (no cents). Simplifies all arithmetic across billions of transactions."
+example = 0
+
+# ============================================================================
+# AGE-BASED STARTING CREDITS
+# ============================================================================
+# Every player starts with credits equal to the number of days they have been
+# alive. This represents accumulated life experience, not inherited wealth.
+#
+# Formula:
+#   starting_credits = floor((account_creation_date - birth_date).total_days * base_rate_per_day)
+#
+# The birth_date is recorded in the player's identity profile at account creation.
+# It is immutable after creation (prevents gaming the system by changing age).
+#
+# WHY THIS WORKS:
+#   - Fair: everyone alive the same number of days gets the same amount
+#   - Modest: even 90 years of life (~32,850 CR) only buys mid-tier gear
+#   - No advantage stacking: you cannot earn starting credits twice
+#   - Inclusive: a 13-year-old (~4,748 CR) can still buy basic tools and food
+#   - Scales to billions: each player's balance is independent, no pool to drain
+
+[starting_credits]
+description = "Age-based starting balance calculation. One-time grant at account creation."
+
+[starting_credits.fields.base_rate_per_day]
+type = "float"
+required = true
+description = "Credits earned per day of life. Multiplied by total days alive at account creation time."
+constraints = "Must be > 0."
+example = 1.0
+
+[starting_credits.fields.max_cap]
+type = "integer"
+required = true
+description = "Maximum starting credits. 0 = no cap. A cap would penalize older players, so the default is uncapped."
+constraints = "Must be >= 0."
+example = 0
+
+[starting_credits.fields.min_age_years]
+type = "integer"
+required = true
+description = "Minimum age in years to create an account. Child safety requirement."
+constraints = "Must be >= 13 (COPPA compliance)."
+example = 13
+
+[starting_credits.fields.birth_date_immutable]
+type = "boolean"
+required = true
+description = "If true, birth date cannot be changed after account creation. Prevents age fraud."
+example = true
+
+# ============================================================================
+# PASSIVE INCOME (Universal Basic Income)
+# ============================================================================
+# Every account earns credits just for existing. This guarantees nobody is
+# permanently broke and provides a baseline economic floor.
+#
+# WHY THIS WORKS AT SCALE:
+#   - 1 CR/day per player is a tiny amount (a loaf of bread costs 3 CR)
+#   - Credits are created, not redistributed, so it does not tax other players
+#   - Offline accrual is capped at 365 days to prevent abandoned account bloat
+#   - At 1 billion players, the system creates 1B CR/day total, but vendor
+#     prices scale logarithmically with population, so purchasing power holds
+
+[passive_income]
+description = "Universal basic income: credits earned per day for existing."
+
+[passive_income.fields.credits_per_day]
+type = "integer"
+required = true
+description = "Credits granted per real-time day. Accrues continuously, paid at payout_schedule intervals."
+constraints = "Must be >= 0."
+example = 1
+
+[passive_income.fields.accrues_offline]
+type = "boolean"
+required = true
+description = "If true, income accumulates while the player is logged out."
+example = true
+
+[passive_income.fields.max_offline_days]
+type = "integer"
+required = true
+description = "Maximum days of offline income that can accumulate. Prevents infinite stockpile on abandoned accounts."
+constraints = "Must be > 0."
+example = 365
+
+[passive_income.fields.payout_schedule]
+type = "string"
+required = true
+description = "When income is paid out. Options: daily_utc_midnight, hourly, on_login."
+example = "daily_utc_midnight"
+
+# ============================================================================
+# EARNING RATES
+# ============================================================================
+# Players earn credits through active gameplay. Rates vary by activity type,
+# skill level, and efficiency. These are reference ranges, not hard caps.
+#
+# HOW EARNING SCALES WITH SKILL:
+#   effective_rate = min_per_hour + (max_per_hour - min_per_hour) * (skill_level / max_skill_level)
+#   Example: Mining at skill level 10/20 = 3 + (15-3) * 0.5 = 9 CR/hour
+#
+# Trading has no fixed rate because profit comes from buy/sell spread.
+# A skilled trader with market knowledge earns more than any fixed-rate activity.
+
+[earning_rates]
+description = "Credit earning rates per activity type."
+
+[earning_rates.fields.activity]
+type = "string"
+required = true
+description = "Activity identifier matching a registered game system."
+example = "farming"
+
+[earning_rates.fields.min_per_hour]
+type = "integer"
+required = true
+description = "Minimum credits per hour for an unskilled beginner."
+constraints = "Must be >= 0."
+example = 2
+
+[earning_rates.fields.max_per_hour]
+type = "integer"
+required = true
+description = "Maximum credits per hour for an expert with optimal setup."
+constraints = "Must be >= min_per_hour."
+example = 10
+
+[earning_rates.fields.skill_scaling]
+type = "boolean"
+required = true
+description = "If true, rate scales linearly with skill level. If false, rate is fixed or situation-dependent."
+example = true
+
+# ============================================================================
+# SUPPLY AND DEMAND
+# ============================================================================
+# The player marketplace uses free-market pricing. NPC vendors provide
+# price anchors that prevent total economic collapse or runaway inflation.
+#
+# NPC PRICING:
+#   sell_price = base_value * 1.25  (vendors sell at 25% markup)
+#   buy_price  = base_value * 0.50  (vendors buy at 50% of base)
+#   This 75% spread creates natural money sinks.
+#
+# PLAYER PRICING:
+#   Players set their own prices. If player prices drop below NPC buy price,
+#   the NPC becomes a buyer of last resort. If player prices rise above NPC
+#   sell price, the NPC becomes a price ceiling for basic goods.
+#
+# POPULATION SCALING:
+#   NPC prices adjust logarithmically with server population:
+#     adjusted_price = base_price * (1 + scale_factor * log10(population / base_population))
+#   At 100 players (base): 1.0x
+#   At 1,000 players: ~1.05x
+#   At 10,000 players: ~1.10x
+#   At 1,000,000 players: ~1.20x
+#   At 1,000,000,000 players: ~1.35x
+
+[supply_demand]
+description = "Market mechanics and price anchoring."
+
+[supply_demand.fields.npc_sell_markup]
+type = "float"
+required = true
+description = "Multiplier applied to base_value for NPC sell prices."
+example = 1.25
+
+[supply_demand.fields.npc_buy_discount]
+type = "float"
+required = true
+description = "Multiplier applied to base_value for NPC buy prices."
+example = 0.50
+
+[supply_demand.fields.vendor_scale_base_population]
+type = "integer"
+required = true
+description = "Population count at which NPC prices are at 1.0x baseline."
+example = 100
+
+[supply_demand.fields.vendor_scale_factor]
+type = "float"
+required = true
+description = "Percentage increase per order of magnitude of population growth."
+example = 0.05
+
+# ============================================================================
+# COMMUNITY TAXATION
+# ============================================================================
+# Tax rates are set by community governance (elected representatives or
+# direct democracy). Tax revenue goes to a community treasury.
+#
+# HOW IT WORKS:
+#   1. Community holds a governance vote to set tax rate (0-25%)
+#   2. Tax is deducted from marketplace sales within that community's territory
+#   3. Revenue enters the community treasury
+#   4. Treasury spending requires governance vote
+#   5. All transactions are on a public ledger (transparent)
+#
+# ANTI-ABUSE:
+#   - Maximum rate is 25% (hard cap, cannot be overridden)
+#   - Players can leave a community to escape unfair taxation
+#   - Public ledger prevents embezzlement
+
+[taxation]
+description = "Community taxation via governance."
+
+[taxation.fields.default_rate_percent]
+type = "float"
+required = true
+description = "Default tax rate for new communities."
+constraints = "Must be 0.0-25.0."
+example = 0.0
+
+[taxation.fields.max_rate_percent]
+type = "float"
+required = true
+description = "Hard ceiling on tax rates. No community can exceed this."
+constraints = "Must be <= 25.0."
+example = 25.0
+
+[taxation.fields.applies_to]
+type = "array of strings"
+required = true
+description = "Transaction types subject to taxation."
+example = ["marketplace_sales", "land_income"]
+
+[taxation.fields.public_ledger]
+type = "boolean"
+required = true
+description = "If true, all tax collection and spending is publicly auditable."
+example = true
+
+# ============================================================================
+# TRADE FEES
+# ============================================================================
+# Direct P2P trades are free to encourage social interaction.
+# Marketplace listings charge a small percentage to cover server costs
+# and act as a credit sink.
+
+[trade_fees]
+description = "Fee structure for trades and marketplace listings."
+
+[trade_fees.fields.p2p_fee_percent]
+type = "float"
+required = true
+description = "Fee on direct player-to-player trades. 0 = free."
+example = 0.0
+
+[trade_fees.fields.marketplace_fee_percent]
+type = "float"
+required = true
+description = "Fee on successful marketplace sales, taken from seller proceeds."
+constraints = "Must be >= 0."
+example = 2.0
+
+[trade_fees.fields.fee_paid_by]
+type = "string"
+required = true
+description = "Who pays the fee: seller or buyer."
+valid_values = ["seller", "buyer"]
+example = "seller"
+
+[trade_fees.fields.listing_expiration_days]
+type = "integer"
+required = true
+description = "Days before an unsold listing expires and items return to seller."
+example = 7
+
+[trade_fees.fields.max_active_listings]
+type = "integer"
+required = true
+description = "Maximum simultaneous marketplace listings per player."
+example = 50
+
+[trade_fees.fields.bulk_discount_threshold]
+type = "integer"
+required = true
+description = "Number of items in a single listing to qualify for reduced fee."
+example = 10
+
+[trade_fees.fields.bulk_fee_percent]
+type = "float"
+required = true
+description = "Reduced fee for bulk listings meeting the threshold."
+example = 1.5
+
+# ============================================================================
+# ANTI-EXPLOITATION
+# ============================================================================
+# Rate limits and caps that prevent bots, money laundering, and market
+# manipulation. These are soft limits (flagging, not banning) for the
+# suspicious_transaction_threshold.
+
+[anti_exploitation]
+description = "Safeguards against economic abuse."
+
+[anti_exploitation.fields.max_trades_per_hour]
+type = "integer"
+required = true
+description = "Maximum completed trades per player per hour. Prevents bot farming."
+example = 60
+
+[anti_exploitation.fields.max_gift_per_day_per_recipient]
+type = "integer"
+required = true
+description = "Maximum credit value a player can gift to a single recipient per day."
+example = 500
+
+[anti_exploitation.fields.max_gift_total_per_day]
+type = "integer"
+required = true
+description = "Maximum total credit value a player can gift across all recipients per day."
+example = 2000
+
+[anti_exploitation.fields.marketplace_min_account_age_hours]
+type = "integer"
+required = true
+description = "Minimum account age in hours before marketplace access is granted."
+example = 24
+
+[anti_exploitation.fields.gift_min_account_age_hours]
+type = "integer"
+required = true
+description = "Minimum account age in hours before gifting is allowed."
+example = 48
+
+[anti_exploitation.fields.suspicious_transaction_threshold]
+type = "integer"
+required = true
+description = "Single transaction value that triggers audit flagging (not blocking)."
+example = 10000
+
+[anti_exploitation.fields.npc_purchase_cooldown_sec]
+type = "integer"
+required = true
+description = "Minimum seconds between NPC vendor purchases to prevent instant buyout."
+example = 5
+
+# ============================================================================
+# REPUTATION SYSTEM (separate from credits)
+# ============================================================================
+# Reputation is earned through positive actions and community contribution.
+# It cannot be bought, sold, or transferred. It unlocks access to advanced
+# content and serves as a trust signal.
+#
+# EARNING REPUTATION:
+#   - Completing community tasks: +1 to +10 per task
+#   - Helping other players (verified): +2 to +5 per instance
+#   - Quest completion: +1 to +5 per quest
+#   - Positive behavior reports from other players: +1 per report
+#   - Teaching new players: +3 per session
+#   - Contributing to community projects: +5 to +20 per milestone
+#
+# LOSING REPUTATION:
+#   - Negative behavior reports (verified): -5 per report
+#   - Failed community obligations: -2 per failure
+#   - Scam reports (verified): -20 per incident
+#   - Griefing (verified): -10 per incident
+#
+# REPUTATION UNLOCKS:
+#   0-50:     Basic access (standard gameplay)
+#   50-200:   Advanced recipes (tier 2 crafting)
+#   200-500:  Restricted areas (research labs, military zones)
+#   500-1000: Leadership roles (community governance eligibility)
+#   1000+:    Cybernetic upgrades (advanced implants require trusted citizens)
+#
+# WHY SEPARATE FROM CREDITS:
+#   Credits measure economic activity. Reputation measures social trust.
+#   A rich player is not automatically trusted. A trusted player is not
+#   automatically rich. Both are earned, but through different actions.
+
+[reputation]
+description = "Non-transferable trust score earned through positive community behavior."
+
+[reputation.fields.earning_sources]
+type = "array of objects"
+required = true
+description = "Actions that grant reputation points."
+example = [
+    { action = "community_task", min_points = 1, max_points = 10 },
+    { action = "help_player", min_points = 2, max_points = 5 },
+    { action = "quest_completion", min_points = 1, max_points = 5 },
+    { action = "positive_report", min_points = 1, max_points = 1 },
+    { action = "teaching", min_points = 3, max_points = 3 },
+    { action = "project_milestone", min_points = 5, max_points = 20 },
+]
+
+[reputation.fields.loss_sources]
+type = "array of objects"
+required = true
+description = "Actions that reduce reputation. All require verification before applying."
+example = [
+    { action = "negative_report", points = -5 },
+    { action = "failed_obligation", points = -2 },
+    { action = "scam_verified", points = -20 },
+    { action = "griefing_verified", points = -10 },
+]
+
+[reputation.fields.unlock_tiers]
+type = "array of objects"
+required = true
+description = "Reputation thresholds that unlock gameplay features."
+example = [
+    { threshold = 0, unlocks = "basic_gameplay" },
+    { threshold = 50, unlocks = "advanced_recipes" },
+    { threshold = 200, unlocks = "restricted_areas" },
+    { threshold = 500, unlocks = "governance_eligibility" },
+    { threshold = 1000, unlocks = "cybernetic_upgrades" },
+]
+
+# ============================================================================
+# EXAMPLES
+# ============================================================================
+
+[[examples]]
+title = "New player starting balance (born 1988-01-29)"
+description = """
+Birth date: January 29, 1988
+Account created: April 8, 2026
+Days alive: 13,949
+Starting credits: 13,949 CR
+
+With 13,949 CR this player can afford:
+  - Full set of basic tools (pickaxe 20 + axe 18 + hammer 15 + shovel 12 = 65 CR)
+  - Leather armor (30 CR) + combat knife (10 CR) + recurve bow (25 CR)
+  - Workbench (30 CR) + smelter (80 CR) + kitchen station (60 CR)
+  - 100 days of food at 8 CR/day (800 CR)
+  - A car (2,000 CR) or a sailboat (500 CR)
+  - Total spent: ~3,600 CR, leaving ~10,300 CR for trading and expansion
+"""
+
+[[examples]]
+title = "Young player starting balance (born 2013-04-08)"
+description = """
+Birth date: April 8, 2013
+Account created: April 8, 2026
+Days alive: 4,748
+Starting credits: 4,748 CR
+
+With 4,748 CR this player can afford:
+  - Basic tools and leather armor (~135 CR)
+  - Workbench and basic crafting setup (~110 CR)
+  - 30 days of food (~240 CR)
+  - A bicycle (50 CR) or horse (200 CR)
+  - Total spent: ~535 CR, leaving ~4,200 CR to grow through gameplay
+"""
+
+[[examples]]
+title = "Elder player starting balance (born 1935-03-01)"
+description = """
+Birth date: March 1, 1935
+Account created: April 8, 2026
+Days alive: 33,276
+Starting credits: 33,276 CR
+
+With 33,276 CR this player can afford:
+  - Complete tool set and armor (~400 CR)
+  - All basic crafting stations (~500 CR)
+  - A spacecraft pod (5,000 CR) or a truck (3,000 CR)
+  - 6 months of gourmet food (~4,500 CR)
+  - Still modest: cannot afford a fighter (15,000 CR) and a freighter (25,000 CR)
+  - Total wealth is less than one freighter, keeping the economy balanced
+"""
+
+[[examples]]
+title = "Daily economy flow for an active player"
+description = """
+Morning:
+  - Passive income: +1 CR (daily)
+  - Farm harvest (2 hours): +8 CR (4/hr average)
+  - Sell produce at marketplace: +15 CR (minus 2% fee = +14.7, rounded to +14 CR)
+
+Afternoon:
+  - Mine iron ore (1 hour): +7 CR
+  - Smelt and craft (1 hour): iron ore -> iron ingots -> steel tools
+  - Sell steel pickaxe at marketplace: +20 CR (minus 0.4 CR fee)
+
+Evening:
+  - Complete a bounty quest: +30 CR
+  - Buy supplies from NPC vendor: -25 CR
+
+Daily net: ~55 CR positive
+Weekly net: ~385 CR
+Monthly net: ~1,650 CR
+
+At this rate, saving for a spacecraft pod (5,000 CR) takes about 3 months of
+casual play, which feels achievable but not trivial.
+"""
+
+[[examples]]
+title = "Community taxation scenario"
+description = """
+Frontier Settlement population: 500 players
+Tax rate: 5% (set by governance vote)
+Monthly marketplace volume: 250,000 CR
+
+Monthly tax revenue: 12,500 CR
+Treasury uses (voted on by community):
+  - Road construction materials: 3,000 CR
+  - Community farm seeds and tools: 2,000 CR
+  - Defense turrets: 4,000 CR
+  - Reserve fund: 3,500 CR
+
+Any player can audit the ledger. If the elected council misspends,
+they can be voted out next cycle.
+"""

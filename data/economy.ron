@@ -1,0 +1,240 @@
+// HumanityOS Economy Configuration
+// Core economic rules: currency, starting credits, income, earning rates,
+// inflation control, taxation, and trade fees.
+// Loaded by AssetManager, hot-reloadable.
+//
+// Design philosophy:
+//   Every person alive has accumulated life experience. The age-based starting
+//   credits mechanic converts that into a modest starting balance: 1 credit
+//   per day you have been alive. A newborn starts with 0. A 38-year-old starts
+//   with ~13,900. A 90-year-old starts with ~32,850. This is not wealth. It is
+//   a small head start that respects lived experience without creating unfair
+//   advantage. Combined with universal passive income (1 credit/day for
+//   existing), nobody is ever stuck at zero.
+//
+// Connection to game systems:
+//   Items (data/items.csv) -- item IDs referenced in trade_goods.ron for base values
+//   Trade goods (data/trade_goods.ron) -- base prices for supply/demand calculations
+//   Crafting (data/recipes.csv) -- crafting outputs have value derived from input costs
+//   NPC vendors (data/npcs.ron) -- vendor shop prices anchored to base values here
+//   Reputation (separate system) -- reputation unlocks, not purchasable with credits
+//   Governance -- community taxation rates set by elected representatives
+//   Marketplace (server/src/storage/) -- listing fees applied on marketplace trades
+
+(
+    // =========================================================================
+    // CURRENCY
+    // =========================================================================
+
+    currency: (
+        name: "Credits",
+        symbol: "CR",
+        // No decimal subdivision. 1 credit is the atomic unit.
+        // Simplifies all math, prevents floating point rounding in trades.
+        // A loaf of bread costs 3 CR, not 2.99 CR.
+        decimal_places: 0,
+        description: "Universal unit of exchange. Represents stored labor and contribution value.",
+    ),
+
+    // =========================================================================
+    // AGE-BASED STARTING CREDITS
+    // =========================================================================
+
+    starting_credits: (
+        // 1 credit per day the player has been alive at account creation
+        base_rate_per_day: 1.0,
+
+        // Formula: floor((account_creation_date - birth_date).days * base_rate_per_day)
+        // Birth date is tied to the player's identity profile.
+        // Initially honor system (self-reported). Verifiable later via
+        // government ID integration or community vouching.
+
+        // No maximum cap. Life experience has no ceiling.
+        // A 90-year-old (~32,850 CR) still has modest means.
+        // For reference, a basic spacecraft pod costs 5,000 CR.
+        max_cap: 0, // 0 = uncapped
+
+        // Minimum age to create an account (child safety)
+        min_age_years: 13,
+
+        // Examples:
+        //   Born 1988-01-29, account created 2026-04-08 = 13,949 days = 13,949 CR
+        //   Born 2000-06-15, account created 2026-04-08 = 9,428 days = 9,428 CR
+        //   Born 2013-04-08, account created 2026-04-08 = 4,748 days = 4,748 CR
+        //   Born 1935-03-01, account created 2026-04-08 = 33,276 days = 33,276 CR
+
+        // Anti-fraud: birth date is immutable after account creation.
+        // Changing it requires identity re-verification.
+        birth_date_immutable: true,
+    ),
+
+    // =========================================================================
+    // PASSIVE INCOME (Universal Basic Income)
+    // =========================================================================
+
+    passive_income: (
+        // Every account earns 1 credit per real-time day just for existing.
+        // This ensures nobody is ever permanently broke. Scales to billions
+        // of users because credits are created, not redistributed.
+        credits_per_day: 1,
+
+        // Income accrues while offline. When you log in after 30 days away,
+        // you receive 30 credits.
+        accrues_offline: true,
+
+        // Maximum offline accrual (prevents infinite stockpiling on abandoned accounts)
+        max_offline_days: 365,
+
+        // Paid at the start of each UTC day (00:00 UTC)
+        payout_schedule: "daily_utc_midnight",
+    ),
+
+    // =========================================================================
+    // EARNING RATES BY ACTIVITY
+    // =========================================================================
+    // Rates are credits per real-time hour of active engagement.
+    // Actual payouts vary based on efficiency, skill level, and resource quality.
+    // min = unskilled beginner, max = expert with optimal setup.
+
+    earning_rates: [
+        (activity: "farming",         min_per_hour: 2,   max_per_hour: 10,  skill_scaling: true),
+        (activity: "mining",          min_per_hour: 3,   max_per_hour: 15,  skill_scaling: true),
+        (activity: "crafting",        min_per_hour: 5,   max_per_hour: 20,  skill_scaling: true),
+        (activity: "cooking",         min_per_hour: 3,   max_per_hour: 12,  skill_scaling: true),
+        (activity: "fishing",         min_per_hour: 2,   max_per_hour: 8,   skill_scaling: true),
+        (activity: "logging",         min_per_hour: 2,   max_per_hour: 10,  skill_scaling: true),
+        (activity: "construction",    min_per_hour: 4,   max_per_hour: 18,  skill_scaling: true),
+        (activity: "electronics",     min_per_hour: 6,   max_per_hour: 25,  skill_scaling: true),
+        (activity: "alchemy",         min_per_hour: 5,   max_per_hour: 22,  skill_scaling: true),
+        (activity: "enchanting",      min_per_hour: 8,   max_per_hour: 30,  skill_scaling: true),
+        (activity: "trading",         min_per_hour: 0,   max_per_hour: 0,   skill_scaling: false), // Variable: profit from buy/sell spread
+        (activity: "exploration",     min_per_hour: 1,   max_per_hour: 5,   skill_scaling: false), // Discovery bonuses
+        (activity: "teaching",        min_per_hour: 3,   max_per_hour: 15,  skill_scaling: true),
+        (activity: "healing",         min_per_hour: 4,   max_per_hour: 16,  skill_scaling: true),
+        (activity: "transport",       min_per_hour: 3,   max_per_hour: 12,  skill_scaling: false), // Distance-based
+    ],
+
+    // Fixed payouts per completion (not hourly)
+    fixed_payouts: [
+        (activity: "quest_tutorial",      min_payout: 10,   max_payout: 25),
+        (activity: "quest_standard",      min_payout: 20,   max_payout: 100),
+        (activity: "quest_epic",          min_payout: 50,   max_payout: 250),
+        (activity: "quest_legendary",     min_payout: 100,  max_payout: 500),
+        (activity: "bounty_easy",         min_payout: 5,    max_payout: 20),
+        (activity: "bounty_medium",       min_payout: 15,   max_payout: 50),
+        (activity: "bounty_hard",         min_payout: 30,   max_payout: 100),
+        (activity: "bounty_boss",         min_payout: 50,   max_payout: 200),
+        (activity: "community_task",      min_payout: 5,    max_payout: 50),
+        (activity: "discovery_new_area",  min_payout: 10,   max_payout: 30),
+        (activity: "discovery_rare_find", min_payout: 25,   max_payout: 100),
+    ],
+
+    // =========================================================================
+    // INFLATION CONTROL
+    // =========================================================================
+
+    inflation: (
+        // NPC vendors have fixed base prices anchored to trade_goods.ron values.
+        // This creates a price floor and ceiling that the player market orbits.
+        npc_prices_fixed: true,
+
+        // Vendor prices scale with server population to maintain purchasing power.
+        // At 100 players, prices are 1x. At 10,000 players, prices are ~1.2x.
+        // Logarithmic scaling prevents runaway inflation.
+        vendor_price_scaling: "logarithmic",
+        vendor_scale_base_population: 100,
+        vendor_scale_factor: 0.05, // 5% increase per order of magnitude
+
+        // Player marketplace prices are completely free (supply and demand).
+        player_market_free: true,
+
+        // Credit sinks (where credits leave the economy permanently):
+        credit_sinks: [
+            "npc_vendor_purchases",    // Buying from NPC shops
+            "repair_costs",            // Equipment repair at NPC stations
+            "fast_travel_fees",        // Transporter costs
+            "marketplace_listing_fee", // 2% fee on marketplace sales
+            "blueprint_purchases",     // Buying crafting blueprints
+            "land_claim_fees",         // Claiming territory
+            "respawn_penalty",         // Small credit loss on death (10% of carried, capped)
+        ],
+
+        // Respawn penalty details
+        respawn_credit_loss_percent: 10.0,
+        respawn_credit_loss_max: 100, // Never lose more than 100 CR on death
+    ),
+
+    // =========================================================================
+    // TAXATION (Community Governance)
+    // =========================================================================
+
+    taxation: (
+        // Tax rates are set per community by elected governance.
+        // Default is 0%. Communities vote to change it.
+        default_rate_percent: 0.0,
+
+        // Maximum tax rate any community can set (prevents abuse)
+        max_rate_percent: 25.0,
+
+        // Tax applies to: marketplace sales within the community's territory
+        applies_to: ["marketplace_sales", "land_income"],
+
+        // Tax revenue goes to the community treasury, spent by governance vote.
+        treasury_controlled_by: "governance_vote",
+
+        // Transparent: all tax collection and spending is publicly auditable.
+        public_ledger: true,
+    ),
+
+    // =========================================================================
+    // TRADE FEES
+    // =========================================================================
+
+    trade_fees: (
+        // Direct player-to-player trades are free (encourages social interaction)
+        p2p_fee_percent: 0.0,
+
+        // Marketplace listings charge 2% on successful sale (covers server costs)
+        marketplace_fee_percent: 2.0,
+
+        // Fee is taken from the seller's proceeds, not added to buyer's cost.
+        fee_paid_by: "seller",
+
+        // Listing expiration: unsold items return to seller after 7 days
+        listing_expiration_days: 7,
+
+        // Maximum active listings per player (prevents spam)
+        max_active_listings: 50,
+
+        // Bulk listing discount: 10+ items in one listing reduce fee to 1.5%
+        bulk_discount_threshold: 10,
+        bulk_fee_percent: 1.5,
+    ),
+
+    // =========================================================================
+    // ANTI-EXPLOITATION
+    // =========================================================================
+
+    anti_exploit: (
+        // Maximum trades per hour per player (prevents bot farming)
+        max_trades_per_hour: 60,
+
+        // Maximum gift value per day to a single recipient (prevents laundering)
+        max_gift_per_day_per_recipient: 500,
+
+        // Maximum total gifts per day across all recipients
+        max_gift_total_per_day: 2000,
+
+        // Minimum account age to use marketplace (prevents throwaway accounts)
+        marketplace_min_account_age_hours: 24,
+
+        // Minimum account age to send gifts
+        gift_min_account_age_hours: 48,
+
+        // Suspicious transaction threshold (flagged for review, not blocked)
+        suspicious_transaction_threshold: 10000,
+
+        // Rate limit on NPC vendor purchases (prevents instant buyout)
+        npc_purchase_cooldown_sec: 5,
+    ),
+)

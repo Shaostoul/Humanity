@@ -1,0 +1,820 @@
+// HumanityOS Medical System: Conditions, Procedures, and Prosthetics
+// 62 entries across medical conditions, treatment procedures, and cybernetic augmentations.
+// Loaded by AssetManager, hot-reloadable.
+//
+// Conditions represent injuries and illnesses beyond basic status_effects.csv entries.
+// Each condition references status_effect IDs for its symptoms and has treatment options.
+// Untreated conditions may progress into worse conditions over time.
+//
+// Procedures are medical actions requiring specific skills and tools (item IDs from items.csv).
+// Success rates and complication chances depend on skill level and available equipment.
+//
+// Prosthetics/cybernetics are permanent augmentations that replace or enhance body parts.
+// They reference item IDs for crafting/installation and have stat modifiers.
+
+(
+    conditions: [
+        // =====================================================================
+        // INJURIES (14)
+        // =====================================================================
+
+        (
+            id: "broken_arm",
+            name: "Broken Arm",
+            severity: "severe",
+            body_part: "arm",
+            symptoms: ["broken_bone", "weakness"],
+            treatment_options: ["splinting", "surgery_minor"],
+            untreated_progression: Some("compound_fracture"),
+            recovery_time_s: 259200,
+            description: "Clean fracture of the radius or ulna. Arm is unusable until set and healed.",
+        ),
+
+        (
+            id: "broken_leg",
+            name: "Broken Leg",
+            severity: "severe",
+            body_part: "leg",
+            symptoms: ["broken_bone", "slow"],
+            treatment_options: ["splinting", "surgery_minor"],
+            untreated_progression: Some("compound_fracture"),
+            recovery_time_s: 345600,
+            description: "Fracture of the tibia or femur. Walking is agonizing without treatment.",
+        ),
+
+        (
+            id: "broken_ribs",
+            name: "Broken Ribs",
+            severity: "moderate",
+            body_part: "torso",
+            symptoms: ["weakness", "exhausted"],
+            treatment_options: ["bandaging", "pain_management"],
+            untreated_progression: Some("internal_bleeding"),
+            recovery_time_s: 172800,
+            description: "Cracked or broken ribs causing pain with every breath.",
+        ),
+
+        (
+            id: "compound_fracture",
+            name: "Compound Fracture",
+            severity: "critical",
+            body_part: "any_limb",
+            symptoms: ["broken_bone", "bleeding", "infected_wound"],
+            treatment_options: ["surgery_major"],
+            untreated_progression: Some("gangrene"),
+            recovery_time_s: 604800,
+            description: "Bone has pierced through skin. Extreme infection risk without surgery.",
+        ),
+
+        (
+            id: "concussion",
+            name: "Concussion",
+            severity: "moderate",
+            body_part: "head",
+            symptoms: ["concussion", "confused", "blind"],
+            treatment_options: ["rest_treatment", "medication_course"],
+            untreated_progression: Some("brain_swelling"),
+            recovery_time_s: 86400,
+            description: "Traumatic brain impact causing disorientation and impaired cognition.",
+        ),
+
+        (
+            id: "brain_swelling",
+            name: "Brain Swelling",
+            severity: "critical",
+            body_part: "head",
+            symptoms: ["concussion", "stunned", "slow"],
+            treatment_options: ["surgery_major"],
+            untreated_progression: None,
+            recovery_time_s: 604800,
+            description: "Intracranial pressure from untreated head trauma. Fatal without intervention.",
+        ),
+
+        (
+            id: "internal_bleeding",
+            name: "Internal Bleeding",
+            severity: "critical",
+            body_part: "torso",
+            symptoms: ["bleeding", "weakness", "exhausted"],
+            treatment_options: ["surgery_major", "blood_transfusion"],
+            untreated_progression: None,
+            recovery_time_s: 432000,
+            description: "Hemorrhaging inside body cavities. Lethal within hours if untreated.",
+        ),
+
+        (
+            id: "burn_degree_1",
+            name: "First-Degree Burn",
+            severity: "minor",
+            body_part: "skin",
+            symptoms: ["sunburn"],
+            treatment_options: ["bandaging", "medication_course"],
+            untreated_progression: None,
+            recovery_time_s: 43200,
+            description: "Superficial reddening of the skin. Painful but heals on its own.",
+        ),
+
+        (
+            id: "burn_degree_2",
+            name: "Second-Degree Burn",
+            severity: "moderate",
+            body_part: "skin",
+            symptoms: ["burning", "weakness"],
+            treatment_options: ["bandaging", "medication_course"],
+            untreated_progression: Some("infection_bacterial"),
+            recovery_time_s: 172800,
+            description: "Blistering burn affecting the dermis. Risk of infection if untreated.",
+        ),
+
+        (
+            id: "burn_degree_3",
+            name: "Third-Degree Burn",
+            severity: "critical",
+            body_part: "skin",
+            symptoms: ["burning", "weakness", "vulnerable"],
+            treatment_options: ["surgery_major", "skin_graft"],
+            untreated_progression: Some("infection_bacterial"),
+            recovery_time_s: 1209600,
+            description: "Full-thickness burn destroying all skin layers. Requires grafting.",
+        ),
+
+        (
+            id: "laceration",
+            name: "Deep Laceration",
+            severity: "moderate",
+            body_part: "any",
+            symptoms: ["bleeding"],
+            treatment_options: ["suturing", "bandaging"],
+            untreated_progression: Some("infected_wound"),
+            recovery_time_s: 86400,
+            description: "A deep cut requiring stitches to close properly.",
+        ),
+
+        (
+            id: "puncture_wound",
+            name: "Puncture Wound",
+            severity: "moderate",
+            body_part: "any",
+            symptoms: ["bleeding", "infected_wound"],
+            treatment_options: ["suturing", "medication_course"],
+            untreated_progression: Some("infection_bacterial"),
+            recovery_time_s: 129600,
+            description: "A narrow, deep wound from a pointed object. High infection risk.",
+        ),
+
+        (
+            id: "sprain",
+            name: "Sprain",
+            severity: "minor",
+            body_part: "any_joint",
+            symptoms: ["slow"],
+            treatment_options: ["bandaging", "rest_treatment"],
+            untreated_progression: None,
+            recovery_time_s: 86400,
+            description: "Stretched or torn ligaments in a joint. Painful but self-healing with rest.",
+        ),
+
+        (
+            id: "dislocated_joint",
+            name: "Dislocated Joint",
+            severity: "moderate",
+            body_part: "any_joint",
+            symptoms: ["broken_bone", "weakness"],
+            treatment_options: ["joint_reduction", "splinting"],
+            untreated_progression: None,
+            recovery_time_s: 172800,
+            description: "Bone displaced from its socket. Must be reset before healing can begin.",
+        ),
+
+        // =====================================================================
+        // ENVIRONMENTAL / EXPOSURE (6)
+        // =====================================================================
+
+        (
+            id: "hypothermia_mild",
+            name: "Mild Hypothermia",
+            severity: "moderate",
+            body_part: "whole_body",
+            symptoms: ["hypothermia", "slow"],
+            treatment_options: ["warming_treatment", "rest_treatment"],
+            untreated_progression: Some("hypothermia_severe"),
+            recovery_time_s: 7200,
+            description: "Core body temperature dropping. Shivering, confusion, and sluggishness.",
+        ),
+
+        (
+            id: "hypothermia_severe",
+            name: "Severe Hypothermia",
+            severity: "critical",
+            body_part: "whole_body",
+            symptoms: ["hypothermia", "frozen", "stunned"],
+            treatment_options: ["warming_treatment", "cpr"],
+            untreated_progression: None,
+            recovery_time_s: 28800,
+            description: "Life-threatening heat loss. Organs begin shutting down.",
+        ),
+
+        (
+            id: "dehydration_mild",
+            name: "Mild Dehydration",
+            severity: "moderate",
+            body_part: "whole_body",
+            symptoms: ["thirsty", "exhausted"],
+            treatment_options: ["hydration_therapy"],
+            untreated_progression: Some("dehydration_severe"),
+            recovery_time_s: 3600,
+            description: "Insufficient fluid intake. Fatigue, headache, and reduced performance.",
+        ),
+
+        (
+            id: "dehydration_severe",
+            name: "Severe Dehydration",
+            severity: "critical",
+            body_part: "whole_body",
+            symptoms: ["thirsty", "confused", "stunned"],
+            treatment_options: ["hydration_therapy", "medication_course"],
+            untreated_progression: None,
+            recovery_time_s: 14400,
+            description: "Dangerous fluid deficit. Organ failure imminent without immediate hydration.",
+        ),
+
+        (
+            id: "heatstroke",
+            name: "Heatstroke",
+            severity: "severe",
+            body_part: "whole_body",
+            symptoms: ["overheated", "confused", "stunned"],
+            treatment_options: ["cooling_treatment", "hydration_therapy"],
+            untreated_progression: None,
+            recovery_time_s: 21600,
+            description: "Core temperature above 40C. Organ damage begins within minutes.",
+        ),
+
+        (
+            id: "malnutrition",
+            name: "Malnutrition",
+            severity: "moderate",
+            body_part: "whole_body",
+            symptoms: ["hungry", "weakness", "slow"],
+            treatment_options: ["nutrition_therapy", "medication_course"],
+            untreated_progression: None,
+            recovery_time_s: 604800,
+            description: "Chronic dietary deficiency. Muscles waste and immune system weakens.",
+        ),
+
+        // =====================================================================
+        // INFECTIONS / DISEASES (8)
+        // =====================================================================
+
+        (
+            id: "infection_bacterial",
+            name: "Bacterial Infection",
+            severity: "moderate",
+            body_part: "any",
+            symptoms: ["infected_wound", "weakness"],
+            treatment_options: ["medication_course", "surgery_minor"],
+            untreated_progression: Some("sepsis"),
+            recovery_time_s: 172800,
+            description: "Bacterial colonization of a wound or organ. Requires antibiotics.",
+        ),
+
+        (
+            id: "infection_viral",
+            name: "Viral Infection",
+            severity: "moderate",
+            body_part: "whole_body",
+            symptoms: ["flu", "weakness", "exhausted"],
+            treatment_options: ["rest_treatment", "medication_course"],
+            untreated_progression: None,
+            recovery_time_s: 259200,
+            description: "Systemic viral illness. Rest and fluids are primary treatment.",
+        ),
+
+        (
+            id: "sepsis",
+            name: "Sepsis",
+            severity: "critical",
+            body_part: "whole_body",
+            symptoms: ["infection", "weakness", "confused"],
+            treatment_options: ["surgery_major", "medication_course", "blood_transfusion"],
+            untreated_progression: None,
+            recovery_time_s: 604800,
+            description: "Blood poisoning from untreated infection. Fatal within days without aggressive treatment.",
+        ),
+
+        (
+            id: "gangrene",
+            name: "Gangrene",
+            severity: "critical",
+            body_part: "any_limb",
+            symptoms: ["infected_wound", "poisoned"],
+            treatment_options: ["amputation", "surgery_major"],
+            untreated_progression: Some("sepsis"),
+            recovery_time_s: 604800,
+            description: "Tissue death from blood loss or infection. Amputation may be the only option.",
+        ),
+
+        (
+            id: "tooth_decay",
+            name: "Tooth Decay",
+            severity: "minor",
+            body_part: "head",
+            symptoms: [],
+            treatment_options: ["dental_extraction", "dental_filling"],
+            untreated_progression: Some("tooth_abscess"),
+            recovery_time_s: 3600,
+            description: "Cavities and enamel erosion causing increasing pain.",
+        ),
+
+        (
+            id: "tooth_abscess",
+            name: "Tooth Abscess",
+            severity: "moderate",
+            body_part: "head",
+            symptoms: ["infected_wound"],
+            treatment_options: ["dental_extraction", "medication_course"],
+            untreated_progression: Some("infection_bacterial"),
+            recovery_time_s: 43200,
+            description: "Pus-filled infection at the tooth root. Agonizing pain.",
+        ),
+
+        (
+            id: "vision_impairment",
+            name: "Vision Impairment",
+            severity: "moderate",
+            body_part: "eyes",
+            symptoms: ["blind"],
+            treatment_options: ["eye_surgery", "prosthetic_fitting"],
+            untreated_progression: None,
+            recovery_time_s: 0,
+            description: "Degraded eyesight from injury, disease, or age. Corrective measures required.",
+        ),
+
+        (
+            id: "hearing_loss",
+            name: "Hearing Loss",
+            severity: "moderate",
+            body_part: "ears",
+            symptoms: [],
+            treatment_options: ["prosthetic_fitting"],
+            untreated_progression: None,
+            recovery_time_s: 0,
+            description: "Partial or complete deafness. Impairs situational awareness and communication.",
+        ),
+    ],
+
+    procedures: [
+        // =====================================================================
+        // MEDICAL PROCEDURES (20)
+        // =====================================================================
+
+        (
+            id: "bandaging",
+            name: "Bandaging",
+            skill_required: "medicine",
+            skill_level: 1,
+            tools_required: ["bandage_0"],
+            consumables: [("bandage_0", 1)],
+            duration_s: 30,
+            success_rate: 0.95,
+            complications_chance: 0.02,
+            description: "Applying clean dressings to wounds to stop bleeding and prevent infection.",
+        ),
+
+        (
+            id: "splinting",
+            name: "Splinting",
+            skill_required: "medicine",
+            skill_level: 2,
+            tools_required: ["bandage_0"],
+            consumables: [("bandage_0", 2), ("wood_log_0", 1)],
+            duration_s: 120,
+            success_rate: 0.90,
+            complications_chance: 0.05,
+            description: "Immobilizing a broken bone with rigid supports to allow proper healing.",
+        ),
+
+        (
+            id: "suturing",
+            name: "Suturing",
+            skill_required: "medicine",
+            skill_level: 3,
+            tools_required: ["med_kit_advanced_0"],
+            consumables: [("bandage_0", 1)],
+            duration_s: 300,
+            success_rate: 0.88,
+            complications_chance: 0.08,
+            description: "Stitching deep wounds closed with needle and thread for proper healing.",
+        ),
+
+        (
+            id: "surgery_minor",
+            name: "Minor Surgery",
+            skill_required: "medicine",
+            skill_level: 5,
+            tools_required: ["med_kit_advanced_0", "knife_combat_0"],
+            consumables: [("bandage_0", 3), ("antidote_0", 1)],
+            duration_s: 1800,
+            success_rate: 0.82,
+            complications_chance: 0.12,
+            description: "Small-scale surgical intervention for foreign object removal or bone setting.",
+        ),
+
+        (
+            id: "surgery_major",
+            name: "Major Surgery",
+            skill_required: "medicine",
+            skill_level: 8,
+            tools_required: ["med_kit_advanced_0", "knife_combat_0", "flask_0"],
+            consumables: [("bandage_0", 5), ("antidote_0", 2), ("poultice_0", 2)],
+            duration_s: 7200,
+            success_rate: 0.70,
+            complications_chance: 0.20,
+            description: "Invasive surgery for internal bleeding, organ repair, or complex fractures.",
+        ),
+
+        (
+            id: "blood_transfusion",
+            name: "Blood Transfusion",
+            skill_required: "medicine",
+            skill_level: 6,
+            tools_required: ["med_kit_advanced_0", "flask_0"],
+            consumables: [("flask_0", 1)],
+            duration_s: 3600,
+            success_rate: 0.85,
+            complications_chance: 0.10,
+            description: "Transferring blood from a compatible donor to replace dangerous blood loss.",
+        ),
+
+        (
+            id: "cpr",
+            name: "CPR",
+            skill_required: "medicine",
+            skill_level: 2,
+            tools_required: [],
+            consumables: [],
+            duration_s: 300,
+            success_rate: 0.45,
+            complications_chance: 0.15,
+            description: "Chest compressions and rescue breathing to restart a stopped heart.",
+        ),
+
+        (
+            id: "defibrillation",
+            name: "Defibrillation",
+            skill_required: "medicine",
+            skill_level: 4,
+            tools_required: ["battery_0"],
+            consumables: [("battery_0", 1)],
+            duration_s: 60,
+            success_rate: 0.65,
+            complications_chance: 0.10,
+            description: "Electrical shock to restore normal heart rhythm during cardiac arrest.",
+        ),
+
+        (
+            id: "amputation",
+            name: "Amputation",
+            skill_required: "medicine",
+            skill_level: 7,
+            tools_required: ["med_kit_advanced_0", "axe_0"],
+            consumables: [("bandage_0", 5), ("poultice_0", 3)],
+            duration_s: 5400,
+            success_rate: 0.75,
+            complications_chance: 0.25,
+            description: "Surgical removal of a limb to prevent spread of gangrene or save a life.",
+        ),
+
+        (
+            id: "prosthetic_fitting",
+            name: "Prosthetic Fitting",
+            skill_required: "medicine",
+            skill_level: 6,
+            tools_required: ["med_kit_advanced_0", "multimeter_0"],
+            consumables: [],
+            duration_s: 7200,
+            success_rate: 0.90,
+            complications_chance: 0.08,
+            description: "Attaching and calibrating a prosthetic device to a patient's body.",
+        ),
+
+        (
+            id: "dental_extraction",
+            name: "Dental Extraction",
+            skill_required: "medicine",
+            skill_level: 3,
+            tools_required: ["med_kit_advanced_0"],
+            consumables: [("bandage_0", 1)],
+            duration_s: 600,
+            success_rate: 0.92,
+            complications_chance: 0.05,
+            description: "Removing a damaged or infected tooth to prevent further complications.",
+        ),
+
+        (
+            id: "dental_filling",
+            name: "Dental Filling",
+            skill_required: "medicine",
+            skill_level: 4,
+            tools_required: ["med_kit_advanced_0"],
+            consumables: [],
+            duration_s: 900,
+            success_rate: 0.88,
+            complications_chance: 0.03,
+            description: "Filling a cavity to restore tooth structure and prevent further decay.",
+        ),
+
+        (
+            id: "eye_surgery",
+            name: "Eye Surgery",
+            skill_required: "medicine",
+            skill_level: 9,
+            tools_required: ["med_kit_advanced_0", "lens_0"],
+            consumables: [("bandage_0", 2), ("poultice_0", 1)],
+            duration_s: 5400,
+            success_rate: 0.65,
+            complications_chance: 0.20,
+            description: "Delicate surgical intervention to repair or improve damaged vision.",
+        ),
+
+        (
+            id: "physical_therapy",
+            name: "Physical Therapy",
+            skill_required: "medicine",
+            skill_level: 3,
+            tools_required: [],
+            consumables: [],
+            duration_s: 3600,
+            success_rate: 0.95,
+            complications_chance: 0.02,
+            description: "Guided exercises and rehabilitation to restore function after injury.",
+        ),
+
+        (
+            id: "medication_course",
+            name: "Medication Course",
+            skill_required: "medicine",
+            skill_level: 3,
+            tools_required: [],
+            consumables: [("poultice_0", 2)],
+            duration_s: 600,
+            success_rate: 0.85,
+            complications_chance: 0.05,
+            description: "Administering a course of herbal or pharmaceutical medicine.",
+        ),
+
+        (
+            id: "vaccination",
+            name: "Vaccination",
+            skill_required: "medicine",
+            skill_level: 5,
+            tools_required: ["med_kit_advanced_0"],
+            consumables: [("flask_0", 1)],
+            duration_s: 300,
+            success_rate: 0.92,
+            complications_chance: 0.03,
+            description: "Injecting a weakened pathogen to build immunity against future disease.",
+        ),
+
+        (
+            id: "skin_graft",
+            name: "Skin Graft",
+            skill_required: "medicine",
+            skill_level: 8,
+            tools_required: ["med_kit_advanced_0", "knife_combat_0"],
+            consumables: [("bandage_0", 4), ("poultice_0", 2)],
+            duration_s: 7200,
+            success_rate: 0.72,
+            complications_chance: 0.18,
+            description: "Transplanting healthy skin to cover severe burn areas.",
+        ),
+
+        (
+            id: "joint_reduction",
+            name: "Joint Reduction",
+            skill_required: "medicine",
+            skill_level: 4,
+            tools_required: [],
+            consumables: [("bandage_0", 1)],
+            duration_s: 120,
+            success_rate: 0.85,
+            complications_chance: 0.10,
+            description: "Manually resetting a dislocated joint back into its socket.",
+        ),
+
+        (
+            id: "pain_management",
+            name: "Pain Management",
+            skill_required: "medicine",
+            skill_level: 2,
+            tools_required: [],
+            consumables: [("herbal_tea_0", 1)],
+            duration_s: 300,
+            success_rate: 0.90,
+            complications_chance: 0.02,
+            description: "Administering analgesics to reduce pain while the body heals.",
+        ),
+
+        (
+            id: "cybernetic_installation",
+            name: "Cybernetic Installation",
+            skill_required: "medicine",
+            skill_level: 10,
+            tools_required: ["med_kit_advanced_0", "multimeter_0", "soldering_iron_0"],
+            consumables: [("bandage_0", 3), ("wire_0", 5), ("circuit_board_0", 1)],
+            duration_s: 14400,
+            success_rate: 0.60,
+            complications_chance: 0.25,
+            description: "Surgically implanting cybernetic augmentations into living tissue.",
+        ),
+    ],
+
+    support_procedures: [
+        // =====================================================================
+        // SUPPORT TREATMENTS (non-surgical) (5)
+        // =====================================================================
+
+        (
+            id: "warming_treatment",
+            name: "Warming Treatment",
+            skill_required: "medicine",
+            skill_level: 1,
+            tools_required: [],
+            consumables: [("herbal_tea_0", 1)],
+            duration_s: 1800,
+            success_rate: 0.95,
+            description: "Gradual rewarming using blankets, warm fluids, and body heat.",
+        ),
+
+        (
+            id: "cooling_treatment",
+            name: "Cooling Treatment",
+            skill_required: "medicine",
+            skill_level: 1,
+            tools_required: [],
+            consumables: [("water_bottle_0", 2)],
+            duration_s: 1800,
+            success_rate: 0.90,
+            description: "Reducing body temperature with cool water, shade, and rest.",
+        ),
+
+        (
+            id: "hydration_therapy",
+            name: "Hydration Therapy",
+            skill_required: "medicine",
+            skill_level: 1,
+            tools_required: [],
+            consumables: [("water_purified_0", 2)],
+            duration_s: 1200,
+            success_rate: 0.95,
+            description: "Systematic fluid and electrolyte replenishment.",
+        ),
+
+        (
+            id: "nutrition_therapy",
+            name: "Nutrition Therapy",
+            skill_required: "medicine",
+            skill_level: 2,
+            tools_required: [],
+            consumables: [("bread_0", 2), ("dried_meat_0", 1)],
+            duration_s: 7200,
+            success_rate: 0.90,
+            description: "Structured caloric intake plan to reverse malnutrition.",
+        ),
+
+        (
+            id: "rest_treatment",
+            name: "Prescribed Rest",
+            skill_required: "medicine",
+            skill_level: 1,
+            tools_required: [],
+            consumables: [],
+            duration_s: 28800,
+            success_rate: 0.80,
+            description: "Enforced bed rest with monitoring to allow natural healing.",
+        ),
+    ],
+
+    prosthetics: [
+        // =====================================================================
+        // PROSTHETICS AND CYBERNETICS (9)
+        // =====================================================================
+
+        (
+            id: "prosthetic_arm",
+            name: "Prosthetic Arm",
+            category: "mechanical",
+            replaces: "arm",
+            craft_materials: [("steel_ingot_0", 5), ("rubber_sheet_0", 2), ("bolt_box_0", 3)],
+            installation_procedure: "prosthetic_fitting",
+            stat_modifiers: {"strength": 0.8},
+            power_source: None,
+            durability: 500,
+            description: "Mechanical arm replacement. Functional but weaker than the original.",
+        ),
+
+        (
+            id: "prosthetic_leg",
+            name: "Prosthetic Leg",
+            category: "mechanical",
+            replaces: "leg",
+            craft_materials: [("steel_ingot_0", 5), ("rubber_sheet_0", 3), ("bolt_box_0", 3)],
+            installation_procedure: "prosthetic_fitting",
+            stat_modifiers: {"speed": 0.75},
+            power_source: None,
+            durability: 600,
+            description: "Mechanical leg replacement. Allows walking but slower than natural gait.",
+        ),
+
+        (
+            id: "prosthetic_eye",
+            name: "Prosthetic Eye",
+            category: "mechanical",
+            replaces: "eye",
+            craft_materials: [("glass_pane_0", 2), ("lens_0", 1), ("wire_0", 3)],
+            installation_procedure: "prosthetic_fitting",
+            stat_modifiers: {"vision_range": 0.6},
+            power_source: None,
+            durability: 300,
+            description: "Glass and lens eye replacement. Limited vision but better than blindness.",
+        ),
+
+        (
+            id: "cybernetic_arm",
+            name: "Cybernetic Arm",
+            category: "cybernetic",
+            replaces: "arm",
+            craft_materials: [("titanium_ingot_0", 3), ("circuit_board_0", 2), ("wire_0", 5), ("processor_0", 1)],
+            installation_procedure: "cybernetic_installation",
+            stat_modifiers: {"strength": 1.5, "dexterity": 1.2},
+            power_source: Some("battery_0"),
+            durability: 800,
+            description: "Powered cybernetic arm with enhanced strength and precision beyond human limits.",
+        ),
+
+        (
+            id: "cybernetic_eye",
+            name: "Cybernetic Eye",
+            category: "cybernetic",
+            replaces: "eye",
+            craft_materials: [("lens_0", 2), ("circuit_board_0", 1), ("wire_0", 3), ("processor_0", 1)],
+            installation_procedure: "cybernetic_installation",
+            stat_modifiers: {"vision_range": 2.0, "accuracy": 1.15},
+            power_source: Some("battery_0"),
+            durability: 400,
+            description: "Digital optic with zoom, night vision, and HUD overlay capability.",
+        ),
+
+        (
+            id: "neural_implant",
+            name: "Neural Implant",
+            category: "cybernetic",
+            replaces: "brain_augment",
+            craft_materials: [("processor_0", 2), ("wire_0", 8), ("gold_ingot_0", 1), ("circuit_board_0", 2)],
+            installation_procedure: "cybernetic_installation",
+            stat_modifiers: {"xp_gain": 1.3, "accuracy": 1.1, "craft_speed": 1.2},
+            power_source: Some("battery_0"),
+            durability: 1000,
+            description: "Brain-computer interface enhancing learning speed, reflexes, and multitasking.",
+        ),
+
+        (
+            id: "reinforced_skeleton",
+            name: "Reinforced Skeleton",
+            category: "cybernetic",
+            replaces: "skeleton_augment",
+            craft_materials: [("titanium_ingot_0", 8), ("circuit_board_0", 2), ("wire_0", 10)],
+            installation_procedure: "cybernetic_installation",
+            stat_modifiers: {"armor": 20.0, "weight_kg": 15.0},
+            power_source: None,
+            durability: 2000,
+            description: "Titanium lattice bonded to bones. Virtually unbreakable skeleton.",
+        ),
+
+        (
+            id: "enhanced_lungs",
+            name: "Enhanced Lungs",
+            category: "cybernetic",
+            replaces: "lungs_augment",
+            craft_materials: [("titanium_ingot_0", 2), ("rubber_sheet_0", 4), ("wire_0", 5), ("circuit_board_0", 1)],
+            installation_procedure: "cybernetic_installation",
+            stat_modifiers: {"stamina_regen": 1.5, "oxygen_use": 0.5},
+            power_source: Some("battery_0"),
+            durability: 600,
+            description: "Synthetic lung augmentation with built-in air filtration and oxygen recycling.",
+        ),
+
+        (
+            id: "artificial_heart",
+            name: "Artificial Heart",
+            category: "cybernetic",
+            replaces: "heart",
+            craft_materials: [("titanium_ingot_0", 3), ("circuit_board_0", 2), ("wire_0", 6), ("rubber_sheet_0", 3)],
+            installation_procedure: "cybernetic_installation",
+            stat_modifiers: {"max_hp": 1.25, "stamina_regen": 1.3},
+            power_source: Some("battery_0"),
+            durability: 1500,
+            description: "Mechanical heart with superior output and resistance to cardiac conditions.",
+        ),
+    ],
+)

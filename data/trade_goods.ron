@@ -1,0 +1,347 @@
+// HumanityOS Trade Goods — Base Values
+// Defines the base credit value for every tradeable item in the economy.
+// Loaded by AssetManager, hot-reloadable.
+//
+// These values anchor NPC vendor prices and serve as reference points
+// for the player marketplace. Player-to-player prices are free market,
+// but NPC buy/sell prices derive from these base values:
+//   NPC sell price = base_value * 1.25 (25% markup)
+//   NPC buy price  = base_value * 0.50 (50% of base, they need margin)
+//
+// Item IDs reference data/items.csv where applicable. Items not yet in
+// items.csv use descriptive IDs that will be added as content expands.
+//
+// Value rationale:
+//   1 CR ~ 1 minute of unskilled labor
+//   A day of basic farming yields ~16-80 CR (2-10/hr * 8 hrs)
+//   A new player with 10,000 starting CR can outfit themselves modestly
+//   High-end gear requires sustained effort over days/weeks
+//
+// Categories match items.csv categories + expanded trade categories.
+
+[
+    // =========================================================================
+    // RAW MATERIALS — Natural resources, unprocessed
+    // =========================================================================
+
+    (id: "stone_raw_0",       name: "Stone",              category: "raw_material",    base_value: 1,    weight_kg: 2.0,   description: "Common rock, foundation of construction"),
+    (id: "clay_0",            name: "Clay",               category: "raw_material",    base_value: 1,    weight_kg: 1.5,   description: "Wet earth for pottery and bricks"),
+    (id: "sand_0",            name: "Sand",               category: "raw_material",    base_value: 1,    weight_kg: 1.5,   description: "Fine granular material for glass and concrete"),
+    (id: "gravel_0",          name: "Gravel",             category: "raw_material",    base_value: 1,    weight_kg: 2.0,   description: "Crushed stone for foundations and roads"),
+    (id: "dirt_0",            name: "Dirt",               category: "raw_material",    base_value: 1,    weight_kg: 1.5,   description: "Common soil for farming and fill"),
+    (id: "wood_log_0",        name: "Wood Log",           category: "raw_material",    base_value: 2,    weight_kg: 8.0,   description: "Freshly felled timber, needs processing"),
+    (id: "bamboo_0",          name: "Bamboo",             category: "raw_material",    base_value: 2,    weight_kg: 3.0,   description: "Fast-growing woody grass, lightweight and strong"),
+    (id: "coal_0",            name: "Coal",               category: "raw_material",    base_value: 3,    weight_kg: 1.0,   description: "Combustible carbon fuel for smelting and power"),
+    (id: "sulfur_0",          name: "Sulfur",             category: "raw_material",    base_value: 3,    weight_kg: 0.5,   description: "Yellow mineral for chemistry and gunpowder"),
+    (id: "saltpeter_0",       name: "Saltpeter",          category: "raw_material",    base_value: 3,    weight_kg: 0.5,   description: "Potassium nitrate for fertilizer and explosives"),
+    (id: "copper_ore_0",      name: "Copper Ore",         category: "raw_material",    base_value: 4,    weight_kg: 3.0,   description: "Green-tinged ore rich in copper"),
+    (id: "tin_ore_0",         name: "Tin Ore",            category: "raw_material",    base_value: 4,    weight_kg: 3.0,   description: "Cassiterite ore for bronze alloying"),
+    (id: "iron_ore_0",        name: "Iron Ore",           category: "raw_material",    base_value: 5,    weight_kg: 4.0,   description: "Red-brown ore, primary source of iron and steel"),
+    (id: "lead_ore_0",        name: "Lead Ore",           category: "raw_material",    base_value: 4,    weight_kg: 5.0,   description: "Heavy galena ore for radiation shielding"),
+    (id: "zinc_ore_0",        name: "Zinc Ore",           category: "raw_material",    base_value: 4,    weight_kg: 3.0,   description: "Sphalerite ore for galvanizing and brass"),
+    (id: "aluminum_ore_0",    name: "Bauxite",            category: "raw_material",    base_value: 6,    weight_kg: 3.0,   description: "Aluminum-rich ore, lightweight metal source"),
+    (id: "silver_ore_0",      name: "Silver Ore",         category: "raw_material",    base_value: 20,   weight_kg: 4.0,   description: "Precious metal ore for electronics and currency"),
+    (id: "gold_ore_0",        name: "Gold Ore",           category: "raw_material",    base_value: 50,   weight_kg: 5.0,   description: "Rare precious metal ore, highly valued"),
+    (id: "platinum_ore_0",    name: "Platinum Ore",       category: "raw_material",    base_value: 80,   weight_kg: 5.0,   description: "Extremely rare catalytic metal ore"),
+    (id: "titanium_ore_0",    name: "Titanium Ore",       category: "raw_material",    base_value: 30,   weight_kg: 3.5,   description: "Lightweight high-strength metal ore"),
+    (id: "uranium_ore_0",     name: "Uranium Ore",        category: "raw_material",    base_value: 100,  weight_kg: 6.0,   description: "Radioactive ore for nuclear fuel, handle with care"),
+    (id: "diamond_raw_0",     name: "Raw Diamond",        category: "raw_material",    base_value: 200,  weight_kg: 0.02,  description: "Uncut diamond crystal, hardest natural material"),
+    (id: "ruby_raw_0",        name: "Raw Ruby",           category: "raw_material",    base_value: 120,  weight_kg: 0.02,  description: "Uncut corundum crystal, deep red"),
+    (id: "sapphire_raw_0",    name: "Raw Sapphire",       category: "raw_material",    base_value: 110,  weight_kg: 0.02,  description: "Uncut corundum crystal, deep blue"),
+    (id: "emerald_raw_0",     name: "Raw Emerald",        category: "raw_material",    base_value: 130,  weight_kg: 0.02,  description: "Uncut beryl crystal, vivid green"),
+    (id: "crystal_quartz_0",  name: "Quartz Crystal",     category: "raw_material",    base_value: 8,    weight_kg: 0.5,   description: "Clear silica crystal for optics and electronics"),
+    (id: "obsidian_0",        name: "Obsidian",           category: "raw_material",    base_value: 6,    weight_kg: 2.5,   description: "Volcanic glass, razor-sharp when knapped"),
+    (id: "marble_0",          name: "Marble",             category: "raw_material",    base_value: 5,    weight_kg: 3.0,   description: "Metamorphic limestone for building and sculpture"),
+    (id: "rubber_raw_0",      name: "Raw Rubber",         category: "raw_material",    base_value: 4,    weight_kg: 1.0,   description: "Natural latex from rubber trees"),
+    (id: "oil_crude_0",       name: "Crude Oil",          category: "raw_material",    base_value: 8,    weight_kg: 0.9,   description: "Unrefined petroleum for fuel and plastics"),
+    (id: "ice_block_0",       name: "Ice Block",          category: "raw_material",    base_value: 2,    weight_kg: 5.0,   description: "Frozen water block, melts outside cold biomes"),
+
+    // =========================================================================
+    // ORGANIC RAW MATERIALS — Plant and animal products
+    // =========================================================================
+
+    (id: "cotton_raw_0",      name: "Raw Cotton",         category: "raw_organic",     base_value: 2,    weight_kg: 0.3,   description: "Unprocessed cotton bolls for textile production"),
+    (id: "flax_0",            name: "Flax",               category: "raw_organic",     base_value: 2,    weight_kg: 0.3,   description: "Fiber plant for linen and linseed oil"),
+    (id: "hemp_0",            name: "Hemp",               category: "raw_organic",     base_value: 2,    weight_kg: 0.4,   description: "Versatile fiber plant for rope, cloth, and paper"),
+    (id: "hide_raw_0",        name: "Raw Hide",           category: "raw_organic",     base_value: 5,    weight_kg: 3.0,   description: "Untanned animal skin, needs processing"),
+    (id: "wool_raw_0",        name: "Raw Wool",           category: "raw_organic",     base_value: 3,    weight_kg: 1.0,   description: "Unprocessed sheep fleece"),
+    (id: "silk_raw_0",        name: "Raw Silk",           category: "raw_organic",     base_value: 10,   weight_kg: 0.2,   description: "Unprocessed silkworm cocoon fiber"),
+    (id: "bone_0",            name: "Bone",               category: "raw_organic",     base_value: 1,    weight_kg: 0.5,   description: "Animal bone for tools and crafting"),
+    (id: "feather_0",         name: "Feather",            category: "raw_organic",     base_value: 1,    weight_kg: 0.01,  description: "Bird feather for arrows and insulation"),
+    (id: "resin_0",           name: "Resin",              category: "raw_organic",     base_value: 3,    weight_kg: 0.5,   description: "Tree sap for adhesives and waterproofing"),
+    (id: "beeswax_0",         name: "Beeswax",            category: "raw_organic",     base_value: 4,    weight_kg: 0.3,   description: "Natural wax for candles, polish, and sealing"),
+    (id: "glowcap_mushroom",  name: "Glowcap Mushroom",   category: "raw_organic",     base_value: 8,    weight_kg: 0.1,   description: "Bioluminescent fungus used in alchemy"),
+    (id: "herb_medicinal_0",  name: "Medicinal Herb",     category: "raw_organic",     base_value: 5,    weight_kg: 0.1,   description: "Wild herb with healing properties"),
+
+    // =========================================================================
+    // PROCESSED MATERIALS — Refined from raw resources
+    // =========================================================================
+
+    (id: "lumber_0",          name: "Lumber",             category: "processed",       base_value: 5,    weight_kg: 4.0,   description: "Milled planks ready for construction"),
+    (id: "plywood_0",         name: "Plywood",            category: "processed",       base_value: 6,    weight_kg: 3.5,   description: "Layered wood sheets for structural panels"),
+    (id: "brick_0",           name: "Brick",              category: "processed",       base_value: 3,    weight_kg: 2.5,   description: "Kiln-fired clay block for masonry"),
+    (id: "concrete_0",        name: "Concrete Block",     category: "processed",       base_value: 4,    weight_kg: 10.0,  description: "Poured and cured cement block"),
+    (id: "glass_pane_0",      name: "Glass Pane",         category: "processed",       base_value: 8,    weight_kg: 2.0,   description: "Transparent silica sheet for windows and optics"),
+    (id: "copper_ingot_0",    name: "Copper Ingot",       category: "processed",       base_value: 10,   weight_kg: 2.0,   description: "Smelted copper bar for wiring and alloys"),
+    (id: "tin_ingot_0",       name: "Tin Ingot",          category: "processed",       base_value: 10,   weight_kg: 2.0,   description: "Smelted tin bar for bronze and solder"),
+    (id: "bronze_ingot_0",    name: "Bronze Ingot",       category: "processed",       base_value: 14,   weight_kg: 2.5,   description: "Copper-tin alloy, durable and corrosion-resistant"),
+    (id: "iron_ingot_0",      name: "Iron Ingot",         category: "processed",       base_value: 12,   weight_kg: 3.0,   description: "Smelted iron bar, backbone of industry"),
+    (id: "steel_ingot_0",     name: "Steel Ingot",        category: "processed",       base_value: 20,   weight_kg: 3.0,   description: "Iron-carbon alloy, superior strength"),
+    (id: "aluminum_ingot_0",  name: "Aluminum Ingot",     category: "processed",       base_value: 15,   weight_kg: 1.0,   description: "Lightweight refined aluminum bar"),
+    (id: "titanium_ingot_0",  name: "Titanium Ingot",     category: "processed",       base_value: 75,   weight_kg: 1.5,   description: "High-strength lightweight metal bar"),
+    (id: "silver_ingot_0",    name: "Silver Ingot",       category: "processed",       base_value: 50,   weight_kg: 2.5,   description: "Refined silver bar for electronics and jewelry"),
+    (id: "gold_ingot_0",      name: "Gold Ingot",         category: "processed",       base_value: 120,  weight_kg: 3.0,   description: "Refined gold bar, excellent conductor"),
+    (id: "platinum_ingot_0",  name: "Platinum Ingot",     category: "processed",       base_value: 200,  weight_kg: 3.5,   description: "Refined platinum bar for catalysts and high-end components"),
+    (id: "rubber_sheet_0",    name: "Rubber Sheet",       category: "processed",       base_value: 8,    weight_kg: 1.0,   description: "Vulcanized rubber for seals, tires, and insulation"),
+    (id: "plastic_sheet_0",   name: "Plastic Sheet",      category: "processed",       base_value: 6,    weight_kg: 0.5,   description: "Molded polymer for lightweight parts"),
+    (id: "cotton_cloth_0",    name: "Cotton Cloth",       category: "processed",       base_value: 5,    weight_kg: 0.3,   description: "Woven cotton fabric"),
+    (id: "linen_cloth_0",     name: "Linen Cloth",        category: "processed",       base_value: 6,    weight_kg: 0.3,   description: "Woven flax fabric, breathable"),
+    (id: "leather_0",         name: "Leather",            category: "processed",       base_value: 12,   weight_kg: 1.0,   description: "Tanned hide, durable and flexible"),
+    (id: "silk_cloth_0",      name: "Silk Cloth",         category: "processed",       base_value: 25,   weight_kg: 0.2,   description: "Woven silk fabric, luxurious"),
+    (id: "charcoal_0",        name: "Charcoal",           category: "processed",       base_value: 4,    weight_kg: 0.5,   description: "Slow-burned wood carbon for high-heat fuel"),
+    (id: "gunpowder_0",       name: "Gunpowder",         category: "processed",       base_value: 15,   weight_kg: 0.3,   description: "Explosive propellant compound"),
+    (id: "cement_0",          name: "Cement",             category: "processed",       base_value: 5,    weight_kg: 5.0,   description: "Powdered calcium silicate binding agent"),
+    (id: "fuel_refined_0",    name: "Refined Fuel",       category: "processed",       base_value: 10,   weight_kg: 0.8,   description: "Distilled petroleum for engines and generators"),
+    (id: "wire_0",            name: "Copper Wire",        category: "processed",       base_value: 6,    weight_kg: 0.2,   description: "Drawn copper wire for electrical connections"),
+    (id: "nail_0",            name: "Nails",              category: "processed",       base_value: 2,    weight_kg: 0.1,   description: "Steel fasteners, box of 100"),
+    (id: "bolt_box_0",        name: "Bolts",              category: "processed",       base_value: 3,    weight_kg: 0.3,   description: "Steel bolt and nut sets, box of 50"),
+    (id: "pipe_steel_0",      name: "Steel Pipe",         category: "processed",       base_value: 10,   weight_kg: 3.0,   description: "Hollow steel tube for plumbing and structure"),
+    (id: "steel_plate_0",     name: "Steel Plate",        category: "processed",       base_value: 18,   weight_kg: 5.0,   description: "Flat steel sheet for armor and construction"),
+    (id: "carbon_fiber_0",    name: "Carbon Fiber",       category: "processed",       base_value: 40,   weight_kg: 0.3,   description: "Ultra-strong lightweight composite material"),
+    (id: "ceramic_plate_0",   name: "Ceramic Plate",      category: "processed",       base_value: 12,   weight_kg: 1.5,   description: "Heat-resistant fired ceramic for armor and insulation"),
+    (id: "diamond_cut_0",     name: "Cut Diamond",        category: "processed",       base_value: 350,  weight_kg: 0.01,  description: "Precision-cut gemstone for tools and optics"),
+
+    // =========================================================================
+    // FOOD — Consumables that restore hunger and provide buffs
+    // =========================================================================
+
+    (id: "wheat_0",           name: "Wheat",              category: "food_raw",        base_value: 1,    weight_kg: 0.2,   description: "Harvested grain, needs milling"),
+    (id: "rice_0",            name: "Rice",               category: "food_raw",        base_value: 1,    weight_kg: 0.2,   description: "Hulled grain, staple food crop"),
+    (id: "corn_0",            name: "Corn",               category: "food_raw",        base_value: 1,    weight_kg: 0.3,   description: "Maize ear, versatile crop"),
+    (id: "potato_0",          name: "Potato",             category: "food_raw",        base_value: 1,    weight_kg: 0.3,   description: "Starchy root vegetable"),
+    (id: "carrot_0",          name: "Carrot",             category: "food_raw",        base_value: 1,    weight_kg: 0.15,  description: "Orange root vegetable rich in vitamins"),
+    (id: "tomato_0",          name: "Tomato",             category: "food_raw",        base_value: 2,    weight_kg: 0.2,   description: "Red fruit for cooking and salads"),
+    (id: "apple_0",           name: "Apple",              category: "food_raw",        base_value: 2,    weight_kg: 0.2,   description: "Crisp tree fruit, eat raw or cook"),
+    (id: "berry_0",           name: "Berries",            category: "food_raw",        base_value: 2,    weight_kg: 0.1,   description: "Mixed wild berries, perishable"),
+    (id: "fish_raw_0",        name: "Raw Fish",           category: "food_raw",        base_value: 3,    weight_kg: 0.5,   description: "Fresh-caught fish, cook before eating"),
+    (id: "meat_raw_0",        name: "Raw Meat",           category: "food_raw",        base_value: 4,    weight_kg: 1.0,   description: "Uncooked game meat, cook to avoid illness"),
+    (id: "egg_0",             name: "Egg",                category: "food_raw",        base_value: 2,    weight_kg: 0.06,  description: "Fresh poultry egg"),
+    (id: "milk_0",            name: "Milk",               category: "food_raw",        base_value: 2,    weight_kg: 1.0,   description: "Fresh dairy milk, perishable"),
+    (id: "honey_0",           name: "Honey",              category: "food_raw",        base_value: 5,    weight_kg: 0.5,   description: "Natural sweetener that never spoils"),
+    (id: "salt_food_0",       name: "Salt",               category: "food_raw",        base_value: 2,    weight_kg: 0.5,   description: "Mineral salt for preservation and flavor"),
+    (id: "sugar_0",           name: "Sugar",              category: "food_raw",        base_value: 3,    weight_kg: 0.5,   description: "Refined cane sugar"),
+    (id: "flour_0",           name: "Flour",              category: "food_processed",  base_value: 2,    weight_kg: 0.5,   description: "Milled wheat for baking"),
+    (id: "bread_0",           name: "Bread",              category: "food_processed",  base_value: 3,    weight_kg: 0.4,   description: "Baked loaf, reliable sustenance"),
+    (id: "cheese_0",          name: "Cheese",             category: "food_processed",  base_value: 5,    weight_kg: 0.3,   description: "Aged dairy product, long shelf life"),
+    (id: "butter_0",          name: "Butter",             category: "food_processed",  base_value: 4,    weight_kg: 0.25,  description: "Churned dairy fat for cooking"),
+    (id: "dried_meat_0",      name: "Dried Meat",         category: "food_processed",  base_value: 6,    weight_kg: 0.3,   description: "Jerky, lightweight preserved protein"),
+    (id: "cooked_meat_0",     name: "Cooked Meat",        category: "food_processed",  base_value: 5,    weight_kg: 0.8,   description: "Grilled game meat, restores hunger"),
+    (id: "cooked_fish_0",     name: "Cooked Fish",        category: "food_processed",  base_value: 5,    weight_kg: 0.4,   description: "Pan-fried fish fillet"),
+    (id: "stew_0",            name: "Stew",               category: "food_processed",  base_value: 8,    weight_kg: 0.8,   description: "Hearty vegetable and meat stew"),
+    (id: "meal_basic_0",      name: "Basic Meal",         category: "food_processed",  base_value: 8,    weight_kg: 0.6,   description: "Simple balanced meal from common ingredients"),
+    (id: "meal_gourmet_0",    name: "Gourmet Meal",       category: "food_processed",  base_value: 25,   weight_kg: 0.6,   description: "Expertly prepared dish with rare ingredients and buffs"),
+    (id: "ration_emergency_0",name: "Emergency Ration",   category: "food_processed",  base_value: 10,   weight_kg: 0.3,   description: "Compressed nutrient bar, lasts years"),
+    (id: "ale_0",             name: "Ale",                category: "food_processed",  base_value: 3,    weight_kg: 0.5,   description: "Brewed grain beverage"),
+    (id: "wine_0",            name: "Wine",               category: "food_processed",  base_value: 8,    weight_kg: 0.7,   description: "Fermented grape beverage"),
+    (id: "water_purified_0",  name: "Purified Water",     category: "food_processed",  base_value: 1,    weight_kg: 1.0,   description: "Clean drinking water"),
+    (id: "herbal_tea_0",      name: "Herbal Tea",         category: "food_processed",  base_value: 3,    weight_kg: 0.3,   description: "Steeped medicinal herb infusion"),
+    (id: "oil_cooking_0",     name: "Cooking Oil",        category: "food_processed",  base_value: 4,    weight_kg: 0.5,   description: "Pressed seed oil for frying"),
+
+    // =========================================================================
+    // TOOLS — Equipment for gathering, crafting, and building
+    // =========================================================================
+
+    (id: "hoe_0",             name: "Hoe",                category: "tool",            base_value: 10,   weight_kg: 1.5,   description: "Farming tool for tilling soil"),
+    (id: "shovel_0",          name: "Shovel",             category: "tool",            base_value: 12,   weight_kg: 2.0,   description: "Digging tool for earth and sand"),
+    (id: "pickaxe_0",         name: "Pickaxe",            category: "tool",            base_value: 20,   weight_kg: 3.0,   description: "Mining tool for breaking rock and ore"),
+    (id: "axe_0",             name: "Axe",                category: "tool",            base_value: 18,   weight_kg: 2.5,   description: "Felling tool for trees and chopping wood"),
+    (id: "hammer_0",          name: "Hammer",             category: "tool",            base_value: 15,   weight_kg: 1.5,   description: "General-purpose striking and building tool"),
+    (id: "saw_0",             name: "Saw",                category: "tool",            base_value: 18,   weight_kg: 1.0,   description: "Cutting tool for lumber and materials"),
+    (id: "wrench_0",          name: "Wrench",             category: "tool",            base_value: 12,   weight_kg: 0.8,   description: "Fastener tool for mechanical assembly"),
+    (id: "pliers_0",          name: "Pliers",             category: "tool",            base_value: 10,   weight_kg: 0.4,   description: "Gripping tool for wire and small parts"),
+    (id: "screwdriver_0",     name: "Screwdriver Set",    category: "tool",            base_value: 8,    weight_kg: 0.3,   description: "Fastener driver set, multiple heads"),
+    (id: "chisel_0",          name: "Chisel",             category: "tool",            base_value: 10,   weight_kg: 0.5,   description: "Carving tool for stone and wood detail work"),
+    (id: "file_metal_0",      name: "Metal File",         category: "tool",            base_value: 8,    weight_kg: 0.4,   description: "Smoothing tool for metal edges"),
+    (id: "compass_0",         name: "Compass",            category: "tool",            base_value: 15,   weight_kg: 0.1,   description: "Magnetic navigation instrument"),
+    (id: "sextant_0",         name: "Sextant",            category: "tool",            base_value: 40,   weight_kg: 0.5,   description: "Celestial navigation instrument for space/sea"),
+    (id: "multimeter_0",      name: "Multimeter",         category: "tool",            base_value: 25,   weight_kg: 0.3,   description: "Electrical measurement and diagnostic tool"),
+    (id: "soldering_iron_0",  name: "Soldering Iron",     category: "tool",            base_value: 20,   weight_kg: 0.2,   description: "Heated tip for electronic joint assembly"),
+    (id: "telescope_0",       name: "Telescope",          category: "tool",            base_value: 60,   weight_kg: 2.0,   description: "Optical magnification for long-range observation"),
+    (id: "microscope_0",      name: "Microscope",         category: "tool",            base_value: 80,   weight_kg: 3.0,   description: "Optical magnification for tiny specimen analysis"),
+    (id: "fishing_rod_0",     name: "Fishing Rod",        category: "tool",            base_value: 12,   weight_kg: 0.8,   description: "Rod and reel for freshwater and saltwater fishing"),
+    (id: "rope_0",            name: "Rope",               category: "tool",            base_value: 5,    weight_kg: 1.5,   description: "20m hemp rope for climbing and hauling"),
+    (id: "torch_0",           name: "Torch",              category: "tool",            base_value: 2,    weight_kg: 0.5,   description: "Hand-held fire light source"),
+    (id: "lantern_0",         name: "Lantern",            category: "tool",            base_value: 12,   weight_kg: 0.8,   description: "Oil-fueled enclosed light, wind-resistant"),
+    (id: "flashlight_0",      name: "Flashlight",         category: "tool",            base_value: 15,   weight_kg: 0.3,   description: "Battery-powered directional light"),
+
+    // =========================================================================
+    // WEAPONS — Combat and defense equipment
+    // =========================================================================
+
+    (id: "knife_combat_0",    name: "Combat Knife",       category: "weapon",          base_value: 10,   weight_kg: 0.3,   description: "Short blade for close-quarters combat"),
+    (id: "machete_0",         name: "Machete",            category: "weapon",          base_value: 15,   weight_kg: 0.8,   description: "Long blade for brush clearing and combat"),
+    (id: "sword_0",           name: "Sword",              category: "weapon",          base_value: 40,   weight_kg: 1.5,   description: "One-handed steel blade"),
+    (id: "greatsword_0",      name: "Greatsword",         category: "weapon",          base_value: 60,   weight_kg: 3.0,   description: "Two-handed heavy blade, devastating swings"),
+    (id: "spear_0",           name: "Spear",              category: "weapon",          base_value: 20,   weight_kg: 2.0,   description: "Long-reach thrusting polearm"),
+    (id: "mace_0",            name: "Mace",               category: "weapon",          base_value: 30,   weight_kg: 2.5,   description: "Heavy blunt weapon effective against armor"),
+    (id: "staff_0",           name: "Staff",              category: "weapon",          base_value: 8,    weight_kg: 1.5,   description: "Wooden pole weapon, versatile and light"),
+    (id: "bow_recurve_0",     name: "Recurve Bow",        category: "weapon",          base_value: 25,   weight_kg: 1.0,   description: "Curved bow for skilled archers"),
+    (id: "crossbow_0",        name: "Crossbow",           category: "weapon",          base_value: 45,   weight_kg: 3.0,   description: "Mechanical bolt launcher, easy to aim"),
+    (id: "arrow_0",           name: "Arrow",              category: "weapon",          base_value: 1,    weight_kg: 0.05,  description: "Standard fletched arrow"),
+    (id: "bolt_crossbow_0",   name: "Crossbow Bolt",      category: "weapon",          base_value: 1,    weight_kg: 0.04,  description: "Short heavy bolt for crossbows"),
+    (id: "pistol_0",          name: "Pistol",             category: "weapon",          base_value: 100,  weight_kg: 1.0,   description: "Semi-automatic sidearm"),
+    (id: "rifle_0",           name: "Rifle",              category: "weapon",          base_value: 200,  weight_kg: 3.5,   description: "Long-range precision firearm"),
+    (id: "shotgun_0",         name: "Shotgun",            category: "weapon",          base_value: 150,  weight_kg: 3.5,   description: "Close-range spread-fire weapon"),
+    (id: "ammo_pistol_0",     name: "Pistol Ammo",        category: "weapon",          base_value: 2,    weight_kg: 0.02,  description: "Standard pistol cartridge, box of 20"),
+    (id: "ammo_rifle_0",      name: "Rifle Ammo",         category: "weapon",          base_value: 3,    weight_kg: 0.03,  description: "Standard rifle cartridge, box of 20"),
+    (id: "ammo_shotgun_0",    name: "Shotgun Shells",     category: "weapon",          base_value: 3,    weight_kg: 0.04,  description: "12-gauge buckshot shell, box of 10"),
+    (id: "laser_pistol_0",    name: "Laser Pistol",       category: "weapon",          base_value: 300,  weight_kg: 0.8,   description: "Energy sidearm, no ammo but drains battery"),
+    (id: "laser_rifle_0",     name: "Laser Rifle",        category: "weapon",          base_value: 500,  weight_kg: 2.5,   description: "Long-range energy weapon, precision beam"),
+    (id: "plasma_cutter_0",   name: "Plasma Cutter",      category: "weapon",          base_value: 400,  weight_kg: 3.0,   description: "Industrial cutting tool, devastating in combat"),
+    (id: "grenade_frag_0",    name: "Frag Grenade",       category: "weapon",          base_value: 25,   weight_kg: 0.4,   description: "Fragmentation explosive, area damage"),
+    (id: "grenade_smoke_0",   name: "Smoke Grenade",      category: "weapon",          base_value: 10,   weight_kg: 0.3,   description: "Obscuring smoke for tactical cover"),
+    (id: "shield_round_0",    name: "Round Shield",       category: "weapon",          base_value: 25,   weight_kg: 3.0,   description: "Medium defensive buckler"),
+
+    // =========================================================================
+    // ARMOR — Wearable protection
+    // =========================================================================
+
+    (id: "leather_armor_0",   name: "Leather Armor",      category: "armor",           base_value: 30,   weight_kg: 5.0,   description: "Light flexible armor from tanned hide"),
+    (id: "chainmail_0",       name: "Chainmail",          category: "armor",           base_value: 60,   weight_kg: 10.0,  description: "Interlocked metal ring shirt, good vs slashing"),
+    (id: "iron_armor_0",      name: "Iron Armor",         category: "armor",           base_value: 80,   weight_kg: 15.0,  description: "Full iron plate set, heavy but protective"),
+    (id: "steel_armor_0",     name: "Steel Armor",        category: "armor",           base_value: 150,  weight_kg: 12.0,  description: "Refined steel plate, lighter and stronger than iron"),
+    (id: "kevlar_vest_0",     name: "Kevlar Vest",        category: "armor",           base_value: 120,  weight_kg: 3.0,   description: "Ballistic fiber vest, stops projectiles"),
+    (id: "ceramic_armor_0",   name: "Ceramic Armor",      category: "armor",           base_value: 200,  weight_kg: 8.0,   description: "Advanced ceramic composite plates"),
+    (id: "power_armor_0",     name: "Power Armor",        category: "armor",           base_value: 1000, weight_kg: 30.0,  description: "Powered exoskeleton suit with servo-assisted movement"),
+    (id: "space_suit_0",      name: "Space Suit",         category: "armor",           base_value: 500,  weight_kg: 15.0,  description: "Pressurized EVA suit for vacuum operations"),
+    (id: "hazmat_suit_0",     name: "Hazmat Suit",        category: "armor",           base_value: 80,   weight_kg: 4.0,   description: "Chemical and radiation protection suit"),
+    (id: "diving_suit_0",     name: "Diving Suit",        category: "armor",           base_value: 120,  weight_kg: 8.0,   description: "Pressurized underwater suit with air supply"),
+
+    // =========================================================================
+    // VEHICLES — Conveyances for land, sea, air, and space
+    // =========================================================================
+
+    (id: "bicycle_0",         name: "Bicycle",            category: "vehicle",         base_value: 50,    weight_kg: 12.0,  description: "Human-powered two-wheel transport"),
+    (id: "cart_hand_0",       name: "Hand Cart",          category: "vehicle",         base_value: 30,    weight_kg: 15.0,  description: "Wheeled cargo hauler, pulled by hand"),
+    (id: "horse_tamed_0",     name: "Tamed Horse",        category: "vehicle",         base_value: 200,   weight_kg: 500.0, description: "Trained riding mount"),
+    (id: "motorcycle_0",      name: "Motorcycle",         category: "vehicle",         base_value: 800,   weight_kg: 180.0, description: "Two-wheel motorized transport"),
+    (id: "car_0",             name: "Car",                category: "vehicle",         base_value: 2000,  weight_kg: 1500.0,description: "Four-wheel enclosed motor vehicle"),
+    (id: "truck_0",           name: "Truck",              category: "vehicle",         base_value: 3000,  weight_kg: 5000.0,description: "Heavy cargo hauling vehicle"),
+    (id: "boat_rowboat_0",    name: "Rowboat",            category: "vehicle",         base_value: 80,    weight_kg: 50.0,  description: "Small oar-powered watercraft"),
+    (id: "boat_sail_0",       name: "Sailboat",           category: "vehicle",         base_value: 500,   weight_kg: 800.0, description: "Wind-powered sailing vessel"),
+    (id: "boat_motor_0",      name: "Motorboat",          category: "vehicle",         base_value: 1500,  weight_kg: 500.0, description: "Engine-powered speedboat"),
+    (id: "helicopter_0",      name: "Helicopter",         category: "vehicle",         base_value: 8000,  weight_kg: 2000.0,description: "Rotary-wing aircraft for vertical flight"),
+    (id: "airplane_prop_0",   name: "Prop Plane",         category: "vehicle",         base_value: 6000,  weight_kg: 1000.0,description: "Single-engine propeller aircraft"),
+    (id: "spacecraft_pod_0",  name: "Spacecraft Pod",     category: "vehicle",         base_value: 5000,  weight_kg: 800.0, description: "Minimal orbital shuttle for short trips"),
+    (id: "fighter_0",         name: "Fighter",            category: "vehicle",         base_value: 15000, weight_kg: 3000.0,description: "Armed combat spacecraft"),
+    (id: "shuttle_0",         name: "Shuttle",            category: "vehicle",         base_value: 10000, weight_kg: 5000.0,description: "Medium transport spacecraft for crew and cargo"),
+    (id: "freighter_0",       name: "Freighter",          category: "vehicle",         base_value: 25000, weight_kg: 50000.0,description: "Large cargo hauler for interplanetary trade"),
+    (id: "mech_light_0",      name: "Light Mech",         category: "vehicle",         base_value: 8000,  weight_kg: 5000.0,description: "Bipedal walker, fast scout class"),
+    (id: "mech_heavy_0",      name: "Heavy Mech",         category: "vehicle",         base_value: 20000, weight_kg: 15000.0,description: "Armored bipedal war machine"),
+    (id: "submarine_0",       name: "Submarine",          category: "vehicle",         base_value: 12000, weight_kg: 8000.0,description: "Underwater vessel for deep-sea exploration"),
+
+    // =========================================================================
+    // MEDICAL — Health restoration and treatment
+    // =========================================================================
+
+    (id: "bandage_0",         name: "Bandage",            category: "medical",         base_value: 2,    weight_kg: 0.05,  description: "Basic wound dressing, stops bleeding"),
+    (id: "poultice_0",        name: "Poultice",           category: "medical",         base_value: 5,    weight_kg: 0.1,   description: "Herbal compress for pain and swelling"),
+    (id: "med_kit_basic_0",   name: "Basic Medkit",       category: "medical",         base_value: 15,   weight_kg: 0.5,   description: "Standard first aid supplies"),
+    (id: "med_kit_advanced_0",name: "Advanced Medkit",     category: "medical",         base_value: 50,   weight_kg: 1.0,   description: "Surgical-grade medical supplies"),
+    (id: "antidote_0",        name: "Antidote",           category: "medical",         base_value: 20,   weight_kg: 0.1,   description: "Neutralizes common poisons and venoms"),
+    (id: "antibiotics_0",     name: "Antibiotics",        category: "medical",         base_value: 20,   weight_kg: 0.1,   description: "Anti-bacterial medicine for infections"),
+    (id: "painkillers_0",     name: "Painkillers",        category: "medical",         base_value: 8,    weight_kg: 0.05,  description: "Analgesic tablets for pain management"),
+    (id: "splint_0",          name: "Splint",             category: "medical",         base_value: 5,    weight_kg: 0.3,   description: "Rigid support for broken bones"),
+    (id: "blood_pack_0",      name: "Blood Pack",         category: "medical",         base_value: 30,   weight_kg: 0.5,   description: "Synthetic blood for emergency transfusion"),
+    (id: "surgical_kit_0",    name: "Surgical Kit",       category: "medical",         base_value: 100,  weight_kg: 2.0,   description: "Precision instruments for field surgery"),
+    (id: "healing_potion_0",  name: "Healing Potion",     category: "medical",         base_value: 25,   weight_kg: 0.2,   description: "Alchemical brew that accelerates healing"),
+    (id: "stim_pack_0",       name: "Stim Pack",          category: "medical",         base_value: 35,   weight_kg: 0.1,   description: "Adrenaline injector for combat revival"),
+    (id: "cybernetic_implant_basic_0", name: "Basic Implant", category: "medical",     base_value: 500,  weight_kg: 0.1,   description: "Entry-level cybernetic enhancement"),
+    (id: "cybernetic_implant_advanced_0", name: "Advanced Implant", category: "medical", base_value: 2000, weight_kg: 0.1, description: "High-end cybernetic with neural interface"),
+
+    // =========================================================================
+    // ELECTRONICS — Components and devices
+    // =========================================================================
+
+    (id: "battery_small_0",   name: "Small Battery",      category: "electronics",     base_value: 8,    weight_kg: 0.2,   description: "Rechargeable lithium cell"),
+    (id: "battery_large_0",   name: "Large Battery",      category: "electronics",     base_value: 30,   weight_kg: 2.0,   description: "High-capacity power storage unit"),
+    (id: "circuit_board_0",   name: "Circuit Board",      category: "electronics",     base_value: 15,   weight_kg: 0.1,   description: "Printed circuit board for electronics assembly"),
+    (id: "processor_0",       name: "CPU",                category: "electronics",     base_value: 50,   weight_kg: 0.05,  description: "Central processing unit, brain of computers"),
+    (id: "memory_chip_0",     name: "Memory Chip",        category: "electronics",     base_value: 25,   weight_kg: 0.02,  description: "Data storage module"),
+    (id: "sensor_module_0",   name: "Sensor Module",      category: "electronics",     base_value: 30,   weight_kg: 0.3,   description: "Multi-spectrum detector for environmental data"),
+    (id: "lens_0",            name: "Optical Lens",       category: "electronics",     base_value: 20,   weight_kg: 0.1,   description: "Precision ground glass lens for optics"),
+    (id: "antenna_0",         name: "Antenna",            category: "electronics",     base_value: 12,   weight_kg: 0.5,   description: "Radio frequency transmitter/receiver"),
+    (id: "solar_panel_0",     name: "Solar Panel",        category: "electronics",     base_value: 60,   weight_kg: 5.0,   description: "Photovoltaic cell for electricity from sunlight"),
+    (id: "generator_small_0", name: "Small Generator",    category: "electronics",     base_value: 150,  weight_kg: 20.0,  description: "Fuel-powered portable electricity generator"),
+    (id: "generator_large_0", name: "Large Generator",    category: "electronics",     base_value: 500,  weight_kg: 100.0, description: "Industrial power generator for base operations"),
+    (id: "computer_terminal_0",name: "Computer Terminal", category: "electronics",     base_value: 200,  weight_kg: 10.0,  description: "General-purpose computing workstation"),
+    (id: "comm_device_0",     name: "Communicator",       category: "electronics",     base_value: 40,   weight_kg: 0.2,   description: "Portable long-range communication device"),
+    (id: "camera_0",          name: "Camera",             category: "electronics",     base_value: 35,   weight_kg: 0.3,   description: "Digital imaging device"),
+    (id: "drone_scout_0",     name: "Scout Drone",        category: "electronics",     base_value: 300,  weight_kg: 2.0,   description: "Autonomous aerial reconnaissance drone"),
+    (id: "turret_auto_0",     name: "Auto Turret",        category: "electronics",     base_value: 800,  weight_kg: 25.0,  description: "Automated defense turret with target tracking"),
+    (id: "reactor_fusion_0",  name: "Fusion Reactor",     category: "electronics",     base_value: 5000, weight_kg: 500.0, description: "Compact fusion power plant for ships and bases"),
+
+    // =========================================================================
+    // MACHINES — Crafting stations and production equipment
+    // =========================================================================
+
+    (id: "workbench_0",       name: "Workbench",          category: "machine",         base_value: 30,   weight_kg: 20.0,  description: "Basic crafting station for hand assembly"),
+    (id: "smelter_0",         name: "Smelter",            category: "machine",         base_value: 80,   weight_kg: 50.0,  description: "High-heat furnace for ore processing"),
+    (id: "forge_0",           name: "Forge",              category: "machine",         base_value: 100,  weight_kg: 60.0,  description: "Metalworking station for shaping hot metal"),
+    (id: "anvil_0",           name: "Anvil",              category: "machine",         base_value: 50,   weight_kg: 80.0,  description: "Heavy iron block for hammering and shaping"),
+    (id: "loom_0",            name: "Loom",               category: "machine",         base_value: 40,   weight_kg: 25.0,  description: "Weaving frame for cloth production"),
+    (id: "kitchen_station_0", name: "Kitchen Station",    category: "machine",         base_value: 60,   weight_kg: 30.0,  description: "Cooking station with stove and prep surface"),
+    (id: "chemistry_bench_0", name: "Chemistry Bench",    category: "machine",         base_value: 100,  weight_kg: 35.0,  description: "Laboratory equipment for chemical processing"),
+    (id: "electronics_bench_0",name: "Electronics Bench", category: "machine",         base_value: 120,  weight_kg: 25.0,  description: "Precision workstation for circuit assembly"),
+    (id: "alchemy_stand",     name: "Alchemy Stand",      category: "machine",         base_value: 80,   weight_kg: 15.0,  description: "Mystical brewing station for potions and elixirs"),
+    (id: "assembly_line_0",   name: "Assembly Line",      category: "machine",         base_value: 500,  weight_kg: 200.0, description: "Automated production line for mass manufacturing"),
+    (id: "3d_printer_0",      name: "3D Printer",         category: "machine",         base_value: 300,  weight_kg: 30.0,  description: "Additive manufacturing for complex parts"),
+    (id: "water_purifier_0",  name: "Water Purifier",     category: "machine",         base_value: 80,   weight_kg: 15.0,  description: "Filters and sterilizes water for safe drinking"),
+
+    // =========================================================================
+    // FURNITURE — Placeable base items
+    // =========================================================================
+
+    (id: "bed_basic_0",       name: "Basic Bed",          category: "furniture",       base_value: 20,   weight_kg: 25.0,  description: "Simple sleeping surface, sets respawn point"),
+    (id: "chest_storage_0",   name: "Storage Chest",      category: "furniture",       base_value: 15,   weight_kg: 10.0,  description: "Wooden chest, 20 slot storage"),
+    (id: "table_0",           name: "Table",              category: "furniture",       base_value: 10,   weight_kg: 15.0,  description: "Flat surface for working and eating"),
+    (id: "chair_0",           name: "Chair",              category: "furniture",       base_value: 8,    weight_kg: 5.0,   description: "Seating for rest and crafting stations"),
+    (id: "door_wood_0",       name: "Wooden Door",        category: "furniture",       base_value: 12,   weight_kg: 10.0,  description: "Standard interior/exterior door"),
+    (id: "door_metal_0",      name: "Metal Door",         category: "furniture",       base_value: 30,   weight_kg: 25.0,  description: "Reinforced security door"),
+    (id: "lamp_0",            name: "Lamp",               category: "furniture",       base_value: 10,   weight_kg: 2.0,   description: "Electric light fixture for interiors"),
+    (id: "flag_0",            name: "Flag",               category: "furniture",       base_value: 5,    weight_kg: 0.5,   description: "Customizable banner for territory marking"),
+
+    // =========================================================================
+    // CONSTRUCTION MATERIALS — Building blocks
+    // =========================================================================
+
+    (id: "wall_wood_0",       name: "Wooden Wall Panel",  category: "construction",    base_value: 8,    weight_kg: 15.0,  description: "Standard wooden wall section 2x3m"),
+    (id: "wall_stone_0",      name: "Stone Wall Panel",   category: "construction",    base_value: 12,   weight_kg: 40.0,  description: "Sturdy stone wall section 2x3m"),
+    (id: "wall_metal_0",      name: "Metal Wall Panel",   category: "construction",    base_value: 25,   weight_kg: 30.0,  description: "Steel wall section 2x3m"),
+    (id: "floor_wood_0",      name: "Wooden Floor Tile",  category: "construction",    base_value: 6,    weight_kg: 10.0,  description: "Wooden floor section 2x2m"),
+    (id: "floor_stone_0",     name: "Stone Floor Tile",   category: "construction",    base_value: 8,    weight_kg: 25.0,  description: "Stone floor section 2x2m"),
+    (id: "roof_thatch_0",     name: "Thatch Roof",        category: "construction",    base_value: 4,    weight_kg: 5.0,   description: "Basic roof section from dried grass"),
+    (id: "roof_metal_0",      name: "Metal Roof",         category: "construction",    base_value: 20,   weight_kg: 20.0,  description: "Corrugated steel roof section"),
+    (id: "window_glass_0",    name: "Glass Window",       category: "construction",    base_value: 15,   weight_kg: 8.0,   description: "Transparent window panel 1x1m"),
+    (id: "stairs_wood_0",     name: "Wooden Stairs",      category: "construction",    base_value: 12,   weight_kg: 20.0,  description: "Staircase section for vertical access"),
+    (id: "foundation_0",      name: "Foundation Block",   category: "construction",    base_value: 10,   weight_kg: 50.0,  description: "Concrete foundation for building base"),
+
+    // =========================================================================
+    // MISCELLANEOUS — Books, maps, rare items, quest objects
+    // =========================================================================
+
+    (id: "book_blank_0",      name: "Blank Book",         category: "misc",            base_value: 5,    weight_kg: 0.3,   description: "Empty journal for notes and records"),
+    (id: "book_skill_0",      name: "Skill Book",         category: "misc",            base_value: 50,   weight_kg: 0.3,   description: "Instructional tome granting XP when read"),
+    (id: "map_local_0",       name: "Local Map",          category: "misc",            base_value: 10,   weight_kg: 0.05,  description: "Area map revealing nearby points of interest"),
+    (id: "map_world_0",       name: "World Map",          category: "misc",            base_value: 30,   weight_kg: 0.1,   description: "Continental map with major landmarks"),
+    (id: "blueprint_0",       name: "Blueprint",          category: "misc",            base_value: 25,   weight_kg: 0.05,  description: "Crafting schematic, teaches one new recipe"),
+    (id: "key_generic_0",     name: "Key",                category: "misc",            base_value: 5,    weight_kg: 0.02,  description: "Metal key for locked doors and chests"),
+    (id: "lockpick_0",        name: "Lockpick",           category: "misc",            base_value: 8,    weight_kg: 0.02,  description: "Thin metal pick for opening locks without a key"),
+    (id: "paint_can_0",       name: "Paint Can",          category: "misc",            base_value: 10,   weight_kg: 3.0,   description: "Colored paint for customizing structures and vehicles"),
+    (id: "seed_bag_0",        name: "Seed Bag",           category: "misc",            base_value: 3,    weight_kg: 0.5,   description: "Assorted crop seeds for planting"),
+    (id: "water_bottle_0",    name: "Water Bottle",       category: "misc",            base_value: 3,    weight_kg: 0.6,   description: "Refillable container holding 0.5L"),
+    (id: "flask_0",           name: "Glass Flask",        category: "misc",            base_value: 4,    weight_kg: 0.2,   description: "Laboratory flask for alchemy and chemistry"),
+    (id: "glass_vial_0",      name: "Glass Vial",         category: "misc",            base_value: 2,    weight_kg: 0.05,  description: "Small vial for potions and samples"),
+    (id: "backpack_cargo_0",  name: "Cargo Backpack",     category: "misc",            base_value: 40,   weight_kg: 2.0,   description: "Large-frame expedition pack, 80L"),
+    (id: "oil_fish_0",        name: "Fish Oil",           category: "misc",            base_value: 4,    weight_kg: 0.3,   description: "Rendered oil from fish, fuel and crafting ingredient"),
+]

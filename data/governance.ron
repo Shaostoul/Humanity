@@ -1,0 +1,533 @@
+// HumanityOS Governance and Law System
+// 48 entries across government types, laws/policies, civic roles, and dispute resolution.
+// Loaded by AssetManager, hot-reloadable.
+//
+// Government types define how settlements organize leadership and make decisions.
+// Laws/policies are templates players can enact; effects modify morale/economy/security.
+// Civic roles define elected or appointed positions with responsibilities and privileges.
+// Dispute resolution methods define how conflicts between players/NPCs are settled.
+//
+// Effect values: positive = beneficial, negative = harmful. Applied as modifiers to
+// settlement stats. e.g. morale: 5 means +5 morale, economy: -3 means -3 economy.
+
+(
+    government_types: [
+        // =====================================================================
+        // GOVERNMENT TYPES (8)
+        // =====================================================================
+
+        (
+            id: "direct_democracy",
+            name: "Direct Democracy",
+            description: "Every citizen votes on every decision. Maximum participation but slow for large populations.",
+            max_population: 500,
+            voting_method: "majority",
+            term_length_days: 0,
+            effects: (morale: 8, economy: 0, security: -2),
+            requirements: [],
+        ),
+
+        (
+            id: "representative_democracy",
+            name: "Representative Democracy",
+            description: "Citizens elect representatives who vote on their behalf. Scales well but risks disconnection from voters.",
+            max_population: 100000,
+            voting_method: "ranked_choice",
+            term_length_days: 90,
+            effects: (morale: 5, economy: 3, security: 2),
+            requirements: ["writing"],
+        ),
+
+        (
+            id: "council",
+            name: "Council",
+            description: "A small group of elders or experts governs collectively. Balanced and deliberate but prone to deadlock.",
+            max_population: 5000,
+            voting_method: "consensus",
+            term_length_days: 180,
+            effects: (morale: 3, economy: 4, security: 3),
+            requirements: [],
+        ),
+
+        (
+            id: "monarchy",
+            name: "Monarchy",
+            description: "A single ruler holds supreme authority, inherited or claimed. Decisive but risks tyranny.",
+            max_population: 50000,
+            voting_method: "none",
+            term_length_days: 0,
+            effects: (morale: -3, economy: 2, security: 5),
+            requirements: [],
+        ),
+
+        (
+            id: "anarchy",
+            name: "Anarchy",
+            description: "No formal government. Individuals self-organize voluntarily. Maximum freedom, minimum coordination.",
+            max_population: 200,
+            voting_method: "none",
+            term_length_days: 0,
+            effects: (morale: 4, economy: -4, security: -6),
+            requirements: [],
+        ),
+
+        (
+            id: "technocracy",
+            name: "Technocracy",
+            description: "Governance by technical experts and scientists. Efficient policy but can ignore non-technical concerns.",
+            max_population: 25000,
+            voting_method: "expertise_weighted",
+            term_length_days: 365,
+            effects: (morale: -1, economy: 6, security: 3),
+            requirements: ["computing"],
+        ),
+
+        (
+            id: "cooperative",
+            name: "Cooperative",
+            description: "Worker-owned collective where every member has equal stake. Strong solidarity but slow decision-making.",
+            max_population: 2000,
+            voting_method: "consensus",
+            term_length_days: 0,
+            effects: (morale: 7, economy: 2, security: 1),
+            requirements: [],
+        ),
+
+        (
+            id: "military_junta",
+            name: "Military Junta",
+            description: "Armed forces control governance. Maximum security but civil liberties suffer heavily.",
+            max_population: 50000,
+            voting_method: "none",
+            term_length_days: 0,
+            effects: (morale: -8, economy: -2, security: 10),
+            requirements: ["gunpowder"],
+        ),
+    ],
+
+    laws: [
+        // =====================================================================
+        // LAWS / POLICIES (16)
+        // =====================================================================
+
+        (
+            id: "tax_rate_low",
+            name: "Low Tax Rate",
+            description: "Minimal taxation at 5%. Citizens keep most earnings but public services are underfunded.",
+            category: "fiscal",
+            effects: (morale: 4, economy: 3, security: -2),
+            conflicts_with: ["tax_rate_moderate", "tax_rate_high"],
+        ),
+
+        (
+            id: "tax_rate_moderate",
+            name: "Moderate Tax Rate",
+            description: "Balanced taxation at 15%. Adequate funding for services without excessive burden.",
+            category: "fiscal",
+            effects: (morale: 0, economy: 0, security: 2),
+            conflicts_with: ["tax_rate_low", "tax_rate_high"],
+        ),
+
+        (
+            id: "tax_rate_high",
+            name: "High Tax Rate",
+            description: "Heavy taxation at 30%. Strong public services but citizens resent the burden.",
+            category: "fiscal",
+            effects: (morale: -5, economy: -3, security: 4),
+            conflicts_with: ["tax_rate_low", "tax_rate_moderate"],
+        ),
+
+        (
+            id: "trade_tariff",
+            name: "Trade Tariff",
+            description: "Import duties on foreign goods. Protects local industry but raises consumer prices.",
+            category: "trade",
+            effects: (morale: -2, economy: 2, security: 1),
+            conflicts_with: ["free_trade"],
+        ),
+
+        (
+            id: "free_trade",
+            name: "Free Trade Agreement",
+            description: "No restrictions on foreign goods. Cheaper products but local producers may struggle.",
+            category: "trade",
+            effects: (morale: 2, economy: 3, security: -1),
+            conflicts_with: ["trade_tariff"],
+        ),
+
+        (
+            id: "building_code",
+            name: "Building Code",
+            description: "Mandatory structural standards for all construction. Safer buildings but higher construction costs.",
+            category: "infrastructure",
+            effects: (morale: 1, economy: -2, security: 3),
+            conflicts_with: [],
+        ),
+
+        (
+            id: "curfew",
+            name: "Curfew",
+            description: "Residents must remain indoors after dark. Reduces crime but severely limits personal freedom.",
+            category: "security",
+            effects: (morale: -6, economy: -3, security: 5),
+            conflicts_with: [],
+        ),
+
+        (
+            id: "resource_rationing",
+            name: "Resource Rationing",
+            description: "Controlled distribution of scarce supplies. Prevents hoarding but breeds resentment.",
+            category: "survival",
+            effects: (morale: -4, economy: -2, security: 2),
+            conflicts_with: [],
+        ),
+
+        (
+            id: "immigration_open",
+            name: "Open Immigration",
+            description: "Anyone may join the settlement freely. Fast population growth but strains resources.",
+            category: "population",
+            effects: (morale: 3, economy: 2, security: -3),
+            conflicts_with: ["immigration_restricted"],
+        ),
+
+        (
+            id: "immigration_restricted",
+            name: "Restricted Immigration",
+            description: "Newcomers must be vetted and sponsored. Slower growth but better integration.",
+            category: "population",
+            effects: (morale: -1, economy: 0, security: 3),
+            conflicts_with: ["immigration_open"],
+        ),
+
+        (
+            id: "military_conscription",
+            name: "Military Conscription",
+            description: "All able-bodied citizens must serve in the militia. Strong defense but very unpopular.",
+            category: "military",
+            effects: (morale: -7, economy: -3, security: 8),
+            conflicts_with: ["pacifism_policy"],
+        ),
+
+        (
+            id: "pacifism_policy",
+            name: "Pacifism Policy",
+            description: "Settlement commits to non-violence and diplomacy. Beloved by citizens, feared by no one.",
+            category: "military",
+            effects: (morale: 6, economy: 2, security: -5),
+            conflicts_with: ["military_conscription"],
+        ),
+
+        (
+            id: "education_mandate",
+            name: "Education Mandate",
+            description: "All children and newcomers must attend schooling. Long-term benefits but immediate labor cost.",
+            category: "social",
+            effects: (morale: 3, economy: -1, security: 1),
+            conflicts_with: [],
+        ),
+
+        (
+            id: "environmental_protection",
+            name: "Environmental Protection",
+            description: "Limits on harvesting, pollution, and land clearing. Preserves ecosystems but slows expansion.",
+            category: "environment",
+            effects: (morale: 2, economy: -3, security: 0),
+            conflicts_with: [],
+        ),
+
+        (
+            id: "labor_rights",
+            name: "Labor Rights",
+            description: "Maximum work hours, fair wages, safe conditions. Workers thrive but production costs rise.",
+            category: "social",
+            effects: (morale: 5, economy: -2, security: 1),
+            conflicts_with: [],
+        ),
+
+        (
+            id: "surveillance_program",
+            name: "Surveillance Program",
+            description: "Monitoring of public spaces and communications. Crime drops but privacy vanishes.",
+            category: "security",
+            effects: (morale: -5, economy: 0, security: 6),
+            conflicts_with: ["privacy_rights"],
+        ),
+    ],
+
+    civic_roles: [
+        // =====================================================================
+        // CIVIC ROLES (12)
+        // =====================================================================
+
+        (
+            id: "mayor",
+            name: "Mayor",
+            description: "Chief executive of the settlement. Sets priorities, breaks ties, and represents the community.",
+            responsibilities: ["set_policy", "allocate_budget", "diplomacy"],
+            election_method: "popular_vote",
+            max_per_settlement: 1,
+            privileges: ["veto_power", "emergency_decree", "treasury_access"],
+            salary_per_day: 50,
+        ),
+
+        (
+            id: "judge",
+            name: "Judge",
+            description: "Interprets laws and presides over disputes. Must remain impartial and follow legal precedent.",
+            responsibilities: ["resolve_disputes", "interpret_laws", "sentence_offenders"],
+            election_method: "council_appointment",
+            max_per_settlement: 3,
+            privileges: ["subpoena_power", "sentencing_authority"],
+            salary_per_day: 40,
+        ),
+
+        (
+            id: "sheriff",
+            name: "Sheriff",
+            description: "Maintains public order and enforces laws. Commands the settlement guard force.",
+            responsibilities: ["enforce_laws", "patrol", "investigate_crimes", "manage_guards"],
+            election_method: "popular_vote",
+            max_per_settlement: 1,
+            privileges: ["arrest_authority", "weapon_permit", "guard_command"],
+            salary_per_day: 35,
+        ),
+
+        (
+            id: "treasurer",
+            name: "Treasurer",
+            description: "Manages settlement finances, taxation, and public spending. Accountable to the council.",
+            responsibilities: ["collect_taxes", "manage_budget", "financial_reports"],
+            election_method: "council_appointment",
+            max_per_settlement: 1,
+            privileges: ["treasury_access", "spending_authority"],
+            salary_per_day: 35,
+        ),
+
+        (
+            id: "chief_engineer",
+            name: "Chief Engineer",
+            description: "Oversees construction, infrastructure, and technical systems. Plans public works projects.",
+            responsibilities: ["plan_construction", "maintain_infrastructure", "approve_buildings"],
+            election_method: "expertise_review",
+            max_per_settlement: 1,
+            privileges: ["construction_authority", "resource_requisition"],
+            salary_per_day: 40,
+        ),
+
+        (
+            id: "chief_medic",
+            name: "Chief Medic",
+            description: "Leads the settlement's medical services. Manages hospitals and responds to health crises.",
+            responsibilities: ["manage_hospital", "disease_response", "train_medics"],
+            election_method: "expertise_review",
+            max_per_settlement: 1,
+            privileges: ["quarantine_authority", "medical_supply_priority"],
+            salary_per_day: 40,
+        ),
+
+        (
+            id: "teacher",
+            name: "Teacher",
+            description: "Educates citizens in skills, knowledge, and trades. Runs schools and apprenticeships.",
+            responsibilities: ["teach_classes", "train_apprentices", "maintain_library"],
+            election_method: "open_application",
+            max_per_settlement: 10,
+            privileges: ["library_access", "curriculum_design"],
+            salary_per_day: 25,
+        ),
+
+        (
+            id: "diplomat",
+            name: "Diplomat",
+            description: "Negotiates with other settlements and factions. Establishes trade deals and alliances.",
+            responsibilities: ["negotiate_treaties", "manage_relations", "trade_agreements"],
+            election_method: "council_appointment",
+            max_per_settlement: 3,
+            privileges: ["travel_immunity", "treaty_authority", "diplomatic_funds"],
+            salary_per_day: 35,
+        ),
+
+        (
+            id: "quartermaster",
+            name: "Quartermaster",
+            description: "Manages the settlement's stockpiles, warehouses, and supply logistics.",
+            responsibilities: ["manage_inventory", "distribute_supplies", "track_resources"],
+            election_method: "open_application",
+            max_per_settlement: 2,
+            privileges: ["warehouse_access", "requisition_authority"],
+            salary_per_day: 30,
+        ),
+
+        (
+            id: "scout_captain",
+            name: "Scout Captain",
+            description: "Leads exploration parties, maps new territory, and reports threats from beyond the settlement.",
+            responsibilities: ["lead_expeditions", "map_territory", "threat_assessment"],
+            election_method: "merit_selection",
+            max_per_settlement: 1,
+            privileges: ["expedition_funding", "priority_supplies", "map_authority"],
+            salary_per_day: 30,
+        ),
+
+        (
+            id: "council_member",
+            name: "Council Member",
+            description: "Elected representative who debates and votes on settlement policy. Voice of the people.",
+            responsibilities: ["vote_on_policy", "represent_constituents", "attend_sessions"],
+            election_method: "popular_vote",
+            max_per_settlement: 7,
+            privileges: ["voting_rights", "policy_proposal"],
+            salary_per_day: 20,
+        ),
+
+        (
+            id: "warden",
+            name: "Warden",
+            description: "Manages the settlement's prison or rehabilitation facility. Oversees sentenced offenders.",
+            responsibilities: ["manage_prisoners", "rehabilitation_programs", "facility_maintenance"],
+            election_method: "council_appointment",
+            max_per_settlement: 1,
+            privileges: ["detention_authority", "rehabilitation_programs"],
+            salary_per_day: 30,
+        ),
+    ],
+
+    dispute_resolution: [
+        // =====================================================================
+        // DISPUTE RESOLUTION METHODS (12)
+        // =====================================================================
+
+        (
+            id: "popular_vote",
+            name: "Popular Vote",
+            description: "The entire settlement votes on the outcome. Democratic but can be swayed by popularity rather than merit.",
+            min_participants: 10,
+            duration_s: 86400,
+            requires_role: None,
+            fairness_rating: 0.7,
+            finality: "binding",
+        ),
+
+        (
+            id: "trial_by_jury",
+            name: "Trial by Jury",
+            description: "A randomly selected jury of peers hears evidence and renders a verdict. Requires a judge to preside.",
+            min_participants: 8,
+            duration_s: 7200,
+            requires_role: Some("judge"),
+            fairness_rating: 0.85,
+            finality: "binding",
+        ),
+
+        (
+            id: "mediation",
+            name: "Mediation",
+            description: "A neutral third party helps both sides reach a voluntary agreement. Non-binding if either party refuses.",
+            min_participants: 3,
+            duration_s: 3600,
+            requires_role: None,
+            fairness_rating: 0.8,
+            finality: "non_binding",
+        ),
+
+        (
+            id: "arbitration",
+            name: "Arbitration",
+            description: "An appointed arbiter reviews evidence and makes a binding decision. Faster than trial, less theatrical.",
+            min_participants: 3,
+            duration_s: 5400,
+            requires_role: Some("judge"),
+            fairness_rating: 0.9,
+            finality: "binding",
+        ),
+
+        (
+            id: "duel",
+            name: "Duel",
+            description: "Disputants settle the matter through personal combat. Honor-bound but inherently favors the stronger party.",
+            min_participants: 2,
+            duration_s: 600,
+            requires_role: None,
+            fairness_rating: 0.3,
+            finality: "binding",
+        ),
+
+        (
+            id: "council_ruling",
+            name: "Council Ruling",
+            description: "The settlement council hears arguments and votes on the outcome. Efficient but subject to political bias.",
+            min_participants: 5,
+            duration_s: 10800,
+            requires_role: Some("council_member"),
+            fairness_rating: 0.75,
+            finality: "binding",
+        ),
+
+        (
+            id: "elder_wisdom",
+            name: "Elder Wisdom",
+            description: "The eldest or most experienced community member renders judgment based on tradition and precedent.",
+            min_participants: 2,
+            duration_s: 1800,
+            requires_role: None,
+            fairness_rating: 0.65,
+            finality: "binding",
+        ),
+
+        (
+            id: "coin_flip",
+            name: "Coin Flip",
+            description: "Pure chance decides the outcome. Perfectly fair in theory but deeply unsatisfying in practice.",
+            min_participants: 2,
+            duration_s: 60,
+            requires_role: None,
+            fairness_rating: 0.5,
+            finality: "binding",
+        ),
+
+        (
+            id: "restitution",
+            name: "Restitution Agreement",
+            description: "The offender compensates the victim with goods, labor, or currency. Focuses on making the victim whole.",
+            min_participants: 2,
+            duration_s: 3600,
+            requires_role: None,
+            fairness_rating: 0.8,
+            finality: "binding",
+        ),
+
+        (
+            id: "exile_vote",
+            name: "Exile Vote",
+            description: "The settlement votes whether to permanently banish a troublemaker. Nuclear option for serious offenses.",
+            min_participants: 20,
+            duration_s: 172800,
+            requires_role: Some("mayor"),
+            fairness_rating: 0.6,
+            finality: "binding",
+        ),
+
+        (
+            id: "truth_serum",
+            name: "Alchemical Truth-Telling",
+            description: "An alchemist administers a brew that compels honesty. Facts emerge but the process is invasive.",
+            min_participants: 3,
+            duration_s: 1800,
+            requires_role: None,
+            fairness_rating: 0.95,
+            finality: "evidence_only",
+        ),
+
+        (
+            id: "divine_oracle",
+            name: "Divine Oracle",
+            description: "A spiritual leader consults omens or rituals for guidance. Trusted by the faithful, doubted by skeptics.",
+            min_participants: 2,
+            duration_s: 3600,
+            requires_role: None,
+            fairness_rating: 0.4,
+            finality: "advisory",
+        ),
+    ],
+)

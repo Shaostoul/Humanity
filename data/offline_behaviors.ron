@@ -1,0 +1,189 @@
+// HumanityOS Offline Agent Behavior Presets
+// 4 presets: safe, normal, adventurous, custom (template for player configuration).
+// Loaded by AssetManager, hot-reloadable.
+//
+// These presets populate the offline agent settings when a player selects a preset.
+// The "custom" preset is a template with moderate defaults that the player can edit.
+// All fields map to the offline_agent schema (schemas/offline_agent.toml).
+//
+// task_priorities: ordered list of activity types the agent works through.
+//   The agent executes top-to-bottom, skipping activities it lacks resources for.
+// allowed_areas: geographic scope (home, settlement, region, world).
+// combat_allowed: whether the agent may fight threats.
+// trade_allowed: whether the agent may buy/sell at markets.
+// exploration_radius_m: max distance from home base in meters.
+// sleep_schedule: (start_hour, end_hour) in 24h time.
+// meal_schedule: list of hours when the agent eats.
+// social_frequency: how often the agent socializes (never, weekly, daily, frequent).
+
+[
+    // =========================================================================
+    // SAFE -- Hunker down, maintain what you have, take no risks.
+    // Stay at home, tend the farm, cook meals, repair equipment, sleep well.
+    // No combat, no exploration, no trading beyond home storage.
+    // =========================================================================
+
+    (
+        id: "safe",
+        name: "Safe",
+        description: "Stay home and maintain. No combat, no exploration, no outside trade. The agent keeps your base running and your supplies stocked from what is already available.",
+        task_priorities: [
+            "eat_and_drink",
+            "sleep",
+            "maintain_shelter",
+            "tend_farm",
+            "harvest_crops",
+            "cook_meals",
+            "preserve_food",
+            "repair_tools",
+            "repair_structures",
+            "store_resources",
+            "clean_home",
+        ],
+        allowed_areas: ["home"],
+        combat_allowed: false,
+        trade_allowed: false,
+        exploration_radius_m: 0.0,
+        risk_tolerance: 0.0,
+        social_behavior: "hermit",
+        sleep_schedule: (start_hour: 21, end_hour: 7),
+        meal_schedule: [7, 12, 18],
+        social_frequency: "never",
+        xp_multiplier: 0.5,
+        time_compression_rate: 24,
+        max_offline_duration_hours: 168,
+        emergency_threshold: 0.3,
+    ),
+
+    // =========================================================================
+    // NORMAL -- Productive community member. Work, trade, socialize.
+    // All of safe plus: trade at local market, visit neighbors, attend
+    // community events, train skills at workbench. Low combat risk, stays
+    // near settlement.
+    // =========================================================================
+
+    (
+        id: "normal",
+        name: "Normal",
+        description: "Productive and social. The agent works your task list, trades surplus at the local market, visits neighbors, and attends community events. Stays near the settlement with low combat risk.",
+        task_priorities: [
+            "eat_and_drink",
+            "sleep",
+            "maintain_shelter",
+            "tend_farm",
+            "harvest_crops",
+            "cook_meals",
+            "repair_tools",
+            "repair_structures",
+            "craft_assigned_items",
+            "trade_surplus_at_market",
+            "buy_needed_supplies",
+            "train_skills_at_workbench",
+            "visit_neighbors",
+            "attend_community_event",
+            "store_resources",
+        ],
+        allowed_areas: ["home", "settlement"],
+        combat_allowed: false,
+        trade_allowed: true,
+        exploration_radius_m: 500.0,
+        risk_tolerance: 0.3,
+        social_behavior: "social",
+        sleep_schedule: (start_hour: 22, end_hour: 6),
+        meal_schedule: [7, 12, 18],
+        social_frequency: "daily",
+        xp_multiplier: 0.5,
+        time_compression_rate: 24,
+        max_offline_duration_hours: 168,
+        emergency_threshold: 0.2,
+    ),
+
+    // =========================================================================
+    // ADVENTUROUS -- Active frontier life. Explore, quest, hunt, mine.
+    // All of normal plus: explore nearby areas, accept quests from NPCs,
+    // hunt creatures, mine resource nodes. Medium combat risk, ventures
+    // further from home.
+    // =========================================================================
+
+    (
+        id: "adventurous",
+        name: "Adventurous",
+        description: "Bold and active. The agent explores nearby areas, accepts quests, hunts creatures, and mines resources in addition to base maintenance and trading. Medium combat risk, ventures into the wider region.",
+        task_priorities: [
+            "eat_and_drink",
+            "sleep",
+            "maintain_shelter",
+            "tend_farm",
+            "harvest_crops",
+            "cook_meals",
+            "repair_tools",
+            "craft_assigned_items",
+            "trade_surplus_at_market",
+            "buy_needed_supplies",
+            "accept_available_quests",
+            "complete_quest_objectives",
+            "hunt_creatures",
+            "mine_resource_nodes",
+            "explore_nearby_areas",
+            "gather_wild_plants",
+            "train_combat_skills",
+            "train_skills_at_workbench",
+            "visit_neighbors",
+            "attend_community_event",
+            "store_resources",
+        ],
+        allowed_areas: ["home", "settlement", "region"],
+        combat_allowed: true,
+        trade_allowed: true,
+        exploration_radius_m: 2000.0,
+        risk_tolerance: 0.7,
+        social_behavior: "social",
+        sleep_schedule: (start_hour: 23, end_hour: 5),
+        meal_schedule: [6, 12, 19],
+        social_frequency: "daily",
+        xp_multiplier: 0.5,
+        time_compression_rate: 24,
+        max_offline_duration_hours: 168,
+        emergency_threshold: 0.15,
+    ),
+
+    // =========================================================================
+    // CUSTOM -- Template with all fields exposed for player configuration.
+    // Moderate defaults as a starting point. The player edits every field
+    // through the settings UI to build their ideal offline behavior.
+    // =========================================================================
+
+    (
+        id: "custom",
+        name: "Custom",
+        description: "Full control. Every field is exposed for manual configuration. Start from these moderate defaults and tune the agent to match your play style.",
+        task_priorities: [
+            "eat_and_drink",
+            "sleep",
+            "maintain_shelter",
+            "tend_farm",
+            "harvest_crops",
+            "cook_meals",
+            "repair_tools",
+            "repair_structures",
+            "craft_assigned_items",
+            "trade_surplus_at_market",
+            "buy_needed_supplies",
+            "train_skills_at_workbench",
+            "visit_neighbors",
+        ],
+        allowed_areas: ["home", "settlement"],
+        combat_allowed: false,
+        trade_allowed: true,
+        exploration_radius_m: 250.0,
+        risk_tolerance: 0.2,
+        social_behavior: "reserved",
+        sleep_schedule: (start_hour: 22, end_hour: 6),
+        meal_schedule: [7, 12, 18],
+        social_frequency: "weekly",
+        xp_multiplier: 0.5,
+        time_compression_rate: 24,
+        max_offline_duration_hours: 168,
+        emergency_threshold: 0.25,
+    ),
+]

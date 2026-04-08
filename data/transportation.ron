@@ -1,0 +1,331 @@
+// HumanityOS Transportation Infrastructure Definitions
+// Roads, rail, space docking, and logistics for colony infrastructure.
+// Loaded by AssetManager, hot-reloadable.
+//
+// speed_limit_mps = meters per second (multiply by 3.6 for km/h).
+// construction_cost_per_m = abstract resource units per meter of track/road.
+// throughput_kg_per_s = mass flow capacity for cargo systems.
+// capacity_tons = maximum load in metric tons.
+
+(
+    // =========================================================================
+    // ROAD TYPES (6) - Surface transportation corridors
+    // =========================================================================
+
+    roads: [
+        (
+            id: "dirt_path",
+            name: "Dirt Path",
+            speed_limit_mps: 2.0,
+            construction_cost_per_m: 0.5,
+            maintenance_interval_s: 604800,
+            width_m: 1.5,
+            max_vehicle_weight_tons: 1.0,
+            weather_passable: false,
+            description: "Cleared and packed earth footpath, impassable in heavy rain",
+        ),
+        (
+            id: "gravel_road",
+            name: "Gravel Road",
+            speed_limit_mps: 8.3,
+            construction_cost_per_m: 3.0,
+            maintenance_interval_s: 2592000,
+            width_m: 4.0,
+            max_vehicle_weight_tons: 10.0,
+            weather_passable: true,
+            description: "Compacted aggregate surface for light vehicles and equipment",
+        ),
+        (
+            id: "paved_road",
+            name: "Paved Road",
+            speed_limit_mps: 13.9,
+            construction_cost_per_m: 12.0,
+            maintenance_interval_s: 15768000,
+            width_m: 6.0,
+            max_vehicle_weight_tons: 20.0,
+            weather_passable: true,
+            description: "Asphalt or concrete surface for standard vehicle traffic",
+        ),
+        (
+            id: "highway",
+            name: "Highway",
+            speed_limit_mps: 31.3,
+            construction_cost_per_m: 50.0,
+            maintenance_interval_s: 31536000,
+            width_m: 14.0,
+            max_vehicle_weight_tons: 40.0,
+            weather_passable: true,
+            lanes: 4,
+            description: "Multi-lane divided road for high-speed long-distance travel",
+        ),
+        (
+            id: "bridge",
+            name: "Bridge",
+            speed_limit_mps: 16.7,
+            construction_cost_per_m: 200.0,
+            maintenance_interval_s: 31536000,
+            width_m: 8.0,
+            max_vehicle_weight_tons: 30.0,
+            weather_passable: true,
+            max_span_m: 500.0,
+            description: "Elevated crossing over terrain gaps, canyons, or water bodies",
+        ),
+        (
+            id: "tunnel",
+            name: "Tunnel",
+            speed_limit_mps: 22.2,
+            construction_cost_per_m: 500.0,
+            maintenance_interval_s: 63072000,
+            width_m: 8.0,
+            max_vehicle_weight_tons: 35.0,
+            weather_passable: true,
+            requires_ventilation: true,
+            description: "Underground passageway through rock or regolith, shielded from surface hazards",
+        ),
+    ],
+
+    // =========================================================================
+    // RAIL TYPES (4) - Fixed-guideway transportation
+    // =========================================================================
+
+    rail: [
+        (
+            id: "light_rail",
+            name: "Light Rail",
+            speed_limit_mps: 22.2,
+            capacity_passengers: 200,
+            capacity_tons: 15.0,
+            power_draw_watts: 500000,
+            construction_cost_per_m: 80.0,
+            gauge_mm: 1435,
+            description: "Electric tram system for intra-colony passenger transit",
+        ),
+        (
+            id: "heavy_rail",
+            name: "Heavy Rail",
+            speed_limit_mps: 44.4,
+            capacity_passengers: 800,
+            capacity_tons: 100.0,
+            power_draw_watts: 3000000,
+            construction_cost_per_m: 200.0,
+            gauge_mm: 1435,
+            description: "Full-size electric train for inter-settlement passenger and freight",
+        ),
+        (
+            id: "maglev",
+            name: "Maglev Rail",
+            speed_limit_mps: 138.9,
+            capacity_passengers: 500,
+            capacity_tons: 50.0,
+            power_draw_watts: 10000000,
+            construction_cost_per_m: 800.0,
+            levitation_gap_mm: 10,
+            description: "Electromagnetic levitation rail for ultra-high-speed intercity transit",
+        ),
+        (
+            id: "cargo_rail",
+            name: "Cargo Rail",
+            speed_limit_mps: 27.8,
+            capacity_passengers: 0,
+            capacity_tons: 500.0,
+            power_draw_watts: 5000000,
+            construction_cost_per_m: 150.0,
+            gauge_mm: 1435,
+            description: "Heavy-duty automated rail for bulk ore, materials, and container transport",
+        ),
+    ],
+
+    // =========================================================================
+    // SPACE INFRASTRUCTURE (7) - Orbital and launch facilities
+    // =========================================================================
+
+    space: [
+        (
+            id: "docking_port",
+            name: "Docking Port",
+            capacity_tons: 200.0,
+            power_draw_watts: 5000,
+            compatible_sizes: ["small", "medium", "large"],
+            pressurized: true,
+            description: "Standard androgynous coupling mechanism for spacecraft berthing",
+        ),
+        (
+            id: "airlock",
+            name: "Airlock",
+            capacity_tons: 2.0,
+            power_draw_watts: 3000,
+            cycle_time_s: 180,
+            chamber_volume_m3: 8.0,
+            description: "Dual-door pressure chamber for crew EVA ingress and egress",
+        ),
+        (
+            id: "umbilical",
+            name: "Service Umbilical",
+            capacity_tons: 0.0,
+            power_draw_watts: 500,
+            transfer_types: ["power", "data", "fluid", "atmosphere"],
+            max_length_m: 30.0,
+            description: "Flexible connection supplying power, data, and fluids to docked vessels",
+        ),
+        (
+            id: "space_elevator",
+            name: "Space Elevator",
+            capacity_tons: 50.0,
+            power_draw_watts: 50000000,
+            cable_length_km: 35786,
+            climb_speed_mps: 200.0,
+            description: "Carbon nanotube tether lifting payloads from surface to geostationary orbit",
+        ),
+        (
+            id: "orbital_tether",
+            name: "Orbital Tether",
+            capacity_tons: 10.0,
+            power_draw_watts: 2000000,
+            cable_length_km: 100,
+            rotation_period_s: 360,
+            description: "Rotating momentum-exchange tether for fuel-free orbit transfer",
+        ),
+        (
+            id: "launch_pad",
+            name: "Launch Pad",
+            capacity_tons: 500.0,
+            power_draw_watts: 100000,
+            pad_diameter_m: 40.0,
+            flame_trench: true,
+            fuel_types: ["kerosene_lox", "methane_lox", "hydrogen_lox"],
+            description: "Reinforced concrete platform with fueling and umbilical systems for rocket launch",
+        ),
+        (
+            id: "landing_pad",
+            name: "Landing Pad",
+            capacity_tons: 300.0,
+            power_draw_watts: 25000,
+            pad_diameter_m: 30.0,
+            guidance_system: "radar_lidar",
+            description: "Instrumented pad with precision guidance for powered descent landing",
+        ),
+    ],
+
+    // =========================================================================
+    // LOGISTICS (8) - Material handling and cargo movement
+    // =========================================================================
+
+    logistics: [
+        (
+            id: "conveyor_belt",
+            name: "Conveyor Belt",
+            throughput_kg_per_s: 50.0,
+            power_draw_watts: 2000,
+            speed_mps: 1.5,
+            width_m: 0.8,
+            cost_per_meter: 15.0,
+            description: "Continuous loop belt for bulk material transport between facilities",
+        ),
+        (
+            id: "pneumatic_tube",
+            name: "Pneumatic Tube",
+            throughput_kg_per_s: 5.0,
+            power_draw_watts: 3000,
+            speed_mps: 8.0,
+            max_capsule_kg: 10.0,
+            tube_diameter_mm: 200,
+            cost_per_meter: 25.0,
+            description: "Pressurized tube system launching capsules for small parcel delivery",
+        ),
+        (
+            id: "cargo_elevator",
+            name: "Cargo Elevator",
+            throughput_kg_per_s: 100.0,
+            power_draw_watts: 15000,
+            capacity_tons: 5.0,
+            speed_mps: 2.0,
+            max_travel_m: 100.0,
+            description: "Heavy-duty vertical lift for multi-level facilities and mine shafts",
+        ),
+        (
+            id: "crane",
+            name: "Overhead Crane",
+            throughput_kg_per_s: 20.0,
+            power_draw_watts: 25000,
+            capacity_tons: 25.0,
+            reach_m: 30.0,
+            description: "Bridge crane spanning workshop bays for heavy component handling",
+        ),
+        (
+            id: "forklift_station",
+            name: "Forklift Station",
+            throughput_kg_per_s: 15.0,
+            power_draw_watts: 500,
+            capacity_tons: 3.0,
+            num_vehicles: 2,
+            charge_time_s: 14400,
+            description: "Electric forklift charging and dispatch point for warehouse operations",
+        ),
+        (
+            id: "loading_dock",
+            name: "Loading Dock",
+            throughput_kg_per_s: 200.0,
+            power_draw_watts: 5000,
+            capacity_tons: 40.0,
+            num_bays: 4,
+            description: "Vehicle-height platform with levelers for truck and rover cargo transfer",
+        ),
+        (
+            id: "automated_guided_vehicle",
+            name: "Automated Guided Vehicle",
+            throughput_kg_per_s: 10.0,
+            power_draw_watts: 1500,
+            capacity_tons: 1.0,
+            speed_mps: 2.0,
+            battery_life_hours: 8,
+            description: "Self-driving cart following floor markers for intra-facility deliveries",
+        ),
+        (
+            id: "pipe_transport",
+            name: "Slurry Pipeline",
+            throughput_kg_per_s: 80.0,
+            power_draw_watts: 8000,
+            speed_mps: 3.0,
+            pipe_diameter_mm: 300,
+            cost_per_meter: 20.0,
+            description: "Pressurized pipeline moving ore slurry or grain between processing facilities",
+        ),
+    ],
+
+    // =========================================================================
+    // SIGNALING AND CONTROL (4) - Traffic management
+    // =========================================================================
+
+    signaling: [
+        (
+            id: "traffic_light",
+            name: "Traffic Light",
+            power_draw_watts: 30,
+            cycle_time_s: 90,
+            description: "LED signal head controlling intersection vehicle and pedestrian flow",
+        ),
+        (
+            id: "rail_switch",
+            name: "Rail Switch",
+            power_draw_watts: 200,
+            switch_time_s: 4,
+            description: "Electrically actuated track switch directing trains between routes",
+        ),
+        (
+            id: "navigation_beacon",
+            name: "Navigation Beacon",
+            power_draw_watts: 50,
+            range_km: 100,
+            frequency_ghz: 1.575,
+            description: "Ground or orbital transponder broadcasting position fix for vehicles",
+        ),
+        (
+            id: "docking_guidance",
+            name: "Docking Guidance System",
+            power_draw_watts: 2000,
+            range_m: 5000,
+            accuracy_mm: 5,
+            description: "Laser and radar alignment system guiding spacecraft to berthing contact",
+        ),
+    ],
+)

@@ -1,0 +1,350 @@
+// HumanityOS Plumbing System Definitions
+// Water supply, drainage, treatment, and storage for colony infrastructure.
+// Loaded by AssetManager, hot-reloadable.
+//
+// flow_rate_lps = liters per second at rated pressure.
+// pressure_rating_bar = max safe operating pressure.
+// water_consumption_lps = average draw when fixture is active.
+// throughput_lps = treatment capacity in liters per second.
+// efficiency = fraction of input water recovered as clean output (0.0-1.0).
+
+(
+    // =========================================================================
+    // PIPE TYPES (4) - Fluid conduits
+    // =========================================================================
+
+    pipes: [
+        (
+            id: "pvc_pipe",
+            name: "PVC Pipe",
+            flow_rate_lps: 2.5,
+            pressure_rating_bar: 10,
+            temperature_max_c: 60,
+            cost_per_meter: 1.5,
+            weight_kg_per_m: 0.8,
+            inner_diameter_mm: 50,
+            lifespan_years: 50,
+            description: "Lightweight plastic pipe for cold water supply and drainage",
+        ),
+        (
+            id: "copper_pipe",
+            name: "Copper Pipe",
+            flow_rate_lps: 3.0,
+            pressure_rating_bar: 20,
+            temperature_max_c: 150,
+            cost_per_meter: 8.0,
+            weight_kg_per_m: 1.2,
+            inner_diameter_mm: 50,
+            lifespan_years: 70,
+            description: "Durable metal pipe for hot and cold supply, naturally antimicrobial",
+        ),
+        (
+            id: "steel_pipe",
+            name: "Steel Pipe",
+            flow_rate_lps: 5.0,
+            pressure_rating_bar: 40,
+            temperature_max_c: 300,
+            cost_per_meter: 12.0,
+            weight_kg_per_m: 3.5,
+            inner_diameter_mm: 75,
+            lifespan_years: 40,
+            description: "Heavy-duty high-pressure pipe for industrial fluid and steam lines",
+        ),
+        (
+            id: "flexible_hose",
+            name: "Flexible Hose",
+            flow_rate_lps: 1.5,
+            pressure_rating_bar: 6,
+            temperature_max_c: 80,
+            cost_per_meter: 3.0,
+            weight_kg_per_m: 0.3,
+            inner_diameter_mm: 25,
+            lifespan_years: 10,
+            description: "Reinforced rubber hose for temporary connections and vibration isolation",
+        ),
+    ],
+
+    // =========================================================================
+    // FIXTURES (8) - End-use water points
+    // =========================================================================
+
+    fixtures: [
+        (
+            id: "toilet",
+            name: "Toilet",
+            water_consumption_lps: 0.1,
+            requires_drain: true,
+            requires_vent: true,
+            flush_volume_l: 6.0,
+            description: "Gravity or vacuum flush waste disposal, requires sewage connection",
+        ),
+        (
+            id: "sink",
+            name: "Sink",
+            water_consumption_lps: 0.12,
+            requires_drain: true,
+            requires_vent: false,
+            flush_volume_l: 0.0,
+            description: "Basin with hot/cold supply for hand washing and food preparation",
+        ),
+        (
+            id: "shower",
+            name: "Shower",
+            water_consumption_lps: 0.15,
+            requires_drain: true,
+            requires_vent: false,
+            flush_volume_l: 0.0,
+            description: "Overhead spray for personal hygiene, uses greywater drain",
+        ),
+        (
+            id: "bathtub",
+            name: "Bathtub",
+            water_consumption_lps: 0.2,
+            requires_drain: true,
+            requires_vent: false,
+            flush_volume_l: 0.0,
+            fill_volume_l: 150.0,
+            description: "Soaking vessel for hygiene and therapeutic use",
+        ),
+        (
+            id: "drinking_fountain",
+            name: "Drinking Fountain",
+            water_consumption_lps: 0.05,
+            requires_drain: true,
+            requires_vent: false,
+            flush_volume_l: 0.0,
+            description: "Filtered potable water dispenser for public areas",
+        ),
+        (
+            id: "fire_hydrant",
+            name: "Fire Hydrant",
+            water_consumption_lps: 15.0,
+            requires_drain: false,
+            requires_vent: false,
+            flush_volume_l: 0.0,
+            min_pressure_bar: 4.0,
+            description: "High-flow emergency fire suppression outlet",
+        ),
+        (
+            id: "irrigation_head",
+            name: "Irrigation Head",
+            water_consumption_lps: 0.08,
+            requires_drain: false,
+            requires_vent: false,
+            flush_volume_l: 0.0,
+            spray_radius_m: 3.0,
+            description: "Pop-up or drip emitter for agricultural plot watering",
+        ),
+        (
+            id: "industrial_drain",
+            name: "Industrial Floor Drain",
+            water_consumption_lps: 0.0,
+            requires_drain: true,
+            requires_vent: true,
+            flush_volume_l: 0.0,
+            max_intake_lps: 5.0,
+            description: "Heavy-duty floor drain with grate for workshop and processing areas",
+        ),
+    ],
+
+    // =========================================================================
+    // TREATMENT SYSTEMS (8) - Water purification and recycling
+    // =========================================================================
+
+    treatment: [
+        (
+            id: "water_purifier",
+            name: "Water Purifier",
+            throughput_lps: 0.5,
+            power_draw_watts: 200,
+            efficiency: 0.95,
+            filter_lifespan_l: 50000,
+            removes: ["sediment", "bacteria", "chlorine"],
+            description: "Multi-stage carbon and ceramic filter for potable water production",
+        ),
+        (
+            id: "reverse_osmosis",
+            name: "Reverse Osmosis Unit",
+            throughput_lps: 0.3,
+            power_draw_watts: 800,
+            efficiency: 0.45,
+            filter_lifespan_l: 100000,
+            removes: ["salt", "heavy_metals", "bacteria", "viruses"],
+            description: "Membrane desalination system producing ultra-pure water from any source",
+        ),
+        (
+            id: "uv_sterilizer",
+            name: "UV Sterilizer",
+            throughput_lps: 2.0,
+            power_draw_watts: 150,
+            efficiency: 0.99,
+            filter_lifespan_l: 0,
+            lamp_lifespan_hours: 9000,
+            removes: ["bacteria", "viruses", "protozoa"],
+            description: "Ultraviolet light chamber destroying pathogens without chemicals",
+        ),
+        (
+            id: "water_softener",
+            name: "Water Softener",
+            throughput_lps: 1.0,
+            power_draw_watts: 50,
+            efficiency: 0.98,
+            filter_lifespan_l: 200000,
+            removes: ["calcium", "magnesium"],
+            description: "Ion exchange system preventing mineral scale buildup in pipes",
+        ),
+        (
+            id: "sewage_processor",
+            name: "Sewage Processor",
+            throughput_lps: 1.5,
+            power_draw_watts: 3000,
+            efficiency: 0.85,
+            filter_lifespan_l: 0,
+            removes: ["organic_waste", "pathogens", "nitrogen", "phosphorus"],
+            outputs: ["greywater", "biosolids", "methane"],
+            description: "Aerobic digestion plant converting blackwater to reusable greywater and fertilizer",
+        ),
+        (
+            id: "greywater_recycler",
+            name: "Greywater Recycler",
+            throughput_lps: 1.0,
+            power_draw_watts: 500,
+            efficiency: 0.90,
+            filter_lifespan_l: 150000,
+            removes: ["soap", "organics", "sediment"],
+            description: "Filters shower and sink water for reuse in irrigation and toilets",
+        ),
+        (
+            id: "rainwater_collector",
+            name: "Rainwater Collector",
+            throughput_lps: 0.0,
+            power_draw_watts: 0,
+            efficiency: 1.0,
+            filter_lifespan_l: 0,
+            collection_area_m2: 50.0,
+            storage_l: 500,
+            removes: [],
+            description: "Roof catchment and first-flush diverter collecting precipitation",
+        ),
+        (
+            id: "atmospheric_moisture_harvester",
+            name: "Atmospheric Moisture Harvester",
+            throughput_lps: 0.01,
+            power_draw_watts: 400,
+            efficiency: 0.30,
+            filter_lifespan_l: 0,
+            removes: [],
+            min_humidity_pct: 20,
+            description: "Thermoelectric condenser extracting water vapor from ambient air",
+        ),
+    ],
+
+    // =========================================================================
+    // STORAGE TANKS (5) - Fluid reservoirs
+    // =========================================================================
+
+    storage: [
+        (
+            id: "water_tank_small",
+            name: "Water Tank (Small)",
+            capacity_l: 100,
+            material: "polyethylene",
+            max_pressure_bar: 2,
+            weight_empty_kg: 8.0,
+            insulated: false,
+            description: "Compact potable water reserve for single rooms or emergency supply",
+        ),
+        (
+            id: "water_tank_medium",
+            name: "Water Tank (Medium)",
+            capacity_l: 1000,
+            material: "fiberglass",
+            max_pressure_bar: 4,
+            weight_empty_kg: 45.0,
+            insulated: true,
+            description: "Building-level potable water buffer with thermal insulation",
+        ),
+        (
+            id: "water_tank_large",
+            name: "Water Tank (Large)",
+            capacity_l: 10000,
+            material: "steel",
+            max_pressure_bar: 6,
+            weight_empty_kg: 350.0,
+            insulated: true,
+            description: "Colony-scale water reservoir for district supply and fire suppression",
+        ),
+        (
+            id: "sewage_tank",
+            name: "Sewage Holding Tank",
+            capacity_l: 5000,
+            material: "reinforced_concrete",
+            max_pressure_bar: 1,
+            weight_empty_kg: 2000.0,
+            insulated: false,
+            description: "Underground blackwater collection before treatment processing",
+        ),
+        (
+            id: "greywater_tank",
+            name: "Greywater Tank",
+            capacity_l: 2000,
+            material: "polyethylene",
+            max_pressure_bar: 2,
+            weight_empty_kg: 60.0,
+            insulated: false,
+            description: "Buffer tank holding filtered greywater for irrigation and toilet reuse",
+        ),
+    ],
+
+    // =========================================================================
+    // VALVES AND FITTINGS (6) - Flow control components
+    // =========================================================================
+
+    valves: [
+        (
+            id: "gate_valve",
+            name: "Gate Valve",
+            max_pressure_bar: 16,
+            flow_coefficient: 0.95,
+            description: "Full-bore shutoff valve for main supply lines",
+        ),
+        (
+            id: "check_valve",
+            name: "Check Valve",
+            max_pressure_bar: 16,
+            flow_coefficient: 0.85,
+            description: "One-way valve preventing backflow contamination",
+        ),
+        (
+            id: "pressure_regulator",
+            name: "Pressure Regulator",
+            max_pressure_bar: 25,
+            flow_coefficient: 0.80,
+            output_pressure_bar: 4,
+            description: "Reduces incoming pressure to safe levels for fixtures",
+        ),
+        (
+            id: "mixing_valve",
+            name: "Thermostatic Mixing Valve",
+            max_pressure_bar: 10,
+            flow_coefficient: 0.90,
+            temperature_range_c: (20, 60),
+            description: "Blends hot and cold supply to maintain set temperature",
+        ),
+        (
+            id: "solenoid_valve",
+            name: "Solenoid Valve",
+            max_pressure_bar: 10,
+            flow_coefficient: 0.88,
+            power_draw_watts: 8,
+            description: "Electrically actuated valve for automated flow control",
+        ),
+        (
+            id: "backflow_preventer",
+            name: "Backflow Preventer",
+            max_pressure_bar: 16,
+            flow_coefficient: 0.82,
+            description: "Double-check assembly protecting potable supply from contamination",
+        ),
+    ],
+)

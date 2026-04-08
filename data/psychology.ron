@@ -1,0 +1,643 @@
+// HumanityOS Psychology, Mental Health, and Morale System
+// 56 entries across needs, morale modifiers, and personality traits.
+// Loaded by AssetManager, hot-reloadable.
+//
+// Needs are Maslow-inspired: physiological, safety, belonging, esteem, self_actualization.
+// Each need decays over time. When below critical_threshold, negative status effects apply.
+// When above satisfied_threshold, positive effects apply. The engine ticks decay each frame.
+//
+// Morale modifiers are situational bonuses/penalties applied when conditions are met.
+// Personality traits modify how strongly needs affect the character (need_modifiers).
+//
+// Status effect IDs reference status_effects.csv.
+
+(
+    needs: [
+        // =====================================================================
+        // PHYSIOLOGICAL NEEDS (6)
+        // =====================================================================
+
+        (
+            id: "hunger",
+            name: "Hunger",
+            category: "physiological",
+            decay_rate_per_hour: 8.0,
+            critical_threshold: 15.0,
+            satisfied_threshold: 75.0,
+            max_value: 100.0,
+            effects_when_low: ["hungry", "weakness", "exhausted"],
+            effects_when_satisfied: ["well_fed"],
+            description: "Need for caloric intake. Starvation kills within days.",
+        ),
+
+        (
+            id: "thirst",
+            name: "Thirst",
+            category: "physiological",
+            decay_rate_per_hour: 12.0,
+            critical_threshold: 15.0,
+            satisfied_threshold: 70.0,
+            max_value: 100.0,
+            effects_when_low: ["thirsty", "confusion", "exhausted"],
+            effects_when_satisfied: [],
+            description: "Need for water. Dehydration is lethal faster than starvation.",
+        ),
+
+        (
+            id: "warmth",
+            name: "Warmth",
+            category: "physiological",
+            decay_rate_per_hour: 5.0,
+            critical_threshold: 20.0,
+            satisfied_threshold: 60.0,
+            max_value: 100.0,
+            effects_when_low: ["hypothermia", "slow"],
+            effects_when_satisfied: [],
+            description: "Need for appropriate body temperature. Affected by biome, clothing, and shelter.",
+        ),
+
+        (
+            id: "sleep",
+            name: "Sleep",
+            category: "physiological",
+            decay_rate_per_hour: 6.25,
+            critical_threshold: 10.0,
+            satisfied_threshold: 80.0,
+            max_value: 100.0,
+            effects_when_low: ["sleep_deprived", "confused", "slow"],
+            effects_when_satisfied: ["rested"],
+            description: "Need for rest. Sleep deprivation degrades all mental and physical functions.",
+        ),
+
+        (
+            id: "oxygen",
+            name: "Oxygen",
+            category: "physiological",
+            decay_rate_per_hour: 0.0,
+            critical_threshold: 25.0,
+            satisfied_threshold: 90.0,
+            max_value: 100.0,
+            effects_when_low: ["oxygen_depleted"],
+            effects_when_satisfied: ["fresh_air"],
+            description: "Need for breathable air. Only decays in vacuum, underwater, or toxic atmosphere.",
+        ),
+
+        (
+            id: "comfort",
+            name: "Physical Comfort",
+            category: "physiological",
+            decay_rate_per_hour: 3.0,
+            critical_threshold: 10.0,
+            satisfied_threshold: 70.0,
+            max_value: 100.0,
+            effects_when_low: ["exhausted"],
+            effects_when_satisfied: [],
+            description: "Freedom from physical pain, cramping, and environmental discomfort.",
+        ),
+
+        // =====================================================================
+        // SAFETY NEEDS (3)
+        // =====================================================================
+
+        (
+            id: "shelter",
+            name: "Shelter",
+            category: "safety",
+            decay_rate_per_hour: 2.0,
+            critical_threshold: 10.0,
+            satisfied_threshold: 60.0,
+            max_value: 100.0,
+            effects_when_low: ["frightened"],
+            effects_when_satisfied: [],
+            description: "Sense of having a safe, weather-protected place to return to.",
+        ),
+
+        (
+            id: "health",
+            name: "Health Awareness",
+            category: "safety",
+            decay_rate_per_hour: 1.0,
+            critical_threshold: 20.0,
+            satisfied_threshold: 70.0,
+            max_value: 100.0,
+            effects_when_low: ["frightened"],
+            effects_when_satisfied: [],
+            description: "Confidence in one's physical well-being. Injuries and illness drain this rapidly.",
+        ),
+
+        (
+            id: "security",
+            name: "Security",
+            category: "safety",
+            decay_rate_per_hour: 2.5,
+            critical_threshold: 15.0,
+            satisfied_threshold: 65.0,
+            max_value: 100.0,
+            effects_when_low: ["frightened", "sleep_deprived"],
+            effects_when_satisfied: [],
+            description: "Feeling of safety from threats. Hostile encounters and crime drain this.",
+        ),
+
+        // =====================================================================
+        // BELONGING NEEDS (3)
+        // =====================================================================
+
+        (
+            id: "friendship",
+            name: "Friendship",
+            category: "belonging",
+            decay_rate_per_hour: 1.5,
+            critical_threshold: 15.0,
+            satisfied_threshold: 60.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: [],
+            description: "Connection with peers and companions. Isolation degrades mental health.",
+        ),
+
+        (
+            id: "family",
+            name: "Family",
+            category: "belonging",
+            decay_rate_per_hour: 0.5,
+            critical_threshold: 10.0,
+            satisfied_threshold: 50.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: [],
+            description: "Bond with family members or chosen kin. Slow to decay but hard to restore if broken.",
+        ),
+
+        (
+            id: "community",
+            name: "Community",
+            category: "belonging",
+            decay_rate_per_hour: 1.0,
+            critical_threshold: 10.0,
+            satisfied_threshold: 55.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: [],
+            description: "Sense of belonging to a group or settlement. Fueled by shared work and events.",
+        ),
+
+        // =====================================================================
+        // ESTEEM NEEDS (3)
+        // =====================================================================
+
+        (
+            id: "achievement",
+            name: "Achievement",
+            category: "esteem",
+            decay_rate_per_hour: 0.8,
+            critical_threshold: 10.0,
+            satisfied_threshold: 60.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: ["focused_mind"],
+            description: "Sense of accomplishment from completing tasks and reaching goals.",
+        ),
+
+        (
+            id: "reputation",
+            name: "Reputation",
+            category: "esteem",
+            decay_rate_per_hour: 0.3,
+            critical_threshold: 10.0,
+            satisfied_threshold: 65.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: [],
+            description: "How others perceive and respect the character. Built through actions, lost through failure.",
+        ),
+
+        (
+            id: "skill_mastery",
+            name: "Skill Mastery",
+            category: "esteem",
+            decay_rate_per_hour: 0.2,
+            critical_threshold: 5.0,
+            satisfied_threshold: 50.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: ["inspired"],
+            description: "Satisfaction from improving and mastering skills. Grows with practice and learning.",
+        ),
+
+        // =====================================================================
+        // SELF-ACTUALIZATION NEEDS (3)
+        // =====================================================================
+
+        (
+            id: "creativity",
+            name: "Creativity",
+            category: "self_actualization",
+            decay_rate_per_hour: 1.0,
+            critical_threshold: 5.0,
+            satisfied_threshold: 60.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: ["inspired"],
+            description: "Urge to create, build, and express oneself. Fueled by crafting, building, and art.",
+        ),
+
+        (
+            id: "purpose",
+            name: "Purpose",
+            category: "self_actualization",
+            decay_rate_per_hour: 0.5,
+            critical_threshold: 5.0,
+            satisfied_threshold: 55.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: ["focused_mind"],
+            description: "Feeling that one's actions matter. Active quests and community roles sustain this.",
+        ),
+
+        (
+            id: "exploration",
+            name: "Exploration",
+            category: "self_actualization",
+            decay_rate_per_hour: 0.8,
+            critical_threshold: 5.0,
+            satisfied_threshold: 50.0,
+            max_value: 100.0,
+            effects_when_low: [],
+            effects_when_satisfied: [],
+            description: "Drive to discover new places, species, and knowledge. Satisfied by travel and research.",
+        ),
+    ],
+
+    morale_modifiers: [
+        // =====================================================================
+        // MORALE MODIFIERS (22)
+        // =====================================================================
+
+        (
+            id: "good_meal",
+            name: "Good Meal",
+            value: 5,
+            duration_s: 3600,
+            category: "food",
+            trigger: "ate_quality_good_or_above",
+            description: "A satisfying meal lifts the spirits.",
+        ),
+
+        (
+            id: "slept_well",
+            name: "Slept Well",
+            value: 3,
+            duration_s: 7200,
+            category: "rest",
+            trigger: "slept_8_hours_in_bed",
+            description: "A full night in a proper bed restores clarity.",
+        ),
+
+        (
+            id: "friend_nearby",
+            name: "Friend Nearby",
+            value: 2,
+            duration_s: 0,
+            category: "social",
+            trigger: "allied_npc_within_20m",
+            description: "The presence of a trusted companion brings comfort.",
+        ),
+
+        (
+            id: "beautiful_room",
+            name: "Beautiful Surroundings",
+            value: 1,
+            duration_s: 0,
+            category: "environment",
+            trigger: "room_beauty_above_threshold",
+            description: "Attractive surroundings subtly improve mood.",
+        ),
+
+        (
+            id: "cramped_quarters",
+            name: "Cramped Quarters",
+            value: -3,
+            duration_s: 0,
+            category: "environment",
+            trigger: "room_size_below_minimum",
+            description: "Tight living spaces breed irritation.",
+        ),
+
+        (
+            id: "witnessed_death",
+            name: "Witnessed Death",
+            value: -10,
+            duration_s: 86400,
+            category: "trauma",
+            trigger: "ally_died_within_50m",
+            description: "Seeing someone die leaves deep psychological scars.",
+        ),
+
+        (
+            id: "achieved_goal",
+            name: "Achieved a Goal",
+            value: 8,
+            duration_s: 7200,
+            category: "achievement",
+            trigger: "quest_completed",
+            description: "Completing a meaningful objective brings a rush of pride.",
+        ),
+
+        (
+            id: "music_playing",
+            name: "Listening to Music",
+            value: 2,
+            duration_s: 0,
+            category: "entertainment",
+            trigger: "music_source_within_30m",
+            description: "Music soothes the mind and lifts the mood.",
+        ),
+
+        (
+            id: "exercise",
+            name: "Exercise",
+            value: 3,
+            duration_s: 3600,
+            category: "health",
+            trigger: "sprinted_or_fought_5_min",
+            description: "Physical exertion releases endorphins.",
+        ),
+
+        (
+            id: "boredom",
+            name: "Boredom",
+            value: -2,
+            duration_s: 0,
+            category: "entertainment",
+            trigger: "no_activity_change_30_min",
+            description: "Monotony and lack of stimulation drain enthusiasm.",
+        ),
+
+        (
+            id: "loneliness",
+            name: "Loneliness",
+            value: -5,
+            duration_s: 0,
+            category: "social",
+            trigger: "no_npc_contact_24h",
+            description: "Extended isolation weighs heavily on the mind.",
+        ),
+
+        (
+            id: "illness",
+            name: "Illness",
+            value: -4,
+            duration_s: 0,
+            category: "health",
+            trigger: "has_disease_status_effect",
+            description: "Being sick makes everything harder to enjoy.",
+        ),
+
+        (
+            id: "new_discovery",
+            name: "New Discovery",
+            value: 4,
+            duration_s: 3600,
+            category: "exploration",
+            trigger: "discovered_new_location",
+            description: "Finding something new sparks wonder and excitement.",
+        ),
+
+        (
+            id: "warm_fire",
+            name: "Warm Fire",
+            value: 2,
+            duration_s: 0,
+            category: "comfort",
+            trigger: "near_campfire_or_fireplace",
+            description: "Sitting by a warm fire brings deep comfort.",
+        ),
+
+        (
+            id: "pet_companion",
+            name: "Pet Companion",
+            value: 3,
+            duration_s: 0,
+            category: "social",
+            trigger: "tamed_animal_within_10m",
+            description: "A loyal animal companion provides unconditional comfort.",
+        ),
+
+        (
+            id: "ate_terrible_food",
+            name: "Terrible Meal",
+            value: -3,
+            duration_s: 1800,
+            category: "food",
+            trigger: "ate_quality_terrible",
+            description: "A disgusting meal leaves a lingering bad taste.",
+        ),
+
+        (
+            id: "homeless",
+            name: "Homeless",
+            value: -6,
+            duration_s: 0,
+            category: "shelter",
+            trigger: "no_claimed_bed_72h",
+            description: "Having no place to call home is deeply demoralizing.",
+        ),
+
+        (
+            id: "celebrated_event",
+            name: "Celebration",
+            value: 6,
+            duration_s: 14400,
+            category: "social",
+            trigger: "attended_community_event",
+            description: "Participating in a communal celebration builds joy and bonds.",
+        ),
+
+        (
+            id: "skill_level_up",
+            name: "Skill Improved",
+            value: 4,
+            duration_s: 3600,
+            category: "achievement",
+            trigger: "skill_level_increased",
+            description: "Gaining a new skill level brings a sense of growth.",
+        ),
+
+        (
+            id: "injured",
+            name: "Injured",
+            value: -3,
+            duration_s: 0,
+            category: "health",
+            trigger: "has_injury_condition",
+            description: "Physical injuries make daily life painful and frustrating.",
+        ),
+
+        (
+            id: "crafted_masterwork",
+            name: "Crafted Masterwork",
+            value: 7,
+            duration_s: 7200,
+            category: "achievement",
+            trigger: "crafted_quality_masterwork",
+            description: "Creating something truly exceptional fills the crafter with pride.",
+        ),
+
+        (
+            id: "death_of_pet",
+            name: "Lost a Pet",
+            value: -8,
+            duration_s: 172800,
+            category: "trauma",
+            trigger: "owned_pet_died",
+            description: "Losing a beloved animal companion causes deep grief.",
+        ),
+    ],
+
+    personality_traits: [
+        // =====================================================================
+        // PERSONALITY TRAITS (12)
+        // =====================================================================
+
+        (
+            id: "optimist",
+            name: "Optimist",
+            description: "Sees the bright side of every situation. Morale recovers faster and positive modifiers are amplified.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.3,
+                morale_loss_multiplier: 0.8,
+            ),
+            conflicts_with: ["pessimist"],
+        ),
+
+        (
+            id: "pessimist",
+            name: "Pessimist",
+            description: "Expects the worst. Morale drops faster and negative modifiers hit harder.",
+            need_modifiers: (
+                morale_gain_multiplier: 0.7,
+                morale_loss_multiplier: 1.3,
+            ),
+            conflicts_with: ["optimist"],
+        ),
+
+        (
+            id: "introvert",
+            name: "Introvert",
+            description: "Prefers solitude. Social needs decay slower but loneliness penalty is harsher when it hits.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"friendship": 0.5, "community": 0.7, "loneliness_penalty": 1.5},
+            conflicts_with: ["extrovert"],
+        ),
+
+        (
+            id: "extrovert",
+            name: "Extrovert",
+            description: "Thrives in social settings. Social needs decay faster but are easily satisfied by any interaction.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"friendship": 1.5, "community": 1.3, "friend_nearby_bonus": 2.0},
+            conflicts_with: ["introvert"],
+        ),
+
+        (
+            id: "glutton",
+            name: "Glutton",
+            description: "Loves food above all. Hunger decays faster but food-related morale bonuses are doubled.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"hunger": 1.5, "good_meal_bonus": 2.0},
+            conflicts_with: ["ascetic"],
+        ),
+
+        (
+            id: "ascetic",
+            name: "Ascetic",
+            description: "Needs little comfort. Physiological needs decay slower but comfort-related bonuses are reduced.",
+            need_modifiers: (
+                morale_gain_multiplier: 0.9,
+                morale_loss_multiplier: 0.8,
+            ),
+            affected_needs: {"hunger": 0.7, "comfort": 0.5, "beautiful_room_bonus": 0.3},
+            conflicts_with: ["glutton"],
+        ),
+
+        (
+            id: "brave",
+            name: "Brave",
+            description: "Fearless in the face of danger. Security need decays slower and witnessed_death penalty is reduced.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"security": 0.5, "witnessed_death_penalty": 0.6},
+            conflicts_with: ["cowardly"],
+        ),
+
+        (
+            id: "cowardly",
+            name: "Cowardly",
+            description: "Easily frightened. Security need decays much faster and all trauma penalties are amplified.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"security": 2.0, "witnessed_death_penalty": 1.5},
+            conflicts_with: ["brave"],
+        ),
+
+        (
+            id: "creative",
+            name: "Creative",
+            description: "Driven to make things. Creativity need decays faster but crafting satisfaction is greatly amplified.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"creativity": 1.5, "crafted_masterwork_bonus": 2.0, "boredom_penalty": 1.5},
+            conflicts_with: [],
+        ),
+
+        (
+            id: "wanderer",
+            name: "Wanderer",
+            description: "Restless soul who needs to move. Exploration need decays fast but discovery bonuses are amplified.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"exploration": 2.0, "new_discovery_bonus": 2.0, "cramped_quarters_penalty": 2.0},
+            conflicts_with: ["homebody"],
+        ),
+
+        (
+            id: "homebody",
+            name: "Homebody",
+            description: "Prefers the familiar. Shelter and comfort needs are easily met but exploration urge is minimal.",
+            need_modifiers: (
+                morale_gain_multiplier: 1.0,
+                morale_loss_multiplier: 1.0,
+            ),
+            affected_needs: {"shelter": 0.5, "comfort": 0.7, "exploration": 0.3, "homeless_penalty": 2.0},
+            conflicts_with: ["wanderer"],
+        ),
+
+        (
+            id: "stoic",
+            name: "Stoic",
+            description: "Emotionally even-keeled. All morale modifiers are dampened, both positive and negative.",
+            need_modifiers: (
+                morale_gain_multiplier: 0.6,
+                morale_loss_multiplier: 0.6,
+            ),
+            conflicts_with: [],
+        ),
+    ],
+)

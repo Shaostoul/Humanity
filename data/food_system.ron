@@ -1,0 +1,581 @@
+// HumanityOS Food, Spoilage, Nutrition, and Cooking System
+// 46 entries across nutrition profiles, preservation methods, cooking methods, and meal quality.
+// Loaded by AssetManager, hot-reloadable.
+//
+// Nutrition categories track macro and micronutrients per 100g serving.
+// Spoilage rates define how fast food categories decay at room temperature (20C).
+// Preservation methods multiply base shelf life. Multiple methods do NOT stack.
+// Cooking methods modify nutrition, taste, preservation, and require cooking skill.
+// Meal quality is determined by ingredients, cooking method, and cook skill level.
+//
+// Item IDs reference items.csv. Status effect IDs reference status_effects.csv.
+// Food category IDs are used by the inventory system for spoilage tracking.
+
+(
+    nutrition_profiles: [
+        // =====================================================================
+        // NUTRITION PROFILES BY FOOD CATEGORY (12)
+        // =====================================================================
+
+        (
+            id: "raw_meat",
+            name: "Raw Meat",
+            category: "protein",
+            calories_per_100g: 143,
+            protein_g: 20.0,
+            carbs_g: 0.0,
+            fat_g: 7.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.01, B: 0.15, C: 0.0, D: 0.02, E: 0.01, K: 0.0),
+            minerals: (iron: 2.6, calcium: 12.0, zinc: 4.5, potassium: 310.0),
+            spoilage_rate_hours: 24.0,
+            raw_consumption_risk: 0.40,
+            description: "Uncooked animal muscle tissue. High protein but dangerous to eat raw.",
+        ),
+
+        (
+            id: "cooked_meat",
+            name: "Cooked Meat",
+            category: "protein",
+            calories_per_100g: 165,
+            protein_g: 25.0,
+            carbs_g: 0.0,
+            fat_g: 8.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.01, B: 0.12, C: 0.0, D: 0.02, E: 0.01, K: 0.0),
+            minerals: (iron: 2.2, calcium: 10.0, zinc: 4.0, potassium: 290.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.0,
+            description: "Heat-treated meat. Safe to eat with improved digestibility.",
+        ),
+
+        (
+            id: "raw_fish",
+            name: "Raw Fish",
+            category: "protein",
+            calories_per_100g: 82,
+            protein_g: 18.0,
+            carbs_g: 0.0,
+            fat_g: 1.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.01, B: 0.10, C: 0.0, D: 0.08, E: 0.02, K: 0.0),
+            minerals: (iron: 0.5, calcium: 15.0, zinc: 0.5, potassium: 350.0),
+            spoilage_rate_hours: 18.0,
+            raw_consumption_risk: 0.25,
+            description: "Fresh-caught fish. Spoils quickly but rich in vitamin D and omega-3.",
+        ),
+
+        (
+            id: "raw_vegetables",
+            name: "Raw Vegetables",
+            category: "produce",
+            calories_per_100g: 25,
+            protein_g: 1.5,
+            carbs_g: 5.0,
+            fat_g: 0.2,
+            fiber_g: 2.5,
+            vitamins: (A: 0.15, B: 0.05, C: 0.20, D: 0.0, E: 0.04, K: 0.10),
+            minerals: (iron: 0.8, calcium: 30.0, zinc: 0.3, potassium: 250.0),
+            spoilage_rate_hours: 168.0,
+            raw_consumption_risk: 0.02,
+            description: "Fresh harvested plant matter. Good fiber and vitamin content.",
+        ),
+
+        (
+            id: "cooked_vegetables",
+            name: "Cooked Vegetables",
+            category: "produce",
+            calories_per_100g: 35,
+            protein_g: 1.8,
+            carbs_g: 6.0,
+            fat_g: 0.5,
+            fiber_g: 2.0,
+            vitamins: (A: 0.18, B: 0.04, C: 0.10, D: 0.0, E: 0.03, K: 0.12),
+            minerals: (iron: 0.9, calcium: 35.0, zinc: 0.3, potassium: 230.0),
+            spoilage_rate_hours: 48.0,
+            raw_consumption_risk: 0.0,
+            description: "Heat-treated vegetables. Some vitamins lost but minerals more bioavailable.",
+        ),
+
+        (
+            id: "fruit",
+            name: "Fresh Fruit",
+            category: "produce",
+            calories_per_100g: 52,
+            protein_g: 0.3,
+            carbs_g: 14.0,
+            fat_g: 0.2,
+            fiber_g: 2.4,
+            vitamins: (A: 0.05, B: 0.03, C: 0.25, D: 0.0, E: 0.02, K: 0.02),
+            minerals: (iron: 0.2, calcium: 6.0, zinc: 0.1, potassium: 107.0),
+            spoilage_rate_hours: 120.0,
+            raw_consumption_risk: 0.01,
+            description: "Fresh fruit. High in natural sugars and vitamin C.",
+        ),
+
+        (
+            id: "grains",
+            name: "Dry Grains",
+            category: "staple",
+            calories_per_100g: 340,
+            protein_g: 10.0,
+            carbs_g: 72.0,
+            fat_g: 2.0,
+            fiber_g: 6.0,
+            vitamins: (A: 0.0, B: 0.12, C: 0.0, D: 0.0, E: 0.03, K: 0.0),
+            minerals: (iron: 3.5, calcium: 25.0, zinc: 2.5, potassium: 280.0),
+            spoilage_rate_hours: 8760.0,
+            raw_consumption_risk: 0.05,
+            description: "Dry cereal grains (wheat, rice, oats). Dense calories, long shelf life.",
+        ),
+
+        (
+            id: "dairy",
+            name: "Dairy Products",
+            category: "protein",
+            calories_per_100g: 98,
+            protein_g: 3.4,
+            carbs_g: 4.8,
+            fat_g: 6.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.05, B: 0.08, C: 0.01, D: 0.05, E: 0.01, K: 0.01),
+            minerals: (iron: 0.1, calcium: 120.0, zinc: 0.4, potassium: 150.0),
+            spoilage_rate_hours: 72.0,
+            raw_consumption_risk: 0.10,
+            description: "Milk, cheese, and yogurt. Excellent calcium source but spoils quickly.",
+        ),
+
+        (
+            id: "eggs",
+            name: "Eggs",
+            category: "protein",
+            calories_per_100g: 155,
+            protein_g: 13.0,
+            carbs_g: 1.1,
+            fat_g: 11.0,
+            fiber_g: 0.0,
+            vitamins: (A: 0.06, B: 0.10, C: 0.0, D: 0.04, E: 0.05, K: 0.01),
+            minerals: (iron: 1.8, calcium: 56.0, zinc: 1.3, potassium: 138.0),
+            spoilage_rate_hours: 504.0,
+            raw_consumption_risk: 0.15,
+            description: "Complete protein with nearly all essential nutrients. Versatile cooking ingredient.",
+        ),
+
+        (
+            id: "canned_food",
+            name: "Canned Food",
+            category: "preserved",
+            calories_per_100g: 120,
+            protein_g: 8.0,
+            carbs_g: 12.0,
+            fat_g: 4.0,
+            fiber_g: 1.5,
+            vitamins: (A: 0.03, B: 0.05, C: 0.02, D: 0.01, E: 0.01, K: 0.01),
+            minerals: (iron: 1.5, calcium: 20.0, zinc: 1.0, potassium: 180.0),
+            spoilage_rate_hours: 87600.0,
+            raw_consumption_risk: 0.0,
+            description: "Sealed, heat-sterilized food. Reduced nutrition but lasts for years.",
+        ),
+
+        (
+            id: "dried_food",
+            name: "Dried Food",
+            category: "preserved",
+            calories_per_100g: 280,
+            protein_g: 15.0,
+            carbs_g: 50.0,
+            fat_g: 3.0,
+            fiber_g: 4.0,
+            vitamins: (A: 0.02, B: 0.08, C: 0.01, D: 0.01, E: 0.02, K: 0.01),
+            minerals: (iron: 2.0, calcium: 15.0, zinc: 1.5, potassium: 200.0),
+            spoilage_rate_hours: 17520.0,
+            raw_consumption_risk: 0.0,
+            description: "Dehydrated food. Lightweight, calorie-dense, and long-lasting.",
+        ),
+
+        (
+            id: "frozen_food",
+            name: "Frozen Food",
+            category: "preserved",
+            calories_per_100g: 140,
+            protein_g: 10.0,
+            carbs_g: 15.0,
+            fat_g: 5.0,
+            fiber_g: 2.0,
+            vitamins: (A: 0.04, B: 0.07, C: 0.05, D: 0.02, E: 0.02, K: 0.02),
+            minerals: (iron: 1.2, calcium: 18.0, zinc: 1.0, potassium: 190.0),
+            spoilage_rate_hours: 2628.0,
+            raw_consumption_risk: 0.0,
+            description: "Flash-frozen food. Retains most nutrition but requires a freezer.",
+        ),
+    ],
+
+    preservation_methods: [
+        // =====================================================================
+        // PRESERVATION METHODS (8)
+        // =====================================================================
+
+        (
+            id: "refrigeration",
+            name: "Refrigeration",
+            shelf_life_multiplier: 4.0,
+            nutrition_retention: 0.95,
+            requires_power: true,
+            required_structure: Some("refrigerator"),
+            skill_required: None,
+            skill_level: 0,
+            description: "Cooling food to 1-4C slows bacterial growth. Requires powered refrigerator.",
+        ),
+
+        (
+            id: "freezing",
+            name: "Freezing",
+            shelf_life_multiplier: 20.0,
+            nutrition_retention: 0.90,
+            requires_power: true,
+            required_structure: Some("freezer"),
+            skill_required: None,
+            skill_level: 0,
+            description: "Reducing temperature below -18C nearly halts all spoilage processes.",
+        ),
+
+        (
+            id: "canning",
+            name: "Canning",
+            shelf_life_multiplier: 100.0,
+            nutrition_retention: 0.70,
+            requires_power: false,
+            required_structure: None,
+            skill_required: Some("cooking"),
+            skill_level: 4,
+            description: "Sealing food in airtight containers after heat sterilization. Lasts years.",
+        ),
+
+        (
+            id: "drying",
+            name: "Drying",
+            shelf_life_multiplier: 20.0,
+            nutrition_retention: 0.65,
+            requires_power: false,
+            required_structure: None,
+            skill_required: Some("cooking"),
+            skill_level: 2,
+            description: "Removing moisture through sun, wind, or heat to prevent bacterial growth.",
+        ),
+
+        (
+            id: "salting",
+            name: "Salting",
+            shelf_life_multiplier: 15.0,
+            nutrition_retention: 0.75,
+            requires_power: false,
+            required_structure: None,
+            skill_required: Some("cooking"),
+            skill_level: 2,
+            description: "Packing food in salt to draw out moisture and inhibit microbial activity.",
+        ),
+
+        (
+            id: "smoking",
+            name: "Smoking",
+            shelf_life_multiplier: 10.0,
+            nutrition_retention: 0.80,
+            requires_power: false,
+            required_structure: Some("smokehouse"),
+            skill_required: Some("cooking"),
+            skill_level: 3,
+            description: "Exposing food to wood smoke for antimicrobial compounds and dehydration.",
+        ),
+
+        (
+            id: "vacuum_sealing",
+            name: "Vacuum Sealing",
+            shelf_life_multiplier: 5.0,
+            nutrition_retention: 0.95,
+            requires_power: false,
+            required_structure: None,
+            skill_required: Some("cooking"),
+            skill_level: 3,
+            description: "Removing air from packaging to slow oxidation and bacterial growth.",
+        ),
+
+        (
+            id: "irradiation",
+            name: "Irradiation",
+            shelf_life_multiplier: 50.0,
+            nutrition_retention: 0.85,
+            requires_power: true,
+            required_structure: Some("irradiation_chamber"),
+            skill_required: Some("engineering"),
+            skill_level: 6,
+            description: "Exposing food to controlled radiation to kill pathogens. Space-age preservation.",
+        ),
+    ],
+
+    cooking_methods: [
+        // =====================================================================
+        // COOKING METHODS (9)
+        // =====================================================================
+
+        (
+            id: "raw",
+            name: "Raw (No Cooking)",
+            nutrition_modifier: 1.0,
+            taste_modifier: 0.5,
+            preservation_modifier: 1.0,
+            skill_required: None,
+            skill_level: 0,
+            requires_heat_source: false,
+            cooking_time_multiplier: 0.0,
+            food_safety_risk: 0.3,
+            description: "No preparation. Full nutrition retained but risk of foodborne illness.",
+        ),
+
+        (
+            id: "boiled",
+            name: "Boiled",
+            nutrition_modifier: 0.80,
+            taste_modifier: 0.7,
+            preservation_modifier: 1.2,
+            skill_required: Some("cooking"),
+            skill_level: 1,
+            requires_heat_source: true,
+            cooking_time_multiplier: 1.0,
+            food_safety_risk: 0.02,
+            description: "Immersed in boiling water. Safe and easy but some nutrients leach into water.",
+        ),
+
+        (
+            id: "fried",
+            name: "Fried",
+            nutrition_modifier: 0.85,
+            taste_modifier: 1.3,
+            preservation_modifier: 1.0,
+            skill_required: Some("cooking"),
+            skill_level: 2,
+            requires_heat_source: true,
+            cooking_time_multiplier: 0.7,
+            food_safety_risk: 0.03,
+            description: "Cooked in hot oil. Tasty and fast but adds fat content.",
+        ),
+
+        (
+            id: "grilled",
+            name: "Grilled",
+            nutrition_modifier: 0.90,
+            taste_modifier: 1.4,
+            preservation_modifier: 1.1,
+            skill_required: Some("cooking"),
+            skill_level: 2,
+            requires_heat_source: true,
+            cooking_time_multiplier: 0.8,
+            food_safety_risk: 0.05,
+            description: "Direct heat over flames or coals. Great flavor with good nutrient retention.",
+        ),
+
+        (
+            id: "baked",
+            name: "Baked",
+            nutrition_modifier: 0.88,
+            taste_modifier: 1.2,
+            preservation_modifier: 1.3,
+            skill_required: Some("cooking"),
+            skill_level: 3,
+            requires_heat_source: true,
+            cooking_time_multiplier: 1.5,
+            food_safety_risk: 0.01,
+            description: "Dry heat in an enclosed oven. Even cooking, good for breads and casseroles.",
+        ),
+
+        (
+            id: "smoked",
+            name: "Smoked",
+            nutrition_modifier: 0.82,
+            taste_modifier: 1.5,
+            preservation_modifier: 3.0,
+            skill_required: Some("cooking"),
+            skill_level: 3,
+            requires_heat_source: true,
+            cooking_time_multiplier: 4.0,
+            food_safety_risk: 0.03,
+            description: "Slow-cooked in wood smoke. Excellent flavor and greatly extended shelf life.",
+        ),
+
+        (
+            id: "steamed",
+            name: "Steamed",
+            nutrition_modifier: 0.93,
+            taste_modifier: 0.9,
+            preservation_modifier: 1.1,
+            skill_required: Some("cooking"),
+            skill_level: 2,
+            requires_heat_source: true,
+            cooking_time_multiplier: 1.0,
+            food_safety_risk: 0.01,
+            description: "Cooked by steam vapor. Best nutrition retention of all heat methods.",
+        ),
+
+        (
+            id: "fermented",
+            name: "Fermented",
+            nutrition_modifier: 1.10,
+            taste_modifier: 1.1,
+            preservation_modifier: 5.0,
+            skill_required: Some("cooking"),
+            skill_level: 4,
+            requires_heat_source: false,
+            cooking_time_multiplier: 48.0,
+            food_safety_risk: 0.08,
+            description: "Controlled microbial transformation. Creates new nutrients and preserves for months.",
+        ),
+
+        (
+            id: "dehydrated",
+            name: "Dehydrated",
+            nutrition_modifier: 0.70,
+            taste_modifier: 0.6,
+            preservation_modifier: 8.0,
+            skill_required: Some("cooking"),
+            skill_level: 2,
+            requires_heat_source: true,
+            cooking_time_multiplier: 6.0,
+            food_safety_risk: 0.02,
+            description: "Moisture removed through prolonged low heat. Lightweight and shelf-stable.",
+        ),
+    ],
+
+    meal_quality_levels: [
+        // =====================================================================
+        // MEAL QUALITY LEVELS (6)
+        // =====================================================================
+
+        (
+            id: "terrible",
+            name: "Terrible",
+            min_cook_skill: 0,
+            ingredient_quality_min: 0.0,
+            morale_modifier: -5,
+            health_modifier: -2,
+            reputation_modifier: -3,
+            status_effects: ["food_poisoning"],
+            status_effect_chance: 0.20,
+            description: "Burnt, raw, or spoiled. May cause illness. Nobody wants seconds.",
+        ),
+
+        (
+            id: "poor",
+            name: "Poor",
+            min_cook_skill: 0,
+            ingredient_quality_min: 0.2,
+            morale_modifier: -1,
+            health_modifier: 0,
+            reputation_modifier: 0,
+            status_effects: [],
+            status_effect_chance: 0.0,
+            description: "Bland and unappetizing but technically edible. Fills the stomach.",
+        ),
+
+        (
+            id: "adequate",
+            name: "Adequate",
+            min_cook_skill: 1,
+            ingredient_quality_min: 0.4,
+            morale_modifier: 1,
+            health_modifier: 1,
+            reputation_modifier: 0,
+            status_effects: [],
+            status_effect_chance: 0.0,
+            description: "Perfectly functional meal. Nothing special but gets the job done.",
+        ),
+
+        (
+            id: "good",
+            name: "Good",
+            min_cook_skill: 3,
+            ingredient_quality_min: 0.6,
+            morale_modifier: 5,
+            health_modifier: 2,
+            reputation_modifier: 1,
+            status_effects: ["well_fed"],
+            status_effect_chance: 0.75,
+            description: "Well-prepared with balanced flavors. People look forward to mealtime.",
+        ),
+
+        (
+            id: "excellent",
+            name: "Excellent",
+            min_cook_skill: 6,
+            ingredient_quality_min: 0.8,
+            morale_modifier: 8,
+            health_modifier: 4,
+            reputation_modifier: 3,
+            status_effects: ["well_fed", "inspired"],
+            status_effect_chance: 0.90,
+            description: "Skillfully crafted cuisine with complementary ingredients. A true treat.",
+        ),
+
+        (
+            id: "masterwork",
+            name: "Masterwork",
+            min_cook_skill: 9,
+            ingredient_quality_min: 0.95,
+            morale_modifier: 12,
+            health_modifier: 6,
+            reputation_modifier: 5,
+            status_effects: ["well_fed", "inspired", "strength_boost"],
+            status_effect_chance: 1.0,
+            description: "A legendary meal that people will talk about for years. Nourishes body and soul.",
+        ),
+    ],
+
+    temperature_zones: [
+        // =====================================================================
+        // TEMPERATURE ZONES (spoilage rate modifiers by ambient temp) (5)
+        // =====================================================================
+
+        (
+            id: "frozen",
+            name: "Frozen",
+            temp_min_c: -40.0,
+            temp_max_c: -1.0,
+            spoilage_rate_multiplier: 0.05,
+            description: "Sub-zero temperatures. Spoilage nearly halted.",
+        ),
+
+        (
+            id: "cold",
+            name: "Cold",
+            temp_min_c: -1.0,
+            temp_max_c: 8.0,
+            spoilage_rate_multiplier: 0.25,
+            description: "Refrigerator range. Spoilage greatly slowed.",
+        ),
+
+        (
+            id: "cool",
+            name: "Cool",
+            temp_min_c: 8.0,
+            temp_max_c: 18.0,
+            spoilage_rate_multiplier: 0.60,
+            description: "Cellar temperature. Moderate spoilage reduction.",
+        ),
+
+        (
+            id: "room_temp",
+            name: "Room Temperature",
+            temp_min_c: 18.0,
+            temp_max_c: 30.0,
+            spoilage_rate_multiplier: 1.0,
+            description: "Standard indoor temperature. Baseline spoilage rate.",
+        ),
+
+        (
+            id: "hot",
+            name: "Hot",
+            temp_min_c: 30.0,
+            temp_max_c: 60.0,
+            spoilage_rate_multiplier: 2.5,
+            description: "High heat. Spoilage accelerated dramatically.",
+        ),
+    ],
+)

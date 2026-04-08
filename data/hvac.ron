@@ -1,0 +1,307 @@
+// HumanityOS HVAC System Definitions
+// Heating, ventilation, air conditioning, and life support for colony infrastructure.
+// Loaded by AssetManager, hot-reloadable.
+//
+// output_btu = thermal output in BTU/hr (1 BTU/hr ~ 0.293 watts thermal).
+// flow_rate_cfm = cubic feet per minute of airflow.
+// capacity_people = number of occupants the unit can sustain.
+// consumables = items consumed per hour of operation.
+
+(
+    // =========================================================================
+    // HEATING UNITS (6) - Thermal energy production
+    // =========================================================================
+
+    heating: [
+        (
+            id: "electric_heater",
+            name: "Electric Space Heater",
+            output_btu: 5120,
+            power_draw_watts: 1500,
+            fuel_type: "none",
+            fuel_consumption: 0.0,
+            weight_kg: 8.0,
+            noise_level_db: 20,
+            description: "Resistive ceramic element for small room heating",
+        ),
+        (
+            id: "heat_pump",
+            name: "Heat Pump",
+            output_btu: 36000,
+            power_draw_watts: 3500,
+            fuel_type: "none",
+            fuel_consumption: 0.0,
+            weight_kg: 120.0,
+            noise_level_db: 55,
+            cop: 3.0,
+            description: "Refrigerant cycle extracting ambient heat, 3x more efficient than resistive",
+        ),
+        (
+            id: "radiant_floor",
+            name: "Radiant Floor Heating",
+            output_btu: 25000,
+            power_draw_watts: 2400,
+            fuel_type: "none",
+            fuel_consumption: 0.0,
+            weight_kg: 5.0,
+            noise_level_db: 0,
+            area_coverage_m2: 30.0,
+            description: "Electric or hydronic tubing embedded in floor slab for even heating",
+        ),
+        (
+            id: "wood_stove",
+            name: "Wood Stove",
+            output_btu: 40000,
+            power_draw_watts: 0,
+            fuel_type: "wood_log",
+            fuel_consumption: 2.5,
+            weight_kg: 180.0,
+            noise_level_db: 25,
+            requires_chimney: true,
+            description: "Cast iron combustion stove burning solid fuel, works without electricity",
+        ),
+        (
+            id: "nuclear_heater",
+            name: "Radioisotope Heater Unit",
+            output_btu: 8500,
+            power_draw_watts: 0,
+            fuel_type: "plutonium_238",
+            fuel_consumption: 0.0,
+            weight_kg: 1.5,
+            noise_level_db: 0,
+            lifespan_years: 87,
+            description: "Passive decay heat from Pu-238 pellet, no moving parts, used in deep space",
+        ),
+        (
+            id: "geothermal_loop",
+            name: "Geothermal Ground Loop",
+            output_btu: 48000,
+            power_draw_watts: 1200,
+            fuel_type: "none",
+            fuel_consumption: 0.0,
+            weight_kg: 250.0,
+            noise_level_db: 35,
+            cop: 4.5,
+            loop_depth_m: 60.0,
+            description: "Closed-loop heat exchanger using stable subsurface temperatures",
+        ),
+    ],
+
+    // =========================================================================
+    // COOLING UNITS (5) - Heat rejection
+    // =========================================================================
+
+    cooling: [
+        (
+            id: "air_conditioner",
+            name: "Air Conditioner",
+            output_btu: 24000,
+            power_draw_watts: 2200,
+            weight_kg: 55.0,
+            noise_level_db: 60,
+            refrigerant: "R-410A",
+            eer: 12.0,
+            description: "Vapor-compression refrigeration cycle for room cooling",
+        ),
+        (
+            id: "evaporative_cooler",
+            name: "Evaporative Cooler",
+            output_btu: 18000,
+            power_draw_watts: 400,
+            weight_kg: 25.0,
+            noise_level_db: 50,
+            water_consumption_lps: 0.02,
+            description: "Adiabatic cooling via water evaporation, effective in dry climates",
+        ),
+        (
+            id: "heat_exchanger",
+            name: "Heat Exchanger",
+            output_btu: 60000,
+            power_draw_watts: 800,
+            weight_kg: 200.0,
+            noise_level_db: 30,
+            effectiveness: 0.85,
+            description: "Counter-flow plate exchanger transferring heat between two fluid loops",
+        ),
+        (
+            id: "radiator_panel",
+            name: "Space Radiator Panel",
+            output_btu: 100000,
+            power_draw_watts: 150,
+            weight_kg: 80.0,
+            noise_level_db: 0,
+            radiating_area_m2: 20.0,
+            description: "Infrared emitter rejecting waste heat to space vacuum",
+        ),
+        (
+            id: "cryogenic_cooler",
+            name: "Cryogenic Cooler",
+            output_btu: 5000,
+            power_draw_watts: 12000,
+            weight_kg: 350.0,
+            noise_level_db: 45,
+            min_temperature_c: -196,
+            description: "Pulse-tube or Stirling cooler reaching liquid nitrogen temperatures",
+        ),
+    ],
+
+    // =========================================================================
+    // VENTILATION (5) - Air movement and filtration
+    // =========================================================================
+
+    ventilation: [
+        (
+            id: "air_duct",
+            name: "Air Duct",
+            flow_rate_cfm: 500,
+            power_draw_watts: 0,
+            weight_kg_per_m: 2.5,
+            diameter_mm: 250,
+            description: "Sheet metal rectangular or round duct for distributing conditioned air",
+        ),
+        (
+            id: "exhaust_fan",
+            name: "Exhaust Fan",
+            flow_rate_cfm: 300,
+            power_draw_watts: 75,
+            weight_kg: 4.0,
+            noise_level_db: 45,
+            description: "Removes stale air, odors, and moisture from enclosed spaces",
+        ),
+        (
+            id: "intake_fan",
+            name: "Fresh Air Intake Fan",
+            flow_rate_cfm: 500,
+            power_draw_watts: 120,
+            weight_kg: 6.0,
+            noise_level_db: 50,
+            description: "Draws filtered outside air into pressurized habitat volumes",
+        ),
+        (
+            id: "air_filter",
+            name: "Standard Air Filter",
+            flow_rate_cfm: 800,
+            power_draw_watts: 0,
+            weight_kg: 1.2,
+            merv_rating: 11,
+            replacement_interval_hours: 2000,
+            description: "Pleated media filter capturing dust, pollen, and mold spores",
+        ),
+        (
+            id: "hepa_filter",
+            name: "HEPA Filter",
+            flow_rate_cfm: 400,
+            power_draw_watts: 0,
+            weight_kg: 3.5,
+            merv_rating: 17,
+            particle_capture_pct: 99.97,
+            replacement_interval_hours: 8760,
+            description: "High-efficiency particulate filter capturing 99.97% of 0.3 micron particles",
+        ),
+    ],
+
+    // =========================================================================
+    // LIFE SUPPORT (6) - Atmospheric processing for sealed habitats
+    // =========================================================================
+
+    life_support: [
+        (
+            id: "oxygen_generator",
+            name: "Oxygen Generator (Electrolysis)",
+            capacity_people: 8,
+            power_draw_watts: 2000,
+            water_consumption_lps: 0.001,
+            output_o2_lps: 0.007,
+            weight_kg: 120.0,
+            consumables: [],
+            description: "Splits water into O2 and H2 via polymer electrolyte membrane",
+        ),
+        (
+            id: "co2_scrubber",
+            name: "CO2 Scrubber",
+            capacity_people: 10,
+            power_draw_watts: 1200,
+            weight_kg: 85.0,
+            consumables: [("lithium_hydroxide_cartridge", 0.04)],
+            removal_rate_lps: 0.005,
+            description: "Chemical absorption bed removing carbon dioxide from breathable air",
+        ),
+        (
+            id: "humidity_controller",
+            name: "Humidity Controller",
+            capacity_people: 20,
+            power_draw_watts: 350,
+            weight_kg: 18.0,
+            consumables: [],
+            target_humidity_pct: (40, 60),
+            description: "Combined humidifier/dehumidifier maintaining comfortable moisture levels",
+        ),
+        (
+            id: "air_recycler",
+            name: "Sabatier Air Recycler",
+            capacity_people: 12,
+            power_draw_watts: 1800,
+            weight_kg: 200.0,
+            consumables: [("catalyst_nickel", 0.001)],
+            co2_to_methane: true,
+            water_recovery_pct: 50,
+            description: "Sabatier reaction converting CO2 + H2 to methane and water, recovering oxygen",
+        ),
+        (
+            id: "atmospheric_processor",
+            name: "Atmospheric Processor",
+            capacity_people: 100,
+            power_draw_watts: 25000,
+            weight_kg: 8000.0,
+            consumables: [],
+            functions: ["o2_generation", "co2_removal", "humidity", "filtration", "pressure"],
+            description: "All-in-one life support plant for large habitats and spacecraft",
+        ),
+        (
+            id: "pressure_regulator_atmo",
+            name: "Atmospheric Pressure Regulator",
+            capacity_people: 50,
+            power_draw_watts: 500,
+            weight_kg: 45.0,
+            consumables: [],
+            target_pressure_kpa: 101.3,
+            max_leak_rate_kpa_per_hr: 0.1,
+            description: "Maintains safe cabin pressure via automated valve control and leak detection",
+        ),
+    ],
+
+    // =========================================================================
+    // ENVIRONMENTAL SENSORS (4) - Monitoring equipment
+    // =========================================================================
+
+    sensors: [
+        (
+            id: "thermostat",
+            name: "Digital Thermostat",
+            power_draw_watts: 2,
+            accuracy_c: 0.5,
+            description: "Temperature sensor and HVAC controller with programmable schedules",
+        ),
+        (
+            id: "air_quality_monitor",
+            name: "Air Quality Monitor",
+            power_draw_watts: 5,
+            measures: ["co2_ppm", "o2_pct", "particulate", "voc", "humidity", "temperature"],
+            description: "Multi-sensor array tracking atmospheric composition in real time",
+        ),
+        (
+            id: "smoke_detector",
+            name: "Smoke Detector",
+            power_draw_watts: 1,
+            detection_types: ["photoelectric", "ionization"],
+            description: "Dual-sensor fire alarm for early warning in enclosed habitats",
+        ),
+        (
+            id: "leak_detector",
+            name: "Atmospheric Leak Detector",
+            power_draw_watts: 3,
+            sensitivity_kpa: 0.01,
+            description: "Pressure differential sensor detecting hull breaches and seal failures",
+        ),
+    ],
+)

@@ -1,0 +1,270 @@
+# HumanityOS Offline Agent Schema
+# Defines the autonomous offline progression system: when a player logs off,
+# their character becomes an AI agent that continues living in the world.
+#
+# How the system works:
+#   When a player disconnects, the engine spawns an OfflineAgent component on
+#   their entity. The simulation ticks this agent in compressed time (default:
+#   1 real hour = 1 game day). The agent follows a strict priority queue:
+#
+#     1. SURVIVAL (mandatory) -- eat, drink, sleep, maintain shelter, treat
+#        injuries. The agent will always satisfy these before anything else.
+#        If resources drop below emergency_threshold, the agent enters survival
+#        mode regardless of other settings and focuses solely on staying alive.
+#
+#     2. ASSIGNED TASKS -- the player's task_priority_list, executed in order.
+#        Farming, crafting, building, repairing, hauling, etc. The agent works
+#        through the list top-to-bottom, skipping tasks it lacks resources or
+#        skills for, and loops back to the top when finished.
+#
+#     3. OPTIONAL ACTIVITIES -- socializing, exploring, training skills,
+#        attending community events. Only attempted once survival is stable
+#        and the task list is empty or blocked.
+#
+# Time compression:
+#   Offline time is simulated in compressed ticks. Each tick represents one
+#   in-game hour. The time_compression_rate controls how many game-hours pass
+#   per real-world hour (default 24, meaning 1 real hour = 1 game day).
+#   Simulation is capped at max_offline_duration_hours of real time to prevent
+#   runaway state drift on long absences.
+#
+# Event log:
+#   Every action the agent takes is appended to an event log with a timestamp,
+#   action type, outcome, and resource delta. When the player returns, a
+#   summary screen presents: resources gained/lost, skills improved, tasks
+#   completed, events encountered, and any emergencies that occurred.
+#
+# Risk settings:
+#   The player configures offline_behavior_preset (or builds a custom profile)
+#   to control how much risk the agent takes:
+#     - safe:        Stay home. No combat, no exploration, no external trade.
+#     - normal:      Work and trade locally. Low combat risk, stays near settlement.
+#     - adventurous: Explore, quest, hunt. Medium combat risk, ventures further.
+#     - custom:      All fields exposed for manual tuning.
+#
+# Resource consumption:
+#   The agent consumes food, water, power, and materials realistically.
+#   Consumption rates match active-play rates scaled by time compression.
+#   If a resource is unavailable, the agent attempts substitution (e.g., forage
+#   for food, collect rainwater). Persistent shortages trigger survival mode.
+#
+# Skill progression:
+#   The agent gains XP at xp_multiplier rate (default 0.5) compared to active
+#   play. This incentivizes actually playing while still rewarding offline time.
+#   Skills improve based on tasks performed (farming XP from farming, etc.).
+#
+# Social interactions:
+#   Based on social_behavior setting, the agent may trade at market, visit
+#   neighbors, attend community events, or stay isolated. Social actions build
+#   or maintain relationship scores with NPCs and other offline agents.
+#
+# Emergency handling:
+#   If the agent is attacked, resources drop below emergency_threshold, or
+#   shelter is destroyed, the agent immediately switches to survival mode:
+#   retreat to safety, heal, secure food/water, repair shelter. The agent
+#   stays in survival mode until all vitals are above threshold.
+#
+# Return handoff:
+#   When the player logs back in, the OfflineAgent component is removed and
+#   a summary screen displays:
+#     - Time elapsed (real and simulated)
+#     - Resources gained and consumed (net delta)
+#     - Tasks completed and progress on incomplete tasks
+#     - Skills improved (XP gained per skill)
+#     - Notable events (attacks, discoveries, visitors, emergencies)
+#     - Current health, hunger, thirst, energy status
+#
+# Connection to game systems:
+#   ECS (native/src/ecs/) -- OfflineAgent is a component. The offline
+#     simulation system ticks agents via the System trait.
+#   AI system (native/src/systems/ai/) -- reuses NPC behavior trees for
+#     offline agents. The agent uses the same decision-making as NPCs but
+#     with player-configured priorities.
+#   Farming system (native/src/systems/farming/) -- offline agents tend crops,
+#     harvest, replant based on task_priority_list.
+#   Crafting system (native/src/systems/crafting/) -- agents craft items if
+#     assigned and resources are available.
+#   Inventory system (native/src/systems/inventory/) -- resource consumption
+#     and production flow through the same inventory as active play.
+#   Skills system (native/src/systems/skills/) -- XP gain at reduced rate.
+#   Combat system (native/src/systems/combat/) -- resolved if risk settings
+#     allow and threats appear. Agent fights or flees per risk_tolerance.
+#   Persistence (native/src/persistence.rs) -- offline event log and state
+#     are saved with the world. Resuming loads the summary.
+#
+# File format: one offline agent config per player save. The schema below
+# documents all valid fields. Player configs are stored in save data.
+# Default presets are defined in data/offline_behaviors.ron.
+
+# -- Field Definitions --------------------------------------------------------
+
+[fields.offline_behavior_preset]
+type = "string"
+required = true
+description = "Behavior preset controlling how the offline agent acts. Determines defaults for all other fields. Custom exposes every field for manual tuning."
+valid_values = ["safe", "normal", "adventurous", "custom"]
+default = "normal"
+example = "normal"
+
+[fields.task_priority_list]
+type = "array<string>"
+required = false
+default = "[]"
+description = "Ordered list of task IDs the agent should work on while offline. Executed top-to-bottom. Tasks the agent lacks resources or skills for are skipped. The list loops when complete. References task IDs from the player's active task list."
+constraints = "Each entry must be a valid task_id. Empty list means the agent only handles survival and optional activities."
+example = '["task_tend_farm", "task_smelt_iron", "task_repair_fence", "task_craft_bandages"]'
+
+[fields.risk_tolerance]
+type = "float"
+required = true
+description = "How much danger the agent is willing to accept, from 0.0 (avoid all risk) to 1.0 (embrace danger). Affects whether the agent engages hostiles, explores unknown areas, or takes on risky quests. At 0.0 the agent flees from any threat. At 1.0 the agent fights aggressively and explores freely."
+constraints = "0.0 to 1.0 inclusive."
+default = 0.3
+example = 0.3
+
+[fields.social_behavior]
+type = "string"
+required = true
+description = "How the agent interacts with other characters while offline. Hermit avoids all contact. Reserved trades only when necessary. Social visits neighbors and attends events. Gregarious actively seeks social opportunities and builds relationships."
+valid_values = ["hermit", "reserved", "social", "gregarious"]
+default = "reserved"
+example = "social"
+
+[fields.xp_multiplier]
+type = "float"
+required = true
+description = "Multiplier applied to all XP gained during offline simulation. 0.5 means the agent earns half the XP a player would earn doing the same activity. Incentivizes active play while still rewarding offline progression."
+constraints = "0.0 to 1.0 inclusive. 0.0 = no XP gain offline."
+default = 0.5
+example = 0.5
+
+[fields.time_compression_rate]
+type = "integer"
+required = true
+description = "How many simulated game-hours pass per one real-world hour. Default 24 means 1 real hour = 1 game day. Higher values simulate faster but with less granularity. Lower values produce more detailed simulation."
+constraints = "Must be >= 1. Recommended range 1-168."
+default = 24
+example = 24
+
+[fields.max_offline_duration_hours]
+type = "integer"
+required = true
+description = "Maximum real-world hours of offline time to simulate. Prevents runaway simulation on long absences. Default 168 (one week). Time beyond this cap is not simulated: the agent is treated as dormant/asleep."
+constraints = "Must be >= 1."
+default = 168
+example = 168
+
+[fields.emergency_threshold]
+type = "float"
+required = true
+description = "Resource level (as a fraction of max capacity, 0.0-1.0) that triggers survival mode. When any vital resource (food, water, health, energy) drops below this fraction, the agent abandons all other tasks and focuses on survival. Higher values make the agent more cautious."
+constraints = "0.0 to 1.0 inclusive. 0.0 = never enter survival mode (dangerous). 1.0 = always in survival mode."
+default = 0.2
+example = 0.2
+
+[fields.combat_allowed]
+type = "boolean"
+required = true
+description = "Whether the agent is permitted to engage in combat. If false, the agent always flees from threats. Overrides risk_tolerance for combat decisions."
+default = false
+example = true
+
+[fields.trade_allowed]
+type = "boolean"
+required = true
+description = "Whether the agent is permitted to buy/sell at markets and with NPCs. If false, the agent only uses resources from its own inventory and storage."
+default = true
+example = true
+
+[fields.exploration_radius_m]
+type = "float"
+required = true
+description = "Maximum distance in meters the agent will travel from its home base. 0 = stay at home. Larger values allow the agent to explore, forage, mine, and quest further afield."
+constraints = "Must be >= 0."
+default = 100.0
+example = 500.0
+
+[fields.sleep_schedule]
+type = "string"
+required = true
+description = "When the agent sleeps during simulated days. Format is start_hour-end_hour in 24h time. The agent rests during these hours, recovering stamina and health."
+constraints = "Two integers 0-23 separated by a dash. Start may be greater than end (overnight sleep)."
+default = "22-6"
+example = "22-6"
+
+[fields.meal_schedule]
+type = "string"
+required = true
+description = "Pipe-separated list of hours when the agent eats. The agent consumes food at these times. If food is unavailable, the agent forages or goes hungry (triggering emergency if below threshold)."
+constraints = "Integers 0-23 separated by pipes."
+default = "7|12|18"
+example = "7|12|18"
+
+[fields.social_frequency]
+type = "string"
+required = true
+description = "How often the agent engages in social activities. Never = no social actions. Daily = once per game day. Frequent = multiple times per day. Affects relationship maintenance and community event attendance."
+valid_values = ["never", "weekly", "daily", "frequent"]
+default = "weekly"
+example = "daily"
+
+[fields.allowed_areas]
+type = "string"
+required = true
+description = "Pipe-separated list of area scopes the agent may visit. Determines the geographic reach of the agent's activities."
+valid_values_per_item = ["home", "settlement", "region", "world"]
+default = "home|settlement"
+example = "home|settlement|region"
+
+# -- Example Entries ----------------------------------------------------------
+
+[[examples]]
+offline_behavior_preset = "safe"
+task_priority_list = ["task_tend_farm", "task_cook_meals", "task_repair_tools"]
+risk_tolerance = 0.0
+social_behavior = "hermit"
+xp_multiplier = 0.5
+time_compression_rate = 24
+max_offline_duration_hours = 168
+emergency_threshold = 0.3
+combat_allowed = false
+trade_allowed = false
+exploration_radius_m = 0.0
+sleep_schedule = "21-7"
+meal_schedule = "7|12|18"
+social_frequency = "never"
+allowed_areas = "home"
+
+[[examples]]
+offline_behavior_preset = "normal"
+task_priority_list = ["task_tend_farm", "task_smelt_iron", "task_craft_bandages", "task_trade_surplus"]
+risk_tolerance = 0.3
+social_behavior = "social"
+xp_multiplier = 0.5
+time_compression_rate = 24
+max_offline_duration_hours = 168
+emergency_threshold = 0.2
+combat_allowed = false
+trade_allowed = true
+exploration_radius_m = 500.0
+sleep_schedule = "22-6"
+meal_schedule = "7|12|18"
+social_frequency = "daily"
+allowed_areas = "home|settlement"
+
+[[examples]]
+offline_behavior_preset = "adventurous"
+task_priority_list = ["task_explore_cave", "task_hunt_deer", "task_mine_iron", "task_tend_farm"]
+risk_tolerance = 0.7
+social_behavior = "social"
+xp_multiplier = 0.5
+time_compression_rate = 24
+max_offline_duration_hours = 168
+emergency_threshold = 0.15
+combat_allowed = true
+trade_allowed = true
+exploration_radius_m = 2000.0
+sleep_schedule = "23-5"
+meal_schedule = "6|12|19"
+social_frequency = "daily"
+allowed_areas = "home|settlement|region"
