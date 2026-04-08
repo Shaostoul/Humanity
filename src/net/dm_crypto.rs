@@ -14,6 +14,7 @@
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use p256::ecdh::diffie_hellman;
+use p256::pkcs8::DecodePrivateKey;
 use p256::{PublicKey, SecretKey};
 
 use aes_gcm::{
@@ -40,6 +41,18 @@ impl DmKeypair {
     pub fn from_secret_bytes(bytes: &[u8; 32]) -> Result<Self, String> {
         let secret = SecretKey::from_bytes(bytes.into())
             .map_err(|e| format!("Invalid ECDH secret: {e}"))?;
+        let public = secret.public_key();
+        Ok(Self { secret, public })
+    }
+
+    /// Import from the web client's PKCS8 DER format (base64-encoded).
+    /// This is what `crypto.subtle.exportKey('pkcs8', privateKey)` produces in the browser.
+    pub fn from_pkcs8_base64(pkcs8_b64: &str) -> Result<Self, String> {
+        let der = B64
+            .decode(pkcs8_b64.trim())
+            .map_err(|e| format!("Invalid base64: {e}"))?;
+        let secret = SecretKey::from_pkcs8_der(&der)
+            .map_err(|e| format!("Invalid PKCS8 DER: {e}"))?;
         let public = secret.public_key();
         Ok(Self { secret, public })
     }

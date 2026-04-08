@@ -1374,8 +1374,11 @@ mod native_app {
                                         let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
                                         let encrypted = val.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
                                         let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                        // Determine partner key: if from us, it's the "to" field; otherwise it's the sender
-                                        let partner = if from_key == state.gui_state.profile_public_key {
+                                        // Determine partner key: "from us" means the from_name matches our display name
+                                        // (we may have multiple keys all registered to the same name).
+                                        let is_from_me = from_key == state.gui_state.profile_public_key
+                                            || (!state.gui_state.user_name.is_empty() && from_name == state.gui_state.user_name);
+                                        let partner = if is_from_me {
                                             val.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string()
                                         } else {
                                             from_key.clone()
@@ -1412,8 +1415,10 @@ mod native_app {
                                                 let ts = m.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
                                                 let encrypted = m.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
                                                 let nonce = m.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                // The peer for decryption is whichever side ISN'T us
-                                                let peer_key = if from_key == state.gui_state.profile_public_key {
+                                                // "From us" matches on name too (account may have multiple keys all registered under same name)
+                                                let is_from_me = from_key == state.gui_state.profile_public_key
+                                                    || (!state.gui_state.user_name.is_empty() && from_name == state.gui_state.user_name);
+                                                let peer_key = if is_from_me {
                                                     partner.clone()
                                                 } else {
                                                     from_key.clone()

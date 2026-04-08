@@ -9,6 +9,35 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::updater::{UpdateChannel, UpdateState};
 
+/// Parse the web client's ECDH backup JSON and convert to native format.
+/// Accepts either:
+/// - The full JSON: {"publicKeyRaw": "...", "privateKeyPkcs8": "..."}
+/// - Just the PKCS8 base64 string alone
+/// Returns (private_hex_32bytes, public_base64_65bytes).
+fn try_import_ecdh(input: &str) -> Result<(String, String), String> {
+    let input = input.trim();
+    if input.is_empty() {
+        return Err("Empty input".into());
+    }
+
+    // Try parsing as JSON first
+    let pkcs8_b64 = if input.starts_with('{') {
+        let val: serde_json::Value = serde_json::from_str(input)
+            .map_err(|e| format!("JSON parse: {}", e))?;
+        val.get("privateKeyPkcs8")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "Missing 'privateKeyPkcs8' field".to_string())?
+            .to_string()
+    } else {
+        input.to_string()
+    };
+
+    let keypair = crate::net::dm_crypto::DmKeypair::from_pkcs8_base64(&pkcs8_b64)?;
+    let priv_hex = hex::encode(keypair.secret_bytes());
+    let pub_b64 = keypair.public_base64();
+    Ok((priv_hex, pub_b64))
+}
+
 /// Styling params for inline sliders (captured before mutable theme borrows).
 struct SliderStyle {
     track_color: Color32,
@@ -257,6 +286,57 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 ui.ctx().copy_text(state.profile_public_key.clone());
             }
         });
+
+        ui.add_space(theme.spacing_md);
+
+        // ECDH key (for E2E encrypted DMs)
+        ui.label(RichText::new("DM Encryption Key (ECDH P-256)").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("ECDH Public:").color(theme.text_secondary()));
+            let display = if state.ecdh_public_b64.is_empty() {
+                "(not set)".to_string()
+            } else if state.ecdh_public_b64.len() > 20 {
+                format!("{}...", &state.ecdh_public_b64[..20])
+            } else {
+                state.ecdh_public_b64.clone()
+            };
+            ui.label(RichText::new(&display).color(theme.text_muted()).size(theme.font_size_small));
+            if !state.ecdh_public_b64.is_empty() && widgets::secondary_button(ui, theme, "Copy Public") {
+                ui.ctx().copy_text(state.ecdh_public_b64.clone());
+            }
+        });
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new("To read DMs sent by the web client, import the web ECDH key. In your browser console on united-humanity.us, run: localStorage.getItem('humanity_ecdh_backup')")
+                .color(theme.text_muted())
+                .size(theme.font_size_small)
+        );
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Import (JSON from browser):").color(theme.text_secondary()));
+            ui.add(egui::TextEdit::singleline(&mut state.ecdh_import_input)
+                .desired_width(260.0)
+                .password(true)
+                .hint_text("{\"publicKeyRaw\":...}"));
+            if widgets::primary_button(ui, theme, "Import") {
+                match try_import_ecdh(&state.ecdh_import_input) {
+                    Ok((priv_hex, pub_b64)) => {
+                        state.ecdh_private_hex = priv_hex;
+                        state.ecdh_public_b64 = pub_b64;
+                        state.ecdh_import_input.clear();
+                        state.ecdh_import_status = "Imported successfully. Reconnect to use.".to_string();
+                        crate::config::AppConfig::from_gui_state(state).save();
+                    }
+                    Err(e) => {
+                        state.ecdh_import_status = format!("Import failed: {}", e);
+                    }
+                }
+            }
+        });
+        if !state.ecdh_import_status.is_empty() {
+            ui.label(RichText::new(&state.ecdh_import_status).color(theme.text_muted()).size(theme.font_size_small));
+        }
 
         ui.add_space(theme.spacing_md);
 

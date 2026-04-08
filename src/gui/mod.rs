@@ -652,6 +652,11 @@ pub struct GuiState {
     /// Map of peer public key hex -> their ECDH public key base64.
     /// Populated from peer_list, full_user_list, profile_data, peer_joined.
     pub peer_ecdh_keys: std::collections::HashMap<String, String>,
+    /// Temporary input field for importing an ECDH key (e.g. from web client).
+    /// Format: "privateKeyPkcs8Base64|publicKeyRawBase64" (matching web's backup format).
+    pub ecdh_import_input: String,
+    /// Status message from the last ECDH import attempt.
+    pub ecdh_import_status: String,
 
     // ── Donation address config ──
 
@@ -922,6 +927,8 @@ impl Default for GuiState {
             ecdh_private_hex: String::new(),
             ecdh_public_b64: String::new(),
             peer_ecdh_keys: std::collections::HashMap::new(),
+            ecdh_import_input: String::new(),
+            ecdh_import_status: String::new(),
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),
