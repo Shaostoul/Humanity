@@ -1,0 +1,1232 @@
+// HumanityOS Dialogue Trees
+// Branching conversations for NPCs, quest givers, merchants, and ambient characters.
+// Format: Vec<DialogueDef> loaded by AssetManager from data/dialogues.ron
+//
+// Each dialogue tree has:
+//   id          - unique string key (prefixed dlg_)
+//   npc_id      - which NPC template owns this tree
+//   trigger     - when the dialogue activates (first_meet, quest_available, etc.)
+//   nodes       - list of dialogue nodes with branching choices
+//
+// Choice fields:
+//   text           - what the player says
+//   next           - node id to jump to
+//   requires_item  - (optional) item the player must have in inventory
+//   requires_quest - (optional) quest that must be completed
+//   sets_flag      - (optional) flag to set in player state when chosen
+//   starts_quest   - (optional) quest id to begin when chosen
+
+[
+
+    // =========================================================================
+    //  TUTORIAL DIALOGUES (3)
+    // =========================================================================
+
+    (
+        id: "dlg_tutorial_guide_intro",
+        npc_id: "tutorial_guide",
+        trigger: "first_meet",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Orienter Vasquez",
+                text: "Welcome aboard the Constellation. I'm Vasquez, assigned to get new arrivals up to speed. You've been in cryosleep for quite a while.",
+                choices: [
+                    (text: "Where am I?", next: "explain_ship"),
+                    (text: "What should I do first?", next: "first_steps"),
+                    (text: "How long was I under?", next: "cryo_duration"),
+                    (text: "I'll figure it out on my own.", next: "farewell_independent"),
+                ],
+            ),
+            (
+                id: "explain_ship",
+                speaker: "Orienter Vasquez",
+                text: "The Constellation is a generation ship, one of the last to leave Earth orbit. We're carrying about twelve thousand souls across sectors, looking for a viable colony world. Right now you're in Hab Ring 7, the residential quarter.",
+                choices: [
+                    (text: "What happened to Earth?", next: "earth_lore"),
+                    (text: "Twelve thousand? That's not many.", next: "population_context"),
+                    (text: "Alright, what do I do now?", next: "first_steps"),
+                ],
+            ),
+            (
+                id: "earth_lore",
+                speaker: "Orienter Vasquez",
+                text: "Resource wars, climate collapse, the usual spiral. The Constellation launched from L2 staging about ninety years ago. Earth's still there, still inhabited, but the old supply lines are gone. We're on our own out here.",
+                choices: [
+                    (text: "Let's focus on the present. What do I need to do?", next: "first_steps"),
+                ],
+            ),
+            (
+                id: "population_context",
+                speaker: "Orienter Vasquez",
+                text: "Every hand matters. That's exactly why we thaw people when there's work to be done. The ship needs builders, farmers, engineers. Whatever you were before, you're a colonist now.",
+                choices: [
+                    (text: "Fair enough. Where do I start?", next: "first_steps"),
+                ],
+            ),
+            (
+                id: "cryo_duration",
+                speaker: "Orienter Vasquez",
+                text: "Records say your pod was loaded at L2 staging. That puts you at... roughly forty-seven years in suspension. Don't worry, muscle atrophy is handled by the pod's stim system. You should feel normal within a day.",
+                choices: [
+                    (text: "Forty-seven years...", next: "first_steps"),
+                ],
+            ),
+            (
+                id: "first_steps",
+                speaker: "Orienter Vasquez",
+                text: "Priority one: secure a habitat module. We've cleared a section in Hab Ring 7 for new arrivals. Get your floor tiles down, walls up, and a door installed. After that, talk to the quartermaster about farming supplies. Food production is everyone's concern.",
+                choices: [
+                    (text: "I'll get to work.", next: "farewell_helpful", starts_quest: "tutorial_first_habitat"),
+                    (text: "Any tools I should know about?", next: "tool_tips"),
+                ],
+            ),
+            (
+                id: "tool_tips",
+                speaker: "Orienter Vasquez",
+                text: "Your multitool handles basic construction. Open your inventory to check what you're carrying. The fabricator terminal near the quartermaster can craft anything you have materials for. And keep an eye on your suit power; recharge at any power node.",
+                choices: [
+                    (text: "Got it. Time to build.", next: "farewell_helpful", starts_quest: "tutorial_first_habitat"),
+                ],
+            ),
+            (
+                id: "farewell_helpful",
+                speaker: "Orienter Vasquez",
+                text: "Good luck out there. If you need guidance, check the terminal in your hab or come find me in the orientation bay.",
+                choices: [],
+            ),
+            (
+                id: "farewell_independent",
+                speaker: "Orienter Vasquez",
+                text: "Self-reliant type. I respect that. The terminal in Hab Ring 7 has everything you need. Don't hesitate to ask if you change your mind.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_tutorial_first_craft",
+        npc_id: "fabrication_instructor",
+        trigger: "first_meet",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Tech Nouri",
+                text: "Ah, fresh hands. Good. I run the fabrication bay. Everything on this ship was built or rebuilt right here. You know how to use a fabricator?",
+                choices: [
+                    (text: "Not really. Show me.", next: "explain_crafting"),
+                    (text: "I've used industrial printers before.", next: "experienced"),
+                    (text: "Just need to make some power cables.", next: "specific_request"),
+                ],
+            ),
+            (
+                id: "explain_crafting",
+                speaker: "Tech Nouri",
+                text: "Simple enough. Load raw materials into the hopper, select a blueprint from the terminal, and the fabricator does the rest. Each blueprint lists what it needs. No materials, no output. The ship doesn't conjure things from nothing.",
+                choices: [
+                    (text: "Where do I get raw materials?", next: "materials_source"),
+                    (text: "What should I craft first?", next: "first_craft_suggestion"),
+                ],
+            ),
+            (
+                id: "experienced",
+                speaker: "Tech Nouri",
+                text: "Good, then you know the basics. Our fabricators run on the same principles, just scaled for ship-grade alloys. Pull up the blueprint terminal and browse what's available. Your access level determines what you can print.",
+                choices: [
+                    (text: "What should I craft first?", next: "first_craft_suggestion"),
+                    (text: "Thanks, I'll take it from here.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "specific_request",
+                speaker: "Tech Nouri",
+                text: "Power cables, sure. You'll need copper wire and insulation polymer. Check the materials bin along the east wall. If it's empty, the recycler in section 4 usually has salvage copper.",
+                choices: [
+                    (text: "I'll check the bin. Thanks.", next: "farewell"),
+                    (text: "What else can I make here?", next: "first_craft_suggestion"),
+                ],
+            ),
+            (
+                id: "materials_source",
+                speaker: "Tech Nouri",
+                text: "Mining runs, salvage ops, recycling. The quartermaster stocks basic feedstock, but for anything rare you'll need to go out on expeditions or trade with other colonists. Nothing gets wasted on a generation ship.",
+                choices: [
+                    (text: "Makes sense. What should I craft first?", next: "first_craft_suggestion"),
+                ],
+            ),
+            (
+                id: "first_craft_suggestion",
+                speaker: "Tech Nouri",
+                text: "If you're setting up a new hab, start with structural panels and basic lighting. After that, a portable power cell will keep your tools charged when you're away from the grid. Here, I'll unlock the starter blueprints for you.",
+                choices: [
+                    (text: "Appreciate it. I'll get started.", next: "farewell", sets_flag: "crafting_tutorial_done"),
+                ],
+            ),
+            (
+                id: "farewell",
+                speaker: "Tech Nouri",
+                text: "Fabrication bay is open around the clock. Don't blow anything up.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_tutorial_first_combat",
+        npc_id: "security_trainer",
+        trigger: "first_meet",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Sergeant Okafor",
+                text: "You the new arrival? Good timing. We've had hull breaches letting local fauna into the lower decks. I need every able body who can handle a sidearm.",
+                choices: [
+                    (text: "I'm no soldier.", next: "reassure"),
+                    (text: "Point me at the problem.", next: "eager_response"),
+                    (text: "What kind of fauna?", next: "fauna_info"),
+                ],
+            ),
+            (
+                id: "reassure",
+                speaker: "Sergeant Okafor",
+                text: "Neither are most of us. This isn't a warship. But survival means dealing with threats, and right now the threat is bioforms nesting in ventilation shaft 14. I can teach you the basics in five minutes.",
+                choices: [
+                    (text: "Alright, show me.", next: "combat_basics"),
+                    (text: "Can't someone else handle it?", next: "responsibility"),
+                ],
+            ),
+            (
+                id: "eager_response",
+                speaker: "Sergeant Okafor",
+                text: "Enthusiasm. I like it. But let's make sure you know which end of the pulse pistol to point forward first.",
+                choices: [
+                    (text: "Fair enough. Train me.", next: "combat_basics"),
+                ],
+            ),
+            (
+                id: "fauna_info",
+                speaker: "Sergeant Okafor",
+                text: "Void mites, mostly. Small, fast, territorial. They chew through insulation and wiring. Individually they're manageable. In a swarm, they're a real hazard. The bigger concern is what follows them in through the breaches.",
+                choices: [
+                    (text: "What follows them?", next: "bigger_threats"),
+                    (text: "How do I fight them?", next: "combat_basics"),
+                ],
+            ),
+            (
+                id: "bigger_threats",
+                speaker: "Sergeant Okafor",
+                text: "We've catalogued three larger species from encounters near asteroid fields. Armored carapaces, acidic secretions. Not common, but when they show up, you want to be ready. That's a conversation for after you handle the basics.",
+                choices: [
+                    (text: "Understood. Let's start with the basics.", next: "combat_basics"),
+                ],
+            ),
+            (
+                id: "responsibility",
+                speaker: "Sergeant Okafor",
+                text: "Everyone pulls their weight on the Constellation. We don't have a standing army. When something breaches the hull, the nearest hands respond. That includes you.",
+                choices: [
+                    (text: "Fine. Teach me.", next: "combat_basics"),
+                ],
+            ),
+            (
+                id: "combat_basics",
+                speaker: "Sergeant Okafor",
+                text: "Step one: equip your weapon from inventory. Step two: aim with your reticle, fire with primary action. Step three: watch your energy cell. Pulse weapons drain fast on sustained fire. Short bursts, conserve ammo. Ready to try the range?",
+                choices: [
+                    (text: "Let's do it.", next: "farewell", starts_quest: "tutorial_combat_basics", sets_flag: "combat_tutorial_started"),
+                    (text: "I need to prepare first. I'll be back.", next: "farewell_later"),
+                ],
+            ),
+            (
+                id: "farewell",
+                speaker: "Sergeant Okafor",
+                text: "Head to the firing range down the corridor. Targets are already set up. Show me you can hit eight out of ten and I'll clear you for patrol duty.",
+                choices: [],
+            ),
+            (
+                id: "farewell_later",
+                speaker: "Sergeant Okafor",
+                text: "Don't take too long. Those mites breed fast.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    // =========================================================================
+    //  MERCHANT DIALOGUES (4)
+    // =========================================================================
+
+    (
+        id: "dlg_merchant_blacksmith",
+        npc_id: "blacksmith",
+        trigger: "shop_enter",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Forge Master Kowalski",
+                text: "The forge is hot and the alloys are ready. I shape everything from hull plating to hand tools. What do you need?",
+                choices: [
+                    (text: "Show me what you have.", next: "browse_inventory"),
+                    (text: "Can you repair my equipment?", next: "repair_offer"),
+                    (text: "I have raw materials to trade.", next: "barter"),
+                    (text: "Just looking. Thanks.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "browse_inventory",
+                speaker: "Forge Master Kowalski",
+                text: "Structural alloy panels, reinforced brackets, cutting tools, a few custom blades I forged last cycle. Everything's priced in trade credits or equivalent barter goods.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "What's your best piece?", next: "best_item"),
+                    (text: "I'll think about it.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "best_item",
+                speaker: "Forge Master Kowalski",
+                text: "This plasma-edged multitool. Titanium-carbide frame, self-sharpening molecular edge. Cuts through ship-grade steel like it's polymer wrap. Not cheap, but it'll last you a lifetime.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "Maybe when I have more credits.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "repair_offer",
+                speaker: "Forge Master Kowalski",
+                text: "Bring it here, let me see. If it's metal, I can fix it. Composites and electronics, you'll want Tech Nouri in the fabrication bay. My rates are fair; materials cost plus labor.",
+                choices: [
+                    (text: "[Repair equipment]", next: "open_shop"),
+                    (text: "Good to know. I'll be back.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "barter",
+                speaker: "Forge Master Kowalski",
+                text: "Always looking for refined ore, especially titanium and chromium. Salvage alloy works too if it's not corroded through. What have you got?",
+                choices: [
+                    (text: "[Open trade]", next: "open_shop"),
+                    (text: "I'll gather some and come back.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "open_shop",
+                speaker: "Forge Master Kowalski",
+                text: "Take your time. Let me know when you've decided.",
+                choices: [],
+            ),
+            (
+                id: "farewell",
+                speaker: "Forge Master Kowalski",
+                text: "I'm here whenever you need metalwork done.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_merchant_alchemist",
+        npc_id: "alchemist",
+        trigger: "shop_enter",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Biochemist Liang",
+                text: "Welcome to the pharmacology lab. Stimulants, antivenoms, biogel patches... everything your body might need when the ship tries to kill you. Which it will.",
+                choices: [
+                    (text: "I need healing supplies.", next: "healing_stock"),
+                    (text: "Do you have combat stims?", next: "combat_stims"),
+                    (text: "Can you synthesize something custom?", next: "custom_synth"),
+                    (text: "Just browsing.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "healing_stock",
+                speaker: "Biochemist Liang",
+                text: "Biogel patches for field wounds, broad-spectrum antibiotic injectors, and my own formula burn salve. For deep trauma, I've got surgical nanite kits, but those run expensive.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "What about antidotes?", next: "antidotes"),
+                ],
+            ),
+            (
+                id: "combat_stims",
+                speaker: "Biochemist Liang",
+                text: "Reflex accelerators, pain suppressors, and adrenaline boosters. Standard issue for security patrols. Fair warning: the crash afterward is rough. Don't stack them unless you want to see the inside of medical bay.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "I'll stick with healing supplies.", next: "healing_stock"),
+                ],
+            ),
+            (
+                id: "antidotes",
+                speaker: "Biochemist Liang",
+                text: "General-purpose antivenom covers most of the fauna toxins we've catalogued. If you're heading into uncharted sections, grab a detox kit too. Some of the chemical spills down there are... creative.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                ],
+            ),
+            (
+                id: "custom_synth",
+                speaker: "Biochemist Liang",
+                text: "Depends on what you need and what reagents you bring me. I can work with most organic compounds. Bring me the base materials and a clear description of what you want, and I'll see what I can cook up.",
+                choices: [
+                    (text: "I'll gather materials and come back.", next: "farewell"),
+                    (text: "What reagents are you short on?", next: "reagent_request"),
+                ],
+            ),
+            (
+                id: "reagent_request",
+                speaker: "Biochemist Liang",
+                text: "Cytoplasm extract is always in demand. If you find any xenoflora samples during expeditions, bring them here. I pay well for novel organic compounds.",
+                choices: [
+                    (text: "I'll keep an eye out.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "open_shop",
+                speaker: "Biochemist Liang",
+                text: "Browse the catalogue. Everything's labelled with dosage and side effects. I insist on informed customers.",
+                choices: [],
+            ),
+            (
+                id: "farewell",
+                speaker: "Biochemist Liang",
+                text: "Stay healthy out there. Or don't. Either way, you'll be back.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_merchant_general",
+        npc_id: "general_store",
+        trigger: "shop_enter",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Quartermaster Reeves",
+                text: "Quartermaster's depot. Rations, basic tools, survival gear, and whatever the last salvage run brought in. Take a number or just tell me what you need.",
+                choices: [
+                    (text: "I need basic supplies.", next: "basic_supplies"),
+                    (text: "Anything interesting from the last salvage?", next: "salvage_goods"),
+                    (text: "I'm looking for farming equipment.", next: "farming_gear"),
+                    (text: "Just checking stock.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "basic_supplies",
+                speaker: "Quartermaster Reeves",
+                text: "Ration packs, water purification tabs, emergency flares, sealant spray, and portable power cells. The essentials. Everything's at standard allotment rates.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "Do you have suit repair kits?", next: "suit_kits"),
+                ],
+            ),
+            (
+                id: "suit_kits",
+                speaker: "Quartermaster Reeves",
+                text: "Patch kits for standard EVA suits, yes. Full suit replacements have a two-cycle wait. If your suit's compromised, don't go near any airlocks until it's fixed. I mean that.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                ],
+            ),
+            (
+                id: "salvage_goods",
+                speaker: "Quartermaster Reeves",
+                text: "Last run pulled in some pre-collapse electronics, a crate of ceramic composites, and what might be a nav computer from an old probe. The electronics are already spoken for, but the rest is available.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "Who claimed the electronics?", next: "electronics_buyer"),
+                ],
+            ),
+            (
+                id: "electronics_buyer",
+                speaker: "Quartermaster Reeves",
+                text: "Tech Nouri in the fabrication bay. She's always first in line for anything with circuits. You'd have to negotiate with her directly if you want a piece of it.",
+                choices: [
+                    (text: "I'll talk to her. Thanks.", next: "farewell"),
+                    (text: "What else do you have?", next: "basic_supplies"),
+                ],
+            ),
+            (
+                id: "farming_gear",
+                speaker: "Quartermaster Reeves",
+                text: "Hydroponic trays, nutrient solution concentrate, grow lights, and seed stock. We've got potato, soybean, and leafy greens in rotation. Specialty seeds come and go.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                ],
+            ),
+            (
+                id: "open_shop",
+                speaker: "Quartermaster Reeves",
+                text: "Here's the full manifest. Standard pricing unless you've got trade goods.",
+                choices: [],
+            ),
+            (
+                id: "farewell",
+                speaker: "Quartermaster Reeves",
+                text: "Depot's open every shift. Don't hoard; supplies serve everyone better in circulation.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_merchant_tech_vendor",
+        npc_id: "tech_vendor",
+        trigger: "shop_enter",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Specialist Ahn",
+                text: "You're in the tech exchange. Sensors, computing modules, drone parts, and occasionally something exotic from the salvage teams. What's your project?",
+                choices: [
+                    (text: "I need a scanner upgrade.", next: "scanners"),
+                    (text: "Do you have drone components?", next: "drones"),
+                    (text: "Anything from outside the ship?", next: "exotic_tech"),
+                    (text: "Just looking at what's available.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "scanners",
+                speaker: "Specialist Ahn",
+                text: "Environmental scanners, ore composition analyzers, and biosign detectors. The ore analyzer is popular with prospectors. Biosign detector will save your life in uncharted sections.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "Which scanner do you recommend?", next: "scanner_recommendation"),
+                ],
+            ),
+            (
+                id: "scanner_recommendation",
+                speaker: "Specialist Ahn",
+                text: "Depends on what you're doing. Exploring? Biosign detector, no question. Mining? Ore analyzer. General purpose? The environmental scanner covers temperature, atmosphere, and radiation all in one package.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                ],
+            ),
+            (
+                id: "drones",
+                speaker: "Specialist Ahn",
+                text: "Relay drones for extending comms range, survey drones for mapping, and repair drones for hull maintenance. I have the parts and firmware. Assembly is on you, or I can do it for a surcharge.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "What does assembly cost?", next: "assembly_cost"),
+                ],
+            ),
+            (
+                id: "assembly_cost",
+                speaker: "Specialist Ahn",
+                text: "Fifty credits flat for standard models. Complex builds, like a survey drone with extended range, run closer to a hundred. You provide the parts either way.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                ],
+            ),
+            (
+                id: "exotic_tech",
+                speaker: "Specialist Ahn",
+                text: "I picked up a signal amplifier from what looked like an alien relay buoy. Preliminary scans say it's compatible with our frequency range, but I haven't tested it at full power. Interested?",
+                choices: [
+                    (text: "How much?", next: "exotic_price"),
+                    (text: "That sounds risky.", next: "exotic_caution"),
+                ],
+            ),
+            (
+                id: "exotic_price",
+                speaker: "Specialist Ahn",
+                text: "Three hundred credits, or equivalent in rare-earth components. It's a gamble, but if it works, you'd have scanner range beyond anything we can manufacture.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "I'll think about it.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "exotic_caution",
+                speaker: "Specialist Ahn",
+                text: "Everything out here is a calculated risk. I've isolated the power coupling so it can't feedback into your suit systems. Worst case, it just doesn't work. Best case, you see things no one else can.",
+                choices: [
+                    (text: "[Open shop]", next: "open_shop"),
+                    (text: "Maybe later.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "open_shop",
+                speaker: "Specialist Ahn",
+                text: "Pull up the catalogue. Everything has specs and compatibility notes.",
+                choices: [],
+            ),
+            (
+                id: "farewell",
+                speaker: "Specialist Ahn",
+                text: "Tech exchange is always open. New stock comes in after every salvage cycle.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    // =========================================================================
+    //  QUEST DIALOGUES (4)
+    // =========================================================================
+
+    (
+        id: "dlg_quest_mayor_first",
+        npc_id: "settlement_mayor",
+        trigger: "quest_available",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Administrator Chen",
+                text: "Good, another pair of hands. I'm Chen, I coordinate operations for Hab Ring 7. We've got a situation in the lower decks that needs attention.",
+                choices: [
+                    (text: "What's the situation?", next: "explain_problem"),
+                    (text: "Why come to me?", next: "why_me"),
+                    (text: "I'm busy with my own problems.", next: "decline"),
+                ],
+            ),
+            (
+                id: "explain_problem",
+                speaker: "Administrator Chen",
+                text: "Water recycling substation 3 went offline two days ago. We've rerouted flow, but if we lose another substation, rationing starts. I need someone to go down there, diagnose the fault, and get it running again.",
+                choices: [
+                    (text: "What am I looking at down there?", next: "hazard_info"),
+                    (text: "I'll handle it.", next: "accept_quest"),
+                ],
+            ),
+            (
+                id: "why_me",
+                speaker: "Administrator Chen",
+                text: "Because you're new, capable, and not yet assigned to a work detail. Everyone else is already stretched thin maintaining the ring. I'm not asking you to volunteer. I'm telling you this is how you earn your place here.",
+                choices: [
+                    (text: "Fair enough. What's the job?", next: "explain_problem"),
+                    (text: "I don't take orders.", next: "decline"),
+                ],
+            ),
+            (
+                id: "hazard_info",
+                speaker: "Administrator Chen",
+                text: "The lower decks near substation 3 have reported atmospheric anomalies. Could be a chemical leak, could be nothing. Take a rebreather just in case. And the lighting's been unreliable down there, so bring a headlamp.",
+                choices: [
+                    (text: "Understood. I'll head down.", next: "accept_quest"),
+                    (text: "Do I get anything for this?", next: "reward_info"),
+                ],
+            ),
+            (
+                id: "reward_info",
+                speaker: "Administrator Chen",
+                text: "Standard operations compensation: trade credits and priority access to the next supply allocation. Plus my gratitude, which counts for more than you'd think when you need something approved.",
+                choices: [
+                    (text: "Good enough. I'm on it.", next: "accept_quest"),
+                ],
+            ),
+            (
+                id: "accept_quest",
+                speaker: "Administrator Chen",
+                text: "Substation 3 is two levels down, section 14-B. Access code is on this datapad. Report back to me when it's operational.",
+                choices: [
+                    (text: "[Take datapad]", next: "farewell_accepted", starts_quest: "quest_water_substation"),
+                ],
+            ),
+            (
+                id: "farewell_accepted",
+                speaker: "Administrator Chen",
+                text: "Don't take too long. People get thirsty.",
+                choices: [],
+            ),
+            (
+                id: "decline",
+                speaker: "Administrator Chen",
+                text: "Your choice. But when water rationing hits and twelve thousand people want to know why, I'll point them your way. The offer stands when you reconsider.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_quest_bounty_board",
+        npc_id: "bounty_board_terminal",
+        trigger: "interact",
+        nodes: [
+            (
+                id: "start",
+                speaker: "[Terminal]",
+                text: ">> CONSTELLATION TASK BOARD v4.7 << Active bounties available. Select a category to browse.",
+                choices: [
+                    (text: "[Pest control bounties]", next: "pest_bounties"),
+                    (text: "[Salvage recovery bounties]", next: "salvage_bounties"),
+                    (text: "[Repair and maintenance bounties]", next: "repair_bounties"),
+                    (text: "[Log off]", next: "farewell"),
+                ],
+            ),
+            (
+                id: "pest_bounties",
+                speaker: "[Terminal]",
+                text: ">> PEST CONTROL << BOUNTY-071: Clear void mite nest in ventilation shaft 14. Reward: 80 credits. BOUNTY-072: Investigate reports of larger bioform in cargo bay 9. Reward: 200 credits. Caution: combat rating B recommended.",
+                choices: [
+                    (text: "[Accept BOUNTY-071: Void mites]", next: "accept_pest_1", starts_quest: "bounty_void_mites"),
+                    (text: "[Accept BOUNTY-072: Cargo bay bioform]", next: "accept_pest_2", requires_quest: "tutorial_combat_basics"),
+                    (text: "[Back to categories]", next: "start"),
+                ],
+            ),
+            (
+                id: "salvage_bounties",
+                speaker: "[Terminal]",
+                text: ">> SALVAGE RECOVERY << BOUNTY-058: Retrieve nav components from derelict pod in external bay 2. EVA suit required. Reward: 150 credits + salvage rights. BOUNTY-063: Map unexplored section 22-F. Reward: 120 credits.",
+                choices: [
+                    (text: "[Accept BOUNTY-058: Nav components]", next: "accept_salvage_1", requires_item: "eva_suit"),
+                    (text: "[Accept BOUNTY-063: Map section 22-F]", next: "accept_salvage_2", starts_quest: "bounty_map_section"),
+                    (text: "[Back to categories]", next: "start"),
+                ],
+            ),
+            (
+                id: "repair_bounties",
+                speaker: "[Terminal]",
+                text: ">> REPAIR & MAINTENANCE << BOUNTY-090: Replace corroded conduit in power junction 7. Materials provided. Reward: 60 credits. BOUNTY-091: Recalibrate environmental sensors in greenhouse 3. Reward: 75 credits.",
+                choices: [
+                    (text: "[Accept BOUNTY-090: Conduit repair]", next: "accept_repair_1", starts_quest: "bounty_conduit_repair"),
+                    (text: "[Accept BOUNTY-091: Sensor calibration]", next: "accept_repair_2", starts_quest: "bounty_sensor_calibration"),
+                    (text: "[Back to categories]", next: "start"),
+                ],
+            ),
+            (
+                id: "accept_pest_1",
+                speaker: "[Terminal]",
+                text: ">> BOUNTY-071 ACCEPTED << Waypoint set to ventilation shaft 14. Eliminate nest and return proof of clearance to nearest terminal. Stay alert.",
+                choices: [],
+            ),
+            (
+                id: "accept_pest_2",
+                speaker: "[Terminal]",
+                text: ">> BOUNTY-072 ACCEPTED << Waypoint set to cargo bay 9. Proceed with caution. Biosign readings indicate a single large organism. Lethal force authorized.",
+                choices: [],
+            ),
+            (
+                id: "accept_salvage_1",
+                speaker: "[Terminal]",
+                text: ">> BOUNTY-058 ACCEPTED << External bay 2 access granted. Depressurization warning in effect. Ensure EVA suit integrity before proceeding.",
+                choices: [],
+            ),
+            (
+                id: "accept_salvage_2",
+                speaker: "[Terminal]",
+                text: ">> BOUNTY-063 ACCEPTED << Section 22-F access unlocked. Upload your mapping data to any ship terminal upon completion.",
+                choices: [],
+            ),
+            (
+                id: "accept_repair_1",
+                speaker: "[Terminal]",
+                text: ">> BOUNTY-090 ACCEPTED << Materials crate dispatched to power junction 7. Installation tools included.",
+                choices: [],
+            ),
+            (
+                id: "accept_repair_2",
+                speaker: "[Terminal]",
+                text: ">> BOUNTY-091 ACCEPTED << Calibration toolkit available at greenhouse 3 supply closet. Follow the sensor diagnostic protocol on the attached datasheet.",
+                choices: [],
+            ),
+            (
+                id: "farewell",
+                speaker: "[Terminal]",
+                text: ">> SESSION ENDED << Thank you for contributing to Constellation operations.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_quest_explorer_guild",
+        npc_id: "explorer_guildmaster",
+        trigger: "first_meet",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Pathfinder Mbeki",
+                text: "This is the Pathfinder Lodge. We map the unknown, chart safe routes, and keep this ship from flying blind. You have the look of someone who doesn't like staying in one place.",
+                choices: [
+                    (text: "I want to join the Pathfinders.", next: "join_requirements"),
+                    (text: "What exactly do Pathfinders do?", next: "explain_role"),
+                    (text: "I'm not interested in exploration.", next: "farewell_decline"),
+                ],
+            ),
+            (
+                id: "explain_role",
+                speaker: "Pathfinder Mbeki",
+                text: "We're the eyes of the Constellation. Before anyone sets foot in an unknown section, a Pathfinder has already been there, marked the hazards, catalogued the resources, and mapped the exits. It's dangerous work, but it matters.",
+                choices: [
+                    (text: "Sign me up.", next: "join_requirements"),
+                    (text: "What's the pay like?", next: "compensation"),
+                ],
+            ),
+            (
+                id: "compensation",
+                speaker: "Pathfinder Mbeki",
+                text: "Pathfinders get first pick on salvage from any section they chart. Plus standard expedition pay and priority access to exploration gear. The real reward is knowing the ship's layout better than anyone alive.",
+                choices: [
+                    (text: "I'm in.", next: "join_requirements"),
+                    (text: "I'll think about it.", next: "farewell_maybe"),
+                ],
+            ),
+            (
+                id: "join_requirements",
+                speaker: "Pathfinder Mbeki",
+                text: "Initiation is straightforward. Complete a solo survey of section 18-C. It's a decommissioned storage area, relatively low risk. Map it thoroughly and return with environmental readings. That proves you can handle the work.",
+                choices: [
+                    (text: "Consider it done.", next: "accept_initiation", starts_quest: "quest_pathfinder_initiation"),
+                    (text: "What should I bring?", next: "preparation_advice"),
+                ],
+            ),
+            (
+                id: "preparation_advice",
+                speaker: "Pathfinder Mbeki",
+                text: "Scanner, headlamp, emergency rations, and a sidearm. Section 18-C has been sealed for years. No guarantees on what's taken up residence. Standard kit, nothing extreme.",
+                choices: [
+                    (text: "I'll gear up and head out.", next: "accept_initiation", starts_quest: "quest_pathfinder_initiation"),
+                    (text: "I need to get some of that gear first.", next: "farewell_prepare"),
+                ],
+            ),
+            (
+                id: "accept_initiation",
+                speaker: "Pathfinder Mbeki",
+                text: "Good. Section 18-C, deck 4. Access hatch is near the forward cargo elevator. Return the survey data to me and you'll have your Pathfinder badge.",
+                choices: [],
+            ),
+            (
+                id: "farewell_decline",
+                speaker: "Pathfinder Mbeki",
+                text: "The lodge is here if you change your mind. Everyone finds their way eventually.",
+                choices: [],
+            ),
+            (
+                id: "farewell_maybe",
+                speaker: "Pathfinder Mbeki",
+                text: "Take your time. We're not going anywhere. Well, technically we are, but you know what I mean.",
+                choices: [],
+            ),
+            (
+                id: "farewell_prepare",
+                speaker: "Pathfinder Mbeki",
+                text: "Smart. The quartermaster and tech exchange can get you outfitted. Come back when you're ready.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_quest_farmer_help",
+        npc_id: "farmer",
+        trigger: "quest_available",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Agronomist Park",
+                text: "Excuse me. You're the new arrival, yes? I manage greenhouse 5, and I could really use some help. The nutrient recycler is malfunctioning and half my crop yield is at risk.",
+                choices: [
+                    (text: "What do you need me to do?", next: "explain_task"),
+                    (text: "I don't know anything about farming.", next: "reassure"),
+                    (text: "Sorry, I've got my hands full.", next: "decline"),
+                ],
+            ),
+            (
+                id: "explain_task",
+                speaker: "Agronomist Park",
+                text: "The recycler needs a new filtration membrane and a recalibrated flow sensor. I have the membrane, but the sensor needs to be fabricated. If you could craft one at the fabrication bay and bring it back, I can install both.",
+                choices: [
+                    (text: "I'll get you that sensor.", next: "accept"),
+                    (text: "What materials do I need for the sensor?", next: "materials_info"),
+                ],
+            ),
+            (
+                id: "reassure",
+                speaker: "Agronomist Park",
+                text: "You don't need to be a farmer. I just need someone who can operate a fabricator and carry a sensor module without dropping it. The technical part, I'll handle.",
+                choices: [
+                    (text: "Alright, tell me what you need.", next: "explain_task"),
+                ],
+            ),
+            (
+                id: "materials_info",
+                speaker: "Agronomist Park",
+                text: "The flow sensor blueprint needs a circuit board, two copper contacts, and a pressure-rated housing. The fabrication bay should have the blueprint on file. If not, Tech Nouri can load it.",
+                choices: [
+                    (text: "I'll get it made. Hang tight.", next: "accept"),
+                ],
+            ),
+            (
+                id: "accept",
+                speaker: "Agronomist Park",
+                text: "Thank you. Greenhouse 5, section 12. The sooner the better; those tomatoes won't wait.",
+                choices: [
+                    (text: "[Accept quest]", next: "farewell", starts_quest: "quest_greenhouse_repair"),
+                ],
+            ),
+            (
+                id: "decline",
+                speaker: "Agronomist Park",
+                text: "I understand. If you find the time later, please come back. Those crops feed everyone in Hab Ring 7.",
+                choices: [],
+            ),
+            (
+                id: "farewell",
+                speaker: "Agronomist Park",
+                text: "I'll be in the greenhouse. Good luck with the fabricator.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    // =========================================================================
+    //  COMPANION DIALOGUES (2)
+    // =========================================================================
+
+    (
+        id: "dlg_companion_recruit",
+        npc_id: "companion_kira",
+        trigger: "first_meet",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Kira Tanaka",
+                text: "Hey. You're the one who fixed the water substation, right? Word travels fast on a ship this size. I've been looking for someone competent to partner up with.",
+                choices: [
+                    (text: "Partner up for what?", next: "explain_partnership"),
+                    (text: "Who are you?", next: "introduce_self"),
+                    (text: "I work alone.", next: "decline"),
+                ],
+            ),
+            (
+                id: "introduce_self",
+                speaker: "Kira Tanaka",
+                text: "Kira Tanaka. Former ship systems technician, current freelance problem solver. I know every maintenance tunnel, access shaft, and shortcut on this ring. Two people cover more ground than one, and I'm tired of going solo.",
+                choices: [
+                    (text: "What would a partnership look like?", next: "explain_partnership"),
+                    (text: "Why'd you leave ship systems?", next: "backstory"),
+                ],
+            ),
+            (
+                id: "backstory",
+                speaker: "Kira Tanaka",
+                text: "Creative differences with the maintenance chief. She wanted to follow procedure manuals written fifty years ago. I wanted to actually fix things. Turns out improvisation isn't appreciated when you accidentally vent a storage bay into vacuum.",
+                choices: [
+                    (text: "That sounds like a story.", next: "backstory_detail"),
+                    (text: "Let's talk about this partnership.", next: "explain_partnership"),
+                ],
+            ),
+            (
+                id: "backstory_detail",
+                speaker: "Kira Tanaka",
+                text: "The storage bay was empty. Mostly. Some crates of expired rations that nobody would miss. The point is, the repair worked and the hull integrity in section 9 has been solid ever since. You're welcome, Constellation.",
+                choices: [
+                    (text: "I like your style. Let's team up.", next: "accept_companion"),
+                    (text: "You're a liability.", next: "decline"),
+                ],
+            ),
+            (
+                id: "explain_partnership",
+                speaker: "Kira Tanaka",
+                text: "We split jobs, share salvage, watch each other's backs. I handle tech and navigation. You handle... whatever it is you're good at. No long-term commitments. If it's not working, we go our separate ways.",
+                choices: [
+                    (text: "Deal. Welcome aboard.", next: "accept_companion"),
+                    (text: "I need to think about it.", next: "farewell_maybe"),
+                ],
+            ),
+            (
+                id: "accept_companion",
+                speaker: "Kira Tanaka",
+                text: "Good call. I already have a lead on an unregistered salvage cache in the lower decks. Meet me at junction 14-D when you're ready and I'll brief you.",
+                choices: [
+                    (text: "[Kira joins your crew]", next: "farewell_joined", sets_flag: "companion_kira_recruited"),
+                ],
+            ),
+            (
+                id: "farewell_joined",
+                speaker: "Kira Tanaka",
+                text: "This is going to be interesting. In a good way. Probably.",
+                choices: [],
+            ),
+            (
+                id: "farewell_maybe",
+                speaker: "Kira Tanaka",
+                text: "No pressure. I'll be around the common area in Hab Ring 7. Just don't take too long; good partners are hard to find.",
+                choices: [],
+            ),
+            (
+                id: "decline",
+                speaker: "Kira Tanaka",
+                text: "Suit yourself. If you change your mind, you know where to find me.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_companion_campfire",
+        npc_id: "companion_kira",
+        trigger: "rest_at_camp",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Kira Tanaka",
+                text: "Not a bad spot to take a break. You know, when I was a kid on this ship, my parents told me we'd reach the colony world in their lifetime. Forty years later and we're still cruising.",
+                choices: [
+                    (text: "Do you think we'll ever get there?", next: "colony_hope"),
+                    (text: "What was it like growing up on the ship?", next: "childhood"),
+                    (text: "Let's just rest. No talking.", next: "silent_rest"),
+                ],
+            ),
+            (
+                id: "colony_hope",
+                speaker: "Kira Tanaka",
+                text: "The nav team says we have three candidate systems within range. Whether any of them have a habitable world... who knows. But the mission keeps people going. Take that away and all you have is a very large tin can full of anxious humans.",
+                choices: [
+                    (text: "Hope is a survival tool.", next: "philosophical"),
+                    (text: "What if none of them work out?", next: "pessimistic"),
+                ],
+            ),
+            (
+                id: "childhood",
+                speaker: "Kira Tanaka",
+                text: "Imagine school, but every field trip is to a different section of the same ship. The highlight of my year was when maintenance opened up a sealed deck and we got to explore it. That's probably why I ended up doing what I do.",
+                choices: [
+                    (text: "Sounds like you were born for this.", next: "born_explorer"),
+                    (text: "Do you miss anything about being a kid here?", next: "nostalgia"),
+                ],
+            ),
+            (
+                id: "philosophical",
+                speaker: "Kira Tanaka",
+                text: "It really is. The day this ship stops believing in the mission, everything falls apart. I've seen what happens in sections where morale drops. People stop maintaining their habs, stop showing up for shifts. Hope keeps the lights on.",
+                choices: [
+                    (text: "Then let's make sure we find that colony world.", next: "farewell_hopeful"),
+                ],
+            ),
+            (
+                id: "pessimistic",
+                speaker: "Kira Tanaka",
+                text: "Then we keep going. The Constellation was built to last centuries. Worst case, our grandchildren's grandchildren find something. The ship is home either way. Might as well make it a good one.",
+                choices: [
+                    (text: "Fair point. Let's rest up.", next: "farewell_hopeful"),
+                ],
+            ),
+            (
+                id: "born_explorer",
+                speaker: "Kira Tanaka",
+                text: "Maybe. Or maybe everyone on a generation ship is an explorer by default. None of us chose to be here, but we can choose what to do with it. I chose to see everything there is to see.",
+                choices: [
+                    (text: "Good philosophy. Let's get some rest.", next: "farewell_hopeful"),
+                ],
+            ),
+            (
+                id: "nostalgia",
+                speaker: "Kira Tanaka",
+                text: "The observation deck, before they restricted access for power conservation. My mom would take me there and we'd watch the stars drift by. Haven't been up there in years.",
+                choices: [
+                    (text: "Maybe we can get access again someday.", next: "farewell_hopeful"),
+                ],
+            ),
+            (
+                id: "silent_rest",
+                speaker: "Kira Tanaka",
+                text: "...fine. But for the record, I'm a great conversationalist.",
+                choices: [],
+            ),
+            (
+                id: "farewell_hopeful",
+                speaker: "Kira Tanaka",
+                text: "Alright. Early shift tomorrow. Get some sleep.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    // =========================================================================
+    //  AMBIENT DIALOGUES (2)
+    // =========================================================================
+
+    (
+        id: "dlg_ambient_bartender",
+        npc_id: "bartender",
+        trigger: "interact",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Bartender Yusuf",
+                text: "Welcome to the Pressure Valve. Best distilled spirits on Hab Ring 7, and I say that because we're the only bar on Hab Ring 7. What'll it be?",
+                choices: [
+                    (text: "What's the local drink?", next: "house_special"),
+                    (text: "Heard any good rumors?", next: "gossip_start"),
+                    (text: "Just water, thanks.", next: "water"),
+                    (text: "Nothing for now.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "house_special",
+                speaker: "Bartender Yusuf",
+                text: "The Reactor Flush. Fermented potato base, hint of hydroponics mint, and whatever fruit came in on the last harvest. Tastes better than it sounds. Usually.",
+                choices: [
+                    (text: "I'll take one.", next: "served"),
+                    (text: "Maybe something less adventurous.", next: "safe_option"),
+                ],
+            ),
+            (
+                id: "safe_option",
+                speaker: "Bartender Yusuf",
+                text: "Soy tea, heated. Reliable, safe, boring. Just like the maintenance schedules.",
+                choices: [
+                    (text: "Tea it is.", next: "served"),
+                ],
+            ),
+            (
+                id: "water",
+                speaker: "Bartender Yusuf",
+                text: "Filtered and chilled. The one thing this ship never runs short on. Well, usually.",
+                choices: [
+                    (text: "Heard any interesting news?", next: "gossip_start"),
+                    (text: "Thanks.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "served",
+                speaker: "Bartender Yusuf",
+                text: "Here you go. So, you're the new arrival everyone's been talking about. Getting settled in alright?",
+                choices: [
+                    (text: "Still figuring things out.", next: "gossip_start"),
+                    (text: "What are people saying about me?", next: "player_reputation"),
+                ],
+            ),
+            (
+                id: "player_reputation",
+                speaker: "Bartender Yusuf",
+                text: "Nothing bad. Just that you're capable and not afraid to get your hands dirty. That puts you ahead of half the new thaws who spend their first week in their hab feeling sorry for themselves.",
+                choices: [
+                    (text: "Good to know. What else is going on?", next: "gossip_start"),
+                    (text: "I should get back to work.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "gossip_start",
+                speaker: "Bartender Yusuf",
+                text: "Let me think. The Pathfinders found something unusual in the forward sections, but they're being quiet about it. And there's talk about rationing getting tighter if greenhouse 3 doesn't get back to full output. Oh, and someone swears they saw something moving in the vents near cargo bay 9.",
+                choices: [
+                    (text: "What did the Pathfinders find?", next: "gossip_pathfinders"),
+                    (text: "Something in the vents?", next: "gossip_vents"),
+                    (text: "Interesting. Thanks for the intel.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "gossip_pathfinders",
+                speaker: "Bartender Yusuf",
+                text: "No idea. Mbeki's crew came back from a survey run looking rattled, which is unusual for them. They went straight to Administrator Chen's office and haven't said a word since. Could be nothing. Could be a big deal.",
+                choices: [
+                    (text: "I'll look into it.", next: "farewell"),
+                    (text: "What about the vents?", next: "gossip_vents"),
+                ],
+            ),
+            (
+                id: "gossip_vents",
+                speaker: "Bartender Yusuf",
+                text: "Cargo bay 9 has been sealed for maintenance, but a couple of engineers reported hearing scratching sounds and finding claw marks on the interior panels. Security says it's void mites, but the marks were too large for mites. Draw your own conclusions.",
+                choices: [
+                    (text: "Noted. I'll be careful down there.", next: "farewell"),
+                ],
+            ),
+            (
+                id: "farewell",
+                speaker: "Bartender Yusuf",
+                text: "Drop by anytime. The Pressure Valve never closes.",
+                choices: [],
+            ),
+        ],
+    ),
+
+    (
+        id: "dlg_ambient_guard_patrol",
+        npc_id: "security_guard",
+        trigger: "patrol_encounter",
+        nodes: [
+            (
+                id: "start",
+                speaker: "Guard Petrov",
+                text: "Hold up. Routine patrol check. State your business in this section.",
+                choices: [
+                    (text: "I live here. Hab Ring 7, new arrival.", next: "verify_resident"),
+                    (text: "I'm on a job for Administrator Chen.", next: "verify_mission"),
+                    (text: "Just passing through.", next: "passing_through"),
+                ],
+            ),
+            (
+                id: "verify_resident",
+                speaker: "Guard Petrov",
+                text: "Right, I see your ident tag in the system. New thaw. Everything checks out. Word of advice: don't wander into restricted sections without clearance. The lockdown doors don't care about good intentions.",
+                choices: [
+                    (text: "Understood. Are there any sections I should avoid?", next: "restricted_info"),
+                    (text: "Thanks for the heads up.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "verify_mission",
+                speaker: "Guard Petrov",
+                text: "Let me check... yeah, I see the work order. You're cleared for sections 12 through 15, lower deck access included. Stay within your assigned area and report anything unusual.",
+                choices: [
+                    (text: "Anything unusual been happening?", next: "patrol_intel"),
+                    (text: "Noted. I'll stay on task.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "passing_through",
+                speaker: "Guard Petrov",
+                text: "Corridors are public access, but keep moving. We've had reports of unauthorized scavenging in the maintenance tunnels. If you see anyone pulling wiring out of the walls, flag a security terminal.",
+                choices: [
+                    (text: "Scavenging? That sounds like a problem.", next: "scavenger_info"),
+                    (text: "Will do.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "restricted_info",
+                speaker: "Guard Petrov",
+                text: "Forward sections past bulkhead 20 are Pathfinder-only. Engineering core requires level 3 clearance. And cargo bay 9 is locked down pending an investigation. Everything else is open.",
+                choices: [
+                    (text: "What's going on in cargo bay 9?", next: "cargo_bay_info"),
+                    (text: "Got it. Thanks.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "cargo_bay_info",
+                speaker: "Guard Petrov",
+                text: "Biosign readings that don't match anything in our fauna database. Could be a sensor glitch, could be something that hitched a ride during the last asteroid rendezvous. Either way, it's locked until security clears it.",
+                choices: [
+                    (text: "Need any help with that?", next: "offer_help"),
+                    (text: "I'll steer clear.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "offer_help",
+                speaker: "Guard Petrov",
+                text: "Check the bounty board. If security posts a clearance op, you can sign up through official channels. Freelance heroics tend to end in the medical bay.",
+                choices: [
+                    (text: "Fair enough.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "patrol_intel",
+                speaker: "Guard Petrov",
+                text: "Power fluctuations in the lower decks. Probably just aging infrastructure, but it's been more frequent lately. Keep your headlamp charged if you're heading down there.",
+                choices: [
+                    (text: "Thanks for the warning.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "scavenger_info",
+                speaker: "Guard Petrov",
+                text: "Small-time stuff, but it adds up. Someone's been stripping copper from decommissioned junction boxes. We lose enough infrastructure to normal wear without people accelerating the process.",
+                choices: [
+                    (text: "I'll report anything I see.", next: "farewell_clear"),
+                ],
+            ),
+            (
+                id: "farewell_clear",
+                speaker: "Guard Petrov",
+                text: "Carry on. Stay safe out there.",
+                choices: [],
+            ),
+        ],
+    ),
+]

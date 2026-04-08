@@ -1,0 +1,81 @@
+# HumanityOS Status Effects Database
+# Buffs, debuffs, conditions, diseases, and environmental effects
+#
+# Column definitions:
+#   id                - Unique effect identifier
+#   name              - Display name
+#   type              - buff, debuff, condition, environmental, disease, poison
+#   duration_s        - Duration in seconds (0 = permanent until removed)
+#   stackable         - true/false
+#   max_stacks        - Maximum stack count (1 if not stackable)
+#   tick_interval_s   - How often effect applies (0 = continuous)
+#   stat_modifier     - stat:value:operation (e.g. speed:0.5:multiply)
+#   damage_per_tick   - Damage applied each tick (0 = no damage)
+#   damage_type       - Damage type (none if no damage)
+#   healing_per_tick  - Healing per tick (0 = no healing)
+#   dispel_type       - none, magic, medicine, rest, item
+#   tags              - Pipe-separated tags
+#   description       - Short description
+#
+id,name,type,duration_s,stackable,max_stacks,tick_interval_s,stat_modifier,damage_per_tick,damage_type,healing_per_tick,dispel_type,tags,description
+strength_boost,Strength Boost,buff,120,true,3,0,strength:1.25:multiply,0,none,0,magic,combat|physical,Increases physical strength by 25% per stack
+speed_boost,Speed Boost,buff,90,true,3,0,speed:1.3:multiply,0,none,0,magic,movement|physical,Increases movement speed by 30% per stack
+fire_resistance,Fire Resistance,buff,180,false,1,0,fire_resist:0.5:multiply,0,none,0,magic,elemental|defense,Reduces fire damage taken by 50%
+shield,Energy Shield,buff,60,false,1,0,armor:50:add,0,none,0,magic,defense|energy,Absorbs up to 50 points of incoming damage
+regeneration,Regeneration,buff,300,true,5,3,none:0:none,0,none,5,magic,healing|sustain,Restores 5 HP every 3 seconds per stack
+night_vision,Night Vision,buff,600,false,1,0,vision_range:2.0:multiply,0,none,0,item,vision|utility,Doubles visual range in darkness
+water_breathing,Water Breathing,buff,900,false,1,0,oxygen_use:0:multiply,0,none,0,magic,aquatic|utility,Allows breathing underwater indefinitely
+feather_fall,Feather Fall,buff,120,false,1,0,fall_speed:0.1:multiply,0,none,0,magic,movement|safety,Dramatically slows falling speed preventing fall damage
+stone_skin,Stone Skin,buff,180,false,1,0,armor:30:add,0,none,0,magic,defense|physical,Hardens skin adding 30 armor points
+berserk,Berserk,buff,30,false,1,0,damage:1.5:multiply,0,none,0,rest,combat|risky,Increases damage dealt by 50% but reduces armor by 25%
+focused_mind,Focused Mind,buff,300,true,3,0,accuracy:1.2:multiply,0,none,0,rest,mental|precision,Improves accuracy and crafting quality by 20% per stack
+lucky,Lucky,buff,600,false,1,0,crit_chance:1.5:multiply,0,none,0,magic,fortune|rare,Increases critical hit and rare drop chance by 50%
+well_fed,Well Fed,buff,1800,false,1,0,stamina_regen:1.5:multiply,0,none,1,rest,food|sustain,Increases stamina regeneration by 50% and slowly heals
+rested,Rested,buff,3600,false,1,0,xp_gain:1.25:multiply,0,none,0,rest,rest|experience,Increases experience gained by 25% after sleeping
+inspired,Inspired,buff,900,false,1,0,craft_speed:1.5:multiply,0,none,0,rest,crafting|creativity,Increases crafting speed by 50% and improves quality
+weakness,Weakness,debuff,120,true,3,0,strength:0.75:multiply,0,none,0,medicine,combat|physical,Reduces physical strength by 25% per stack
+slow,Slow,debuff,90,true,3,0,speed:0.6:multiply,0,none,0,magic,movement|hindering,Reduces movement speed by 40% per stack
+blind,Blindness,debuff,60,false,1,0,vision_range:0.1:multiply,0,none,0,medicine,vision|severe,Drastically reduces visual range to near nothing
+silence,Silence,debuff,45,false,1,0,cast_speed:0:multiply,0,none,0,magic,mental|disabling,Prevents use of abilities and spells
+cursed,Cursed,debuff,600,false,1,0,luck:-20:add,0,none,0,magic,dark|persistent,Reduces luck and increases chance of negative events
+exhausted,Exhausted,debuff,300,false,1,0,stamina_regen:0.25:multiply,0,none,0,rest,stamina|fatigue,Severely reduces stamina regeneration by 75%
+confused,Confused,debuff,30,false,1,0,accuracy:0.5:multiply,0,none,0,medicine,mental|disorienting,Halves accuracy and may cause random movement
+frightened,Frightened,debuff,45,false,1,0,damage:0.7:multiply,0,none,0,rest,mental|fear,Reduces damage dealt by 30% and may cause fleeing
+frozen,Frozen,debuff,15,false,1,0,speed:0:multiply,0,none,0,magic,elemental|immobilizing,Completely immobilizes the target in ice
+burning,Burning,debuff,30,false,1,2,none:0:none,8,fire,0,item,elemental|damage,Deals 8 fire damage every 2 seconds
+poisoned,Poisoned,debuff,60,true,5,3,none:0:none,4,poison,0,medicine,toxic|damage,Deals 4 poison damage every 3 seconds per stack
+bleeding,Bleeding,debuff,45,true,3,2,none:0:none,6,physical,0,medicine,physical|damage,Deals 6 physical damage every 2 seconds per stack
+stunned,Stunned,debuff,5,false,1,0,speed:0:multiply,0,none,0,none,control|disabling,Completely prevents all actions for a short time
+disarmed,Disarmed,debuff,10,false,1,0,damage:0.3:multiply,0,none,0,none,combat|disabling,Forces weapon drop reducing damage to 30%
+vulnerable,Vulnerable,debuff,90,false,1,0,armor:-20:add,0,none,0,magic,defense|weakening,Reduces armor by 20 making target take more damage
+hungry,Hungry,condition,0,false,1,60,stamina_regen:0.7:multiply,1,physical,0,item,survival|food,Reduces stamina regen by 30% and slowly drains health
+thirsty,Thirsty,condition,0,false,1,45,speed:0.8:multiply,2,physical,0,item,survival|water,Reduces speed by 20% and drains health faster than hunger
+overheated,Overheated,condition,0,false,1,30,stamina_regen:0.5:multiply,3,heat,0,item,temperature|heat,Halves stamina regen and deals heat damage from high temperatures
+hypothermia,Hypothermia,condition,0,false,1,30,speed:0.5:multiply,4,cold,0,item,temperature|cold,Halves movement speed and deals cold damage from low temperatures
+oxygen_depleted,Oxygen Depleted,condition,0,false,1,5,none:0:none,15,suffocation,0,item,survival|critical,Rapidly drains health when no breathable air is available
+radiation_exposure,Radiation Exposure,condition,0,true,10,10,max_hp:-5:add,3,radiation,0,medicine,radiation|hazard,Reduces max HP by 5 per stack and deals radiation damage
+broken_bone,Broken Bone,condition,0,false,1,0,speed:0.4:multiply,0,none,0,medicine,injury|severe,Reduces speed by 60% and prevents sprinting until healed
+concussion,Concussion,condition,0,false,1,0,accuracy:0.6:multiply,0,none,0,medicine,injury|head,Reduces accuracy by 40% and causes periodic blurred vision
+infected_wound,Infected Wound,condition,0,false,1,20,none:0:none,3,infection,0,medicine,injury|infection,Deals ongoing damage that worsens over time if untreated
+sleep_deprived,Sleep Deprived,condition,0,false,1,0,xp_gain:0.5:multiply,0,none,0,rest,survival|fatigue,Halves experience gain and reduces accuracy by 20%
+common_cold,Common Cold,disease,7200,false,1,30,stamina_regen:0.85:multiply,1,disease,0,medicine,illness|minor,Mildly reduces stamina regen and causes occasional sneezing
+flu,Flu,disease,14400,false,1,20,speed:0.8:multiply,2,disease,0,medicine,illness|moderate,Reduces speed and stamina with periodic fever spikes
+infection,Infection,disease,28800,false,1,15,max_hp:-10:add,3,disease,0,medicine,illness|serious,Reduces max HP and deals ongoing damage requiring antibiotics
+plague,Plague,disease,86400,false,1,10,max_hp:-25:add,5,disease,0,medicine,illness|critical,Severely reduces max HP and spreads to nearby characters
+parasites,Parasites,disease,43200,false,1,60,hunger_rate:2.0:multiply,1,disease,0,medicine,illness|chronic,Doubles hunger rate as parasites consume nutrients
+allergic_reaction,Allergic Reaction,disease,3600,false,1,10,speed:0.7:multiply,2,disease,0,medicine,illness|acute,Causes swelling and reduced speed with periodic damage
+food_poisoning,Food Poisoning,disease,5400,false,1,15,stamina_regen:0.4:multiply,3,poison,0,medicine,illness|food,Severely reduces stamina and causes periodic vomiting
+radiation_sickness,Radiation Sickness,disease,72000,false,1,30,max_hp:-15:add,4,radiation,0,medicine,illness|radiation,Long-lasting reduction to max HP with ongoing radiation damage
+sunburn,Sunburn,environmental,0,true,3,30,armor:-5:add,1,heat,0,medicine,temperature|sun,Reduces armor slightly and causes mild pain from sun exposure
+frostbite,Frostbite,environmental,0,true,3,20,dexterity:0.7:multiply,2,cold,0,medicine,temperature|cold,Reduces dexterity by 30% per stack and damages extremities
+altitude_sickness,Altitude Sickness,environmental,0,false,1,15,stamina_regen:0.5:multiply,2,suffocation,0,rest,altitude|breathing,Halves stamina regen at extreme heights due to thin air
+decompression,Decompression,environmental,0,false,1,3,none:0:none,20,pressure,0,item,space|critical,Rapid health loss from exposure to vacuum conditions
+sandstorm_exposure,Sandstorm Exposure,environmental,0,false,1,5,vision_range:0.3:multiply,3,physical,0,item,weather|sand,Drastically reduces vision and deals abrasive physical damage
+toxic_atmosphere,Toxic Atmosphere,environmental,0,false,1,5,none:0:none,8,poison,0,item,atmosphere|toxic,Deals poison damage from breathing contaminated air
+underwater_pressure,Underwater Pressure,environmental,0,true,5,10,speed:0.9:multiply,2,pressure,0,item,aquatic|depth,Reduces speed and deals increasing damage at great depths
+zero_gravity,Zero Gravity,environmental,0,false,1,0,speed:0.6:multiply,0,none,0,none,space|movement,Reduces effective movement speed and changes locomotion mechanics
+sunlight_warmth,Sunlight Warmth,environmental,0,false,1,10,none:0:none,0,none,2,none,temperature|comfort,Gently restores health while basking in warm sunlight
+fresh_air,Fresh Air,environmental,0,false,1,15,stamina_regen:1.25:multiply,0,none,1,none,atmosphere|positive,Boosts stamina regeneration by 25% in clean open air
+hot_spring_comfort,Hot Spring Comfort,environmental,0,false,1,5,none:0:none,0,none,4,none,water|relaxation,Rapidly restores health while soaking in natural hot springs
+campfire_warmth,Campfire Warmth,environmental,0,false,1,10,cold_resist:0.5:multiply,0,none,2,none,fire|comfort,Provides cold resistance and gentle healing near a campfire
+music_inspiration,Music Inspiration,environmental,0,false,1,0,craft_speed:1.2:multiply,0,none,0,none,social|creativity,Increases crafting speed by 20% when listening to music

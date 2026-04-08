@@ -1,0 +1,150 @@
+# HumanityOS Spells & Abilities Database
+# All castable spells, tech abilities, and powers
+#
+# Column definitions:
+#   id                - Unique spell identifier (snake_case)
+#   name              - Display name
+#   type              - spell, ability, tech, psionic
+#   school            - fire, water, earth, air, lightning, ice, nature, shadow, light, arcane, healing, summoning, enchantment, gravity, time
+#   mana_cost         - Mana required to cast (0 for stamina-only abilities)
+#   stamina_cost      - Stamina required (0 if mana-only)
+#   cooldown_s        - Seconds before spell can be recast
+#   cast_time_s       - Seconds to channel/cast (0 = instant)
+#   range_m           - Range in meters (0 = self, -1 = unlimited)
+#   aoe_m             - Area of effect radius (0 = single target)
+#   aoe_shape         - point, cone, sphere, line, wall, ring
+#   damage_base       - Base damage (0 for non-damage spells)
+#   damage_type       - physical, fire, ice, lightning, poison, psychic, holy, shadow, true, none
+#   healing_base      - Base healing (0 for non-healing spells)
+#   duration_s        - Effect duration (0 = instant)
+#   level_required    - Minimum player level
+#   skill_required    - Skill name needed (empty = no skill)
+#   skill_level       - Minimum skill level (0 = none)
+#   tags              - Pipe-separated: offensive|defensive|utility|movement|summon|aura|passive|channeled
+#   description       - Short description
+#
+id,name,type,school,mana_cost,stamina_cost,cooldown_s,cast_time_s,range_m,aoe_m,aoe_shape,damage_base,damage_type,healing_base,duration_s,level_required,skill_required,skill_level,tags,description
+# === FIRE MAGIC ===
+fireball,Fireball,spell,fire,25,0,3,1.5,30,3,sphere,45,fire,0,0,1,pyromancy,1,offensive,Hurl an explosive ball of fire at your target
+flame_breath,Flame Breath,spell,fire,35,10,8,0,12,0,cone,55,fire,0,3,5,pyromancy,2,offensive|channeled,Exhale a scorching cone of flames
+fire_wall,Fire Wall,spell,fire,40,0,15,2,25,0,wall,20,fire,0,10,8,pyromancy,3,offensive|defensive,Raise a wall of fire that burns anything passing through
+inferno,Inferno,spell,fire,80,0,30,3,0,10,sphere,90,fire,0,6,18,pyromancy,7,offensive|aura,Engulf the surrounding area in an uncontrollable blaze
+ember_shot,Ember Shot,spell,fire,10,0,1,0,25,0,point,18,fire,0,0,1,pyromancy,1,offensive,Flick a quick ember projectile at a target
+immolate,Immolate,spell,fire,30,0,12,1,20,0,point,15,fire,0,8,6,pyromancy,2,offensive,Set a target ablaze dealing damage over time
+fire_shield,Fire Shield,spell,fire,35,0,20,0,0,0,point,10,fire,0,15,10,pyromancy,4,defensive,Surround yourself in flames that burn melee attackers
+volcanic_eruption,Volcanic Eruption,spell,fire,100,20,60,4,35,8,sphere,120,fire,0,5,22,pyromancy,9,offensive|channeled,Call forth a devastating eruption from the ground
+phoenix_flame,Phoenix Flame,spell,fire,90,0,120,3,0,5,sphere,0,fire,80,0,20,pyromancy,8,offensive|defensive,Burst into flames and rise renewed with restored health
+cauterize,Cauterize,spell,fire,15,5,10,1,5,0,point,5,fire,25,0,3,pyromancy,1,utility|offensive,Burn a wound shut to stop bleeding and restore some health
+# === WATER/ICE MAGIC ===
+ice_bolt,Ice Bolt,spell,ice,20,0,2,1,30,0,point,35,ice,0,0,1,cryomancy,1,offensive,Launch a piercing shard of ice
+frost_nova,Frost Nova,spell,ice,30,0,12,0,0,8,sphere,25,ice,0,4,4,cryomancy,2,offensive|defensive,Blast outward with freezing energy slowing nearby enemies
+blizzard,Blizzard,spell,ice,70,0,25,3,30,10,sphere,60,ice,0,8,16,cryomancy,6,offensive|channeled,Summon a devastating ice storm over a large area
+water_shield,Water Shield,spell,water,25,0,18,0,0,0,point,0,none,0,12,5,cryomancy,2,defensive,Encase yourself in a protective layer of swirling water
+tidal_wave,Tidal Wave,spell,water,60,10,20,2.5,25,6,cone,50,physical,0,0,12,cryomancy,5,offensive|movement,Unleash a powerful wave that knocks back and damages enemies
+freeze,Freeze,spell,ice,35,0,15,1.5,20,0,point,10,ice,0,5,8,cryomancy,3,offensive|utility,Encase a target in solid ice immobilizing them
+ice_wall,Ice Wall,spell,ice,30,0,15,1,20,0,wall,0,none,0,12,7,cryomancy,3,defensive,Erect a barrier of solid ice blocking movement and projectiles
+healing_rain,Healing Rain,spell,water,50,0,30,2,25,8,sphere,0,none,15,10,10,cryomancy,4,defensive|aura,Call down a gentle rain that heals allies in the area over time
+water_breathing,Water Breathing,spell,water,20,0,5,1,5,0,point,0,none,0,300,3,cryomancy,1,utility,Grant the ability to breathe underwater for several minutes
+cryogenic_blast,Cryogenic Blast,spell,ice,85,0,35,2,20,6,sphere,95,ice,0,3,20,cryomancy,8,offensive,Detonate a sphere of absolute cold shattering frozen targets
+# === EARTH MAGIC ===
+stone_skin,Stone Skin,spell,earth,30,0,25,1,0,0,point,0,none,0,20,3,geomancy,1,defensive,Harden your skin to stone reducing incoming physical damage
+earthquake,Earthquake,spell,earth,75,15,30,3,0,12,sphere,70,physical,0,4,15,geomancy,6,offensive,Shake the ground violently damaging and staggering all nearby
+rock_throw,Rock Throw,spell,earth,15,10,4,1,25,0,point,30,physical,0,0,1,geomancy,1,offensive,Rip a boulder from the ground and hurl it at a target
+earth_wall,Earth Wall,spell,earth,25,0,12,1.5,20,0,wall,0,none,0,15,5,geomancy,2,defensive,Raise a wall of packed earth to block passage
+quicksand,Quicksand,spell,earth,40,0,18,2,20,5,sphere,0,none,0,8,9,geomancy,4,offensive|utility,Turn the ground to quicksand trapping anything that walks over it
+petrify,Petrify,spell,earth,55,0,30,2.5,15,0,point,0,none,0,6,14,geomancy,5,offensive|utility,Turn a target to stone immobilizing them completely
+crystal_armor,Crystal Armor,spell,earth,45,0,35,2,0,0,point,0,none,0,25,11,geomancy,4,defensive,Encase yourself in crystalline armor with high damage resistance
+tremor_sense,Tremor Sense,spell,earth,10,5,20,0,0,30,sphere,0,none,0,30,2,geomancy,1,utility|passive,Feel vibrations through the ground revealing nearby hidden creatures
+# === AIR/LIGHTNING MAGIC ===
+lightning_bolt,Lightning Bolt,spell,lightning,30,0,4,1,35,0,point,50,lightning,0,0,3,aeromancy,1,offensive,Call down a bolt of lightning on a target
+chain_lightning,Chain Lightning,spell,lightning,55,0,10,1.5,30,0,point,40,lightning,0,0,12,aeromancy,5,offensive,Strike a target with lightning that arcs to nearby enemies
+gust,Gust,spell,air,15,5,6,0,15,0,cone,10,physical,0,0,1,aeromancy,1,offensive|utility|movement,Blast a cone of wind pushing back enemies and projectiles
+levitate,Levitate,spell,air,20,0,10,1,0,0,point,0,none,0,15,6,aeromancy,2,movement|utility,Rise off the ground and hover gaining slow flight
+thunder_strike,Thunder Strike,spell,lightning,70,0,20,2.5,25,5,sphere,85,lightning,0,0,16,aeromancy,6,offensive,Call a massive thunderbolt that stuns targets in the blast area
+wind_shield,Wind Shield,spell,air,25,0,18,0,0,0,point,0,none,0,12,5,aeromancy,2,defensive,Surround yourself with swirling winds deflecting ranged attacks
+storm_call,Storm Call,spell,lightning,90,10,45,4,0,15,sphere,75,lightning,0,10,20,aeromancy,8,offensive|channeled,Summon a raging electrical storm over a wide area
+static_field,Static Field,spell,lightning,35,0,14,1,0,6,ring,30,lightning,0,5,8,aeromancy,3,offensive|defensive|aura,Generate a crackling field of static that damages enemies who enter
+# === NATURE MAGIC ===
+entangle,Entangle,spell,nature,25,0,10,1.5,20,4,sphere,0,none,0,6,2,druidism,1,offensive|utility,Cause roots and vines to erupt from the ground binding targets
+heal,Heal,spell,healing,30,0,4,1.5,15,0,point,0,none,50,0,1,druidism,1,defensive,Channel natural energy to restore a target's health
+regeneration,Regeneration,spell,healing,20,0,15,1,10,0,point,0,none,8,20,4,druidism,2,defensive,Grant a target accelerated natural healing over time
+poison_cloud,Poison Cloud,spell,nature,40,0,15,2,25,5,sphere,10,poison,0,8,7,druidism,3,offensive,Release a cloud of toxic spores that poisons those inside
+thorn_barrier,Thorn Barrier,spell,nature,30,0,18,1.5,0,4,ring,15,physical,0,12,6,druidism,2,defensive,Surround yourself with a ring of sharp thorns damaging melee attackers
+plant_growth,Plant Growth,spell,nature,20,10,30,3,15,6,sphere,0,none,0,60,3,druidism,1,utility,Accelerate plant growth in an area useful for farming and cover
+summon_beast,Summon Beast,spell,summoning,50,0,45,3,5,0,point,0,none,0,120,10,druidism,4,summon,Call a wild beast to fight alongside you
+purify,Purify,spell,healing,15,0,8,1,10,0,point,0,none,10,0,2,druidism,1,utility|defensive,Remove poisons debuffs and diseases from a target
+# === SHADOW MAGIC ===
+shadow_bolt,Shadow Bolt,spell,shadow,25,0,3,1,30,0,point,40,shadow,0,0,2,shadow_arts,1,offensive,Fire a bolt of concentrated shadow energy
+fear,Fear,spell,shadow,30,0,15,1,15,0,point,0,psychic,0,5,5,shadow_arts,2,offensive|utility,Fill a target's mind with terror causing them to flee
+invisibility,Invisibility,spell,shadow,40,0,30,2,0,0,point,0,none,0,20,8,shadow_arts,3,utility|movement,Bend shadows around yourself becoming invisible
+drain_life,Drain Life,spell,shadow,35,0,8,0,15,0,point,30,shadow,20,3,6,shadow_arts,2,offensive|defensive|channeled,Drain the life force from a target healing yourself
+summon_undead,Summon Undead,spell,summoning,60,0,60,3,10,0,point,0,none,0,120,14,shadow_arts,5,summon,Raise the dead to serve you in combat
+shadow_step,Shadow Step,spell,shadow,20,10,8,0,25,0,point,0,none,0,0,4,shadow_arts,2,movement,Teleport through the shadows to a target location
+darkness,Darkness,spell,shadow,35,0,20,1.5,25,8,sphere,0,none,0,10,9,shadow_arts,4,utility|offensive,Plunge an area into magical darkness blinding those inside
+nightmare,Nightmare,spell,shadow,50,0,25,2,15,0,point,25,psychic,0,6,12,shadow_arts,5,offensive,Trap a target in a waking nightmare dealing psychic damage over time
+# === LIGHT/HOLY MAGIC ===
+smite,Smite,spell,light,25,0,4,1,25,0,point,45,holy,0,0,2,divinity,1,offensive,Strike a target with a beam of holy light
+holy_light,Holy Light,spell,light,30,0,5,1.5,20,0,point,0,none,55,0,1,divinity,1,defensive,Bathe a target in healing holy light
+blessing,Blessing,spell,light,20,0,30,1,10,0,point,0,none,0,60,3,divinity,1,utility|defensive,Grant a target increased strength and resilience
+consecrate,Consecrate,spell,light,40,0,18,2,0,6,sphere,20,holy,10,10,8,divinity,3,offensive|defensive|aura,Sanctify the ground around you damaging enemies and healing allies
+divine_shield,Divine Shield,spell,light,60,0,60,0,0,0,point,0,none,0,6,15,divinity,6,defensive,Become immune to all damage for a short time
+resurrect,Resurrect,spell,light,100,30,300,5,5,0,point,0,none,0,0,20,divinity,8,utility|defensive,Bring a fallen ally back to life
+banish,Banish,spell,light,45,0,20,2,20,0,point,0,holy,0,8,11,divinity,4,offensive|utility,Banish a summoned or undead creature removing it from the fight
+radiance,Radiance,spell,light,55,0,25,2,0,10,sphere,35,holy,20,6,13,divinity,5,offensive|defensive|aura,Emanate blinding holy light damaging enemies and soothing allies
+# === ARCANE MAGIC ===
+magic_missile,Magic Missile,spell,arcane,15,0,2,0.5,35,0,point,25,true,0,0,1,arcana,1,offensive,Launch unerring bolts of arcane energy that never miss
+teleport,Teleport,spell,arcane,50,0,30,2,50,0,point,0,none,0,0,10,arcana,4,movement|utility,Instantly transport yourself to a visible location
+dispel,Dispel,spell,arcane,30,0,12,1,20,0,point,0,none,0,0,6,arcana,2,utility,Remove magical effects from a target friend or foe
+arcane_shield,Arcane Shield,spell,arcane,25,0,15,0,0,0,point,0,none,0,10,4,arcana,2,defensive,Project a shimmering barrier of arcane energy
+polymorph,Polymorph,spell,arcane,55,0,30,2,15,0,point,0,none,0,10,14,arcana,6,offensive|utility,Transform a target into a harmless creature
+time_slow,Time Slow,spell,time,60,0,40,2,0,8,sphere,0,none,0,6,16,arcana,7,utility|offensive,Slow the flow of time for enemies in the area
+mana_drain,Mana Drain,spell,arcane,0,15,10,1,20,0,point,0,none,0,4,7,arcana,3,offensive|utility|channeled,Siphon mana from a target replenishing your own
+arcane_explosion,Arcane Explosion,spell,arcane,45,0,8,0,0,7,sphere,55,true,0,0,9,arcana,4,offensive,Release a burst of raw arcane energy in all directions
+# === GRAVITY MAGIC ===
+gravity_well,Gravity Well,spell,gravity,50,0,18,2,25,6,sphere,20,physical,0,6,10,arcana,4,offensive|utility,Create a point of intense gravity pulling enemies inward
+gravity_levitate,Gravity Levitate,spell,gravity,25,0,12,1,0,0,point,0,none,0,20,5,arcana,2,movement|utility,Reduce your own gravity to float and glide
+crush,Crush,spell,gravity,65,0,15,2,20,0,point,80,physical,0,0,14,arcana,6,offensive,Compress a target under crushing gravitational force
+repel,Repel,spell,gravity,30,0,10,0,0,8,sphere,15,physical,0,0,7,arcana,3,defensive|movement,Blast outward with a gravity pulse knocking back all nearby
+orbit,Orbit,spell,gravity,40,0,20,1.5,0,5,ring,25,physical,0,8,11,arcana,5,defensive|offensive,Cause debris to orbit you damaging enemies who come close
+singularity,Singularity,spell,gravity,120,20,90,4,30,10,sphere,150,true,0,4,24,arcana,10,offensive,Collapse space into a devastating singularity destroying everything nearby
+# === SUMMONING ===
+summon_familiar,Summon Familiar,spell,summoning,30,0,60,3,5,0,point,0,none,0,300,3,summoning,1,summon|utility,Summon a small magical companion that aids in combat and exploration
+conjure_weapon,Conjure Weapon,spell,summoning,20,0,15,1,0,0,point,0,none,0,120,4,summoning,2,utility,Materialize a weapon of pure magical energy
+summon_elemental,Summon Elemental,spell,summoning,65,0,90,4,10,0,point,0,none,0,120,13,summoning,5,summon,Call forth a powerful elemental being to fight for you
+create_golem,Create Golem,spell,summoning,80,20,120,5,5,0,point,0,none,0,180,17,summoning,7,summon,Construct a golem from nearby materials to serve as a guardian
+summon_mount,Summon Mount,spell,summoning,25,0,10,2,5,0,point,0,none,0,600,6,summoning,2,summon|movement,Call your bonded mount to your side
+dimensional_rift,Dimensional Rift,spell,summoning,100,15,120,5,20,4,sphere,0,none,0,30,22,summoning,9,summon|utility,Tear open a rift to another dimension allowing passage or summoning allies
+# === ENCHANTMENT ===
+enchant_weapon,Enchant Weapon,spell,enchantment,30,0,30,2,5,0,point,0,none,0,120,4,enchanting,2,utility,Imbue a weapon with magical energy increasing its damage
+enchant_armor,Enchant Armor,spell,enchantment,30,0,30,2,5,0,point,0,none,0,120,4,enchanting,2,utility|defensive,Reinforce armor with magic increasing its protection
+charm,Charm,spell,enchantment,35,0,20,1.5,15,0,point,0,psychic,0,10,7,enchanting,3,offensive|utility,Charm a target making them friendly toward you temporarily
+mind_control,Mind Control,spell,enchantment,70,0,60,3,10,0,point,0,psychic,0,8,18,enchanting,7,offensive|channeled,Seize control of a target's mind commanding their actions
+imbue_element,Imbue Element,spell,enchantment,25,0,20,1.5,5,0,point,0,none,0,60,5,enchanting,2,utility,Add elemental damage to a weapon matching your attunement
+ward,Ward,spell,enchantment,40,0,25,2,5,3,sphere,0,none,0,30,9,enchanting,4,defensive,Place a protective ward on an area that alerts and shields against intrusion
+# === TECH ABILITIES ===
+repair,Repair,tech,none,0,20,8,2,5,0,point,0,none,40,0,1,engineering,1,utility|defensive,Repair a mechanical device or structure restoring its integrity
+overclock,Overclock,tech,none,0,25,30,1,0,0,point,0,none,0,15,6,engineering,3,utility,Push your equipment beyond normal limits increasing performance temporarily
+emp_blast,EMP Blast,tech,lightning,0,30,25,1.5,0,8,sphere,40,lightning,0,3,10,engineering,4,offensive,Discharge an electromagnetic pulse disabling electronics and shields
+deploy_turret,Deploy Turret,tech,none,0,35,45,3,5,0,point,25,physical,0,60,8,engineering,3,offensive|summon,Deploy an automated turret that attacks nearby hostiles
+hack,Hack,tech,none,0,15,12,2,10,0,point,0,none,0,10,5,engineering,2,utility,Override electronic systems to gain access or disable them
+energy_shield,Energy Shield,tech,none,0,20,20,0,0,0,point,0,none,0,10,4,engineering,2,defensive,Activate a personal energy barrier absorbing incoming damage
+jet_boost,Jet Boost,tech,none,0,15,6,0,0,0,point,0,none,0,3,2,engineering,1,movement,Fire directional thrusters for a quick burst of movement
+scan,Scan,tech,none,0,10,8,1,0,20,sphere,0,none,0,5,1,engineering,1,utility,Scan the surrounding area revealing enemies resources and hazards
+deploy_drone,Deploy Drone,tech,none,0,25,30,2,5,0,point,0,none,0,90,7,engineering,3,utility|summon,Launch a reconnaissance drone that scouts ahead
+nano_heal,Nano Heal,tech,none,0,30,15,1,10,0,point,0,none,45,5,9,engineering,4,defensive,Deploy medical nanobots that rapidly repair biological tissue
+# === PSIONIC POWERS ===
+telekinesis,Telekinesis,psionic,arcane,20,10,6,0,20,0,point,20,physical,0,0,3,psionics,1,offensive|utility,Move objects or creatures with the power of your mind
+mind_blast,Mind Blast,psionic,arcane,40,0,8,1,15,4,cone,50,psychic,0,0,8,psionics,3,offensive,Release a devastating wave of psychic force
+psychic_barrier,Psychic Barrier,psionic,arcane,30,0,18,0,0,0,point,0,none,0,12,6,psionics,2,defensive,Project a mental barrier that absorbs incoming damage
+precognition,Precognition,psionic,time,25,5,25,1,0,0,point,0,none,0,15,7,psionics,3,utility|defensive,Glimpse the near future increasing evasion and reaction speed
+empathic_link,Empathic Link,psionic,arcane,15,0,20,1.5,20,0,point,0,none,0,60,4,psionics,2,utility,Forge a mental bond with an ally sharing senses and warnings
+astral_projection,Astral Projection,psionic,arcane,45,0,60,3,0,0,point,0,none,0,30,12,psionics,5,utility|movement,Project your consciousness leaving your body to scout as a spirit
+dominate,Dominate,psionic,arcane,65,0,45,2.5,10,0,point,0,psychic,0,10,16,psionics,7,offensive,Overwhelm a target's will forcing them to obey your commands
+psychic_scream,Psychic Scream,psionic,arcane,55,10,20,1,0,8,sphere,65,psychic,0,2,14,psionics,6,offensive,Unleash a scream of pure psychic anguish stunning and damaging all nearby
+# === SURVIVAL ABILITIES ===
+campfire,Campfire,ability,nature,0,15,60,5,0,4,sphere,0,none,3,120,1,,0,utility|defensive,Build a campfire that provides warmth light and slow healing
+purify_water,Purify Water,ability,nature,0,10,30,3,2,0,point,0,none,0,0,1,,0,utility,Make contaminated water safe to drink
+forage,Forage,ability,nature,0,10,15,2,0,5,sphere,0,none,0,0,1,,0,utility,Search the immediate area for edible plants and useful materials
+track,Track,ability,nature,0,10,10,1,0,15,sphere,0,none,0,30,2,,0,utility,Read tracks and signs to locate nearby creatures
+first_aid,First Aid,ability,healing,0,15,10,3,2,0,point,0,none,35,0,1,,0,defensive|utility,Apply basic medical treatment to stabilize and heal wounds
+endure_elements,Endure Elements,ability,nature,0,20,60,2,0,0,point,0,none,0,300,3,,0,defensive|utility,Steel yourself against harsh weather reducing environmental damage

@@ -287,12 +287,17 @@ pub struct ChatDm {
 }
 
 /// A group chat entry for the left panel.
+/// Each group acts like a mini-server with its own channels.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct ChatGroup {
     pub name: String,
     pub id: String,
     pub member_count: u32,
+    /// Group channels (default: just #general)
+    pub channels: Vec<ChatChannel>,
+    /// Whether this group's channel list is collapsed in the sidebar
+    pub collapsed: bool,
 }
 
 /// A server entry for the left panel (each server has text + voice channels).
@@ -705,8 +710,11 @@ pub struct GuiState {
     pub chat_dm_collapsed: bool,
     pub chat_groups_collapsed: bool,
     pub chat_servers_collapsed: bool,
+    pub chat_connected_server_collapsed: bool,
     pub chat_friends_collapsed: bool,
     pub chat_members_collapsed: bool,
+    /// How many DM conversations to show (3, 5, 10, or 0 = all)
+    pub chat_dm_display_limit: usize,
 
     // ── Chat panel resize/lock state ──
     pub chat_left_panel_locked: bool,
@@ -936,8 +944,10 @@ impl Default for GuiState {
             chat_dm_collapsed: false,
             chat_groups_collapsed: false,
             chat_servers_collapsed: false,
+            chat_connected_server_collapsed: false,
             chat_friends_collapsed: false,
             chat_members_collapsed: false,
+            chat_dm_display_limit: 5,
 
             // Chat panel resize/lock state
             chat_left_panel_locked: false,

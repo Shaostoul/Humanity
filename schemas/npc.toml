@@ -1,0 +1,538 @@
+# HumanityOS NPC Schema
+# Defines non-player characters: merchants, quest givers, guards, villagers,
+# companions, and any other entity the player can interact with socially.
+#
+# NPCs are built on top of the creature system. Every NPC has a creature_id
+# that defines their physical body (health, movement, model). This schema
+# adds the social, economic, and behavioral layers on top.
+#
+# NPCs connect to five major systems:
+#   1. AI behavior  -- daily schedules, personality-driven decisions, autonomy
+#   2. Quests       -- dialogue trees, quest assignment, objective tracking
+#   3. Trading      -- shop inventories, service menus, pricing
+#   4. Factions     -- allegiance, reputation gates, faction-wide reactions
+#   5. Combat       -- combat style, threat response, essential flag
+#
+# File format: RON or TOML (one file per NPC, or grouped by location)
+# Hot-reloadable: Yes (NPC data reloads without restarting the game)
+# Referenced by: quest files (RON), faction definitions, location spawn tables
+# References: creature types, dialogue trees, item definitions, skill definitions
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this NPC. Used in quest scripts, dialogue references,
+save data, and spawn tables. Convention: location_role_name or just a
+descriptive unique slug."""
+constraints = "snake_case, unique across all NPCs"
+examples = ["haven_blacksmith_karl", "orbital_station_trader_mei", "tutorial_guide_aria"]
+
+[fields.name]
+type = "string"
+required = true
+description = "The NPC's display name shown in dialogue, nameplates, and the social panel."
+constraints = "Under 40 characters"
+examples = ["Karl Voss", "Mei Chen", "Aria"]
+
+[fields.title]
+type = "string"
+required = false
+default = ""
+description = """
+Occupational or social title displayed below the NPC's name on their
+nameplate. Empty string if the NPC has no special role."""
+constraints = "Under 30 characters, Title Case"
+examples = ["Blacksmith", "Mayor", "Guard Captain", "Wandering Merchant", ""]
+
+[fields.creature_id]
+type = "string"
+required = true
+description = """
+References a base creature type that defines the NPC's physical properties:
+species, health pool, movement speed, 3D model, skeleton, hitbox, and
+base animations. Most human NPCs use 'human_adult'. Alien merchants,
+robot vendors, or animal companions would use their own creature type."""
+constraints = "Must match an id in the creature data files"
+examples = ["human_adult", "human_elder", "robot_utility", "alien_trader"]
+
+[fields.faction_id]
+type = "string"
+required = false
+default = ""
+description = """
+The faction this NPC belongs to. Faction membership determines the NPC's
+base disposition toward the player (friendly, neutral, hostile) and which
+other NPCs they cooperate with. Empty string means unaffiliated."""
+constraints = "Must match a faction id in the faction data, or empty"
+examples = ["haven_settlers", "orbital_traders_guild", "mining_consortium", ""]
+
+[fields.rank_in_faction]
+type = "string"
+required = false
+default = "member"
+description = """
+The NPC's rank within their faction. Higher-ranked NPCs may unlock special
+dialogue options, offer better trade prices, or give faction-critical quests.
+The faction data file defines valid ranks and their privileges."""
+constraints = "Must be a valid rank in the NPC's faction definition"
+examples = ["leader", "officer", "veteran", "member", "recruit", "outsider"]
+
+[fields.location_id]
+type = "string"
+required = true
+description = """
+The location where this NPC spawns and considers 'home'. The NPC returns
+here at the end of their daily schedule or when no other activity is
+active. For wandering NPCs, this is their starting location."""
+constraints = "Must match a location id in the world data"
+examples = ["haven_forge", "orbital_station_market", "tutorial_clearing", "roaming"]
+
+[fields.schedule]
+type = "array of strings"
+required = false
+default = []
+description = """
+Daily routine entries that drive the NPC's autonomous behavior. Each entry
+is a time:location:activity triple. The AI behavior system reads the
+schedule and moves the NPC between locations throughout the day cycle.
+If empty, the NPC stays at location_id permanently.
+
+Time uses 24-hour format (HH:MM). The game day runs 00:00 to 23:59.
+Activities are predefined behavior labels that the AI system understands."""
+constraints = "Format: HH:MM:location_id:activity per entry"
+examples = [
+    [
+        "06:00:haven_home_karl:sleep",
+        "07:00:haven_tavern:eat",
+        "08:00:haven_forge:work",
+        "12:00:haven_tavern:eat",
+        "13:00:haven_forge:work",
+        "18:00:haven_tavern:socialize",
+        "21:00:haven_home_karl:sleep",
+    ],
+    [
+        "00:00:haven_gate_north:patrol",
+        "06:00:haven_barracks:sleep",
+        "14:00:haven_gate_north:patrol",
+    ],
+]
+
+[fields.dialogue_tree_id]
+type = "string"
+required = false
+default = ""
+description = """
+Reference to the dialogue tree file/entry that defines this NPC's
+conversation options. Dialogue trees are separate data files (RON format)
+that contain branching text, condition checks (quest state, faction
+standing, skill levels), and response options. Empty string means the
+NPC has no dialogue (ambient background NPCs, animals)."""
+constraints = "Must match a dialogue tree id, or empty"
+examples = ["dlg_karl_blacksmith", "dlg_mei_trader", "dlg_aria_tutorial", ""]
+
+[fields.shop_inventory]
+type = "array of strings"
+required = false
+default = []
+description = """
+For merchant NPCs: the list of items they sell. Each entry is an
+item_id:stock_count:restock_time_s triple. stock_count is how many they
+have at any given time. restock_time_s is seconds of game time before one
+unit restocks (0 = infinite stock, never runs out). Empty array means
+this NPC is not a merchant.
+
+Prices are calculated from the item's base value modified by the NPC's
+faction standing with the player and the NPC's personality
+(greedy = higher prices, generous = lower)."""
+constraints = "Format: item_id:stock:restock_time_s per entry"
+examples = [
+    [
+        "steel_ingot_0:20:3600",
+        "iron_ore_0:50:1800",
+        "claw_hammer_0:3:7200",
+        "anvil_0:1:86400",
+    ],
+    [
+        "emergency_ration:100:0",
+        "water_bottle:100:0",
+        "medkit_0:10:3600",
+    ],
+]
+
+[fields.services]
+type = "array of strings"
+required = false
+default = []
+description = """
+Non-trade services this NPC offers. Each service opens a specific UI panel
+when selected in dialogue. Services may have costs (currency or items) and
+skill/faction prerequisites defined in the service data."""
+constraints = "Each value must be a recognized service type"
+valid_values = [
+    "repair",         # Fix damaged items (cost scales with damage)
+    "enchant",        # Add or modify item modifiers (magic/tech augments)
+    "heal",           # Restore player health (faster than natural regen)
+    "train",          # Spend currency to gain skill XP
+    "transport",      # Fast travel to another location
+    "bank",           # Secure item/currency storage across locations
+    "quest_board",    # Browse and accept available quests
+    "craft",          # Access a specialized crafting station (forge, lab)
+    "identify",       # Reveal unknown item properties
+    "bounty",         # Place or claim bounties on creatures/players
+]
+examples = [
+    ["repair", "craft"],
+    ["heal", "train"],
+    ["transport", "quest_board"],
+]
+
+[fields.personality_traits]
+type = "string"
+required = false
+default = "neutral"
+description = """
+Pipe-separated personality labels that influence the AI behavior system's
+decision-making for this NPC. Traits affect:
+  - Dialogue tone (grumpy NPCs have shorter, blunter responses)
+  - Trade prices (greedy = markup, generous = discount)
+  - Reaction to player actions (suspicious NPCs report crimes faster)
+  - Social behavior (jovial NPCs initiate conversation; stoic ones don't)
+  - Combat decisions (cowardly NPCs flee sooner)
+Multiple traits combine. Contradictory traits are allowed (the AI averages
+their influence)."""
+constraints = "Pipe-separated values from the recognized trait list"
+examples = [
+    "friendly|wise|generous",
+    "grumpy|skilled|honest",
+    "suspicious|greedy|cowardly",
+    "jovial|brave|impulsive",
+    "stoic",
+    "neutral",
+]
+
+[fields.voice_set_id]
+type = "string"
+required = false
+default = "default_human"
+description = """
+Reference to a set of voice audio clips used for ambient barks (greetings,
+combat shouts, idle chatter). Voice sets are defined in the audio system
+and contain clips keyed by situation (greet, farewell, hurt, attack, idle)."""
+constraints = "Must match a voice set id in the audio registry"
+examples = ["voice_male_gruff", "voice_female_calm", "voice_robot_mono", "default_human"]
+
+[fields.portrait_id]
+type = "string"
+required = false
+default = ""
+description = """
+Reference to a 2D portrait image used in dialogue UI, the social panel,
+and quest log entries. Portraits live in assets/icons/portraits/. Empty
+string means the game uses a generated portrait from the creature model."""
+constraints = "Must reference a valid portrait asset, or empty for auto-generated"
+examples = ["portrait_karl", "portrait_mei", "portrait_aria", ""]
+
+[fields.essential]
+type = "boolean"
+required = false
+default = false
+description = """
+Whether this NPC is plot-critical and cannot be permanently killed. Essential
+NPCs that reach 0 HP enter a 'downed' state (kneel, become invulnerable)
+and recover after a short time. This prevents the player from breaking
+quest chains by killing key characters. Non-essential NPCs can be killed
+permanently, which may fail associated quests."""
+examples = [false, true]
+
+[fields.hire_cost]
+type = "integer"
+required = false
+default = 0
+description = """
+For companion NPCs: the one-time cost in currency units to hire them.
+0 means this NPC cannot be hired as a companion. Hired companions follow
+the player, fight alongside them, carry items, and can be given orders.
+The companion system manages party size limits and companion AI separately
+from the NPC's normal schedule."""
+constraints = "Must be >= 0"
+examples = [0, 100, 500, 2000]
+
+[fields.relationship_system]
+type = "boolean"
+required = false
+default = false
+description = """
+Whether the player can build a tracked relationship with this NPC. When
+true, the game tracks a relationship_score (-100 to 100) that changes
+based on gifts, quests completed for them, dialogue choices, and time
+spent nearby. High relationship unlocks special dialogue, better prices,
+unique quests, and (for romance-flagged NPCs) romance content. When false,
+the NPC is purely transactional (shop, service, quest giver with no
+personal connection)."""
+examples = [false, true]
+
+[fields.combat_style]
+type = "string"
+required = false
+default = "pacifist"
+description = """
+How this NPC behaves in combat. The AI combat system reads this to select
+behavior trees, weapon preferences, and positioning logic."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "melee",     # Closes distance, uses swords/hammers/fists
+    "ranged",    # Keeps distance, uses bows/guns/thrown weapons
+    "magic",     # Uses abilities/tech powers from range
+    "support",   # Heals allies, buffs, debuffs enemies, avoids direct fights
+    "pacifist",  # Never attacks, flees when threatened
+]
+examples = ["melee", "ranged", "pacifist", "support"]
+
+[fields.level]
+type = "integer"
+required = false
+default = 1
+description = """
+The NPC's overall power level. Affects base stats (health, damage, defense)
+through the creature system's level scaling curve. Higher-level NPCs are
+tougher in combat, have better shop inventories, and can train skills to
+higher tiers."""
+constraints = "Must be >= 1"
+examples = [1, 5, 15, 30, 50]
+
+[fields.skills]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated skill_id:level pairs representing this NPC's proficiencies.
+Skills affect what the NPC can craft (for crafting services), what they can
+train the player in, and their combat effectiveness with specific weapon
+types. Empty string means no special skills beyond their level defaults."""
+constraints = "Pipe-separated skill_id:level pairs"
+examples = [
+    "smithing:8|mining:5|melee_combat:6",
+    "marksmanship:7|survival:4|cooking:3",
+    "medicine:9|herbalism:7|diplomacy:5",
+    "",
+]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+ai_behavior = """
+The AI behavior system (native/src/systems/ai/) reads the NPC's schedule,
+personality_traits, and combat_style to drive autonomous behavior. Each
+game tick, the AI:
+
+  1. Checks the current schedule entry for the game time
+  2. Moves the NPC toward the scheduled location (pathfinding)
+  3. Performs the scheduled activity (work, eat, patrol, sleep)
+  4. Responds to interrupts (player interaction, combat, alarms)
+
+Personality traits weight the AI's decisions. A brave NPC charges into
+combat; a cowardly one flees. A friendly NPC greets passersby; a grumpy
+one ignores them. The system uses behavior trees with trait-weighted
+branch probabilities.
+
+Off-screen NPCs are simulated at reduced fidelity (schedule-only, no
+pathfinding or physics) to save performance. When the player enters the
+NPC's chunk, full AI resumes."""
+
+quests = """
+Quest files (data/quests/*.ron) reference NPCs by id for:
+  - Quest givers: the NPC whose dialogue starts the quest
+  - Objectives: 'talk to X', 'deliver item to X', 'defend X'
+  - Rewards: the NPC hands over items/currency on completion
+
+The quest system checks NPC availability (is the NPC alive? is the player
+at the right location? does the player meet faction standing requirements?)
+before offering quests. Essential NPCs guarantee quest availability."""
+
+trading = """
+When the player opens a merchant NPC's shop, the game reads shop_inventory
+to populate the trade UI. Prices are calculated:
+
+  base_price = item.base_value
+  faction_mod = faction_standing_multiplier(player, npc.faction_id)
+  personality_mod = personality_price_modifier(npc.personality_traits)
+  final_price = base_price * faction_mod * personality_mod
+
+Greedy NPCs charge ~20% more. Generous NPCs charge ~15% less. High faction
+standing reduces prices by up to 25%. These modifiers stack multiplicatively.
+
+Stock depletes as the player buys and restocks over time per the
+restock_time_s values. Selling to a merchant adds to their stock (they
+resell player items to other NPCs or players in multiplayer)."""
+
+factions = """
+NPC faction membership determines:
+  - Base disposition toward the player (before personal relationship)
+  - Group reactions: attacking one faction NPC may turn the whole faction hostile
+  - Access gates: certain NPCs only talk to players with sufficient faction standing
+  - Territory: faction-owned locations may restrict player access
+
+Faction standing is a separate system (-100 to 100 per faction). Quests,
+dialogue choices, and combat actions modify standing. NPCs reference
+faction_id and rank_in_faction to determine their authority level within
+the faction hierarchy."""
+
+companions = """
+NPCs with hire_cost > 0 can join the player's party as companions.
+Once hired:
+  - Their schedule is replaced by 'follow player'
+  - They fight using their combat_style and skills
+  - They have a separate inventory (accessible through the party panel)
+  - Relationship score affects their morale and combat effectiveness
+  - They can be dismissed (return to their home location_id)
+
+Max party size is defined in config.toml. Companions persist across
+save/load. Their equipment can be managed by the player."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+naming = """
+NPC ids follow the pattern: location_role_name
+  haven_blacksmith_karl    -- Karl the blacksmith at Haven
+  orbital_trader_mei       -- Mei the trader on the orbital station
+  roaming_merchant_vex     -- Vex, a wandering merchant with no fixed home
+
+For generic/template NPCs (random guards, unnamed villagers), use:
+  haven_guard_01, haven_guard_02, haven_villager_01
+The number suffix allows multiple instances of the same template."""
+
+essential_guidelines = """
+Mark an NPC as essential ONLY if they are required for a main quest chain
+that cannot be completed otherwise. Side quest NPCs should NOT be essential.
+If a non-essential quest-giver dies, the quest should either:
+  - Fail gracefully with a journal entry explaining what happened
+  - Transfer to another NPC (the game picks the nearest faction member)
+
+This gives player actions real consequences while preventing soft-locks."""
+
+schedule_coverage = """
+Every hour of the game day should be covered by a schedule entry. If you
+leave gaps, the NPC defaults to 'idle at current location'. Sleeping should
+cover at least 6 hours for humans (the AI personality may shorten this for
+workaholics or lengthen it for lazy NPCs). NPCs with patrol schedules
+should rotate between multiple patrol points."""
+
+companion_balance = """
+Companion NPCs should be weaker than the player at equivalent level. Their
+value comes from utility (carrying items, covering a different combat role,
+providing services in the field) rather than raw combat power. This prevents
+companions from trivializing combat encounters."""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[[examples]]
+description = "Blacksmith NPC: merchant, crafting services, full daily schedule"
+toml = """
+id = \"haven_blacksmith_karl\"
+name = \"Karl Voss\"
+title = \"Blacksmith\"
+creature_id = \"human_adult\"
+faction_id = \"haven_settlers\"
+rank_in_faction = \"veteran\"
+location_id = \"haven_forge\"
+schedule = [
+    \"06:00:haven_home_karl:sleep\",
+    \"07:00:haven_tavern:eat\",
+    \"08:00:haven_forge:work\",
+    \"12:00:haven_tavern:eat\",
+    \"13:00:haven_forge:work\",
+    \"18:00:haven_tavern:socialize\",
+    \"21:00:haven_home_karl:sleep\",
+]
+dialogue_tree_id = \"dlg_karl_blacksmith\"
+shop_inventory = [
+    \"steel_ingot_0:20:3600\",
+    \"iron_ore_0:50:1800\",
+    \"claw_hammer_0:3:7200\",
+    \"anvil_0:1:86400\",
+    \"steel_chestplate_0:2:14400\",
+]
+services = [\"repair\", \"craft\"]
+personality_traits = \"grumpy|skilled|honest\"
+voice_set_id = \"voice_male_gruff\"
+portrait_id = \"portrait_karl\"
+essential = false
+hire_cost = 0
+relationship_system = true
+combat_style = \"melee\"
+level = 12
+skills = \"smithing:8|mining:5|melee_combat:6\"
+"""
+
+[[examples]]
+description = "Tutorial guide: essential, companion-hireable, support combat"
+toml = """
+id = \"tutorial_guide_aria\"
+name = \"Aria\"
+title = \"Explorer\"
+creature_id = \"human_adult\"
+faction_id = \"\"
+rank_in_faction = \"member\"
+location_id = \"tutorial_clearing\"
+schedule = []
+dialogue_tree_id = \"dlg_aria_tutorial\"
+shop_inventory = []
+services = [\"heal\", \"train\"]
+personality_traits = \"friendly|wise|patient\"
+voice_set_id = \"voice_female_calm\"
+portrait_id = \"portrait_aria\"
+essential = true
+hire_cost = 0
+relationship_system = true
+combat_style = \"support\"
+level = 5
+skills = \"medicine:4|survival:5|diplomacy:3\"
+"""
+
+[[examples]]
+description = "Wandering merchant: roaming, large inventory, high-level"
+toml = """
+id = \"roaming_merchant_vex\"
+name = \"Vex\"
+title = \"Wandering Merchant\"
+creature_id = \"alien_trader\"
+faction_id = \"orbital_traders_guild\"
+rank_in_faction = \"officer\"
+location_id = \"roaming\"
+schedule = [
+    \"00:00:waypoint_alpha:travel\",
+    \"06:00:waypoint_beta:trade\",
+    \"12:00:waypoint_gamma:trade\",
+    \"18:00:waypoint_delta:rest\",
+]
+dialogue_tree_id = \"dlg_vex_merchant\"
+shop_inventory = [
+    \"rare_alloy_ingot_0:5:43200\",
+    \"advanced_medkit_0:10:7200\",
+    \"star_map_fragment_0:1:0\",
+    \"alien_artifact_0:1:0\",
+    \"circuit_board_0:30:3600\",
+]
+services = [\"identify\", \"transport\"]
+personality_traits = \"jovial|greedy|cunning\"
+voice_set_id = \"voice_alien_melodic\"
+portrait_id = \"portrait_vex\"
+essential = false
+hire_cost = 2000
+relationship_system = true
+combat_style = \"ranged\"
+level = 25
+skills = \"marksmanship:6|trading:9|navigation:7|survival:5\"
+"""

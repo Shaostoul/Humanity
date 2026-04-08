@@ -34,3 +34,15 @@ methyl_mercaptan,CH3SH,Methyl Mercaptan,1.93,true,3.9,21.8,true,false,colorless,
 hydrogen_chloride,HCl,Hydrogen Chloride,1.639,false,0,0,true,false,colorless,pungent,,Forms hydrochloric acid with moisture; corrosive; throat and lung irritant
 sulfur_hexafluoride,SF6,Sulfur Hexafluoride,6.17,false,0,0,false,true,colorless,odorless,,Extremely potent greenhouse gas; electrical insulator; deepens voice
 natural_gas,CH4_C2H6,Natural Gas (mixed),0.8,true,4.4,15.0,false,true,colorless,mercaptan_added,813,Fossil fuel mixture mostly methane; odorant added for leak detection
+ethylene_oxide,C2H4O,Ethylene Oxide,0.882,true,3.0,100.0,true,false,colorless,sweet_ether,702,Sterilization gas for medical equipment; carcinogenic; explosive over wide range
+dimethyl_ether_gas,C2H6O,Dimethyl Ether,1.617,true,3.4,27.0,false,true,colorless,slightly_sweet,623,Clean aerosol propellant; potential diesel substitute; ozone-friendly
+formaldehyde_gas,CH2O,Formaldehyde,1.067,true,7.0,73.0,true,false,colorless,pungent,703,Carcinogenic preservative; building material off-gas; used in resins
+vinyl_chloride,C2H3Cl,Vinyl Chloride,2.56,true,3.6,33.0,true,false,colorless,slightly_sweet,745,PVC monomer; carcinogenic; was once used as aerosol propellant and anesthetic
+boron_trifluoride,BF3,Boron Trifluoride,2.77,false,0,0,true,false,colorless,pungent,,Industrial catalyst; semiconductor dopant gas; forms fumes in moist air
+carbonyl_sulfide,COS,Carbonyl Sulfide,2.51,true,12.0,29.0,true,false,colorless,faint_sulfurous,,Most abundant sulfur compound in atmosphere; grain fumigant; volcanic emission
+germane,GeH4,Germane,3.13,true,1.4,98.0,true,false,colorless,pungent,,Semiconductor manufacturing; decomposes to deposit germanium thin films
+nitric_oxide,NO,Nitric Oxide,1.34,false,0,0,true,false,colorless,sharp_sweet,,Biological signaling molecule; vasodilator; air pollutant; quickly oxidizes to NO2
+nitrogen_trifluoride,NF3,Nitrogen Trifluoride,2.90,false,0,0,true,false,colorless,musty,,Semiconductor etching gas; extremely potent greenhouse gas (17000x CO2)
+tungsten_hexafluoride_gas,WF6,Tungsten Hexafluoride,12.4,false,0,0,true,false,colorless,pungent,,Densest known gas at STP; chemical vapor deposition of tungsten in chip fabrication
+trimethylamine,C3H9N,Trimethylamine,2.43,true,2.0,11.6,true,false,colorless,rotting_fish,463,Cause of fishy odor in spoiled fish; amine base; used in resin production
+arsine,AsH3,Arsine,3.478,true,4.5,78.0,true,false,colorless,garlic,,Extremely toxic semiconductor dopant gas; hemolytic poison; decomposes on contact with metals

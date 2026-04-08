@@ -1,0 +1,267 @@
+# HumanityOS Biome Schema
+# Defines the structure for biome definitions used by terrain generation,
+# weather, ecology, and rendering.
+#
+# The engine's 16 built-in biome types (defined in native/src/terrain/heightmap.rs)
+# are: Ocean, DeepOcean, Beach, Grassland, Forest, Rainforest, Desert, Tundra,
+# Taiga, Mountain, SnowyMountain, Swamp, Savanna, Steppe, Volcanic, IceCap.
+#
+# These data files extend those base types with gameplay parameters: what spawns
+# there, what resources are available, how the terrain looks, and what hazards
+# exist. Mods can also define entirely new biome types (artificial, space, etc.)
+# by adding files to data/biomes/.
+#
+# Connection to game systems:
+#   Terrain generation (native/src/terrain/heightmap.rs) -- the TerrainGenerator
+#     classifies each surface point into a Biome enum based on latitude, elevation,
+#     and moisture. The data file's terrain_noise_scale, terrain_amplitude, and
+#     terrain_roughness tune the procedural noise for that biome.
+#   Weather system (native/src/systems/weather.rs) -- reads temperature_range_c,
+#     humidity_range, precipitation_type, and precipitation_chance to drive
+#     weather events. Seasonal variation modulates these ranges over the year.
+#   Ecology system (native/src/systems/ecology.rs) -- uses flora_species and
+#     fauna_species to seed populations. flora_density and fauna_density cap
+#     the total biomass per chunk. Creatures reference biomes in habitat_biomes.
+#   Rendering -- color_palette drives ground tint, accent features, and fog color.
+#     light_level affects ambient light and solar panel output.
+#   Audio -- ambient_sound_id and music_id are loaded by the audio system (kira)
+#     and crossfade as the player moves between biomes.
+#   Transition logic -- transition_biomes defines which biomes can share borders.
+#     The terrain generator blends materials and flora at biome boundaries.
+
+# ── Field Definitions ────────────────────────────────────────────
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique identifier, snake_case. Must match the Biome enum variant name (lowercase) for built-in biomes, or be a custom name for modded biomes."
+constraints = "Must be unique across all biome files."
+example = "forest"
+
+[fields.name]
+type = "string"
+required = true
+description = "Display name shown on the map, HUD, and exploration log."
+example = "Temperate Forest"
+
+[fields.type]
+type = "string"
+required = true
+description = "Broad biome domain. Determines base generation rules and which creatures can be considered."
+valid_values = ["terrestrial", "aquatic", "subterranean", "aerial", "space", "artificial"]
+example = "terrestrial"
+
+[fields.description]
+type = "string"
+required = true
+description = "Lore and gameplay description shown in the exploration log and bestiary."
+example = "Dense woodland with a mix of deciduous and coniferous trees. Rich in timber, herbs, and wildlife."
+
+[fields.temperature_range_c]
+type = "array of 2 floats"
+required = true
+description = "Minimum and maximum temperature in Celsius. Weather system varies actual temperature within this range based on season, time of day, and altitude."
+constraints = "min <= max."
+example = [-5.0, 30.0]
+
+[fields.humidity_range]
+type = "array of 2 floats"
+required = true
+description = "Minimum and maximum relative humidity as a fraction (0.0 = bone dry, 1.0 = saturated). Drives fog density and precipitation triggers."
+constraints = "Both values 0.0-1.0, min <= max."
+example = [0.4, 0.85]
+
+[fields.altitude_range_m]
+type = "array of 2 floats"
+required = true
+description = "Elevation band in meters above sea level where this biome appears. The terrain generator uses this to place biomes on the heightmap."
+constraints = "min <= max."
+example = [50.0, 1200.0]
+
+[fields.precipitation_type]
+type = "string"
+required = true
+description = "What falls from the sky in this biome."
+valid_values = ["none", "rain", "snow", "acid_rain", "ash"]
+example = "rain"
+
+[fields.precipitation_chance]
+type = "float"
+required = true
+description = "Base probability of precipitation per weather tick (0.0 = never, 1.0 = always raining). Weather system modulates this by season."
+constraints = "0.0-1.0."
+example = 0.35
+
+[fields.terrain_noise_scale]
+type = "float"
+required = false
+default = 1.0
+description = "Scale factor for the Perlin noise used in terrain generation. Larger values = broader, smoother features. Smaller = more jagged."
+constraints = "Must be > 0."
+example = 1.2
+
+[fields.terrain_amplitude]
+type = "float"
+required = false
+default = 1.0
+description = "Multiplier on terrain height variation. 1.0 = normal. 0.5 = flatter. 2.0 = more extreme elevation changes."
+constraints = "Must be > 0."
+example = 0.8
+
+[fields.terrain_roughness]
+type = "float"
+required = false
+default = 0.5
+description = "High-frequency noise strength (0.0-1.0). Controls micro-detail like bumps, rocks, and small gullies. Maps to the TerrainGenerator roughness parameter."
+constraints = "0.0-1.0."
+example = 0.4
+
+[fields.ground_material_id]
+type = "string"
+required = true
+description = "Material ID from materials.csv used for the surface layer. Affects footstep sounds, construction foundation, and visual texture."
+example = "forest_soil"
+
+[fields.subsurface_material_id]
+type = "string"
+required = false
+default = "stone"
+description = "Material ID for the layer beneath the surface. Relevant for mining and excavation."
+example = "granite"
+
+[fields.flora_density]
+type = "float"
+required = false
+default = 0.5
+description = "Fraction 0.0-1.0 controlling how densely plants spawn. 0 = barren, 1.0 = maximum vegetation. Ecology system uses this as a population cap multiplier."
+constraints = "0.0-1.0."
+example = 0.7
+
+[fields.fauna_density]
+type = "float"
+required = false
+default = 0.3
+description = "Fraction 0.0-1.0 controlling creature spawn density. Ecology system caps population per chunk based on this."
+constraints = "0.0-1.0."
+example = 0.5
+
+[fields.flora_species]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated species_id:weight pairs for plant spawn distribution. Weight is relative (higher = more common). References plant IDs from plants.csv or data/flora/."
+example = "oak_tree:40|pine_tree:30|fern:20|mushroom:10"
+
+[fields.fauna_species]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated creature_id:weight pairs for creature spawn distribution. References creature.id values."
+example = "gray_wolf:15|deer:40|rabbit:60|bear:5|fox:20"
+
+[fields.resource_deposits]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated material_id:density pairs for mineable resource deposits. Density 0.0-1.0 controls how frequently ore veins appear underground."
+example = "iron_ore_0:0.3|coal_0:0.4|copper_ore_0:0.15"
+
+[fields.hazards]
+type = "string"
+required = false
+default = "none"
+description = "Pipe-separated environmental hazards present in this biome. Affect player status, equipment degradation, and NPC behavior."
+valid_values_per_item = ["none", "extreme_heat", "extreme_cold", "toxic_air", "radiation", "sandstorm", "blizzard", "volcanic", "flooding"]
+example = "none"
+
+[fields.light_level]
+type = "float"
+required = false
+default = 1.0
+description = "Base ambient light level (0.0 = pitch dark, 1.0 = full daylight). Subterranean biomes default to 0. Affects visibility range and solar panel efficiency."
+constraints = "0.0-1.0."
+example = 0.7
+
+[fields.color_palette]
+type = "inline table"
+required = true
+description = "Three hex color strings used by the renderer for ground tint, accent features (rocks, cliffs), and distance fog."
+example = '{ ground_hex = "#4a6b3a", accent_hex = "#8b7355", fog_hex = "#c8d8c0" }'
+
+[fields.ambient_sound_id]
+type = "string"
+required = false
+default = ""
+description = "Audio loop ID for background ambience (birds, wind, water). Crossfades when moving between biomes."
+example = "amb_forest"
+
+[fields.music_id]
+type = "string"
+required = false
+default = ""
+description = "Music track ID for this biome. The audio system (kira) crossfades between biome tracks."
+example = "mus_forest_calm"
+
+[fields.transition_biomes]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated biome IDs that can naturally border this biome. The terrain generator uses this to create smooth transitions and prevent unrealistic adjacencies (e.g., desert next to tundra)."
+example = "grassland|taiga|swamp|mountain"
+
+
+# ── Example Entries ──────────────────────────────────────────────
+
+[[examples]]
+id = "forest"
+name = "Temperate Forest"
+type = "terrestrial"
+description = "Dense woodland with a mix of deciduous and coniferous trees. Rich in timber, herbs, and wildlife."
+temperature_range_c = [-5.0, 30.0]
+humidity_range = [0.4, 0.85]
+altitude_range_m = [50.0, 1200.0]
+precipitation_type = "rain"
+precipitation_chance = 0.35
+terrain_noise_scale = 1.2
+terrain_amplitude = 0.8
+terrain_roughness = 0.4
+ground_material_id = "forest_soil"
+subsurface_material_id = "granite"
+flora_density = 0.7
+fauna_density = 0.5
+flora_species = "oak_tree:40|pine_tree:30|fern:20|mushroom:10"
+fauna_species = "gray_wolf:15|deer:40|rabbit:60|bear:5|fox:20"
+resource_deposits = "iron_ore_0:0.3|coal_0:0.4|copper_ore_0:0.15"
+hazards = "none"
+light_level = 0.7
+color_palette = { ground_hex = "#4a6b3a", accent_hex = "#8b7355", fog_hex = "#c8d8c0" }
+ambient_sound_id = "amb_forest"
+music_id = "mus_forest_calm"
+transition_biomes = "grassland|taiga|swamp|mountain"
+
+[[examples]]
+id = "volcanic"
+name = "Volcanic Wasteland"
+type = "terrestrial"
+description = "Scorched terrain near active volcanic vents. Extreme heat, toxic fumes, and rivers of lava. Rich in rare minerals."
+temperature_range_c = [40.0, 120.0]
+humidity_range = [0.05, 0.2]
+altitude_range_m = [200.0, 4000.0]
+precipitation_type = "ash"
+precipitation_chance = 0.15
+terrain_noise_scale = 0.7
+terrain_amplitude = 1.8
+terrain_roughness = 0.8
+ground_material_id = "basite"
+subsurface_material_id = "obsidian"
+flora_density = 0.05
+fauna_density = 0.1
+flora_species = "lava_moss:70|ash_shrub:30"
+fauna_species = "fire_imp:40|magma_salamander:30|obsidian_beetle:30"
+resource_deposits = "obsidian:0.5|sulfur_0:0.6|titanium_ore:0.2|diamond_raw:0.05"
+hazards = "extreme_heat|toxic_air|volcanic"
+light_level = 0.9
+color_palette = { ground_hex = "#3a2a1a", accent_hex = "#8b3a0a", fog_hex = "#4a3020" }
+ambient_sound_id = "amb_volcanic"
+music_id = "mus_volcanic_tension"
+transition_biomes = "mountain|desert"

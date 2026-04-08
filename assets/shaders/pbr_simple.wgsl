@@ -37,7 +37,7 @@ struct ObjectUniforms {
 
 struct MaterialUniforms {
     base_color: vec4<f32>,
-    // x = metallic, y = roughness, z = material_type, w = unused
+    // x = metallic, y = roughness, z = material_type, w = emissive_strength
     params: vec4<f32>,
 };
 
@@ -209,6 +209,33 @@ fn concrete_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(base, base * 0.98, base * 0.96);
 }
 
+// Tri-planar UV projection (reusable helper)
+fn triplanar_uv(world_pos: vec3<f32>, normal: vec3<f32>) -> vec2<f32> {
+    let an = abs(normal);
+    if an.y > an.x && an.y > an.z {
+        return world_pos.xz;
+    } else if an.x > an.z {
+        return world_pos.yz;
+    }
+    return world_pos.xy;
+}
+
+// Voronoi cell noise (returns distance to nearest cell center)
+fn voronoi(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    var min_dist = 1.0;
+    for (var y = -1; y <= 1; y = y + 1) {
+        for (var x = -1; x <= 1; x = x + 1) {
+            let neighbor = vec2<f32>(f32(x), f32(y));
+            let cell_center = vec2<f32>(hash21(i + neighbor), hash21(i + neighbor + vec2<f32>(57.0, 113.0)));
+            let diff = neighbor + cell_center - f;
+            min_dist = min(min_dist, dot(diff, diff));
+        }
+    }
+    return sqrt(min_dist);
+}
+
 // Wood grain pattern
 fn wood_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     let an = abs(normal);
@@ -280,21 +307,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var metallic = material.params.x;
     var roughness = material.params.y;
     let material_type = material.params.z;
+    var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
 
-    // Apply procedural material based on type
+    // Apply procedural material based on type:
+    //   0 = Panel grid (walls, floors)    4 = Glass            8 = Crystal
+    //   1 = Brushed metal                 5 = Ice              9 = Rust/Corroded
+    //   2 = Concrete                      6 = Water surface   10 = Moss/Growth
+    //   3 = Wood                          7 = Leather         11 = Lava
     if material_type < 0.5 {
         // Type 0: Default panel grid (walls, floors)
         if metallic < 0.1 && roughness > 0.3 {
             let panel = grid_pattern(in.world_position, normal);
             albedo = albedo * mix(0.65, 1.0, panel);
-            // Slight roughness variation in seams
             roughness = mix(roughness + 0.1, roughness, panel);
         }
     } else if material_type < 1.5 {
         // Type 1: Brushed metal (metallic surfaces)
         let scratch = brushed_metal(in.world_position, normal);
         albedo = albedo * scratch;
-        // Micro-roughness from scratches
         roughness = roughness + (1.0 - scratch) * 0.15;
     } else if material_type < 2.5 {
         // Type 2: Concrete
@@ -304,6 +334,77 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // Type 3: Wood
         albedo = wood_pattern(in.world_position, normal);
         roughness = 0.5 + value_noise(in.world_position.xz * 10.0) * 0.2;
+        metallic = 0.0;
+    } else if material_type < 4.5 {
+        // Type 4: Glass -- high reflectivity via Fresnel boost, subtle color shift
+        let fresnel = pow(1.0 - max(dot(normal, view_dir), 0.0), 3.0);
+        albedo = mix(albedo * 0.15, vec3<f32>(0.8, 0.9, 1.0), fresnel * 0.6);
+        metallic = 0.1;
+        roughness = 0.05 + value_noise(triplanar_uv(in.world_position, normal) * 20.0) * 0.03;
+    } else if material_type < 5.5 {
+        // Type 5: Ice -- blue-white tint, wrap lighting approx, crystalline noise
+        let uv = triplanar_uv(in.world_position, normal);
+        let crystal = voronoi(uv * 8.0);
+        let wrap = dot(normal, normalize(LIGHT_DIR)) * 0.5 + 0.5; // wrap lighting for SSS
+        albedo = mix(vec3<f32>(0.6, 0.8, 1.0), vec3<f32>(0.95, 0.98, 1.0), crystal) * (0.7 + wrap * 0.3);
+        roughness = 0.1 + crystal * 0.2;
+        metallic = 0.05;
+    } else if material_type < 6.5 {
+        // Type 6: Water surface -- animated wave normals, blue-green, foam at shallow angles
+        let uv = in.world_position.xz;
+        let t = in.world_position.x * 0.01; // pseudo-time from position for static shader
+        let wave = fbm(uv * 2.0 + vec2<f32>(t * 3.0, t * 1.7)) * 0.5;
+        let foam = smoothstep(0.35, 0.5, wave);
+        albedo = mix(vec3<f32>(0.02, 0.15, 0.2), vec3<f32>(0.05, 0.3, 0.35), wave);
+        albedo = mix(albedo, vec3<f32>(0.8, 0.9, 0.95), foam * 0.6);
+        roughness = mix(0.05, 0.6, foam);
+        metallic = 0.02;
+    } else if material_type < 7.5 {
+        // Type 7: Leather -- Voronoi pore pattern, warm brown tones
+        let uv = triplanar_uv(in.world_position, normal);
+        let pores = voronoi(uv * 15.0);
+        let coarse = fbm(uv * 4.0) * 0.15;
+        albedo = mix(vec3<f32>(0.25, 0.13, 0.06), vec3<f32>(0.45, 0.28, 0.14), pores + coarse);
+        roughness = 0.5 + (1.0 - pores) * 0.25;
+        metallic = 0.0;
+    } else if material_type < 8.5 {
+        // Type 8: Crystal -- faceted sharp noise, prismatic color from view angle, high metallic
+        let uv = triplanar_uv(in.world_position, normal);
+        let facets = voronoi(uv * 12.0);
+        let angle = dot(normal, view_dir);
+        let prism = vec3<f32>(
+            smoothstep(0.3, 0.7, sin(angle * 12.0) * 0.5 + 0.5),
+            smoothstep(0.3, 0.7, sin(angle * 12.0 + 2.094) * 0.5 + 0.5),
+            smoothstep(0.3, 0.7, sin(angle * 12.0 + 4.189) * 0.5 + 0.5)
+        );
+        albedo = mix(albedo * 0.3, prism, 0.7) * (0.6 + facets * 0.4);
+        roughness = 0.02 + (1.0 - facets) * 0.08;
+        metallic = 0.9;
+    } else if material_type < 9.5 {
+        // Type 9: Rust/Corroded -- FBM-driven orange-brown patches over base metal
+        let uv = triplanar_uv(in.world_position, normal);
+        let rust_mask = smoothstep(0.35, 0.65, fbm(uv * 3.0));
+        let rust_color = vec3<f32>(0.5, 0.2, 0.05) + value_noise(uv * 20.0) * 0.1;
+        albedo = mix(albedo, rust_color, rust_mask);
+        roughness = mix(roughness, 0.85, rust_mask);
+        metallic = mix(metallic, 0.1, rust_mask);
+    } else if material_type < 10.5 {
+        // Type 10: Moss/Growth -- green patches on upward/north-facing surfaces (world-space)
+        let uv = in.world_position.xz;
+        let up_factor = smoothstep(0.3, 0.8, normal.y); // grows on tops
+        let coverage = smoothstep(0.3, 0.6, fbm(uv * 2.5)) * up_factor;
+        let moss_color = vec3<f32>(0.15, 0.35, 0.08) + value_noise(uv * 12.0) * 0.08;
+        albedo = mix(albedo, moss_color, coverage);
+        roughness = mix(roughness, 0.9, coverage);
+        metallic = mix(metallic, 0.0, coverage);
+    } else if material_type < 11.5 {
+        // Type 11: Lava -- black rock with glowing orange cracks, emissive in veins
+        let uv = triplanar_uv(in.world_position, normal);
+        let cracks = 1.0 - smoothstep(0.0, 0.12, voronoi(uv * 5.0));
+        let heat = cracks * (0.7 + value_noise(uv * 8.0) * 0.3);
+        albedo = mix(vec3<f32>(0.05, 0.04, 0.03), vec3<f32>(1.0, 0.35, 0.0), heat);
+        proc_emissive = vec3<f32>(1.0, 0.3, 0.0) * heat * 3.0; // glowing cracks
+        roughness = mix(0.9, 0.3, heat);
         metallic = 0.0;
     }
 
@@ -355,6 +456,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     );
 
     var color = ambient + lo;
+
+    // Emissive: params.w controls emissive strength (0 = none, 1+ = glow)
+    // Emissive objects use base_color as their glow color, bypassing lighting.
+    let emissive_strength = material.params.w;
+    if (emissive_strength > 0.0) {
+        color = color + albedo * emissive_strength;
+    }
+
+    // Procedural emissive (e.g. lava cracks) -- additive, independent of params.w
+    color = color + proc_emissive;
 
     // ACES-like tone mapping (more filmic than Reinhard)
     let a = 2.51;

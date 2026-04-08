@@ -1,0 +1,301 @@
+# HumanityOS Vehicle Schema
+# Reference for modders, AI agents, and community contributors.
+#
+# Vehicles are data-driven objects loaded from CSV/RON files in data/.
+# The engine reads vehicle definitions at startup and hot-reloads them
+# when files change (via the FileWatcher/AssetManager system).
+#
+# FORMAT: Vehicle data lives in data/vehicles.csv (tabular) with optional
+# RON overrides for complex vehicles (e.g., data/ships/ for spaceships).
+#
+# ENGINE INTEGRATION:
+#   ECS — Each spawned vehicle becomes a hecs entity with these components:
+#     - Transform (position, rotation, scale)
+#     - Velocity (linear, angular)
+#     - PhysicsBody (Rapier3d rigid body handle)
+#     - Renderable (mesh_id, material_id)
+#     - Health (current, max — derived from hull_hp)
+#     - Name (display name)
+#     - VehicleSeat (driver/passenger slots, occupied_by public keys)
+#
+#   Physics — Rapier3d rigid body created with:
+#     - mass = mass_kg
+#     - collider shape auto-generated from model bounding box (or explicit hull)
+#     - linear damping tuned per vehicle type for drag feel
+#     - forces applied each tick based on throttle, turn_rate, thruster output
+#
+#   Vehicle System — native/src/systems/vehicles/mod.rs
+#     - Reads input commands from DataStore each tick
+#     - Applies forces/torques to the PhysicsBody
+#     - Manages enter/exit transitions (player entity gets Controllable swapped)
+#     - Mech-specific: torso twist, heat management, jump jets
+#     - Ship-specific: thruster groups, gravity drive, FTL
+#     - Propulsion physics in native/src/systems/vehicles/propulsion.rs
+#
+#   Audio — sound_id references an entry in data/audio/ for engine loops,
+#     horn, collision SFX. Spatial 3D audio via kira crate.
+#
+#   Rendering — model_id references a GLTF/GLB in data/models/.
+#     Vehicles use instanced rendering (InstanceBatch) when many of the
+#     same type are visible. LOD switching based on camera distance.
+
+# ============================================================================
+# FIELD DEFINITIONS
+# ============================================================================
+# Each [[fields]] entry defines one column/property of a vehicle record.
+# Modders: every field marked required = true MUST be present. Optional fields
+# fall back to their listed default value.
+
+[[fields]]
+name = "id"
+type = "string"
+required = true
+default = ""
+description = "Unique identifier (snake_case). Must be globally unique across all vehicle types."
+constraints = "Lowercase alphanumeric and underscores only. Max 64 characters."
+
+[[fields]]
+name = "name"
+type = "string"
+required = true
+default = ""
+description = "Human-readable display name shown in UI, inventory, and tooltips."
+constraints = "Max 128 characters. Supports localization keys (prefix with 'i18n:')."
+
+[[fields]]
+name = "type"
+type = "enum"
+required = true
+default = ""
+description = "Vehicle class. Determines which movement system processes it and which terrain it can traverse by default."
+constraints = "One of: spaceship, car, truck, mech, bike, boat, submarine, aircraft, hovercraft, train"
+
+[[fields]]
+name = "description"
+type = "string"
+required = false
+default = ""
+description = "Flavor text shown in vehicle info panels and the marketplace."
+constraints = "Max 512 characters."
+
+[[fields]]
+name = "mass_kg"
+type = "float"
+required = true
+default = ""
+description = "Total mass in kilograms. Passed directly to Rapier3d as the rigid body mass. Affects acceleration, collision response, and fuel consumption."
+constraints = "Must be > 0. Typical range: 15 (bike) to 1_000_000+ (capital ship)."
+
+[[fields]]
+name = "max_speed_mps"
+type = "float"
+required = true
+default = ""
+description = "Maximum speed in meters per second under full throttle on flat terrain (or in vacuum for spaceships). The vehicle system clamps velocity magnitude to this value."
+constraints = "Must be > 0. 30 mps ~ 108 km/h. Spaceships can be 10_000+."
+
+[[fields]]
+name = "acceleration_mps2"
+type = "float"
+required = true
+default = ""
+description = "Forward acceleration in m/s^2 at full throttle. The physics system applies F = mass_kg * acceleration_mps2 as a force vector along the vehicle's forward axis."
+constraints = "Must be > 0."
+
+[[fields]]
+name = "turn_rate_dps"
+type = "float"
+required = false
+default = "90.0"
+description = "Maximum yaw turn rate in degrees per second. Applied as angular velocity around the vehicle's up axis."
+constraints = "Must be > 0. Higher values = more nimble. Mechs typically 45-120, bikes 180+."
+
+[[fields]]
+name = "fuel_type"
+type = "enum"
+required = false
+default = "electric"
+description = "Energy source. Determines which resource is consumed and how the fuel gauge depletes."
+constraints = "One of: electric, hydrogen, solar, nuclear, chemical, hybrid"
+
+[[fields]]
+name = "fuel_capacity"
+type = "float"
+required = false
+default = "100.0"
+description = "Maximum fuel/energy storage in abstract fuel units. 1 unit = enough for 1 second at fuel_consumption_per_s rate."
+constraints = "Must be >= 0. 0 = unlimited (solar/nuclear with no depletion)."
+
+[[fields]]
+name = "fuel_consumption_per_s"
+type = "float"
+required = false
+default = "1.0"
+description = "Fuel units consumed per second at full throttle. Scales linearly with throttle input (0-1). Idle consumption = 10% of this value."
+constraints = "Must be >= 0. 0 = no fuel consumption (purely solar-powered)."
+
+[[fields]]
+name = "cargo_capacity_kg"
+type = "float"
+required = false
+default = "0.0"
+description = "Maximum cargo mass in kilograms. Cargo weight is added to vehicle mass for physics calculations."
+constraints = "Must be >= 0."
+
+[[fields]]
+name = "cargo_volume_liters"
+type = "float"
+required = false
+default = "0.0"
+description = "Maximum cargo volume in liters. Items have volume; this limits how much fits regardless of weight."
+constraints = "Must be >= 0."
+
+[[fields]]
+name = "passenger_seats"
+type = "integer"
+required = false
+default = "1"
+description = "Total seat count including the driver. Each seat is a VehicleSeat component slot. Seat 0 = driver, seats 1+ = passengers."
+constraints = "Must be >= 1."
+
+[[fields]]
+name = "hull_hp"
+type = "float"
+required = false
+default = "100.0"
+description = "Maximum structural hit points. Maps to the Health component (current = max = hull_hp on spawn). Reaching 0 triggers destruction/wreck state."
+constraints = "Must be > 0."
+
+[[fields]]
+name = "armor_rating"
+type = "float"
+required = false
+default = "0.0"
+description = "Flat damage reduction per hit. Subtracted from incoming damage before applying to hull_hp. Represents passive armor plating."
+constraints = "Must be >= 0. Typical range: 0 (civilian) to 50+ (heavy military)."
+
+[[fields]]
+name = "shield_capacity"
+type = "float"
+required = false
+default = "0.0"
+description = "Maximum energy shield hit points. Shields absorb damage before hull. Regenerate at 5% per second when not taking damage for 3 seconds."
+constraints = "Must be >= 0. 0 = no shields."
+
+[[fields]]
+name = "components_required"
+type = "string"
+required = false
+default = ""
+description = "Crafting recipe. Pipe-separated component_id:quantity pairs referencing data/components.csv. The crafting system checks inventory for these before allowing assembly."
+constraints = "Format: 'component_id:quantity|component_id:quantity'. Example: 'electric_motor_large:2|battery_large:4|plate_steel:20|wheel_component:4'"
+
+[[fields]]
+name = "thruster_count"
+type = "integer"
+required = false
+default = "0"
+description = "Number of thruster attachment points for spaceships. Each thruster applies directional force. More thrusters = better maneuverability."
+constraints = "Must be >= 0. Only meaningful for type = spaceship."
+
+[[fields]]
+name = "thruster_type"
+type = "enum"
+required = false
+default = "chemical"
+description = "Propulsion method for spaceships. Affects exhaust visual effects, fuel efficiency, and maximum delta-v."
+constraints = "One of: chemical, ion, plasma, nuclear_thermal, fusion, antimatter. Only meaningful for type = spaceship."
+
+[[fields]]
+name = "gravity_drive"
+type = "boolean"
+required = false
+default = "false"
+description = "Whether the ship has artificial gravity generation. Affects crew comfort and allows normal walking inside the ship during flight."
+constraints = "Only meaningful for type = spaceship."
+
+[[fields]]
+name = "terrain_types"
+type = "string"
+required = false
+default = ""
+description = "Which terrain surfaces this vehicle can traverse. Pipe-separated list. If empty, defaults are inferred from vehicle type (car = land, boat = water, etc.)."
+constraints = "Pipe-separated values from: land, water, air, space, underground. Example: 'land|water' for an amphibious vehicle."
+
+[[fields]]
+name = "sound_id"
+type = "string"
+required = false
+default = ""
+description = "Reference to an audio asset in data/audio/ for engine loop, horn, and collision sounds. The audio system (kira) plays this as spatial 3D audio positioned at the vehicle entity."
+constraints = "Must match an id in the audio asset registry, or empty for silent."
+
+[[fields]]
+name = "model_id"
+type = "string"
+required = false
+default = ""
+description = "Reference to a GLTF/GLB model in data/models/. Used by the renderer for the vehicle mesh. Supports LOD variants (model_id_lod0, model_id_lod1, etc.)."
+constraints = "Must match a model in the asset registry, or empty for placeholder geometry."
+
+# ============================================================================
+# TYPE DEFAULTS
+# ============================================================================
+# When terrain_types is empty, the engine infers traversable terrain from type:
+
+[type_defaults]
+spaceship = "space|air"
+car = "land"
+truck = "land"
+mech = "land"
+bike = "land"
+boat = "water"
+submarine = "water|underground"
+aircraft = "air|land"       # land for takeoff/landing
+hovercraft = "land|water"
+train = "land"              # follows rail tracks
+
+# ============================================================================
+# EXAMPLE: Minimal vehicle (CSV row)
+# ============================================================================
+# id,name,type,description,mass_kg,max_speed_mps,acceleration_mps2,turn_rate_dps,fuel_type,fuel_capacity,fuel_consumption_per_s,cargo_capacity_kg,cargo_volume_liters,passenger_seats,hull_hp,armor_rating,shield_capacity,components_required,thruster_count,thruster_type,gravity_drive,terrain_types,sound_id,model_id
+# scout_bike,Scout Bike,bike,Lightweight recon vehicle,120,45,8,200,electric,80,0.5,20,30,1,60,0,0,electric_motor_small:1|battery_medium:1|wheel_component:2|axle:1,0,chemical,false,land,sfx_bike_electric,mdl_scout_bike
+
+# ============================================================================
+# EXAMPLE: Complex spaceship (RON override in data/ships/)
+# ============================================================================
+# Spaceships with interior layouts use RON files (see data/ships/*.ron).
+# The RON file references rooms, corridors, utilities, and the ship layout
+# parser (native/src/ship/) generates walkable interior meshes.
+#
+# The CSV row defines the vehicle stats. The RON file defines the interior.
+# Both are linked by the same id.
+#
+# Example RON snippet (data/ships/corvette_light.ron):
+#   ShipLayout(
+#       vehicle_id: "corvette_light",
+#       rooms: [
+#           (room_id: "bridge", position_m: (0,0,0), dimensions_m: (6,3,4), ...),
+#           (room_id: "reactor", position_m: (0,0,-8), dimensions_m: (4,3,4), ...),
+#       ],
+#       corridors: [...],
+#       external_connections: [...],
+#       utilities: (...),
+#   )
+
+# ============================================================================
+# MODDING GUIDE
+# ============================================================================
+# To add a new vehicle:
+#   1. Add a row to data/vehicles.csv with the required fields
+#   2. Place a GLTF/GLB model in data/models/ matching your model_id
+#   3. (Optional) Add audio in data/audio/ matching your sound_id
+#   4. (Optional) For spaceships with interiors, create a RON layout in data/ships/
+#   5. (Optional) Add crafting components to data/components.csv if needed
+#   6. Hot-reload: the engine picks up changes automatically (no restart needed)
+#
+# To modify an existing vehicle:
+#   Edit the CSV row or RON file. Changes apply on next hot-reload tick.
+#
+# Mods: Place override files in data/mods/<mod_name>/vehicles.csv.
+# The mod system merges by id (mod values override base values).

@@ -339,3 +339,67 @@ smoke_detector_0,Smoke Detector,tool,safety,abs_plastic,0.2,1,100,Airborne parti
 motion_light_0,Motion Light,tool,lighting,abs_plastic,0.4,1,120,PIR-activated area light
 water_tester_0,Water Tester,tool,science,abs_plastic,0.1,1,80,Water quality analysis probe
 geiger_counter_0,Geiger Counter,tool,science,aluminum,0.5,1,120,Ionizing radiation detector
+#
+# === SPACECRAFT (expanded) ===
+spacecraft_fighter_0,Fighter Ship,vehicle,spacecraft,titanium,5000.0,1,800,Light combat vessel with dual thrusters
+spacecraft_freighter_0,Freighter,vehicle,spacecraft,steel,50000.0,1,1000,Large cargo hauler with modular bays
+spacecraft_shuttle_0,Shuttle,vehicle,spacecraft,aluminum,8000.0,1,600,Personnel transport between stations
+spacecraft_corvette_0,Corvette,vehicle,spacecraft,titanium,15000.0,1,900,Fast multi-role warship
+spacecraft_cruiser_0,Cruiser,vehicle,spacecraft,titanium,80000.0,1,1200,Heavy combat vessel with weapons platforms
+spacecraft_station_module_0,Station Module,vehicle,spacecraft,steel,20000.0,1,2000,Habitable orbital station segment
+spacecraft_mining_vessel_0,Mining Vessel,vehicle,spacecraft,steel,25000.0,1,800,Asteroid ore extraction ship
+spacecraft_explorer_0,Explorer,vehicle,spacecraft,titanium,12000.0,1,700,Long-range survey vessel with sensors
+#
+# === MECHS ===
+mech_light_0,Light Mech,vehicle,mech,titanium,3000.0,1,600,Bipedal exosuit for rough terrain
+mech_heavy_0,Heavy Mech,vehicle,mech,titanium,8000.0,1,1000,Armored combat walker
+mech_construction_0,Construction Mech,vehicle,mech,steel,6000.0,1,800,Industrial lifter with crane arms
+mech_mining_0,Mining Mech,vehicle,mech,steel,7000.0,1,900,Drill-equipped tunnel borer
+mech_scout_0,Scout Mech,vehicle,mech,aluminum,2000.0,1,500,Fast recon walker with sensors
+#
+# === ELECTRIC VEHICLES ===
+car_electric_0,Electric Car,vehicle,electric,aluminum,1800.0,1,500,Battery-powered sedan
+truck_electric_0,Electric Truck,vehicle,electric,steel,3500.0,1,600,Battery-powered cargo hauler
+scooter_electric_0,Electric Scooter,vehicle,electric,aluminum,15.0,1,200,Personal mobility scooter
+bike_electric_0,Electric Bike,vehicle,electric,aluminum,22.0,1,250,Pedal-assist bicycle
+bus_electric_0,Electric Bus,vehicle,electric,steel,9000.0,1,600,Battery transit vehicle
+#
+# === TRAINS ===
+locomotive_0,Locomotive,vehicle,rail,steel,80000.0,1,1000,Rail engine for freight and passenger cars
+railcar_passenger_0,Passenger Car,vehicle,rail,steel,30000.0,1,800,Seating car for 60 passengers
+railcar_freight_0,Freight Car,vehicle,rail,steel,20000.0,1,800,Open-top cargo rail car
+railcar_tanker_0,Tanker Car,vehicle,rail,steel,25000.0,1,900,Liquid transport rail car
+rail_segment_0,Rail Segment,vehicle,rail,steel,50.0,10,2000,10m track section
+#
+# === MEDICAL (expanded) ===
+defibrillator_0,Defibrillator,medical,equipment,plastic,3.5,1,200,Cardiac rhythm restoration device
+painkillers_0,Painkillers,medical,medicine,plastic,0.02,50,1,Oral pain relief tablets
+antibiotics_0,Antibiotics,medical,medicine,plastic,0.02,30,1,Bacterial infection treatment
+antivenom_0,Antivenom,medical,medicine,glass,0.05,10,1,Venom neutralization serum
+blood_bag_0,Blood Bag,medical,supplies,plastic,0.5,10,1,Stored transfusion blood
+stim_pack_0,Stim Pack,medical,combat_med,plastic,0.1,20,1,Fast-acting combat stimulant
+#
+# === ELECTRONICS ===
+circuit_board_0,Circuit Board,electronics,computing,silicon,0.1,20,50,Printed circuit assembly
+battery_small_0,Small Battery,electronics,power,lithium,0.3,10,100,Rechargeable power cell
+battery_large_0,Large Battery,electronics,power,lithium,5.0,1,200,High-capacity energy storage
+solar_cell_0,Solar Cell,electronics,power,silicon,1.0,5,150,Photovoltaic energy converter
+antenna_0,Antenna,electronics,communication,aluminum,0.5,5,100,Radio signal transceiver
+sensor_module_0,Sensor Module,electronics,detection,silicon,0.2,10,80,Multi-spectrum detector
+cpu_0,CPU,electronics,computing,silicon,0.05,20,100,Central processing unit
+servo_motor_0,Servo Motor,electronics,actuator,steel,0.8,5,150,Precision rotary actuator
+led_panel_0,LED Panel,electronics,display,plastic,0.3,10,200,Programmable light display
+#
+# === CONTAINERS (expanded) ===
+chest_metal_0,Metal Chest,container,storage,steel,15.0,1,400,Reinforced lockable container
+backpack_small_0,Small Backpack,container,personal,nylon,0.5,1,80,20-liter carry pack
+backpack_large_0,Large Backpack,container,personal,canvas,1.2,1,120,65-liter expedition pack
+#
+# === DECORATIONS ===
+painting_0,Painting,decoration,wall_art,canvas,1.0,1,50,Framed canvas artwork
+statue_small_0,Small Statue,decoration,sculpture,stone,10.0,1,500,Carved decorative figure
+statue_large_0,Large Statue,decoration,sculpture,marble,200.0,1,1000,Monumental carved figure
+flag_0,Flag,decoration,banner,cotton,0.3,5,30,Cloth standard on a pole
+fountain_0,Fountain,decoration,water_feature,stone,150.0,1,500,Ornamental water display
+planter_0,Planter,decoration,garden,ceramic,5.0,1,100,Ornamental plant container
+trophy_0,Trophy,decoration,display,gold,0.5,1,100,Achievement award display

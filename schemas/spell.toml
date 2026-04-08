@@ -1,0 +1,395 @@
+# HumanityOS Spell Schema
+# Defines the structure for all castable powers: magic spells, innate abilities,
+# technology powers, psionic abilities, and divine miracles.
+#
+# Spells are not limited to magic. A robot's EMP blast, a psionic mind crush,
+# and a wizard's fireball all use this same schema. The "type" field distinguishes
+# the flavor; the engine processes them identically.
+#
+# Connection to game systems:
+#   Combat system (native/src/systems/combat/) -- resolves spell casts during combat.
+#     Reads damage_base, damage_type, range_m, aoe fields to calculate hits.
+#     Checks can_be_reflected, can_be_interrupted, can_crit for combat interactions.
+#     Applies buff_id/debuff_id as status effects with duration_s.
+#   Skill progression (native/src/systems/skills/) -- gates spells behind skill levels.
+#     skill_required + skill_level_required must be met before a creature can use the spell.
+#     Casting a spell grants XP to the associated skill (scaled by mana_cost).
+#   Crafting/enchanting (native/src/systems/crafting/) -- enchanting recipes can bind
+#     spell effects to items. The spell's buff_id becomes the enchantment effect.
+#     Reagents field supports spells that consume physical items on cast.
+#   Creature data -- creatures reference spell IDs in their abilities field.
+#     The AI system selects which ability to use based on range, cooldown state,
+#     and target vulnerability.
+#   Combo system -- combo_from creates spell chains. Casting spell A enables spell B
+#     for a short window. The UI highlights available follow-ups.
+#
+# Actual spell definitions live in data/spells/. Mods add spells by dropping
+# new files into that directory.
+
+# ── Field Definitions ────────────────────────────────────────────
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique identifier, snake_case. Referenced by creature abilities, recipe enchantments, and combo chains."
+constraints = "Must be unique across all spell files. Lowercase alphanumeric + underscores."
+example = "fireball"
+
+[fields.name]
+type = "string"
+required = true
+description = "Display name shown in spell bar, tooltips, and combat log."
+example = "Fireball"
+
+[fields.type]
+type = "string"
+required = true
+description = "Power source category. Determines which skill tree governs this spell and what resource it costs."
+valid_values = ["spell", "ability", "tech", "psionic", "divine"]
+notes = "spell = traditional magic. ability = innate creature power (no mana cost by convention). tech = technology/gadget. psionic = mind-based. divine = granted by faith/deity."
+example = "spell"
+
+[fields.school]
+type = "string"
+required = true
+description = "Elemental or thematic school. Used for resistance calculations, visual theming, and skill tree grouping."
+valid_values = ["fire", "water", "earth", "air", "lightning", "ice", "nature", "shadow", "light", "arcane", "healing", "summoning", "enchantment", "illusion", "gravity", "time"]
+example = "fire"
+
+[fields.description]
+type = "string"
+required = true
+description = "Gameplay description explaining what the spell does mechanically."
+example = "Launches a ball of fire that explodes on impact, dealing fire damage in an area."
+
+[fields.flavor_text]
+type = "string"
+required = false
+default = ""
+description = "Optional lore text shown in italics below the description."
+example = "The simplest spell any pyromancer learns, and often the last thing their enemies see."
+
+[fields.mana_cost]
+type = "float"
+required = false
+default = 0.0
+description = "Mana consumed on cast. 0 for abilities, tech powers, or free spells."
+constraints = "Must be >= 0."
+example = 25.0
+
+[fields.stamina_cost]
+type = "float"
+required = false
+default = 0.0
+description = "Stamina consumed on cast. Physical abilities and tech powers typically cost stamina instead of mana."
+constraints = "Must be >= 0."
+example = 0.0
+
+[fields.health_cost]
+type = "float"
+required = false
+default = 0.0
+description = "Health consumed on cast. For blood magic or desperate last-resort powers."
+constraints = "Must be >= 0."
+example = 0.0
+
+[fields.cooldown_s]
+type = "float"
+required = false
+default = 0.0
+description = "Seconds before the spell can be cast again. 0 = no cooldown (limited only by resources)."
+constraints = "Must be >= 0."
+example = 3.0
+
+[fields.cast_time_s]
+type = "float"
+required = false
+default = 0.0
+description = "Seconds of casting before the spell fires. 0 = instant cast. Channeled spells set this to the channel duration."
+constraints = "Must be >= 0."
+example = 0.5
+
+[fields.range_m]
+type = "float"
+required = true
+description = "Maximum cast range in meters. 0 = self-only. -1 = unlimited range."
+constraints = "-1, 0, or any positive value."
+example = 30.0
+
+[fields.area_of_effect_m]
+type = "float"
+required = false
+default = 0.0
+description = "Radius of the area of effect in meters. 0 = single target only."
+constraints = "Must be >= 0."
+example = 5.0
+
+[fields.aoe_shape]
+type = "string"
+required = false
+default = "point"
+description = "Shape of the area of effect. Only relevant when area_of_effect_m > 0."
+valid_values = ["point", "cone", "sphere", "line", "wall", "ring"]
+example = "sphere"
+
+[fields.damage_base]
+type = "float"
+required = false
+default = 0.0
+description = "Base damage before resistances and modifiers. 0 for non-damaging spells (heals, buffs, utility)."
+constraints = "Must be >= 0."
+example = 80.0
+
+[fields.damage_type]
+type = "string"
+required = false
+default = "physical"
+description = "Damage element for resistance calculations. Creatures can have per-type resistances."
+valid_values = ["physical", "fire", "ice", "lightning", "poison", "psychic", "holy", "shadow", "true"]
+notes = "'true' damage ignores all resistances."
+example = "fire"
+
+[fields.healing_base]
+type = "float"
+required = false
+default = 0.0
+description = "Base healing amount. Applied to the target (or self if range_m = 0)."
+constraints = "Must be >= 0."
+example = 0.0
+
+[fields.buff_id]
+type = "string"
+required = false
+default = ""
+description = "Status effect ID applied as a positive buff. References data/status_effects/."
+example = ""
+
+[fields.debuff_id]
+type = "string"
+required = false
+default = ""
+description = "Status effect ID applied as a negative debuff (burn, slow, silence, etc.)."
+example = "burning"
+
+[fields.duration_s]
+type = "float"
+required = false
+default = 0.0
+description = "Duration of applied buff/debuff in seconds. 0 = instant effect only, no lingering."
+constraints = "Must be >= 0."
+example = 5.0
+
+[fields.projectile_speed_mps]
+type = "float"
+required = false
+default = 0.0
+description = "Speed of the projectile in meters per second. 0 = instant hit (hitscan/beam). Only applies to ranged spells."
+constraints = "Must be >= 0."
+example = 20.0
+
+[fields.projectile_model_id]
+type = "string"
+required = false
+default = ""
+description = "Model ID for the projectile visual. Empty = uses a default particle effect for the school."
+example = "proj_fireball"
+
+[fields.level_required]
+type = "integer"
+required = false
+default = 1
+description = "Minimum player/creature level to learn or use this spell."
+constraints = "Must be >= 1."
+example = 5
+
+[fields.skill_required]
+type = "string"
+required = false
+default = ""
+description = "Skill name from the skill progression system that governs this spell. Empty = no skill gate."
+example = "pyromancy"
+
+[fields.skill_level_required]
+type = "integer"
+required = false
+default = 0
+description = "Minimum level in skill_required to use this spell. 0 = no minimum."
+constraints = "Must be >= 0."
+example = 3
+
+[fields.reagents]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated item_id:quantity pairs consumed on cast. Empty = no material cost."
+constraints = "item_id must exist in items.csv."
+example = "sulfur_0:1"
+
+[fields.combo_from]
+type = "string"
+required = false
+default = ""
+description = "Spell ID that must be cast immediately before this one to enable it. Empty = no combo prerequisite. Combo window is 3 seconds by default."
+example = ""
+
+[fields.can_be_reflected]
+type = "boolean"
+required = false
+default = true
+description = "Whether this spell can be reflected back by shields, mirror spells, or reflect abilities."
+example = true
+
+[fields.can_be_interrupted]
+type = "boolean"
+required = false
+default = true
+description = "Whether the cast can be interrupted by damage or silence effects. Instant-cast spells (cast_time_s = 0) cannot be interrupted regardless."
+example = true
+
+[fields.can_crit]
+type = "boolean"
+required = false
+default = true
+description = "Whether this spell can critically hit for bonus damage/healing. Crit chance is derived from the caster's luck stat."
+example = true
+
+[fields.visual_effect_id]
+type = "string"
+required = false
+default = ""
+description = "VFX ID played at the caster's position during cast. References data/effects/."
+example = "vfx_fire_charge"
+
+[fields.sound_id]
+type = "string"
+required = false
+default = ""
+description = "Sound ID played when the spell is cast."
+example = "sfx_fire_whoosh"
+
+[fields.impact_sound_id]
+type = "string"
+required = false
+default = ""
+description = "Sound ID played when the spell hits a target or reaches its destination."
+example = "sfx_explosion_small"
+
+[fields.tags]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated tags for filtering and AI decision-making. Multiple tags allowed."
+valid_values_per_item = ["offensive", "defensive", "utility", "movement", "summon", "aura", "passive", "channeled"]
+notes = "AI uses tags to select abilities contextually: offensive when attacking, defensive when low health, movement to close/escape gaps."
+example = "offensive"
+
+
+# ── Example Entries ──────────────────────────────────────────────
+
+[[examples]]
+id = "fireball"
+name = "Fireball"
+type = "spell"
+school = "fire"
+description = "Launches a ball of fire that explodes on impact, dealing fire damage in an area."
+flavor_text = "The simplest spell any pyromancer learns, and often the last thing their enemies see."
+mana_cost = 25.0
+stamina_cost = 0.0
+health_cost = 0.0
+cooldown_s = 3.0
+cast_time_s = 0.5
+range_m = 30.0
+area_of_effect_m = 5.0
+aoe_shape = "sphere"
+damage_base = 80.0
+damage_type = "fire"
+healing_base = 0.0
+buff_id = ""
+debuff_id = "burning"
+duration_s = 5.0
+projectile_speed_mps = 20.0
+projectile_model_id = "proj_fireball"
+level_required = 5
+skill_required = "pyromancy"
+skill_level_required = 3
+reagents = "sulfur_0:1"
+combo_from = ""
+can_be_reflected = true
+can_be_interrupted = true
+can_crit = true
+visual_effect_id = "vfx_fire_charge"
+sound_id = "sfx_fire_whoosh"
+impact_sound_id = "sfx_explosion_small"
+tags = "offensive"
+
+[[examples]]
+id = "mend_wounds"
+name = "Mend Wounds"
+type = "spell"
+school = "healing"
+description = "Channels restorative energy into a target, healing them over 4 seconds."
+flavor_text = "Even the smallest light can hold back the dark."
+mana_cost = 30.0
+stamina_cost = 0.0
+health_cost = 0.0
+cooldown_s = 1.0
+cast_time_s = 4.0
+range_m = 15.0
+area_of_effect_m = 0.0
+aoe_shape = "point"
+damage_base = 0.0
+damage_type = "physical"
+healing_base = 120.0
+buff_id = "regeneration"
+debuff_id = ""
+duration_s = 8.0
+projectile_speed_mps = 0.0
+projectile_model_id = ""
+level_required = 3
+skill_required = "restoration"
+skill_level_required = 2
+reagents = ""
+combo_from = ""
+can_be_reflected = false
+can_be_interrupted = true
+can_crit = true
+visual_effect_id = "vfx_heal_glow"
+sound_id = "sfx_heal_chime"
+impact_sound_id = ""
+tags = "defensive|channeled"
+
+[[examples]]
+id = "emp_burst"
+name = "EMP Burst"
+type = "tech"
+school = "lightning"
+description = "Overloads a capacitor to release an electromagnetic pulse, disabling electronics and shields in a radius."
+flavor_text = ""
+mana_cost = 0.0
+stamina_cost = 40.0
+health_cost = 0.0
+cooldown_s = 15.0
+cast_time_s = 0.0
+range_m = 0.0
+area_of_effect_m = 12.0
+aoe_shape = "sphere"
+damage_base = 30.0
+damage_type = "lightning"
+healing_base = 0.0
+buff_id = ""
+debuff_id = "emp_disabled"
+duration_s = 6.0
+projectile_speed_mps = 0.0
+projectile_model_id = ""
+level_required = 10
+skill_required = "engineering"
+skill_level_required = 5
+reagents = "capacitor_0:1"
+combo_from = ""
+can_be_reflected = false
+can_be_interrupted = false
+can_crit = false
+visual_effect_id = "vfx_emp_wave"
+sound_id = "sfx_electric_surge"
+impact_sound_id = "sfx_electric_crackle"
+tags = "offensive|utility"

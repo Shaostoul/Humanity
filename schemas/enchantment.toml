@@ -1,0 +1,320 @@
+# HumanityOS Enchantment Schema
+# Defines the format for enchantments in data/enchantments.csv
+#
+# Enchantments are magical and technological enhancements applied to items.
+# They modify stats, add elemental effects, grant special abilities, or impose
+# curses. The system covers everything from a blacksmith's sharpening rune to
+# a cursed amulet that attracts danger.
+#
+# Enchantments are NOT spells. Spells are cast actively; enchantments are passive
+# modifications bound to an item. However, some enchantments reference spell or
+# status effect IDs to trigger on-hit or on-use effects.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (changes apply without restart)
+# Referenced by: data/items.csv (items with enchantment slots),
+#                data/recipes.csv (enchanting recipes that bind enchantments),
+#                data/spells/ (spells that apply enchantments via crafting)
+# References: data/status_effects.csv (special_effect field),
+#             data/items.csv (reagents field),
+#             assets/vfx/ (visual_effect field)
+#
+# Connection to game systems:
+#   Crafting/enchanting (native/src/systems/crafting/) -- the enchanting workbench
+#     reads this table to validate which enchantments can be applied to which items.
+#     Consumes reagents, checks skill level, deducts mana_cost from the enchanter.
+#   Combat system (native/src/systems/combat/) -- reads bonus_damage, bonus_armor,
+#     and special_effect fields on equipped items during damage resolution.
+#   Inventory system (native/src/systems/inventory/) -- displays enchantment info
+#     in tooltips, enforces max_stacks and conflicts_with rules.
+#   Skill progression (native/src/systems/skills/) -- gates enchantments behind
+#     skill_required + skill_level. Applying enchantments grants enchanting XP.
+#   Renderer (native/src/renderer/) -- reads visual_effect to apply glow colors
+#     and particle effects to enchanted item meshes.
+#
+# Actual enchantment definitions live in data/enchantments.csv. Mods add
+# enchantments by editing or extending that file.
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this enchantment. Use snake_case.
+Referenced by item enchantment slots, crafting recipes, and conflict lists."""
+constraints = "snake_case, unique across all enchantments. Lowercase alphanumeric + underscores."
+example = "sharpness"
+
+[fields.name]
+type = "string"
+required = true
+description = "Display name shown in item tooltips, enchanting UI, and the encyclopedia."
+constraints = "Title Case, keep under 40 characters."
+example = "Sharpness"
+
+[fields.type]
+type = "string"
+required = true
+description = """
+Primary classification that determines UI grouping, icon tint, and availability filtering.
+Elemental enchants deal or resist specific damage types. Protective enchants improve
+defenses. Utility enchants modify non-combat properties. Offensive enchants boost
+damage output. Cursed enchants impose penalties. Legendary enchants are uniquely
+powerful effects that defy normal categorization."""
+valid_values = ["elemental", "protective", "utility", "offensive", "cursed", "legendary"]
+example = "offensive"
+
+[fields.applicable_to]
+type = "string"
+required = true
+description = """
+Pipe-separated list of item categories this enchantment can be applied to.
+The enchanting workbench checks this field before allowing application.
+Use 'any' to allow application to all item types."""
+valid_values_per_item = ["weapon", "armor", "tool", "vehicle", "clothing", "container", "furniture", "any"]
+constraints = "At least one value required. Pipe-separated if multiple."
+example = "weapon|tool"
+
+[fields.rarity]
+type = "string"
+required = true
+description = """
+Rarity tier that determines drop rate from loot tables, enchanting discovery chance,
+and the color of the enchantment name in UI (common=white, uncommon=green, rare=blue,
+epic=purple, legendary=orange, mythic=red)."""
+valid_values = ["common", "uncommon", "rare", "epic", "legendary", "mythic"]
+example = "common"
+
+[fields.level_required]
+type = "integer"
+required = true
+description = "Minimum player level to use an item with this enchantment. Items can still be held but the enchantment effect is suppressed below this level."
+constraints = "Must be >= 1."
+example = 1
+
+[fields.skill_required]
+type = "string"
+required = false
+default = "enchanting"
+description = "Skill name from the progression system required to APPLY this enchantment at a workbench. Empty string means no skill gate."
+example = "enchanting"
+
+[fields.skill_level]
+type = "integer"
+required = false
+default = 1
+description = "Minimum level in skill_required to apply this enchantment. 0 = no minimum."
+constraints = "Must be >= 0."
+example = 1
+
+[fields.mana_cost]
+type = "float"
+required = false
+default = 0.0
+description = "Mana consumed from the enchanter when applying this enchantment at a workbench. 0 = no mana cost (purely material-gated)."
+constraints = "Must be >= 0."
+example = 10.0
+
+[fields.reagents]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated item_id:quantity pairs consumed when applying the enchantment.
+All reagents must be present in the enchanter's inventory or the operation fails.
+Empty = no material cost."""
+constraints = "Each entry must be item_id:quantity where item_id exists in items.csv and quantity is a positive integer."
+example = "arcane_dust:2|iron_ingot:1"
+
+[fields.stat_modifiers]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated stat:value:operation triples that modify the enchanted item's stats.
+Operations: 'add' adds flat value, 'multiply' multiplies by value, 'set' overrides to value.
+Multiple modifiers can stack. The engine applies set first, then multiply, then add."""
+constraints = "Each entry must be stat_name:numeric_value:operation. Operation must be add, multiply, or set."
+notes = """
+Common stats: durability, weight_kg, damage, armor, speed, range,
+harvest_yield, fuel_efficiency, capacity, comfort."""
+example = "durability:999999:set"
+
+[fields.bonus_damage]
+type = "float"
+required = false
+default = 0.0
+description = "Flat bonus damage added to weapon attacks when this enchantment is active. Only meaningful on weapon-applicable enchantments."
+constraints = "Must be >= 0."
+example = 15.0
+
+[fields.bonus_damage_type]
+type = "string"
+required = false
+default = ""
+description = "Damage type of the bonus damage. Used for elemental resistance calculations. Empty = same as weapon's base damage type."
+valid_values = ["", "physical", "fire", "ice", "lightning", "poison", "psychic", "holy", "shadow", "true"]
+example = "fire"
+
+[fields.bonus_armor]
+type = "float"
+required = false
+default = 0.0
+description = "Flat bonus armor rating added to the item. Only meaningful on armor/clothing enchantments."
+constraints = "Must be >= 0."
+example = 10.0
+
+[fields.bonus_resistance_type]
+type = "string"
+required = false
+default = ""
+description = "Specific damage type that the bonus_armor applies as resistance against. Empty = general physical armor."
+valid_values = ["", "physical", "fire", "ice", "lightning", "poison", "psychic", "holy", "shadow"]
+example = "fire"
+
+[fields.special_effect]
+type = "string"
+required = false
+default = ""
+description = "Status effect ID applied to targets on hit (weapons) or to the wearer passively (armor/clothing). References data/status_effects.csv."
+example = "debuff_burning"
+
+[fields.duration_s]
+type = "float"
+required = false
+default = 0.0
+description = "Duration of the enchantment in seconds. 0 = permanent (lasts until removed or item breaks). Values > 0 create temporary enchantments that expire."
+constraints = "Must be >= 0."
+example = 0.0
+
+[fields.max_stacks]
+type = "integer"
+required = false
+default = 1
+description = "Maximum times this same enchantment can be applied to one item. 1 = no stacking. Higher values allow layered effects (each application adds another instance)."
+constraints = "Must be >= 1."
+example = 1
+
+[fields.conflicts_with]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated enchantment IDs that cannot coexist on the same item.
+The enchanting workbench refuses to apply an enchantment if any conflicting
+enchantment is already present. Conflicts are bidirectional (if A conflicts
+with B, B implicitly conflicts with A)."""
+constraints = "Each entry must be a valid enchantment id."
+example = "ice_imbue|lightning_imbue"
+
+[fields.visual_effect]
+type = "string"
+required = false
+default = ""
+description = """
+Visual feedback definition for the enchanted item. Format: glow_color_hex,particle_type.
+The renderer applies a colored glow to the item mesh and optionally spawns particles.
+Empty = no visual change. Particle types reference the VFX system."""
+constraints = "Format: #RRGGBB,particle_type_name or just #RRGGBB for glow only."
+notes = """
+Common particle types: sparks, flames, frost, lightning_arcs, shadow_wisps,
+holy_motes, drip, smoke, bubbles, none."""
+example = "#FF4400,flames"
+
+[fields.tags]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated tags for filtering, search, and mod interaction.
+Used by the enchanting UI to filter available enchantments and by the
+AI system to evaluate item value."""
+valid_values_per_item = ["elemental", "defensive", "offensive", "utility", "movement", "stealth", "survival", "crafting", "combat", "cursed", "rare_drop", "quest"]
+example = "offensive|elemental"
+
+[fields.description]
+type = "string"
+required = true
+description = "Short gameplay description explaining what the enchantment does. Shown in tooltips and the encyclopedia."
+constraints = "Keep under 120 characters. No commas (CSV delimiter)."
+example = "Adds fire damage to each strike and can ignite targets"
+
+
+# ---------------------------------------------------------------------------
+# EXAMPLE ENTRIES
+# ---------------------------------------------------------------------------
+
+[[examples]]
+id = "sharpness"
+name = "Sharpness"
+type = "offensive"
+applicable_to = "weapon"
+rarity = "common"
+level_required = 1
+skill_required = "enchanting"
+skill_level = 1
+mana_cost = 10.0
+reagents = "arcane_dust:1"
+stat_modifiers = "damage:5:add"
+bonus_damage = 5.0
+bonus_damage_type = ""
+bonus_armor = 0.0
+bonus_resistance_type = ""
+special_effect = ""
+duration_s = 0.0
+max_stacks = 3
+conflicts_with = ""
+visual_effect = "#CCCCCC,sparks"
+tags = "offensive|combat"
+description = "Hones the blade to a razor edge increasing base damage"
+
+[[examples]]
+id = "indestructible"
+name = "Indestructible"
+type = "legendary"
+applicable_to = "any"
+rarity = "mythic"
+level_required = 30
+skill_required = "enchanting"
+skill_level = 15
+mana_cost = 200.0
+reagents = "eternal_crystal:1|arcane_dust:20|diamond:5"
+stat_modifiers = "durability:999999:set"
+bonus_damage = 0.0
+bonus_damage_type = ""
+bonus_armor = 0.0
+bonus_resistance_type = ""
+special_effect = ""
+duration_s = 0.0
+max_stacks = 1
+conflicts_with = "fragile|decay"
+visual_effect = "#FFFFFF,holy_motes"
+tags = "utility|rare_drop"
+description = "Makes the item virtually impossible to break or degrade"
+
+[[examples]]
+id = "fire_imbue"
+name = "Fire Imbue"
+type = "elemental"
+applicable_to = "weapon"
+rarity = "uncommon"
+level_required = 5
+skill_required = "enchanting"
+skill_level = 3
+mana_cost = 25.0
+reagents = "arcane_dust:2|sulfur_0:3"
+stat_modifiers = ""
+bonus_damage = 15.0
+bonus_damage_type = "fire"
+bonus_armor = 0.0
+bonus_resistance_type = ""
+special_effect = "debuff_burning"
+duration_s = 0.0
+max_stacks = 1
+conflicts_with = "ice_imbue|lightning_imbue|poison_imbue"
+visual_effect = "#FF4400,flames"
+tags = "offensive|elemental"
+description = "Wraps the weapon in flames adding fire damage and a chance to ignite"

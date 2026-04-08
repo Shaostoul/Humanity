@@ -14,7 +14,7 @@
 #   just bump           Bump version (patch/minor/major)
 # ─────────────────────────────────────────────────────────────────────────────
 
-set shell := ["bash", "-c"]
+set shell := ["C:/Apps/Git/usr/bin/bash.exe", "-c"]
 
 # List all recipes
 default:
@@ -63,7 +63,7 @@ sync:
         cd /opt/Humanity && \
         git fetch origin main && \
         git reset --hard origin/main && \
-        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
+        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ --exclude=crates/humanity-relay/data/ && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
         cargo build --release -p humanity-relay 2>&1 | tail -4 && \
         rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
@@ -91,7 +91,7 @@ sync-web:
         cd /opt/Humanity && \
         git fetch origin main && \
         git reset --hard origin/main && \
-        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
+        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ --exclude=crates/humanity-relay/data/ && \
         rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
         rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
@@ -225,15 +225,19 @@ clippy:
 # GAME — native desktop client (Rust/wgpu/egui)
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Build the game and copy to repo root as HumanityOS.exe
+# Build the game: bump patch version, compile, archive versioned exe, purge old builds
 build-game:
+    @just bump
     cargo build --features native --release
-    cp target/release/HumanityOS.exe HumanityOS.exe
-    @echo "Built: HumanityOS.exe"
+    @node scripts/archive-build.js
 
 # Build and launch the game
 play: build-game
-    ./HumanityOS.exe
+    @node scripts/archive-build.js --launch
+
+# Launch latest build without rebuilding
+launch:
+    @node scripts/archive-build.js --launch-only
 
 # Check game code for errors (fast, no binary)
 check-game:

@@ -1,0 +1,426 @@
+# HumanityOS Status Effect Schema
+# Defines the format for status effects in data/status_effects.csv
+#
+# Status effects are temporary (or permanent) modifications applied to entities.
+# They cover everything from a health potion's regeneration to frostbite from a
+# blizzard, food buffs from a cooked meal, and poison from a venomous creature.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (changes apply without restart)
+# Referenced by: data/items.csv (consumables that apply effects),
+#                data/recipes.csv (food outputs with buff tags),
+#                data/weather.csv (environmental effects on exposed players),
+#                data/creatures.csv (attacks that inflict debuffs)
+# References: assets/vfx/ (visual_effect_id), assets/audio/ (sound_loop_id)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this status effect. Use snake_case.
+Prefix with the general category when possible for easier filtering:
+  buff_*  for positive effects
+  debuff_* for negative effects
+  env_*   for environmental conditions
+  disease_* for diseases
+  poison_* for poisons"""
+constraints = "snake_case, unique across all status effects"
+examples = ["buff_well_fed", "debuff_frostbite", "env_heatstroke", "poison_spider_venom"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable display name shown on the HUD status bar, tooltips, and the encyclopedia."
+constraints = "Title Case, keep under 40 characters"
+examples = ["Well Fed", "Frostbite", "Heatstroke", "Spider Venom"]
+
+[fields.type]
+type = "string"
+required = true
+description = """
+Primary classification that determines icon color, HUD grouping, and AI behavior.
+Buffs are shown in green, debuffs in red, conditions in yellow, environmental
+in blue, diseases in purple, poisons in dark green."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "buff",          # Positive player-applied effect (potions, food, spells)
+    "debuff",        # Negative effect from combat or traps
+    "condition",     # Neutral or mixed (hungry, exhausted, encumbered)
+    "environmental", # Caused by weather, biome, or terrain (heatstroke, altitude sickness)
+    "disease",       # Contracted from creatures, water, or prolonged exposure
+    "poison",        # Damage-over-time from creatures, plants, or traps
+]
+
+[fields.description]
+type = "string"
+required = true
+description = "One-sentence description shown in tooltips and the encyclopedia."
+constraints = "Keep under 100 characters. No commas (CSV delimiter)."
+examples = [
+    "A hearty meal grants vigor and warmth",
+    "Prolonged cold exposure slows movement and drains health",
+    "Neurotoxin causes blurred vision and muscle weakness",
+]
+
+[fields.icon_id]
+type = "string"
+required = true
+description = """
+Asset id for the icon displayed on the HUD status bar. Must match a file in
+assets/icons/status/. The renderer looks for {icon_id}.png at 32x32 pixels."""
+constraints = "snake_case, must exist in assets/icons/status/"
+examples = ["icon_well_fed", "icon_frostbite", "icon_poison_green"]
+
+[fields.duration_s]
+type = "float"
+required = true
+default = 30.0
+description = """
+How long the effect lasts in seconds. Set to 0 for permanent effects that
+persist until explicitly removed (by a cure, rest, or specific item).
+The timer starts when the effect is first applied and resets if reapplied
+(unless stacking rules produce a separate stack instead)."""
+constraints = "Must be >= 0. Use 0 for permanent-until-removed effects."
+examples = [0.0, 10.0, 30.0, 120.0, 600.0]
+
+[fields.stackable]
+type = "boolean"
+required = true
+default = false
+description = """
+Whether multiple instances of this effect can exist on the same entity
+simultaneously. When true, each application adds a new stack up to
+max_stacks. When false, reapplying refreshes the duration instead."""
+constraints = "true or false (lowercase in CSV)"
+examples = ["true", "false"]
+
+[fields.max_stacks]
+type = "integer"
+required = false
+default = 1
+description = """
+Maximum number of simultaneous stacks if stackable is true.
+Each stack applies its stat_modifiers and damage/healing independently.
+Ignored when stackable is false."""
+constraints = "Must be >= 1"
+examples = [1, 3, 5, 10]
+
+[fields.tick_interval_s]
+type = "float"
+required = true
+default = 1.0
+description = """
+How often (in seconds) the effect applies its per-tick damage, healing,
+or stat recalculation. Set to 0 for continuous effects that modify stats
+without periodic ticks (pure stat modifiers like movement speed buffs).
+Smaller intervals mean more frequent application but higher CPU cost."""
+constraints = "Must be >= 0"
+examples = [0.0, 0.5, 1.0, 3.0, 5.0]
+
+[fields.stat_modifiers]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated list of stat:modifier:operation triples. Each triple adjusts
+one stat on the affected entity. Operations are applied in order:
+  add      - adds the modifier value to the stat
+  multiply - multiplies the stat by the modifier value
+  set      - overrides the stat to exactly the modifier value
+Stat names must match fields in the player/entity stat block (defined in
+data/player.toml). Multiple modifiers can target the same stat; they are
+applied in add -> multiply -> set order regardless of list position."""
+constraints = "Pipe-separated stat:value:operation triples. Valid operations: add, multiply, set."
+examples = [
+    "health_regen:5:add",
+    "movement_speed:0.5:multiply|stamina_regen:-2:add",
+    "fire_resistance:100:set|cold_resistance:-50:add",
+    "attack_damage:1.25:multiply|attack_speed:1.1:multiply",
+]
+
+[fields.damage_per_tick]
+type = "float"
+required = true
+default = 0.0
+description = """
+Hit points of damage dealt each tick_interval_s. Set to 0 for effects
+that do not deal damage. Damage is applied after stat modifiers are
+recalculated so resistance stats can reduce it."""
+constraints = "Must be >= 0"
+examples = [0.0, 2.0, 5.0, 15.0]
+
+[fields.damage_type]
+type = "string"
+required = false
+default = "none"
+description = """
+The type of damage dealt by damage_per_tick. Determines which resistance
+stat mitigates it and which visual/sound feedback to play."""
+constraints = "Must be one of the values listed below. Required if damage_per_tick > 0."
+valid_values = [
+    "none",      # No damage
+    "physical",  # Blunt or sharp trauma
+    "fire",      # Burning or heat
+    "cold",      # Freezing or frostbite
+    "electric",  # Shock or lightning
+    "poison",    # Toxin or venom
+    "acid",      # Corrosive chemical
+    "radiation", # Nuclear or solar radiation
+]
+
+[fields.healing_per_tick]
+type = "float"
+required = true
+default = 0.0
+description = """
+Hit points of healing restored each tick_interval_s. Set to 0 for effects
+that do not heal. An effect can deal damage and heal simultaneously (for
+example a life-drain curse that hurts stamina but restores health)."""
+constraints = "Must be >= 0"
+examples = [0.0, 1.0, 5.0, 10.0]
+
+[fields.immunity_after]
+type = "boolean"
+required = true
+default = false
+description = """
+Whether the entity gains temporary immunity to this same effect after it
+expires. Prevents rapid reapplication loops (for example a stun that would
+perma-lock a player if reapplied every time it wore off)."""
+constraints = "true or false"
+examples = ["true", "false"]
+
+[fields.immunity_duration_s]
+type = "float"
+required = false
+default = 0.0
+description = """
+How long (in seconds) the immunity lasts after the effect expires.
+Only used when immunity_after is true. During this window the same
+effect cannot be reapplied."""
+constraints = "Must be >= 0. Ignored if immunity_after is false."
+examples = [0.0, 3.0, 10.0, 30.0]
+
+[fields.dispel_type]
+type = "string"
+required = true
+default = "none"
+description = """
+How this effect can be removed before its duration expires.
+Determines which items, skills, or actions can cure it."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "none",          # Cannot be dispelled; must wait for duration
+    "magic",         # Removed by cure spells or enchanted items
+    "medicine",      # Removed by medical items (antidote, bandage, antibiotic)
+    "rest",          # Removed by sleeping or resting at a bed
+    "specific_item", # Removed only by a particular item (id in tags field)
+]
+
+[fields.visual_effect_id]
+type = "string"
+required = false
+default = ""
+description = """
+Asset id for the particle or screen effect shown on the affected entity.
+Must match a VFX definition in assets/vfx/. Leave empty for effects
+with no visible indicator (internal stat changes)."""
+constraints = "snake_case, must exist in assets/vfx/ if provided"
+examples = ["", "vfx_poison_bubbles", "vfx_frost_overlay", "vfx_regen_sparkle"]
+
+[fields.sound_loop_id]
+type = "string"
+required = false
+default = ""
+description = """
+Sound asset that loops while the effect is active. Must match an id in
+data/sounds.csv. Leave empty for silent effects."""
+constraints = "Must be a valid sound id if provided"
+examples = ["", "sfx_burning_loop", "sfx_heartbeat_slow", "sfx_wind_chill"]
+
+[fields.applied_by]
+type = "string"
+required = true
+description = """
+Pipe-separated list of sources that can apply this effect. Used by the
+effect system to validate application requests and by the AI to understand
+what causes each effect."""
+constraints = "Pipe-separated values from: spell, item, creature, environment, food, trap, skill"
+examples = [
+    "food",
+    "creature|trap",
+    "environment",
+    "spell|item",
+    "item|food|skill",
+]
+
+[fields.tags]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated tags for filtering, grouping, and UI display. Tags drive
+the "cure all poison" type interactions and help the AI categorize effects.
+When dispel_type is specific_item, include the required item id as a tag."""
+constraints = "Pipe-separated lowercase tags"
+examples = [
+    "fire|dot",
+    "ice|slow",
+    "poison|bleed|dot",
+    "haste|buff|movement",
+    "shield|regen|buff",
+    "stun|debuff|specific_item|smelling_salts_0",
+]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+combat = """
+Combat attacks can apply status effects on hit. Weapon entries in items.csv
+reference effect ids in their on_hit_effect field. Creature attacks in
+creatures.csv likewise reference effect ids. The combat system checks the
+target's resistances (from stat_modifiers on active buffs and equipment)
+before applying the effect. Stacking and immunity rules prevent infinite
+crowd-control loops."""
+
+spells_and_skills = """
+Spells and active skills apply effects listed in their effect_ids field.
+Buff spells apply positive effects to the caster or allies; debuff spells
+apply negative effects to enemies. The skill system checks mana cost and
+cooldown before applying. Some skills grant passive stat modifiers that
+behave like permanent status effects with duration_s = 0."""
+
+food_and_potions = """
+Consumable items (category = food or medical in items.csv) list their
+granted effects in an on_consume_effects field (pipe-separated effect ids).
+A cooked meal might grant buff_well_fed (health_regen + stamina_regen),
+while an antidote potion dispels poison-tagged effects. The food system
+applies effects after the eating animation completes."""
+
+environment_and_weather = """
+Weather conditions in data/weather.csv have an effect_on_player field that
+references a status effect id. While the player is exposed to that weather
+(not under shelter), the effect is continuously applied. Biome-specific
+hazards (volcanic fumes, deep-sea pressure) work the same way. The effect
+is removed when the player enters shelter or leaves the hazard zone."""
+
+farming = """
+Some environmental effects damage or buff crops. The farming system checks
+active weather effects against crop tolerance values. Acid rain might apply
+env_acid_exposure to both the player and nearby crop entities, reducing
+crop health each tick."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+id_naming = """
+Prefix ids with their type for clarity:
+  buff_*       positive effects (buff_well_fed, buff_haste)
+  debuff_*     negative combat effects (debuff_stun, debuff_bleed)
+  env_*        environmental hazards (env_heatstroke, env_altitude_sickness)
+  disease_*    contracted illnesses (disease_flu, disease_radiation_sickness)
+  poison_*     toxin DOTs (poison_spider_venom, poison_nightshade)
+  condition_*  neutral states (condition_hungry, condition_encumbered)"""
+
+stacking_design = """
+Most buffs should NOT stack (stackable = false) and instead refresh
+duration on reapplication. Poison and bleed effects should stack with a
+reasonable max_stacks (3-5) so multiple sources feel dangerous without
+being instantly lethal. Environmental effects should never stack since
+the player is either exposed or not."""
+
+csv_formatting = """
+  - Use # for comment lines (section headers, notes)
+  - No spaces after commas
+  - Pipe | separates list values within a single field
+  - Colon : separates sub-values within list entries (stat:value:op)
+  - Descriptions must not contain commas (or wrap in quotes)
+  - One effect per line, header row is required
+  - Group effects by type with # === TYPE === headers"""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[[examples]]
+name = "Well Fed (food buff)"
+csv_row = "buff_well_fed,Well Fed,buff,A hearty meal grants vigor and warmth,icon_well_fed,300,false,1,0,health_regen:2:add|stamina_regen:1:add|cold_resistance:10:add,0,none,0,false,0,none,,sfx_satisfied_sigh,food,buff|regen|food"
+breakdown = """
+  id                = buff_well_fed       (positive food effect)
+  name              = Well Fed
+  type              = buff
+  description       = A hearty meal grants vigor and warmth
+  icon_id           = icon_well_fed
+  duration_s        = 300                 (5 minutes)
+  stackable         = false               (reapplying refreshes duration)
+  max_stacks        = 1
+  tick_interval_s   = 0                   (continuous stat modifier, no ticks)
+  stat_modifiers    = health_regen:2:add|stamina_regen:1:add|cold_resistance:10:add
+  damage_per_tick   = 0                   (no damage)
+  damage_type       = none
+  healing_per_tick  = 0                   (healing is via health_regen stat)
+  immunity_after    = false
+  immunity_duration = 0
+  dispel_type       = none                (just wait it out or eat again)
+  visual_effect_id  =                     (no visible particles)
+  sound_loop_id     = sfx_satisfied_sigh  (brief sound on application)
+  applied_by        = food
+  tags              = buff|regen|food"""
+
+[[examples]]
+name = "Frostbite (environmental debuff)"
+csv_row = "env_frostbite,Frostbite,environmental,Prolonged cold exposure slows movement and drains health,icon_frostbite,0,false,1,3,movement_speed:0.6:multiply|attack_speed:0.8:multiply,5,cold,0,true,30,medicine,vfx_frost_overlay,sfx_wind_chill,environment,ice|slow|dot|debuff"
+breakdown = """
+  id                = env_frostbite       (environmental cold hazard)
+  name              = Frostbite
+  type              = environmental
+  description       = Prolonged cold exposure slows movement and drains health
+  icon_id           = icon_frostbite
+  duration_s        = 0                   (permanent until the player warms up or uses medicine)
+  stackable         = false               (you either have frostbite or you don't)
+  max_stacks        = 1
+  tick_interval_s   = 3                   (damage every 3 seconds)
+  stat_modifiers    = movement_speed:0.6:multiply|attack_speed:0.8:multiply
+  damage_per_tick   = 5                   (5 HP every 3 seconds)
+  damage_type       = cold
+  healing_per_tick  = 0
+  immunity_after    = true                (cannot get frostbite again immediately)
+  immunity_duration = 30                  (30 seconds immunity after curing)
+  dispel_type       = medicine            (requires a warming salve or hot drink)
+  visual_effect_id  = vfx_frost_overlay   (ice crystals on screen edges)
+  sound_loop_id     = sfx_wind_chill      (ambient cold wind while active)
+  applied_by        = environment
+  tags              = ice|slow|dot|debuff"""
+
+[[examples]]
+name = "Spider Venom (creature poison)"
+csv_row = "poison_spider_venom,Spider Venom,poison,Neurotoxin causes blurred vision and muscle weakness,icon_poison_green,20,true,3,2,movement_speed:0.7:multiply|attack_damage:0.8:multiply,8,poison,0,true,10,medicine,vfx_poison_bubbles,sfx_heartbeat_slow,creature|trap,poison|dot|creature"
+breakdown = """
+  id                = poison_spider_venom  (creature-applied poison)
+  name              = Spider Venom
+  type              = poison
+  description       = Neurotoxin causes blurred vision and muscle weakness
+  icon_id           = icon_poison_green
+  duration_s        = 20                   (20 seconds per stack)
+  stackable         = true                 (multiple bites stack)
+  max_stacks        = 3                    (up to 3 stacks = 24 DPS)
+  tick_interval_s   = 2                    (damage every 2 seconds)
+  stat_modifiers    = movement_speed:0.7:multiply|attack_damage:0.8:multiply
+  damage_per_tick   = 8                    (8 HP per stack per tick)
+  damage_type       = poison
+  healing_per_tick  = 0
+  immunity_after    = true                 (brief immunity after all stacks expire)
+  immunity_duration = 10                   (10 seconds before re-poisoning)
+  dispel_type       = medicine             (antidote potion cures it)
+  visual_effect_id  = vfx_poison_bubbles   (green bubbles on character)
+  sound_loop_id     = sfx_heartbeat_slow   (slowed heartbeat ambience)
+  applied_by        = creature|trap
+  tags              = poison|dot|creature"""

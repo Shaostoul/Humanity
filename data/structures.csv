@@ -1,0 +1,164 @@
+# HumanityOS Structures Database
+# All buildable structures, furniture, machines, and decorative objects
+#
+# Column definitions:
+#   id                  - Unique structure identifier (snake_case)
+#   name                - Display name
+#   category            - wall, floor, ceiling, door, window, stairs, ramp, machine, furniture, decoration, utility, lighting, storage, plumbing, electrical, defense
+#   subcategory         - More specific grouping
+#   width_m             - Width in meters
+#   height_m            - Height in meters
+#   depth_m             - Depth in meters
+#   materials_required  - Pipe-separated material_id:quantity pairs
+#   snap_type           - grid, edge, corner, surface, freeform
+#   is_functional       - true/false (does it DO something)
+#   power_draw_watts    - Power consumption (0 if unpowered)
+#   hp                  - Structure hitpoints
+#   comfort_bonus       - Quality of life bonus (0-10)
+#   beauty_bonus        - Aesthetic bonus (0-10)
+#   placement           - indoor_only, outdoor_only, anywhere
+#   description         - Short description
+#
+id,name,category,subcategory,width_m,height_m,depth_m,materials_required,snap_type,is_functional,power_draw_watts,hp,comfort_bonus,beauty_bonus,placement,description
+# === FOUNDATIONS & FLOORS ===
+concrete_foundation,Concrete Foundation,floor,foundation,4.0,0.3,4.0,concrete:12|rebar:4,grid,false,0,500,0,0,anywhere,Reinforced concrete slab for building on any terrain
+wood_floor,Wood Floor,floor,flooring,4.0,0.05,4.0,wood_plank:8|nail:16,grid,false,0,150,2,3,anywhere,Standard wooden floor panel
+tile_floor,Tile Floor,floor,flooring,4.0,0.03,4.0,ceramic_tile:24|mortar:4,grid,false,0,200,3,5,indoor_only,Ceramic tile flooring with clean finish
+stone_floor,Stone Floor,floor,flooring,4.0,0.08,4.0,stone_block:16,grid,false,0,400,1,4,anywhere,Durable cut stone floor
+metal_grating,Metal Grating,floor,industrial,4.0,0.04,4.0,steel_plate:4|steel_rod:8,grid,false,0,300,0,1,anywhere,Open steel grating for industrial areas and catwalks
+glass_floor,Glass Floor,floor,flooring,4.0,0.06,4.0,glass_panel:8|steel_frame:4,grid,false,0,100,2,7,indoor_only,Transparent reinforced glass floor panel
+carpet,Carpet,floor,flooring,4.0,0.02,4.0,fabric:6|adhesive:2,grid,false,0,50,5,4,indoor_only,Soft textile floor covering for comfort
+bamboo_floor,Bamboo Floor,floor,flooring,4.0,0.04,4.0,bamboo:12|nail:12,grid,false,0,120,3,5,indoor_only,Sustainable bamboo plank flooring
+composite_decking,Composite Decking,floor,outdoor,4.0,0.04,4.0,composite_plank:10|screw:20,grid,false,0,250,3,4,outdoor_only,Weather-resistant composite deck surface
+landing_pad,Landing Pad,floor,vehicle,8.0,0.4,8.0,concrete:40|steel_plate:16|paint:2,grid,true,50,800,0,2,outdoor_only,Reinforced pad for spacecraft and vehicle landing
+# === WALLS ===
+wood_wall,Wood Wall,wall,structural,4.0,3.0,0.15,wood_plank:12|nail:24|wood_beam:2,edge,false,0,200,1,3,anywhere,Standard wooden wall section
+stone_wall,Stone Wall,wall,structural,4.0,3.0,0.4,stone_block:24|mortar:8,edge,false,0,600,1,4,anywhere,Thick stone masonry wall
+concrete_wall,Concrete Wall,wall,structural,4.0,3.0,0.25,concrete:16|rebar:6,edge,false,0,500,0,1,anywhere,Poured reinforced concrete wall
+glass_wall,Glass Wall,wall,structural,4.0,3.0,0.08,glass_panel:6|steel_frame:4,edge,false,0,80,2,7,anywhere,Floor-to-ceiling glass curtain wall
+metal_wall,Metal Wall,wall,structural,4.0,3.0,0.1,steel_plate:8|rivet:16,edge,false,0,400,0,2,anywhere,Corrugated steel wall panel
+brick_wall,Brick Wall,wall,structural,4.0,3.0,0.25,brick:60|mortar:10,edge,false,0,450,2,5,anywhere,Classic fired brick wall
+log_wall,Log Wall,wall,structural,4.0,3.0,0.3,log:6|rope:4,edge,false,0,350,3,4,anywhere,Stacked log cabin wall
+half_wall,Half Wall,wall,partition,4.0,1.2,0.12,wood_plank:6|nail:12|wood_beam:1,edge,false,0,100,1,2,anywhere,Waist-height partition wall
+window_wall,Window Wall,wall,structural,4.0,3.0,0.15,wood_plank:8|glass_panel:3|nail:16,edge,false,0,150,3,5,anywhere,Wall section with built-in window opening
+blast_wall,Blast Wall,wall,fortified,4.0,3.0,0.6,steel_plate:16|concrete:20|rebar:10,edge,false,0,1200,0,0,anywhere,Heavy armor wall rated for explosive resistance
+# === CEILINGS & ROOFS ===
+flat_ceiling,Flat Ceiling,ceiling,structural,4.0,0.15,4.0,wood_plank:10|wood_beam:4|nail:20,grid,false,0,200,1,2,anywhere,Standard flat ceiling panel
+pitched_roof,Pitched Roof,ceiling,roof,4.0,2.0,4.0,wood_plank:14|wood_beam:6|nail:24|shingle:30,grid,false,0,250,2,4,anywhere,Angled roof with weather shingles
+glass_ceiling,Glass Ceiling,ceiling,structural,4.0,0.08,4.0,glass_panel:8|steel_frame:6,grid,false,0,100,3,7,anywhere,Transparent ceiling for natural light
+thatch_roof,Thatch Roof,ceiling,roof,4.0,1.5,4.0,thatch:20|wood_beam:4|rope:6,grid,false,0,80,2,3,anywhere,Traditional bundled thatch roofing
+metal_roof,Metal Roof,ceiling,roof,4.0,0.1,4.0,steel_plate:6|rivet:12,grid,false,0,300,0,1,anywhere,Corrugated metal roofing panel
+dome,Dome,ceiling,roof,6.0,3.0,6.0,steel_frame:12|glass_panel:16|sealant:4,grid,false,0,350,4,8,anywhere,Geodesic dome section for large open spaces
+solar_roof,Solar Roof,ceiling,roof,4.0,0.12,4.0,solar_cell:16|steel_frame:4|wire:8,grid,true,-800,250,0,3,outdoor_only,Roof-integrated solar panels generating 800W
+green_roof,Green Roof,ceiling,roof,4.0,0.4,4.0,waterproof_membrane:4|soil:8|seed:6|wood_beam:4,grid,true,0,200,5,8,outdoor_only,Living plant roof for insulation and beauty
+# === DOORS & WINDOWS ===
+wood_door,Wood Door,door,entry,1.0,2.1,0.08,wood_plank:4|hinge:2|handle:1,edge,true,0,120,1,2,anywhere,Standard hinged wooden door
+metal_door,Metal Door,door,entry,1.0,2.1,0.06,steel_plate:3|hinge:2|handle:1,edge,true,0,300,0,1,anywhere,Heavy steel security door
+glass_door,Glass Door,door,entry,1.0,2.1,0.05,glass_panel:2|steel_frame:2|hinge:2|handle:1,edge,true,0,80,2,5,anywhere,Transparent glass door with metal frame
+airlock,Airlock,door,sealed,2.0,2.4,1.5,steel_plate:8|rubber_seal:4|motor:2|circuit:2,edge,true,200,500,0,3,anywhere,Pressurized double-door airlock for space environments
+gate,Gate,door,exterior,3.0,2.5,0.15,wood_plank:10|hinge:4|latch:1|steel_rod:4,edge,true,0,250,0,3,outdoor_only,Wide exterior gate for vehicle and foot traffic
+portcullis,Portcullis,door,fortified,3.0,3.0,0.2,steel_rod:20|chain:4|winch:1,edge,true,0,600,0,2,anywhere,Heavy vertical sliding gate with winch mechanism
+window_basic,Basic Window,window,glazing,1.0,1.0,0.06,glass_panel:1|wood_frame:1,edge,false,0,40,2,3,anywhere,Single-pane window in wooden frame
+window_large,Large Window,window,glazing,2.0,1.5,0.08,glass_panel:3|steel_frame:2,edge,false,0,60,3,5,anywhere,Oversized picture window
+skylight,Skylight,window,roof,1.5,0.1,1.5,glass_panel:2|steel_frame:2|sealant:1,grid,false,0,50,3,6,anywhere,Roof-mounted window for overhead natural light
+blast_door,Blast Door,door,fortified,2.0,2.4,0.4,steel_plate:12|motor:2|circuit:2|rubber_seal:2,edge,true,300,1000,0,1,anywhere,Motorized armored door rated for explosive blast
+# === STAIRS & RAMPS ===
+wood_stairs,Wood Stairs,stairs,vertical,1.2,3.0,3.0,wood_plank:14|wood_beam:4|nail:30,edge,false,0,180,1,3,anywhere,Standard wooden staircase spanning one floor
+metal_stairs,Metal Stairs,stairs,vertical,1.2,3.0,3.0,steel_plate:8|steel_rod:6|rivet:20,edge,false,0,350,0,2,anywhere,Industrial steel staircase
+spiral_stairs,Spiral Stairs,stairs,vertical,2.0,3.0,2.0,steel_rod:10|steel_plate:6|rivet:16,corner,false,0,400,1,5,anywhere,Compact spiral staircase around a central pole
+ramp,Ramp,ramp,access,1.5,3.0,6.0,concrete:10|rebar:4,edge,false,0,450,1,1,anywhere,Gradual incline for wheeled access and accessibility
+ladder,Ladder,stairs,vertical,0.5,3.0,0.3,steel_rod:6,surface,false,0,200,0,0,anywhere,Vertical ladder for compact floor-to-floor access
+elevator,Elevator,stairs,vertical,2.0,3.0,2.0,steel_plate:8|motor:2|cable:10|circuit:4,corner,true,1500,500,4,3,anywhere,Motorized platform lift for multi-floor transport
+# === FURNITURE ===
+bed,Bed,furniture,bedroom,2.0,0.6,1.0,wood_plank:4|fabric:3|stuffing:2,freeform,true,0,80,8,3,indoor_only,Framed bed with mattress for sleeping
+table,Table,furniture,dining,1.5,0.75,0.8,wood_plank:4|nail:8,freeform,false,0,60,2,3,indoor_only,Simple four-legged table
+chair,Chair,furniture,seating,0.5,0.9,0.5,wood_plank:3|nail:6,freeform,false,0,40,3,2,indoor_only,Basic wooden chair
+desk,Desk,furniture,work,1.4,0.75,0.7,wood_plank:5|nail:10|handle:2,freeform,true,0,70,3,3,indoor_only,Writing desk with drawer
+couch,Couch,furniture,seating,2.0,0.8,0.9,wood_plank:4|fabric:6|stuffing:4,freeform,false,0,60,7,4,indoor_only,Upholstered sofa seating three
+shelf,Shelf,furniture,storage,1.0,1.8,0.3,wood_plank:5|nail:10,surface,false,0,50,1,2,indoor_only,Wall-mounted shelving unit
+wardrobe,Wardrobe,furniture,storage,1.2,2.0,0.6,wood_plank:8|hinge:2|handle:2|nail:16,freeform,true,0,80,3,3,indoor_only,Freestanding clothes wardrobe with doors
+dining_table,Dining Table,furniture,dining,2.0,0.75,1.0,wood_plank:6|nail:12,freeform,false,0,80,4,4,indoor_only,Large table seating six
+workbench,Workbench,furniture,crafting,2.0,0.9,0.8,wood_plank:6|nail:16|steel_rod:2,freeform,true,0,120,1,1,anywhere,Heavy-duty crafting surface with tool slots
+toilet,Toilet,furniture,bathroom,0.4,0.7,0.7,ceramic:4|pipe_fitting:3,freeform,true,0,80,2,0,indoor_only,Flush toilet requiring plumbing connection
+sink,Sink,furniture,bathroom,0.6,0.85,0.5,ceramic:2|pipe_fitting:3|faucet:1,surface,true,0,60,2,1,indoor_only,Wall-mounted wash basin with faucet
+bathtub,Bathtub,furniture,bathroom,1.7,0.6,0.7,ceramic:6|pipe_fitting:4|faucet:1,freeform,true,0,100,6,3,indoor_only,Full-size soaking bathtub
+mirror,Mirror,furniture,bathroom,0.6,0.8,0.03,glass_panel:1|steel_frame:1,surface,false,0,20,1,4,indoor_only,Wall-mounted reflective mirror
+nightstand,Nightstand,furniture,bedroom,0.5,0.55,0.4,wood_plank:3|nail:6|handle:1,freeform,false,0,30,2,2,indoor_only,Small bedside table with drawer
+bookshelf,Bookshelf,furniture,storage,1.0,2.0,0.35,wood_plank:8|nail:14,freeform,false,0,70,4,5,indoor_only,Tall shelving unit for books and display
+# === MACHINES ===
+smelter,Smelter,machine,metalwork,2.0,2.5,2.0,stone_block:16|steel_plate:6|firebite:4|pipe_fitting:4,grid,true,3000,400,0,1,anywhere,High-temperature furnace for smelting raw ore into ingots
+forge,Forge,machine,metalwork,1.5,1.2,1.0,stone_block:8|steel_plate:4|bellows:1,grid,true,0,300,0,2,anywhere,Anvil and hearth station for shaping hot metal
+workbench_advanced,Advanced Workbench,machine,crafting,2.5,1.0,1.0,steel_plate:4|circuit:2|wood_plank:6|motor:1,grid,true,500,200,1,2,anywhere,Powered crafting station with precision tools
+loom,Loom,machine,textile,2.0,1.8,1.0,wood_beam:6|rope:4|nail:12,grid,true,0,100,1,3,indoor_only,Frame loom for weaving fabric from fibers
+kiln,Kiln,machine,ceramics,1.5,1.8,1.5,stone_block:12|firebite:2|pipe_fitting:2,grid,true,2000,350,0,1,anywhere,High-heat oven for firing ceramics and bricks
+sawmill,Sawmill,machine,woodwork,3.0,1.5,2.0,steel_plate:6|motor:1|blade:2|wood_beam:4,grid,true,2200,250,0,0,outdoor_only,Motorized circular saw for milling logs into planks
+water_purifier,Water Purifier,machine,utility,1.0,1.5,1.0,steel_plate:4|filter:2|pipe_fitting:4|circuit:1,grid,true,400,150,2,1,indoor_only,Activated carbon and UV filtration unit
+generator_solar,Solar Generator,machine,power,2.0,0.3,2.0,solar_cell:24|wire:8|circuit:2|steel_frame:2,grid,true,-2000,150,0,2,outdoor_only,Solar panel array producing 2kW peak output
+generator_wind,Wind Generator,machine,power,2.0,8.0,2.0,steel_plate:6|motor:1|wire:10|circuit:2|blade:3,grid,true,-3000,200,0,3,outdoor_only,Three-blade wind turbine producing 3kW in moderate wind
+generator_nuclear,Nuclear Generator,machine,power,4.0,3.0,4.0,steel_plate:30|lead:20|circuit:8|uranium:4|concrete:16,grid,true,-50000,2000,0,0,indoor_only,Compact fission reactor producing 50kW of baseload power
+fabricator,Fabricator,machine,manufacturing,2.0,2.0,2.0,steel_plate:10|circuit:6|motor:2|wire:8,grid,true,5000,300,0,2,indoor_only,Automated CNC fabrication unit for precision parts
+recycler,Recycler,machine,waste,1.5,1.5,1.5,steel_plate:6|motor:1|blade:2|circuit:1,grid,true,1200,200,0,0,anywhere,Shredder and sorter for reclaiming materials from scrap
+composter,Composter,machine,agriculture,1.0,1.0,1.0,wood_plank:6|nail:8,freeform,true,0,60,0,1,outdoor_only,Aerobic decomposition bin turning organic waste into fertilizer
+freezer,Freezer,machine,food,1.0,1.8,0.7,steel_plate:4|insulation:4|circuit:1|coolant:2,freeform,true,200,120,2,0,indoor_only,Refrigerated storage maintaining sub-zero temperatures
+oven,Oven,machine,food,0.7,0.9,0.7,steel_plate:4|firebite:2|circuit:1,freeform,true,2400,100,3,1,indoor_only,Electric cooking oven for baking and roasting
+# === LIGHTING ===
+torch,Torch,lighting,fire,0.1,0.5,0.1,wood:1|cloth:1|oil:1,surface,true,0,20,1,2,anywhere,Wall-mounted flame torch providing warm flickering light
+lantern,Lantern,lighting,fire,0.2,0.3,0.2,steel_plate:1|glass_panel:1|oil:1,freeform,true,0,30,2,3,anywhere,Portable oil lantern with glass chimney
+ceiling_light,Ceiling Light,lighting,electric,0.4,0.15,0.4,glass_panel:1|wire:2|bulb:1,grid,true,15,20,3,3,indoor_only,Flush-mount LED ceiling fixture
+floor_lamp,Floor Lamp,lighting,electric,0.3,1.7,0.3,steel_rod:1|fabric:1|wire:2|bulb:1,freeform,true,20,30,3,4,indoor_only,Freestanding adjustable floor lamp
+spotlight,Spotlight,lighting,electric,0.2,0.2,0.3,steel_plate:1|wire:2|bulb:1,surface,true,50,25,0,2,anywhere,Directional high-intensity focused beam
+neon_sign,Neon Sign,lighting,electric,1.0,0.5,0.1,glass_tube:3|wire:4|circuit:1,surface,true,80,15,1,6,anywhere,Glowing custom-shaped neon tube signage
+campfire,Campfire,lighting,fire,1.0,0.6,1.0,stone:6|log:3,freeform,true,0,30,5,5,outdoor_only,Stone ring campfire providing heat and cooking surface
+chandelier_electric,Electric Chandelier,lighting,electric,0.8,0.6,0.8,steel_frame:2|glass_panel:4|wire:4|bulb:6,grid,true,100,40,5,8,indoor_only,Ornate multi-arm electric chandelier
+# === STORAGE ===
+shelf_storage,Storage Shelf,storage,general,2.0,2.0,0.5,steel_plate:4|rivet:8,freeform,true,0,120,0,1,anywhere,Heavy-duty metal shelving unit
+locker,Locker,storage,personal,0.4,1.8,0.5,steel_plate:3|hinge:1|handle:1,freeform,true,0,150,0,0,indoor_only,Lockable single-person storage cabinet
+tool_rack,Tool Rack,storage,workshop,1.5,1.0,0.2,wood_plank:3|nail:8|hook:6,surface,true,0,50,0,1,anywhere,Wall-mounted pegboard and hook tool organizer
+weapon_rack,Weapon Rack,storage,armory,1.5,1.8,0.4,wood_plank:4|steel_rod:4|nail:10,surface,true,0,80,0,2,indoor_only,Display and storage rack for weapons
+display_case,Display Case,storage,decorative,1.2,1.0,0.5,glass_panel:4|wood_plank:3|hinge:1|handle:1,freeform,true,10,60,1,6,indoor_only,Glass-sided illuminated showcase cabinet
+pantry,Pantry,storage,food,2.0,2.0,0.6,wood_plank:8|nail:16|hinge:2|handle:2,freeform,true,0,80,2,2,indoor_only,Enclosed food storage cabinet with ventilation
+cargo_container,Cargo Container,storage,industrial,6.0,2.5,2.5,steel_plate:20|rivet:40|hinge:2|latch:2,grid,true,0,600,0,0,outdoor_only,Standard intermodal shipping container for bulk storage
+vault_room,Vault Room,storage,secure,3.0,2.5,3.0,steel_plate:24|concrete:16|circuit:2|lock:1,grid,true,50,1500,0,1,indoor_only,Reinforced secure storage room with coded lock
+# === PLUMBING ===
+pipe_segment,Pipe Segment,plumbing,piping,0.1,0.1,2.0,pipe_fitting:2,edge,true,0,40,0,0,anywhere,Standard water or waste pipe run
+water_pump,Water Pump,plumbing,supply,0.5,0.5,0.5,steel_plate:2|motor:1|pipe_fitting:2|circuit:1,freeform,true,750,80,0,0,anywhere,Electric centrifugal pump for pressurized water supply
+irrigation_line,Irrigation Line,plumbing,agriculture,0.05,0.05,10.0,pipe_fitting:4|valve:2,edge,true,0,20,0,0,outdoor_only,Drip irrigation hose with emitters for crop watering
+sprinkler,Sprinkler,plumbing,agriculture,0.3,0.4,0.3,pipe_fitting:2|valve:1|nozzle:1,freeform,true,0,30,0,1,outdoor_only,Rotating spray head for lawn and field irrigation
+rain_collector,Rain Collector,plumbing,supply,1.5,2.0,1.5,steel_plate:3|pipe_fitting:2|filter:1,freeform,true,0,80,0,1,outdoor_only,Rooftop rainwater collection barrel with filter
+septic_tank,Septic Tank,plumbing,waste,3.0,1.5,2.0,concrete:12|pipe_fitting:4|sealant:2,grid,true,0,400,0,0,outdoor_only,Underground wastewater treatment and holding tank
+# === ELECTRICAL ===
+wire_segment,Wire Segment,electrical,wiring,0.02,0.02,5.0,wire:2,edge,true,0,10,0,0,anywhere,Insulated copper cable for power distribution
+junction_box,Junction Box,electrical,wiring,0.2,0.2,0.1,steel_plate:1|wire:2,surface,true,0,30,0,0,anywhere,Sealed box for connecting and branching wire runs
+switch,Light Switch,electrical,control,0.08,0.12,0.04,circuit:1|wire:1,surface,true,0,10,0,0,indoor_only,Wall-mounted toggle switch for controlling circuits
+outlet,Power Outlet,electrical,distribution,0.08,0.12,0.04,circuit:1|wire:2,surface,true,0,10,1,0,indoor_only,Standard wall receptacle for plug-in devices
+breaker_panel,Breaker Panel,electrical,distribution,0.5,0.7,0.15,steel_plate:2|circuit:6|wire:8,surface,true,0,60,0,0,indoor_only,Main distribution panel with circuit breakers
+transformer,Transformer,electrical,distribution,0.8,1.0,0.8,steel_plate:4|wire:12|circuit:4,grid,true,0,200,0,0,outdoor_only,Step-up/step-down voltage transformer for grid connection
+# === DEFENSE ===
+fence_wood,Wood Fence,defense,perimeter,4.0,1.5,0.1,wood_plank:6|nail:12,edge,false,0,100,0,2,outdoor_only,Picket fence section for basic property boundary
+fence_metal,Metal Fence,defense,perimeter,4.0,2.0,0.08,steel_rod:8|wire:4,edge,false,0,250,0,1,outdoor_only,Welded steel bar fencing for secure perimeter
+barbed_wire,Barbed Wire,defense,perimeter,4.0,0.3,0.3,wire:6|steel_rod:2,edge,false,0,60,0,0,outdoor_only,Razor wire topper to deter climbing over fences
+turret_auto,Auto Turret,defense,active,0.6,0.8,0.6,steel_plate:6|motor:2|circuit:4|ammo_box:1,surface,true,500,250,0,0,outdoor_only,Motion-tracking automated sentry turret
+sandbag,Sandbag Wall,defense,cover,2.0,1.0,0.5,sand:10|fabric:5,freeform,false,0,300,0,0,outdoor_only,Stacked sandbag barrier providing ballistic cover
+watchtower,Watchtower,defense,observation,3.0,6.0,3.0,wood_beam:8|wood_plank:16|nail:40|ladder:1,grid,true,0,300,0,2,outdoor_only,Elevated observation platform with sheltered top
+alarm_system,Alarm System,defense,detection,0.3,0.3,0.1,circuit:3|wire:4|speaker:1,surface,true,20,30,0,0,anywhere,Motion sensor and audible alarm network controller
+reinforced_gate,Reinforced Gate,defense,perimeter,4.0,3.0,0.3,steel_plate:10|hinge:4|latch:2|motor:1,edge,true,100,800,0,1,outdoor_only,Heavy motorized sliding security gate
+spike_trap,Spike Trap,defense,trap,2.0,0.1,2.0,steel_rod:12|hinge:2|spring:4,grid,true,0,100,0,0,outdoor_only,Concealed spring-loaded spike plate
+shield_generator,Shield Generator,defense,active,1.5,2.0,1.5,circuit:8|wire:12|steel_plate:8|crystal:2,grid,true,10000,400,0,3,anywhere,Energy field projector creating a protective dome
+# === UTILITY ===
+sign,Sign,utility,information,1.0,0.6,0.05,wood_plank:2|paint:1,surface,false,0,30,0,2,anywhere,Painted wooden sign for labeling and directions
+mailbox,Mailbox,utility,communication,0.3,1.2,0.3,steel_plate:2|hinge:1,freeform,true,0,40,1,2,outdoor_only,Post-mounted mailbox for item delivery
+antenna_tower,Antenna Tower,utility,communication,1.0,10.0,1.0,steel_rod:12|wire:8|circuit:2,grid,true,200,250,0,1,outdoor_only,Communications antenna for long-range wireless signal
+weather_station,Weather Station,utility,science,0.8,2.0,0.8,steel_rod:4|circuit:4|wire:4|glass_panel:1,grid,true,50,80,0,2,outdoor_only,Automated sensor array for local weather monitoring
+research_station,Research Station,utility,science,2.0,1.2,1.5,steel_plate:6|circuit:6|glass_panel:2|wire:4,grid,true,800,150,2,3,indoor_only,Analysis workstation for material research and scanning
+medical_station,Medical Station,utility,health,2.0,1.2,1.0,steel_plate:4|circuit:4|fabric:2|glass_panel:1,grid,true,600,120,4,2,indoor_only,First-aid and diagnostic medical treatment station
+charging_station,Charging Station,utility,power,0.6,1.2,0.6,steel_plate:2|circuit:4|wire:6,freeform,true,2000,80,1,1,anywhere,Universal power dock for recharging portable devices and tools
+teleporter_pad,Teleporter Pad,utility,transport,3.0,0.3,3.0,steel_plate:12|circuit:10|crystal:4|wire:16,grid,true,25000,500,2,6,indoor_only,Quantum-linked platform for instant matter transmission
+# === GARDEN ===
+raised_bed,Raised Garden Bed,garden,growing,2.0,0.5,1.0,wood_plank:6|nail:8|soil:4,freeform,true,0,60,2,4,outdoor_only,Elevated planting box for vegetables and herbs
+greenhouse,Greenhouse,garden,structure,4.0,3.0,6.0,glass_panel:20|steel_frame:8|hinge:2|handle:1,grid,true,0,150,3,6,outdoor_only,Glass-walled enclosure extending the growing season
+trellis,Trellis,garden,support,2.0,2.0,0.1,wood_plank:4|nail:8|wire:3,surface,false,0,40,1,5,outdoor_only,Lattice frame supporting climbing plants and vines
+compost_bin,Compost Bin,garden,waste,1.0,1.0,1.0,wood_plank:5|nail:10|hinge:1,freeform,true,0,50,0,1,outdoor_only,Slatted bin for composting kitchen and garden waste
+beehive,Beehive,garden,animals,0.5,0.7,0.4,wood_plank:4|nail:8|mesh:1,freeform,true,0,40,1,4,outdoor_only,Managed bee colony box producing honey and aiding pollination
+bird_house,Bird House,garden,animals,0.3,0.3,0.2,wood_plank:2|nail:4|paint:1,surface,false,0,15,1,5,outdoor_only,Small nesting box attracting pest-eating songbirds
+fish_pond,Fish Pond,garden,aquaculture,3.0,0.8,3.0,stone_block:12|waterproof_membrane:2|pipe_fitting:2,grid,true,100,200,4,7,outdoor_only,Lined ornamental pond supporting fish and aquatic plants
+herb_spiral,Herb Spiral,garden,permaculture,2.0,1.0,2.0,stone_block:10|soil:6|seed:4,freeform,true,0,80,3,6,outdoor_only,Spiraling raised stone bed creating microclimates for diverse herbs

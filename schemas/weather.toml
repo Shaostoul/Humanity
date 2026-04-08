@@ -1,0 +1,557 @@
+# HumanityOS Weather Schema
+# Defines the format for weather conditions in data/weather.csv
+#
+# Weather conditions control the atmosphere, gameplay modifiers, and hazards
+# that players face on planetary surfaces. Each weather type defines visual,
+# audio, and mechanical effects. The weather system selects conditions based
+# on biome, season, and random chance, then transitions between them over time.
+#
+# The game already supports 7 base weather conditions (clear, cloudy, rain,
+# snow, storm, fog, sandstorm). This schema extends coverage to 15 types
+# including catastrophic events and atmospheric phenomena.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (changes apply without restart)
+# Referenced by: native/src/systems/weather.rs (weather state machine)
+# References: data/status_effects.csv (effect_on_player),
+#             data/biomes.csv (biome_weights), assets/audio/ (ambient_sound_id)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique identifier for this weather condition. Use snake_case."
+constraints = "snake_case, unique across all weather entries"
+examples = ["clear", "heavy_rain", "blizzard", "tornado", "meteor_shower"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable display name shown on the HUD weather indicator and forecasts."
+constraints = "Title Case, keep under 30 characters"
+examples = ["Clear Skies", "Heavy Rain", "Blizzard", "Tornado", "Meteor Shower"]
+
+[fields.type]
+type = "string"
+required = true
+description = """
+Weather classification that determines base rendering behavior and system
+handling. The weather system groups conditions by type for transition rules
+(a clear sky can transition to cloudy but not directly to a tornado)."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "clear",         # No precipitation, good visibility
+    "cloudy",        # Overcast, reduced sun
+    "rain",          # Water precipitation
+    "snow",          # Frozen precipitation
+    "storm",         # Heavy rain or snow with wind and lightning
+    "fog",           # Low visibility, calm
+    "sandstorm",     # Particulate storm in arid biomes
+    "blizzard",      # Heavy snow with extreme wind
+    "tornado",       # Localized destructive funnel
+    "hurricane",     # Massive storm system with extreme wind
+    "meteor_shower", # Cosmetic or destructive falling debris
+    "aurora",        # Atmospheric light display (cosmetic, may affect electronics)
+    "acid_rain",     # Corrosive precipitation (volcanic or polluted biomes)
+    "volcanic_ash",  # Ash fallout from eruptions
+    "solar_flare",   # Electromagnetic event affecting electronics and radiation
+]
+
+[fields.description]
+type = "string"
+required = true
+description = "One-sentence description for the weather forecast tooltip."
+constraints = "Keep under 100 characters. No commas."
+examples = [
+    "A calm and sunny day with excellent visibility",
+    "Torrential downpour reduces visibility and soaks equipment",
+    "Whirling funnel of destructive wind",
+]
+
+[fields.temperature_modifier_c]
+type = "float"
+required = true
+default = 0.0
+description = """
+Degrees Celsius added to (or subtracted from) the biome's base temperature
+while this weather is active. Rain cools slightly, blizzards drop temp
+sharply, volcanic ash and solar flares raise it."""
+constraints = "Typically between -30.0 and +20.0"
+examples = [
+    { value = 0.0,   note = "clear (no change)" },
+    { value = -3.0,  note = "rain (mild cooling)" },
+    { value = -20.0, note = "blizzard (extreme cold)" },
+    { value = 5.0,   note = "volcanic ash (radiant heat)" },
+]
+
+[fields.visibility_range_m]
+type = "float"
+required = true
+default = 10000.0
+description = """
+Maximum visibility distance in meters. Affects the render distance for
+terrain and entities, NPC perception range, and ranged weapon accuracy.
+Clear weather uses the biome default (typically 10 km). Fog and blizzards
+reduce this dramatically."""
+constraints = "Must be > 0"
+examples = [
+    { value = 10000.0, note = "clear (full visibility)" },
+    { value = 2000.0,  note = "rain (moderate reduction)" },
+    { value = 100.0,   note = "fog (severely limited)" },
+    { value = 50.0,    note = "blizzard (near whiteout)" },
+]
+
+[fields.wind_speed_mps]
+type = "float"
+required = true
+default = 0.0
+description = """
+Wind speed in meters per second. Affects particle direction, sound
+propagation, ranged projectile drift, and structural damage for severe
+weather. The physics system applies wind force to lightweight objects."""
+constraints = "Must be >= 0"
+examples = [
+    { value = 0.0,  note = "calm" },
+    { value = 5.0,  note = "light breeze" },
+    { value = 25.0, note = "storm" },
+    { value = 70.0, note = "tornado (destructive)" },
+]
+
+[fields.wind_direction_variance_deg]
+type = "float"
+required = true
+default = 30.0
+description = """
+How much the wind direction can randomly deviate from the current heading,
+in degrees. Low values produce steady directional wind; high values create
+turbulent gusting. The weather system picks a base direction and varies
+it each tick within this range."""
+constraints = "Must be between 0 and 360"
+examples = [
+    { value = 10.0,  note = "steady trade wind" },
+    { value = 30.0,  note = "normal breeze" },
+    { value = 90.0,  note = "gusty storm" },
+    { value = 360.0, note = "tornado (chaotic)" },
+]
+
+[fields.precipitation_rate]
+type = "float"
+required = true
+default = 0.0
+description = """
+Precipitation intensity from 0.0 (none) to 1.0 (maximum). Controls
+particle density for rain/snow rendering, puddle/snow accumulation rate,
+and crop watering speed. Values above 0.7 trigger flood risk in low-lying
+terrain."""
+constraints = "Must be between 0.0 and 1.0"
+examples = [0.0, 0.2, 0.5, 0.8, 1.0]
+
+[fields.precipitation_type]
+type = "string"
+required = true
+default = "none"
+description = """
+What is falling from the sky. Determines the particle system used by
+the renderer and the gameplay effect on terrain and entities."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "none",  # No precipitation
+    "rain",  # Water droplets
+    "snow",  # Ice crystals (accumulates on ground)
+    "hail",  # Ice chunks (damages crops and fragile structures)
+    "ash",   # Volcanic or wildfire particulate
+    "acid",  # Corrosive rain (damages equipment and crops)
+]
+
+[fields.lightning_chance_per_min]
+type = "float"
+required = true
+default = 0.0
+description = """
+Probability of a lightning strike per game minute (0.0 to 1.0). Lightning
+can start fires on flammable terrain, damage exposed entities, and
+temporarily boost electrical systems near the strike point. The chance
+is evaluated each in-game minute by the weather system."""
+constraints = "Must be between 0.0 and 1.0"
+examples = [0.0, 0.05, 0.2, 0.5]
+
+[fields.effect_on_player]
+type = "string"
+required = false
+default = ""
+description = """
+Status effect id applied to the player while exposed to this weather
+(not under shelter). Must match an id in data/status_effects.csv. The
+effect is applied when exposure begins and removed when the player enters
+shelter. Leave empty for benign weather."""
+constraints = "Must be a valid status_effect id if provided"
+examples = ["", "env_wet", "env_frostbite", "env_heatstroke", "env_radiation_exposure"]
+
+[fields.effect_on_crops_growth_modifier]
+type = "float"
+required = true
+default = 1.0
+description = """
+Multiplier applied to crop growth speed while this weather is active.
+0.0 = growth halted, 1.0 = normal, 2.0 = double speed.
+Rain typically boosts growth; extreme cold or ash halts it."""
+constraints = "Must be between 0.0 and 2.0"
+examples = [
+    { value = 1.0, note = "clear (normal)" },
+    { value = 1.3, note = "light rain (beneficial)" },
+    { value = 0.0, note = "blizzard (frozen)" },
+    { value = 0.5, note = "volcanic ash (reduced sunlight)" },
+]
+
+[fields.effect_on_crops_damage_chance]
+type = "float"
+required = true
+default = 0.0
+description = """
+Probability per game hour that each exposed crop takes damage during this
+weather. 0.0 = no risk, 1.0 = guaranteed damage. Hail, acid rain, and
+extreme heat are the primary crop killers."""
+constraints = "Must be between 0.0 and 1.0"
+examples = [0.0, 0.1, 0.3, 0.8]
+
+[fields.effect_on_solar_power]
+type = "float"
+required = true
+default = 1.0
+description = """
+Efficiency multiplier for solar panels and solar-dependent systems.
+0.0 = total blockage (no sunlight), 1.0 = full output.
+Cloud cover, ash, and storms reduce solar efficiency."""
+constraints = "Must be between 0.0 and 1.0"
+examples = [
+    { value = 1.0,  note = "clear (full sun)" },
+    { value = 0.6,  note = "cloudy (reduced)" },
+    { value = 0.1,  note = "storm (nearly blocked)" },
+    { value = 0.0,  note = "volcanic ash (total blockage)" },
+]
+
+[fields.effect_on_fire_spread_modifier]
+type = "float"
+required = true
+default = 1.0
+description = """
+Multiplier for fire spread rate. 0.0 = fires cannot spread (rain
+extinguishes), 1.0 = normal, 2.0 = fires spread twice as fast (dry wind).
+The fire simulation uses this to scale its spread probability each tick."""
+constraints = "Must be between 0.0 and 2.0"
+examples = [
+    { value = 0.0, note = "heavy rain (extinguishes fires)" },
+    { value = 1.0, note = "clear (normal)" },
+    { value = 1.5, note = "dry wind (accelerates fires)" },
+    { value = 2.0, note = "solar flare (extreme fire risk)" },
+]
+
+[fields.movement_speed_modifier]
+type = "float"
+required = true
+default = 1.0
+description = """
+Multiplier for player and vehicle movement speed. Mud from rain, snow
+drifts, and high winds slow movement. Applied on top of terrain-based
+speed modifiers."""
+constraints = "Must be between 0.0 and 1.0"
+examples = [
+    { value = 1.0,  note = "clear (no penalty)" },
+    { value = 0.85, note = "rain (slightly slower)" },
+    { value = 0.5,  note = "blizzard (half speed)" },
+    { value = 0.3,  note = "tornado (barely movable)" },
+]
+
+[fields.noise_level]
+type = "float"
+required = true
+default = 0.0
+description = """
+Ambient noise from 0.0 (silent) to 1.0 (deafening). Affects stealth
+detection range and voice communication distance. Heavy rain and storms
+mask footstep sounds; calm weather lets sounds carry further."""
+constraints = "Must be between 0.0 and 1.0"
+examples = [0.0, 0.2, 0.5, 0.9]
+
+[fields.ambient_sound_id]
+type = "string"
+required = true
+description = """
+Sound asset that loops while this weather is active. Must match an id in
+data/sounds.csv. The audio system crossfades between weather ambient sounds
+during transitions."""
+constraints = "Must be a valid sound id"
+examples = ["amb_wind_light", "amb_rain_heavy", "amb_thunder_storm", "amb_blizzard"]
+
+[fields.sky_color_hex]
+type = "string"
+required = true
+description = """
+Hex color for the sky gradient base during this weather. The day/night
+cycle blends this with the time-of-day sky color. Overcast skies are grey;
+sandstorms are orange-brown; auroras add green/purple."""
+constraints = "6-digit hex color code with # prefix"
+examples = ["#87CEEB", "#808080", "#4A4A4A", "#D2691E", "#1A1A2E"]
+
+[fields.fog_color_hex]
+type = "string"
+required = true
+description = """
+Hex color for distance fog. The renderer fades terrain to this color at
+visibility_range_m. Must harmonize with sky_color_hex."""
+constraints = "6-digit hex color code with # prefix"
+examples = ["#C0C0C0", "#B0B0B0", "#D2B48C", "#2F2F2F"]
+
+[fields.duration_range_min_s]
+type = "float"
+required = true
+description = """
+Minimum duration in seconds this weather can last before the system
+considers transitioning to a new condition. Prevents rapid flickering
+between weather states."""
+constraints = "Must be > 0"
+examples = [300.0, 600.0, 1800.0, 3600.0]
+
+[fields.duration_range_max_s]
+type = "float"
+required = true
+description = """
+Maximum duration in seconds. The weather system picks a random duration
+between min and max when this condition starts."""
+constraints = "Must be >= duration_range_min_s"
+examples = [900.0, 3600.0, 7200.0, 14400.0]
+
+[fields.transition_time_s]
+type = "float"
+required = true
+default = 60.0
+description = """
+How long (in seconds) the crossfade takes when transitioning into or out
+of this weather. Longer transitions feel more natural; catastrophic events
+like tornadoes can have short transitions for dramatic effect."""
+constraints = "Must be > 0"
+examples = [10.0, 30.0, 60.0, 120.0]
+
+[fields.biome_weights]
+type = "string"
+required = true
+description = """
+Pipe-separated biome_id:weight pairs that determine how likely this weather
+is in each biome. Higher weight = more frequent. A weight of 0 means this
+weather never occurs in that biome. Biome ids must match entries in
+data/biomes.csv."""
+constraints = "Pipe-separated id:weight pairs. Weights are relative (not percentages)."
+examples = [
+    "temperate:10|tropical:8|arctic:5|desert:3",
+    "arctic:10|tundra:8|mountain:6|temperate:1",
+    "desert:10|savanna:8|badlands:10",
+    "volcanic:10|badlands:5",
+]
+
+[fields.season_weights]
+type = "string"
+required = true
+description = """
+Colon-separated weight multipliers for spring:summer:autumn:winter.
+Applied on top of biome_weights. A rain entry with season_weights
+1.5:1.0:1.2:0.5 is more common in spring and less common in winter."""
+constraints = "Four colon-separated floats (spring:summer:autumn:winter). All >= 0."
+examples = [
+    "1.0:1.0:1.0:1.0",
+    "1.5:1.0:1.2:0.5",
+    "0.0:0.0:0.0:1.0",
+    "0.5:0.2:0.5:0.0",
+]
+
+[fields.severity]
+type = "string"
+required = true
+description = """
+Danger classification that affects NPC behavior (flee, seek shelter),
+alert messaging, and structural damage potential."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "mild",         # No danger (clear, light clouds, light rain)
+    "moderate",     # Minor inconvenience (heavy rain, fog, snow)
+    "severe",       # Dangerous (storm, blizzard, sandstorm)
+    "catastrophic", # Life-threatening (tornado, hurricane, meteor shower, solar flare)
+]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+biomes = """
+Each biome in data/biomes.csv has a base temperature, humidity, and wind
+profile. Weather modifies these base values. The biome_weights field
+controls which weather types can occur in which biomes. Desert biomes
+never get snow; arctic biomes never get sandstorms."""
+
+seasons = """
+The time system tracks the current season (spring, summer, autumn, winter).
+Season weights multiply the biome weights to produce final probabilities.
+Blizzards are winter-only (0:0:0:1), thunderstorms peak in summer, and
+rain is heaviest in spring."""
+
+farming = """
+The farming system reads effect_on_crops_growth_modifier and
+effect_on_crops_damage_chance each tick to adjust crop health and growth
+progress. Players must plan planting seasons around weather patterns.
+Greenhouses protect crops from weather damage but not temperature extremes."""
+
+solar_power = """
+Solar panels and solar-powered machines multiply their output by
+effect_on_solar_power. Prolonged cloudy or stormy weather can drain battery
+reserves, forcing players to maintain backup power sources."""
+
+combat_and_stealth = """
+noise_level affects how far footstep and combat sounds travel. In heavy
+rain (noise_level = 0.7), the detection radius for stealth shrinks by 70%.
+Wind speed affects ranged projectile accuracy and grenade trajectories.
+Lightning strikes deal damage to exposed entities."""
+
+day_night_cycle = """
+sky_color_hex and fog_color_hex are blended with the time-of-day gradient.
+At night, weather colors darken automatically. Auroras only appear at night
+(the weather system skips aurora transitions during daytime hours)."""
+
+status_effects = """
+effect_on_player references a status effect from data/status_effects.csv.
+The weather system applies this effect while the player lacks shelter.
+For example, blizzard applies env_frostbite, which slows movement and
+deals cold damage per tick (defined in the status effect schema)."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+transition_rules = """
+Weather transitions follow logical chains. The weather system cannot jump
+between unrelated extremes in a single transition:
+  clear -> cloudy -> rain -> storm -> hurricane (escalation)
+  blizzard -> snow -> cloudy -> clear (de-escalation)
+  sandstorm only from clear/cloudy in desert biomes
+  tornado only from storm in temperate/plains biomes
+Transition rules are enforced in the weather state machine code but the
+data here defines the available states and their properties."""
+
+severity_guidelines = """
+  mild:         No gameplay impact beyond aesthetics. NPCs ignore it.
+  moderate:     Minor stat penalties. NPCs comment on it but continue work.
+  severe:       Significant penalties. NPCs seek shelter. Players warned.
+  catastrophic: Life-threatening. NPCs flee. Structures can be damaged.
+                Players receive urgent on-screen alerts."""
+
+csv_formatting = """
+  - Use # for comment lines (section headers, notes)
+  - No spaces after commas
+  - Pipe | separates list values within a single field
+  - Colon : separates sub-values within pairs (biome:weight)
+  - Hex colors include the # prefix
+  - One weather condition per line, header row is required
+  - Group by severity with # === SEVERITY === headers"""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[[examples]]
+name = "Clear Skies (mild baseline)"
+csv_row = "clear,Clear Skies,clear,A calm and sunny day with excellent visibility,0.0,10000.0,2.0,30.0,0.0,none,0.0,,1.0,0.0,1.0,1.0,1.0,0.0,amb_wind_light,#87CEEB,#C0D8E8,1800,7200,60.0,temperate:10|tropical:8|desert:10|arctic:3|mountain:5,1.0:1.2:1.0:0.5,mild"
+breakdown = """
+  id                              = clear
+  name                            = Clear Skies
+  type                            = clear
+  description                     = A calm and sunny day with excellent visibility
+  temperature_modifier_c          = 0.0        (no change)
+  visibility_range_m              = 10000.0    (10 km, full visibility)
+  wind_speed_mps                  = 2.0        (gentle breeze)
+  wind_direction_variance_deg     = 30.0       (mild variance)
+  precipitation_rate              = 0.0        (no precipitation)
+  precipitation_type              = none
+  lightning_chance_per_min         = 0.0
+  effect_on_player                =            (no status effect)
+  effect_on_crops_growth_modifier = 1.0        (normal growth)
+  effect_on_crops_damage_chance   = 0.0        (no crop damage)
+  effect_on_solar_power           = 1.0        (full solar output)
+  effect_on_fire_spread_modifier  = 1.0        (normal fire spread)
+  movement_speed_modifier         = 1.0        (no penalty)
+  noise_level                     = 0.0        (silent)
+  ambient_sound_id                = amb_wind_light
+  sky_color_hex                   = #87CEEB    (light sky blue)
+  fog_color_hex                   = #C0D8E8    (pale blue haze)
+  duration_range_min_s            = 1800       (30 minutes minimum)
+  duration_range_max_s            = 7200       (2 hours maximum)
+  transition_time_s               = 60.0       (1 minute fade)
+  biome_weights                   = temperate:10|tropical:8|desert:10|arctic:3|mountain:5
+  season_weights                  = 1.0:1.2:1.0:0.5  (more common in summer)
+  severity                        = mild"""
+
+[[examples]]
+name = "Blizzard (severe winter event)"
+csv_row = "blizzard,Blizzard,blizzard,Whiteout conditions with extreme cold and wind,blizzard,-20.0,50.0,35.0,120.0,0.9,snow,0.1,env_frostbite,0.0,0.4,0.05,0.0,0.5,0.9,amb_blizzard,#D0D0D0,#E8E8E8,1200,3600,30.0,arctic:10|tundra:10|mountain:7|temperate:2,0.0:0.0:0.2:1.0,severe"
+breakdown = """
+  id                              = blizzard
+  name                            = Blizzard
+  type                            = blizzard
+  description                     = Whiteout conditions with extreme cold and wind
+  temperature_modifier_c          = -20.0      (extreme cold)
+  visibility_range_m              = 50.0       (near whiteout)
+  wind_speed_mps                  = 35.0       (gale force)
+  wind_direction_variance_deg     = 120.0      (chaotic gusts)
+  precipitation_rate              = 0.9        (near maximum snowfall)
+  precipitation_type              = snow
+  lightning_chance_per_min         = 0.1        (rare thundersnow)
+  effect_on_player                = env_frostbite (see status_effects schema)
+  effect_on_crops_growth_modifier = 0.0        (frozen, no growth)
+  effect_on_crops_damage_chance   = 0.4        (40% chance per hour)
+  effect_on_solar_power           = 0.05       (almost no sunlight)
+  effect_on_fire_spread_modifier  = 0.0        (fires extinguished by snow)
+  movement_speed_modifier         = 0.5        (half speed through snow)
+  noise_level                     = 0.9        (deafening wind)
+  ambient_sound_id                = amb_blizzard
+  sky_color_hex                   = #D0D0D0    (bright white-grey)
+  fog_color_hex                   = #E8E8E8    (white fog)
+  duration_range_min_s            = 1200       (20 minutes minimum)
+  duration_range_max_s            = 3600       (1 hour maximum)
+  transition_time_s               = 30.0       (30 second onset)
+  biome_weights                   = arctic:10|tundra:10|mountain:7|temperate:2
+  season_weights                  = 0.0:0.0:0.2:1.0  (winter only, rare in autumn)
+  severity                        = severe"""
+
+[[examples]]
+name = "Tornado (catastrophic event)"
+csv_row = "tornado,Tornado,tornado,Whirling funnel of destructive wind,tornado,0.0,200.0,70.0,360.0,0.6,rain,0.3,env_debris_impact,0.8,0.9,0.1,1.8,0.3,1.0,amb_tornado_roar,#3A3A3A,#4A4A4A,120,600,10.0,temperate:5|plains:8|savanna:3,0.5:1.0:0.5:0.0,catastrophic"
+breakdown = """
+  id                              = tornado
+  name                            = Tornado
+  type                            = tornado
+  description                     = Whirling funnel of destructive wind
+  temperature_modifier_c          = 0.0        (no change)
+  visibility_range_m              = 200.0      (debris-filled air)
+  wind_speed_mps                  = 70.0       (destructive force)
+  wind_direction_variance_deg     = 360.0      (fully chaotic)
+  precipitation_rate              = 0.6        (heavy rain accompanies)
+  precipitation_type              = rain
+  lightning_chance_per_min         = 0.3        (frequent lightning)
+  effect_on_player                = env_debris_impact  (damage from flying objects)
+  effect_on_crops_growth_modifier = 0.8        (disrupted but not frozen)
+  effect_on_crops_damage_chance   = 0.9        (almost certain destruction)
+  effect_on_solar_power           = 0.1        (minimal sunlight)
+  effect_on_fire_spread_modifier  = 1.8        (wind fans flames)
+  movement_speed_modifier         = 0.3        (barely movable)
+  noise_level                     = 1.0        (deafening roar)
+  ambient_sound_id                = amb_tornado_roar
+  sky_color_hex                   = #3A3A3A    (dark ominous sky)
+  fog_color_hex                   = #4A4A4A    (dark debris haze)
+  duration_range_min_s            = 120        (2 minutes minimum)
+  duration_range_max_s            = 600        (10 minutes maximum)
+  transition_time_s               = 10.0       (sudden onset)
+  biome_weights                   = temperate:5|plains:8|savanna:3
+  season_weights                  = 0.5:1.0:0.5:0.0  (summer peak)
+  severity                        = catastrophic"""

@@ -131,3 +131,37 @@ lithium_carbonate,Li2CO3,Lithium Carbonate,salt,73.89,2.11,996,1583,13g/L,11.0,f
 magnesium_hydroxide,Mg(OH)2,Magnesium Hydroxide (Milk of Magnesia),hydroxide,58.32,2.345,623,,0.009g/L,10.5,false,false,false,8500,solid,Antacid and laxative; flame retardant; water treatment
 aluminum_chloride,AlCl3,Aluminum Chloride,salt,133.34,2.48,465,453,soluble,,false,false,true,3450,solid,Catalyst in chemical reactions; antiperspirant active ingredient
 tungsten_hexafluoride,WF6,Tungsten Hexafluoride,salt,297.83,12.4,275.15,290.35,reacts,,false,false,true,0,gas,Densest known gas; used in semiconductor manufacturing; highly toxic
+melatonin,C13H16N2O2,Melatonin,medicine,232.28,1.175,390,,slightly,,false,false,false,0,solid,Sleep-regulating hormone; produced by pineal gland; dietary supplement
+acetaminophen,C8H9NO2,Acetaminophen (Paracetamol),medicine,151.16,1.293,442,,14g/L,,false,false,false,1944,solid,Common pain reliever and fever reducer; active ingredient in Tylenol; hepatotoxic in overdose
+lidocaine,C14H22N2O,Lidocaine,medicine,234.34,1.026,341,,4.1g/L,,false,false,false,292,solid,Local anesthetic and antiarrhythmic; numbing agent for dental and minor surgery
+amoxicillin,C16H19N3O5S,Amoxicillin,medicine,365.40,1.6,,,,4.0,false,false,false,0,solid,Broad-spectrum antibiotic; penicillin derivative; treats bacterial infections
+metformin,C4H11N5,Metformin,medicine,129.16,1.3,497,,soluble,,false,false,false,1450,solid,First-line diabetes medication; most prescribed drug worldwide for type 2 diabetes
+dexamethasone,C22H29FO5,Dexamethasone,medicine,392.46,1.32,535,,0.1g/L,,false,false,false,0,solid,Potent corticosteroid; anti-inflammatory; used in COVID-19 treatment
+atropine,C17H23NO3,Atropine,medicine,289.37,1.197,391,,2.2g/L,,false,false,true,453,solid,Nerve agent antidote; dilates pupils; treats bradycardia; deadly nightshade extract
+hydrazine,N2H4,Hydrazine,fuel,32.05,1.021,274.69,387.15,miscible,,true,true,true,60,liquid,Rocket propellant; highly toxic reducing agent; used in spacecraft thrusters
+kerosene,C12H26,Kerosene (Jet Fuel),fuel,170.34,0.81,,423,insoluble,,true,false,false,0,liquid,Aviation fuel (Jet A-1); heating oil; lamp fuel; refined petroleum distillate
+biodiesel,C19H36O2,Biodiesel (Methyl Oleate),fuel,296.49,0.88,,623,insoluble,,true,false,false,0,liquid,Renewable fuel from vegetable oil transesterification; blended with diesel
+dimethyl_ether,C2H6O,Dimethyl Ether,fuel,46.07,1.97,131.65,248.31,71g/L,,true,true,false,623,gas,Clean-burning aerosol propellant; diesel substitute; low emissions
+nitromethane,CH3NO2,Nitromethane,fuel,61.04,1.137,244.15,374.35,111g/L,,true,true,false,940,liquid,Drag racing fuel; model engine fuel; can detonate under confinement
+polyurethane,(C3H8N2O)n,Polyurethane (PU),polymer,,,473,,,,,false,false,false,0,solid,Versatile foam and elastomer; insulation and cushioning; coatings and adhesives
+polyester,(C10H8O4)n,Polyester (PET),polymer,,,533,,,,,false,false,false,0,solid,Common textile fiber and bottle plastic; recyclable; polyethylene terephthalate
+acrylic,(C5H8O2)n,Acrylic (PMMA),polymer,,,433,,,,,false,false,false,0,solid,Transparent thermoplastic; shatter-resistant glass substitute (Plexiglas)
+natural_rubber,(C5H8)n,Natural Rubber (Polyisoprene),polymer,,,473,,,,,true,false,false,0,solid,Elastic polymer from latex; tires and seals; vulcanized with sulfur for durability
+cellulose,(C6H10O5)n,Cellulose,polymer,,,533,,,,,true,false,false,0,solid,Most abundant organic polymer on Earth; structural component of plant cell walls
+neoprene,(C4H5Cl)n,Neoprene (Polychloroprene),polymer,,,353,,,,,false,false,false,0,solid,Synthetic rubber; wetsuits and gaskets; oil and weather resistant
+sodium_silicate,Na2SiO3,Sodium Silicate (Water Glass),salt,122.06,2.40,1361,,soluble,11.3,false,false,false,0,solid,Liquid glass; fireproofing agent; sealant; used in egg preservation
+potassium_carbonate,K2CO3,Potassium Carbonate (Potash),salt,138.21,2.43,1164,1882,1120g/L,11.6,false,false,false,0,solid,Soap and glass making; used in cocoa processing; fireproofing agent
+sodium_persulfate,Na2S2O8,Sodium Persulfate,salt,238.10,2.59,453,,556g/L,,false,false,true,0,solid,PCB etching agent; strong oxidizer; used in hair bleaching products
+stearic_acid,C18H36O2,Stearic Acid,organic,284.48,0.941,342.75,634,,insoluble,,true,false,false,0,solid,Common fatty acid in animal fat; candle making; soap production; lubricant
+lactic_acid,C3H6O3,Lactic Acid,organic,90.08,1.209,290,,miscible,2.4,false,false,false,3730,liquid,Produced by muscles during exercise; food preservative; biodegradable plastic
+tartaric_acid,C4H6O6,Tartaric Acid,organic,150.09,1.79,444,,1390g/L,2.2,false,false,false,4360,solid,Found in grapes; cream of tartar in baking; wine stabilizer
+salicylic_acid,C7H6O3,Salicylic Acid,organic,138.12,1.44,432,,2.0g/L,2.4,false,false,false,891,solid,Acne treatment; wart removal; precursor to aspirin; found in willow bark
+trichloroethylene,C2HCl3,Trichloroethylene (TCE),organic,131.39,1.46,200,360,1.1g/L,,false,false,true,420,liquid,Industrial degreaser; dry cleaning solvent; probable carcinogen
+ethylene_glycol,C2H6O2,Ethylene Glycol,organic,62.07,1.113,260.15,470.45,miscible,,true,false,true,786,liquid,Automotive antifreeze; toxic sweet liquid; polyester precursor
+propylene_glycol,C3H8O2,Propylene Glycol,organic,76.09,1.036,213.15,461.15,miscible,,true,false,false,0,liquid,Food-safe antifreeze; fog machine fluid; pharmaceutical solvent; moisturizer
+toluene_diisocyanate,C9H6N2O2,Toluene Diisocyanate (TDI),organic,174.16,1.22,284,524,reacts,,true,false,true,10,liquid,Polyurethane foam precursor; highly toxic respiratory sensitizer
+sodium_benzoate,C7H5NaO2,Sodium Benzoate,salt,144.10,1.44,,,,8.0,false,false,false,1714,solid,Food preservative (E211); antimicrobial in acidic foods; soda ingredient
+potassium_sorbate,C6H7KO2,Potassium Sorbate,salt,150.22,1.36,543,,58g/L,,false,false,false,4200,solid,Common food preservative (E202); inhibits mold and yeast growth
+activated_charcoal,C,Activated Carbon,organic,12.01,0.45,3823,,insoluble,,true,false,false,0,solid,Highly porous carbon; water filtration; poison antidote; odor removal
+calcium_phosphate,Ca3(PO4)2,Calcium Phosphate,mineral,310.18,3.14,1943,,0.002g/L,,false,false,false,0,solid,Main mineral in bones and teeth; fertilizer; toothpaste abrasive
+magnesium_oxide,MgO,Magnesium Oxide (Magnesia),oxide,40.30,3.58,3125,3873,0.009g/L,10.3,false,false,false,3600,solid,Refractory lining material; antacid ingredient; electrical insulator

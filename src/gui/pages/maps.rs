@@ -389,8 +389,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     let max_au = 35.0;
                     let scale = ((rect.width().min(rect.height()) / 2.0 - 20.0) / max_au) * zoom;
 
+                    // First pass: collect planet positions for moon rendering
+                    let mut planet_positions: Vec<(String, f32, f32)> = Vec::new(); // (name, px, py)
+
                     for (i, body) in ps.bodies.iter().enumerate() {
-                        // Only draw bodies that orbit the sun (planets, dwarf planets)
+                        // Only draw bodies that orbit the sun (planets, dwarf planets, asteroids)
                         if body.parent.as_deref() != Some("sun") {
                             continue;
                         }
@@ -415,6 +418,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let angle = (anim_time * angular_speed) as f32;
                         let px = center.x + orbit_r * angle.cos();
                         let py = center.y + orbit_r * angle.sin();
+
+                        // Store position for moon rendering
+                        planet_positions.push((body.name.to_lowercase(), px, py));
 
                         // Planet size based on actual radius (log scale)
                         let planet_r = if body.radius_km > 30000.0 {
@@ -449,6 +455,79 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             if let Some(click_pos) = response.interact_pointer_pos() {
                                 let dist = ((click_pos.x - px).powi(2) + (click_pos.y - py).powi(2)).sqrt();
                                 if dist < planet_r + 8.0 {
+                                    clicked_body = Some(i);
+                                }
+                            }
+                        }
+                    }
+
+                    // Second pass: draw moons orbiting their parent planets
+                    for (i, body) in ps.bodies.iter().enumerate() {
+                        let parent_name = match body.parent.as_deref() {
+                            Some(p) if p != "sun" => p.to_lowercase(),
+                            _ => continue,
+                        };
+                        // Find parent planet position
+                        let (parent_px, parent_py) = match planet_positions.iter().find(|(n, _, _)| *n == parent_name) {
+                            Some((_, px, py)) => (*px, *py),
+                            None => continue,
+                        };
+
+                        // Moon orbit radius (scaled, with minimum visibility)
+                        // Use semi_major_axis_au if available, otherwise derive from km
+                        let moon_orbit_au = if body.semi_major_axis_au > 0.0 {
+                            body.semi_major_axis_au
+                        } else {
+                            // Fallback: use km converted to AU
+                            body.semi_major_axis_au.max(0.003)
+                        };
+                        // Exaggerate moon orbit radius so moons are visible (real scale is too tiny)
+                        let moon_orbit_r = (moon_orbit_au as f32 * scale * 80.0).clamp(8.0, 40.0);
+
+                        // Animated moon position around parent
+                        let moon_speed = if body.orbital_period_days > 0.0 {
+                            std::f64::consts::TAU / (body.orbital_period_days * 0.002)
+                        } else {
+                            2.0
+                        };
+                        let moon_angle = (anim_time * moon_speed) as f32;
+                        let mx = parent_px + moon_orbit_r * moon_angle.cos();
+                        let my = parent_py + moon_orbit_r * moon_angle.sin();
+
+                        let moon_r = (1.5 * zoom).clamp(1.0, 4.0);
+                        let mc = body_color(&body.name, &body.body_type);
+                        let is_selected = ps.selected_body == Some(i);
+
+                        // Small orbit ring around parent
+                        if zoom > 2.0 {
+                            paint.circle_stroke(
+                                Pos2::new(parent_px, parent_py),
+                                moon_orbit_r,
+                                Stroke::new(0.3, Color32::from_rgb(50, 50, 70)),
+                            );
+                        }
+
+                        if is_selected {
+                            paint.circle_stroke(Pos2::new(mx, my), moon_r + 2.0, Stroke::new(1.0, theme.accent()));
+                        }
+                        paint.circle_filled(Pos2::new(mx, my), moon_r, mc);
+
+                        // Moon label (only when zoomed in)
+                        if zoom > 3.0 || is_selected {
+                            paint.text(
+                                Pos2::new(mx, my - moon_r - 4.0),
+                                egui::Align2::CENTER_BOTTOM,
+                                &body.name,
+                                egui::FontId::proportional(8.0),
+                                if is_selected { theme.accent() } else { theme.text_muted() },
+                            );
+                        }
+
+                        // Click detection for moons
+                        if response.clicked() {
+                            if let Some(click_pos) = response.interact_pointer_pos() {
+                                let dist = ((click_pos.x - mx).powi(2) + (click_pos.y - my).powi(2)).sqrt();
+                                if dist < moon_r + 6.0 {
                                     clicked_body = Some(i);
                                 }
                             }

@@ -267,3 +267,106 @@ craft_chandelier,Build Chandelier,crafting,steel_ingot_0:2|wire_0:3|glass_pane_0
 craft_clock,Build Wall Clock,crafting,wood_plank_0:1|copper_ingot_0:1|glass_pane_0:1,clock_wall_0:1,12,workbench_0,crafting,2,Assemble a mechanical wall clock
 craft_mirror,Craft Mirror,crafting,glass_pane_0:1|silver_ingot_0:1|wood_plank_0:1,mirror_0:1,10,workbench_0,crafting,2,Coat glass with reflective silver
 craft_grain_silo,Build Grain Silo,assembly,steel_ingot_0:8|bolt_box_0:4|concrete_block_0:4,grain_silo_0:1,90,workbench_0,construction,4,Erect a bulk crop storage cylinder
+#
+# === ADVANCED MATERIALS ===
+craft_carbon_fiber,Synthesize Carbon Fiber,chemistry,coal_0:4|plastic_sheet_0:2|oil_crude_0:1,carbon_fiber_sheet_0:2,60,chemistry_set_0,engineering,4,Pyrolyze polymer precursor into carbon composite
+craft_titanium_alloy,Forge Titanium Alloy,smelting,titanium_ingot_0:2|aluminum_ingot_0:1|steel_ingot_0:1,titanium_ingot_0:4,45,smelter_0,smithing,5,Alloy titanium with aluminum and steel for strength
+craft_ceramic_composite,Fire Ceramic Composite,smelting,clay_raw_0:3|sand_0:2|carbon_fiber_sheet_0:1,concrete_block_0:4,40,kiln_0,smithing,4,Sinter ceramic matrix with carbon reinforcement
+craft_optical_fiber,Draw Optical Fiber,electronics,glass_pane_0:3|plastic_sheet_0:1,wire_0:6,35,electronics_bench_0,engineering,4,Draw silica glass into light-transmitting strands
+craft_superconductor,Synthesize Superconductor,chemistry,copper_ingot_0:3|titanium_ingot_0:1|gold_ingot_0:1,wire_0:8,90,chemistry_set_0,engineering,5,Cool rare-earth compound into zero-resistance wire
+craft_nanomaterial,Synthesize Nanomaterial,chemistry,carbon_fiber_sheet_0:2|gold_ingot_0:1|plastic_sheet_0:1,plastic_sheet_0:5,120,chemistry_set_0,engineering,5,Assemble molecular-scale structured material
+craft_kevlar_sheet,Weave Kevlar Sheet,textile,fiber_bundle_0:6|plastic_sheet_0:2,cloth_bolt_0:3,50,loom_0,textile,4,Weave aramid fiber into ballistic fabric
+craft_aerogel,Synthesize Aerogel,chemistry,glass_pane_0:2|oil_crude_0:1|water_purified_0:2,plastic_sheet_0:4,80,chemistry_set_0,engineering,5,Supercritically dry silica gel into ultralight insulator
+craft_graphene,Synthesize Graphene,chemistry,coal_0:5|copper_ingot_0:1,carbon_fiber_sheet_0:3,100,chemistry_set_0,engineering,5,Exfoliate graphite into single-atom carbon sheets
+craft_bioplastic,Mold Bioplastic,refining,seed_corn_0:6|water_purified_0:2|oil_crude_0:1,plastic_sheet_0:6,30,fuel_refinery_0,engineering,3,Polymerize plant starch into biodegradable plastic
+#
+# === ELECTRONICS MANUFACTURING ===
+manufacture_circuit_board,Manufacture Circuit Board,electronics,copper_ingot_0:2|plastic_sheet_0:1|wire_0:2,circuit_board_0:2,25,electronics_bench_0,engineering,3,Etch copper traces on laminate substrate
+manufacture_battery_small,Manufacture Small Battery,electronics,copper_ingot_0:1|iron_ingot_0:1|plastic_sheet_0:1,battery_small_0:3,20,electronics_bench_0,engineering,2,Assemble lithium-ion cell packs
+manufacture_battery_large,Manufacture Large Battery,electronics,copper_ingot_0:3|iron_ingot_0:2|steel_ingot_0:1|wire_0:3,battery_large_0:1,45,electronics_bench_0,engineering,4,Wire high-capacity energy storage module
+manufacture_solar_cell,Manufacture Solar Cell,electronics,glass_pane_0:2|wire_0:2|aluminum_ingot_0:1,solar_cell_0:2,30,electronics_bench_0,engineering,3,Deposit photovoltaic layer on glass substrate
+manufacture_antenna,Manufacture Antenna,electronics,aluminum_ingot_0:2|copper_ingot_0:1|wire_0:1,antenna_0:3,20,electronics_bench_0,engineering,2,Shape and tune radio signal transducers
+manufacture_sensor_module,Manufacture Sensor Module,electronics,wire_0:2|copper_ingot_0:1|glass_pane_0:1|plastic_sheet_0:1,sensor_module_0:2,25,electronics_bench_0,engineering,3,Calibrate multi-spectrum detector array
+manufacture_cpu,Manufacture CPU,electronics,gold_ingot_0:1|copper_ingot_0:1|glass_pane_0:1,cpu_0:2,60,electronics_bench_0,engineering,5,Etch logic gates into silicon wafer die
+manufacture_servo_motor,Manufacture Servo Motor,electronics,copper_ingot_0:2|steel_ingot_0:1|wire_0:2,servo_motor_0:2,30,electronics_bench_0,engineering,3,Wind precision position actuator coils
+manufacture_led_panel,Manufacture LED Panel,electronics,glass_pane_0:1|wire_0:2|plastic_sheet_0:1,led_panel_0:3,20,electronics_bench_0,engineering,2,Solder diode array onto display substrate
+manufacture_camera,Manufacture Camera,electronics,glass_pane_0:2|wire_0:2|circuit_board_0:1|plastic_sheet_0:1,camera_0:1,35,electronics_bench_0,engineering,4,Assemble digital image sensor and lens optics
+#
+# === MEDICAL CRAFTING ===
+craft_bandage_sterile,Craft Sterile Bandage,chemistry,cloth_bolt_0:1|water_purified_0:1,bandage_0:8,8,,medical,0,Cut and sterilize wound dressing strips
+craft_medkit_full,Assemble Full Medkit,chemistry,bandage_0:5|splint_0:2|painkiller_0:5|antibiotic_0:3,medkit_0:1,20,workbench_0,medical,3,Pack a comprehensive field medical kit
+craft_splint_padded,Craft Padded Splint,chemistry,aluminum_ingot_0:1|cloth_bolt_0:2,splint_0:4,10,workbench_0,medical,1,Bend and cushion fracture immobilizers
+craft_painkillers,Synthesize Painkillers,chemistry,water_purified_0:2|coal_0:1|salt_food_0:1,painkillers_0:10,30,chemistry_set_0,medical,3,Extract and tablet analgesic compounds
+craft_antibiotics,Culture Antibiotics,chemistry,water_purified_0:3|flour_0:1|sugar_0:1,antibiotics_0:5,60,chemistry_set_0,medical,4,Culture and extract antimicrobial compounds
+craft_antivenom,Brew Antivenom,chemistry,water_purified_0:2|antiseptic_0:2|salt_food_0:1,antivenom_0:3,45,chemistry_set_0,medical,4,Prepare venom neutralization serum
+craft_surgical_kit,Assemble Surgical Kit,chemistry,steel_ingot_0:2|cloth_bolt_0:1|antiseptic_0:3,surgical_kit_0:1,40,workbench_0,medical,5,Sterilize and pack field surgery instruments
+craft_stim_pack,Synthesize Stim Pack,chemistry,water_purified_0:1|sugar_0:2|salt_food_0:1,stim_pack_0:5,25,chemistry_set_0,medical,3,Mix fast-acting combat stimulant formula
+#
+# === CONTAINER CRAFTING ===
+craft_chest_wood,Build Wood Chest,crafting,wood_plank_0:6|nail_box_0:2,chest_wood_0:1,15,workbench_0,construction,1,Assemble a lidded wooden storage box
+craft_chest_metal,Build Metal Chest,crafting,steel_ingot_0:4|bolt_box_0:2,chest_metal_0:1,25,forge_0,smithing,3,Weld a reinforced lockable container
+craft_safe_heavy,Build Heavy Safe,crafting,steel_ingot_0:8|bolt_box_0:3|copper_ingot_0:1,safe_0:1,50,forge_0,smithing,4,Forge a thick-walled armored vault
+craft_barrel_coopered,Cooper Barrel,crafting,wood_plank_0:6|steel_ingot_0:1,barrel_0:2,20,workbench_0,construction,2,Stave and band wooden liquid containers
+craft_backpack_small,Sew Small Backpack,textile,cloth_bolt_0:3|rope_0:1|bolt_box_0:1,backpack_small_0:1,15,sewing_machine_0,textile,2,Construct a 20L carry pack
+craft_backpack_large,Sew Large Backpack,textile,cloth_bolt_0:5|rope_0:2|leather_hide_0:1|bolt_box_0:1,backpack_large_0:1,25,sewing_machine_0,textile,3,Construct a 65L expedition rucksack
+#
+# === AMMUNITION / CONSUMABLES ===
+craft_arrows_batch,Fletch Arrow Batch,crafting,wood_plank_0:2|iron_ingot_0:1|fiber_bundle_0:1,arrow_0:30,15,workbench_0,crafting,1,Whittle shafts and forge broadhead tips
+craft_bullets_pistol,Load Pistol Rounds,crafting,copper_ingot_0:1|coal_0:1|iron_ingot_0:1,bullet_pistol_0:50,20,workbench_0,smithing,2,Press brass casings and seat projectiles
+craft_bullets_rifle,Load Rifle Rounds,crafting,copper_ingot_0:2|coal_0:1|steel_ingot_0:1,bullet_rifle_0:30,25,workbench_0,smithing,3,Press long casings and seat heavy projectiles
+craft_fuel_cell,Manufacture Fuel Cell,electronics,steel_ingot_0:2|copper_ingot_0:1|wire_0:2|water_purified_0:2,battery_large_0:1,40,electronics_bench_0,engineering,4,Assemble hydrogen electrochemical converter
+craft_battery_charge,Charge Battery Pack,electronics,battery_pack_0:1|wire_0:1,battery_pack_0:2,10,electronics_bench_0,engineering,1,Recondition and recharge depleted cells
+craft_healing_potion,Brew Healing Potion,chemistry,water_purified_0:2|honey_0:1|seed_wheat_0:2,medkit_0:1,20,chemistry_set_0,medical,2,Distill restorative herbal tincture
+craft_grenade,Assemble Grenade,crafting,iron_ingot_0:2|coal_0:2|rope_0:1,flare_0:3,30,workbench_0,smithing,3,Pack and fuse fragmentation shells
+craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:1,flare_0:5,15,workbench_0,crafting,2,Pack slow-burn obscurant canisters
+#
+# === ENCHANTING ===
+enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1,60,forge_0,smithing,4,Imbue an item with searing flame essence
+enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|diamond:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,smithing,4,Hone an edge to preternatural keenness
+enchant_fortification,Enchant Fortification,crafting,steel_ingot_0:4|titanium_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,50,forge_0,smithing,4,Reinforce material beyond natural limits
+enchant_efficiency,Enchant Efficiency,crafting,copper_ingot_0:3|gold_ingot_0:1|wire_0:2,copper_ingot_0:1,40,electronics_bench_0,engineering,4,Tune a tool for reduced resource consumption
+enchant_indestructible,Enchant Indestructible,crafting,titanium_ingot_0:3|gold_ingot_0:2|carbon_fiber_sheet_0:1,titanium_ingot_0:1,90,forge_0,smithing,5,Render material virtually immune to wear
+enchant_speed_boost,Enchant Speed Boost,crafting,aluminum_ingot_0:3|gold_ingot_0:1|wire_0:3,aluminum_ingot_0:1,45,electronics_bench_0,engineering,4,Accelerate action speed beyond normal limits
+enchant_night_vision,Enchant Night Vision,crafting,glass_pane_0:3|gold_ingot_0:1|wire_0:2,glass_pane_0:1,50,electronics_bench_0,engineering,4,Grant low-light visual amplification
+enchant_auto_repair,Enchant Auto Repair,crafting,wire_0:4|gold_ingot_0:2|copper_ingot_0:2,wire_0:1,60,electronics_bench_0,engineering,5,Enable gradual self-restoration of durability
+#
+# === DECORATION CRAFTING ===
+craft_painting,Paint Canvas Art,crafting,cloth_bolt_0:1|wood_plank_0:1|paint_0:2,painting_0:1,20,workbench_0,crafting,2,Stretch and paint a framed canvas
+craft_statue_small,Carve Small Statue,crafting,stone_raw_0:4|chisel_0:1,statue_small_0:1,30,workbench_0,crafting,3,Chisel a decorative stone figure
+craft_statue_large,Sculpt Large Statue,crafting,stone_raw_0:12|chisel_0:1|steel_ingot_0:2,statue_large_0:1,90,workbench_0,crafting,5,Sculpt a monumental stone figure
+craft_flag,Sew Flag,textile,cloth_bolt_0:2|wood_plank_0:1|paint_0:1,flag_0:2,10,sewing_machine_0,textile,1,Stitch and mount a cloth standard
+craft_fountain,Build Fountain,construction,stone_raw_0:8|steel_ingot_0:2|rubber_sheet_0:1|wire_0:2,fountain_0:1,60,workbench_0,construction,4,Construct an ornamental water feature
+craft_planter,Shape Planter,crafting,clay_raw_0:4|paint_0:1,planter_0:2,15,kiln_0,crafting,2,Fire and glaze ornamental plant pots
+#
+# === VEHICLE ASSEMBLY ===
+build_electric_car,Build Electric Car,assembly,steel_ingot_0:15|aluminum_ingot_0:8|wire_0:10|rubber_sheet_0:6|battery_large_0:4|circuit_board_0:2,car_electric_0:1,600,workbench_0,engineering,5,Assemble a battery-powered four-seat sedan
+build_electric_truck,Build Electric Truck,assembly,steel_ingot_0:25|aluminum_ingot_0:10|wire_0:12|rubber_sheet_0:8|battery_large_0:6|circuit_board_0:2,truck_electric_0:1,600,workbench_0,engineering,5,Assemble a battery-powered cargo hauler
+build_electric_scooter,Build Electric Scooter,assembly,aluminum_ingot_0:3|wire_0:3|rubber_sheet_0:2|battery_small_0:4,scooter_electric_0:1,120,workbench_0,engineering,3,Assemble a personal mobility scooter
+build_locomotive,Build Locomotive,assembly,steel_ingot_0:40|copper_ingot_0:10|wire_0:15|rubber_sheet_0:4|battery_large_0:8,locomotive_0:1,1200,workbench_0,engineering,5,Construct a diesel-electric rail engine
+build_bicycle_full,Build Bicycle,assembly,steel_ingot_0:3|aluminum_ingot_0:2|rubber_sheet_0:2|wire_0:1,bicycle_0:1,45,workbench_0,engineering,2,Assemble a lightweight two-wheel pedal vehicle
+build_motorcycle_full,Build Motorcycle,assembly,steel_ingot_0:8|aluminum_ingot_0:4|rubber_sheet_0:3|wire_0:4|fuel_refined_0:2,motorcycle_0:1,300,workbench_0,engineering,4,Assemble a two-wheel combustion cycle
+build_hovercraft,Build Hovercraft,assembly,aluminum_ingot_0:8|rubber_sheet_0:6|wire_0:5|plastic_sheet_0:4|battery_large_0:2,hovercraft_0:1,480,workbench_0,engineering,5,Construct an air-cushion surface vehicle
+build_rover,Build Rover,assembly,aluminum_ingot_0:6|steel_ingot_0:4|wire_0:6|rubber_sheet_0:4|battery_large_0:2|circuit_board_0:2|sensor_module_0:2,rover_0:1,480,workbench_0,engineering,5,Assemble an all-terrain exploration vehicle
+#
+# === MECH ASSEMBLY ===
+build_mech_light,Build Light Mech,assembly,titanium_ingot_0:8|aluminum_ingot_0:6|wire_0:10|servo_motor_0:8|circuit_board_0:2|battery_large_0:4|sensor_module_0:2,mech_light_0:1,900,workbench_0,engineering,5,Assemble a bipedal exosuit for rough terrain
+build_mech_heavy,Build Heavy Mech,assembly,titanium_ingot_0:15|steel_ingot_0:10|wire_0:15|servo_motor_0:12|circuit_board_0:4|battery_large_0:6|sensor_module_0:4,mech_heavy_0:1,1200,workbench_0,engineering,5,Construct an armored combat walker
+build_mech_construction,Build Construction Mech,assembly,steel_ingot_0:15|titanium_ingot_0:5|wire_0:12|servo_motor_0:10|circuit_board_0:3|battery_large_0:4,mech_construction_0:1,1050,workbench_0,engineering,5,Assemble an industrial lifter with crane arms
+build_mech_mining,Build Mining Mech,assembly,steel_ingot_0:18|titanium_ingot_0:4|wire_0:10|servo_motor_0:8|circuit_board_0:3|battery_large_0:5,mech_mining_0:1,1050,workbench_0,engineering,5,Construct a drill-equipped tunnel borer
+build_mech_scout,Build Scout Mech,assembly,aluminum_ingot_0:8|titanium_ingot_0:4|wire_0:8|servo_motor_0:6|circuit_board_0:3|battery_large_0:3|sensor_module_0:4,mech_scout_0:1,750,workbench_0,engineering,5,Assemble a fast recon walker with sensors
+#
+# === SPACECRAFT ASSEMBLY ===
+build_spacecraft_fighter,Build Fighter Ship,assembly,titanium_ingot_0:12|aluminum_ingot_0:8|wire_0:15|circuit_board_0:4|battery_large_0:6|servo_motor_0:4|sensor_module_0:2|glass_pane_0:4,spacecraft_fighter_0:1,1200,workbench_0,engineering,5,Assemble a light combat vessel with dual thrusters
+build_spacecraft_freighter,Build Freighter,assembly,steel_ingot_0:30|titanium_ingot_0:10|aluminum_ingot_0:15|wire_0:20|circuit_board_0:6|battery_large_0:10|servo_motor_0:8,spacecraft_freighter_0:1,1800,workbench_0,engineering,5,Construct a large modular cargo hauler
+build_spacecraft_shuttle,Build Shuttle,assembly,aluminum_ingot_0:12|titanium_ingot_0:6|wire_0:12|circuit_board_0:3|battery_large_0:5|servo_motor_0:4|glass_pane_0:6,spacecraft_shuttle_0:1,1050,workbench_0,engineering,5,Assemble a personnel transport shuttle
+build_spacecraft_corvette,Build Corvette,assembly,titanium_ingot_0:15|steel_ingot_0:10|aluminum_ingot_0:8|wire_0:18|circuit_board_0:5|battery_large_0:8|servo_motor_0:6|sensor_module_0:4,spacecraft_corvette_0:1,1500,workbench_0,engineering,5,Construct a fast multi-role warship
+build_spacecraft_mining,Build Mining Vessel,assembly,steel_ingot_0:20|titanium_ingot_0:8|wire_0:15|circuit_board_0:4|battery_large_0:8|servo_motor_0:6|sensor_module_0:3,spacecraft_mining_vessel_0:1,1350,workbench_0,engineering,5,Assemble an asteroid ore extraction ship
+build_spacecraft_explorer,Build Explorer,assembly,titanium_ingot_0:10|aluminum_ingot_0:10|wire_0:15|circuit_board_0:5|battery_large_0:6|sensor_module_0:6|glass_pane_0:6,spacecraft_explorer_0:1,1200,workbench_0,engineering,5,Construct a long-range survey vessel with sensors
+build_station_module,Build Station Module,assembly,steel_ingot_0:25|titanium_ingot_0:12|aluminum_ingot_0:10|wire_0:20|circuit_board_0:6|battery_large_0:10|glass_pane_0:8,spacecraft_station_module_0:1,1800,workbench_0,engineering,5,Fabricate a habitable orbital station segment
+build_spacecraft_pod,Build Spacecraft Pod,assembly,titanium_ingot_0:6|aluminum_ingot_0:4|wire_0:8|circuit_board_0:2|battery_large_0:3|glass_pane_0:2,spacecraft_pod_0:1,900,workbench_0,engineering,5,Assemble a single-seat orbital vehicle
+#
+# === STRUCTURE CRAFTING ===
+craft_wall_wood,Build Wood Wall Panel,construction,wood_plank_0:6|nail_box_0:2,door_wood_0:1,20,workbench_0,construction,2,Frame and sheath a standard wall section
+craft_wall_reinforced,Build Reinforced Wall,construction,steel_ingot_0:4|concrete_block_0:4|bolt_box_0:2,concrete_block_0:2,40,workbench_0,construction,4,Construct a steel-reinforced concrete wall panel
+craft_floor_tile,Lay Floor Tiles,construction,clay_raw_0:4|cement_0:1,stone_brick_0:6,25,kiln_0,construction,2,Fire and set ceramic floor tiles
+craft_roof_panel,Build Roof Panel,construction,wood_plank_0:4|steel_ingot_0:1|rubber_sheet_0:1,wood_plank_0:1,20,workbench_0,construction,2,Frame and weatherproof a roof section

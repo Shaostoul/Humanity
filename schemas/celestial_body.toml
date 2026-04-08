@@ -1,0 +1,433 @@
+# HumanityOS Celestial Body Schema
+# Reference for modders, AI agents, and community contributors.
+#
+# Celestial bodies define every object in the solar system (and beyond):
+# stars, planets, moons, asteroids, comets, and space stations.
+#
+# FORMAT: Two complementary data sources work together:
+#   - data/solar_system/bodies.json — Orbital mechanics, mass, radius, atmosphere
+#     (tabular catalog of all bodies with real NASA/JPL data)
+#   - data/solar_system/<id>.ron or data/planets/<id>.ron — Detailed per-body
+#     definitions with gameplay properties, terrain seeds, biomes, resources
+#
+# The JSON catalog defines the orbital tree (what orbits what). The RON files
+# add gameplay depth for bodies the player can visit. A body can exist in the
+# JSON catalog without a RON file (it renders as a dot on the solar system map
+# but has no landable surface).
+#
+# ENGINE INTEGRATION:
+#   Terrain Generation — native/src/terrain/
+#     - Icosphere (native/src/terrain/icosphere.rs): Base mesh for planets/moons.
+#       Starts as a 20-face icosahedron, subdivided recursively. At level N:
+#       20 * 4^N faces. Projected onto a sphere of the body's radius.
+#     - Planet renderer (native/src/terrain/planet.rs): PlanetDef struct loaded
+#       from RON. Procedural heightmap generated from terrain_seed. LOD is
+#       distance-based:
+#         Billboard    (>100,000 km): flat sprite with glow
+#         LowPoly      (10,000-100,000 km): subdivision 1, 80 faces
+#         MidDetail    (1,000-10,000 km): subdivision 2-3
+#         HighDetail   (100-1,000 km): subdivision 4
+#         SurfaceApproach (10-100 km): subdivision 5+
+#         Surface      (<10 km): heightmap with 0.5m resolution
+#     - Asteroid (native/src/terrain/asteroid.rs): Sparse octree voxel mesh
+#       with greedy meshing. Used for small irregular bodies.
+#     - Heightmap (native/src/terrain/heightmap.rs): Fine-detail terrain at
+#       surface level, blended with icosphere at transition distance.
+#
+#   Solar System Map — The orbital tree from bodies.json renders as an
+#     interactive 3D map. Bodies orbit their parent using Keplerian elements.
+#     The map supports time warp to visualize orbital mechanics.
+#
+#   Biome/Weather — native/src/systems/weather.rs and native/src/systems/ecology.rs
+#     - biomes list references biome definitions (temperature, precipitation, flora/fauna)
+#     - atmosphere composition and pressure determine weather patterns
+#     - axial_tilt + orbital_period drive seasonal variation
+#     - has_magnetosphere affects radiation exposure for gameplay
+#
+#   Physics — Surface gravity applied to all entities on/near the body.
+#     Orbital mechanics use the mass for gravitational calculations.
+#     Atmosphere density affects vehicle drag and parachute behavior.
+
+# ============================================================================
+# FIELD DEFINITIONS
+# ============================================================================
+
+[[fields]]
+name = "id"
+type = "string"
+required = true
+default = ""
+description = "Unique identifier (snake_case). Used as the key in bodies.json and the filename for RON overrides (data/solar_system/<id>.ron)."
+constraints = "Lowercase alphanumeric and underscores only. Max 64 characters."
+
+[[fields]]
+name = "name"
+type = "string"
+required = true
+default = ""
+description = "Human-readable display name for the solar system map, UI panels, and navigation."
+constraints = "Max 128 characters. Supports localization keys (prefix with 'i18n:')."
+
+[[fields]]
+name = "type"
+type = "enum"
+required = true
+default = ""
+description = "Classification of the celestial body. Determines rendering style, terrain generation method, and map icon."
+constraints = "One of: star, planet, dwarf_planet, moon, asteroid, comet, station, ring"
+
+[[fields]]
+name = "parent_id"
+type = "string"
+required = false
+default = ""
+description = "The id of the body this object orbits. Defines the orbital hierarchy. Empty/null = root of the system (typically the star). Moons reference their planet, planets reference the star."
+constraints = "Must match an existing body id, or empty for the root body."
+
+[[fields]]
+name = "mass_kg"
+type = "float"
+required = true
+default = ""
+description = "Mass in kilograms. Used for gravitational calculations, orbital mechanics, and surface gravity derivation. Real solar system values from NASA/JPL Horizons."
+constraints = "Must be > 0. Earth = 5.972e24, Sun = 1.989e30, small asteroid = 1e10."
+
+[[fields]]
+name = "radius_m"
+type = "float"
+required = true
+default = ""
+description = "Mean radius in meters. Defines the size of the icosphere mesh and the surface level for terrain generation. Also used for collision detection at planetary scale."
+constraints = "Must be > 0. Earth = 6_371_000, Moon = 1_737_400."
+
+[[fields]]
+name = "surface_gravity_mps2"
+type = "float"
+required = false
+default = "0.0"
+description = "Surface gravitational acceleration in m/s^2. Applied to all entities on the surface. If 0, derived from mass and radius: g = G*M/r^2."
+constraints = "Must be >= 0. Earth = 9.81, Moon = 1.62, ISS ~ 0 (microgravity)."
+
+[[fields]]
+name = "orbital_radius_m"
+type = "float"
+required = false
+default = "0.0"
+description = "Semi-major axis of the orbit in meters (distance from parent body center). Used for rendering orbital paths and calculating position. 1 AU = 1.496e11 m."
+constraints = "Must be >= 0. 0 = stationary (root body or space station without orbit)."
+
+[[fields]]
+name = "orbital_period_s"
+type = "float"
+required = false
+default = "0.0"
+description = "Time in seconds to complete one orbit around the parent body. Earth year = 3.156e7 s. Used for time-warped orbital animation and seasonal calculations."
+constraints = "Must be >= 0. 0 = no orbit (stationary)."
+
+[[fields]]
+name = "orbital_eccentricity"
+type = "float"
+required = false
+default = "0.0"
+description = "Eccentricity of the orbit. 0 = perfect circle, 0-1 = ellipse, 1 = parabolic. Affects distance variation during orbit and temperature extremes."
+constraints = "Range: 0.0 to < 1.0 for bound orbits. Comets may approach 1.0."
+
+[[fields]]
+name = "orbital_inclination_deg"
+type = "float"
+required = false
+default = "0.0"
+description = "Inclination of the orbital plane relative to the parent's equatorial plane, in degrees."
+constraints = "Range: 0 to 180."
+
+[[fields]]
+name = "rotation_period_s"
+type = "float"
+required = false
+default = "86400.0"
+description = "Sidereal rotation period in seconds (one full spin). Drives the day/night cycle, sky rotation, and solar panel output variation. Earth = 86164 s. Negative = retrograde rotation."
+constraints = "Non-zero. Negative values indicate retrograde rotation (Venus)."
+
+[[fields]]
+name = "axial_tilt_deg"
+type = "float"
+required = false
+default = "0.0"
+description = "Axial tilt in degrees relative to the orbital plane. Drives seasonal variation: larger tilt = more extreme seasons. Earth = 23.44."
+constraints = "Range: 0 to 180. Values > 90 indicate retrograde rotation direction."
+
+[[fields]]
+name = "atmosphere_composition"
+type = "string"
+required = false
+default = ""
+description = "Gas composition as pipe-separated gas_id:percentage pairs. Percentages should sum to ~100. Affects breathing, combustion, weather, and sky color rendering."
+constraints = "Format: 'gas_id:percent|gas_id:percent'. Example: 'nitrogen:78.08|oxygen:20.95|argon:0.93|co2:0.04'. Empty = no atmosphere (vacuum)."
+
+[[fields]]
+name = "atmosphere_pressure_atm"
+type = "float"
+required = false
+default = "0.0"
+description = "Surface atmospheric pressure in Earth atmospheres. 1.0 = Earth sea level. Affects sound propagation, vehicle drag, weather intensity, and human habitability."
+constraints = "Must be >= 0. 0 = vacuum. Venus = 92.0. Mars = 0.006."
+
+[[fields]]
+name = "atmosphere_temperature_range_c"
+type = "string"
+required = false
+default = ""
+description = "Surface temperature range in Celsius as 'min,max'. Drives biome selection, weather patterns, and habitability calculations."
+constraints = "Format: 'min,max'. Example: '-89,57' for Earth. Empty = derived from solar distance."
+
+[[fields]]
+name = "surface_type"
+type = "enum"
+required = false
+default = "barren"
+description = "Dominant surface terrain type. Determines the base procedural terrain generation algorithm and default texture set."
+constraints = "One of: rocky, gas, ice, lava, ocean, barren, forest, desert, tundra, mixed"
+
+[[fields]]
+name = "biomes"
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated list of biome_ids present on this body. Biomes are distributed procedurally based on latitude, altitude, and temperature. References biome definitions in data."
+constraints = "Format: 'biome_id|biome_id'. Example: 'tropical_forest|temperate_forest|desert|tundra|ocean|ice_cap'. Empty = single biome matching surface_type."
+
+[[fields]]
+name = "has_magnetosphere"
+type = "boolean"
+required = false
+default = "false"
+description = "Whether the body has a global magnetic field. Protects surface from solar radiation, enables compass navigation, and creates aurora at poles."
+constraints = ""
+
+[[fields]]
+name = "radiation_level"
+type = "integer"
+required = false
+default = "0"
+description = "Background radiation intensity at the surface. Affects crew health, suit requirements, and habitation needs. Bodies without magnetosphere or atmosphere have higher radiation."
+constraints = "Range: 0 (safe, Earth-like) to 10 (lethal without heavy shielding, Jupiter's moon Io)."
+
+[[fields]]
+name = "water_coverage_percent"
+type = "float"
+required = false
+default = "0.0"
+description = "Percentage of surface covered by liquid water. Affects terrain generation (ocean placement), weather (evaporation), and resource availability."
+constraints = "Range: 0.0 to 100.0. Earth = 71.0."
+
+[[fields]]
+name = "ice_coverage_percent"
+type = "float"
+required = false
+default = "0.0"
+description = "Percentage of surface covered by ice. Polar caps, frozen oceans, or entire surface (Europa). Affects terrain texturing and resource mining."
+constraints = "Range: 0.0 to 100.0. Earth = 10.0. Europa = 100.0."
+
+[[fields]]
+name = "resource_deposits"
+type = "string"
+required = false
+default = ""
+description = "Mineable resources as pipe-separated material_id:abundance pairs. Abundance is 0.0-1.0 (fraction of terrain containing this resource). References data/materials.csv."
+constraints = "Format: 'material_id:abundance|material_id:abundance'. Example: 'iron:0.15|copper:0.05|gold:0.001'. Empty = no minable resources."
+
+[[fields]]
+name = "habitability_score"
+type = "float"
+required = false
+default = "0.0"
+description = "Overall suitability for human habitation without technological support. Considers atmosphere, temperature, gravity, radiation, and water. Used by AI colonization planning and the UI info panel."
+constraints = "Range: 0.0 (instantly lethal) to 1.0 (Earth-like, no suit needed). Mars ~ 0.05, Moon ~ 0.01."
+
+[[fields]]
+name = "ring_system"
+type = "boolean"
+required = false
+default = "false"
+description = "Whether this body has a visible ring system (like Saturn). If true, rings are rendered as a flat disk between ring_inner_radius_m and ring_outer_radius_m."
+constraints = ""
+
+[[fields]]
+name = "ring_inner_radius_m"
+type = "float"
+required = false
+default = "0.0"
+description = "Inner edge of the ring system in meters from the body's center. Only used when ring_system = true."
+constraints = "Must be > radius_m (rings are outside the body surface)."
+
+[[fields]]
+name = "ring_outer_radius_m"
+type = "float"
+required = false
+default = "0.0"
+description = "Outer edge of the ring system in meters from the body's center. Only used when ring_system = true."
+constraints = "Must be > ring_inner_radius_m."
+
+[[fields]]
+name = "color_hex"
+type = "string"
+required = false
+default = "AAAAAA"
+description = "Hex color code (without #) for map and UI display. Used as the body's dot color on the solar system map and in navigation lists."
+constraints = "6-character hex (RGB). Example: '3B7DD8' for Earth-blue, 'C1440E' for Mars-red."
+
+[[fields]]
+name = "lod_levels"
+type = "integer"
+required = false
+default = "6"
+description = "Maximum icosphere subdivision levels for this body. Higher = more detailed surface at close range, but more memory. The engine auto-selects LOD based on camera distance up to this maximum."
+constraints = "Range: 1 to 10. Typical: 6 for planets, 3 for small moons, 8 for homeworld. Each level quadruples face count (level 6 = 81,920 faces)."
+
+[[fields]]
+name = "terrain_seed"
+type = "integer"
+required = false
+default = "0"
+description = "Seed for procedural terrain generation (heightmap noise). Same seed always produces the same terrain. 0 = derived from body id hash."
+constraints = "64-bit unsigned integer. 0 = auto-generated from id."
+
+[[fields]]
+name = "ore_seed"
+type = "integer"
+required = false
+default = "0"
+description = "Seed for procedural ore/resource vein distribution. Separate from terrain_seed so resources can be re-rolled independently."
+constraints = "64-bit unsigned integer. 0 = auto-generated from id."
+
+[[fields]]
+name = "description"
+type = "string"
+required = false
+default = ""
+description = "Flavor text shown in the solar system map info panel and navigation UI."
+constraints = "Max 512 characters."
+
+# ============================================================================
+# ORBITAL HIERARCHY
+# ============================================================================
+# The parent_id field creates a tree:
+#
+#   sun (parent_id = "")
+#     mercury (parent_id = "sun")
+#     venus (parent_id = "sun")
+#     earth (parent_id = "sun")
+#       moon (parent_id = "earth")
+#       iss (parent_id = "earth", type = "station")
+#     mars (parent_id = "sun")
+#       phobos (parent_id = "mars")
+#       deimos (parent_id = "mars")
+#     jupiter (parent_id = "sun")
+#       io (parent_id = "jupiter")
+#       europa (parent_id = "jupiter")
+#       ganymede (parent_id = "jupiter")
+#       callisto (parent_id = "jupiter")
+#     saturn (parent_id = "sun", ring_system = true)
+#       titan (parent_id = "saturn")
+#       enceladus (parent_id = "saturn")
+#
+# Modders can add new bodies anywhere in the tree. Custom star systems
+# are possible by creating a new star with parent_id = "" and orbiting
+# bodies around it.
+
+# ============================================================================
+# TERRAIN GENERATION PIPELINE
+# ============================================================================
+# For a landable body (has a RON file with terrain_seed):
+#
+#   1. Icosphere generated at base subdivision level
+#   2. Noise function (simplex, ridged multi-fractal) applied using terrain_seed
+#      to produce heightmap displacement per vertex
+#   3. Biomes assigned per face based on latitude, altitude, moisture
+#   4. Texture blending applied per biome (grass, sand, rock, snow, etc.)
+#   5. Ore veins distributed using ore_seed (Voronoi cells with resource types)
+#   6. Water placed at sea_level (flat plane or sphere shell)
+#   7. Atmosphere rendered as a shell above the surface (color from atmosphere fields)
+#   8. LOD dynamically adjusts as camera moves (subdivide approaching faces,
+#      collapse distant faces)
+#
+# For gas giants (surface_type = "gas"):
+#   - No solid surface; cloud bands rendered as texture on the icosphere
+#   - Player cannot land; orbital stations only
+#   - Moons are the gameplay targets
+#
+# For asteroids (type = "asteroid"):
+#   - Voxel octree instead of icosphere (irregular shapes)
+#   - Greedy meshing for efficient rendering
+#   - Can be mined (voxels removed, resources added to inventory)
+
+# ============================================================================
+# EXAMPLE: JSON catalog entry (data/solar_system/bodies.json)
+# ============================================================================
+# {
+#   "id": "europa",
+#   "name": "Europa",
+#   "type": "moon",
+#   "parent": "jupiter",
+#   "orbit": {
+#     "semi_major_axis_au": 0.00449,
+#     "eccentricity": 0.009,
+#     "inclination_deg": 0.47,
+#     "orbital_period_days": 3.551
+#   },
+#   "physical": {
+#     "mass_kg": 4.8e22,
+#     "radius_km": 1560.8,
+#     "surface_gravity_ms2": 1.315,
+#     "rotation_period_hours": 85.228,
+#     "axial_tilt_deg": 0.1
+#   }
+# }
+
+# ============================================================================
+# EXAMPLE: Detailed RON file (data/solar_system/europa.ron)
+# ============================================================================
+# // Gameplay-rich definition for a landable body
+# Planet(
+#     name: "Europa",
+#     radius: 1560800.0,
+#     gravity: 1.315,
+#     terrain_seed: 90210,
+#     ore_seed: 90211,
+#     atmosphere_color: None,
+#     atmosphere_scale: 0.0,
+#     has_water: false,           // subsurface ocean, not surface
+#     sea_level: 0.0,
+#     land_color: (0.85, 0.82, 0.75, 1.0),
+#     water_color: (0.3, 0.5, 0.7, 1.0),
+#     orbital_radius: 671100000.0,
+#     orbital_period: 306720.0,
+#     rotation_period: 306720.0,  // tidally locked
+#     axial_tilt: 0.0017,
+# )
+
+# ============================================================================
+# MODDING GUIDE
+# ============================================================================
+# To add a new celestial body:
+#   1. Add an entry to data/solar_system/bodies.json with orbital/physical data
+#   2. Set parent to the body it orbits (or null for a new star)
+#   3. (Optional) Create data/solar_system/<id>.ron with terrain/gameplay details
+#      (required for the body to be landable)
+#   4. (Optional) Define biomes, resources, and atmosphere for gameplay depth
+#   5. Hot-reload: the engine picks up JSON/RON changes automatically
+#
+# To create a custom star system:
+#   1. Add a new star entry with parent = null
+#   2. Add planets orbiting the star (parent = your star id)
+#   3. Add moons orbiting planets as needed
+#   4. The solar system map renders the full tree automatically
+#
+# Tips for realistic bodies:
+#   - Use NASA Planetary Fact Sheets for real mass/radius/gravity values
+#   - surface_gravity_mps2 = G * mass_kg / (radius_m^2), G = 6.674e-11
+#   - orbital_period relates to orbital_radius via Kepler's third law
+#   - Tidally locked moons have rotation_period = orbital_period
+#
+# Mods: Place override files in data/mods/<mod_name>/solar_system/.
+# The mod system merges by id (mod values override base values).

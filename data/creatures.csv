@@ -1,0 +1,124 @@
+# HumanityOS Creatures Database
+# All living entities in the game world
+#
+# Column definitions:
+#   id                - Unique creature identifier (snake_case)
+#   name              - Display name
+#   type              - human, animal, alien, monster, demon, robot, spirit
+#   species           - Species classification
+#   health_base       - Base health points
+#   stamina_base      - Base stamina points
+#   mana_base         - Base mana (0 for non-magical creatures)
+#   size_category     - tiny, small, medium, large, huge, colossal
+#   weight_kg         - Average mass
+#   movement_speed    - Base movement speed in m/s
+#   movement_types    - Pipe-separated: walk|run|swim|fly|burrow|climb
+#   diet              - herbivore, carnivore, omnivore, photosynthetic, energy, none
+#   hostility         - passive, neutral, territorial, aggressive, boss
+#   habitat_biomes    - Pipe-separated biome ids where creature spawns
+#   loot_table        - Pipe-separated item_id:chance:min:max loot drops
+#   ai_behavior       - wander, patrol, guard, hunt, flee, follow, swarm, ambush
+#   domesticable      - true/false
+#   spawn_weight      - Relative rarity (higher = more common, 1-100)
+#   description       - Short description
+#
+id,name,type,species,health_base,stamina_base,mana_base,size_category,weight_kg,movement_speed,movement_types,diet,hostility,habitat_biomes,loot_table,ai_behavior,domesticable,spawn_weight,description
+# === DOMESTIC ANIMALS ===
+chicken,Chicken,animal,gallus_domesticus,15,20,0,small,3.5,1.5,walk|run,omnivore,passive,grassland|farmland,raw_poultry:100:1:2|feather:80:1:3|egg:50:1:1,wander,true,80,Common farm bird raised for eggs and meat
+cow,Cow,animal,bos_taurus,80,50,0,large,700,2.0,walk|run,herbivore,passive,grassland|farmland,raw_beef:100:2:4|leather:80:1:2|bone:60:1:2|milk:50:1:1,wander,true,60,Domesticated cattle providing milk and beef
+pig,Pig,animal,sus_domesticus,60,40,0,medium,110,2.5,walk|run|swim,omnivore,passive,grassland|farmland|forest,raw_pork:100:2:3|leather:60:1:1|bone:50:1:2|fat:70:1:2,wander,true,65,Intelligent farm animal raised for pork
+sheep,Sheep,animal,ovis_aries,50,35,0,medium,80,2.0,walk|run|climb,herbivore,passive,grassland|farmland|mountain,raw_mutton:100:1:3|wool:90:1:3|bone:40:1:1,wander,true,70,Woolly livestock prized for fiber and meat
+goat,Goat,animal,capra_hircus,55,45,0,medium,60,2.5,walk|run|climb,herbivore,passive,grassland|farmland|mountain,raw_mutton:100:1:2|leather:70:1:1|bone:40:1:1|milk:50:1:1,wander,true,65,Hardy ruminant that thrives in rocky terrain
+horse,Horse,animal,equus_caballus,120,100,0,large,500,14.0,walk|run|swim,herbivore,passive,grassland|farmland|savanna,raw_meat:100:3:5|leather:80:1:2|bone:60:2:3,wander,true,40,Swift mount and draft animal
+dog,Dog,animal,canis_familiaris,45,60,0,medium,30,8.0,walk|run|swim,omnivore,passive,grassland|farmland|forest|tundra,raw_meat:100:1:1|bone:60:1:1|fur:50:1:1,follow,true,50,Loyal companion and working animal
+cat,Cat,animal,felis_catus,25,40,0,small,4.5,6.0,walk|run|climb,carnivore,passive,grassland|farmland|forest,raw_meat:100:1:1|fur:60:1:1,wander,true,55,Independent hunter of vermin
+rabbit,Rabbit,animal,oryctolagus_cuniculus,20,30,0,small,2.5,3.5,walk|run|burrow,herbivore,passive,grassland|farmland|forest,raw_meat:100:1:1|fur:70:1:1|bone:30:1:1,flee,true,75,Quick burrowing herbivore
+duck,Duck,animal,anas_platyrhynchos,18,25,0,small,3.0,1.8,walk|run|swim|fly,omnivore,passive,grassland|farmland|wetland,raw_poultry:100:1:1|feather:80:1:3|egg:50:1:1,wander,true,70,Waterfowl raised for eggs and down feathers
+# === WILD ANIMALS ===
+deer,Deer,animal,cervus_elaphus,70,65,0,medium,200,13.0,walk|run|swim,herbivore,neutral,forest|grassland|taiga,raw_venison:100:2:3|leather:80:1:2|bone:60:1:2|antler:30:1:2,flee,false,60,Graceful forest herbivore with keen senses
+wolf,Wolf,animal,canis_lupus,65,70,0,medium,45,10.0,walk|run|swim,carnivore,territorial,forest|taiga|tundra|mountain,raw_meat:100:1:2|fur:80:1:1|bone:50:1:2|fang:40:1:2,hunt,false,45,Pack hunter with coordinated tactics
+bear_brown,Brown Bear,animal,ursus_arctos,200,80,0,large,350,8.0,walk|run|swim|climb,omnivore,territorial,forest|taiga|mountain,raw_meat:100:3:5|fur:80:1:2|bone:60:2:3|claw:50:1:2,wander,false,25,Powerful omnivore found near rivers and forests
+fox,Fox,animal,vulpes_vulpes,35,50,0,small,6.5,10.0,walk|run|burrow,omnivore,neutral,forest|grassland|taiga|tundra,raw_meat:100:1:1|fur:80:1:1|bone:30:1:1,wander,false,55,Cunning small predator active at dusk and dawn
+eagle,Eagle,animal,aquila_chrysaetos,40,55,0,medium,5.0,15.0,walk|fly,carnivore,neutral,mountain|grassland|forest,raw_poultry:100:1:1|feather:90:2:4|talon:40:1:2,patrol,false,30,Apex avian predator with exceptional eyesight
+snake_viper,Viper,animal,viperidae,20,25,0,small,1.5,2.0,walk,carnivore,aggressive,desert|forest|grassland|swamp,raw_meat:100:1:1|scale:70:1:2|venom_sac:40:1:1|fang:30:1:1,ambush,false,50,Venomous serpent that strikes from concealment
+boar_wild,Wild Boar,animal,sus_scrofa,90,55,0,medium,100,7.0,walk|run,omnivore,territorial,forest|grassland|swamp,raw_pork:100:2:3|leather:70:1:2|bone:50:1:2|tusk:35:1:2,wander,false,50,Aggressive tusked pig found in dense undergrowth
+elk,Elk,animal,cervus_canadensis,110,70,0,large,350,11.0,walk|run|swim,herbivore,neutral,forest|taiga|mountain|grassland,raw_venison:100:3:4|leather:80:1:2|bone:60:2:3|antler:50:1:2,wander,false,35,Massive cervid with impressive antler racks
+bison,Bison,animal,bison_bison,180,65,0,large,900,9.0,walk|run,herbivore,territorial,grassland|savanna,raw_beef:100:4:6|leather:80:2:3|bone:60:2:4|horn:40:1:2,wander,false,30,Imposing herd animal of the open plains
+lion,Lion,animal,panthera_leo,150,75,0,large,190,13.0,walk|run,carnivore,aggressive,savanna|grassland,raw_meat:100:2:4|fur:80:1:2|bone:60:1:3|fang:50:1:2|claw:40:1:2,hunt,false,20,Pride-based apex predator of warm grasslands
+tiger,Tiger,animal,panthera_tigris,160,80,0,large,220,13.0,walk|run|swim|climb,carnivore,aggressive,jungle|forest|swamp,raw_meat:100:2:4|fur:80:1:2|bone:60:1:3|fang:50:1:2|claw:40:1:2,ambush,false,15,Solitary apex predator that stalks through dense cover
+elephant,Elephant,animal,loxodonta_africana,400,60,0,huge,5000,5.0,walk|run|swim,herbivore,territorial,savanna|jungle|grassland,raw_meat:100:5:8|leather:80:3:5|bone:70:3:5|ivory:20:1:2,wander,false,15,Largest land animal with remarkable intelligence
+whale_humpback,Humpback Whale,animal,megaptera_novaeangliae,500,40,0,colossal,30000,4.0,swim,carnivore,passive,ocean|deep_ocean,raw_meat:100:8:12|blubber:80:4:6|bone:60:4:8|baleen:40:2:4,wander,false,5,Massive filter feeder known for haunting songs
+dolphin,Dolphin,animal,tursiops_truncatus,60,70,0,medium,200,8.5,swim,carnivore,passive,ocean|coastal,raw_meat:100:1:2|blubber:60:1:1,wander,false,40,Highly intelligent social marine mammal
+owl,Owl,animal,bubo_bubo,30,35,0,small,3.0,8.0,walk|fly,carnivore,neutral,forest|taiga|grassland,raw_poultry:100:1:1|feather:80:2:3|talon:30:1:1,patrol,false,40,Silent nocturnal hunter with rotating head
+hawk,Hawk,animal,buteo_jamaicensis,28,40,0,small,1.2,12.0,walk|fly,carnivore,neutral,grassland|mountain|forest|desert,raw_poultry:100:1:1|feather:80:1:3|talon:30:1:1,patrol,false,45,Keen-eyed raptor that dives on prey from altitude
+crocodile,Crocodile,animal,crocodylus_niloticus,180,50,0,large,450,3.0,walk|swim,carnivore,aggressive,swamp|wetland|river,raw_meat:100:2:4|scale:80:2:4|bone:60:2:3|fang:40:1:2,ambush,false,20,Armored ambush predator lurking in shallow water
+moose,Moose,animal,alces_alces,140,60,0,large,550,9.0,walk|run|swim,herbivore,territorial,taiga|forest|wetland,raw_venison:100:3:5|leather:80:1:2|bone:60:2:3|antler:50:1:2,wander,false,25,Towering solitary cervid of northern forests
+polar_bear,Polar Bear,animal,ursus_maritimus,220,75,0,large,500,7.0,walk|run|swim,carnivore,aggressive,tundra|arctic,raw_meat:100:3:5|fur:90:2:3|bone:60:2:3|claw:50:1:2|fat:70:2:3,hunt,false,15,Apex predator of the frozen north
+# === INSECTS & SMALL ===
+bee,Bee,animal,apis_mellifera,5,15,0,tiny,0.1,3.0,walk|fly,herbivore,territorial,grassland|forest|farmland|jungle,honey:40:1:1|beeswax:30:1:1,swarm,true,90,Pollinating insect vital to ecosystems
+spider,Spider,animal,araneae,8,10,0,tiny,0.05,1.0,walk|climb,carnivore,neutral,forest|cave|desert|swamp,silk_thread:60:1:2|venom_sac:20:1:1,ambush,false,80,Web-spinning predator found in dark corners
+ant_worker,Worker Ant,animal,formicidae,3,10,0,tiny,0.002,0.5,walk|climb|burrow,omnivore,territorial,forest|grassland|desert|jungle,chitin_shard:30:1:1,swarm,false,95,Tireless colonial insect that builds vast underground cities
+butterfly,Butterfly,animal,lepidoptera,4,8,0,tiny,0.01,2.5,walk|fly,herbivore,passive,grassland|forest|jungle|farmland,wing_dust:30:1:1,wander,false,70,Delicate pollinator with vivid wing patterns
+scorpion,Scorpion,animal,scorpiones,15,15,0,small,0.05,1.0,walk|burrow,carnivore,aggressive,desert|cave|savanna,chitin_shard:50:1:1|venom_sac:40:1:1|stinger:30:1:1,ambush,false,55,Armored arachnid with a venomous tail sting
+beetle_stag,Stag Beetle,animal,lucanus_cervus,10,12,0,tiny,0.015,0.8,walk|fly|climb,omnivore,neutral,forest|jungle,chitin_shard:40:1:1,wander,false,65,Horned beetle found on decaying wood
+firefly,Firefly,animal,lampyridae,3,8,0,tiny,0.001,1.5,walk|fly,omnivore,passive,forest|swamp|grassland,bioluminescent_gland:50:1:1,wander,false,60,Glowing insect that illuminates warm evenings
+cricket,Cricket,animal,gryllidae,4,10,0,tiny,0.003,0.8,walk|burrow,herbivore,passive,grassland|forest|farmland|cave,chitin_shard:20:1:1,wander,false,85,Chirping insect active during warm nights
+earthworm,Earthworm,animal,lumbricus_terrestris,2,5,0,tiny,0.01,0.1,burrow,herbivore,passive,grassland|forest|farmland|swamp,bait:60:1:2,wander,false,90,Soil-dwelling decomposer essential for fertile ground
+snail,Snail,animal,cornu_aspersum,5,3,0,tiny,0.03,0.01,walk|climb,herbivore,passive,forest|grassland|farmland|swamp,snail_shell:50:1:1|slime:30:1:1,wander,false,75,Slow-moving gastropod protected by a spiral shell
+# === AQUATIC ===
+salmon,Salmon,animal,salmo_salar,30,40,0,medium,5.0,4.0,swim,carnivore,passive,river|ocean|coastal,raw_fish:100:1:2|fish_oil:50:1:1|fish_scale:40:1:2,wander,false,70,Migratory fish that returns to its birthplace to spawn
+tuna,Tuna,animal,thunnus_thynnus,50,50,0,medium,250,11.0,swim,carnivore,passive,ocean|deep_ocean,raw_fish:100:2:3|fish_oil:60:1:2|fish_scale:40:2:3,wander,false,40,Fast open-water predator prized as food
+shark_great_white,Great White Shark,animal,carcharodon_carcharias,250,70,0,huge,1100,6.0,swim,carnivore,aggressive,ocean|deep_ocean|coastal,raw_meat:100:3:5|shark_tooth:60:1:3|fish_oil:50:2:3|cartilage:40:1:2,hunt,false,8,Fearsome apex predator of the open ocean
+octopus,Octopus,animal,octopus_vulgaris,40,35,0,medium,5.0,3.0,swim|climb,carnivore,neutral,ocean|coastal|reef,raw_meat:100:1:2|ink_sac:60:1:1|tentacle:40:1:2,ambush,false,35,Highly intelligent mollusk with camouflage abilities
+crab,Crab,animal,brachyura,25,20,0,small,1.5,1.0,walk|swim|climb,omnivore,neutral,coastal|reef|ocean,raw_meat:100:1:1|chitin_shard:60:1:2|claw:40:1:1,wander,false,60,Armored crustacean found along shorelines
+jellyfish,Jellyfish,animal,aurelia_aurita,15,10,0,medium,2.0,0.5,swim,carnivore,passive,ocean|coastal|deep_ocean,gel_sac:50:1:1|bioluminescent_gland:30:1:1|venom_sac:20:1:1,wander,false,50,Drifting cnidarian with trailing stinging tentacles
+sea_turtle,Sea Turtle,animal,chelonia_mydas,80,30,0,medium,180,2.0,walk|swim,herbivore,passive,ocean|coastal|reef,raw_meat:100:1:2|shell_plate:60:1:2|leather:40:1:1,wander,false,25,Ancient marine reptile with a protective shell
+manta_ray,Manta Ray,animal,mobula_birostris,70,40,0,large,1400,3.5,swim,carnivore,passive,ocean|deep_ocean|reef,raw_meat:100:2:3|cartilage:50:1:2|leather:40:1:1,wander,false,15,Graceful filter feeder gliding through open water
+clownfish,Clownfish,animal,amphiprioninae,8,10,0,tiny,0.1,0.5,swim,omnivore,passive,reef|coastal,raw_fish:100:1:1|fish_scale:30:1:1,wander,false,65,Small colorful reef fish living among anemones
+eel_moray,Moray Eel,animal,muraenidae,45,30,0,medium,12.0,2.0,swim,carnivore,aggressive,reef|coastal|ocean,raw_fish:100:1:2|fang:40:1:1|eel_skin:50:1:1,ambush,false,35,Serpentine reef dweller with powerful jaws
+# === ALIEN CREATURES ===
+zorathi_grazer,Zorathi Grazer,alien,zorathi_bovidae,100,60,0,large,400,3.5,walk|run,herbivore,passive,alien_plains|alien_forest,alien_meat:100:2:4|alien_hide:80:1:2|bio_crystal:20:1:1,wander,true,50,Six-legged herbivore with bioluminescent markings
+spore_drifter,Spore Drifter,alien,mycofloatus,40,20,10,medium,8.0,1.5,fly,photosynthetic,passive,alien_forest|alien_swamp|jungle,spore_sac:80:1:2|fungal_fiber:60:1:2|bio_luminant:40:1:1,wander,false,55,Floating fungal organism that drifts on air currents
+crystal_stalker,Crystal Stalker,alien,crystallis_praedator,140,80,0,medium,90,9.0,walk|run|climb,carnivore,aggressive,alien_caves|mountain|asteroid,alien_meat:100:1:3|crystal_shard:70:1:3|crystal_fang:40:1:2,hunt,false,20,Ambush predator with crystalline armor plating
+void_leech,Void Leech,alien,parasitus_vacuum,60,30,15,small,5.0,2.0,walk|fly,energy,aggressive,asteroid|alien_caves|deep_space,energy_gland:60:1:1|void_membrane:50:1:1|dark_ichor:40:1:1,swarm,false,30,Parasitic alien that drains energy from machinery
+nebula_jellyfish,Nebula Jellyfish,alien,medusa_cosmicus,50,15,20,large,0.5,1.0,fly,energy,passive,deep_space|asteroid,gas_bladder:60:1:2|luminous_gel:70:1:2|ether_strand:30:1:1,wander,false,25,Translucent space-dwelling organism fueled by radiation
+hive_drone,Hive Drone,alien,insectis_collective,45,50,0,small,15.0,7.0,walk|run|fly,omnivore,aggressive,alien_hive|alien_forest|jungle,chitin_plate:70:1:2|bio_acid:40:1:1|alien_meat:100:1:1,swarm,false,40,Eusocial alien insectoid defending its colony
+tunnel_wurm,Tunnel Wurm,alien,vermis_subterrus,300,40,0,huge,2000,4.0,walk|burrow|swim,omnivore,territorial,alien_caves|desert|asteroid,alien_meat:100:4:6|wurm_scale:70:2:4|acid_gland:50:1:2|wurm_tooth:30:1:2,patrol,false,8,Massive burrowing creature that carves tunnel networks
+plasma_moth,Plasma Moth,alien,lepidoptera_plasmus,25,35,10,medium,3.0,5.0,walk|fly,energy,neutral,alien_forest|alien_plains|deep_space,wing_membrane:60:1:2|plasma_dust:50:1:1|bio_luminant:40:1:1,wander,false,35,Ethereal moth whose wings shimmer with plasma energy
+silicon_crab,Silicon Crab,alien,brachyura_silicius,90,25,0,medium,50.0,1.5,walk|climb|burrow,omnivore,territorial,asteroid|alien_caves|volcanic,silicon_shell:70:1:2|mineral_claw:50:1:1|rare_ore:20:1:1,guard,false,30,Rock-like crustacean that filters minerals from stone
+thornback_beast,Thornback Beast,alien,thornus_ferox,200,70,0,large,600,6.0,walk|run,carnivore,aggressive,alien_plains|alien_forest|savanna,alien_meat:100:3:5|thorn_spike:70:2:4|alien_hide:80:1:3|bone:60:2:3,hunt,false,15,Heavily armored predator covered in barbed spines
+xeno_hound,Xeno Hound,alien,canis_xenomorphus,80,75,0,medium,55,11.0,walk|run|climb,carnivore,territorial,alien_plains|alien_forest|alien_caves,alien_meat:100:1:2|alien_hide:70:1:1|fang:50:1:2,hunt,false,35,Pack-hunting alien canid with echolocation
+sky_whale,Sky Whale,alien,cetacea_volantis,600,30,25,colossal,15000,3.0,fly|swim,photosynthetic,passive,deep_space|alien_plains,gas_bladder:80:3:5|sky_blubber:70:3:6|ether_strand:40:2:3|cloud_silk:30:1:2,wander,false,3,Gargantuan aerial creature that floats between worlds
+# === MONSTERS ===
+dragon_fire,Fire Dragon,monster,draco_ignis,800,100,50,huge,5000,8.0,walk|run|fly,carnivore,aggressive,mountain|volcanic|cave,dragon_scale:80:3:6|dragon_bone:70:2:4|dragon_fang:60:1:2|fire_gland:50:1:1|dragon_heart:10:1:1,patrol,false,3,Ancient winged reptile that breathes searing flame
+troll_cave,Cave Troll,monster,trollus_caverna,250,60,0,large,400,3.0,walk|run|climb,omnivore,aggressive,cave|mountain|swamp,troll_hide:80:1:3|troll_bone:60:2:3|troll_blood:40:1:2|crude_weapon:20:1:1,guard,false,18,Regenerating brute that lurks in dark places
+goblin,Goblin,monster,goblinus_minor,40,45,5,small,25,4.5,walk|run|climb,omnivore,aggressive,cave|forest|swamp,goblin_ear:60:1:2|crude_weapon:40:1:1|coin_pouch:30:1:1|scrap_metal:50:1:2,swarm,false,50,Cunning small humanoid that raids in large groups
+skeleton_warrior,Skeleton Warrior,monster,mortuus_miles,60,40,10,medium,15,3.0,walk|run,none,aggressive,cave|ruins|graveyard,bone:100:2:4|rusty_weapon:40:1:1|soul_shard:20:1:1,patrol,false,45,Reanimated bones driven by dark energy
+zombie,Zombie,monster,mortuus_ambulans,80,20,0,medium,70,1.5,walk,omnivore,aggressive,swamp|ruins|graveyard,rotten_flesh:80:1:2|bone:60:1:2|tattered_cloth:40:1:1,wander,false,50,Shambling undead that hunts the living
+golem_stone,Stone Golem,monster,golem_petra,400,30,20,large,3000,2.0,walk,none,territorial,cave|ruins|mountain,stone_heart:50:1:1|enchanted_stone:70:2:4|crystal_shard:30:1:2|golem_core:15:1:1,guard,false,10,Animated construct of living rock
+wraith,Wraith,monster,spectra_malum,100,50,30,medium,0,5.0,walk|fly,energy,aggressive,ruins|graveyard|cave,ectoplasm:70:1:2|shadow_essence:50:1:1|soul_shard:30:1:1,hunt,false,20,Malevolent shade that drains life force on contact
+basilisk,Basilisk,monster,basiliscus_rex,200,55,15,large,300,3.5,walk|run,carnivore,aggressive,cave|desert|ruins,basilisk_scale:80:2:4|petrifying_eye:30:1:1|venom_sac:50:1:2|fang:60:1:2,ambush,false,12,Serpentine creature whose gaze turns flesh to stone
+harpy,Harpy,monster,harpyia_feralis,70,65,10,medium,45,10.0,walk|fly,carnivore,aggressive,mountain|cliff|ruins,feather:80:2:4|talon:60:1:2|harpy_wing:40:1:1|raw_meat:100:1:2,patrol,false,25,Winged predator that shrieks to disorient prey
+ogre,Ogre,monster,gigas_brutus,300,50,0,large,500,3.5,walk|run,omnivore,aggressive,cave|swamp|forest,ogre_hide:70:1:2|bone:80:2:4|crude_weapon:50:1:1|coin_pouch:30:1:2,guard,false,15,Hulking giant with tremendous strength and foul temper
+mimic,Mimic,monster,imitatus_praeda,120,30,15,medium,80,0.5,walk|climb,omnivore,aggressive,cave|ruins|dungeon,mimic_tooth:60:1:3|adhesive_slime:50:1:2|coin_pouch:70:1:3|rare_gem:10:1:1,ambush,false,15,Shape-shifting predator that disguises as treasure
+wyvern,Wyvern,monster,draco_minor,350,80,20,large,800,12.0,walk|run|fly,carnivore,aggressive,mountain|cliff|grassland,wyvern_scale:80:2:3|wyvern_wing:50:1:1|fang:60:1:2|raw_meat:100:2:4|venom_sac:40:1:1,patrol,false,10,Two-legged dragon cousin with a venomous tail barb
+# === DEMONS ===
+imp,Imp,demon,daemon_minor,30,40,20,small,10,5.0,walk|run|fly,energy,aggressive,cave|ruins|volcanic|hell,demon_horn:50:1:1|brimstone:60:1:2|soul_shard:30:1:1|dark_ichor:40:1:1,swarm,false,35,Mischievous lesser demon that hurls small fireballs
+hellhound,Hellhound,demon,canis_infernus,120,80,10,medium,80,12.0,walk|run,carnivore,aggressive,volcanic|hell|cave,demon_hide:70:1:2|fang:60:1:2|brimstone:50:1:2|infernal_ash:40:1:1,hunt,false,20,Flaming canine from the nether realms
+succubus,Succubus,demon,daemon_seductrix,100,60,40,medium,55,6.0,walk|run|fly,energy,aggressive,ruins|hell|cave,demon_wing:50:1:1|shadow_essence:60:1:2|soul_shard:50:1:1|dark_ichor:40:1:1,ambush,false,12,Cunning demon that beguiles minds with illusions
+pit_fiend,Pit Fiend,demon,daemon_abyssus,500,70,50,large,400,5.0,walk|run|fly,energy,aggressive,hell|volcanic|deep_cave,demon_horn:80:2:3|infernal_plate:60:1:2|soul_shard:70:1:3|dark_ichor:60:2:3|demon_heart:15:1:1,guard,false,5,Greater demon of immense power clad in hellfire
+shadow_fiend,Shadow Fiend,demon,daemon_umbra,180,65,35,medium,0,8.0,walk|fly,energy,aggressive,cave|ruins|graveyard|hell,shadow_essence:80:2:3|soul_shard:60:1:2|dark_ichor:50:1:2|void_membrane:30:1:1,hunt,false,15,Demon that melts into darkness between strikes
+balor,Balor,demon,daemon_rex,1000,80,60,huge,1200,4.0,walk|run|fly,energy,boss,hell|volcanic,demon_horn:100:2:4|infernal_plate:80:2:4|demon_heart:40:1:1|soul_shard:90:3:5|balor_flame:50:1:1|legendary_shard:10:1:1,guard,false,1,Towering lord of demonkind wreathed in shadow and flame
+# === SPIRITS ===
+wisp,Wisp,spirit,lux_errans,20,10,30,tiny,0,3.0,fly,energy,passive,forest|swamp|graveyard|ruins,ectoplasm:50:1:1|spirit_light:60:1:1|mana_dust:40:1:1,wander,false,50,Tiny floating orb of ambient magical energy
+nature_guardian,Nature Guardian,spirit,spiritus_silvae,200,40,50,large,0,4.0,walk|fly,photosynthetic,territorial,forest|jungle|ancient_grove,living_wood:70:1:3|spirit_essence:60:1:2|mana_dust:50:1:2|seed_of_life:15:1:1,guard,false,8,Ancient forest spirit that protects old-growth woodland
+ancestor_spirit,Ancestor Spirit,spirit,spiritus_antiquus,80,30,40,medium,0,5.0,walk|fly,energy,neutral,ruins|graveyard|cave|tundra,ectoplasm:60:1:2|spirit_essence:50:1:1|soul_shard:30:1:1|wisdom_token:20:1:1,wander,false,15,Lingering echo of a soul offering cryptic guidance
+storm_elemental,Storm Elemental,spirit,elementum_tempestas,250,50,60,large,0,10.0,fly,energy,territorial,mountain|ocean|grassland,storm_core:50:1:1|charged_crystal:60:1:2|mana_dust:70:2:3|lightning_shard:30:1:1,patrol,false,6,Roiling vortex of wind and lightning given will
+phoenix,Phoenix,spirit,avis_ignis,300,90,70,large,50,14.0,walk|fly,energy,neutral,volcanic|mountain|ancient_grove,phoenix_feather:60:1:2|fire_gland:50:1:1|mana_dust:80:2:4|phoenix_ash:40:1:2|rebirth_ember:5:1:1,wander,false,2,Immortal firebird reborn from its own ashes
+# === ROBOTS ===
+scout_drone,Scout Drone,robot,drone_recon,40,100,0,small,8,12.0,walk|fly,energy,neutral,any_settlement|ruins|asteroid,scrap_metal:80:1:2|circuit_board:60:1:1|lens:40:1:1|battery:50:1:1,patrol,false,45,Lightweight aerial drone that surveys terrain autonomously
+mining_automaton,Mining Automaton,robot,automaton_excavus,150,80,0,medium,200,2.5,walk|burrow,energy,neutral,cave|asteroid|mountain,scrap_metal:80:2:4|servo_motor:60:1:2|drill_bit:40:1:1|battery:50:1:2|ore_sample:30:1:2,patrol,false,25,Industrial robot designed for autonomous ore extraction
+war_mech,War Mech,robot,bellum_machina,500,60,0,large,2000,5.0,walk|run,energy,aggressive,ruins|any_settlement|wasteland,scrap_metal:100:4:8|servo_motor:70:2:3|weapon_core:40:1:1|battery:60:2:3|armor_plate:50:2:4,guard,false,8,Heavily armed combat machine from a forgotten war
+android_worker,Worker Android,robot,android_operarius,80,70,0,medium,75,4.0,walk|run|climb,energy,passive,any_settlement|ruins|asteroid,scrap_metal:80:1:3|circuit_board:60:1:2|synthetic_skin:40:1:1|battery:50:1:1|data_chip:30:1:1,wander,false,30,Humanoid service robot built for general labor
+security_turret,Security Turret,robot,turris_defensio,200,0,0,medium,150,0,walk,energy,aggressive,ruins|any_settlement|dungeon,scrap_metal:80:2:3|circuit_board:60:1:2|weapon_core:50:1:1|battery:40:1:2|armor_plate:40:1:2,guard,false,20,Stationary automated defense emplacement
+nano_swarm,Nano Swarm,robot,nanus_examen,60,50,0,small,2,4.0,walk|fly,energy,aggressive,ruins|asteroid|deep_space,nanite_cluster:80:1:3|circuit_board:40:1:1|data_chip:30:1:1|rare_alloy:15:1:1,swarm,false,15,Cloud of microscopic machines that consumes materials to replicate

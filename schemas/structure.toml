@@ -1,0 +1,344 @@
+# HumanityOS Structure Schema
+# Reference for modders, AI agents, and community contributors.
+#
+# Structures are buildable objects placed by players in the game world.
+# Definitions are loaded from CSV (data/structures.csv) and RON blueprints
+# (data/blueprints/). The AssetManager hot-reloads changes automatically.
+#
+# FORMAT: Base properties in data/structures.csv (tabular).
+# Complex structures with custom logic use RON in data/blueprints/.
+#
+# ENGINE INTEGRATION:
+#   Construction System — native/src/systems/construction/mod.rs
+#     - BlueprintRegistry holds all structure definitions
+#     - Player enters build mode, selects a structure from the registry
+#     - Ghost preview rendered at placement position (snapped to grid)
+#     - Placement validation checks: terrain, collisions, snap rules, foundation
+#     - On confirm: spawns a Construction entity that progresses over time
+#     - Materials consumed from player inventory as build progresses
+#     - On completion: Construction component replaced with Structure component
+#
+#   Snap Grid System — native/src/systems/construction/structural.rs
+#     - Structures snap to a world-aligned grid (default 0.5m spacing)
+#     - snap_type determines alignment behavior:
+#       grid    = aligns to world grid intersections
+#       edge    = aligns to edges of existing structures (walls to walls)
+#       corner  = aligns to corner points of adjacent structures
+#       surface = attaches to any surface (paintings on walls, lights on ceilings)
+#       freeform = no snapping, placed exactly where the player points
+#     - snap_points define local-space offsets where other structures can attach
+#     - Structural integrity: unsupported structures collapse (BFS from foundation)
+#
+#   ECS — Each placed structure becomes a hecs entity with:
+#     - Transform (position, rotation, scale)
+#     - PhysicsBody (static Rapier3d collider, no rigid body motion)
+#     - Renderable (mesh_id from model_id, material from texture_id)
+#     - Structure { blueprint_id, health, max_health, provides }
+#     - Name (display name)
+#     - Optional: PowerConsumer, WaterConsumer (if is_functional = true)
+#
+#   CSG — native/src/systems/construction/csg.rs
+#     - Constructive Solid Geometry for boolean operations on structure meshes
+#     - Allows cutting holes (doors in walls, windows, pipe routing)
+#
+#   Routing — native/src/systems/construction/routing.rs
+#     - Power and fluid routing between functional structures
+#     - Electrical grid: generators feed consumers via wire/conduit structures
+#     - Plumbing grid: pumps feed consumers via pipe structures
+#
+#   Physics — Structures use static Rapier3d colliders (zero mass, immovable).
+#     Collider shape derived from dimensions (width_m x height_m x depth_m)
+#     or from the model's collision mesh if model_id is set.
+#
+#   Rendering — model_id references GLTF/GLB in data/models/.
+#     texture_id overrides the model's default material.
+#     Structures support instanced rendering for repeated elements (walls, floors).
+
+# ============================================================================
+# FIELD DEFINITIONS
+# ============================================================================
+
+[[fields]]
+name = "id"
+type = "string"
+required = true
+default = ""
+description = "Unique identifier (snake_case). Referenced by blueprints, recipes, and save files."
+constraints = "Lowercase alphanumeric and underscores only. Max 64 characters."
+
+[[fields]]
+name = "name"
+type = "string"
+required = true
+default = ""
+description = "Human-readable display name for UI, build menu, and tooltips."
+constraints = "Max 128 characters. Supports localization keys (prefix with 'i18n:')."
+
+[[fields]]
+name = "category"
+type = "enum"
+required = true
+default = ""
+description = "Primary classification. Determines which build menu tab the structure appears in."
+constraints = "One of: wall, floor, ceiling, door, window, stairs, ramp, machine, furniture, decoration, utility, lighting, storage, plumbing, electrical"
+
+[[fields]]
+name = "subcategory"
+type = "string"
+required = false
+default = ""
+description = "Finer grouping within a category for build menu filtering. Free-form text."
+constraints = "Max 64 characters. Examples: 'wood_wall', 'metal_door', 'crop_planter', 'solar_panel'"
+
+[[fields]]
+name = "width_m"
+type = "float"
+required = true
+default = ""
+description = "Width in meters (X axis). Used for collider generation and snap grid alignment."
+constraints = "Must be > 0."
+
+[[fields]]
+name = "height_m"
+type = "float"
+required = true
+default = ""
+description = "Height in meters (Y axis). Standard wall height is 3.0m. Affects collider and rendering."
+constraints = "Must be > 0."
+
+[[fields]]
+name = "depth_m"
+type = "float"
+required = true
+default = ""
+description = "Depth in meters (Z axis). Thin structures (walls, doors) typically 0.1-0.3m."
+constraints = "Must be > 0."
+
+[[fields]]
+name = "materials_required"
+type = "string"
+required = true
+default = ""
+description = "Crafting cost. Pipe-separated material_id:quantity pairs referencing data/materials.csv. Consumed from inventory as construction progresses."
+constraints = "Format: 'material_id:quantity|material_id:quantity'. Example: 'pine:4|nail:12' for a wood wall."
+
+[[fields]]
+name = "snap_type"
+type = "enum"
+required = false
+default = "grid"
+description = "How this structure aligns when placed. Controls the ghost preview behavior during build mode."
+constraints = "One of: grid, edge, corner, surface, freeform"
+
+[[fields]]
+name = "snap_points"
+type = "string"
+required = false
+default = ""
+description = "Local-space attachment points where other structures can connect. Pipe-separated x,y,z offsets relative to the structure's origin (center-bottom)."
+constraints = "Format: 'x,y,z|x,y,z'. Example: '0,1.5,0.05|0,1.5,-0.05' for front/back of a wall segment. Empty = auto-generated from dimensions."
+
+[[fields]]
+name = "is_functional"
+type = "boolean"
+required = false
+default = "false"
+description = "Whether this structure performs an active function (crafting station, generator, lamp) vs. passive (wall, decoration). Functional structures tick each frame and may consume power/water."
+constraints = ""
+
+[[fields]]
+name = "power_draw_watts"
+type = "float"
+required = false
+default = "0.0"
+description = "Electrical power consumed per second when active. The routing system checks if sufficient power is available on the connected electrical grid. Negative values = power generation (solar panel, generator)."
+constraints = "0 = no power needed. Negative = generates power."
+
+[[fields]]
+name = "water_draw_liters_per_hour"
+type = "float"
+required = false
+default = "0.0"
+description = "Water consumed per hour when active. The routing system checks connected plumbing grid. Negative values = water production (well, purifier)."
+constraints = "0 = no water needed. Negative = produces water."
+
+[[fields]]
+name = "comfort_bonus"
+type = "float"
+required = false
+default = "0.0"
+description = "Added to room comfort score. Affects NPC mood and player rest quality. Furniture and decorations typically have positive values."
+constraints = "Range: -10.0 to 10.0. Typical: bed = 3.0, chair = 1.0, toilet = 0.5"
+
+[[fields]]
+name = "beauty_bonus"
+type = "float"
+required = false
+default = "0.0"
+description = "Added to room beauty score. Affects NPC mood. Decorations and quality materials have high beauty. Industrial machines may be negative."
+constraints = "Range: -10.0 to 10.0. Typical: painting = 2.0, flower_pot = 1.0, furnace = -1.0"
+
+[[fields]]
+name = "weather_protection"
+type = "float"
+required = false
+default = "0.0"
+description = "How much this structure shields from weather effects (rain, wind, temperature). Walls and roofs provide protection; windows and open structures provide less."
+constraints = "Range: 0.0 (no protection) to 1.0 (full protection). Wall = 1.0, window = 0.3, fence = 0.1"
+
+[[fields]]
+name = "hp"
+type = "float"
+required = false
+default = "100.0"
+description = "Maximum structural hit points. When reduced to 0, the structure is destroyed and drops a fraction of its materials. Maps to Structure.max_health in ECS."
+constraints = "Must be > 0."
+
+[[fields]]
+name = "fire_resistance"
+type = "float"
+required = false
+default = "0.0"
+description = "Resistance to fire damage. Reduces incoming fire damage by this fraction. Wood = low, stone = high, metal = very high."
+constraints = "Range: 0.0 (no resistance, burns easily) to 1.0 (fireproof)."
+
+[[fields]]
+name = "blast_resistance"
+type = "float"
+required = false
+default = "0.0"
+description = "Resistance to explosive damage. Reduces incoming blast damage by this fraction."
+constraints = "Range: 0.0 (shatters easily) to 1.0 (blast-proof)."
+
+[[fields]]
+name = "placement_indoor_only"
+type = "boolean"
+required = false
+default = "false"
+description = "If true, this structure can only be placed inside an enclosed room (detected by flood-fill from placement point to sky). Beds, electronics, etc."
+constraints = ""
+
+[[fields]]
+name = "placement_outdoor_only"
+type = "boolean"
+required = false
+default = "false"
+description = "If true, this structure can only be placed outdoors. Wells, antenna towers, landing pads."
+constraints = ""
+
+[[fields]]
+name = "requires_foundation"
+type = "boolean"
+required = false
+default = "false"
+description = "If true, must be placed on a floor/foundation structure or on natural ground. Prevents floating structures. Walls, machines, and heavy furniture typically require this."
+constraints = ""
+
+[[fields]]
+name = "requires_power"
+type = "boolean"
+required = false
+default = "false"
+description = "If true, the structure only functions when connected to a powered electrical grid. Non-powered state renders it inert (lights off, machines stopped)."
+constraints = ""
+
+[[fields]]
+name = "build_time_s"
+type = "float"
+required = false
+default = "5.0"
+description = "Seconds to complete construction at base speed. Construction skill level reduces this. Multiple builders can work simultaneously (diminishing returns)."
+constraints = "Must be > 0."
+
+[[fields]]
+name = "model_id"
+type = "string"
+required = false
+default = ""
+description = "Reference to a GLTF/GLB model in data/models/. If empty, the engine generates a procedural box mesh from dimensions."
+constraints = "Must match a model in the asset registry, or empty for procedural geometry."
+
+[[fields]]
+name = "texture_id"
+type = "string"
+required = false
+default = ""
+description = "Override texture/material for the model. References an asset in data/models/ or assets/textures/. If empty, uses the model's built-in materials."
+constraints = "Must match a texture in the asset registry, or empty for default."
+
+[[fields]]
+name = "sound_id"
+type = "string"
+required = false
+default = ""
+description = "Audio asset for ambient sound (humming generator, crackling fireplace). Played as looping spatial 3D audio at the structure's position."
+constraints = "Must match an id in the audio asset registry, or empty for silent."
+
+[[fields]]
+name = "description"
+type = "string"
+required = false
+default = ""
+description = "Flavor text shown in build menu tooltips and info panels."
+constraints = "Max 512 characters."
+
+# ============================================================================
+# CATEGORY NOTES
+# ============================================================================
+# wall        — Vertical barriers. Snap edge-to-edge. Provide weather_protection = 1.0.
+# floor       — Horizontal surfaces. Snap grid. Foundation for other structures.
+# ceiling     — Overhead coverage. Snap grid. Provides weather_protection from above.
+# door        — Openable wall segments. CSG-cut into adjacent walls automatically.
+# window      — Transparent wall segments. Partial weather_protection (~0.3).
+# stairs      — Vertical connections between floors. Snap to floor edges.
+# ramp        — Sloped surfaces for vehicles/accessibility. Snap to floor edges.
+# machine     — Functional equipment (furnace, workbench, generator). is_functional = true.
+# furniture   — Comfort/beauty items (bed, chair, table). comfort_bonus > 0.
+# decoration  — Beauty items (painting, plant, statue). beauty_bonus > 0.
+# utility     — Infrastructure (pipe, wire, conduit). Connects functional structures.
+# lighting    — Light sources (lamp, torch, ceiling light). is_functional = true.
+# storage     — Containers (chest, locker, shelf). cargo_capacity defined separately.
+# plumbing    — Water infrastructure (sink, toilet, pipe). water_draw > 0.
+# electrical  — Power infrastructure (switch, outlet, breaker). power_draw varies.
+
+# ============================================================================
+# STRUCTURAL INTEGRITY
+# ============================================================================
+# The construction system enforces physical plausibility:
+#   - Foundations must rest on terrain or other foundations
+#   - Walls must connect to a foundation (directly or via other walls)
+#   - Ceilings/floors must be supported by walls on at least two edges
+#   - Removing a support structure triggers a BFS check from all connected
+#     structures back to the nearest foundation. Unreachable structures collapse.
+#   - Each material has a weight and load-bearing capacity. Exceeding the
+#     capacity of supporting structures causes progressive collapse.
+#
+# Modders: if you want a structure that floats (space station, anti-gravity),
+# set requires_foundation = false.
+
+# ============================================================================
+# EXAMPLE: CSV row
+# ============================================================================
+# id,name,category,subcategory,width_m,height_m,depth_m,materials_required,snap_type,snap_points,is_functional,power_draw_watts,water_draw_liters_per_hour,comfort_bonus,beauty_bonus,weather_protection,hp,fire_resistance,blast_resistance,placement_indoor_only,placement_outdoor_only,requires_foundation,requires_power,build_time_s,model_id,texture_id,sound_id,description
+# wall_wood,Wood Wall,wall,wood_wall,2.0,3.0,0.2,pine:6|nail:8,edge,,false,0,0,0,0,1.0,150,0.1,0.1,false,false,true,false,8.0,mdl_wall_wood,,,"Basic wooden wall panel"
+# workbench,Workbench,machine,crafting,1.5,1.0,0.8,oak:8|steel:2|bolt:6,grid,,true,50,0,1.0,0.5,0,200,0.3,0.2,true,false,true,true,15.0,mdl_workbench,,,"Crafting station for assembling components"
+# solar_panel,Solar Panel,electrical,power,2.0,0.1,1.0,glass:4|silicon:2|aluminum:1|wire_copper:3,surface,,true,-200,0,0,-0.5,0,80,0.0,0.1,false,true,false,false,20.0,mdl_solar_panel,,,"Generates 200W of electrical power from sunlight"
+
+# ============================================================================
+# MODDING GUIDE
+# ============================================================================
+# To add a new structure:
+#   1. Add a row to data/structures.csv with required fields (id, name, category, dimensions, materials)
+#   2. Place a GLTF/GLB model in data/models/ matching your model_id (or omit for procedural box)
+#   3. (Optional) Add textures in assets/textures/ for custom appearance
+#   4. (Optional) Add audio in data/audio/ for ambient sound
+#   5. Hot-reload: changes apply automatically, no restart needed
+#
+# To create a blueprint (saved multi-structure design):
+#   1. Build the design in-game using existing structures
+#   2. Use the blueprint tool to select and save the group
+#   3. Blueprint saved as RON in data/blueprints/
+#   4. Blueprints can be shared, traded, and loaded by other players
+#
+# Mods: Place override files in data/mods/<mod_name>/structures.csv.
+# The mod system merges by id (mod values override base values).

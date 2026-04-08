@@ -1,0 +1,533 @@
+# HumanityOS Quest Schema
+# Defines the format for quest chain files in data/quests/*.ron
+#
+# Quests are the primary progression driver. Each RON file contains a list of
+# QuestDef structs that the engine deserializes at startup (and on hot-reload).
+# The quest system (native/src/systems/quests/mod.rs) evaluates active objectives
+# every tick, advances steps when met, and queues item rewards on completion.
+#
+# File format: RON (Rusty Object Notation) -- Vec<QuestDef>
+# Hot-reloadable: Yes (FileWatcher triggers re-parse without restart)
+# Engine structs: QuestDef, QuestStep, QuestObjective (native/src/systems/quests/)
+# Referenced by: QuestRegistry (keyed by quest id), QuestTracker (player state)
+# References: data/items.csv (reward item_ids), data/blueprints/*.ron (blueprint_ids),
+#             data/skills/skills.csv (prerequisite skills), NPC ids, faction ids
+
+# ---------------------------------------------------------------------------
+# RON FORMAT PRIMER
+# ---------------------------------------------------------------------------
+#
+# RON (Rusty Object Notation) maps directly to Rust types. The quest files
+# contain a Vec<QuestDef>, which in RON looks like a list of tuples:
+#
+#   [
+#       (
+#           id: "quest_id_here",
+#           name: "Quest Name",
+#           ...
+#       ),
+#   ]
+#
+# Key RON syntax:
+#   - Structs are parenthesized tuples with named fields: (field: value, ...)
+#   - Enums use variant syntax: VariantName(field: value) or VariantName
+#   - Option<T> is either Some("value") or None
+#   - Vec<T> is a list: [item1, item2]
+#   - Strings are double-quoted: "hello"
+#   - Comments use // for single-line
+#   - Trailing commas are allowed and encouraged
+#
+# The engine's QuestDef struct in Rust maps 1:1 to the RON layout. Any field
+# added to the Rust struct becomes available in RON immediately.
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this quest. Used as the key in QuestRegistry and
+referenced by other quests' prerequisite fields. Convention: chain_name
+prefix followed by specific quest name (e.g., 'tutorial_first_habitat',
+'farming_greenhouse'). Must be unique across ALL quest files."""
+constraints = "snake_case, globally unique across all data/quests/*.ron files"
+examples = ["tutorial_first_habitat", "farming_automation", "exploration_asteroid_belt", "faction_miners_guild_initiation"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable quest name displayed in the quest journal, HUD tracker, and NPC dialogue menus."
+constraints = "Title Case, keep under 60 characters"
+examples = ["Build First Habitat", "Automated Farming", "The Miner's Initiation"]
+
+[fields.description]
+type = "string"
+required = true
+description = """
+Longer description shown when the player opens the quest in their journal.
+Should explain the goal, motivation, and context. This is the player's
+primary guidance for understanding what to do and why it matters."""
+constraints = "1-3 sentences, under 200 characters"
+examples = [
+    "Welcome! Start by building your first living space to establish a basic habitat for survival.",
+    "Implement automated systems to manage your crops efficiently.",
+]
+
+[fields.flavor_text]
+type = "string"
+required = false
+default = '""'
+description = """
+Optional narrative or lore text displayed in italics below the description.
+Used for story quests and faction quests to add world-building flavor.
+Has no mechanical effect."""
+constraints = "Under 300 characters. Wrap in quotes in RON."
+examples = [
+    "The old miner squints at you. 'You want to join us? Show me you can tell pyrite from gold.'",
+    "The greenhouse hums with life. Your first real harvest is within reach.",
+]
+
+[fields.type]
+type = "enum"
+required = false
+default = "side"
+description = """
+Classification that affects quest journal sorting, UI badge color, and
+whether the quest counts toward main progression milestones."""
+valid_values = [
+    "main",         # Critical path -- blocks progression if not completed
+    "side",         # Optional content that enriches the experience
+    "daily",        # Resets and becomes available once per in-game day
+    "event",        # Time-limited, tied to seasonal or world events
+    "tutorial",     # First-time guidance quests, cannot be skipped
+    "procedural",   # Generated at runtime from templates (not hand-authored)
+    "faction",      # Issued by a faction, affects faction standing
+]
+constraints = "Must be one of the listed values"
+
+[fields.prerequisite_quests]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+List of quest ids that must ALL be completed before this quest appears
+in the available quest list. This is how quest chains are built: each
+quest points back to the one(s) that must come first.
+Note: the current engine struct uses a single 'prerequisite: Option<String>'.
+This schema documents the target design for multiple prerequisites."""
+constraints = "Each entry must be a valid quest id from any data/quests/*.ron file"
+examples = [
+    '["tutorial_first_habitat"]',
+    '["exploration_first_survey", "construction_advanced_habitat"]',
+]
+
+[fields.prerequisite_level]
+type = "integer"
+required = false
+default = 0
+description = """
+Minimum player level required to accept this quest. 0 means no level
+requirement. The quest will not appear in the journal until the player
+reaches this level."""
+constraints = "Must be >= 0"
+examples = [0, 5, 15, 30]
+
+[fields.prerequisite_skill]
+type = "string"
+required = false
+default = "None"
+description = """
+A skill id and minimum level the player must have before accepting this
+quest. Format in RON: Some(('skill_id', min_level)) or None.
+References skill ids from data/skills/skills.csv."""
+constraints = "Skill id must exist in skills.csv. Level must be achievable (within that skill's max_level)."
+examples = [
+    'None',
+    'Some(("metalworking", 5))',
+    'Some(("farming", 10))',
+]
+
+[fields.prerequisite_faction_standing]
+type = "string"
+required = false
+default = "None"
+description = """
+Faction id and minimum standing the player must have. Format in RON:
+Some(('faction_id', min_standing)) or None. Standing ranges from -100
+(hostile) to 100 (exalted). Most faction quests require standing >= 0."""
+constraints = "Faction id must exist in faction data. Standing is -100 to 100."
+examples = [
+    'None',
+    'Some(("miners_guild", 0))',
+    'Some(("federation", 25))',
+]
+
+[fields.steps]
+type = "list of QuestStep"
+required = true
+description = """
+Ordered list of steps the player completes sequentially. Each step has a
+description string and an objective enum. The quest system checks the
+current step's objective each tick and advances to the next step when met.
+A quest is complete when all steps are finished.
+
+Each QuestStep is a RON struct:
+  (
+      description: "Human-readable instruction",
+      objective: ObjectiveType(params...),
+  )
+
+The optional_hint field (planned) will show after the player has been
+stuck on a step for a configurable duration."""
+constraints = "Must have at least 1 step. Steps are evaluated in order."
+
+[fields.steps.objective_types]
+description = """
+The objective field in each QuestStep uses one of these enum variants.
+Each variant maps to a game system that reports progress to the quest tracker.
+
+Currently implemented in native/src/systems/quests/objectives.rs:
+  - Build(blueprint_id: 'id')       -- Place a structure from blueprints/*.ron
+  - Gather(item_id: 'id', quantity: N) -- Have N of item in inventory
+  - Craft(recipe_id: 'id', quantity: N) -- Craft N items via recipes.csv
+  - Harvest(crop_id: 'id', quantity: N) -- Harvest N crops from farming system
+  - Travel(destination: 'id')       -- Reach a named location or region
+  - Talk(npc_id: 'id')              -- Interact with a specific NPC
+
+Planned objective types (add to the Rust enum when implementing):
+  - Kill(creature_id: 'id', quantity: N)   -- Defeat N creatures
+  - Collect(item_id: 'id', quantity: N)    -- Alias for Gather (loot drops vs inventory check)
+  - Discover(poi_id: 'id')                 -- Enter a point-of-interest for the first time
+  - Survive(duration_s: N)                 -- Stay alive for N seconds in a hazardous zone
+  - Protect(target_id: 'id', duration_s: N) -- Keep target alive/intact for N seconds
+  - Deliver(item_id: 'id', quantity: N, npc_id: 'id') -- Bring items to a specific NPC
+  - Research(tech_id: 'id')                -- Complete a tech tree node
+  - Trade(item_id: 'id', quantity: N)      -- Sell or trade N items on the market"""
+
+[fields.rewards]
+type = "list of (string, u32) tuples"
+required = true
+description = """
+Item rewards granted when the quest is completed. Each entry is a tuple
+of (item_id, quantity). Item ids must reference valid entries in
+data/items.csv. The quest system queues PendingReward structs that the
+inventory system processes on the next tick."""
+constraints = "Item ids must exist in items.csv. Quantity must be >= 1."
+examples = [
+    '[("concrete_mix", 20), ("basic_toolkit", 1)]',
+    '[("tomato_seeds", 5), ("carrot_seeds", 5), ("fertilizer", 5)]',
+]
+
+[fields.xp_reward]
+type = "integer"
+required = false
+default = 0
+description = """
+Flat XP reward applied to the player's overall experience on quest
+completion. Separate from skill-specific XP. Used to gate level-based
+prerequisites on later quests."""
+constraints = "Must be >= 0"
+examples = [0, 50, 200, 1000]
+
+[fields.reputation_reward]
+type = "string"
+required = false
+default = "None"
+description = """
+Faction standing change on quest completion. Format in RON:
+Some(('faction_id', amount)) or None. Amount can be negative (for quests
+that anger a faction). Standing is clamped to -100..100."""
+constraints = "Faction id must exist. Amount is -100 to 100."
+examples = [
+    'None',
+    'Some(("miners_guild", 15))',
+    'Some(("pirates", -25))',
+]
+
+[fields.unlock_recipe_id]
+type = "string"
+required = false
+default = "None"
+description = """
+Recipe id that becomes available in the player's crafting menu on quest
+completion. References data/recipes.csv. Format: Some('recipe_id') or None."""
+constraints = "Must be a valid recipe id from recipes.csv"
+examples = ['None', 'Some("advanced_solar_panel")', 'Some("steel_alloy")']
+
+[fields.unlock_ability_id]
+type = "string"
+required = false
+default = "None"
+description = """
+Ability or perk id unlocked on quest completion. Format: Some('ability_id')
+or None. Abilities are special actions not tied to normal crafting/building."""
+constraints = "Must be a valid ability id"
+examples = ['None', 'Some("double_jump")', 'Some("ore_scanner")']
+
+[fields.time_limit_s]
+type = "integer"
+required = false
+default = 0
+description = """
+Time limit in seconds to complete the quest after accepting it. 0 means
+no time limit (most quests). When the timer expires, the quest fails and
+triggers any failure_conditions. Daily quests typically use a 86400s (1 day)
+limit. Event quests may have shorter windows."""
+constraints = "Must be >= 0. 0 = no limit."
+examples = [0, 300, 3600, 86400]
+
+[fields.repeatable]
+type = "boolean"
+required = false
+default = false
+description = """
+Whether this quest can be accepted again after completion. Daily quests
+and procedural quests are typically repeatable. Main story quests are not.
+When true, completing the quest removes it from completed_quests and makes
+it available again (subject to cooldown_s)."""
+constraints = "true or false"
+
+[fields.cooldown_s]
+type = "integer"
+required = false
+default = 0
+description = """
+Minimum seconds after completion before a repeatable quest can be accepted
+again. Only meaningful when repeatable = true. Daily quests use 86400 (1 day).
+0 means immediately repeatable."""
+constraints = "Must be >= 0. Only relevant when repeatable = true."
+examples = [0, 3600, 86400]
+
+[fields.failure_conditions]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+Conditions that cause the quest to auto-fail. Each entry is a string tag
+evaluated by the quest system. Failing a quest clears progress and returns
+it to the available pool (if repeatable) or marks it as failed.
+
+Planned condition tags:
+  - 'player_death'     -- Quest fails if the player dies
+  - 'target_destroyed' -- Quest fails if a protect target is destroyed
+  - 'time_expired'     -- Quest fails when time_limit_s runs out
+  - 'faction_hostile'  -- Quest fails if faction standing drops below threshold
+  - 'item_lost'        -- Quest fails if a key quest item is lost or consumed"""
+constraints = "Must be recognized condition tags"
+examples = [
+    '[]',
+    '["player_death", "time_expired"]',
+    '["target_destroyed"]',
+]
+
+[fields.dialogue_id]
+type = "string"
+required = false
+default = "None"
+description = """
+Links to a dialogue tree for story quests with NPC conversations. Format:
+Some('dialogue_id') or None. Dialogue trees are a planned data format
+that will live in data/dialogues/*.ron. When present, the quest will
+trigger dialogue cutscenes at step transitions."""
+constraints = "Must reference a valid dialogue tree id (when dialogue system is implemented)"
+examples = ['None', 'Some("miners_guild_welcome")', 'Some("elder_warning")']
+
+[fields.level_scaling]
+type = "boolean"
+required = false
+default = false
+description = """
+When true, enemy difficulty and reward quantities scale with the player's
+level at the time of quest acceptance. A level 5 player accepting a
+scaling quest gets easier enemies and fewer rewards than a level 20 player.
+Useful for procedural quests and daily quests to stay relevant at any stage."""
+constraints = "true or false"
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS: HOW QUESTS CONNECT TO OTHER SYSTEMS
+# ---------------------------------------------------------------------------
+
+[relationships]
+
+npcs = """
+Quests connect to NPCs through two mechanisms:
+  1. Talk objectives: Talk(npc_id: 'id') requires interacting with a specific NPC.
+  2. Dialogue trees: dialogue_id links to NPC conversation scripts.
+NPCs also serve as quest givers. The NPC's faction determines which quests
+they offer. An NPC with faction_id 'miners_guild' will offer quests that
+have type = 'faction' and prerequisite_faction_standing referencing miners_guild."""
+
+factions = """
+Faction quests require minimum standing to accept (prerequisite_faction_standing)
+and grant standing changes on completion (reputation_reward). Completing quests
+for one faction may reduce standing with rival factions via the faction relations
+system. Some quests are exclusive to faction members (see faction schema)."""
+
+progression = """
+Quests form directed acyclic graphs (DAGs) via prerequisite_quests. The tutorial
+chain is a simple linear sequence:
+  tutorial_first_habitat -> tutorial_farming_basics -> farming_greenhouse -> ...
+More complex chains can require multiple prerequisites, creating branching
+paths that converge at milestone quests. The quest system prevents cycles
+by validating prerequisites at load time."""
+
+skills = """
+prerequisite_skill gates quests behind skill milestones. Completing quests
+can also indirectly raise skills by requiring the player to perform skill-
+granting actions (crafting, building, harvesting). Planned: direct skill XP
+rewards on quest completion."""
+
+items_and_recipes = """
+rewards grant items from data/items.csv. unlock_recipe_id makes new crafting
+recipes available. Gather objectives check the player's inventory against
+items.csv ids. Craft objectives count recipe completions from recipes.csv."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+
+file_organization = """
+Each RON file in data/quests/ represents a thematic quest chain. Name files
+after the chain theme:
+  tutorial.ron      -- First-time guidance quests
+  farming.ron       -- Agricultural progression
+  exploration.ron   -- Discovery and travel
+  construction.ron  -- Building progression
+  faction_*.ron     -- Faction-specific quest lines (one per faction)
+  event_*.ron       -- Seasonal or world event quests
+  procedural.ron    -- Templates for runtime-generated quests"""
+
+id_naming = """
+Quest ids use the pattern: chain_specific_name
+  Good: tutorial_first_habitat, farming_greenhouse, faction_miners_initiation
+  Bad:  quest1, myQuest, build-habitat"""
+
+chain_ordering = """
+Within a RON file, list quests in dependency order (prerequisites before
+dependents). This is not required by the parser but makes the file readable.
+The first quest in a chain should have prerequisite: None or reference a
+quest from a different chain (typically a tutorial quest)."""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[examples]
+
+basic_quest = """
+A minimal quest with two steps and item rewards. This is the simplest
+valid quest definition:
+
+(
+    id: "tutorial_gather_wood",
+    name: "Gather Wood",
+    description: "Collect wood from nearby trees to use for building and crafting.",
+    steps: [
+        (
+            description: "Find and chop down a tree",
+            objective: Travel(destination: "forest_edge"),
+        ),
+        (
+            description: "Collect wood logs (10)",
+            objective: Gather(item_id: "wood_log", quantity: 10),
+        ),
+    ],
+    rewards: [
+        ("wood_plank", 20),
+    ],
+    prerequisite: None,
+)"""
+
+advanced_quest = """
+A faction quest with prerequisites, skill gates, reputation, recipe unlocks,
+time limit, and failure conditions. Demonstrates the full feature set:
+
+(
+    id: "faction_miners_deep_vein",
+    name: "The Deep Vein Expedition",
+    description: "The Miners Guild needs someone skilled enough to extract rare titanium from a deep asteroid vein.",
+    flavor_text: "Foreman Kade slams a map on the table. 'This vein has killed three crews. You up for it?'",
+    type: "faction",
+    prerequisite_quests: ["faction_miners_initiation", "exploration_asteroid_belt"],
+    prerequisite_level: 10,
+    prerequisite_skill: Some(("mining", 8)),
+    prerequisite_faction_standing: Some(("miners_guild", 25)),
+    steps: [
+        (
+            description: "Speak with Foreman Kade at the Guild Hall",
+            objective: Talk(npc_id: "npc_foreman_kade"),
+        ),
+        (
+            description: "Travel to the deep asteroid vein",
+            objective: Travel(destination: "asteroid_vein_deep"),
+        ),
+        (
+            description: "Extract titanium ore samples (5)",
+            objective: Gather(item_id: "titanium_ore", quantity: 5),
+        ),
+        (
+            description: "Craft a reinforced drill bit",
+            objective: Craft(recipe_id: "drill_bit_reinforced", quantity: 1),
+        ),
+        (
+            description: "Extract the main titanium deposit (20)",
+            objective: Gather(item_id: "titanium_ore", quantity: 20),
+        ),
+        (
+            description: "Return to Foreman Kade with the ore",
+            objective: Talk(npc_id: "npc_foreman_kade"),
+        ),
+    ],
+    rewards: [
+        ("titanium_ingot", 10),
+        ("guild_token", 3),
+    ],
+    xp_reward: 500,
+    reputation_reward: Some(("miners_guild", 20)),
+    unlock_recipe_id: Some("titanium_alloy"),
+    unlock_ability_id: None,
+    time_limit_s: 7200,
+    repeatable: false,
+    cooldown_s: 0,
+    failure_conditions: ["player_death", "time_expired"],
+    dialogue_id: Some("miners_deep_vein_dialogue"),
+    level_scaling: false,
+)"""
+
+repeatable_daily = """
+A daily repeatable quest with a 24-hour cooldown. Scales with player level
+so it stays relevant throughout the game:
+
+(
+    id: "daily_supply_run",
+    name: "Daily Supply Run",
+    description: "The settlement needs a fresh supply of basic materials. Gather what you can.",
+    type: "daily",
+    prerequisite_quests: ["tutorial_first_habitat"],
+    steps: [
+        (
+            description: "Gather wood (20)",
+            objective: Gather(item_id: "wood_log", quantity: 20),
+        ),
+        (
+            description: "Gather stone (15)",
+            objective: Gather(item_id: "stone", quantity: 15),
+        ),
+        (
+            description: "Deliver materials to the supply depot",
+            objective: Travel(destination: "supply_depot"),
+        ),
+    ],
+    rewards: [
+        ("supply_crate", 1),
+    ],
+    xp_reward: 50,
+    time_limit_s: 86400,
+    repeatable: true,
+    cooldown_s: 86400,
+    level_scaling: true,
+)"""

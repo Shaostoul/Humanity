@@ -1,0 +1,241 @@
+# HumanityOS Component Schema
+# Defines the format for entries in data/components.csv
+#
+# Components are intermediate parts that sit between raw materials and finished
+# items. A player does not use components directly. Instead, components are
+# assembled into machines, vehicles, weapons, and complex tools via recipes.
+#
+# Think of components like real-world parts: gears, circuit boards, pistons,
+# lenses. They require specific materials to manufacture, and they get combined
+# into the things players actually interact with.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (changes apply without restart)
+# Referenced by: data/recipes.csv (as inputs for complex assembly recipes)
+# References: data/materials.csv (via materials_required field)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique identifier for this component. Use snake_case."
+constraints = "snake_case, unique across all components"
+examples = ["gear_small", "circuit_board", "piston", "lens_convex", "fuel_pump"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable display name shown in inventories, recipes, and tooltips."
+constraints = "Title Case, keep under 40 characters"
+examples = ["Small Gear", "Circuit Board", "Piston", "Convex Lens", "Fuel Pump"]
+
+[fields.category]
+type = "string"
+required = true
+description = "Classification that determines which workbench or assembly station can produce this component."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "mechanical",   # Moving parts: gears, bearings, springs, axles, chains
+    "electrical",   # Power delivery: wires, coils, transformers, switches
+    "engine",       # Propulsion: pistons, turbines, fuel injectors, exhaust
+    "structural",   # Load-bearing: beams, plates, rivets, welds, brackets
+    "electronics",  # Logic and sensing: circuit boards, chips, sensors, displays
+    "fluid",        # Liquid/gas handling: pipes, valves, pumps, tanks, seals
+    "optical",      # Light manipulation: lenses, mirrors, fiber optics, prisms
+    "thermal",      # Heat management: heat sinks, insulation, radiators
+]
+
+[fields.materials_required]
+type = "string"
+required = true
+description = """
+Pipe-separated list of material_id:quantity pairs that are consumed when
+this component is manufactured. Each entry is a material id from
+data/materials.csv followed by a colon and a numeric quantity.
+
+Quantities represent abstract "units" of that material, not kilograms.
+The game converts units to weight using the material's density.
+
+Components can also reference other component ids as sub-parts.
+For example, a pulley requires steel:0.5 AND bearing:1 (one bearing
+component). This creates a dependency chain:
+  materials -> simple components -> complex components -> finished items"""
+constraints = "Format: id:quantity|id:quantity|... All ids must exist in materials.csv or components.csv"
+examples = [
+    "steel:0.2",                          # single material
+    "steel:0.3|chromium:0.05",            # two materials
+    "copper:0.5|rubber:0.2|solder:0.1",   # three materials
+    "steel:0.5|bearing:1",                # material + sub-component
+]
+
+[fields.weight_kg]
+type = "float"
+required = true
+description = """
+Assembled weight of one unit of this component in kilograms.
+Should be close to (but not necessarily equal to) the sum of material
+weights, since manufacturing can add or remove mass (waste, coatings)."""
+constraints = "Must be > 0"
+examples = [0.12, 0.45, 2.8, 15.0]
+
+[fields.power_watts]
+type = "float"
+required = true
+default = 0
+description = """
+Electrical power in watts. The sign indicates direction:
+  Positive = this component draws power (motor, heater, display)
+  Negative = this component generates power (generator, solar cell)
+  Zero     = passive component (gear, beam, pipe)
+When multiple components are assembled into a machine, their power values
+are summed to determine the machine's net power requirement."""
+constraints = "No constraint on sign. Use 0 for passive components."
+examples = [
+    { value = 0,     note = "gear, bearing, pipe (passive)" },
+    { value = 50,    note = "small motor (draws 50W)" },
+    { value = 500,   note = "heating element" },
+    { value = -100,  note = "small generator (produces 100W)" },
+]
+
+[fields.reliability]
+type = "float"
+required = false
+default = 1.0
+description = """
+Probability (0.0 to 1.0) that this component functions correctly per
+operating cycle. Lower values mean the component fails more often and
+needs replacement sooner. The game multiplies all component reliabilities
+in a machine together to get the machine's overall reliability.
+
+For example, a machine with three components at 0.95, 0.90, and 0.98
+has overall reliability = 0.95 * 0.90 * 0.98 = 0.8379 (about 84%).
+
+Use this to balance gameplay: cheap materials produce low-reliability
+components, encouraging players to invest in better materials."""
+constraints = "Must be between 0.0 and 1.0 inclusive"
+examples = [
+    { value = 0.80, note = "cheap or improvised part, fails often" },
+    { value = 0.95, note = "standard quality" },
+    { value = 0.99, note = "precision-machined, rarely fails" },
+]
+
+[fields.description]
+type = "string"
+required = true
+description = "One-sentence description of the component. Shown in tooltips and the encyclopedia."
+constraints = "Keep under 80 characters. No commas (CSV delimiter). No trailing period needed."
+examples = [
+    "Toothed wheel for low-torque transfer",
+    "Printed circuit board with solder pads",
+    "Reciprocating cylinder for engine power",
+]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+materials = """
+Every component lists one or more materials in materials_required.
+These materials must exist in data/materials.csv. When you create a new
+component, verify that all referenced material ids are valid."""
+
+other_components = """
+Components can require other components as sub-parts. In the
+materials_required field, you can mix material ids and component ids.
+The game resolves the full dependency tree when calculating total
+material cost and crafting steps.
+
+Example dependency chain:
+  bearing (requires steel + chromium)
+    -> pulley (requires steel + bearing)
+      -> crane_winch (requires pulley + motor + cable_spool)
+        -> construction_crane item (assembled from crane components)"""
+
+recipes = """
+Components appear as inputs in assembly recipes in data/recipes.csv.
+A recipe to build a machine will list component ids (not raw materials)
+in its inputs field. The player must craft the components first, then
+use them in the assembly recipe."""
+
+items = """
+Components do not appear directly in data/items.csv. They exist only
+in the crafting pipeline. The connection is:
+  materials.csv -> components.csv -> recipes.csv -> items.csv
+A player never "holds" a component in their inventory as a standalone
+item unless a corresponding item entry also exists in items.csv."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+role_in_data_model = """
+Components are the middle layer of the crafting hierarchy:
+
+  Materials (raw, mined/farmed)
+      |
+      v
+  Components (manufactured parts)
+      |
+      v
+  Recipes (assembly instructions)
+      |
+      v
+  Items (finished products players use)
+
+Without components, every recipe would list dozens of raw materials.
+Components group common material combinations into reusable parts.
+A steel gear appears in dozens of machine recipes, but its own recipe
+only needs to be defined once."""
+
+sub_components = """
+You can nest components: a complex component can require simpler ones.
+Keep the chain reasonable (3 levels deep at most) to avoid frustrating
+crafting trees. The goal is realism, not tedium.
+
+Good: steel -> gear -> gearbox -> vehicle
+Bad:  steel -> rod -> shaft -> axle -> wheel_mount -> wheel -> tire_assembly -> vehicle"""
+
+power_budgeting = """
+When designing a machine, add up the power_watts of all its components.
+The total tells you how big a generator the player needs. This creates
+natural progression:
+  Early game: hand-cranked machines (0W components only)
+  Mid game: small electric machines (50-200W total)
+  Late game: industrial machines (1000W+ total, need reactor or solar farm)"""
+
+csv_formatting = """
+  - Use # for comment lines (section headers, notes)
+  - No spaces after commas
+  - Pipe character | separates entries in materials_required
+  - Colon : separates id from quantity in materials_required
+  - Descriptions must not contain commas (or wrap in quotes)
+  - One component per line, header row is required
+  - Group components by category with # === CATEGORY === headers"""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLE ROW
+# ---------------------------------------------------------------------------
+
+[example]
+csv_row = "fuel_pump,Fuel Pump,fluid,aluminum:0.5|rubber:0.2|gear_small:1,0.65,15,Mechanical pump for pressurized fuel delivery"
+breakdown = """
+  id                  = fuel_pump         (unique snake_case id)
+  name                = Fuel Pump         (display name)
+  category            = fluid             (handles liquid/gas flow)
+  materials_required  = aluminum:0.5|rubber:0.2|gear_small:1
+                        -> 0.5 units of aluminum (from materials.csv)
+                        -> 0.2 units of rubber (from materials.csv)
+                        -> 1 small gear (from components.csv, a sub-component)
+  weight_kg           = 0.65              (assembled weight)
+  power_watts         = 15                (draws 15W when running)
+  description         = Mechanical pump for pressurized fuel delivery
+
+  Note: reliability is an optional new field. If your CSV does not include
+  it yet, the game defaults to 1.0 (perfect reliability). When the column
+  is added to the CSV header, place it after power_watts:
+  ...,power_watts,reliability,description"""

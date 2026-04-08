@@ -1,0 +1,534 @@
+# HumanityOS Skill Schema
+# Defines the format for skill definitions in data/skills/skills.csv
+#
+# Skills represent the player's competencies, leveled up through practice.
+# The learn-by-doing system means players gain XP in a skill by performing
+# related actions (mining ore raises Mining, cooking food raises Cooking).
+# As skills level up, they unlock recipes, abilities, and passive bonuses.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (FileWatcher triggers re-parse without restart)
+# Engine structs: SkillDef, SkillProgress, PlayerSkills, SkillRegistry
+#                 (native/src/systems/skills/mod.rs)
+# Referenced by: QuestDef (prerequisite_skill), faction join_requirements,
+#                crafting system, combat system, UI skill panel
+# References: data/recipes.csv (unlock_id for recipe unlocks),
+#             data/items.csv (crafted items that grant XP)
+
+# ---------------------------------------------------------------------------
+# THE 20-SKILL SYSTEM
+# ---------------------------------------------------------------------------
+#
+# The current skills.csv defines 20 skills across 5 categories. This was
+# designed to cover all major gameplay loops without overwhelming the player.
+# The categories and their skills:
+#
+# SURVIVAL (5 skills):
+#   foraging          -- Find edible plants and useful materials in the wild
+#   shelter_building  -- Construct shelters and housing from available materials
+#   fire_making       -- Start and maintain fires for warmth and cooking
+#   water_purification-- Find and purify water sources
+#   navigation        -- Read maps and navigate by stars and landmarks
+#
+# CRAFTING (6 skills):
+#   woodworking       -- Shape wood into tools, furniture, and structures
+#   metalworking      -- Smelt ore and forge metal tools and equipment
+#   cooking           -- Prepare food for nutrition and buffs
+#   tailoring         -- Create and repair clothing and fabric items
+#   alchemy           -- Brew potions and process chemical compounds
+#   farming           -- Plant, tend, and harvest crops efficiently
+#
+# COMBAT (4 skills):
+#   melee             -- Close-range fighting with weapons and fists
+#   ranged            -- Accuracy and damage with bows and firearms
+#   defense           -- Block, dodge, and damage reduction
+#   tactics           -- Strategic planning and squad coordination
+#
+# SOCIAL (2 skills):
+#   trading           -- Negotiate better prices and find rare deals
+#   leadership        -- Inspire groups and manage communities
+#
+# SCIENCE (3 skills -- note: mining is categorized as crafting):
+#   mining            -- Extract ore and stone from rock and asteroids
+#   engineering       -- Design and build complex machines and systems
+#   medicine          -- Diagnose and treat injuries and illness
+
+# ---------------------------------------------------------------------------
+# XP CURVE MATH
+# ---------------------------------------------------------------------------
+#
+# The engine uses the formula: XP_needed(level) = xp_base * level^1.5
+#
+# This is the "exponential" curve currently hardcoded in SkillDef::xp_for_level().
+# The xp_per_level field in the CSV serves as the xp_base value.
+#
+# Example for Mining (xp_base = 100):
+#   Level 1:  100 * 1^1.5   =   100 XP
+#   Level 2:  100 * 2^1.5   =   283 XP  (cumulative: 383)
+#   Level 5:  100 * 5^1.5   = 1,118 XP  (cumulative: ~3,400)
+#   Level 10: 100 * 10^1.5  = 3,162 XP  (cumulative: ~14,000)
+#   Level 20: 100 * 20^1.5  = 8,944 XP  (cumulative: ~62,000)
+#   Level 25: 100 * 25^1.5  = 12,500 XP (cumulative: ~100,000)
+#
+# The schema below documents additional curve types for future implementation.
+# Modders should use xp_base (mapped to xp_per_level in CSV) to tune difficulty.
+# Higher xp_base = slower leveling. Alchemy (200) levels twice as slowly as
+# Cooking (80) per action performed.
+#
+# Planned curve types:
+#   linear:      XP_needed(level) = xp_base * level * xp_multiplier
+#   exponential: XP_needed(level) = xp_base * level^1.5  (current default)
+#   fibonacci:   XP_needed(level) = xp_base * fib(level) -- slow start, steep end
+
+# ---------------------------------------------------------------------------
+# HOW SKILLS UNLOCK RECIPES AND ABILITIES
+# ---------------------------------------------------------------------------
+#
+# The planned unlock system (not yet in the CSV, documented here for modders):
+#
+# When a player reaches a level threshold in a skill, they automatically unlock
+# the associated recipe or ability. This is checked on level-up. Examples:
+#
+#   Metalworking level 5  -> unlocks "steel_alloy" recipe
+#   Metalworking level 10 -> unlocks "titanium_forging" recipe
+#   Metalworking level 15 -> unlocks "master_smith" perk (crafted items +10% durability)
+#   Cooking level 3       -> unlocks "stew" recipe
+#   Cooking level 8       -> unlocks "feast" recipe (feeds 10 people)
+#   Ranged level 10       -> unlocks "steady_aim" ability (+15% accuracy)
+#
+# Unlocks are defined in the planned 'unlocks' field (list of structs).
+# The current CSV has no unlock data yet; it will be added as a separate
+# data file (data/skills/unlocks.csv) to keep the main skills.csv simple.
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this skill. Used as the key in SkillRegistry and
+referenced by quest prerequisite_skill, faction join_requirements, and
+the XP award system. Must match the column headers used in save files."""
+constraints = "snake_case, globally unique"
+examples = ["mining", "metalworking", "cooking", "ranged", "leadership"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable skill name displayed in the skill panel, level-up notifications, and tooltips."
+constraints = "Title Case, under 30 characters"
+examples = ["Mining", "Metalworking", "Cooking", "Ranged Combat", "Leadership"]
+
+[fields.category]
+type = "enum"
+required = true
+description = """
+Groups the skill in the UI skill panel and determines which actions can
+grant XP. Categories also control which governing_stat (planned) affects
+XP gain rate."""
+valid_values = [
+    "survival",     # Wilderness and self-sufficiency skills
+    "crafting",     # Making and producing items
+    "combat",       # Fighting and defense
+    "social",       # Interpersonal and community skills
+    "science",      # Technical and intellectual skills
+    "magic",        # (Planned) Mystical abilities
+    "athletics",    # (Planned) Physical performance
+    "exploration",  # (Planned) Discovery and navigation
+]
+constraints = "Must be one of the listed values. Current CSV uses: survival, crafting, combat, social, science."
+
+[fields.description]
+type = "string"
+required = true
+description = "One-sentence description shown in the skill panel tooltip and encyclopedia."
+constraints = "Under 80 characters. No commas (CSV constraint) or wrap in quotes."
+examples = [
+    "Find edible plants and useful materials in the wild",
+    "Smelt ore and forge metal tools and equipment",
+    "Negotiate better prices and find rare deals",
+]
+
+[fields.max_level]
+type = "integer"
+required = true
+default = 20
+description = """
+Maximum achievable level for this skill. Caps the progression curve.
+Most skills cap at 20-25. Combat skills go to 30 for extended end-game
+progression. The current skills range from 15 to 30."""
+constraints = "Must be >= 1. Typical range: 15-30."
+examples = [15, 20, 25, 30]
+
+[fields.xp_curve]
+type = "enum"
+required = false
+default = "exponential"
+description = """
+Which mathematical formula determines XP needed per level. The curve type
+combined with xp_base controls how fast or slow the skill levels up.
+Currently the engine hardcodes the exponential curve (level^1.5). The
+CSV does not have this field yet; all skills use exponential."""
+valid_values = [
+    "linear",       # XP_needed = xp_base * level * xp_multiplier  (steady grind)
+    "exponential",  # XP_needed = xp_base * level^1.5  (current default, gets harder)
+    "fibonacci",    # XP_needed = xp_base * fib(level)  (gentle start, steep end)
+]
+constraints = "Must be one of the listed values"
+
+[fields.xp_base]
+type = "integer"
+required = true
+description = """
+Base XP value used in the curve formula. This is the xp_per_level column
+in the current CSV. Higher values mean slower progression. Represents
+roughly how much XP is needed for the first level.
+
+Tuning guide:
+   80  -> Fast leveling (cooking, farming -- frequent actions)
+  100  -> Standard leveling (mining, foraging, combat skills)
+  120  -> Moderate leveling (woodworking, metalworking, defense)
+  150  -> Slow leveling (shelter_building, metalworking)
+  200  -> Very slow leveling (alchemy, engineering, medicine)
+  250  -> Extremely slow (leadership -- rare XP-granting actions)"""
+constraints = "Must be > 0. Typical range: 50-300."
+examples = [80, 100, 120, 150, 200, 250]
+
+[fields.xp_multiplier]
+type = "float"
+required = false
+default = 1.0
+description = """
+Scaling factor applied to the curve formula. Allows fine-tuning without
+changing xp_base. A multiplier of 1.5 means 50% more XP required per level.
+Not in the current CSV; defaults to 1.0 for all skills."""
+constraints = "Must be > 0. Typical range: 0.5-3.0."
+examples = [0.5, 1.0, 1.5, 2.0]
+
+[fields.passive_bonuses]
+type = "list of bonus structs"
+required = false
+default = "[]"
+description = """
+Passive bonuses automatically applied when the player reaches specific
+level thresholds. Each bonus is a struct:
+
+  (level_threshold: 10, bonus_type: "crafting_speed", bonus_value: 5.0)
+
+This means: at level 10, the player gets +5% crafting speed.
+
+Planned bonus_type values:
+  crafting_speed    -- % faster crafting for related recipes
+  damage            -- % increased damage (combat skills)
+  yield             -- % increased resource yield (mining, farming, foraging)
+  durability        -- % increased durability of crafted items
+  xp_gain           -- % bonus XP for this skill
+  move_speed        -- % faster movement (athletics, navigation)
+  resistance        -- % damage reduction (defense)
+  price_modifier    -- % better buy/sell prices (trading)
+  healing           -- % improved healing effectiveness (medicine)
+
+Not in the current CSV. Will be implemented as a separate data file
+(data/skills/bonuses.csv) or embedded in an expanded skills RON format."""
+constraints = "level_threshold must be <= max_level. bonus_value is typically 1-50."
+
+[fields.unlocks]
+type = "list of unlock structs"
+required = false
+default = "[]"
+description = """
+Things unlocked at specific level thresholds. Each unlock is:
+
+  (level_threshold: 5, unlock_type: "recipe", unlock_id: "steel_alloy")
+
+unlock_type values:
+  recipe   -- Makes a recipe available in crafting menu (references recipes.csv)
+  ability  -- Grants an active ability the player can use
+  perk     -- Grants a permanent passive benefit (different from passive_bonuses
+              in that perks are named, visible in the character sheet, and may
+              have complex effects)
+
+Not in the current CSV. Planned as data/skills/unlocks.csv."""
+constraints = "level_threshold must be <= max_level. unlock_id must reference valid data."
+
+[fields.synergy_skills]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+Other skill ids that synergize with this one. When two synergy skills are
+both being actively practiced (XP gained in the same session), each gets
+a small bonus XP multiplier (planned: +10% per active synergy).
+
+Design intent: encourage diverse play. A player who mines AND smelts
+levels both faster than someone who only does one.
+
+Not in the current CSV. Will be added when synergy system is implemented."""
+constraints = "Each entry must be a valid skill id"
+examples = [
+    '["metalworking", "engineering"]',
+    '["farming", "cooking", "alchemy"]',
+    '["melee", "defense"]',
+]
+
+[fields.decay_rate]
+type = "float"
+required = false
+default = 0.0
+description = """
+XP lost per in-game day if the skill is not practiced. 0.0 means no decay
+(most skills). Positive values create a use-it-or-lose-it mechanic for
+combat and athletic skills that require ongoing practice.
+
+Example: decay_rate 10.0 means the player loses 10 XP per day of not
+practicing. If XP drops below the threshold for the current level, the
+level decreases (with a notification).
+
+Not in the current CSV. Reserved for future difficulty modes."""
+constraints = "Must be >= 0.0. 0.0 = no decay."
+examples = [0.0, 5.0, 10.0, 25.0]
+
+[fields.practice_actions]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+Action tags that grant XP for this skill. The game systems emit action
+events (e.g., 'mine_ore', 'craft_item', 'cook_food') and the skill system
+matches them against practice_actions to determine which skill gets XP.
+
+Action tags by category:
+  Survival:  forage, make_fire, purify_water, build_shelter, navigate
+  Crafting:  craft, smelt, cook, sew, brew, plant, harvest, chop_wood
+  Combat:    melee_hit, ranged_hit, block, dodge, command_squad
+  Social:    trade_complete, inspire_npc, negotiate
+  Science:   mine_ore, assemble_machine, treat_patient, research
+
+Not in the current CSV. Will be formalized when the action event system
+is connected to the skill XP pipeline."""
+constraints = "Each tag must be recognized by the action event system"
+examples = [
+    '["mine_ore", "prospect"]',
+    '["craft", "smelt", "forge"]',
+    '["cook", "prepare_ingredient"]',
+]
+
+[fields.governing_stat]
+type = "enum"
+required = false
+default = "None"
+description = """
+Base stat that affects XP gain rate for this skill. A player with high
+Intelligence gains science skill XP faster; a player with high Strength
+gains mining XP faster.
+
+Planned formula: effective_xp = base_xp * (1 + stat_value / 100)
+
+Not in the current CSV. Will be added when the base stats system is implemented."""
+valid_values = [
+    "strength",     # Physical power (mining, melee, shelter_building)
+    "agility",      # Speed and coordination (ranged, defense, tailoring)
+    "intelligence", # Mental acuity (engineering, medicine, alchemy, tactics)
+    "endurance",    # Stamina and resilience (farming, fire_making, foraging)
+    "charisma",     # Social presence (trading, leadership)
+    "perception",   # Awareness (navigation, water_purification, ranged)
+]
+constraints = "Must be one of the listed values, or None"
+
+[fields.icon_id]
+type = "string"
+required = false
+default = "None"
+description = """
+Asset id for the skill's icon displayed in the skill panel and level-up
+notifications. References an image in assets/icons/skills/. Format:
+Some('icon_id') or None (uses a default icon)."""
+constraints = "Must reference a valid asset in assets/icons/skills/"
+examples = ['None', 'Some("icon_mining")', 'Some("icon_cooking")', 'Some("icon_ranged")']
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS: HOW SKILLS CONNECT TO OTHER SYSTEMS
+# ---------------------------------------------------------------------------
+
+[relationships]
+
+quests = """
+Skills connect to quests two ways:
+  1. prerequisite_skill on QuestDef gates quest acceptance behind skill levels.
+  2. Quest steps that require crafting/building/harvesting implicitly train
+     the associated skill (the player gains XP while completing the quest).
+Skill unlocks can also grant quest availability by unlocking recipes
+or abilities that are prerequisites for certain quest steps."""
+
+factions = """
+Faction join_requirements can include a minimum skill level. Faction-exclusive
+recipes train the associated crafting skill when used. Some factions provide
+XP bonuses for their specialty skills as rank perks."""
+
+crafting = """
+Crafting recipes require minimum skill levels to attempt (planned). The crafting
+system emits action events that the skill system uses to award XP. Higher skill
+levels can produce higher-quality output (planned: quality tiers based on skill
+level relative to recipe difficulty)."""
+
+combat = """
+Combat skills directly affect damage, accuracy, and defense calculations.
+  - melee: affects melee damage and hit chance
+  - ranged: affects projectile damage and accuracy
+  - defense: affects block chance and damage reduction
+  - tactics: affects squad AI behavior and buff effectiveness
+XP is awarded per successful action (hit, block, dodge)."""
+
+items = """
+Crafted items can have quality tiers based on the crafter's skill level.
+Tools can provide skill XP bonuses (e.g., a quality pickaxe gives +10% mining XP).
+Some items require minimum skill levels to equip or use effectively."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+
+csv_format = """
+The current skills.csv uses this header:
+  id,name,category,max_level,xp_per_level,description
+
+Rules:
+  - One skill per line, header row required
+  - No spaces after commas
+  - Descriptions must not contain commas (or wrap in double quotes)
+  - Use # for comment lines
+  - xp_per_level maps to xp_base in this schema"""
+
+id_naming = """
+Use snake_case for skill ids. Keep them short and descriptive.
+  Good: mining, metalworking, fire_making, water_purification
+  Bad:  Mine, METAL_WORK, fire-making, waterPurify"""
+
+category_balance = """
+When adding new skills, maintain category balance. The current distribution:
+  survival: 5, crafting: 6, combat: 4, social: 2, science: 3
+Social and science are intentionally smaller because their actions are less
+frequent. Adding a new skill should fill a genuine gameplay gap, not just
+subdivide an existing skill."""
+
+xp_tuning = """
+When setting xp_base for a new skill, consider how often the player performs
+the associated action:
+  Very frequent (every few seconds): xp_base 50-80   (e.g., combat hits)
+  Frequent (every minute):           xp_base 80-120  (e.g., mining, cooking)
+  Occasional (every few minutes):    xp_base 120-200 (e.g., engineering, alchemy)
+  Rare (once per session):           xp_base 200-300 (e.g., leadership, tactics)
+The goal is that skills level at roughly similar real-time rates regardless
+of action frequency."""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[examples]
+
+existing_csv_row = """
+A row from the current data/skills/skills.csv showing the minimal format:
+
+mining,Mining,crafting,25,100,Extract ore and stone from rock and asteroids
+
+Breakdown:
+  id           = mining       (unique skill id)
+  name         = Mining       (display name)
+  category     = crafting     (skill group)
+  max_level    = 25           (level cap)
+  xp_per_level = 100          (xp_base for the curve)
+  description  = Extract ore and stone from rock and asteroids"""
+
+full_skill_definition = """
+A complete skill definition using all schema fields (target format when
+the CSV is expanded or migrated to RON):
+
+(
+    id: "mining",
+    name: "Mining",
+    category: "crafting",
+    description: "Extract ore and stone from rock and asteroids",
+    max_level: 25,
+    xp_curve: "exponential",
+    xp_base: 100,
+    xp_multiplier: 1.0,
+    passive_bonuses: [
+        (level_threshold: 5,  bonus_type: "yield",          bonus_value: 5.0),
+        (level_threshold: 10, bonus_type: "yield",          bonus_value: 10.0),
+        (level_threshold: 15, bonus_type: "crafting_speed",  bonus_value: 5.0),
+        (level_threshold: 20, bonus_type: "yield",          bonus_value: 15.0),
+        (level_threshold: 25, bonus_type: "xp_gain",        bonus_value: 10.0),
+    ],
+    unlocks: [
+        (level_threshold: 3,  unlock_type: "recipe",  unlock_id: "iron_ore_processing"),
+        (level_threshold: 8,  unlock_type: "recipe",  unlock_id: "titanium_extraction"),
+        (level_threshold: 12, unlock_type: "ability",  unlock_id: "ore_scanner"),
+        (level_threshold: 18, unlock_type: "recipe",  unlock_id: "rare_earth_refining"),
+        (level_threshold: 25, unlock_type: "perk",    unlock_id: "master_miner"),
+    ],
+    synergy_skills: ["metalworking", "engineering"],
+    decay_rate: 0.0,
+    practice_actions: ["mine_ore", "prospect", "drill_asteroid"],
+    governing_stat: Some("strength"),
+    icon_id: Some("icon_mining"),
+)"""
+
+new_skill_example = """
+Adding a brand new skill (e.g., Piloting for vehicle control):
+
+Step 1: Add to data/skills/skills.csv:
+piloting,Piloting,exploration,20,150,Operate vehicles and spacecraft with precision
+
+Step 2: (Future) Add unlocks to data/skills/unlocks.csv:
+piloting,5,recipe,thruster_upgrade
+piloting,10,ability,evasive_maneuver
+piloting,15,recipe,warp_drive_calibration
+piloting,20,perk,ace_pilot
+
+Step 3: (Future) Add passive bonuses to data/skills/bonuses.csv:
+piloting,5,move_speed,5.0
+piloting,10,move_speed,10.0
+piloting,15,fuel_efficiency,10.0
+piloting,20,move_speed,15.0
+
+The engine hot-reloads skills.csv, so the new skill appears immediately
+in the skill panel without restarting the game."""
+
+combat_skill_example = """
+A combat skill with decay (must be practiced to maintain):
+
+(
+    id: "melee",
+    name: "Melee Combat",
+    category: "combat",
+    description: "Close-range fighting with weapons and fists",
+    max_level: 30,
+    xp_curve: "exponential",
+    xp_base: 100,
+    xp_multiplier: 1.0,
+    passive_bonuses: [
+        (level_threshold: 5,  bonus_type: "damage",     bonus_value: 5.0),
+        (level_threshold: 10, bonus_type: "damage",     bonus_value: 10.0),
+        (level_threshold: 15, bonus_type: "resistance",  bonus_value: 5.0),
+        (level_threshold: 20, bonus_type: "damage",     bonus_value: 15.0),
+        (level_threshold: 25, bonus_type: "move_speed",  bonus_value: 5.0),
+        (level_threshold: 30, bonus_type: "damage",     bonus_value: 20.0),
+    ],
+    unlocks: [
+        (level_threshold: 3,  unlock_type: "ability",  unlock_id: "power_strike"),
+        (level_threshold: 8,  unlock_type: "ability",  unlock_id: "whirlwind"),
+        (level_threshold: 15, unlock_type: "perk",    unlock_id: "dual_wield"),
+        (level_threshold: 25, unlock_type: "ability",  unlock_id: "berserker_rage"),
+        (level_threshold: 30, unlock_type: "perk",    unlock_id: "weapon_master"),
+    ],
+    synergy_skills: ["defense", "tactics"],
+    decay_rate: 5.0,
+    practice_actions: ["melee_hit", "melee_kill", "spar"],
+    governing_stat: Some("strength"),
+    icon_id: Some("icon_melee"),
+)"""

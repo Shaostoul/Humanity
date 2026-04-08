@@ -1,0 +1,252 @@
+# HumanityOS Equipment Slot Schema
+# Defines all body slots where items can be equipped on a character.
+#
+# Equipment slots bridge three systems:
+#   1. Inventory   -- when a player equips an item from inventory, it moves
+#                     into the slot and leaves the inventory grid.
+#   2. Stats       -- equipped items apply stat_modifiers to the character.
+#                     Modifiers stack additively across all slots.
+#   3. Rendering   -- each slot has a layer_order so the renderer draws
+#                     undergarments below base clothing below armor, etc.
+#
+# File format: One TOML file per slot, or one big file with [[slot]] arrays.
+#              The game loads all slot definitions at startup and hot-reloads.
+# Hot-reloadable: Yes
+# Referenced by: data/items.csv (items declare which slot(s) they can occupy)
+# References: data/items.csv (allowed_categories filters item.category)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.slot_id]
+type = "string"
+required = true
+description = """
+Unique identifier for this equipment slot. Each slot_id maps to one position
+on the character body. The game uses this to look up the slot when equipping,
+unequipping, and serializing save data."""
+constraints = "snake_case, unique across all slots"
+valid_values = [
+    "head",              # Helmets, hats, headlamps
+    "face",              # Goggles, masks, respirators
+    "neck",              # Necklaces, scarves, dog tags
+    "chest",             # Shirts, vests, chest armor
+    "back",              # Capes, jetpacks, oxygen tanks
+    "arms",              # Arm guards, sleeves, bracers
+    "hands",             # Gloves, gauntlets
+    "waist",             # Belts, hip holsters
+    "legs",              # Pants, leg armor, chaps
+    "feet",              # Boots, shoes, magnetic boots
+    "ring_left",         # Left hand ring
+    "ring_right",        # Right hand ring
+    "wrist_left",        # Watch, wrist computer
+    "wrist_right",       # Bracelet, medic scanner
+    "shoulder_left",     # Pauldron, antenna
+    "shoulder_right",    # Pauldron, comm radio
+    "tool_belt",         # Quick-access tool/weapon holders
+    "backpack",          # Backpacks, frame packs (extends carry capacity)
+]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable display name shown in the equipment UI panel."
+constraints = "Title Case, under 30 characters"
+examples = ["Head", "Left Ring", "Tool Belt", "Backpack"]
+
+[fields.description]
+type = "string"
+required = true
+description = "Short explanation of what this slot is for. Shown as a tooltip in the equipment screen."
+constraints = "Under 80 characters"
+examples = [
+    "Helmets, hats, and headlamps",
+    "Quick-access holders for tools and sidearms",
+]
+
+[fields.allowed_categories]
+type = "array of strings"
+required = true
+description = """
+Which item categories (from items.csv category field) can be placed in this
+slot. The game checks this when the player drags an item onto the slot.
+An empty array means nothing can be equipped here (slot is disabled).
+Most slots allow 'clothing' and optionally 'tool' or 'weapon'."""
+constraints = "Each value must be a valid item category from items.csv"
+examples = [
+    ["clothing"],
+    ["clothing", "tool", "weapon"],
+    ["container"],
+]
+
+[fields.stat_modifiers]
+type = "array of strings"
+required = false
+default = []
+description = """
+List of stat keys that items in this slot are allowed to modify. When an
+item is equipped, the game reads the item's own stat_modifiers and applies
+only the ones that match this slot's allowed list. This prevents, for
+example, a ring from granting armor bonuses that only chest pieces should give.
+
+Common stats:
+  armor            -- damage reduction (flat points)
+  warmth           -- cold resistance (degrees C offset)
+  speed            -- movement speed multiplier offset
+  carry_capacity   -- extra kg the player can carry
+  stamina_regen    -- stamina recovery rate bonus
+  oxygen_capacity  -- extra minutes of breathable air
+  radiation_resist -- radiation damage reduction
+  stealth          -- detection radius reduction"""
+constraints = "Each value must be a recognized stat key in the character stat system"
+examples = [
+    ["armor", "warmth", "radiation_resist"],
+    ["speed", "stealth"],
+    ["carry_capacity"],
+]
+
+[fields.layer_order]
+type = "integer"
+required = true
+default = 1
+description = """
+Rendering priority for visual layering. Lower numbers render first (closer
+to the body). When two equipped items overlap on the mesh, the higher
+layer_order draws on top. This prevents a shirt from rendering over a jacket.
+
+Standard layers:
+  0 = undergarment (underwear, base layer thermals)
+  1 = base clothing (shirts, pants, standard wear)
+  2 = outer layer (jackets, coats, overalls)
+  3 = accessory (belts, jewelry, watches)
+  4 = armor / heavy gear (plate armor, EVA suit, exoskeleton)
+  5 = overlay (backpack straps, capes, jetpack harness)"""
+constraints = "Integer 0-5"
+examples = [0, 1, 2, 3, 4, 5]
+
+[fields.max_items]
+type = "integer"
+required = true
+default = 1
+description = """
+How many items can be equipped in this slot simultaneously. Almost every
+slot holds exactly 1 item. The tool_belt is the exception: it holds
+multiple small tools or weapons for quick switching (like hotbar slots
+that are physically visible on the character model)."""
+constraints = "Must be >= 1"
+examples = [1, 3, 6]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+inventory = """
+Equipping removes the item from the player's inventory grid and places it
+into the slot. Unequipping returns it to the first available inventory slot.
+If inventory is full, unequip is blocked (the UI warns the player).
+The slot itself is NOT an inventory -- it holds a direct item reference,
+not a grid cell. Save/load serializes equipped slot_id:item_id pairs."""
+
+character_stats = """
+When an item is equipped, its stat_modifiers are read and applied to the
+character's active stats as additive offsets. When unequipped, those offsets
+are removed. The game recalculates total stats whenever any slot changes.
+Order does not matter because all modifiers are additive.
+
+Example flow:
+  1. Player equips 'steel_chestplate_0' into the 'chest' slot
+  2. Item has stat_modifiers: { armor: 25, speed: -0.05, warmth: 10 }
+  3. Slot 'chest' allows: [armor, warmth, speed, radiation_resist]
+  4. All three modifiers pass the filter, so character gains +25 armor,
+     +10 warmth, -0.05 speed
+  5. Player unequips -> those offsets revert"""
+
+visual_appearance = """
+Each equipped item has a model_id (from items.csv or a separate appearance
+table). The renderer attaches the model to the character skeleton at the
+bone/anchor point defined by the slot_id. layer_order resolves z-fighting
+when multiple meshes overlap. The character preview in the equipment UI
+shows all currently equipped items layered correctly."""
+
+crafting = """
+Some recipes produce items that target specific slots. The crafting UI can
+filter 'show me recipes for chest armor' by checking which items have
+allowed_categories that include a slot's accepted types."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+slot_symmetry = """
+Left/right variants (ring_left/ring_right, wrist_left/wrist_right,
+shoulder_left/shoulder_right) exist so players can equip different items
+on each side. The game treats them as independent slots. Items do not
+declare a 'handedness'; any item valid for ring_left is also valid for
+ring_right. The player chooses which side."""
+
+tool_belt_special = """
+The tool_belt slot is unique. Its max_items is higher (default 3-6 depending
+on the belt item equipped). Equipping a belt item into the waist slot
+unlocks the tool_belt's sub-slots. Without a belt, tool_belt max_items = 0.
+Quick-switch keybinds (1-6) cycle through tool_belt items."""
+
+backpack_special = """
+The backpack slot is unique. Equipping a backpack item adds its
+carry_capacity bonus to the player AND grants extra inventory grid rows.
+The number of bonus rows depends on the backpack item's volume_liters.
+A small daypack might add 2 rows; a large frame pack might add 6."""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[[examples]]
+description = "Standard chest slot"
+toml = """
+slot_id = \"chest\"
+name = \"Chest\"
+description = \"Shirts, vests, and chest armor\"
+allowed_categories = [\"clothing\"]
+stat_modifiers = [\"armor\", \"warmth\", \"speed\", \"radiation_resist\"]
+layer_order = 1
+max_items = 1
+"""
+
+[[examples]]
+description = "Tool belt slot (holds multiple items)"
+toml = """
+slot_id = \"tool_belt\"
+name = \"Tool Belt\"
+description = \"Quick-access holders for tools and sidearms\"
+allowed_categories = [\"tool\", \"weapon\"]
+stat_modifiers = []
+layer_order = 3
+max_items = 4
+"""
+
+[[examples]]
+description = "Backpack slot (extends inventory)"
+toml = """
+slot_id = \"backpack\"
+name = \"Backpack\"
+description = \"Backpacks and frame packs that extend carry capacity\"
+allowed_categories = [\"container\"]
+stat_modifiers = [\"carry_capacity\"]
+layer_order = 5
+max_items = 1
+"""
+
+[[examples]]
+description = "Left ring slot (accessory with small stat bonuses)"
+toml = """
+slot_id = \"ring_left\"
+name = \"Left Ring\"
+description = \"Ring worn on the left hand\"
+allowed_categories = [\"clothing\"]
+stat_modifiers = [\"stamina_regen\", \"radiation_resist\"]
+layer_order = 3
+max_items = 1
+"""

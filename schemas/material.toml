@@ -1,0 +1,273 @@
+# HumanityOS Material Schema
+# Defines the format for entries in data/materials.csv
+#
+# Materials are the foundation of everything in the game. Every item, component,
+# and structure is made from one or more materials. Material properties drive
+# the physics engine, crafting system, and economy.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (changes apply without restart)
+# Referenced by: data/items.csv (via base_material), data/components.csv (via materials_required)
+# References: None (materials are the base layer)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique identifier for this material. Use snake_case."
+constraints = "snake_case, unique across all materials"
+examples = ["cotton", "steel", "oak", "granite", "rubber", "carbon_fiber"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable display name shown in tooltips, recipes, and the encyclopedia."
+constraints = "Title Case, keep under 40 characters"
+examples = ["Cotton", "Stainless Steel", "Oak", "Granite", "Natural Rubber"]
+
+[fields.category]
+type = "string"
+required = true
+description = "Classification that determines processing rules, crafting stations needed, and visual/audio behavior."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "fabric",    # Textiles and fibers (cotton, silk, kevlar)
+    "metal",     # Metals and alloys (iron, steel, titanium, gold)
+    "wood",      # Lumber and plant-based rigid materials (oak, bamboo, plywood)
+    "ceramic",   # Fired clay, glass, and mineral composites (porcelain, brick)
+    "polymer",   # Plastics and synthetic solids (PVC, ABS, epoxy)
+    "natural",   # Unprocessed organic matter (bone, hide, stone, clay)
+    "composite", # Engineered multi-material blends (carbon fiber, fiberglass)
+    "glass",     # Transparent silicate materials (window glass, tempered glass)
+    "stone",     # Rock and mineral blocks (granite, marble, sandstone)
+    "earth",     # Soil, sand, gravel, and loose earth materials
+]
+
+[fields.density_kg_m3]
+type = "float"
+required = true
+description = """
+Mass per cubic meter in kilograms. Used by the physics engine to calculate
+weight from volume, buoyancy in water, and structural load limits.
+Real-world values work well here."""
+constraints = "Must be > 0"
+examples = [
+    { value = 500,  note = "lightweight wood (balsa)" },
+    { value = 1540, note = "cotton fabric" },
+    { value = 2700, note = "aluminum" },
+    { value = 7800, note = "steel" },
+]
+
+[fields.tensile_strength_mpa]
+type = "float"
+required = true
+description = """
+How much pulling force (in megapascals) the material can withstand before
+breaking. Higher values mean the material is harder to tear or snap.
+Determines structural integrity of buildings and durability of items."""
+constraints = "Must be >= 0"
+examples = [
+    { value = 20,   note = "leather (weak)" },
+    { value = 400,  note = "cotton" },
+    { value = 500,  note = "structural steel" },
+    { value = 3600, note = "kevlar (extremely strong)" },
+]
+
+[fields.thermal_conductivity]
+type = "float"
+required = true
+description = """
+Heat transfer rate in watts per meter-kelvin (W/(m*K)).
+Low values = good insulator (clothing, building walls).
+High values = good conductor (cookware, heat sinks, wiring)."""
+constraints = "Must be >= 0"
+examples = [
+    { value = 0.04,  note = "cotton, wool (great insulator)" },
+    { value = 0.5,   note = "glass" },
+    { value = 50.0,  note = "steel" },
+    { value = 400.0, note = "copper (excellent conductor)" },
+]
+
+[fields.hardness]
+type = "float"
+required = true
+description = """
+Scratch resistance on a 0 to 10 scale inspired by the Mohs hardness scale.
+Determines what tools can harvest or cut this material and how it resists
+wear. Soft materials (fabric, clay) are near 0; diamond is 10."""
+constraints = "Must be between 0.0 and 10.0 inclusive"
+examples = [
+    { value = 0.3, note = "wool (very soft)" },
+    { value = 2.0, note = "wood" },
+    { value = 4.5, note = "steel" },
+    { value = 7.0, note = "granite" },
+    { value = 10.0, note = "diamond" },
+]
+
+[fields.flexibility]
+type = "float"
+required = true
+description = """
+How much the material bends before breaking, from 0.0 (completely rigid)
+to 1.0 (extremely flexible). Affects clothing comfort, structural sway,
+and whether an item can absorb impact without shattering."""
+constraints = "Must be between 0.0 and 1.0 inclusive"
+examples = [
+    { value = 0.05, note = "glass (brittle)" },
+    { value = 0.30, note = "steel" },
+    { value = 0.70, note = "leather" },
+    { value = 0.95, note = "silk, rubber" },
+]
+
+[fields.cost_per_kg]
+type = "float"
+required = true
+description = """
+Base market price per kilogram in credits. The economy system uses this
+as a floor price. Actual market prices fluctuate based on supply and demand.
+Rare materials cost more; common renewables cost less."""
+constraints = "Must be > 0"
+examples = [
+    { value = 1,   note = "clay, sand (abundant)" },
+    { value = 3,   note = "cotton" },
+    { value = 8,   note = "steel" },
+    { value = 50,  note = "silk (luxury)" },
+    { value = 200, note = "titanium (rare)" },
+]
+
+[fields.renewable]
+type = "boolean"
+required = true
+description = """
+Whether this material can be regrown, replanted, or otherwise produced
+indefinitely. Affects long-term economy balance and sustainability scoring.
+  true  = can be farmed or harvested renewably (cotton, wood, hemp)
+  false = finite supply, must be mined or synthesized (iron, titanium, plastic)"""
+constraints = "Must be true or false (lowercase in CSV)"
+examples = ["true", "false"]
+
+[fields.melting_point_c]
+type = "float"
+required = false
+default = 0.0
+description = """
+Temperature in degrees Celsius at which the material transitions from
+solid to liquid. Used by the smelting system to determine furnace
+requirements and by the fire/heat simulation for structural failure.
+Set to 0 for materials that do not melt (they char or decompose instead,
+like wood or fabric)."""
+constraints = "Must be >= 0"
+examples = [
+    { value = 0,    note = "cotton (decomposes, does not melt)" },
+    { value = 660,  note = "aluminum" },
+    { value = 1538, note = "iron" },
+    { value = 1668, note = "titanium" },
+]
+
+[fields.electrical_conductivity]
+type = "float"
+required = false
+default = 0.0
+description = """
+Electrical conductivity in siemens per meter (S/m). Determines whether
+this material can carry electric current in wiring and circuit recipes.
+Most non-metals are near 0. Metals range from thousands to millions."""
+constraints = "Must be >= 0"
+examples = [
+    { value = 0.0,       note = "cotton, wood, rubber (insulator)" },
+    { value = 3500000,   note = "steel (moderate conductor)" },
+    { value = 59600000,  note = "copper (excellent conductor)" },
+    { value = 63000000,  note = "silver (best natural conductor)" },
+]
+
+[fields.description]
+type = "string"
+required = true
+description = "One-sentence description of the material. Shown in tooltips and the encyclopedia."
+constraints = "Keep under 80 characters. No commas (CSV delimiter). No trailing period needed."
+examples = [
+    "Natural plant fiber textile",
+    "Strong ferrous alloy with carbon content",
+    "Lightweight corrosion-resistant metal",
+]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+items = """
+Items in data/items.csv reference materials through the base_material field.
+When you add a new material, existing items can immediately use it by
+setting their base_material to your new material's id."""
+
+components = """
+Components in data/components.csv list materials in their materials_required
+field (pipe-separated material_id:quantity pairs). A component like a gear
+might require steel:0.8, meaning 0.8 units of the steel material."""
+
+recipes = """
+Smelting and refining recipes in data/recipes.csv transform raw material
+items (ore, sand) into processed material items (ingots, glass). The
+material's properties (melting_point_c, density) determine which
+crafting station and skill level are needed."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+role_in_data_model = """
+Materials sit at the bottom of the data hierarchy:
+  Materials -> Components -> Items/Machines
+                          -> Recipes (transform materials into items)
+Everything ultimately traces back to materials. When adding a new item or
+component, make sure its materials already exist in materials.csv."""
+
+real_world_values = """
+Use real-world physical values wherever possible. This keeps the simulation
+grounded and educational. Players learning about material science in-game
+should encounter accurate numbers. When exact values are hard to find,
+use reasonable estimates and note it in the description."""
+
+category_choice = """
+Pick the category that best describes the material's primary form:
+  - A metal alloy like bronze goes in "metal" even though it is a composite.
+  - Carbon fiber goes in "composite" because its defining trait is being layered.
+  - Bone goes in "natural" even though it is hard like ceramic.
+When in doubt, ask: what crafting station would a player use to work with it?"""
+
+csv_formatting = """
+  - Use # for comment lines (section headers, notes)
+  - No spaces after commas
+  - Booleans are lowercase: true, false
+  - Descriptions must not contain commas (or wrap in quotes)
+  - One material per line, header row is required
+  - Group materials by category with # === CATEGORY === headers"""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLE ROW
+# ---------------------------------------------------------------------------
+
+[example]
+csv_row = "bronze,Bronze,metal,8800,500,60,3.5,0.25,12,false,Copper-tin alloy used since antiquity"
+breakdown = """
+  id                      = bronze      (unique snake_case id)
+  name                    = Bronze      (display name)
+  category                = metal       (processed in a smelter)
+  density_kg_m3           = 8800        (heavier than steel)
+  tensile_strength_mpa    = 500         (moderate strength)
+  thermal_conductivity    = 60          (decent heat conductor)
+  hardness                = 3.5         (softer than steel)
+  flexibility             = 0.25        (fairly rigid)
+  cost_per_kg             = 12          (moderate cost, requires two ores)
+  renewable               = false       (must be mined)
+  description             = Copper-tin alloy used since antiquity
+
+  Note: melting_point_c and electrical_conductivity are optional new fields.
+  If your CSV does not include them yet, the game uses defaults (0.0).
+  When the columns are added to the CSV header, include them after renewable:
+  ...,renewable,melting_point_c,electrical_conductivity,description"""

@@ -1,0 +1,1014 @@
+# HumanityOS Sound Catalog
+# Maps sound IDs to audio assets for the kira spatial audio system.
+# Referenced by: creatures, spells, weather, structures, vehicles, UI
+# All paths relative to assets/audio/. Format: .ogg (Vorbis).
+# Hot-reloadable via FileWatcher.
+#
+# Bus types: "ambient", "music", "sfx", "voice", "ui"
+# Spatial sounds use inverse-distance falloff between falloff_min and falloff_max.
+
+# =============================================================================
+#  AMBIENT (15) — looping environmental soundscapes
+# =============================================================================
+
+[ambient.forest_day]
+path = "audio/ambient/forest_day.ogg"
+volume = 0.6
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["outdoor", "day", "peaceful"]
+
+[ambient.forest_night]
+path = "audio/ambient/forest_night.ogg"
+volume = 0.55
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["outdoor", "night", "peaceful"]
+
+[ambient.ocean]
+path = "audio/ambient/ocean.ogg"
+volume = 0.5
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["outdoor", "water", "coastal"]
+
+[ambient.cave]
+path = "audio/ambient/cave.ogg"
+volume = 0.4
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["underground", "echo", "drip"]
+
+[ambient.rain]
+path = "audio/ambient/rain.ogg"
+volume = 0.55
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["weather", "outdoor", "indoor"]
+
+[ambient.wind]
+path = "audio/ambient/wind.ogg"
+volume = 0.45
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["weather", "outdoor"]
+
+[ambient.storm]
+path = "audio/ambient/storm.ogg"
+volume = 0.7
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["weather", "outdoor", "intense"]
+
+[ambient.city]
+path = "audio/ambient/city.ogg"
+volume = 0.5
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["outdoor", "urban", "crowds"]
+
+[ambient.space_station]
+path = "audio/ambient/space_station.ogg"
+volume = 0.35
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["indoor", "mechanical", "hum"]
+
+[ambient.desert]
+path = "audio/ambient/desert.ogg"
+volume = 0.3
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["outdoor", "hot", "dry"]
+
+[ambient.swamp]
+path = "audio/ambient/swamp.ogg"
+volume = 0.5
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["outdoor", "water", "insects"]
+
+[ambient.mountain]
+path = "audio/ambient/mountain.ogg"
+volume = 0.35
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["outdoor", "wind", "altitude"]
+
+[ambient.underwater]
+path = "audio/ambient/underwater.ogg"
+volume = 0.6
+loop = true
+spatial = false
+bus = "ambient"
+tags = ["water", "muffled", "bubbles"]
+
+[ambient.campfire_crackle]
+path = "audio/ambient/campfire_crackle.ogg"
+volume = 0.5
+loop = true
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "ambient"
+tags = ["fire", "outdoor", "warm"]
+
+[ambient.river]
+path = "audio/ambient/river.ogg"
+volume = 0.45
+loop = true
+spatial = true
+falloff_min = 2.0
+falloff_max = 30.0
+bus = "ambient"
+tags = ["water", "outdoor", "flowing"]
+
+# =============================================================================
+#  MUSIC (10) — background tracks, non-spatial
+# =============================================================================
+
+[music.menu_theme]
+path = "audio/music/menu_theme.ogg"
+volume = 0.7
+loop = true
+spatial = false
+bus = "music"
+tags = ["menu", "calm"]
+
+[music.exploration]
+path = "audio/music/exploration.ogg"
+volume = 0.5
+loop = true
+spatial = false
+bus = "music"
+tags = ["world", "curiosity", "open"]
+
+[music.combat]
+path = "audio/music/combat.ogg"
+volume = 0.65
+loop = true
+spatial = false
+bus = "music"
+tags = ["battle", "tense", "action"]
+
+[music.peaceful]
+path = "audio/music/peaceful.ogg"
+volume = 0.45
+loop = true
+spatial = false
+bus = "music"
+tags = ["calm", "home", "farming"]
+
+[music.boss_fight]
+path = "audio/music/boss_fight.ogg"
+volume = 0.75
+loop = true
+spatial = false
+bus = "music"
+tags = ["battle", "epic", "intense"]
+
+[music.victory]
+path = "audio/music/victory.ogg"
+volume = 0.7
+loop = false
+spatial = false
+bus = "music"
+tags = ["celebration", "reward"]
+
+[music.defeat]
+path = "audio/music/defeat.ogg"
+volume = 0.55
+loop = false
+spatial = false
+bus = "music"
+tags = ["somber", "loss"]
+
+[music.space_travel]
+path = "audio/music/space_travel.ogg"
+volume = 0.5
+loop = true
+spatial = false
+bus = "music"
+tags = ["space", "ethereal", "vast"]
+
+[music.building]
+path = "audio/music/building.ogg"
+volume = 0.45
+loop = true
+spatial = false
+bus = "music"
+tags = ["creative", "construction"]
+
+[music.trading]
+path = "audio/music/trading.ogg"
+volume = 0.45
+loop = true
+spatial = false
+bus = "music"
+tags = ["market", "social"]
+
+# =============================================================================
+#  SFX: FOOTSTEPS (8) — surface-dependent, spatial, with variations
+# =============================================================================
+
+[sfx.footstep_grass]
+path = "audio/sfx/footstep_grass.ogg"
+volume = 0.4
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+variations = ["sfx/footstep_grass_01.ogg", "sfx/footstep_grass_02.ogg", "sfx/footstep_grass_03.ogg"]
+tags = ["movement", "surface"]
+
+[sfx.footstep_stone]
+path = "audio/sfx/footstep_stone.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+variations = ["sfx/footstep_stone_01.ogg", "sfx/footstep_stone_02.ogg", "sfx/footstep_stone_03.ogg"]
+tags = ["movement", "surface"]
+
+[sfx.footstep_metal]
+path = "audio/sfx/footstep_metal.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 25.0
+bus = "sfx"
+variations = ["sfx/footstep_metal_01.ogg", "sfx/footstep_metal_02.ogg", "sfx/footstep_metal_03.ogg"]
+tags = ["movement", "surface"]
+
+[sfx.footstep_wood]
+path = "audio/sfx/footstep_wood.ogg"
+volume = 0.45
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 18.0
+bus = "sfx"
+variations = ["sfx/footstep_wood_01.ogg", "sfx/footstep_wood_02.ogg", "sfx/footstep_wood_03.ogg"]
+tags = ["movement", "surface"]
+
+[sfx.footstep_sand]
+path = "audio/sfx/footstep_sand.ogg"
+volume = 0.3
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 12.0
+bus = "sfx"
+variations = ["sfx/footstep_sand_01.ogg", "sfx/footstep_sand_02.ogg", "sfx/footstep_sand_03.ogg"]
+tags = ["movement", "surface"]
+
+[sfx.footstep_snow]
+path = "audio/sfx/footstep_snow.ogg"
+volume = 0.35
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 12.0
+bus = "sfx"
+variations = ["sfx/footstep_snow_01.ogg", "sfx/footstep_snow_02.ogg", "sfx/footstep_snow_03.ogg"]
+tags = ["movement", "surface"]
+
+[sfx.footstep_water]
+path = "audio/sfx/footstep_water.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 18.0
+bus = "sfx"
+variations = ["sfx/footstep_water_01.ogg", "sfx/footstep_water_02.ogg", "sfx/footstep_water_03.ogg"]
+tags = ["movement", "surface"]
+
+[sfx.footstep_dirt]
+path = "audio/sfx/footstep_dirt.ogg"
+volume = 0.4
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+variations = ["sfx/footstep_dirt_01.ogg", "sfx/footstep_dirt_02.ogg", "sfx/footstep_dirt_03.ogg"]
+tags = ["movement", "surface"]
+
+# =============================================================================
+#  SFX: COMBAT (12) — weapon impacts, ranged fire, magic
+# =============================================================================
+
+[sfx.sword_swing]
+path = "audio/sfx/sword_swing.ogg"
+volume = 0.6
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+tags = ["combat", "melee", "weapon"]
+
+[sfx.sword_hit]
+path = "audio/sfx/sword_hit.ogg"
+volume = 0.65
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["combat", "melee", "impact"]
+
+[sfx.bow_draw]
+path = "audio/sfx/bow_draw.ogg"
+volume = 0.35
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 10.0
+bus = "sfx"
+tags = ["combat", "ranged", "weapon"]
+
+[sfx.bow_release]
+path = "audio/sfx/bow_release.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+tags = ["combat", "ranged", "weapon"]
+
+[sfx.arrow_hit]
+path = "audio/sfx/arrow_hit.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["combat", "ranged", "impact"]
+
+[sfx.gun_fire]
+path = "audio/sfx/gun_fire.ogg"
+volume = 0.8
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 60.0
+bus = "sfx"
+variations = ["sfx/gun_fire_01.ogg", "sfx/gun_fire_02.ogg"]
+tags = ["combat", "ranged", "loud"]
+
+[sfx.gun_reload]
+path = "audio/sfx/gun_reload.ogg"
+volume = 0.45
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 10.0
+bus = "sfx"
+tags = ["combat", "ranged", "mechanical"]
+
+[sfx.explosion]
+path = "audio/sfx/explosion.ogg"
+volume = 0.9
+loop = false
+spatial = true
+falloff_min = 5.0
+falloff_max = 100.0
+bus = "sfx"
+variations = ["sfx/explosion_01.ogg", "sfx/explosion_02.ogg"]
+tags = ["combat", "destruction", "loud"]
+
+[sfx.shield_block]
+path = "audio/sfx/shield_block.ogg"
+volume = 0.6
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+tags = ["combat", "defense", "impact"]
+
+[sfx.magic_cast]
+path = "audio/sfx/magic_cast.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["combat", "magic", "channel"]
+
+[sfx.magic_impact]
+path = "audio/sfx/magic_impact.ogg"
+volume = 0.65
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 30.0
+bus = "sfx"
+tags = ["combat", "magic", "impact"]
+
+[sfx.heal]
+path = "audio/sfx/heal.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+tags = ["combat", "magic", "positive"]
+
+# =============================================================================
+#  SFX: UI (10) — non-spatial interface feedback
+# =============================================================================
+
+[sfx.button_click]
+path = "audio/ui/button_click.ogg"
+volume = 0.5
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "input"]
+
+[sfx.button_hover]
+path = "audio/ui/button_hover.ogg"
+volume = 0.25
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "input"]
+
+[sfx.menu_open]
+path = "audio/ui/menu_open.ogg"
+volume = 0.4
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "navigation"]
+
+[sfx.menu_close]
+path = "audio/ui/menu_close.ogg"
+volume = 0.35
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "navigation"]
+
+[sfx.notification]
+path = "audio/ui/notification.ogg"
+volume = 0.6
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "alert"]
+
+[sfx.error]
+path = "audio/ui/error.ogg"
+volume = 0.55
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "alert", "negative"]
+
+[sfx.success]
+path = "audio/ui/success.ogg"
+volume = 0.5
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "alert", "positive"]
+
+[sfx.chat_message]
+path = "audio/ui/chat_message.ogg"
+volume = 0.4
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "social"]
+
+[sfx.inventory_pickup]
+path = "audio/ui/inventory_pickup.ogg"
+volume = 0.45
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "inventory"]
+
+[sfx.inventory_drop]
+path = "audio/ui/inventory_drop.ogg"
+volume = 0.4
+loop = false
+spatial = false
+bus = "ui"
+tags = ["interface", "inventory"]
+
+# =============================================================================
+#  SFX: BUILDING (8) — construction and interaction
+# =============================================================================
+
+[sfx.hammer]
+path = "audio/sfx/hammer.ogg"
+volume = 0.6
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 25.0
+bus = "sfx"
+variations = ["sfx/hammer_01.ogg", "sfx/hammer_02.ogg", "sfx/hammer_03.ogg"]
+tags = ["building", "tool", "impact"]
+
+[sfx.saw]
+path = "audio/sfx/saw.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+tags = ["building", "tool", "cutting"]
+
+[sfx.weld]
+path = "audio/sfx/weld.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 18.0
+bus = "sfx"
+tags = ["building", "tool", "sparks"]
+
+[sfx.place_block]
+path = "audio/sfx/place_block.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+tags = ["building", "placement"]
+
+[sfx.remove_block]
+path = "audio/sfx/remove_block.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+tags = ["building", "destruction"]
+
+[sfx.door_open]
+path = "audio/sfx/door_open.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+tags = ["building", "interaction", "door"]
+
+[sfx.door_close]
+path = "audio/sfx/door_close.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+tags = ["building", "interaction", "door"]
+
+[sfx.switch_toggle]
+path = "audio/sfx/switch_toggle.ogg"
+volume = 0.4
+loop = false
+spatial = true
+falloff_min = 0.5
+falloff_max = 8.0
+bus = "sfx"
+tags = ["building", "interaction", "electrical"]
+
+# =============================================================================
+#  SFX: CREATURES (10) — animal and NPC vocalizations
+# =============================================================================
+
+[sfx.wolf_howl]
+path = "audio/sfx/wolf_howl.ogg"
+volume = 0.7
+loop = false
+spatial = true
+falloff_min = 5.0
+falloff_max = 80.0
+bus = "sfx"
+tags = ["creature", "predator", "night"]
+
+[sfx.bird_chirp]
+path = "audio/sfx/bird_chirp.ogg"
+volume = 0.35
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 30.0
+bus = "sfx"
+variations = ["sfx/bird_chirp_01.ogg", "sfx/bird_chirp_02.ogg", "sfx/bird_chirp_03.ogg"]
+tags = ["creature", "passive", "day"]
+
+[sfx.insect_buzz]
+path = "audio/sfx/insect_buzz.ogg"
+volume = 0.2
+loop = true
+spatial = true
+falloff_min = 0.5
+falloff_max = 8.0
+bus = "sfx"
+tags = ["creature", "passive", "small"]
+
+[sfx.monster_roar]
+path = "audio/sfx/monster_roar.ogg"
+volume = 0.8
+loop = false
+spatial = true
+falloff_min = 5.0
+falloff_max = 70.0
+bus = "sfx"
+tags = ["creature", "predator", "boss"]
+
+[sfx.dragon_breath]
+path = "audio/sfx/dragon_breath.ogg"
+volume = 0.85
+loop = false
+spatial = true
+falloff_min = 5.0
+falloff_max = 60.0
+bus = "sfx"
+tags = ["creature", "predator", "fire"]
+
+[sfx.robot_beep]
+path = "audio/sfx/robot_beep.ogg"
+volume = 0.4
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+variations = ["sfx/robot_beep_01.ogg", "sfx/robot_beep_02.ogg"]
+tags = ["creature", "mechanical", "ai"]
+
+[sfx.alien_chirp]
+path = "audio/sfx/alien_chirp.ogg"
+volume = 0.45
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["creature", "xenobiology"]
+
+[sfx.cow_moo]
+path = "audio/sfx/cow_moo.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 3.0
+falloff_max = 40.0
+bus = "sfx"
+tags = ["creature", "passive", "farm"]
+
+[sfx.chicken_cluck]
+path = "audio/sfx/chicken_cluck.ogg"
+volume = 0.3
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+variations = ["sfx/chicken_cluck_01.ogg", "sfx/chicken_cluck_02.ogg"]
+tags = ["creature", "passive", "farm"]
+
+[sfx.cat_meow]
+path = "audio/sfx/cat_meow.ogg"
+volume = 0.35
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 12.0
+bus = "sfx"
+variations = ["sfx/cat_meow_01.ogg", "sfx/cat_meow_02.ogg"]
+tags = ["creature", "passive", "pet"]
+
+# =============================================================================
+#  SFX: VEHICLES (8) — engines, thrusters, mechanical
+# =============================================================================
+
+[sfx.engine_start]
+path = "audio/sfx/engine_start.ogg"
+volume = 0.7
+loop = false
+spatial = true
+falloff_min = 3.0
+falloff_max = 50.0
+bus = "sfx"
+tags = ["vehicle", "engine", "ignition"]
+
+[sfx.engine_idle]
+path = "audio/sfx/engine_idle.ogg"
+volume = 0.4
+loop = true
+spatial = true
+falloff_min = 2.0
+falloff_max = 35.0
+bus = "sfx"
+tags = ["vehicle", "engine", "loop"]
+
+[sfx.engine_rev]
+path = "audio/sfx/engine_rev.ogg"
+volume = 0.65
+loop = false
+spatial = true
+falloff_min = 3.0
+falloff_max = 50.0
+bus = "sfx"
+tags = ["vehicle", "engine", "acceleration"]
+
+[sfx.thruster_fire]
+path = "audio/sfx/thruster_fire.ogg"
+volume = 0.75
+loop = true
+spatial = true
+falloff_min = 5.0
+falloff_max = 80.0
+bus = "sfx"
+tags = ["vehicle", "space", "propulsion"]
+
+[sfx.hover_hum]
+path = "audio/sfx/hover_hum.ogg"
+volume = 0.35
+loop = true
+spatial = true
+falloff_min = 2.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["vehicle", "hover", "electrical"]
+
+[sfx.horn]
+path = "audio/sfx/horn.ogg"
+volume = 0.7
+loop = false
+spatial = true
+falloff_min = 5.0
+falloff_max = 60.0
+bus = "sfx"
+tags = ["vehicle", "warning", "loud"]
+
+[sfx.brake]
+path = "audio/sfx/brake.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 30.0
+bus = "sfx"
+tags = ["vehicle", "stop"]
+
+[sfx.crash]
+path = "audio/sfx/crash.ogg"
+volume = 0.85
+loop = false
+spatial = true
+falloff_min = 5.0
+falloff_max = 80.0
+bus = "sfx"
+tags = ["vehicle", "destruction", "impact"]
+
+# =============================================================================
+#  SFX: WEATHER (6) — environmental weather events
+# =============================================================================
+
+[sfx.thunder]
+path = "audio/sfx/thunder.ogg"
+volume = 0.8
+loop = false
+spatial = false
+bus = "sfx"
+variations = ["sfx/thunder_01.ogg", "sfx/thunder_02.ogg", "sfx/thunder_03.ogg"]
+tags = ["weather", "storm", "loud"]
+
+[sfx.rain_heavy]
+path = "audio/sfx/rain_heavy.ogg"
+volume = 0.6
+loop = true
+spatial = false
+bus = "sfx"
+tags = ["weather", "rain", "intense"]
+
+[sfx.wind_gust]
+path = "audio/sfx/wind_gust.ogg"
+volume = 0.55
+loop = false
+spatial = false
+bus = "sfx"
+variations = ["sfx/wind_gust_01.ogg", "sfx/wind_gust_02.ogg"]
+tags = ["weather", "wind"]
+
+[sfx.hail]
+path = "audio/sfx/hail.ogg"
+volume = 0.6
+loop = true
+spatial = false
+bus = "sfx"
+tags = ["weather", "ice", "impact"]
+
+[sfx.tornado_siren]
+path = "audio/sfx/tornado_siren.ogg"
+volume = 0.9
+loop = true
+spatial = true
+falloff_min = 10.0
+falloff_max = 200.0
+bus = "sfx"
+tags = ["weather", "disaster", "warning"]
+
+[sfx.earthquake_rumble]
+path = "audio/sfx/earthquake_rumble.ogg"
+volume = 0.85
+loop = false
+spatial = false
+bus = "sfx"
+tags = ["weather", "disaster", "ground"]
+
+# =============================================================================
+#  SFX: SPELLS (10) — magical ability effects
+# =============================================================================
+
+[sfx.fireball_cast]
+path = "audio/sfx/fireball_cast.ogg"
+volume = 0.65
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 35.0
+bus = "sfx"
+tags = ["spell", "fire", "projectile"]
+
+[sfx.ice_shatter]
+path = "audio/sfx/ice_shatter.ogg"
+volume = 0.6
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 30.0
+bus = "sfx"
+tags = ["spell", "ice", "impact"]
+
+[sfx.lightning_strike]
+path = "audio/sfx/lightning_strike.ogg"
+volume = 0.8
+loop = false
+spatial = true
+falloff_min = 5.0
+falloff_max = 70.0
+bus = "sfx"
+tags = ["spell", "lightning", "loud"]
+
+[sfx.heal_pulse]
+path = "audio/sfx/heal_pulse.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 15.0
+bus = "sfx"
+tags = ["spell", "healing", "positive"]
+
+[sfx.teleport]
+path = "audio/sfx/teleport.ogg"
+volume = 0.6
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["spell", "movement", "warp"]
+
+[sfx.summon]
+path = "audio/sfx/summon.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["spell", "conjuration"]
+
+[sfx.shield_activate]
+path = "audio/sfx/shield_activate.ogg"
+volume = 0.5
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "sfx"
+tags = ["spell", "defense", "energy"]
+
+[sfx.gravity_well]
+path = "audio/sfx/gravity_well.ogg"
+volume = 0.7
+loop = false
+spatial = true
+falloff_min = 3.0
+falloff_max = 40.0
+bus = "sfx"
+tags = ["spell", "gravity", "area"]
+
+[sfx.time_slow]
+path = "audio/sfx/time_slow.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 30.0
+bus = "sfx"
+tags = ["spell", "time", "area"]
+
+[sfx.enchant_apply]
+path = "audio/sfx/enchant_apply.ogg"
+volume = 0.45
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 12.0
+bus = "sfx"
+tags = ["spell", "buff", "crafting"]
+
+# =============================================================================
+#  VOICE (5) — character vocalizations
+# =============================================================================
+
+[voice.npc_greeting]
+path = "audio/voice/npc_greeting.ogg"
+volume = 0.6
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 12.0
+bus = "voice"
+variations = ["voice/npc_greeting_01.ogg", "voice/npc_greeting_02.ogg", "voice/npc_greeting_03.ogg"]
+tags = ["npc", "social", "friendly"]
+
+[voice.npc_farewell]
+path = "audio/voice/npc_farewell.ogg"
+volume = 0.55
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 12.0
+bus = "voice"
+variations = ["voice/npc_farewell_01.ogg", "voice/npc_farewell_02.ogg"]
+tags = ["npc", "social", "parting"]
+
+[voice.player_hurt]
+path = "audio/voice/player_hurt.ogg"
+volume = 0.7
+loop = false
+spatial = true
+falloff_min = 1.0
+falloff_max = 20.0
+bus = "voice"
+variations = ["voice/player_hurt_01.ogg", "voice/player_hurt_02.ogg", "voice/player_hurt_03.ogg"]
+tags = ["player", "pain", "damage"]
+
+[voice.player_death]
+path = "audio/voice/player_death.ogg"
+volume = 0.75
+loop = false
+spatial = true
+falloff_min = 2.0
+falloff_max = 25.0
+bus = "voice"
+tags = ["player", "death"]
+
+[voice.level_up]
+path = "audio/voice/level_up.ogg"
+volume = 0.65
+loop = false
+spatial = false
+bus = "voice"
+tags = ["player", "reward", "progression"]

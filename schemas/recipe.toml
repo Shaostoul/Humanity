@@ -1,0 +1,205 @@
+# HumanityOS Recipe Schema
+# Defines the structure for all crafting recipes: smelting, refining, cooking,
+# construction, electronics, assembly, textile, chemistry, alchemy, and enchanting.
+#
+# Recipes are the core loop connecting raw materials to finished goods.
+# The existing recipes.csv (data/recipes.csv) uses a flat CSV format with
+# a subset of these fields. This schema documents the full specification
+# for the data-driven crafting system, including fields for advanced recipes
+# (byproducts, failure chance, power requirements, temperature thresholds).
+#
+# Connection to game systems:
+#   Items (data/items.csv) -- inputs and outputs reference item IDs. The item's
+#     category, weight, and stack_size determine inventory handling.
+#   Materials (data/materials.csv) -- base_material on items links to physical
+#     properties. Smelting recipes transform raw ores (material items) into
+#     processed ingots.
+#   Components (data/components.csv) -- intermediate parts used in multi-step
+#     recipes. A steel_plate component is an output of one recipe and input
+#     to another.
+#   Crafting stations -- station_required references a machine/structure item ID.
+#     Hand-craftable recipes leave this empty. Stations include: workbench,
+#     smelter, forge, loom, chemistry_bench, electronics_bench, kitchen,
+#     assembly_line, enchanting_table, alchemy_stand.
+#   Skill progression (native/src/systems/skills/) -- skill_required and
+#     skill_level gate recipe availability. xp_reward grants XP to that skill
+#     on successful craft. Higher skill reduces failure_chance.
+#   Power system -- powered stations consume power_required_watts from the
+#     base's power grid during crafting.
+#   Construction system (native/src/systems/construction/) -- construction
+#     category recipes produce placeable structures and building blocks.
+#
+# The crafting system (native/src/systems/crafting/) validates all inputs,
+# checks station proximity, skill level, power availability, and temperature,
+# then queues the craft for craft_time_sec. On completion it spawns outputs,
+# rolls byproducts, and rolls failure_chance.
+#
+# Actual recipe definitions live in data/recipes.csv (flat format) and
+# data/recipes/ (TOML format for complex recipes). Mods can add recipes
+# to either location.
+
+# ── Field Definitions ────────────────────────────────────────────
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique recipe identifier, snake_case. Used as lookup key by the crafting system."
+constraints = "Must be unique across all recipe files and recipes.csv."
+example = "smelt_iron"
+
+[fields.name]
+type = "string"
+required = true
+description = "Display name shown in the crafting UI."
+example = "Smelt Iron"
+
+[fields.category]
+type = "string"
+required = true
+description = "Recipe category. Determines which crafting UI tab it appears in and which stations can process it."
+valid_values = ["smelting", "refining", "crafting", "cooking", "construction", "electronics", "assembly", "textile", "chemistry", "alchemy", "enchanting"]
+example = "smelting"
+
+[fields.inputs]
+type = "string"
+required = true
+description = "Pipe-separated item_id:quantity pairs consumed by the recipe. All inputs must be present in the player's inventory or connected storage."
+constraints = "item_id must exist in items.csv or components.csv. Quantity must be > 0."
+example = "iron_ore_0:2|coal_0:1"
+
+[fields.outputs]
+type = "string"
+required = true
+description = "Pipe-separated item_id:quantity pairs produced on successful completion."
+constraints = "item_id must exist in items.csv or components.csv. Quantity must be > 0."
+example = "iron_ingot_0:1"
+
+[fields.byproducts]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated item_id:quantity:chance entries for optional secondary outputs. Each byproduct is rolled independently on craft completion."
+constraints = "chance is 0.0-1.0. item_id must exist in items.csv."
+example = "slag_0:1:0.3"
+
+[fields.craft_time_sec]
+type = "float"
+required = true
+description = "Base time in seconds to complete the recipe. Skill level and station tier can reduce this."
+constraints = "Must be > 0."
+example = 10.0
+
+[fields.station_required]
+type = "string"
+required = false
+default = ""
+description = "Item ID of the crafting station needed. Empty string = hand-craftable (no station needed). The player must be within interaction range of the station."
+constraints = "If specified, must be a valid item_id with category 'machine' or 'furniture'."
+example = "smelter_0"
+
+[fields.skill_required]
+type = "string"
+required = false
+default = ""
+description = "Skill name from the progression system. Empty = no skill gate (anyone can craft it)."
+example = "smithing"
+
+[fields.skill_level]
+type = "integer"
+required = false
+default = 0
+description = "Minimum level in skill_required to attempt this recipe. 0 = no minimum."
+constraints = "Must be >= 0."
+example = 1
+
+[fields.xp_reward]
+type = "float"
+required = false
+default = 0.0
+description = "Experience points granted to skill_required on successful craft. Scales the skill progression system."
+constraints = "Must be >= 0."
+example = 15.0
+
+[fields.power_required_watts]
+type = "float"
+required = false
+default = 0.0
+description = "Continuous power draw in watts during crafting. 0 = unpowered (manual or fuel-based). The base's power grid must sustain this draw for the full craft_time_sec."
+constraints = "Must be >= 0."
+example = 0.0
+
+[fields.temperature_required_c]
+type = "float"
+required = false
+default = 0.0
+description = "Minimum temperature in Celsius needed for the reaction. 0 = ambient (no heating needed). Smelting requires ~1500, cooking ~100-250. The station provides heat if fuel or power is available."
+constraints = "Must be >= 0."
+example = 1538.0
+
+[fields.failure_chance]
+type = "float"
+required = false
+default = 0.0
+description = "Base probability of failure (0.0 = never fails, 1.0 = always fails). On failure, inputs are consumed but outputs are not produced (or a degraded output is given). Higher skill_level reduces effective failure chance."
+constraints = "0.0-1.0."
+example = 0.05
+
+[fields.description]
+type = "string"
+required = true
+description = "Short description of what the recipe produces and why. Shown in crafting UI tooltips."
+example = "Reduce iron ore into a pure iron ingot using coal as fuel."
+
+
+# ── Example Entries ──────────────────────────────────────────────
+
+[[examples]]
+id = "smelt_iron"
+name = "Smelt Iron"
+category = "smelting"
+inputs = "iron_ore_0:2|coal_0:1"
+outputs = "iron_ingot_0:1"
+byproducts = "slag_0:1:0.3"
+craft_time_sec = 10.0
+station_required = "smelter_0"
+skill_required = "smithing"
+skill_level = 1
+xp_reward = 15.0
+power_required_watts = 0.0
+temperature_required_c = 1538.0
+failure_chance = 0.05
+description = "Reduce iron ore into a pure iron ingot using coal as fuel."
+
+[[examples]]
+id = "craft_bandage"
+name = "Craft Bandage"
+category = "crafting"
+inputs = "cotton_cloth:2"
+outputs = "bandage_0:1"
+byproducts = ""
+craft_time_sec = 3.0
+station_required = ""
+skill_required = ""
+skill_level = 0
+xp_reward = 5.0
+power_required_watts = 0.0
+temperature_required_c = 0.0
+failure_chance = 0.0
+description = "Tear cotton cloth into strips and roll a basic bandage. Hand-craftable anywhere."
+
+[[examples]]
+id = "brew_healing_potion"
+name = "Brew Healing Potion"
+category = "alchemy"
+inputs = "glowcap_mushroom:2|purified_water:1|glass_vial:1"
+outputs = "healing_potion_0:1"
+byproducts = "alchemical_residue:1:0.2"
+craft_time_sec = 20.0
+station_required = "alchemy_stand"
+skill_required = "alchemy"
+skill_level = 3
+xp_reward = 30.0
+power_required_watts = 0.0
+temperature_required_c = 80.0
+failure_chance = 0.15
+description = "Brew a potion that restores health over time. Requires an alchemy stand and moderate heat."

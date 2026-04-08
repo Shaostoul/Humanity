@@ -1,0 +1,596 @@
+// HumanityOS NPC Definitions
+// 32 NPCs across tutorial, merchant, quest giver, service, companion, and ambient roles.
+// Loaded by AssetManager, hot-reloadable.
+//
+// Faction IDs reference a separate factions system (TBD).
+// Shop item IDs reference items.csv. Stock = starting quantity, restock_time_s = seconds to refill one unit.
+// Personality traits drive dialogue tone and AI behavior decisions.
+// Services define what interaction options the NPC offers.
+// essential = true means the NPC cannot be permanently killed (respawns after delay).
+// combat_style: melee, ranged, support, pacifist, magic
+
+[
+    // =========================================================================
+    // TUTORIAL / GUIDE (3)
+    // =========================================================================
+
+    (
+        id: "tutorial_guide",
+        name: "Ori",
+        title: "Tutorial Guide",
+        faction_id: "neutral",
+        personality: ["patient", "encouraging", "knowledgeable"],
+        services: ["tutorial", "tips"],
+        shop_items: [],
+        dialogue_intro: "Welcome, newcomer. I will walk you through everything you need to survive out here.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A calm mentor who introduces new players to core mechanics and controls",
+    ),
+
+    (
+        id: "survival_mentor",
+        name: "Brynn Ashwood",
+        title: "Survival Mentor",
+        faction_id: "settlers",
+        personality: ["gruff", "practical", "wise"],
+        services: ["training", "tips"],
+        shop_items: [
+            ("torch_0", 10, 600),
+            ("bandage_0", 10, 300),
+            ("water_bottle_0", 5, 600),
+        ],
+        dialogue_intro: "Out here, nature does not care about your feelings. Let me teach you how to stay alive.",
+        essential: true,
+        combat_style: "melee",
+        description: "A weathered survivalist who teaches foraging, shelter building, and wilderness skills",
+    ),
+
+    (
+        id: "combat_trainer",
+        name: "Kira Steelheart",
+        title: "Combat Trainer",
+        faction_id: "militia",
+        personality: ["disciplined", "stern", "fair"],
+        services: ["training", "sparring"],
+        shop_items: [
+            ("staff_0", 3, 1800),
+            ("shield_round_0", 2, 3600),
+            ("bandage_0", 10, 300),
+        ],
+        dialogue_intro: "Ready to learn how to defend yourself? Good. We start with the basics.",
+        essential: true,
+        combat_style: "melee",
+        description: "A seasoned warrior who teaches melee combat techniques and defensive tactics",
+    ),
+
+    // =========================================================================
+    // MERCHANTS (8)
+    // =========================================================================
+
+    (
+        id: "general_store",
+        name: "Milo Fenn",
+        title: "General Store Owner",
+        faction_id: "merchants_guild",
+        personality: ["friendly", "chatty", "honest"],
+        services: ["trade", "buy_back"],
+        shop_items: [
+            ("torch_0", 20, 300),
+            ("rope_0", 15, 600),
+            ("water_bottle_0", 10, 300),
+            ("bandage_0", 20, 300),
+            ("backpack_small_0", 3, 3600),
+            ("shovel_0", 5, 1800),
+            ("hoe_0", 5, 1800),
+            ("salt_food_0", 20, 600),
+        ],
+        dialogue_intro: "Welcome to Fenn's General! I have a little bit of everything. Take a look around.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A jovial shopkeeper stocking everyday supplies and basic tools",
+    ),
+
+    (
+        id: "blacksmith",
+        name: "Thorn Ironjaw",
+        title: "Blacksmith",
+        faction_id: "merchants_guild",
+        personality: ["stoic", "perfectionist", "reliable"],
+        services: ["trade", "repair", "upgrade"],
+        shop_items: [
+            ("hammer_0", 5, 1800),
+            ("pickaxe_0", 3, 3600),
+            ("axe_0", 3, 3600),
+            ("sword_0", 2, 7200),
+            ("iron_ingot_0", 20, 600),
+            ("steel_ingot_0", 10, 1200),
+            ("anvil_0", 1, 14400),
+        ],
+        dialogue_intro: "Every tool I forge is built to last. What do you need?",
+        essential: true,
+        combat_style: "melee",
+        description: "A master metalworker who forges, repairs, and upgrades weapons and tools",
+    ),
+
+    (
+        id: "alchemist",
+        name: "Sage Elara Mosswick",
+        title: "Alchemist",
+        faction_id: "scholars",
+        personality: ["eccentric", "curious", "meticulous"],
+        services: ["trade", "identify", "brew"],
+        shop_items: [
+            ("poultice_0", 10, 600),
+            ("herbal_tea_0", 15, 300),
+            ("flask_0", 10, 600),
+            ("bandage_0", 15, 300),
+            ("antidote_0", 5, 1200),
+        ],
+        dialogue_intro: "Ah, a visitor! Do be careful with that shelf. Some of those bottles bite.",
+        essential: true,
+        combat_style: "support",
+        description: "An eccentric herbalist selling potions, salves, and reagents from a cluttered shop",
+    ),
+
+    (
+        id: "tech_vendor",
+        name: "Zara Circuit",
+        title: "Tech Vendor",
+        faction_id: "tech_collective",
+        personality: ["enthusiastic", "nerdy", "fast_talking"],
+        services: ["trade", "repair"],
+        shop_items: [
+            ("circuit_board_0", 10, 1200),
+            ("wire_0", 30, 300),
+            ("battery_0", 10, 1200),
+            ("multimeter_0", 3, 3600),
+            ("soldering_iron_0", 3, 3600),
+            ("processor_0", 2, 7200),
+        ],
+        dialogue_intro: "You want the latest tech? I have components fresh off the fab line.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A fast-talking electronics dealer selling circuits, components, and gadgets",
+    ),
+
+    (
+        id: "weapon_dealer",
+        name: "Marcus Greystone",
+        title: "Arms Dealer",
+        faction_id: "militia",
+        personality: ["cautious", "businesslike", "secretive"],
+        services: ["trade", "repair", "upgrade"],
+        shop_items: [
+            ("knife_combat_0", 5, 3600),
+            ("sword_0", 3, 7200),
+            ("bow_recurve_0", 3, 3600),
+            ("crossbow_0", 2, 7200),
+            ("arrow_0", 100, 120),
+            ("bolt_crossbow_0", 60, 180),
+            ("shield_round_0", 3, 3600),
+        ],
+        dialogue_intro: "I do not ask what you need them for. I just make sure they work.",
+        essential: false,
+        combat_style: "ranged",
+        description: "A guarded arms dealer who stocks quality weapons and ammunition",
+    ),
+
+    (
+        id: "food_vendor",
+        name: "Hana Sunseed",
+        title: "Food Vendor",
+        faction_id: "settlers",
+        personality: ["warm", "generous", "talkative"],
+        services: ["trade", "cook"],
+        shop_items: [
+            ("bread_0", 15, 300),
+            ("dried_meat_0", 10, 600),
+            ("apple_0", 20, 300),
+            ("water_purified_0", 15, 300),
+            ("stew_0", 5, 600),
+            ("flour_0", 10, 600),
+            ("salt_food_0", 20, 300),
+        ],
+        dialogue_intro: "Hungry? Of course you are. Sit down, I will fix you something good.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A kindhearted cook who sells prepared meals, preserved food, and ingredients",
+    ),
+
+    (
+        id: "clothing_merchant",
+        name: "Lena Threadwell",
+        title: "Clothier",
+        faction_id: "merchants_guild",
+        personality: ["fashionable", "perceptive", "proud"],
+        services: ["trade", "tailor"],
+        shop_items: [
+            ("t_shirt_0", 10, 600),
+            ("pants_0", 10, 600),
+            ("boots_work_0", 5, 1800),
+            ("jacket_light_0", 5, 1800),
+            ("coat_winter_0", 3, 3600),
+            ("gloves_work_0", 8, 600),
+            ("backpack_large_0", 2, 7200),
+        ],
+        dialogue_intro: "You cannot face the world looking like that. Let me outfit you properly.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A proud clothier selling garments, armor padding, and protective wear",
+    ),
+
+    (
+        id: "vehicle_dealer",
+        name: "Rex Axlewright",
+        title: "Vehicle Dealer",
+        faction_id: "merchants_guild",
+        personality: ["boisterous", "confident", "persuasive"],
+        services: ["trade", "repair", "customize"],
+        shop_items: [
+            ("fuel_refined_0", 30, 300),
+            ("rubber_sheet_0", 10, 1200),
+            ("engine_gasoline_0", 2, 14400),
+            ("battery_0", 5, 3600),
+        ],
+        dialogue_intro: "Looking for wheels? I have got the fastest, toughest rides this side of the frontier.",
+        essential: false,
+        combat_style: "pacifist",
+        description: "A boisterous dealer selling vehicles, parts, and fuel from a roadside garage",
+    ),
+
+    // =========================================================================
+    // QUEST GIVERS (6)
+    // =========================================================================
+
+    (
+        id: "mayor",
+        name: "Governor Ada Hollowell",
+        title: "Town Mayor",
+        faction_id: "settlers",
+        personality: ["diplomatic", "pragmatic", "authoritative"],
+        services: ["quest", "bounty"],
+        shop_items: [],
+        dialogue_intro: "Our settlement needs capable hands. I have work that pays well, if you are up to it.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "The elected leader of the main settlement who assigns civic and defense quests",
+    ),
+
+    (
+        id: "explorer_guild_leader",
+        name: "Captain Dara Windrider",
+        title: "Explorer Guild Leader",
+        faction_id: "explorers",
+        personality: ["adventurous", "charismatic", "restless"],
+        services: ["quest", "map_reveal"],
+        shop_items: [
+            ("compass_0", 3, 7200),
+            ("rope_0", 10, 600),
+            ("torch_0", 15, 300),
+        ],
+        dialogue_intro: "The unknown is out there waiting. My guild maps the uncharted. Want in?",
+        essential: true,
+        combat_style: "ranged",
+        description: "Leader of the Explorer's Guild who sends adventurers into uncharted territory",
+    ),
+
+    (
+        id: "bounty_board",
+        name: "Marshal Cole Hawkins",
+        title: "Bounty Master",
+        faction_id: "militia",
+        personality: ["just", "no_nonsense", "observant"],
+        services: ["quest", "bounty", "reputation"],
+        shop_items: [],
+        dialogue_intro: "Trouble does not solve itself. Check the board. Every name has a price.",
+        essential: true,
+        combat_style: "ranged",
+        description: "A stern lawkeeper who manages wanted bounties and threat elimination contracts",
+    ),
+
+    (
+        id: "scientist",
+        name: "Dr. Yuki Tanaka",
+        title: "Lead Researcher",
+        faction_id: "scholars",
+        personality: ["analytical", "passionate", "absent_minded"],
+        services: ["quest", "research", "identify"],
+        shop_items: [
+            ("flask_0", 10, 600),
+            ("lens_0", 5, 1800),
+        ],
+        dialogue_intro: "Fascinating. You have arrived just in time. I need field samples from a very dangerous place.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A brilliant researcher who needs field data, samples, and test subjects for experiments",
+    ),
+
+    (
+        id: "farmer_elder",
+        name: "Elder Rowan Greenfield",
+        title: "Farming Elder",
+        faction_id: "settlers",
+        personality: ["gentle", "traditional", "patient"],
+        services: ["quest", "tips"],
+        shop_items: [
+            ("seed_bag_0", 20, 300),
+            ("hoe_0", 3, 1800),
+            ("water_bottle_0", 10, 300),
+        ],
+        dialogue_intro: "The soil speaks if you listen. Help me with the harvest and I will teach you its language.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A wise elder who assigns agricultural quests and teaches advanced farming techniques",
+    ),
+
+    (
+        id: "starship_captain",
+        name: "Commander Jace Voidborn",
+        title: "Starship Captain",
+        faction_id: "explorers",
+        personality: ["bold", "strategic", "inspiring"],
+        services: ["quest", "transport"],
+        shop_items: [],
+        dialogue_intro: "We are heading beyond the atmosphere. I need crew who can handle zero-g. Interested?",
+        essential: true,
+        combat_style: "ranged",
+        description: "An experienced space captain who recruits crew for orbital and deep-space missions",
+    ),
+
+    // =========================================================================
+    // SERVICES (5)
+    // =========================================================================
+
+    (
+        id: "healer",
+        name: "Sister Maren Dewgrace",
+        title: "Healer",
+        faction_id: "neutral",
+        personality: ["compassionate", "calm", "selfless"],
+        services: ["heal", "cure_disease", "revive"],
+        shop_items: [
+            ("bandage_0", 20, 120),
+            ("poultice_0", 10, 300),
+            ("antidote_0", 5, 600),
+            ("med_kit_advanced_0", 2, 3600),
+        ],
+        dialogue_intro: "You look hurt. Sit down, let me take a look. No charge for the desperate.",
+        essential: true,
+        combat_style: "support",
+        description: "A devoted healer who mends wounds, cures ailments, and revives fallen companions",
+    ),
+
+    (
+        id: "banker",
+        name: "Aldric Coinsworth",
+        title: "Banker",
+        faction_id: "merchants_guild",
+        personality: ["meticulous", "formal", "trustworthy"],
+        services: ["bank", "loan", "exchange"],
+        shop_items: [],
+        dialogue_intro: "Your assets are safe with Coinsworth Trust. How may I assist your finances today?",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A meticulous banker who manages deposits, loans, and currency exchange",
+    ),
+
+    (
+        id: "transporter",
+        name: "Wheels Donovan",
+        title: "Transporter",
+        faction_id: "merchants_guild",
+        personality: ["laid_back", "reliable", "adventurous"],
+        services: ["fast_travel", "cargo_delivery"],
+        shop_items: [
+            ("fuel_refined_0", 20, 300),
+        ],
+        dialogue_intro: "Need to get somewhere fast? Hop in. I know every road on this rock.",
+        essential: false,
+        combat_style: "pacifist",
+        description: "A well-traveled driver who offers fast travel and cargo delivery between settlements",
+    ),
+
+    (
+        id: "engineer",
+        name: "Chief Nadia Gearwright",
+        title: "Chief Engineer",
+        faction_id: "tech_collective",
+        personality: ["methodical", "creative", "blunt"],
+        services: ["repair", "upgrade", "blueprint"],
+        shop_items: [
+            ("wire_0", 20, 300),
+            ("bolt_box_0", 15, 600),
+            ("rubber_sheet_0", 10, 600),
+            ("circuit_board_0", 5, 1800),
+        ],
+        dialogue_intro: "Broken gear? Bring it here. If it was built by hands, my hands can fix it.",
+        essential: true,
+        combat_style: "pacifist",
+        description: "A skilled engineer who repairs complex machinery, upgrades equipment, and sells blueprints",
+    ),
+
+    (
+        id: "enchanter",
+        name: "Vesper Luminos",
+        title: "Enchanter",
+        faction_id: "scholars",
+        personality: ["mysterious", "soft_spoken", "perceptive"],
+        services: ["enchant", "disenchant", "identify"],
+        shop_items: [
+            ("lens_0", 5, 1800),
+            ("glass_pane_0", 10, 600),
+        ],
+        dialogue_intro: "Every object holds latent potential. I can awaken it, for the right price.",
+        essential: true,
+        combat_style: "magic",
+        description: "A mysterious artisan who imbues items with special properties and identifies rare finds",
+    ),
+
+    // =========================================================================
+    // COMPANIONS (5)
+    // =========================================================================
+
+    (
+        id: "scout_companion",
+        name: "Finch",
+        title: "Scout",
+        faction_id: "explorers",
+        personality: ["agile", "observant", "sarcastic"],
+        services: ["companion", "scout_ahead", "lockpick"],
+        shop_items: [],
+        dialogue_intro: "I see everything and I am faster than trouble. Try to keep up.",
+        essential: true,
+        combat_style: "ranged",
+        description: "A quick-witted scout who excels at reconnaissance, stealth, and spotting hazards",
+    ),
+
+    (
+        id: "medic_companion",
+        name: "Dr. Lian Xu",
+        title: "Field Medic",
+        faction_id: "neutral",
+        personality: ["caring", "brave", "pragmatic"],
+        services: ["companion", "heal", "cure_disease"],
+        shop_items: [],
+        dialogue_intro: "I did not study medicine to sit in a clinic. Let me patch you up out there.",
+        essential: true,
+        combat_style: "support",
+        description: "A courageous field medic who heals allies mid-combat and provides ongoing care",
+    ),
+
+    (
+        id: "fighter_companion",
+        name: "Bram Shieldbreaker",
+        title: "Warrior",
+        faction_id: "militia",
+        personality: ["loyal", "brave", "protective"],
+        services: ["companion", "tank", "intimidate"],
+        shop_items: [],
+        dialogue_intro: "Point me at the danger. I will stand between you and whatever comes.",
+        essential: true,
+        combat_style: "melee",
+        description: "A hulking warrior who draws enemy attention and absorbs damage for the team",
+    ),
+
+    (
+        id: "engineer_companion",
+        name: "Pip Sparkwrench",
+        title: "Field Engineer",
+        faction_id: "tech_collective",
+        personality: ["inventive", "optimistic", "tinkerer"],
+        services: ["companion", "repair", "deploy_turret"],
+        shop_items: [],
+        dialogue_intro: "Give me some scrap and five minutes. I will build something that solves the problem.",
+        essential: true,
+        combat_style: "support",
+        description: "A resourceful tinkerer who repairs gear in the field and deploys improvised gadgets",
+    ),
+
+    (
+        id: "mage_companion",
+        name: "Ashara Veil",
+        title: "Arcanist",
+        faction_id: "scholars",
+        personality: ["introspective", "powerful", "enigmatic"],
+        services: ["companion", "elemental_attack", "barrier"],
+        shop_items: [],
+        dialogue_intro: "The forces woven into this world are mine to call upon. Shall I demonstrate?",
+        essential: true,
+        combat_style: "magic",
+        description: "A gifted arcanist who wields elemental forces and deploys protective barriers",
+    ),
+
+    // =========================================================================
+    // AMBIENT (5)
+    // =========================================================================
+
+    (
+        id: "guard",
+        name: "Settlement Guard",
+        title: "Guard",
+        faction_id: "militia",
+        personality: ["dutiful", "alert", "gruff"],
+        services: ["directions", "report_crime"],
+        shop_items: [],
+        dialogue_intro: "Keep your nose clean and we will get along fine. Move along.",
+        essential: false,
+        combat_style: "melee",
+        description: "Armed patrol who maintains order in settlements and responds to threats",
+    ),
+
+    (
+        id: "farmer_npc",
+        name: "Farmhand",
+        title: "Farmer",
+        faction_id: "settlers",
+        personality: ["hardworking", "simple", "content"],
+        services: ["gossip", "trade"],
+        shop_items: [
+            ("apple_0", 10, 300),
+            ("wheat_0", 15, 300),
+            ("egg_0", 10, 600),
+        ],
+        dialogue_intro: "Fine weather for growing. Need some fresh produce?",
+        essential: false,
+        combat_style: "pacifist",
+        description: "A humble farmer who tends crops and sells surplus produce at low prices",
+    ),
+
+    (
+        id: "miner_npc",
+        name: "Tunnel Miner",
+        title: "Miner",
+        faction_id: "settlers",
+        personality: ["tough", "superstitious", "friendly"],
+        services: ["gossip", "trade"],
+        shop_items: [
+            ("iron_ore_0", 10, 600),
+            ("copper_ore_0", 10, 600),
+            ("coal_0", 15, 300),
+            ("stone_raw_0", 20, 300),
+        ],
+        dialogue_intro: "Fresh from the deep. Good ore today. You buying?",
+        essential: false,
+        combat_style: "melee",
+        description: "A sturdy miner who sells raw ores and stones gathered from nearby tunnels",
+    ),
+
+    (
+        id: "fisherman",
+        name: "Old Salt",
+        title: "Fisherman",
+        faction_id: "settlers",
+        personality: ["patient", "storyteller", "weathered"],
+        services: ["gossip", "trade"],
+        shop_items: [
+            ("fish_raw_0", 10, 300),
+            ("rope_0", 5, 600),
+            ("oil_fish_0", 5, 1200),
+        ],
+        dialogue_intro: "The sea gives and the sea takes. Today she gave plenty. Want some?",
+        essential: false,
+        combat_style: "pacifist",
+        description: "A weathered angler who sells fresh catch and shares tales of the sea",
+    ),
+
+    (
+        id: "bartender",
+        name: "Quinn Barlow",
+        title: "Bartender",
+        faction_id: "neutral",
+        personality: ["charismatic", "observant", "discreet"],
+        services: ["trade", "gossip", "rumor"],
+        shop_items: [
+            ("ale_0", 20, 120),
+            ("wine_0", 10, 300),
+            ("water_purified_0", 15, 120),
+            ("bread_0", 10, 300),
+            ("stew_0", 5, 600),
+        ],
+        dialogue_intro: "Pull up a stool. What will it be? I hear things, if you are looking for information.",
+        essential: false,
+        combat_style: "pacifist",
+        description: "A sharp-eyed tavern keeper who serves drinks and trades in rumors and local gossip",
+    ),
+]

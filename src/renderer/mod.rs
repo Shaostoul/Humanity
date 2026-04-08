@@ -3,11 +3,13 @@
 //! Configuration loaded from `config/renderer.toml`.
 //! Supports both native (winit window) and WASM (canvas) targets.
 
+pub mod bloom;
 pub mod camera;
 pub mod floating_origin;
 pub mod hologram;
 pub mod mesh;
 pub mod multi_scale;
+pub mod particles;
 pub mod pipeline;
 pub mod shader_loader;
 pub mod sky;
@@ -34,6 +36,7 @@ pub struct Material {
     pub base_color: [f32; 4],
     pub metallic: f32,
     pub roughness: f32,
+    pub emissive: f32,
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
 }
@@ -286,6 +289,7 @@ impl Renderer {
 
     /// Register a material with an explicit material_type and return its handle (index).
     /// material_type: 0 = default panel grid, 1 = brushed metal, 2 = concrete, 3 = wood.
+    /// emissive: 0.0 = no glow, 1.0+ = self-illuminating (sun, lava, neon lights).
     pub fn add_material_typed(
         &mut self,
         base_color: [f32; 4],
@@ -293,9 +297,21 @@ impl Renderer {
         roughness: f32,
         material_type: f32,
     ) -> usize {
+        self.add_material_full(base_color, metallic, roughness, material_type, 0.0)
+    }
+
+    /// Register a material with all parameters including emissive.
+    pub fn add_material_full(
+        &mut self,
+        base_color: [f32; 4],
+        metallic: f32,
+        roughness: f32,
+        material_type: f32,
+        emissive: f32,
+    ) -> usize {
         let uniforms = MaterialUniforms {
             base_color,
-            params: [metallic, roughness, material_type, 0.0],
+            params: [metallic, roughness, material_type, emissive],
         };
         let buffer = self
             .device
@@ -317,6 +333,7 @@ impl Renderer {
             base_color,
             metallic,
             roughness,
+            emissive,
             buffer,
             bind_group,
         });

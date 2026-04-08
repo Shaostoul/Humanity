@@ -1,0 +1,203 @@
+# HumanityOS Item Schema
+# Defines the format for entries in data/items.csv
+#
+# Items are everything a player can pick up, wear, place, drive, or consume.
+# Each row in items.csv describes one item with its physical properties.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (changes apply without restart)
+# Referenced by: data/recipes.csv (as inputs and outputs)
+# References: data/materials.csv (via base_material field)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this item. Use snake_case.
+The _0 suffix marks the "default style variant" of an item. For example,
+t_shirt_0 is the plain default t-shirt. Future style variants would be
+t_shirt_1, t_shirt_2, etc. with different visuals but the same stats.
+When creating a brand new item, always start with the _0 variant."""
+constraints = "snake_case, unique across all items, should end in _0 for the base variant"
+examples = ["t_shirt_0", "hammer_0", "solar_panel_0", "wheat_seed_0"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable display name shown in inventories, tooltips, and the market."
+constraints = "Title Case, keep under 40 characters"
+examples = ["T-Shirt", "Claw Hammer", "Solar Panel", "Wheat Seed"]
+
+[fields.category]
+type = "string"
+required = true
+description = "Primary classification that determines how the game treats this item (equip slots, placement rules, physics behavior)."
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "clothing",    # Wearable on the player body (has equip slots)
+    "tool",        # Held in hand, used for gathering/building/repair
+    "weapon",      # Held in hand, deals damage
+    "furniture",   # Placed in the world, may have interaction (sit, sleep, store)
+    "food",        # Consumable, restores hunger/health/buffs
+    "material",    # Raw or processed crafting ingredient (ore, ingot, plank)
+    "machine",     # Placed in the world, performs crafting/processing/power
+    "vehicle",     # Drivable/pilotable transport
+    "container",   # Stores other items (chest, barrel, locker)
+    "decoration",  # Placed in the world, cosmetic only
+    "medical",     # Consumable or usable, restores health or cures conditions
+    "electronics", # Placed or carried, requires power, provides utility
+]
+
+[fields.subcategory]
+type = "string"
+required = true
+description = """
+More specific grouping within the category. Used for inventory filtering
+and crafting station requirements. There is no fixed list of subcategories;
+pick a clear, short label that groups similar items together."""
+constraints = "snake_case, descriptive"
+examples = [
+    "top",          # clothing worn on torso
+    "bottom",       # clothing worn on legs
+    "outerwear",    # clothing worn over other layers
+    "hand_tool",    # non-powered tools
+    "power_tool",   # electrically powered tools
+    "melee",        # close-range weapons
+    "ranged",       # projectile weapons
+    "seed",         # plantable food items
+    "grain",        # harvested grain crops
+    "ore",          # raw mined material
+    "ingot",        # smelted metal
+]
+
+[fields.base_material]
+type = "string"
+required = true
+description = """
+The primary material this item is made from. Must match an id in
+data/materials.csv. This determines the item's physical behavior
+(thermal resistance, durability scaling, sound effects on impact)
+and affects recycling yields."""
+constraints = "Must be a valid material id from materials.csv"
+examples = ["cotton", "steel", "oak", "glass", "rubber"]
+
+[fields.weight_kg]
+type = "float"
+required = true
+default = 1.0
+description = "Mass of one unit of this item in kilograms. Affects carry capacity and physics."
+constraints = "Must be > 0"
+examples = [0.2, 1.5, 25.0, 500.0]
+
+[fields.stack_size]
+type = "integer"
+required = true
+default = 1
+description = """
+Maximum number of this item that fit in one inventory slot.
+Use 1 for unique or large items (furniture, vehicles, machines).
+Use higher values for small consumables and materials."""
+constraints = "Must be >= 1"
+examples = [1, 5, 10, 50, 100]
+
+[fields.durability]
+type = "integer"
+required = true
+default = 100
+description = """
+Maximum durability points before the item breaks or is consumed.
+Each use or hit reduces durability. Set to 0 for items that are
+consumed instantly (food, seeds) or are indestructible."""
+constraints = "Must be >= 0"
+examples = [0, 60, 100, 500, 2000]
+
+[fields.volume_liters]
+type = "float"
+required = false
+default = 0.0
+description = """
+Volume of the item in liters. Used for two purposes:
+1. Container items: how much storage space the container provides.
+2. All items: how much space this item occupies inside a container.
+If omitted or 0, the game estimates volume from weight and base_material density."""
+constraints = "Must be >= 0"
+examples = [0.5, 2.0, 50.0, 200.0]
+
+[fields.description]
+type = "string"
+required = true
+description = "One-sentence description of the item. Shown in tooltips and the encyclopedia."
+constraints = "Keep under 80 characters. Start with a capital letter, no trailing period needed."
+examples = [
+    "Basic short-sleeve cotton shirt",
+    "Curved claw hammer for nails and light demolition",
+    "Photovoltaic panel that generates power from sunlight",
+]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+materials = """
+Every item has a base_material that points to a row in materials.csv.
+The material's physical properties (density, hardness, flexibility) influence
+how the item behaves in the physics engine and how durable it is over time."""
+
+recipes = """
+Items appear in recipes.csv as both inputs and outputs.
+  - As input:  the recipe consumes this item (e.g., iron_ingot_0 to craft a hammer)
+  - As output: the recipe produces this item (e.g., hammer_0 from a crafting recipe)
+An item can appear in many recipes. Check recipes.csv to see all uses."""
+
+components = """
+Complex items (machines, vehicles, electronics) are often assembled from
+components defined in components.csv. The recipe's input list will reference
+component ids rather than raw materials directly."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+variant_suffix = """
+The _0 suffix convention:
+  hammer_0     = default hammer (basic wood handle, steel head)
+  hammer_1     = upgraded variant (fiberglass handle, titanium head)
+  hammer_2     = decorative variant (gold-plated, same stats as _0)
+All variants of the same base item share the same name prefix. The game
+uses this to group variants in the crafting menu and style selector.
+Always create _0 first. Only add _1, _2 etc. when there is a distinct
+visual or material difference worth offering."""
+
+id_naming = """
+Use snake_case for all ids. Keep them short but descriptive.
+  Good: solar_panel_0, iron_ore_0, leather_boots_0
+  Bad:  SolarPanel0, IRON_ORE, leather-boots"""
+
+csv_formatting = """
+  - Use # for comment lines (section headers, notes)
+  - No spaces after commas
+  - Descriptions must not contain commas (or wrap in quotes)
+  - One item per line, header row is required"""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLE ROW
+# ---------------------------------------------------------------------------
+
+[example]
+csv_row = "claw_hammer_0,Claw Hammer,tool,hand_tool,steel,0.7,1,300,Curved claw hammer for nails and light demolition"
+breakdown = """
+  id             = claw_hammer_0     (unique id, default variant)
+  name           = Claw Hammer       (display name)
+  category       = tool              (held in hand, used for building)
+  subcategory    = hand_tool         (non-powered tool)
+  base_material  = steel             (references steel in materials.csv)
+  weight_kg      = 0.7              (700 grams)
+  stack_size     = 1                (one per inventory slot)
+  durability     = 300              (breaks after 300 uses)
+  description    = Curved claw hammer for nails and light demolition"""

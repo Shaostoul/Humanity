@@ -1,0 +1,529 @@
+# HumanityOS Faction Schema
+# Defines the format for faction/organization data files.
+#
+# Factions are the social and political structures of the game world. Every NPC
+# belongs to a faction. The player can build standing with factions to unlock
+# quests, recipes, items, and trade opportunities. Factions have relationships
+# with each other that create dynamic world politics: allying with one faction
+# may anger its rivals.
+#
+# File format: RON (planned: data/factions/*.ron, one file per faction)
+# Hot-reloadable: Yes (FileWatcher triggers re-parse without restart)
+# Engine struct: Faction component (native/src/ecs/components.rs) -- currently minimal
+# Referenced by: QuestDef (prerequisite_faction_standing, reputation_reward),
+#                NPC behavior AI, trade system, territory control
+# References: data/quests/*.ron (exclusive quests), data/recipes.csv (exclusive recipes),
+#             data/items.csv (exclusive items), NPC ids, biome ids, location ids
+
+# ---------------------------------------------------------------------------
+# HOW FACTIONS WORK
+# ---------------------------------------------------------------------------
+#
+# The faction system affects nearly every game system:
+#
+# NPC BEHAVIOR: Each NPC has a faction_id component. Their AI uses the player's
+# standing with that faction to determine behavior:
+#   standing >= 50   -> Friendly: offers best prices, shares intel, gives quests
+#   standing 0-49    -> Neutral: standard prices, basic interactions
+#   standing -1..-49 -> Suspicious: inflated prices, refuses some services
+#   standing <= -50  -> Hostile: attacks on sight, bounties issued
+#
+# QUEST AVAILABILITY: Faction quests require minimum standing to accept.
+# Completing them raises standing with that faction and may lower standing
+# with rival factions based on the inter-faction relations table.
+#
+# TRADING: Faction members get access to exclusive items and recipes.
+# tax_rate determines the faction's cut of trades at their outposts.
+# Higher standing reduces effective tax rate (loyalty discount).
+#
+# TERRITORY: Factions control regions of the map (territory_biomes).
+# In faction territory, their NPCs patrol, their rules apply, and their
+# trade outposts are active. Contested territories have NPCs from multiple
+# factions, creating dynamic conflict zones.
+#
+# WORLD POLITICS: Inter-faction relations create a web of alliances and
+# rivalries. When the player gains standing with faction A, they may lose
+# standing with A's enemies. This forces meaningful choices about allegiance.
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this faction. Referenced by NPC faction_id components,
+quest prerequisite_faction_standing, and reputation_reward fields. Also used
+as the key in the faction relations table."""
+constraints = "snake_case, globally unique"
+examples = ["miners_guild", "federation", "trade_consortium", "void_pirates", "terra_collective"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable faction name displayed in the UI, reputation panel, and NPC dialogue."
+constraints = "Title Case, under 40 characters"
+examples = ["Miners Guild", "United Federation", "Void Pirates", "Terra Collective"]
+
+[fields.description]
+type = "string"
+required = true
+description = """
+Paragraph describing the faction's history, purpose, and role in the world.
+Shown in the faction info panel and encyclopedia."""
+constraints = "2-4 sentences, under 400 characters"
+examples = [
+    "A loose confederation of asteroid miners who control the richest ore veins in the belt. They value hard work, mutual aid, and fair shares of the haul.",
+]
+
+[fields.motto]
+type = "string"
+required = false
+default = '""'
+description = "Short faction motto or slogan displayed under the faction name in UI panels."
+constraints = "Under 60 characters"
+examples = ["Dig deep, share fair.", "Order through strength.", "Profit is the only truth."]
+
+[fields.type]
+type = "enum"
+required = true
+description = """
+Primary classification that affects AI behavior templates, territory rules,
+and available interaction types."""
+valid_values = [
+    "government",    # Territorial authority, enforces laws, collects taxes
+    "corporation",   # Profit-driven, controls markets and production
+    "guild",         # Skill-based membership, controls specialized labor
+    "religious",     # Ideology-driven, controls cultural sites
+    "criminal",      # Operates outside the law, black market access
+    "military",      # Combat-focused, controls strategic locations
+    "scientific",    # Research-focused, controls tech and knowledge
+    "trade",         # Commerce-focused, runs trade routes and markets
+    "nomadic",       # No fixed territory, mobile camps and caravans
+    "alien",         # Non-human faction, unique interaction rules
+]
+constraints = "Must be one of the listed values"
+
+[fields.alignment]
+type = "enum"
+required = true
+description = """
+Moral and ethical alignment that influences NPC decision-making, dialogue tone,
+and how the faction responds to player actions. Uses the classic 3x3 grid."""
+valid_values = [
+    "lawful_good",      # Follows rules, acts altruistically
+    "neutral_good",     # Flexible methods, good intentions
+    "chaotic_good",     # Rejects authority, helps the vulnerable
+    "lawful_neutral",   # Strict order, impartial justice
+    "true_neutral",     # Pragmatic, avoids extremes
+    "chaotic_neutral",  # Values freedom above all, unpredictable
+    "lawful_evil",      # Uses systems and rules for selfish gain
+    "neutral_evil",     # Purely self-interested, no principles
+    "chaotic_evil",     # Destructive, anarchic, predatory
+]
+constraints = "Must be one of the listed values"
+
+[fields.territory_biomes]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+Biome ids where this faction has territorial presence. NPCs of this faction
+will patrol these biomes, and the faction's trade outposts spawn here.
+Multiple factions can share biomes (creating contested territory).
+Biome ids reference the terrain system's biome definitions."""
+constraints = "Each entry must be a valid biome id"
+examples = [
+    '["asteroid_belt", "mining_station"]',
+    '["forest", "plains", "river_valley"]',
+    '["deep_space", "void_station"]',
+]
+
+[fields.headquarters_location_id]
+type = "string"
+required = false
+default = "None"
+description = """
+Location id of the faction's main base. This is where the faction leader
+resides, where top-tier faction vendors operate, and where the highest-rank
+perks are available. Format: Some('location_id') or None (for nomadic factions)."""
+constraints = "Must be a valid location id"
+examples = ['None', 'Some("station_alpha")', 'Some("guild_hall_central")']
+
+[fields.leader_npc_id]
+type = "string"
+required = false
+default = "None"
+description = """
+NPC id of the faction's current leader. The leader is used for special dialogue,
+high-level quest chains, and faction event triggers. Format: Some('npc_id') or None."""
+constraints = "Must be a valid NPC id"
+examples = ['None', 'Some("npc_foreman_kade")', 'Some("npc_admiral_voss")']
+
+[fields.notable_npcs]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+List of NPC ids who are prominent members of this faction. These NPCs may
+serve as quest givers, vendors, trainers, or story characters. Does not
+include the leader (listed separately)."""
+constraints = "Each entry must be a valid NPC id"
+examples = ['["npc_merchant_ava", "npc_smith_borr", "npc_scout_lin"]']
+
+[fields.relations]
+type = "list of (string, integer) tuples"
+required = false
+default = "[]"
+description = """
+Starting relations with other factions. Each entry is a tuple of
+(faction_id, standing) where standing ranges from -100 (mortal enemies)
+to 100 (unbreakable allies). Relations are bidirectional by convention:
+if faction A has B at 50, faction B should have A at 50.
+
+Standing thresholds:
+   75 to  100  -> Allied (will fight alongside, share territory)
+   25 to   74  -> Friendly (trade bonuses, intel sharing)
+  -24 to   24  -> Neutral (standard interactions)
+  -74 to  -25  -> Hostile (trade embargo, deny access to territory)
+ -100 to  -75  -> War (attack on sight, active conflict)
+
+When the player gains standing with a faction, rival factions (negative
+relation values) reduce the player's standing proportionally."""
+constraints = "Faction ids must exist. Standing is -100 to 100."
+examples = [
+    '[("federation", 50), ("void_pirates", -80), ("trade_consortium", 30)]',
+    '[("miners_guild", -20), ("federation", 60)]',
+]
+
+[fields.join_requirements]
+type = "struct"
+required = false
+default = "None"
+description = """
+What the player must achieve to become a member of this faction. Membership
+unlocks exclusive quests, recipes, items, and rank progression. Format is
+a RON struct with optional fields:
+
+  (
+      level: 5,                              // Minimum player level
+      quest_id: Some("miners_initiation"),   // Quest that must be completed
+      item_id: Some(("guild_token", 3)),     // Items consumed on joining
+      skill: Some(("mining", 3)),            // Minimum skill level
+  )
+
+All listed requirements must be met. Use None for the overall field if
+the faction has no join restrictions (open membership)."""
+constraints = "All referenced ids must exist in their respective data files"
+
+[fields.ranks]
+type = "list of rank structs"
+required = false
+default = "[]"
+description = """
+Progression ranks within the faction. Higher ranks unlock better perks,
+deeper quest lines, and higher-tier vendor access. Each rank is:
+
+  (
+      id: "rank_id",
+      name: "Rank Name",
+      min_standing: 25,          // Standing threshold to reach this rank
+      perks: ["discount_10", "exclusive_vendor_tier_2"],
+  )
+
+Ranks are evaluated in order: the player holds the highest rank whose
+min_standing they meet."""
+constraints = "min_standing values should increase. Perk ids should be recognized by the perk system."
+examples = ['''
+[
+    (id: "initiate",  name: "Initiate",  min_standing: 0,  perks: ["faction_chat"]),
+    (id: "member",    name: "Member",    min_standing: 25, perks: ["discount_5", "vendor_tier_1"]),
+    (id: "veteran",   name: "Veteran",   min_standing: 50, perks: ["discount_10", "vendor_tier_2", "faction_housing"]),
+    (id: "elder",     name: "Elder",     min_standing: 75, perks: ["discount_20", "vendor_tier_3", "faction_craft_station"]),
+]
+''']
+
+[fields.exclusive_recipes]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+Recipe ids from data/recipes.csv that are ONLY available to faction members.
+These recipes do not appear in the crafting menu for non-members. Used to
+make faction membership mechanically meaningful."""
+constraints = "Each entry must be a valid recipe id from recipes.csv"
+examples = ['["titanium_alloy", "guild_armor"]', '["pirate_explosive", "stealth_cloak"]']
+
+[fields.exclusive_items]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+Item ids from data/items.csv that can only be purchased from or given by
+this faction's vendors. Non-members cannot buy these items even if they
+find the vendor."""
+constraints = "Each entry must be a valid item id from items.csv"
+examples = ['["guild_badge_0", "miners_pickaxe_0"]']
+
+[fields.exclusive_quests]
+type = "list of string"
+required = false
+default = "[]"
+description = """
+Quest ids that only appear for faction members. These quests provide the
+deepest content and best rewards for committed members. The quest's own
+prerequisite_faction_standing field provides additional standing gates
+within the faction."""
+constraints = "Each entry must be a valid quest id"
+examples = ['["faction_miners_deep_vein", "faction_miners_motherlode"]']
+
+[fields.tax_rate]
+type = "float"
+required = false
+default = 0.0
+description = """
+Fraction of trade value collected by the faction on transactions at their
+outposts. 0.0 = no tax, 1.0 = 100% tax (would never be used). Typical
+range is 0.05 to 0.20. Higher-rank members get reduced effective tax rates
+as a perk. Criminal factions may have 0 tax but mark up black market prices."""
+constraints = "Must be 0.0 to 1.0"
+examples = [0.0, 0.05, 0.10, 0.15, 0.20]
+
+[fields.color_hex]
+type = "string"
+required = false
+default = '"#808080"'
+description = """
+Hex color used for this faction's UI elements: reputation bar, map territory
+overlay, NPC name tags, and faction badge backgrounds."""
+constraints = "6-digit hex color with # prefix"
+examples = ['"#D4A017"', '"#2E86C1"', '"#C0392B"', '"#27AE60"']
+
+[fields.emblem_id]
+type = "string"
+required = false
+default = "None"
+description = """
+Asset id for the faction's emblem/logo displayed in the reputation panel,
+faction info screen, and on faction-owned structures. References an image
+in assets/icons/factions/. Format: Some('emblem_id') or None."""
+constraints = "Must reference a valid asset in assets/icons/factions/"
+examples = ['None', 'Some("emblem_miners_guild")', 'Some("emblem_federation")']
+
+[fields.ideology_tags]
+type = "string"
+required = false
+default = '""'
+description = """
+Pipe-separated list of ideology tags that characterize the faction's values
+and worldview. Used by the AI system to generate contextual NPC dialogue
+and by the quest system to create thematically appropriate procedural quests.
+Tags also affect how factions react to player actions (e.g., a 'nature'
+faction penalizes mining in their territory)."""
+constraints = "Pipe-separated, each tag from the recognized set"
+valid_tags = [
+    "technology",   # Values innovation, automation, research
+    "nature",       # Values ecology, preservation, sustainability
+    "magic",        # Values mystical arts, ancient knowledge
+    "trade",        # Values commerce, profit, economic growth
+    "war",          # Values military strength, conquest
+    "peace",        # Values diplomacy, cooperation, non-violence
+    "exploration",  # Values discovery, mapping, frontier expansion
+    "isolation",    # Values self-sufficiency, closed borders
+    "order",        # Values hierarchy, rules, structure
+    "freedom",      # Values individual liberty, minimal governance
+]
+examples = ['"technology|trade|order"', '"nature|peace|isolation"', '"war|exploration"']
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS: HOW FACTIONS CONNECT TO OTHER SYSTEMS
+# ---------------------------------------------------------------------------
+
+[relationships]
+
+npcs = """
+Every NPC has a Faction component with a faction_id. This determines:
+  - Which faction quests the NPC can give
+  - What items the NPC sells (faction exclusive items)
+  - How the NPC reacts to the player (based on player's standing)
+  - Whether the NPC is hostile, neutral, or friendly
+  - What dialogue options are available
+The leader_npc_id and notable_npcs fields link to specific NPC definitions."""
+
+quests = """
+Factions connect to quests three ways:
+  1. exclusive_quests: Only faction members see these quests
+  2. Quest prerequisite_faction_standing: Minimum standing to accept
+  3. Quest reputation_reward: Standing gained/lost on completion
+Faction quest chains are the primary mechanism for building standing."""
+
+territory = """
+territory_biomes defines where the faction has influence. In faction territory:
+  - Faction NPCs patrol and enforce rules
+  - Faction vendors and services are available
+  - The faction's tax_rate applies to trades
+  - Ideology tags affect what actions are permitted/penalized
+Overlapping territories create contested zones with dynamic conflict."""
+
+trading = """
+Factions affect the trade system through:
+  - tax_rate: Percentage taken from trades at faction outposts
+  - exclusive_items: Items only available to members
+  - Rank-based vendor tiers: Higher ranks access better inventory
+  - Standing-based price modifiers: Higher standing = better prices
+  - Trade embargoes: Hostile factions refuse to trade entirely"""
+
+world_politics = """
+The relations table creates a political web. Key mechanics:
+  - Gaining standing with faction A reduces standing with A's enemies
+  - Allied factions share intel about player actions
+  - War-state factions generate dynamic combat encounters
+  - The player cannot be allied with mutually hostile factions
+  - Faction politics evolve over time based on world events"""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+
+file_organization = """
+Planned layout: data/factions/*.ron, one file per faction. Each file contains
+a single FactionDef struct. File names match the faction id:
+  miners_guild.ron
+  federation.ron
+  void_pirates.ron
+  trade_consortium.ron"""
+
+id_naming = """
+Use snake_case for all faction ids. Keep them short and descriptive.
+  Good: miners_guild, void_pirates, terra_collective
+  Bad:  MinersGuild, FACTION_1, the-federation"""
+
+relation_symmetry = """
+Keep inter-faction relations symmetric. If miners_guild has federation at 50,
+then federation should have miners_guild at 50. The engine does not enforce
+this automatically, so modders must maintain consistency manually."""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[examples]
+
+guild_faction = """
+A professional guild with join requirements, ranks, and exclusive content:
+
+(
+    id: "miners_guild",
+    name: "Miners Guild",
+    description: "A loose confederation of asteroid miners who control the richest ore veins in the belt. They value hard work, mutual aid, and fair shares of the haul.",
+    motto: "Dig deep, share fair.",
+    type: "guild",
+    alignment: "neutral_good",
+    territory_biomes: ["asteroid_belt", "mining_station", "refinery_district"],
+    headquarters_location_id: Some("guild_hall_belt_station"),
+    leader_npc_id: Some("npc_foreman_kade"),
+    notable_npcs: ["npc_merchant_ava", "npc_smith_borr", "npc_surveyor_lin"],
+    relations: [
+        ("federation", 40),
+        ("trade_consortium", 30),
+        ("void_pirates", -60),
+        ("terra_collective", 15),
+    ],
+    join_requirements: Some((
+        level: 3,
+        quest_id: Some("faction_miners_initiation"),
+        item_id: Some(("ore_sample", 5)),
+        skill: Some(("mining", 2)),
+    )),
+    ranks: [
+        (id: "apprentice", name: "Apprentice", min_standing: 0,  perks: ["guild_chat", "guild_bunkhouse"]),
+        (id: "miner",      name: "Miner",      min_standing: 20, perks: ["discount_5", "vendor_tier_1"]),
+        (id: "foreman",    name: "Foreman",     min_standing: 50, perks: ["discount_10", "vendor_tier_2", "guild_quarters"]),
+        (id: "master",     name: "Master Miner",min_standing: 80, perks: ["discount_20", "vendor_tier_3", "guild_workshop", "vote_council"]),
+    ],
+    exclusive_recipes: ["titanium_alloy", "reinforced_drill_bit", "guild_armor"],
+    exclusive_items: ["guild_badge_0", "miners_pickaxe_0", "deep_scanner_0"],
+    exclusive_quests: ["faction_miners_deep_vein", "faction_miners_motherlode", "faction_miners_council_seat"],
+    tax_rate: 0.08,
+    color_hex: "#D4A017",
+    emblem_id: Some("emblem_miners_guild"),
+    ideology_tags: "technology|trade|order",
+)"""
+
+criminal_faction = """
+A criminal organization with no formal join requirements but hostile relations:
+
+(
+    id: "void_pirates",
+    name: "Void Pirates",
+    description: "Raiders and smugglers who prey on shipping lanes and undefended outposts. They answer to no law but their own code: take what you can, give nothing back.",
+    motto: "Take what you can.",
+    type: "criminal",
+    alignment: "chaotic_evil",
+    territory_biomes: ["deep_space", "abandoned_station", "nebula"],
+    headquarters_location_id: Some("pirate_haven_nebula"),
+    leader_npc_id: Some("npc_captain_mara"),
+    notable_npcs: ["npc_fence_dex", "npc_smuggler_ren"],
+    relations: [
+        ("federation", -80),
+        ("miners_guild", -60),
+        ("trade_consortium", -70),
+        ("terra_collective", -40),
+    ],
+    join_requirements: None,
+    ranks: [
+        (id: "grunt",    name: "Grunt",     min_standing: 0,  perks: ["black_market_access"]),
+        (id: "raider",   name: "Raider",    min_standing: 30, perks: ["smuggler_routes", "discount_10"]),
+        (id: "captain",  name: "Captain",   min_standing: 60, perks: ["pirate_ship_access", "bounty_board"]),
+        (id: "warlord",  name: "Warlord",   min_standing: 90, perks: ["fleet_command", "raid_planning"]),
+    ],
+    exclusive_recipes: ["pirate_explosive", "stealth_cloak", "signal_jammer"],
+    exclusive_items: ["pirate_flag_0", "contraband_cache_0"],
+    exclusive_quests: ["faction_pirates_first_raid", "faction_pirates_smuggler_run"],
+    tax_rate: 0.0,
+    color_hex: "#C0392B",
+    emblem_id: Some("emblem_void_pirates"),
+    ideology_tags: "war|freedom",
+)"""
+
+nomadic_faction = """
+A peaceful nomadic faction with no territory and minimal hierarchy:
+
+(
+    id: "star_wanderers",
+    name: "Star Wanderers",
+    description: "Nomadic traders and storytellers who travel between settlements. They carry news, rare goods, and ancient knowledge from the far reaches of explored space.",
+    motto: "Every star a story.",
+    type: "nomadic",
+    alignment: "chaotic_good",
+    territory_biomes: [],
+    headquarters_location_id: None,
+    leader_npc_id: None,
+    notable_npcs: ["npc_elder_sola", "npc_trader_venn"],
+    relations: [
+        ("federation", 20),
+        ("miners_guild", 25),
+        ("trade_consortium", 40),
+        ("void_pirates", -10),
+    ],
+    join_requirements: Some((
+        level: 1,
+        quest_id: Some("wanderers_welcome"),
+        item_id: None,
+        skill: None,
+    )),
+    ranks: [
+        (id: "traveler", name: "Traveler", min_standing: 0,  perks: ["caravan_access"]),
+        (id: "pathfinder", name: "Pathfinder", min_standing: 40, perks: ["rare_trade_goods", "star_map"]),
+    ],
+    exclusive_recipes: ["star_compass", "wanderer_tent"],
+    exclusive_items: ["wanderer_cloak_0"],
+    exclusive_quests: ["wanderers_star_map", "wanderers_lost_caravan"],
+    tax_rate: 0.0,
+    color_hex: "#8E44AD",
+    emblem_id: Some("emblem_star_wanderers"),
+    ideology_tags: "trade|exploration|peace",
+)"""

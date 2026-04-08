@@ -1,0 +1,134 @@
+# HumanityOS Enchantments Database
+# Magical and technological enhancements for items and equipment
+#
+# Schema: schemas/enchantment.toml
+# Hot-reloadable: Yes (changes apply without restart)
+# Mods: Add or override rows to customize enchantments
+#
+# id,name,type,applicable_to,rarity,level_required,skill_required,skill_level,mana_cost,reagents,stat_modifiers,bonus_damage,bonus_damage_type,bonus_armor,special_effect,duration_s,max_stacks,conflicts_with,visual_effect,description
+#
+# === UNIVERSAL ENCHANTS (apply to any item type) ===
+indestructible,Indestructible,legendary,any,mythic,30,enchanting,15,200.0,eternal_crystal:1|arcane_dust:20|diamond:5,durability:999999:set,0.0,,0.0,,0.0,1,fragile|decay,#FFFFFF;holy_motes,Makes the item virtually impossible to break or degrade
+featherweight,Featherweight,utility,any,uncommon,3,enchanting,2,15.0,arcane_dust:2|feather_0:5,weight_kg:0.5:multiply,0.0,,0.0,,0.0,1,heavy,#88CCFF;none,Reduces item weight by half through gravitational enchantment
+auto_repair,Auto-Repair,utility,any,rare,10,enchanting,6,40.0,arcane_dust:5|iron_ingot:3|clockwork_gear:1,durability:1:add,0.0,,0.0,,0.0,1,,#44FF44;sparks,Slowly restores durability over time while not in use
+luminous,Luminous,utility,any,common,1,enchanting,1,5.0,arcane_dust:1|glowstone_dust:2,,0.0,,0.0,,0.0,1,,#FFFF88;holy_motes,Emits a soft persistent glow illuminating nearby area
+silent,Silent,utility,any,uncommon,5,enchanting,3,20.0,arcane_dust:3|shadow_silk:2,,0.0,,0.0,,0.0,1,noisy,#333355;shadow_wisps,Completely muffles all sound produced by the item
+thermal_insulation,Thermal Insulation,protective,any,common,2,enchanting,1,10.0,arcane_dust:1|wool_0:4,,0.0,,0.0,buff_warm,0.0,1,,#FF8844;none,Protects the user from extreme heat and cold
+waterproof,Waterproof,protective,any,common,2,enchanting,1,10.0,arcane_dust:1|wax_0:3,,0.0,,0.0,,0.0,1,,#4488FF;none,Seals the item against water damage and submersion
+fireproof,Fireproof,protective,any,uncommon,5,enchanting,3,20.0,arcane_dust:3|fire_salt:2,,0.0,,0.0,buff_fire_immune,0.0,1,,#FF4400;none,Renders the item immune to fire and heat damage
+shock_absorbing,Shock Absorbing,protective,any,uncommon,4,enchanting,2,15.0,arcane_dust:2|rubber_0:3,,0.0,,0.0,,0.0,1,,#CCCC00;none,Dampens impact forces protecting both item and user
+camouflage,Camouflage,utility,any,rare,8,enchanting,5,35.0,arcane_dust:4|chameleon_scale:2,,0.0,,0.0,buff_stealth,0.0,1,,#228833;shadow_wisps,Blends the item into its surroundings reducing visibility
+#
+# === WEAPON ENCHANTS ===
+sharpness,Sharpness,offensive,weapon,common,1,enchanting,1,10.0,arcane_dust:1,damage:5:add,5.0,,0.0,,0.0,3,,#CCCCCC;sparks,Hones the blade to a razor edge increasing base damage
+fire_imbue,Fire Imbue,elemental,weapon,uncommon,5,enchanting,3,25.0,arcane_dust:2|sulfur_0:3,,15.0,fire,0.0,debuff_burning,0.0,1,ice_imbue|lightning_imbue|poison_imbue,#FF4400;flames,Wraps the weapon in flames adding fire damage and a chance to ignite
+ice_imbue,Ice Imbue,elemental,weapon,uncommon,5,enchanting,3,25.0,arcane_dust:2|frost_crystal:3,,15.0,ice,0.0,debuff_chilled,0.0,1,fire_imbue|lightning_imbue|poison_imbue,#44CCFF;frost,Coats the weapon in frost adding ice damage and slowing targets
+lightning_imbue,Lightning Imbue,elemental,weapon,uncommon,5,enchanting,3,25.0,arcane_dust:2|charged_quartz:3,,15.0,lightning,0.0,debuff_shocked,0.0,1,fire_imbue|ice_imbue|poison_imbue,#FFFF00;lightning_arcs,Channels electricity through the weapon with a chance to stun
+poison_imbue,Poison Imbue,elemental,weapon,uncommon,5,enchanting,3,25.0,arcane_dust:2|venom_sac:3,,10.0,poison,0.0,debuff_poisoned,0.0,1,fire_imbue|ice_imbue|lightning_imbue,#88FF00;drip,Coats the weapon in toxin dealing poison damage over time
+lifesteal,Lifesteal,offensive,weapon,rare,12,enchanting,7,50.0,arcane_dust:5|blood_ruby:2,,0.0,,0.0,buff_lifesteal,0.0,1,,#CC0000;shadow_wisps,Heals the wielder for a portion of damage dealt
+armor_piercing,Armor Piercing,offensive,weapon,rare,10,enchanting,6,40.0,arcane_dust:4|adamantine_shard:2,damage:10:add,10.0,true,0.0,,0.0,1,,#888888;sparks,Strikes bypass a portion of the target's armor rating
+explosive,Explosive,offensive,weapon,epic,18,enchanting,10,80.0,arcane_dust:8|blasting_powder:5|fire_salt:3,,30.0,fire,0.0,debuff_burning,0.0,1,silent,#FF6600;flames,Weapon strikes detonate on impact dealing area fire damage
+vorpal,Vorpal,offensive,weapon,epic,20,enchanting,11,90.0,arcane_dust:10|void_crystal:2,damage:15:add,25.0,,0.0,,0.0,1,,#CC00FF;shadow_wisps,Greatly increases critical hit chance and critical damage
+seeking,Seeking,offensive,weapon,rare,14,enchanting,8,60.0,arcane_dust:6|hawk_eye_gem:2,,0.0,,0.0,,0.0,1,,#AAAAFF;holy_motes,Projectiles subtly curve toward targets improving accuracy
+bottomless_magazine,Bottomless Magazine,utility,weapon,epic,16,enchanting,9,70.0,arcane_dust:7|void_crystal:1|clockwork_gear:3,,0.0,,0.0,,0.0,1,,#6644CC;shadow_wisps,Ranged weapons never need to reload or consume ammunition
+rapid_fire,Rapid Fire,offensive,weapon,rare,10,enchanting,6,45.0,arcane_dust:4|charged_quartz:2,speed:1.5:multiply,0.0,,0.0,,0.0,1,,#FFAA00;sparks,Increases attack speed by 50 percent
+knockback,Knockback,offensive,weapon,uncommon,6,enchanting,3,20.0,arcane_dust:2|heavy_stone:3,,5.0,physical,0.0,debuff_staggered,0.0,2,,#886644;none,Strikes push targets backward with additional force
+multi_shot,Multi Shot,offensive,weapon,epic,15,enchanting,9,65.0,arcane_dust:7|prism_shard:3,,0.0,,0.0,,0.0,1,,#FF88FF;sparks,Ranged attacks fire multiple projectiles in a spread pattern
+disintegrate,Disintegrate,offensive,weapon,legendary,25,enchanting,14,150.0,arcane_dust:15|void_crystal:3|eternal_crystal:1,,50.0,true,0.0,debuff_corroding,0.0,1,,#FF00FF;shadow_wisps,Strikes erode matter itself bypassing all resistances
+#
+# === ARMOR ENCHANTS ===
+fortification,Fortification,protective,armor,common,2,enchanting,1,10.0,arcane_dust:1|iron_ingot:2,,0.0,,10.0,,0.0,3,,#888888;none,Reinforces the armor increasing its base armor rating
+kinetic_absorption,Kinetic Absorption,protective,armor,epic,18,enchanting,10,85.0,arcane_dust:8|vibranium_alloy:2,,0.0,,25.0,physical,0.0,1,,#4444CC;sparks,Absorbs and disperses impact energy like vibranium plating
+thorns,Thorns,offensive,armor,uncommon,7,enchanting,4,25.0,arcane_dust:3|thorn_vine:4,,0.0,,0.0,debuff_bleeding,0.0,2,,#44AA00;none,Reflects a portion of melee damage back at attackers
+regeneration,Regeneration,protective,armor,rare,12,enchanting,7,55.0,arcane_dust:5|life_moss:3,,0.0,,0.0,buff_regeneration,0.0,1,,#00FF44;holy_motes,Slowly restores the wearer's health over time
+deflection,Deflection,protective,armor,rare,10,enchanting,6,40.0,arcane_dust:4|mirror_shard:2,,0.0,,15.0,physical,0.0,1,,#CCCCFF;sparks,Grants a chance to completely deflect incoming projectiles
+elemental_ward,Elemental Ward,protective,armor,rare,10,enchanting,6,45.0,arcane_dust:5|prism_shard:2,,0.0,,10.0,fire,0.0,1,,#FF88FF;holy_motes,Provides resistance against all elemental damage types
+gravity_anchor,Gravity Anchor,protective,armor,uncommon,8,enchanting,4,30.0,arcane_dust:3|heavy_stone:4,,0.0,,5.0,,0.0,1,featherweight,#664400;none,Grounds the wearer preventing knockback and forced movement
+phase_shift,Phase Shift,protective,armor,epic,20,enchanting,11,95.0,arcane_dust:10|void_crystal:2,,0.0,,0.0,buff_phase,0.0,1,,#8800FF;shadow_wisps,Grants a chance to phase through incoming attacks entirely
+hardened,Hardened,protective,armor,common,3,enchanting,2,12.0,arcane_dust:1|iron_ingot:3,durability:1.5:multiply,0.0,,5.0,,0.0,2,,#AAAAAA;none,Tempers the armor making it more durable and slightly tougher
+lightweight_armor,Lightweight Armor,utility,armor,uncommon,4,enchanting,2,15.0,arcane_dust:2|feather_0:3,weight_kg:0.7:multiply,0.0,,0.0,,0.0,1,heavy,#88CCFF;none,Reduces armor weight by 30 percent without sacrificing protection
+adaptive,Adaptive,protective,armor,legendary,22,enchanting,12,120.0,arcane_dust:12|chameleon_scale:3|prism_shard:2,,0.0,,20.0,,0.0,1,,#FFAA88;holy_motes,Automatically adjusts resistance to match the last damage type received
+second_wind,Second Wind,protective,armor,epic,16,enchanting,9,75.0,arcane_dust:7|life_moss:4|phoenix_feather:1,,0.0,,0.0,buff_second_wind,0.0,1,,#FFCC00;holy_motes,Once per fight revives the wearer from a lethal blow with partial health
+#
+# === TOOL ENCHANTS ===
+efficiency,Efficiency,utility,tool,common,1,enchanting,1,10.0,arcane_dust:1,speed:1.3:multiply,0.0,,0.0,,0.0,3,,#FFCC00;sparks,Increases work speed by 30 percent per level
+fortune,Fortune,utility,tool,uncommon,6,enchanting,4,30.0,arcane_dust:3|lucky_clover:2,harvest_yield:1.5:multiply,0.0,,0.0,,0.0,2,silk_touch,#00FF88;holy_motes,Increases resource yield from harvesting and mining
+silk_touch,Silk Touch,utility,tool,rare,10,enchanting,6,45.0,arcane_dust:5|spider_silk:4,,0.0,,0.0,,0.0,1,fortune,#FFCCFF;holy_motes,Preserves blocks and materials in their original form when harvested
+auto_harvest,Auto-Harvest,utility,tool,uncommon,5,enchanting,3,20.0,arcane_dust:2|clockwork_gear:2,,0.0,,0.0,,0.0,1,,#88CC00;sparks,Automatically collects nearby mature crops and resources
+precision,Precision,utility,tool,common,2,enchanting,1,10.0,arcane_dust:1,,0.0,,0.0,,0.0,2,,#FFFFFF;none,Improves accuracy and reduces wasted materials during crafting
+reach_extend,Reach Extend,utility,tool,uncommon,4,enchanting,2,15.0,arcane_dust:2|elastic_fiber:2,range:2:add,0.0,,0.0,,0.0,2,,#AACCFF;none,Extends the effective reach of the tool by 2 meters per level
+multi_tool,Multi-Tool,utility,tool,rare,8,enchanting,5,35.0,arcane_dust:4|clockwork_gear:3,,0.0,,0.0,,0.0,1,,#CCCCCC;sparks,Allows the tool to function as multiple tool types at reduced efficiency
+power_drill,Power Drill,utility,tool,rare,12,enchanting,7,50.0,arcane_dust:5|charged_quartz:3,speed:2.0:multiply,0.0,,0.0,,0.0,1,,#FFAA00;sparks,Doubles mining and drilling speed with powered assistance
+magnetism,Magnetism,utility,tool,uncommon,3,enchanting,2,12.0,arcane_dust:2|lodestone_chip:2,,0.0,,0.0,,0.0,1,,#4444FF;lightning_arcs,Attracts dropped items and loose resources toward the user
+unbreaking,Unbreaking,utility,tool,common,2,enchanting,1,10.0,arcane_dust:1|iron_ingot:1,durability:2.0:multiply,0.0,,0.0,,0.0,3,,#888888;none,Each use has a chance to not consume durability
+#
+# === VEHICLE ENCHANTS ===
+turbo_boost,Turbo Boost,utility,vehicle,uncommon,8,enchanting,4,30.0,arcane_dust:3|charged_quartz:3,speed:1.5:multiply,0.0,,0.0,,0.0,1,,#FF8800;flames,Increases vehicle top speed by 50 percent
+fuel_efficiency,Fuel Efficiency,utility,vehicle,common,3,enchanting,2,15.0,arcane_dust:2|catalyst_0:2,fuel_efficiency:1.5:multiply,0.0,,0.0,,0.0,2,,#44CC44;none,Reduces fuel consumption by 33 percent per level
+stealth_drive,Stealth Drive,utility,vehicle,rare,14,enchanting,8,60.0,arcane_dust:6|shadow_silk:4|void_crystal:1,,0.0,,0.0,buff_stealth,0.0,1,,#333355;shadow_wisps,Dampens vehicle noise and heat signature for stealth operations
+reinforced_hull,Reinforced Hull,protective,vehicle,uncommon,6,enchanting,3,25.0,arcane_dust:3|titanium_plate:3,,0.0,,20.0,,0.0,2,,#888888;none,Strengthens the vehicle hull increasing damage resistance
+auto_pilot,Auto-Pilot,utility,vehicle,rare,12,enchanting,7,50.0,arcane_dust:5|clockwork_gear:4|hawk_eye_gem:1,,0.0,,0.0,,0.0,1,,#44AAFF;sparks,Enables autonomous navigation along preset waypoints
+gravity_drive,Gravity Drive,legendary,vehicle,legendary,25,enchanting,14,140.0,arcane_dust:15|void_crystal:3|eternal_crystal:1,speed:3.0:multiply,0.0,,0.0,,0.0,1,,#8800FF;shadow_wisps,Warps local gravity for propulsion enabling flight and extreme speed
+shield_generator,Shield Generator,protective,vehicle,epic,18,enchanting,10,85.0,arcane_dust:8|prism_shard:3|charged_quartz:4,,0.0,,30.0,,0.0,1,,#4488FF;lightning_arcs,Projects an energy barrier absorbing incoming damage
+nitro,Nitro,utility,vehicle,common,4,enchanting,2,15.0,arcane_dust:2|blasting_powder:2,speed:1.25:multiply,0.0,,0.0,,3600.0,1,,#FF4400;flames,Temporary speed boost lasting one hour before needing reapplication
+#
+# === CLOTHING ENCHANTS ===
+comfort,Comfort,utility,clothing,common,1,enchanting,1,5.0,arcane_dust:1|cotton_0:3,comfort:10:add,0.0,,0.0,buff_rested,0.0,1,,#FFCCAA;none,Makes the garment exceptionally comfortable improving rest quality
+weather_ward,Weather Ward,protective,clothing,uncommon,4,enchanting,2,15.0,arcane_dust:2|weather_stone:2,,0.0,,5.0,,0.0,1,,#44AAFF;none,Protects the wearer from rain snow wind and temperature extremes
+charisma_aura,Charisma Aura,utility,clothing,rare,8,enchanting,5,35.0,arcane_dust:4|gold_thread:3,,0.0,,0.0,buff_charisma,0.0,1,,#FFD700;holy_motes,Emanates an aura of charm improving NPC disposition and trade prices
+speed_boost,Speed Boost,utility,clothing,uncommon,5,enchanting,3,20.0,arcane_dust:3|mercury_vial:2,speed:1.2:multiply,0.0,,0.0,,0.0,1,,#88FF88;sparks,Increases movement speed by 20 percent
+night_vision,Night Vision,utility,clothing,uncommon,6,enchanting,3,25.0,arcane_dust:3|cat_eye_gem:2,,0.0,,0.0,buff_night_vision,0.0,1,,#44FF44;none,Grants the wearer clear vision in darkness and low-light conditions
+breathing,Breathing,protective,clothing,rare,10,enchanting,6,45.0,arcane_dust:5|air_crystal:3,,0.0,,0.0,buff_breathing,0.0,1,,#88CCFF;bubbles,Allows the wearer to breathe underwater and in vacuum environments
+pockets,Pockets,utility,clothing,common,2,enchanting,1,8.0,arcane_dust:1|leather_0:2,capacity:10:add,0.0,,0.0,,0.0,3,,#886644;none,Adds extra inventory slots to the garment (10 per level)
+glamour,Glamour,utility,clothing,rare,8,enchanting,5,30.0,arcane_dust:4|mirror_shard:2|gold_thread:1,,0.0,,0.0,,0.0,1,,#FF88FF;holy_motes,Allows the wearer to change the garment's visual appearance at will
+#
+# === CONTAINER ENCHANTS ===
+preservation,Preservation,utility,container,uncommon,3,enchanting,2,15.0,arcane_dust:2|frost_crystal:2,,0.0,,0.0,,0.0,1,,#44CCCC;frost,Prevents stored items from decaying or spoiling
+expansion,Expansion,utility,container,rare,8,enchanting,5,35.0,arcane_dust:4|void_crystal:1,capacity:2.0:multiply,0.0,,0.0,,0.0,2,,#6644CC;shadow_wisps,Doubles the storage capacity through spatial compression
+security,Security,protective,container,uncommon,5,enchanting,3,20.0,arcane_dust:3|iron_ingot:4,durability:999999:set,0.0,,0.0,,0.0,1,,#888888;none,Creates an unbreakable lock that only the owner can open
+sorting,Sorting,utility,container,common,2,enchanting,1,8.0,arcane_dust:1|clockwork_gear:1,,0.0,,0.0,,0.0,1,,#88CC88;sparks,Automatically organizes stored items by category and type
+void_storage,Void Storage,legendary,container,legendary,22,enchanting,12,120.0,arcane_dust:12|void_crystal:4|eternal_crystal:1,capacity:10.0:multiply,0.0,,0.0,,0.0,1,,#220044;shadow_wisps,Massive spatial expansion storing 10 times normal capacity
+#
+# === CURSED ENCHANTS (negative effects found on loot or applied by enemies) ===
+fragile,Fragile,cursed,any,common,1,,0,0.0,,durability:0.25:multiply,0.0,,0.0,,0.0,1,indestructible|unbreaking|hardened,#AA0000;none,Drastically reduces item durability causing it to break quickly
+heavy,Heavy,cursed,any,common,1,,0,0.0,,weight_kg:3.0:multiply,0.0,,0.0,,0.0,1,featherweight|lightweight_armor,#664400;none,Triples the item weight making it cumbersome to carry
+noisy,Noisy,cursed,any,common,1,,0,0.0,,,0.0,,0.0,,0.0,1,silent|stealth_drive,#FF8800;none,Makes the item produce loud sounds alerting nearby creatures
+hungry,Hungry,cursed,any,uncommon,1,,0,0.0,,,0.0,,0.0,debuff_hungry,0.0,1,,#886600;shadow_wisps,Drains the user's hunger meter faster while equipped
+unlucky,Unlucky,cursed,any,uncommon,1,,0,0.0,,,0.0,,0.0,debuff_unlucky,0.0,1,,#333333;shadow_wisps,Reduces luck stat causing worse loot drops and more failures
+paranoia,Paranoia,cursed,any,rare,1,,0,0.0,,,0.0,,0.0,debuff_paranoia,0.0,1,,#880088;shadow_wisps,Generates false threat indicators on the HUD causing confusion
+magnetic_curse,Magnetic Curse,cursed,any,rare,1,,0,0.0,,,0.0,,0.0,debuff_aggro_aura,0.0,1,camouflage|stealth_drive,#FF0000;lightning_arcs,Attracts hostile creatures from a wider radius while equipped
+decay,Decay,cursed,any,uncommon,1,,0,0.0,,durability:-1:add,0.0,,0.0,,0.0,1,indestructible|auto_repair,#445500;drip,Item slowly loses durability over time even when not in use
+#
+# === BONUS ENCHANTS (filling out the 80+ requirement with themed variants) ===
+holy_smite,Holy Smite,elemental,weapon,rare,12,enchanting,7,50.0,arcane_dust:5|holy_water:3,,20.0,holy,0.0,debuff_smited,0.0,1,shadow_imbue,#FFD700;holy_motes,Imbues the weapon with divine light dealing holy damage to undead
+shadow_imbue,Shadow Imbue,elemental,weapon,rare,12,enchanting,7,50.0,arcane_dust:5|shadow_essence:3,,20.0,shadow,0.0,debuff_shadow_drain,0.0,1,holy_smite,#330066;shadow_wisps,Wraps the weapon in darkness dealing shadow damage and draining energy
+berserker,Berserker,offensive,weapon,rare,14,enchanting,8,55.0,arcane_dust:6|blood_ruby:3,damage:1.3:multiply,0.0,,0.0,buff_berserker,0.0,1,,#CC0000;flames,Increases damage output by 30 percent but reduces armor while active
+vampiric,Vampiric,offensive,weapon,epic,18,enchanting,10,80.0,arcane_dust:8|blood_ruby:4|shadow_essence:2,,0.0,,0.0,buff_vampiric,0.0,1,,#660022;shadow_wisps,Drains health from targets and transfers it to the wielder
+venomweave,Venomweave,elemental,weapon,rare,10,enchanting,6,40.0,arcane_dust:4|venom_sac:4,,12.0,poison,0.0,debuff_poison_dot,0.0,1,,#66CC00;drip,Applies a stacking poison that deals increasing damage over time
+frost_shield,Frost Shield,protective,armor,rare,10,enchanting,6,40.0,arcane_dust:4|frost_crystal:4,,0.0,,15.0,debuff_chilled,0.0,1,,#88DDFF;frost,Creates a frost aura that chills melee attackers and resists ice damage
+blaze_ward,Blaze Ward,protective,armor,rare,10,enchanting,6,40.0,arcane_dust:4|fire_salt:4,,0.0,,15.0,,0.0,1,,#FF6622;none,Grants strong fire resistance and immunity to the burning status effect
+storm_cloak,Storm Cloak,protective,armor,rare,10,enchanting,6,40.0,arcane_dust:4|charged_quartz:4,,0.0,,15.0,,0.0,1,,#FFFF44;lightning_arcs,Grants lightning resistance and shocks nearby enemies during storms
+soulbound,Soulbound,utility,any,rare,8,enchanting,5,30.0,arcane_dust:4|soul_gem:1,,0.0,,0.0,,0.0,1,,#8844CC;shadow_wisps,Binds the item to its owner preventing theft and loss on death
+mending,Mending,utility,any,uncommon,4,enchanting,2,15.0,arcane_dust:2|life_moss:2,durability:1.25:multiply,0.0,,0.0,,0.0,2,fragile|decay,#44FF44;none,Restores durability when the user gains experience from any source
+bane_of_undead,Bane of Undead,offensive,weapon,uncommon,7,enchanting,4,25.0,arcane_dust:3|holy_water:2,,20.0,holy,0.0,,0.0,1,,#FFD700;holy_motes,Deals massive bonus damage specifically against undead creatures
+bane_of_beasts,Bane of Beasts,offensive,weapon,uncommon,7,enchanting,4,25.0,arcane_dust:3|beast_fang:3,,20.0,physical,0.0,,0.0,1,,#CC8844;none,Deals massive bonus damage specifically against beast creatures
+spelleater,Spelleater,protective,armor,epic,20,enchanting,11,95.0,arcane_dust:10|void_crystal:2|prism_shard:2,,0.0,,0.0,buff_spell_absorb,0.0,1,,#AA00FF;shadow_wisps,Absorbs a portion of incoming spell damage and converts it to mana
+recall,Recall,utility,any,rare,10,enchanting,6,40.0,arcane_dust:5|lodestone_chip:3,,0.0,,0.0,,0.0,1,,#4488FF;holy_motes,Allows the item to be summoned back to the owner from any distance
+lucky,Lucky,utility,any,rare,6,enchanting,4,25.0,arcane_dust:3|lucky_clover:3,,0.0,,0.0,buff_lucky,0.0,1,unlucky,#00FF88;holy_motes,Improves luck stat increasing loot quality and critical chance
+aquatic,Aquatic,utility,tool|weapon,uncommon,4,enchanting,2,15.0,arcane_dust:2|water_pearl:2,,0.0,,0.0,,0.0,1,,#2288CC;bubbles,Allows full functionality underwater with no speed penalty
+gravity_well,Gravity Well,offensive,weapon,epic,18,enchanting,10,80.0,arcane_dust:8|heavy_stone:5|void_crystal:1,,0.0,,0.0,debuff_slow,0.0,1,,#440088;shadow_wisps,Strikes create a brief gravity pull drawing nearby enemies toward the impact
+chain_lightning,Chain Lightning,elemental,weapon,epic,16,enchanting,9,70.0,arcane_dust:7|charged_quartz:5,,10.0,lightning,0.0,debuff_shocked,0.0,1,,#FFFF00;lightning_arcs,Strikes arc to nearby targets dealing reduced lightning damage to each
+soul_trap,Soul Trap,utility,weapon,rare,14,enchanting,8,55.0,arcane_dust:6|soul_gem:2,,0.0,,0.0,,0.0,1,,#8800FF;shadow_wisps,Captures the essence of slain creatures filling empty soul gems
+impact,Impact,offensive,weapon,uncommon,8,enchanting,4,30.0,arcane_dust:3|heavy_stone:4,damage:8:add,0.0,,0.0,debuff_staggered,0.0,2,,#886644;sparks,Adds crushing force to strikes that can stagger and daze targets
+wither,Wither,offensive,weapon,epic,20,enchanting,11,90.0,arcane_dust:10|shadow_essence:4,,0.0,shadow,0.0,debuff_wither,0.0,1,,#333333;shadow_wisps,Inflicts a wasting effect that reduces maximum health temporarily
+spring_step,Spring Step,utility,clothing,uncommon,3,enchanting,2,12.0,arcane_dust:2|elastic_fiber:3,speed:1.1:multiply,0.0,,0.0,,0.0,1,,#88FF88;none,Adds a springy bounce to footwear increasing jump height and reducing fall damage
+insulated_wiring,Insulated Wiring,protective,vehicle,uncommon,5,enchanting,3,20.0,arcane_dust:2|rubber_0:4,,0.0,,10.0,,0.0,1,,#CCCC00;none,Protects vehicle electronics from lightning and EMP damage
+cargo_expand,Cargo Expand,utility,vehicle,uncommon,6,enchanting,3,25.0,arcane_dust:3|void_crystal:1,capacity:1.5:multiply,0.0,,0.0,,0.0,2,,#6644CC;none,Increases vehicle cargo capacity by 50 percent per level
+deepfreeze,Deep Freeze,utility,container,rare,10,enchanting,6,40.0,arcane_dust:4|frost_crystal:4|clockwork_gear:2,,0.0,,0.0,,0.0,1,,#88EEFF;frost,Freezes stored food and organic items preserving them indefinitely
+fire_ward,Fire Ward,protective,armor|clothing,uncommon,5,enchanting,3,20.0,arcane_dust:2|fire_salt:3,,0.0,,10.0,,0.0,1,,#FF4400;none,Provides moderate resistance specifically against fire damage
+ice_ward,Ice Ward,protective,armor|clothing,uncommon,5,enchanting,3,20.0,arcane_dust:2|frost_crystal:3,,0.0,,10.0,,0.0,1,,#44CCFF;none,Provides moderate resistance specifically against ice damage
+lightning_ward,Lightning Ward,protective,armor|clothing,uncommon,5,enchanting,3,20.0,arcane_dust:2|charged_quartz:3,,0.0,,10.0,,0.0,1,,#FFFF00;none,Provides moderate resistance specifically against lightning damage
+poison_ward,Poison Ward,protective,armor|clothing,uncommon,5,enchanting,3,20.0,arcane_dust:2|antitoxin_herb:3,,0.0,,10.0,,0.0,1,,#88FF00;none,Provides moderate resistance specifically against poison damage
+swift_hands,Swift Hands,utility,tool|weapon,uncommon,4,enchanting,2,15.0,arcane_dust:2|mercury_vial:1,speed:1.15:multiply,0.0,,0.0,,0.0,2,,#CCFFCC;sparks,Increases the speed of tool use and weapon swapping
+weightless,Weightless,utility,container|furniture,rare,10,enchanting,6,40.0,arcane_dust:5|air_crystal:3,weight_kg:0.1:multiply,0.0,,0.0,,0.0,1,,#88CCFF;holy_motes,Makes heavy objects nearly weightless for easy transport
+antimagic,Antimagic,protective,armor,epic,20,enchanting,11,95.0,arcane_dust:10|null_stone:3,,0.0,,0.0,buff_antimagic,0.0,1,,#666666;none,Suppresses all magical effects in a small radius around the wearer

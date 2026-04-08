@@ -1,6 +1,7 @@
 # ── Build artifacts ──
 /target/
 /HumanityOS.exe
+/v*_HumanityOS.exe
 *.old.exe
 
 # ── Runtime data (local only, never committed) ──

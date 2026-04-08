@@ -1,0 +1,455 @@
+# HumanityOS Sound Schema
+# Defines the format for audio assets in data/sounds.csv
+#
+# Every sound in the game is registered in sounds.csv. The AudioManager
+# (native/src/audio/mod.rs) loads sound entries at startup and the
+# spatial audio system (native/src/audio/spatial.rs) positions 3D sounds
+# in the world. The kira crate handles playback, mixing, and real-time
+# volume control across separate audio buses.
+#
+# File format: CSV (comma-separated, # lines are comments)
+# Hot-reloadable: Yes (new entries picked up on reload, changed entries
+#                 update on next play; currently-playing sounds finish
+#                 with their original data)
+# Referenced by: data/status_effects.csv (sound_loop_id),
+#                data/weather.csv (ambient_sound_id),
+#                data/creatures.csv (sound entries),
+#                data/items.csv (use/equip sounds),
+#                native/src/audio/ (AudioManager, SpatialAudio)
+# References: assets/audio/ (file_path points here)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this sound entry. Use snake_case with a category
+prefix for easy filtering:
+  amb_*     ambient loops (amb_forest_day, amb_rain_light)
+  mus_*     music tracks (mus_menu_theme, mus_combat_intense)
+  sfx_*     one-shot effects (sfx_sword_hit, sfx_door_open)
+  ui_*      interface sounds (ui_click, ui_notification)
+  ft_*      footstep sounds (ft_grass, ft_metal, ft_stone)
+  wpn_*     weapon sounds (wpn_laser_fire, wpn_reload)
+  veh_*     vehicle sounds (veh_engine_idle, veh_thruster_boost)
+  crt_*     creature sounds (crt_wolf_howl, crt_bird_chirp)
+  wthr_*    weather sounds (wthr_thunder_crack, wthr_wind_gust)
+  mch_*     machine sounds (mch_drill_loop, mch_generator_hum)"""
+constraints = "snake_case, unique across all sound entries"
+examples = ["amb_forest_day", "sfx_sword_hit", "ui_click", "ft_grass"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable name shown in the audio debug overlay and modding tools."
+constraints = "Title Case, keep under 40 characters"
+examples = ["Forest Day Ambience", "Sword Hit", "UI Click", "Grass Footstep"]
+
+[fields.category]
+type = "string"
+required = true
+description = """
+Primary classification that determines default bus routing, priority
+handling, and volume slider grouping in the settings menu."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "ambient",   # Background environmental loops (forest, wind, water)
+    "music",     # Soundtrack and dynamic music layers
+    "sfx",       # One-shot sound effects (impacts, interactions, UI feedback)
+    "voice",     # Character dialogue and narration
+    "ui",        # Interface sounds (clicks, notifications, transitions)
+    "footstep",  # Surface-dependent footstep sounds
+    "weapon",    # Weapon fire, reload, impact sounds
+    "creature",  # Animal and monster vocalizations
+    "weather",   # Rain, thunder, wind, storm sounds
+    "machine",   # Industrial and mechanical equipment sounds
+    "vehicle",   # Engine, thruster, propulsion sounds
+]
+
+[fields.file_path]
+type = "string"
+required = true
+description = """
+Path to the audio file relative to assets/audio/. Supports WAV, OGG,
+and FLAC formats. OGG is preferred for compressed sounds (ambient, music).
+WAV is preferred for short one-shot effects (UI, footsteps) where decode
+latency matters."""
+constraints = "Relative to assets/audio/. File must exist. Supported formats: .wav, .ogg, .flac"
+examples = [
+    "ambient/forest_day.ogg",
+    "sfx/sword_hit_01.wav",
+    "music/menu_theme.ogg",
+    "footsteps/grass_01.wav",
+]
+
+[fields.volume]
+type = "float"
+required = true
+default = 0.8
+description = """
+Base volume from 0.0 (silent) to 1.0 (full). This is the authored volume
+before any bus or master volume scaling. Adjust so that sounds feel
+balanced relative to each other at default settings. Ambient sounds are
+typically quieter (0.3-0.5); UI sounds are moderate (0.6-0.8); combat
+impacts are louder (0.8-1.0)."""
+constraints = "Must be between 0.0 and 1.0"
+examples = [0.3, 0.5, 0.7, 0.8, 1.0]
+
+[fields.pitch_range_min]
+type = "float"
+required = false
+default = 1.0
+description = """
+Minimum pitch multiplier for randomized playback. 1.0 = original pitch.
+Values below 1.0 lower the pitch; above 1.0 raise it. Used with
+pitch_range_max to add variation so repeated sounds feel less repetitive."""
+constraints = "Must be > 0. Typically between 0.8 and 1.2."
+examples = [0.85, 0.9, 0.95, 1.0]
+
+[fields.pitch_range_max]
+type = "float"
+required = false
+default = 1.0
+description = """
+Maximum pitch multiplier. Each play picks a random pitch between min and
+max. Set min = max = 1.0 for no randomization (music, UI clicks)."""
+constraints = "Must be >= pitch_range_min"
+examples = [1.0, 1.05, 1.1, 1.15]
+
+[fields.spatial]
+type = "boolean"
+required = true
+default = false
+description = """
+Whether this sound is positioned in 3D space. When true, the
+SpatialAudio system (native/src/audio/spatial.rs) pans the sound based
+on the listener's position and orientation. When false, the sound plays
+at uniform volume on both channels (used for music, UI, ambient beds).
+The kira spatial emitter is created only for spatial sounds."""
+constraints = "true or false"
+examples = ["true", "false"]
+
+[fields.falloff_min_m]
+type = "float"
+required = false
+default = 1.0
+description = """
+For spatial sounds: distance in meters within which the sound plays at
+full volume. Below this distance, volume is constant. This prevents
+sounds from becoming ear-shatteringly loud when the listener is right
+on top of the source."""
+constraints = "Must be >= 0. Only used when spatial is true."
+examples = [0.5, 1.0, 2.0, 5.0]
+
+[fields.falloff_max_m]
+type = "float"
+required = false
+default = 50.0
+description = """
+For spatial sounds: distance in meters beyond which the sound is
+inaudible (volume = 0). The volume fades linearly (or via inverse-square,
+configurable in the audio system) between falloff_min_m and falloff_max_m."""
+constraints = "Must be > falloff_min_m. Only used when spatial is true."
+examples = [10.0, 25.0, 50.0, 200.0, 500.0]
+
+[fields.loop]
+type = "boolean"
+required = true
+default = false
+description = """
+Whether the sound repeats when it reaches the end. Ambient beds, music,
+and engine hums should loop. One-shot effects (impacts, footsteps, UI)
+should not. The kira playback handle is configured with or without
+looping based on this flag."""
+constraints = "true or false"
+examples = ["true", "false"]
+
+[fields.loop_crossfade_s]
+type = "float"
+required = false
+default = 0.0
+description = """
+For looping sounds: duration in seconds of the crossfade between the
+end and start of the sample. Prevents audible pops or seams at the loop
+point. Set to 0 for seamlessly-edited loops that do not need crossfading.
+Music tracks benefit from 1-3 second crossfades."""
+constraints = "Must be >= 0. Only used when loop is true."
+examples = [0.0, 0.5, 1.0, 2.0]
+
+[fields.random_delay_range_min_s]
+type = "float"
+required = false
+default = 0.0
+description = """
+For ambient sounds that should play at random intervals (bird chirps,
+distant thunder, creaking wood): minimum delay in seconds before the
+next play. Set both min and max to 0 for sounds that play immediately
+when triggered (most non-ambient sounds)."""
+constraints = "Must be >= 0"
+examples = [0.0, 3.0, 10.0, 30.0]
+
+[fields.random_delay_range_max_s]
+type = "float"
+required = false
+default = 0.0
+description = """
+Maximum delay in seconds before the next random play. The ambient system
+picks a random delay between min and max after each play."""
+constraints = "Must be >= random_delay_range_min_s"
+examples = [0.0, 8.0, 30.0, 120.0]
+
+[fields.priority]
+type = "integer"
+required = true
+default = 5
+description = """
+Playback priority from 0 (lowest) to 10 (highest). When all audio
+channels are in use, lower-priority sounds are culled first. Music and
+voice should be high priority (8-10); ambient detail sounds are low (1-3);
+gameplay-critical sounds (UI, weapon fire) are medium-high (6-8)."""
+constraints = "Must be between 0 and 10"
+examples = [
+    { value = 1,  note = "ambient detail (distant bird)" },
+    { value = 5,  note = "footstep (standard)" },
+    { value = 7,  note = "weapon fire (important feedback)" },
+    { value = 9,  note = "music (almost never culled)" },
+    { value = 10, note = "voice/alert (never culled)" },
+]
+
+[fields.bus]
+type = "string"
+required = true
+default = "sfx"
+description = """
+Audio bus for volume control grouping. Each bus has an independent volume
+slider in the settings menu. The AudioManager applies bus volume on top
+of the per-sound volume. The master bus scales everything."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "master",  # Applied to all sound (settings slider controls overall volume)
+    "music",   # Background music tracks
+    "sfx",     # Sound effects (weapons, footsteps, impacts, machines)
+    "ambient", # Environmental ambient loops and random detail sounds
+    "voice",   # Character dialogue and narration
+    "ui",      # Interface sounds (clicks, notifications)
+]
+
+[fields.variations]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated list of alternative file paths for randomized playback.
+When this sound is triggered, the audio system randomly picks one of
+the variations (or the primary file_path) to play. Prevents repetitive
+audio for frequently played sounds like footsteps and impacts."""
+constraints = "Pipe-separated paths relative to assets/audio/. All files must exist."
+examples = [
+    "",
+    "sfx/sword_hit_02.wav|sfx/sword_hit_03.wav",
+    "footsteps/grass_02.wav|footsteps/grass_03.wav|footsteps/grass_04.wav",
+    "creature/bird_chirp_02.ogg|creature/bird_chirp_03.ogg",
+]
+
+[fields.tags]
+type = "string"
+required = false
+default = ""
+description = """
+Pipe-separated tags for contextual filtering. The audio system uses tags
+to select appropriate sounds based on time of day, location, and game
+state. For example, ambient sounds tagged 'day' only play during daytime;
+sounds tagged 'combat' only play during combat encounters."""
+constraints = "Pipe-separated lowercase tags"
+examples = [
+    "day|outdoor",
+    "night|indoor",
+    "combat|intense",
+    "peaceful|outdoor|day",
+    "indoor|machine|industrial",
+]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+kira_audio_system = """
+The AudioManager (native/src/audio/mod.rs) wraps the kira crate. On
+startup it reads data/sounds.csv and pre-caches frequently used sounds
+(UI, footsteps) as StaticSoundData. Less common sounds (music, ambient)
+are loaded on demand and cached after first play. The sound_cache HashMap
+maps file paths to loaded sound data. Bus volumes are stored as f64 fields
+(master_volume, music_volume, sfx_volume) and applied via kira's track
+system."""
+
+spatial_positioning = """
+The SpatialAudio module (native/src/audio/spatial.rs) manages 3D positioned
+sounds. Each spatial sound is associated with an ECS entity that has a
+Transform component. Every frame, SpatialAudio updates the kira emitter
+positions based on entity transforms and the listener (camera) position.
+falloff_min_m and falloff_max_m control the volume curve. Non-spatial
+sounds bypass this entirely and play at flat volume."""
+
+ecs_integration = """
+Entities with an AudioSource component can trigger sounds. The component
+stores a sound id and playback state (playing, paused, stopped). The
+AudioSystem (registered in the SystemRunner) iterates entities with
+AudioSource each frame, starting/stopping kira playback handles as needed.
+For one-shot sounds, the component is removed after the sound finishes.
+For looping sounds, the component persists until explicitly removed."""
+
+weather_system = """
+Weather conditions in data/weather.csv reference sound ids in their
+ambient_sound_id field. The weather system tells the AudioManager to
+crossfade between ambient loops when weather transitions occur. The
+crossfade duration matches the weather's transition_time_s."""
+
+status_effects = """
+Status effects in data/status_effects.csv reference sound ids in their
+sound_loop_id field. The status effect system starts the loop when the
+effect is applied and stops it when the effect expires or is dispelled.
+Multiple active effects can have overlapping sound loops."""
+
+footsteps = """
+The player movement system queries the terrain material under the player's
+feet and selects a footstep sound with matching tags (grass, stone, metal,
+sand). Variations and pitch randomization prevent repetitive footstep audio.
+Footstep volume is scaled by movement speed (crouching = quieter)."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+id_naming = """
+Always use the category prefix:
+  amb_*   ambient         ft_*    footstep
+  mus_*   music           wpn_*   weapon
+  sfx_*   sfx             veh_*   vehicle
+  ui_*    ui              crt_*   creature
+  wthr_*  weather         mch_*   machine
+This makes grep/search instant and prevents id collisions between
+categories."""
+
+file_organization = """
+Audio files are organized in assets/audio/ by category subdirectory:
+  assets/audio/ambient/     (environmental loops)
+  assets/audio/music/       (soundtrack tracks)
+  assets/audio/sfx/         (one-shot effects)
+  assets/audio/ui/          (interface sounds)
+  assets/audio/footsteps/   (surface footstep variants)
+  assets/audio/weapons/     (weapon fire and impact)
+  assets/audio/creatures/   (animal and monster sounds)
+  assets/audio/weather/     (rain, thunder, wind)
+  assets/audio/vehicles/    (engines, thrusters)
+  assets/audio/machines/    (industrial equipment)"""
+
+variation_guidelines = """
+Frequently repeated sounds MUST have at least 3 variations to avoid
+listener fatigue. This applies to:
+  - Footsteps (3-5 variations per surface type)
+  - Weapon impacts (3-4 per weapon class)
+  - Creature vocalizations (2-4 per creature)
+  - UI clicks (2-3 for button clicks)
+Use pitch randomization (pitch_range 0.9-1.1) as a supplement but not
+a replacement for real variation files."""
+
+bus_routing = """
+Default bus assignments by category:
+  ambient  -> ambient bus
+  music    -> music bus
+  sfx      -> sfx bus
+  voice    -> voice bus
+  ui       -> ui bus
+  footstep -> sfx bus
+  weapon   -> sfx bus
+  creature -> sfx bus
+  weather  -> ambient bus
+  machine  -> sfx bus
+  vehicle  -> sfx bus
+Override if needed (a quiet machine hum might go on ambient bus)."""
+
+csv_formatting = """
+  - Use # for comment lines (section headers, notes)
+  - No spaces after commas
+  - Pipe | separates list values (variations, tags)
+  - Booleans are lowercase: true, false
+  - One sound per line, header row is required
+  - Group sounds by category with # === CATEGORY === headers"""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[[examples]]
+name = "Forest Day Ambience (ambient loop)"
+csv_row = "amb_forest_day,Forest Day Ambience,ambient,ambient/forest_day.ogg,0.4,1.0,1.0,false,1.0,50.0,true,2.0,0.0,0.0,2,ambient,,day|outdoor|peaceful"
+breakdown = """
+  id                      = amb_forest_day
+  name                    = Forest Day Ambience
+  category                = ambient
+  file_path               = ambient/forest_day.ogg
+  volume                  = 0.4          (quiet background layer)
+  pitch_range_min         = 1.0          (no pitch variation)
+  pitch_range_max         = 1.0
+  spatial                 = false         (plays everywhere, not positioned)
+  falloff_min_m           = 1.0          (ignored, not spatial)
+  falloff_max_m           = 50.0         (ignored, not spatial)
+  loop                    = true          (continuous ambient bed)
+  loop_crossfade_s        = 2.0          (smooth loop transition)
+  random_delay_range_min  = 0.0          (plays continuously, not random)
+  random_delay_range_max  = 0.0
+  priority                = 2            (low, can be culled)
+  bus                     = ambient       (ambient volume slider)
+  variations              =              (single file, no variants)
+  tags                    = day|outdoor|peaceful"""
+
+[[examples]]
+name = "Sword Hit (spatial combat SFX)"
+csv_row = "sfx_sword_hit,Sword Hit,sfx,sfx/sword_hit_01.wav,0.9,0.9,1.1,true,1.0,30.0,false,0.0,0.0,0.0,7,sfx,sfx/sword_hit_02.wav|sfx/sword_hit_03.wav,combat|outdoor|indoor"
+breakdown = """
+  id                      = sfx_sword_hit
+  name                    = Sword Hit
+  category                = sfx
+  file_path               = sfx/sword_hit_01.wav
+  volume                  = 0.9          (loud combat feedback)
+  pitch_range_min         = 0.9          (slight pitch variation)
+  pitch_range_max         = 1.1          (adds variety)
+  spatial                 = true          (positioned at the hit location)
+  falloff_min_m           = 1.0          (full volume within 1 meter)
+  falloff_max_m           = 30.0         (inaudible beyond 30 meters)
+  loop                    = false         (one-shot impact)
+  loop_crossfade_s        = 0.0          (not looping)
+  random_delay_range_min  = 0.0          (plays immediately on trigger)
+  random_delay_range_max  = 0.0
+  priority                = 7            (high, combat feedback)
+  bus                     = sfx           (SFX volume slider)
+  variations              = sfx/sword_hit_02.wav|sfx/sword_hit_03.wav
+  tags                    = combat|outdoor|indoor"""
+
+[[examples]]
+name = "Grass Footstep (spatial footstep with variations)"
+csv_row = "ft_grass,Grass Footstep,footstep,footsteps/grass_01.wav,0.6,0.85,1.15,true,0.5,15.0,false,0.0,0.0,0.0,5,sfx,footsteps/grass_02.wav|footsteps/grass_03.wav|footsteps/grass_04.wav,outdoor|peaceful|combat"
+breakdown = """
+  id                      = ft_grass
+  name                    = Grass Footstep
+  category                = footstep
+  file_path               = footsteps/grass_01.wav
+  volume                  = 0.6          (moderate, not distracting)
+  pitch_range_min         = 0.85         (wide pitch range for natural feel)
+  pitch_range_max         = 1.15
+  spatial                 = true          (positioned at the walker)
+  falloff_min_m           = 0.5          (quiet up close)
+  falloff_max_m           = 15.0         (inaudible beyond 15 meters)
+  loop                    = false         (one-shot per step)
+  loop_crossfade_s        = 0.0
+  random_delay_range_min  = 0.0          (triggered by movement system)
+  random_delay_range_max  = 0.0
+  priority                = 5            (standard, cullable under load)
+  bus                     = sfx           (SFX volume slider)
+  variations              = footsteps/grass_02.wav|footsteps/grass_03.wav|footsteps/grass_04.wav
+  tags                    = outdoor|peaceful|combat"""

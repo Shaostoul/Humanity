@@ -122,48 +122,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 // ─────────────────────────────── LEFT PANEL ───────────────────────────────
 
 fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // ── Connection status bar ──
     let is_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
 
-    if is_connected {
-        // Connected: green dot + server name + online count + disconnect button
-        Frame::NONE
-            .fill(Color32::from_rgb(25, 30, 25))
-            .inner_margin(egui::Margin::symmetric(8, 6))
-            .show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                ui.horizontal(|ui| {
-                    let dot_sz = theme.status_dot_size;
-                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.success());
-                    let online_count = state.chat_users.iter().filter(|u| u.status != "offline").count();
-                    ui.label(
-                        RichText::new(format!("{} ({} online)", server_display_name(&state.server_url), online_count))
-                            .size(theme.small_size)
-                            .color(theme.text_primary()),
-                    );
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.add(egui::Button::new(
-                            RichText::new("X")
-                                .size(theme.font_size_small)
-                                .color(theme.text_muted()),
-                        ).fill(Color32::TRANSPARENT).frame(false)).on_hover_text("Disconnect").clicked() {
-                            if let Some(ref mut client) = state.ws_client {
-                                client.disconnect();
-                            }
-                            state.ws_client = None;
-                            state.ws_status = "Disconnected".to_string();
-                            state.ws_manually_disconnected = true;
-                            state.ws_reconnect_timer = 0.0;
-                            state.ws_reconnect_delay = 5.0;
-                            state.ws_reconnect_attempts = 0;
-                            state.chat_users.clear();
-                        }
-                    });
-                });
-            });
-    } else {
-        // Disconnected: red dot + "Not connected" + server/name inputs + Connect button
+    // Show connect UI only when disconnected (no separate connection bar when connected)
+    if !is_connected {
         Frame::NONE
             .fill(Color32::from_rgb(40, 30, 30))
             .inner_margin(egui::Margin::symmetric(8, 8))
@@ -237,13 +199,14 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             });
     }
 
-    ui.add_space(2.0);
-
     // ── Scrollable section area ──
     ScrollArea::vertical()
         .id_salt("chat_left_scroll")
         .auto_shrink([false, false])
         .show(ui, |ui| {
+            // ── Scratchpad (local-only, above everything) ──
+            draw_scratchpad_row(ui, theme, state);
+
             // ── DMs Section (red tint) ──
             draw_dm_section(ui, theme, state);
 
@@ -255,15 +218,94 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
 }
 
+/// Local scratchpad channel - not attached to any server/group/DM.
+fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let is_active = state.chat_active_channel == "scratchpad";
+    let row_height = theme.row_height;
+    let (rect, resp) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), row_height),
+        egui::Sense::click(),
+    );
+
+    if ui.is_rect_visible(rect) {
+        let bg = if is_active {
+            Color32::from_rgb(45, 40, 55)
+        } else if resp.hovered() {
+            Color32::from_rgb(40, 38, 48)
+        } else {
+            Color32::from_rgb(32, 32, 38)
+        };
+        ui.painter().rect_filled(rect, 0.0, bg);
+
+        if is_active {
+            let bar = egui::Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height()));
+            ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(160, 140, 200));
+        }
+
+        let text_color = if is_active { theme.text_primary() } else { theme.text_secondary() };
+        ui.painter().text(
+            egui::pos2(rect.left() + theme.item_padding + 2.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            "# scratchpad",
+            egui::FontId::proportional(theme.body_size),
+            text_color,
+        );
+    }
+
+    if resp.clicked() {
+        state.chat_active_channel = "scratchpad".to_string();
+        state.chat_messages.clear();
+        state.history_fetched = false;
+    }
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+}
+
 // ── DMs Section ──
 
 fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let collapsed = state.chat_dm_collapsed;
     let dm_count = state.chat_dms.len();
+    let display_limit = state.chat_dm_display_limit;
 
-    if tinted_section_header(ui, &format!("DMs ({})", dm_count), collapsed, DM_BG) {
+    let mut dm_cog_clicked = false;
+    if tinted_section_header_with_buttons(
+        ui,
+        &format!("DMs ({})", dm_count),
+        collapsed,
+        DM_BG,
+        |ui| {
+            let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+            let cog_color = if cog_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+            crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+            if cog_resp.on_hover_text("DM Settings").clicked() {
+                dm_cog_clicked = true;
+            }
+        },
+    ) {
         state.chat_dm_collapsed = !state.chat_dm_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
+    }
+    // DM settings popup
+    if dm_cog_clicked {
+        let menu_id = ui.id().with("dm_settings_menu");
+        ui.memory_mut(|m| m.toggle_popup(menu_id));
+    }
+    {
+        let menu_id = ui.id().with("dm_settings_menu");
+        let dummy_resp = ui.allocate_rect(egui::Rect::from_min_size(ui.cursor().min, Vec2::ZERO), egui::Sense::hover());
+        egui::popup_below_widget(ui, menu_id, &dummy_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
+            ui.set_min_width(140.0);
+            ui.label(RichText::new("DM Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
+            ui.separator();
+            if ui.button("Clear All DMs").clicked() {
+                state.chat_dms.clear();
+            }
+            if ui.button("DM Notifications").clicked() {
+                // TODO: toggle DM notifications
+            }
+        });
     }
 
     if !collapsed {
@@ -286,55 +328,57 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
 
                 let dms = state.chat_dms.clone();
-                for dm in &dms {
+                let visible_dms: Vec<_> = if display_limit > 0 && dms.len() > display_limit {
+                    dms.iter().take(display_limit).collect()
+                } else {
+                    dms.iter().collect()
+                };
+
+                for dm in &visible_dms {
                     let dm_channel = format!("dm:{}", dm.user_key);
                     let is_active = state.chat_active_channel == dm_channel;
-                    let response = ui
-                        .allocate_ui_with_layout(
-                            Vec2::new(ui.available_width(), theme.row_height),
-                            egui::Layout::left_to_right(egui::Align::Center),
-                            |ui| {
-                                let full_rect = ui.max_rect();
-                                let bg = if is_active {
-                                    DM_ROW_HOVER
-                                } else if ui.rect_contains_pointer(full_rect) {
-                                    DM_ROW_HOVER
-                                } else {
-                                    DM_ROW_BG
-                                };
-                                ui.painter().rect_filled(full_rect, 0.0, bg);
 
-                                // Active indicator bar
-                                if is_active {
-                                    let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(3.0, full_rect.height()));
-                                    ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(200, 80, 80));
-                                }
+                    // Channel-row style DM entry
+                    let row_height = theme.row_height;
+                    let (full_rect, response) = ui.allocate_exact_size(
+                        Vec2::new(ui.available_width(), row_height),
+                        egui::Sense::click(),
+                    );
 
-                                ui.add_space(theme.item_padding);
+                    if ui.is_rect_visible(full_rect) {
+                        let bg = if is_active || response.hovered() {
+                            DM_ROW_HOVER
+                        } else {
+                            DM_ROW_BG
+                        };
+                        ui.painter().rect_filled(full_rect, 0.0, bg);
 
-                                // Unread dot
-                                if dm.unread {
-                                    let dot_sz = theme.status_dot_size * 0.75;
-                                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-                                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, Color32::from_rgb(200, 80, 80));
-                                }
+                        // Active indicator bar
+                        if is_active {
+                            let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(3.0, full_rect.height()));
+                            ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(200, 80, 80));
+                        }
 
-                                ui.label(
-                                    RichText::new(&dm.user_name)
-                                        .size(theme.body_size)
-                                        .color(if is_active || dm.unread { theme.text_primary() } else { theme.text_secondary() }),
-                                );
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    ui.add_space(theme.item_padding);
-                                    ui.label(
-                                        RichText::new(&dm.timestamp)
-                                            .size(theme.small_size)
-                                            .color(theme.text_muted()),
-                                    );
-                                });
-                            },
-                        )
-                        .response;
+                        let mut cursor_x = full_rect.left() + theme.item_padding + 2.0;
+                        let cy = full_rect.center().y;
+
+                        // Unread dot
+                        if dm.unread {
+                            let dot_r = theme.status_dot_size * 0.375;
+                            ui.painter().circle_filled(egui::pos2(cursor_x + dot_r, cy), dot_r, Color32::from_rgb(200, 80, 80));
+                            cursor_x += dot_r * 2.0 + 3.0;
+                        }
+
+                        // DM icon prefix + user name (like "@ username")
+                        let name_color = if is_active || dm.unread { theme.text_primary() } else { theme.text_secondary() };
+                        ui.painter().text(
+                            egui::pos2(cursor_x, cy),
+                            egui::Align2::LEFT_CENTER,
+                            &format!("@ {}", dm.user_name),
+                            egui::FontId::proportional(theme.body_size),
+                            name_color,
+                        );
+                    }
 
                     if response.clicked() {
                         state.chat_active_channel = dm_channel;
@@ -383,6 +427,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Track button clicks from the header
     let mut create_clicked = false;
     let mut join_clicked = false;
+    let mut groups_cog_clicked = false;
 
     if tinted_section_header_with_buttons(
         ui,
@@ -390,22 +435,57 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         collapsed,
         GROUP_BG,
         |ui| {
+            // Cog button (group settings)
+            {
+                let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+                let cog_color = if cog_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+                crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+                if cog_resp.on_hover_text("Group Settings").clicked() {
+                    groups_cog_clicked = true;
+                }
+            }
             // + button (create group)
-            if ui.add(egui::Button::new(
-                RichText::new("+").size(14.0).color(Color32::from_rgb(160, 160, 170)),
-            ).fill(Color32::TRANSPARENT).frame(false)).on_hover_text("Create Group").clicked() {
-                create_clicked = true;
+            {
+                let (plus_rect, plus_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+                let plus_color = if plus_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+                crate::gui::widgets::icons::paint_plus(ui.painter(), plus_rect, plus_color);
+                if plus_resp.on_hover_text("Create Group").clicked() {
+                    create_clicked = true;
+                }
             }
             // Join button (arrow icon)
-            if ui.add(egui::Button::new(
-                RichText::new("\u{2192}").size(14.0).color(Color32::from_rgb(160, 160, 170)),
-            ).fill(Color32::TRANSPARENT).frame(false)).on_hover_text("Join Group").clicked() {
-                join_clicked = true;
+            {
+                let (arrow_rect, arrow_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+                let arrow_color = if arrow_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+                crate::gui::widgets::icons::paint_arrow_right(ui.painter(), arrow_rect, arrow_color);
+                if arrow_resp.on_hover_text("Join Group").clicked() {
+                    join_clicked = true;
+                }
             }
         },
     ) {
         state.chat_groups_collapsed = !state.chat_groups_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
+    }
+    // Groups settings popup
+    if groups_cog_clicked {
+        let menu_id = ui.id().with("groups_settings_menu");
+        ui.memory_mut(|m| m.toggle_popup(menu_id));
+    }
+    {
+        let menu_id = ui.id().with("groups_settings_menu");
+        let dummy_resp = ui.allocate_rect(egui::Rect::from_min_size(ui.cursor().min, Vec2::ZERO), egui::Sense::hover());
+        egui::popup_below_widget(ui, menu_id, &dummy_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
+            ui.set_min_width(140.0);
+            ui.label(RichText::new("Groups Settings").size(theme.font_size_body).color(theme.text_primary()).strong());
+            ui.separator();
+            if ui.button("Group Notifications").clicked() {
+                // TODO: toggle group notifications
+            }
+            if ui.button("Sort by Activity").clicked() {
+                // TODO: sort groups
+            }
+        });
     }
 
     if create_clicked {
@@ -420,10 +500,10 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if !collapsed {
         Frame::NONE
             .fill(GROUP_BG)
-            .inner_margin(egui::Margin::symmetric(0, 2))
+            .inner_margin(egui::Margin::symmetric(0, 1))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                ui.spacing_mut().item_spacing.y = 1.0;
+                ui.spacing_mut().item_spacing.y = 0.0;
 
                 if state.chat_groups.is_empty() {
                     ui.horizontal(|ui| {
@@ -437,88 +517,223 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(4.0);
                 }
 
+                // Each group renders like a mini-server: header row + channel rows
                 let groups = state.chat_groups.clone();
-                for group in &groups {
-                    let group_channel = format!("group:{}", group.id);
-                    let is_active = state.chat_active_channel == group_channel;
+                let mut toggle_group_idx: Option<usize> = None;
+                let mut leave_group_id: Option<String> = None;
+                for (gi, group) in groups.iter().enumerate() {
+                    if gi > 0 { ui.add_space(4.0); } // Gap between groups
 
-                    // Card-style group entry (similar to server cards)
-                    let card_response = Frame::NONE
-                        .fill(if is_active { GROUP_ROW_HOVER } else { GROUP_ROW_BG })
-                        .rounding(Rounding::same(4))
-                        .inner_margin(egui::Margin::symmetric(6, 4))
-                        .show(ui, |ui| {
-                            ui.set_min_width(ui.available_width());
-                            ui.horizontal(|ui| {
-                                // Active indicator bar
-                                if is_active {
-                                    let (bar_rect, _) = ui.allocate_exact_size(Vec2::new(3.0, 16.0), egui::Sense::hover());
-                                    ui.painter().rect_filled(bar_rect, 0.0, Color32::from_rgb(80, 200, 80));
-                                }
+                    // Group header: <collapse> <cog> <title> ... <member count>
+                    let hdr_height = 24.0;
+                    let full_width = ui.available_width();
+                    let (hdr_rect, _) = ui.allocate_exact_size(
+                        Vec2::new(full_width, hdr_height),
+                        egui::Sense::hover(),
+                    );
 
-                                // Green circle with first letter
-                                let circle_sz = 20.0;
-                                let (circle_rect, _) = ui.allocate_exact_size(Vec2::splat(circle_sz), egui::Sense::hover());
-                                ui.painter().circle_filled(circle_rect.center(), circle_sz / 2.0, Color32::from_rgb(40, 120, 40));
-                                let letter = group.name.chars().next().unwrap_or('G').to_uppercase().to_string();
-                                ui.painter().text(
-                                    circle_rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    &letter,
-                                    egui::FontId::proportional(11.0),
-                                    Color32::WHITE,
-                                );
+                    // Paint group header background + icons
+                    let cog_click_rect;
+                    if ui.is_rect_visible(hdr_rect) {
+                        let hdr_bg = Color32::from_rgba_premultiplied(
+                            GROUP_BG.r().saturating_add(20),
+                            GROUP_BG.g().saturating_add(20),
+                            GROUP_BG.b().saturating_add(20),
+                            GROUP_BG.a(),
+                        );
+                        ui.painter().rect_filled(hdr_rect, 0.0, hdr_bg);
 
-                                ui.vertical(|ui| {
-                                    ui.label(
-                                        RichText::new(&group.name)
-                                            .size(theme.body_size)
-                                            .color(if is_active { theme.text_primary() } else { theme.text_secondary() }),
-                                    );
-                                    ui.label(
-                                        RichText::new(format!("{} members", group.member_count))
-                                            .size(theme.small_size - 1.0)
-                                            .color(theme.text_muted()),
-                                    );
-                                });
-                            });
-                        })
-                        .response;
+                        let mut cx = hdr_rect.left() + 8.0;
+                        let cy = hdr_rect.center().y;
 
-                    if card_response.clicked() {
-                        state.chat_active_channel = group_channel;
-                        state.chat_messages.clear();
-                        state.history_fetched = false;
-                        // Request group history from server
-                        if let Some(ref client) = state.ws_client {
-                            if client.is_connected() {
-                                let msg = serde_json::json!({
-                                    "type": "group_history_request",
-                                    "group_id": group.id,
-                                });
-                                client.send(&msg.to_string());
-                            }
+                        // Collapse arrow
+                        let arrow_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
+                        if group.collapsed {
+                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
+                        } else {
+                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
                         }
+                        cx += 14.0;
+
+                        // Cog icon (clickable area)
+                        cog_click_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, hdr_rect.top()), Vec2::new(14.0, hdr_height));
+                        let cog_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
+                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_icon_rect, Color32::from_rgb(120, 120, 130));
+                        cx += 14.0;
+
+                        // Group name
+                        ui.painter().text(
+                            egui::pos2(cx, cy),
+                            egui::Align2::LEFT_CENTER,
+                            &group.name,
+                            egui::FontId::proportional(theme.body_size),
+                            theme.text_primary(),
+                        );
+
+                        // Member count on right
+                        ui.painter().text(
+                            egui::pos2(hdr_rect.right() - theme.item_padding, cy),
+                            egui::Align2::RIGHT_CENTER,
+                            &format!("{}", group.member_count),
+                            egui::FontId::proportional(theme.small_size),
+                            theme.text_muted(),
+                        );
+                    } else {
+                        cog_click_rect = hdr_rect; // fallback
                     }
-                    if card_response.hovered() {
+
+                    // Collapse arrow click target
+                    let arrow_click = egui::Rect::from_min_size(hdr_rect.min, Vec2::new(22.0, hdr_height));
+                    let arrow_resp = ui.interact(arrow_click, ui.id().with("grp_arrow").with(gi), egui::Sense::click());
+                    if arrow_resp.clicked() {
+                        toggle_group_idx = Some(gi);
+                    }
+                    if arrow_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
-                    // Right-click context menu on groups
-                    card_response.context_menu(|ui| {
+
+                    // Cog click target - opens settings context menu on left-click or right-click
+                    let cog_resp = ui.interact(cog_click_rect, ui.id().with("grp_cog").with(gi), egui::Sense::click());
+                    if cog_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    let show_group_menu = cog_resp.clicked() || cog_resp.secondary_clicked();
+
+                    // Also allow right-click on the full header
+                    let hdr_interact = ui.interact(hdr_rect, ui.id().with("grp_ctx").with(gi), egui::Sense::click());
+                    let show_menu_rc = hdr_interact.secondary_clicked();
+
+                    // Combined menu (from cog click or right-click)
+                    let menu_id = ui.id().with("grp_menu").with(gi);
+                    if show_group_menu || show_menu_rc {
+                        ui.memory_mut(|m| m.toggle_popup(menu_id));
+                    }
+                    egui::popup_below_widget(ui, menu_id, &cog_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
+                        ui.set_min_width(160.0);
                         ui.label(RichText::new(&group.name).size(theme.font_size_body).color(theme.text_primary()).strong());
                         ui.separator();
+                        let invite_url = format!("https://united-humanity.us/chat/group/{}", group.id);
+                        if ui.button("Copy Invite Link").clicked() {
+                            ui.ctx().copy_text(invite_url);
+                        }
                         if ui.button("Copy Group ID").clicked() {
                             ui.ctx().copy_text(group.id.clone());
-                            ui.close_menu();
                         }
+                        ui.separator();
                         if ui.button(RichText::new("Leave Group").color(Color32::from_rgb(200, 80, 80))).clicked() {
-                            state.chat_groups.retain(|g| g.id != group.id);
-                            if state.chat_active_channel == format!("group:{}", group.id) {
-                                state.chat_active_channel = "general".to_string();
-                            }
-                            ui.close_menu();
+                            leave_group_id = Some(group.id.clone());
                         }
                     });
+
+                    // Channel rows with mic/cog icons (if not collapsed)
+                    if !group.collapsed {
+                        let is_group_admin = true; // TODO: check actual group role
+                        for (chi, ch) in group.channels.iter().enumerate() {
+                            let is_active = state.chat_active_channel == ch.id;
+                            let accent = Color32::from_rgb(80, 200, 80);
+                            let base_bg = if is_active {
+                                Color32::from_rgb(accent.r() / 5 + 15, accent.g() / 5 + 15, accent.b() / 5 + 15)
+                            } else {
+                                GROUP_ROW_BG
+                            };
+
+                            let row_w = ui.available_width();
+                            let (row_rect, response) = ui.allocate_exact_size(
+                                Vec2::new(row_w, theme.row_height),
+                                egui::Sense::click(),
+                            );
+
+                            if ui.is_rect_visible(row_rect) {
+                                let hover = response.hovered();
+                                let fill = if hover && !is_active { GROUP_ROW_HOVER } else { base_bg };
+                                ui.painter().rect_filled(row_rect, 0.0, fill);
+                                if is_active {
+                                    let bar = egui::Rect::from_min_size(row_rect.min, Vec2::new(3.0, row_rect.height()));
+                                    ui.painter().rect_filled(bar, 0.0, accent);
+                                }
+
+                                let text_color = if is_active { theme.text_primary() } else { theme.text_secondary() };
+                                let icon_size = 12.0;
+                                let cy = row_rect.center().y;
+                                let mut cx = row_rect.left() + theme.item_padding + 2.0;
+
+                                // Voice icon
+                                if ch.voice_enabled {
+                                    let icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
+                                    let mic_color = Color32::from_rgb(100, 100, 110);
+                                    crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
+                                    cx += icon_size + 2.0;
+                                }
+
+                                // Cog icon (admin)
+                                if is_group_admin {
+                                    let cog_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
+                                    let cog_color = Color32::from_rgb(100, 100, 110);
+                                    crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+                                    cx += icon_size + 2.0;
+                                }
+
+                                // # channel name
+                                ui.painter().text(
+                                    egui::pos2(cx + 2.0, cy),
+                                    egui::Align2::LEFT_CENTER,
+                                    &format!("# {}", ch.name),
+                                    egui::FontId::proportional(theme.body_size),
+                                    text_color,
+                                );
+                            }
+
+                            if response.hovered() {
+                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                            }
+                            if response.clicked() {
+                                state.chat_active_channel = ch.id.clone();
+                                state.chat_messages.clear();
+                                state.history_fetched = false;
+                                if let Some(ref client) = state.ws_client {
+                                    if client.is_connected() {
+                                        let msg = serde_json::json!({
+                                            "type": "group_history_request",
+                                            "group_id": group.id,
+                                        });
+                                        client.send(&msg.to_string());
+                                    }
+                                }
+                            }
+                            // Right-click: copy channel link
+                            response.context_menu(|ui| {
+                                let link = format!("https://united-humanity.us/chat/group/{}/{}", group.id, ch.name);
+                                if ui.button("Copy Channel Link").clicked() {
+                                    ui.ctx().copy_text(link);
+                                    ui.close_menu();
+                                }
+                            });
+                        }
+                    }
+                }
+
+                // Apply group collapse toggles
+                if let Some(idx) = toggle_group_idx {
+                    if let Some(g) = state.chat_groups.get_mut(idx) {
+                        g.collapsed = !g.collapsed;
+                    }
+                }
+
+                // Apply group leave (send to server so groups don't come back)
+                if let Some(gid) = leave_group_id {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({
+                                "type": "group_leave",
+                                "group_id": gid,
+                            });
+                            client.send(&msg.to_string());
+                        }
+                    }
+                    state.chat_groups.retain(|g| g.id != gid);
+                    if state.chat_active_channel.starts_with(&format!("group:{}", gid)) {
+                        state.chat_active_channel = "general".to_string();
+                    }
                 }
             });
     }
@@ -531,11 +746,32 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
     // Build a virtual server from the current connection
     let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+
     let virtual_server_count = if connected { 1 } else { 0 } + state.chat_servers.len();
 
-    if tinted_section_header(ui, &format!("Servers ({})", virtual_server_count), collapsed, SERVER_BG) {
+    let header_label = format!("Servers ({})", virtual_server_count);
+
+    let mut add_server_clicked = false;
+    if tinted_section_header_with_buttons(
+        ui,
+        &header_label,
+        collapsed,
+        SERVER_BG,
+        |ui| {
+            let (plus_rect, plus_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+            let plus_color = if plus_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+            crate::gui::widgets::icons::paint_plus(ui.painter(), plus_rect, plus_color);
+            if plus_resp.on_hover_text("Add Server").clicked() {
+                add_server_clicked = true;
+            }
+        },
+    ) {
         state.chat_servers_collapsed = !state.chat_servers_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
+    }
+    // (disconnect is handled inside the server name row)
+    if add_server_clicked {
+        // TODO: open add-server modal
     }
 
     if !collapsed {
@@ -547,21 +783,134 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                 ui.spacing_mut().item_spacing.y = 0.0;
                 // Current connected server (virtual entry)
                 if connected {
-                    // Server name header
-                    ui.horizontal(|ui| {
-                        ui.add_space(theme.item_padding);
-                        let dot_sz = theme.status_dot_size;
-                        let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-                        ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.success());
-                        ui.label(
-                            RichText::new(server_display_name(&state.server_url))
-                                .size(theme.body_size)
-                                .color(theme.text_primary())
-                                .strong(),
+                    let online_count = state.chat_users.iter().filter(|u| u.status != "offline").count();
+                    let svr_hdr_height = 24.0;
+                    let svr_full_w = ui.available_width();
+                    let svr_name = server_display_name(&state.server_url);
+                    let svr_collapsed = state.chat_connected_server_collapsed;
+
+                    // Server header: <collapse> <cog> <name (online)> ... <member count>
+                    let (svr_rect, _) = ui.allocate_exact_size(Vec2::new(svr_full_w, svr_hdr_height), egui::Sense::hover());
+                    let cog_click_rect;
+                    let mut svr_disconnect = false;
+                    if ui.is_rect_visible(svr_rect) {
+                        let svr_bg = Color32::from_rgba_premultiplied(
+                            SERVER_BG.r().saturating_add(20),
+                            SERVER_BG.g().saturating_add(20),
+                            SERVER_BG.b().saturating_add(20),
+                            SERVER_BG.a(),
                         );
+                        ui.painter().rect_filled(svr_rect, 0.0, svr_bg);
+
+                        let mut cx = svr_rect.left() + 8.0;
+                        let cy = svr_rect.center().y;
+
+                        // Collapse arrow
+                        let arrow_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
+                        if svr_collapsed {
+                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
+                        } else {
+                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
+                        }
+                        cx += 14.0;
+
+                        // Cog icon
+                        cog_click_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, svr_rect.top()), Vec2::new(14.0, svr_hdr_height));
+                        let cog_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
+                        crate::gui::widgets::icons::paint_cog(ui.painter(), cog_icon_rect, Color32::from_rgb(120, 120, 130));
+                        cx += 14.0;
+
+                        // Green dot
+                        let dot_r = theme.status_dot_size / 2.0;
+                        ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, theme.success());
+                        cx += theme.status_dot_size + 4.0;
+
+                        // Server name + online count
+                        ui.painter().text(
+                            egui::pos2(cx, cy),
+                            egui::Align2::LEFT_CENTER,
+                            &format!("{} ({})", svr_name, online_count),
+                            egui::FontId::proportional(theme.body_size),
+                            theme.text_primary(),
+                        );
+
+                        // Member count on right
+                        ui.painter().text(
+                            egui::pos2(svr_rect.right() - theme.item_padding, cy),
+                            egui::Align2::RIGHT_CENTER,
+                            &format!("{}", state.chat_users.len()),
+                            egui::FontId::proportional(theme.small_size),
+                            theme.text_muted(),
+                        );
+                    } else {
+                        cog_click_rect = svr_rect;
+                    }
+
+                    // Collapse arrow click target
+                    let arrow_click = egui::Rect::from_min_size(svr_rect.min, Vec2::new(22.0, svr_hdr_height));
+                    let arrow_resp = ui.interact(arrow_click, ui.id().with("svr_arrow"), egui::Sense::click());
+                    if arrow_resp.clicked() {
+                        state.chat_connected_server_collapsed = !state.chat_connected_server_collapsed;
+                        crate::config::AppConfig::from_gui_state(state).save();
+                    }
+                    if arrow_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+
+                    // Cog click target - opens settings popup
+                    let cog_resp = ui.interact(cog_click_rect, ui.id().with("svr_cog"), egui::Sense::click());
+                    if cog_resp.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                    let show_svr_menu = cog_resp.clicked() || cog_resp.secondary_clicked();
+
+                    // Right-click on full header also opens menu
+                    let hdr_interact = ui.interact(svr_rect, ui.id().with("svr_ctx"), egui::Sense::click());
+                    let show_menu_rc = hdr_interact.secondary_clicked();
+
+                    let menu_id = ui.id().with("svr_menu");
+                    if show_svr_menu || show_menu_rc {
+                        ui.memory_mut(|m| m.toggle_popup(menu_id));
+                    }
+                    let is_server_admin = {
+                        let vr = viewer_role(state);
+                        vr == "admin" || vr == "moderator" || vr == "mod"
+                    };
+                    egui::popup_below_widget(ui, menu_id, &cog_resp, egui::PopupCloseBehavior::CloseOnClick, |ui| {
+                        ui.set_min_width(160.0);
+                        ui.label(RichText::new(&svr_name).size(theme.font_size_body).color(theme.text_primary()).strong());
+                        ui.separator();
+                        let invite_url = format!("https://united-humanity.us/chat");
+                        if ui.button("Copy Invite Link").clicked() {
+                            ui.ctx().copy_text(invite_url);
+                        }
+                        if is_server_admin {
+                            ui.separator();
+                            if ui.button("Server Settings").clicked() {
+                                // TODO: open server settings modal
+                            }
+                        }
+                        ui.separator();
+                        if ui.button("Mute Server").clicked() {
+                            // TODO: implement mute
+                        }
+                        if ui.button(RichText::new("Disconnect").color(Color32::from_rgb(200, 80, 80))).clicked() {
+                            svr_disconnect = true;
+                        }
                     });
 
-                    // Merged channels: each row shows # name with voice Join/Leave on the right
+                    if svr_disconnect {
+                        if let Some(ref mut client) = state.ws_client {
+                            client.disconnect();
+                        }
+                        state.ws_client = None;
+                        state.ws_status = "Disconnected".to_string();
+                        state.ws_manually_disconnected = true;
+                        state.chat_users.clear();
+                    }
+
+                    // Merged channels (only if not collapsed)
+                    if !svr_collapsed {
                     let active = state.chat_active_channel.clone();
                     let channels = state.chat_channels.clone();
                     let is_channel_admin = {
@@ -592,160 +941,100 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         let edit_modal_for_this = state.show_channel_edit_modal
                             && state.edit_channel_id == ch.id;
 
-                        let response = ui
-                            .allocate_ui_with_layout(
-                                Vec2::new(ui.available_width(), theme.row_height),
-                                Layout::left_to_right(Align::Center),
-                                |ui| {
-                                    ui.set_min_height(theme.row_height);
-                                    let full_rect = ui.max_rect();
-                                    let hover = ui.rect_contains_pointer(full_rect);
-                                    let fill = if hover && !is_active { SERVER_ROW_HOVER } else { bg };
-                                    ui.painter().rect_filled(full_rect, 0.0, fill);
-                                    // Accent left border on active channel
-                                    if is_active {
-                                        let bar = egui::Rect::from_min_size(
-                                            full_rect.min,
-                                            Vec2::new(3.0, full_rect.height()),
-                                        );
-                                        ui.painter().rect_filled(bar, 0.0, accent);
-                                    }
-                                    ui.add_space(theme.item_padding + 2.0);
-                                    let text_color = if is_active {
-                                        theme.text_primary()
-                                    } else {
-                                        theme.text_secondary()
-                                    };
+                        // Single click target for the whole row; check click position
+                        // to distinguish voice/gear/channel clicks without overlapping interact().
+                        let row_w = ui.available_width();
+                        let (row_rect, response) = ui.allocate_exact_size(
+                            Vec2::new(row_w, theme.row_height),
+                            egui::Sense::click(),
+                        );
 
-                                    // Green speaker icon if voice is active on this channel
-                                    if ch.voice_joined {
-                                        ui.label(
-                                            RichText::new("))")
-                                                .size(theme.body_size - 2.0)
-                                                .color(theme.success()),
-                                        );
-                                    }
+                        let mut voice_icon_rect = egui::Rect::NOTHING;
+                        let mut gear_icon_rect = egui::Rect::NOTHING;
 
-                                    // Channel name as clickable button (not label)
-                                    let name_btn = ui.add(
-                                        egui::Button::new(
-                                            RichText::new(format!("# {}", ch.name))
-                                                .size(theme.body_size)
-                                                .color(text_color),
-                                        )
-                                        .frame(false)
-                                        .fill(Color32::TRANSPARENT),
+                        if ui.is_rect_visible(row_rect) {
+                            let hover = response.hovered();
+                            let fill = if hover && !is_active { SERVER_ROW_HOVER } else { bg };
+                            ui.painter().rect_filled(row_rect, 0.0, fill);
+                            if is_active {
+                                let bar = egui::Rect::from_min_size(row_rect.min, Vec2::new(3.0, row_rect.height()));
+                                ui.painter().rect_filled(bar, 0.0, accent);
+                            }
+
+                            let text_color = if is_active { theme.text_primary() } else { theme.text_secondary() };
+                            let icon_size = 12.0;
+                            let cy = row_rect.center().y;
+                            let mut cx = row_rect.left() + theme.item_padding + 2.0;
+
+                            // 1. Voice chat icon
+                            if ch.voice_enabled {
+                                let icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
+                                voice_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
+                                if ch.voice_joined {
+                                    crate::gui::widgets::icons::paint_speaker(ui.painter(), icon_rect, theme.success());
+                                } else {
+                                    let on_voice = response.hovered() && voice_icon_rect.contains(ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()));
+                                    let mic_color = if on_voice { Color32::WHITE } else { Color32::from_rgb(100, 100, 110) };
+                                    crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
+                                }
+                                cx += icon_size + 2.0;
+                            }
+
+                            // 2. Settings/cog icon (admin only)
+                            if is_channel_admin {
+                                let cog_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
+                                gear_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
+                                let on_gear = response.hovered() && gear_icon_rect.contains(ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()));
+                                let gear_color = if edit_modal_for_this || on_gear {
+                                    Color32::WHITE
+                                } else {
+                                    Color32::from_rgb(100, 100, 110)
+                                };
+                                crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, gear_color);
+                                if edit_modal_for_this {
+                                    let rgb_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
+                                    ui.painter().rect_stroke(
+                                        cog_rect, Rounding::same(2),
+                                        Stroke::new(1.5, rgb_color), egui::StrokeKind::Outside,
                                     );
-                                    if name_btn.clicked() {
-                                        state.chat_active_channel = ch.id.clone();
-                                        state.chat_messages.clear();
-                                        state.history_fetched = false;
-                                    }
+                                    ui.ctx().request_repaint();
+                                }
+                                cx += icon_size + 2.0;
+                            }
 
-                                    // Voice Join/Leave button + gear icon on the right
-                                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                        ui.add_space(theme.item_padding);
-
-                                        // Mic icon (only if voice_enabled)
-                                        if ch.voice_enabled {
-                                            if ch.voice_joined {
-                                                let mic_resp = ui.add(egui::Button::new(
-                                                    RichText::new("Leave")
-                                                        .size(theme.font_size_small - 1.0)
-                                                        .color(theme.danger()),
-                                                ).fill(Color32::TRANSPARENT));
-                                                if mic_resp.clicked() {
-                                                    voice_toggle_idx = Some((idx, false));
-                                                }
-                                            } else {
-                                                let mic_color = if false { Color32::WHITE } else { Color32::from_rgb(120, 120, 130) };
-                                                let mic_resp = ui.add(egui::Button::new(
-                                                    RichText::new("mic")
-                                                        .size(theme.font_size_small)
-                                                        .color(mic_color),
-                                                ).fill(Color32::TRANSPARENT).frame(false));
-                                                // Hover effect for mic icon
-                                                if mic_resp.hovered() {
-                                                    ui.painter().rect_stroke(
-                                                        mic_resp.rect,
-                                                        Rounding::same(3),
-                                                        Stroke::new(1.0, Color32::from_rgb(52, 152, 219)),
-                                                        egui::StrokeKind::Outside,
-                                                    );
-                                                    // Re-draw with white color on hover
-                                                    ui.painter().text(
-                                                        mic_resp.rect.center(),
-                                                        egui::Align2::CENTER_CENTER,
-                                                        "mic",
-                                                        egui::FontId::proportional(theme.font_size_small),
-                                                        Color32::WHITE,
-                                                    );
-                                                }
-                                                if mic_resp.clicked() {
-                                                    voice_toggle_idx = Some((idx, true));
-                                                }
-                                            }
-                                        }
-
-                                        // Gear icon for admin/mod to edit channel
-                                        if is_channel_admin {
-                                            let gear_color = if edit_modal_for_this {
-                                                Color32::WHITE
-                                            } else {
-                                                Color32::from_rgb(120, 120, 130)
-                                            };
-                                            let gear_resp = ui.add(egui::Button::new(
-                                                RichText::new("cog")
-                                                    .size(14.0)
-                                                    .color(gear_color),
-                                            ).fill(Color32::TRANSPARENT).frame(false));
-
-                                            // Hover effect for cog icon
-                                            if gear_resp.hovered() && !edit_modal_for_this {
-                                                ui.painter().rect_stroke(
-                                                    gear_resp.rect,
-                                                    Rounding::same(3),
-                                                    Stroke::new(1.0, Color32::from_rgb(52, 152, 219)),
-                                                    egui::StrokeKind::Outside,
-                                                );
-                                                ui.painter().text(
-                                                    gear_resp.rect.center(),
-                                                    egui::Align2::CENTER_CENTER,
-                                                    "cog",
-                                                    egui::FontId::proportional(14.0),
-                                                    Color32::WHITE,
-                                                );
-                                            }
-
-                                            // RGB animated border when edit modal is open for this channel
-                                            if edit_modal_for_this {
-                                                let rgb_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
-                                                ui.painter().rect_stroke(
-                                                    gear_resp.rect,
-                                                    Rounding::same(3),
-                                                    Stroke::new(1.5, rgb_color),
-                                                    egui::StrokeKind::Outside,
-                                                );
-                                                ui.ctx().request_repaint();
-                                            }
-
-                                            if gear_resp.clicked() {
-                                                gear_click_id = Some(ch.id.clone());
-                                            }
-                                        }
-                                    });
-                                },
-                            )
-                            .response;
+                            // 3. # Channel name
+                            ui.painter().text(
+                                egui::pos2(cx + 2.0, cy),
+                                egui::Align2::LEFT_CENTER,
+                                &format!("# {}", ch.name),
+                                egui::FontId::proportional(theme.body_size),
+                                text_color,
+                            );
+                        }
 
                         if response.hovered() {
                             ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                         }
-                        if response.clicked() && voice_toggle_idx.is_none() && gear_click_id.is_none() {
-                            state.chat_active_channel = ch.id.clone();
-                            state.chat_messages.clear();
-                            state.history_fetched = false;
+                        if response.clicked() {
+                            let click_pos = ui.ctx().input(|i| i.pointer.interact_pos().unwrap_or_default());
+                            if voice_icon_rect.contains(click_pos) && ch.voice_enabled {
+                                voice_toggle_idx = Some((idx, !ch.voice_joined));
+                            } else if gear_icon_rect.contains(click_pos) && is_channel_admin {
+                                gear_click_id = Some(ch.id.clone());
+                            } else {
+                                state.chat_active_channel = ch.id.clone();
+                                state.chat_messages.clear();
+                                state.history_fetched = false;
+                            }
                         }
+                        // Right-click: copy channel link
+                        response.context_menu(|ui| {
+                            let link = format!("https://united-humanity.us/chat/{}", ch.name);
+                            if ui.button("Copy Channel Link").clicked() {
+                                ui.ctx().copy_text(link);
+                                ui.close_menu();
+                            }
+                        });
                     }
 
                     // Apply gear click (open edit modal for that channel)
@@ -795,6 +1084,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     }
 
                     ui.add_space(2.0);
+                    } // end if !svr_collapsed
                 }
 
                 // Additional servers from chat_servers list
@@ -823,16 +1113,6 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             });
     }
 
-    // + Add Server button (outside the server card)
-    ui.add_space(2.0);
-    ui.horizontal(|ui| {
-        ui.add_space(8.0);
-        if ui.add(egui::Button::new(
-            RichText::new("+ Add Server").size(theme.font_size_small).color(theme.text_secondary()),
-        ).fill(Color32::TRANSPARENT)).clicked() {
-            // placeholder
-        }
-    });
     ui.add_space(2.0);
 }
 
@@ -868,62 +1148,84 @@ fn draw_user_row(
     let is_modal_target = state.chat_user_modal_open
         && state.chat_user_modal_key == public_key;
 
-    let response = ui
-        .allocate_ui_with_layout(
-            Vec2::new(ui.available_width(), theme.row_height),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                let full_rect = ui.max_rect();
-                let hovered = ui.rect_contains_pointer(full_rect);
-                let bg = if hovered {
-                    Color32::from_rgb(45, 45, 55)
-                } else {
-                    Color32::TRANSPARENT
-                };
-                ui.painter().rect_filled(full_rect, 0.0, bg);
+    let row_height = theme.row_height;
+    let (full_rect, response) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), row_height),
+        egui::Sense::click(),
+    );
 
-                // RGB channeling border when this user's modal is open
-                if is_modal_target {
-                    let border_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
-                    ui.painter().rect_stroke(
-                        full_rect,
-                        2.0,
-                        egui::Stroke::new(1.5, border_color),
-                        egui::epaint::StrokeKind::Inside,
-                    );
-                    ui.ctx().request_repaint();
-                }
+    if ui.is_rect_visible(full_rect) {
+        let bg = if response.hovered() {
+            Color32::from_rgb(45, 45, 55)
+        } else {
+            Color32::TRANSPARENT
+        };
+        ui.painter().rect_filled(full_rect, 0.0, bg);
 
-                ui.add_space(theme.item_padding);
+        // RGB border when this user's modal is open
+        if is_modal_target {
+            let border_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
+            ui.painter().rect_stroke(
+                full_rect, 2.0,
+                egui::Stroke::new(1.5, border_color),
+                egui::epaint::StrokeKind::Inside,
+            );
+            ui.ctx().request_repaint();
+        }
 
-                // Online/offline dot
-                let dot_color = match status {
-                    "offline" => Color32::from_rgb(100, 100, 100),
-                    "away" => theme.warning(),
-                    "busy" | "dnd" => theme.danger(),
-                    _ => theme.success(),
-                };
-                let dot_sz = theme.status_dot_size;
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-                ui.painter().circle_filled(rect.center(), dot_sz / 2.0, dot_color);
+        let mut cx = full_rect.left() + theme.item_padding;
+        let cy = full_rect.center().y;
 
-                // Name color: muted if offline
-                let nc = if status == "offline" {
-                    theme.text_muted()
-                } else {
-                    theme.text_primary()
-                };
-                ui.label(
-                    RichText::new(name)
-                        .size(theme.body_size)
-                        .color(nc),
-                );
+        // Online/offline dot
+        let dot_color = match status {
+            "offline" => Color32::from_rgb(100, 100, 100),
+            "away" => theme.warning(),
+            "busy" | "dnd" => theme.danger(),
+            _ => theme.success(),
+        };
+        let dot_r = theme.status_dot_size / 2.0;
+        ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, dot_color);
+        cx += theme.status_dot_size + 4.0;
 
-                // Role badges
-                draw_role_badges(ui, theme, role);
-            },
-        )
-        .response;
+        // Name
+        let nc = if status == "offline" { theme.text_muted() } else { theme.text_primary() };
+        let name_galley = ui.painter().layout_no_wrap(
+            name.to_string(),
+            egui::FontId::proportional(theme.body_size),
+            nc,
+        );
+        ui.painter().galley(egui::pos2(cx, cy - name_galley.size().y / 2.0), name_galley, nc);
+        // Advance past name for role badges
+        let name_w = ui.painter().layout_no_wrap(
+            name.to_string(),
+            egui::FontId::proportional(theme.body_size),
+            nc,
+        ).size().x;
+        cx += name_w + 4.0;
+
+        // Role badge (single letter pill)
+        if !role.is_empty() && role != "member" {
+            let (badge_color, badge_letter) = match role {
+                "admin" => (Color32::from_rgb(231, 76, 60), "A"),
+                "mod" | "moderator" => (Color32::from_rgb(155, 89, 182), "M"),
+                "verified" => (Color32::from_rgb(52, 152, 219), "V"),
+                "donor" => (Color32::from_rgb(241, 196, 15), "D"),
+                _ => (Color32::from_rgb(100, 100, 100), "?"),
+            };
+            let badge_rect = egui::Rect::from_min_size(
+                egui::pos2(cx, cy - 7.0),
+                Vec2::new(14.0, 14.0),
+            );
+            ui.painter().rect_filled(badge_rect, Rounding::same(3), badge_color);
+            ui.painter().text(
+                badge_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                badge_letter,
+                egui::FontId::proportional(9.0),
+                Color32::WHITE,
+            );
+        }
+    }
 
     if response.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
@@ -1332,17 +1634,37 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ─────────────────────────────── User Profile Modal ────────────────────────
 
 fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let mut open = state.chat_user_modal_open;
+    if !state.chat_user_modal_open { return; }
+
+    let mut close_modal = false;
+
     egui::Window::new("User Profile")
-        .open(&mut open)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(320.0, 0.0))
-        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
+        .title_bar(false)
+        .frame(Frame::NONE.fill(Color32::from_rgb(30, 30, 36)).inner_margin(20.0).rounding(Rounding::same(8)).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
         .show(ctx, |ui| {
             let name = state.chat_user_modal_name.clone();
             let key = state.chat_user_modal_key.clone();
+
+            // Title bar with close X
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("User Profile")
+                        .size(theme.font_size_body)
+                        .color(theme.text_muted()),
+                );
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.add(egui::Button::new(
+                        RichText::new("X").size(theme.font_size_body).color(theme.text_secondary()),
+                    ).fill(Color32::TRANSPARENT).frame(false)).clicked() {
+                        close_modal = true;
+                    }
+                });
+            });
+            ui.add_space(8.0);
 
             // Avatar circle with initial
             ui.vertical_centered(|ui| {
@@ -1383,13 +1705,16 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             ui.add_space(4.0);
 
-            // Online/offline status
-            let user_status = state.chat_users.iter()
-                .find(|u| u.public_key == key)
+            // Online/offline status - user is online if they appear in chat_users
+            // (peer_list only contains connected users; full_user_list has an "online" field)
+            let user_entry = state.chat_users.iter().find(|u| u.public_key == key);
+            let user_status = user_entry
                 .map(|u| u.status.clone())
                 .unwrap_or_else(|| "offline".to_string());
+            // If status is empty or unrecognized, and user exists in the list, default to online
+            let effective_status = if user_status.is_empty() { "online".to_string() } else { user_status };
             ui.vertical_centered(|ui| {
-                let (dot_color, status_text) = match user_status.as_str() {
+                let (dot_color, status_text) = match effective_status.as_str() {
                     "offline" => (Color32::from_rgb(100, 100, 100), "Offline"),
                     "away" => (theme.warning(), "Away"),
                     "busy" | "dnd" => (theme.danger(), "Do Not Disturb"),
@@ -1439,8 +1764,7 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Determine relationship state
             let is_following = state.chat_friends.iter().any(|f| f.public_key == key);
 
-            // Check if target user is streaming (simple heuristic: check chat_users for streaming status)
-            // For now we check if the user has "streaming" in their status or role metadata
+            // Check if target user is streaming
             let is_streaming = state.chat_users.iter()
                 .find(|u| u.public_key == key)
                 .map(|u| u.status == "streaming")
@@ -1460,7 +1784,31 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .fill(Color32::from_rgb(45, 45, 55))
                         .min_size(Vec2::new(btn_width, 30.0)),
                     ).clicked() {
-                        // Placeholder for DM functionality
+                        // Open DM with this user
+                        let dm_channel = format!("dm:{}", key);
+                        // Add to DMs list if not already there
+                        if !state.chat_dms.iter().any(|d| d.user_key == key) {
+                            state.chat_dms.push(crate::gui::ChatDm {
+                                user_name: name.clone(),
+                                user_key: key.clone(),
+                                last_message: String::new(),
+                                timestamp: String::new(),
+                                unread: false,
+                            });
+                        }
+                        state.chat_active_channel = dm_channel;
+                        state.chat_messages.clear();
+                        state.history_fetched = false;
+                        if let Some(ref client) = state.ws_client {
+                            if client.is_connected() {
+                                let msg = serde_json::json!({
+                                    "type": "dm_open",
+                                    "partner": key,
+                                });
+                                client.send(&msg.to_string());
+                            }
+                        }
+                        close_modal = true;
                     }
 
                     ui.add_space(4.0);
@@ -1660,11 +2008,13 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .fill(Color32::from_rgb(40, 40, 48))
                     .min_size(Vec2::new(btn_width * 2.0 + 4.0, 28.0)),
                 ).clicked() {
-                    state.chat_user_modal_open = false;
+                    close_modal = true;
                 }
             });
         });
-    state.chat_user_modal_open = open;
+    if close_modal {
+        state.chat_user_modal_open = false;
+    }
 }
 
 // ─────────────────────────────── Create Channel Modal ──────────────────────
@@ -1879,10 +2229,15 @@ fn draw_edit_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiSt
                         .fill(Color32::from_rgb(140, 30, 30))
                         .min_size(Vec2::new(120.0, 28.0)),
                     ).clicked() {
-                        // Send as slash command (server handles /channel-delete)
-                        let ch_name = state.edit_channel_id.clone();
-                        send_slash_command(state, &format!("/channel-delete {}", ch_name));
-                        log::info!("Channel delete: {}", ch_name);
+                        // Send delete via slash command (server matches by channel ID)
+                        let ch_id = state.edit_channel_id.clone();
+                        let ch_name = state.edit_channel_name.clone();
+                        send_slash_command(state, &format!("/channel-delete {}", ch_id));
+                        // If name differs from ID, also try deleting by name
+                        if ch_name.to_lowercase() != ch_id.to_lowercase() {
+                            send_slash_command(state, &format!("/channel-delete {}", ch_name));
+                        }
+                        log::info!("Channel delete: id={}, name={}", ch_id, ch_name);
                         // Switch to general if we just deleted the active channel
                         if state.chat_active_channel == ch_name {
                             state.chat_active_channel = "general".to_string();
@@ -2044,24 +2399,20 @@ fn draw_join_group_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
 // ─────────────────────────────── UI Helpers ──────────────────────────────
 
 /// Draw a lock/unlock toggle button at the top of a panel.
+/// Positioned at the left edge, next to the panel border.
 /// Returns true if the button was clicked (toggle lock state).
 fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bool {
-    let icon = if locked { "\u{25A0}" } else { "\u{25A1}" }; // locked/unlocked
     let tooltip = if locked { "Unlock panel width" } else { "Lock panel width" };
+    let color = if locked { Color32::from_rgb(200, 180, 100) } else { Color32::from_rgb(100, 100, 100) };
     let response = ui.horizontal(|ui| {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add_space(4.0);
-            let btn = ui.add(
-                egui::Button::new(
-                    RichText::new(icon)
-                        .size(11.0)
-                        .color(if locked { Color32::from_rgb(200, 180, 100) } else { Color32::from_rgb(140, 140, 140) }),
-                )
-                .fill(Color32::TRANSPARENT)
-                .frame(false),
-            ).on_hover_text(tooltip);
-            btn.clicked()
-        }).inner
+        ui.add_space(2.0);
+        let (rect, resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
+        if locked {
+            crate::gui::widgets::icons::paint_lock(ui.painter(), rect, color);
+        } else {
+            crate::gui::widgets::icons::paint_unlock(ui.painter(), rect, color);
+        }
+        resp.on_hover_text(tooltip).clicked()
     }).inner;
     response
 }
@@ -2074,7 +2425,7 @@ fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Co
 
 /// Draw a tinted section header with optional right-aligned buttons.
 /// The `add_buttons` closure receives the UI in right-to-left layout for adding icon buttons.
-/// Returns true if the header background was clicked (toggle collapse).
+/// Returns true if the collapse arrow area was clicked (toggle collapse).
 fn tinted_section_header_with_buttons(
     ui: &mut egui::Ui,
     label: &str,
@@ -2082,48 +2433,69 @@ fn tinted_section_header_with_buttons(
     bg: Color32,
     add_buttons: impl FnOnce(&mut egui::Ui),
 ) -> bool {
-    let response = ui
-        .allocate_ui_with_layout(
-            Vec2::new(ui.available_width(), 28.0),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                let full_rect = ui.max_rect();
-                // Slightly brighter header bg
-                let header_bg = Color32::from_rgba_premultiplied(
-                    bg.r().saturating_add(15),
-                    bg.g().saturating_add(15),
-                    bg.b().saturating_add(15),
-                    bg.a(),
-                );
-                ui.painter().rect_filled(full_rect, 0.0, header_bg);
-                ui.add_space(8.0);
+    let header_height = 28.0;
+    let full_width = ui.available_width();
 
-                let arrow = if collapsed { "\u{25B6}" } else { "\u{25BC}" };
-                ui.label(
-                    RichText::new(arrow)
-                        .size(10.0)
-                        .color(Color32::from_rgb(180, 180, 180)),
-                );
-                ui.label(
-                    RichText::new(label)
-                        .size(12.0)
-                        .color(Color32::from_rgb(200, 200, 200))
-                        .strong(),
-                );
+    // Allocate the full header rect for background painting
+    let (full_rect, _) = ui.allocate_exact_size(
+        Vec2::new(full_width, header_height),
+        egui::Sense::hover(),
+    );
 
-                // Right-aligned buttons
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add_space(4.0);
-                    add_buttons(ui);
-                });
-            },
-        )
-        .response;
+    // Paint background
+    let header_bg = Color32::from_rgba_premultiplied(
+        bg.r().saturating_add(15),
+        bg.g().saturating_add(15),
+        bg.b().saturating_add(15),
+        bg.a(),
+    );
+    ui.painter().rect_filled(full_rect, 0.0, header_bg);
 
-    if response.hovered() {
+    // Place the collapse arrow as a separate click target
+    let arrow_size = 12.0;
+    let arrow_left = full_rect.left() + 8.0;
+    let cy = full_rect.center().y;
+    let arrow_click_rect = egui::Rect::from_min_size(
+        egui::pos2(full_rect.left(), full_rect.top()),
+        Vec2::new(arrow_size + 16.0, header_height), // wider click target for the collapse area
+    );
+    let arrow_resp = ui.interact(arrow_click_rect, ui.id().with(label).with("arrow"), egui::Sense::click());
+
+    // Draw the arrow
+    let arrow_rect = egui::Rect::from_min_size(
+        egui::pos2(arrow_left, cy - arrow_size / 2.0),
+        Vec2::splat(arrow_size),
+    );
+    let arrow_color = Color32::from_rgb(180, 180, 180);
+    if collapsed {
+        crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_rect, arrow_color);
+    } else {
+        crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_rect, arrow_color);
+    }
+
+    // Draw the label
+    let label_x = arrow_left + arrow_size + 4.0;
+    ui.painter().text(
+        egui::pos2(label_x, cy),
+        egui::Align2::LEFT_CENTER,
+        label,
+        egui::FontId::proportional(12.0),
+        Color32::from_rgb(200, 200, 200),
+    );
+
+    // Draw right-aligned buttons using a child UI positioned at the right side
+    let btn_rect = egui::Rect::from_min_max(
+        egui::pos2(full_rect.right() - 80.0, full_rect.top()),
+        full_rect.max,
+    );
+    let mut btn_ui = ui.new_child(egui::UiBuilder::new().max_rect(btn_rect).layout(Layout::right_to_left(Align::Center)));
+    btn_ui.add_space(4.0);
+    add_buttons(&mut btn_ui);
+
+    if arrow_resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    response.clicked()
+    arrow_resp.clicked()
 }
 
 /// Draw a plain collapsible section header (for right panel).
@@ -2137,12 +2509,14 @@ fn section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) 
                 ui.painter().rect_filled(full_rect, 0.0, bg);
                 ui.add_space(10.0);
 
-                let arrow = if collapsed { "\u{25B6}" } else { "\u{25BC}" };
-                ui.label(
-                    RichText::new(arrow)
-                        .size(10.0)
-                        .color(Color32::from_rgb(180, 180, 180)),
-                );
+                // Painted collapse/expand triangle
+                let arrow_color = Color32::from_rgb(180, 180, 180);
+                let (arrow_rect, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
+                if collapsed {
+                    crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_rect, arrow_color);
+                } else {
+                    crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_rect, arrow_color);
+                }
                 ui.label(
                     RichText::new(label)
                         .size(13.0)

@@ -56,6 +56,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub chat_servers_collapsed: bool,
     #[serde(default)]
+    pub chat_connected_server_collapsed: bool,
+    #[serde(default)]
     pub chat_friends_collapsed: bool,
     #[serde(default)]
     pub chat_members_collapsed: bool,
@@ -199,6 +201,25 @@ pub fn pubkey_hex_to_solana_address(hex_str: &str) -> Result<String, String> {
 
 impl AppConfig {
     pub fn config_path() -> std::path::PathBuf {
+        // Use %APPDATA%/HumanityOS/config.json for a stable location
+        // that doesn't change when the exe moves between versioned binaries.
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let dir = std::path::PathBuf::from(appdata).join("HumanityOS");
+                let _ = std::fs::create_dir_all(&dir);
+                return dir.join("config.json");
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Some(home) = dirs::home_dir() {
+                let dir = home.join(".config").join("HumanityOS");
+                let _ = std::fs::create_dir_all(&dir);
+                return dir.join("config.json");
+            }
+        }
+        // Fallback: next to exe
         let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
@@ -264,6 +285,7 @@ impl AppConfig {
             chat_dm_collapsed: state.chat_dm_collapsed,
             chat_groups_collapsed: state.chat_groups_collapsed,
             chat_servers_collapsed: state.chat_servers_collapsed,
+            chat_connected_server_collapsed: state.chat_connected_server_collapsed,
             chat_friends_collapsed: state.chat_friends_collapsed,
             chat_members_collapsed: state.chat_members_collapsed,
             chat_left_panel_locked: state.chat_left_panel_locked,
@@ -308,6 +330,7 @@ impl AppConfig {
         state.chat_dm_collapsed = self.chat_dm_collapsed;
         state.chat_groups_collapsed = self.chat_groups_collapsed;
         state.chat_servers_collapsed = self.chat_servers_collapsed;
+        state.chat_connected_server_collapsed = self.chat_connected_server_collapsed;
         state.chat_friends_collapsed = self.chat_friends_collapsed;
         state.chat_members_collapsed = self.chat_members_collapsed;
         state.chat_left_panel_locked = self.chat_left_panel_locked;

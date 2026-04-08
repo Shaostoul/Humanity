@@ -286,12 +286,12 @@ mod native_app {
             let mesh_idx = state.renderer.add_mesh(
                 crate::renderer::hologram::sphere_mesh(&state.renderer.device, body.radius, stacks, slices)
             );
-            let (metallic, roughness) = if body.body_type == crate::renderer::hologram::BodyType::Star {
-                (0.0, 0.2)
+            let (metallic, roughness, emissive) = if body.body_type == crate::renderer::hologram::BodyType::Star {
+                (0.0, 0.2, 5.0) // Stars glow bright
             } else {
-                (0.3, 0.5)
+                (0.3, 0.5, 0.0)
             };
-            let mat_idx = state.renderer.add_material(body.color, metallic, roughness);
+            let mat_idx = state.renderer.add_material_full(body.color, metallic, roughness, 0.0, emissive);
             state.hologram_objects.push((mesh_idx, mat_idx, body.local_position, body.name.clone()));
 
             if body.orbit_radius > 0.01
@@ -962,7 +962,7 @@ mod native_app {
                             }
                             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&raw) {
                                 let msg_type = val.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
-                                log::debug!("WS recv: type={} keys={:?}", msg_type, val.as_object().map(|o| o.keys().collect::<Vec<_>>()));
+                                log::debug!("WS recv: type={}", msg_type);
                                 match val.get("type").and_then(|t| t.as_str()) {
                                     Some("chat") => {
                                         let sender_key = val.get("from")
@@ -1273,10 +1273,20 @@ mod native_app {
                                             for g in groups {
                                                 let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                                 let id = g.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let group_id = id.clone();
                                                 state.gui_state.chat_groups.push(crate::gui::ChatGroup {
                                                     name,
                                                     id,
                                                     member_count: 0,
+                                                    channels: vec![crate::gui::ChatChannel {
+                                                        id: format!("group:{}:general", group_id),
+                                                        name: "general".to_string(),
+                                                        description: "General discussion".to_string(),
+                                                        category: "Text".to_string(),
+                                                        voice_joined: false,
+                                                        voice_enabled: false,
+                                                    }],
+                                                    collapsed: false,
                                                 });
                                             }
                                             log::info!("Group list received: {} groups", state.gui_state.chat_groups.len());
@@ -1431,8 +1441,32 @@ mod native_app {
                                     }
                                     Some("name_taken") => {
                                         let msg = val.get("message").and_then(|v| v.as_str()).unwrap_or("Name taken");
-                                        crate::debug::push_debug(format!("Server rejected name: {}", msg));
-                                        state.gui_state.ws_status = format!("Name error: {}", msg);
+                                        log::warn!("Name taken: {}. Disconnecting and reconnecting with unique name.", msg);
+                                        crate::debug::push_debug(format!("Name taken, reconnecting: {}", msg));
+
+                                        // Generate a fallback name: "DesktopUser_XXXX"
+                                        let suffix: u16 = (std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .subsec_nanos() % 10000) as u16;
+                                        let fallback = format!("DesktopUser_{:04}", suffix);
+                                        state.gui_state.profile_name = fallback.clone();
+
+                                        // Disconnect current connection
+                                        if let Some(ref mut client) = state.gui_state.ws_client {
+                                            client.disconnect();
+                                        }
+                                        state.gui_state.ws_client = None;
+
+                                        // Reconnect with new name (full fresh handshake so
+                                        // server sends channel_list, dm_list, group_list, etc.)
+                                        let url = state.gui_state.server_url.clone();
+                                        let ws_url = url.replace("https://", "wss://").replace("http://", "ws://");
+                                        let ws_url = format!("{}/ws", ws_url.trim_end_matches('/'));
+                                        let new_client = crate::net::ws_client::WsClient::connect(&ws_url, &fallback, &state.gui_state.profile_public_key);
+                                        state.gui_state.ws_client = Some(new_client);
+                                        state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
+                                        log::info!("Reconnecting as: {}", fallback);
                                     }
                                     Some("task_list") => {
                                         if let Some(tasks) = val.get("tasks").and_then(|v| v.as_array()) {

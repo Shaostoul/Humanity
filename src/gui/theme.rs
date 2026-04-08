@@ -105,6 +105,22 @@ pub struct Theme {
     // Checkbox styling
     #[serde(default = "default_checkbox_size")]
     pub checkbox_size: f32,
+
+    // Panel backgrounds (used across all pages, avoids hardcoded Color32::from_rgb)
+    #[serde(default = "default_bg_panel")]
+    pub bg_panel: C,
+    #[serde(default = "default_bg_sidebar")]
+    pub bg_sidebar: C,
+    #[serde(default = "default_bg_sidebar_dark")]
+    pub bg_sidebar_dark: C,
+
+    // Badge styling
+    #[serde(default = "default_badge_padding")]
+    pub badge_padding_h: f32,
+    #[serde(default = "default_badge_padding_v")]
+    pub badge_padding_v: f32,
+    #[serde(default = "default_badge_radius")]
+    pub badge_radius: f32,
 }
 
 impl Theme {
@@ -132,6 +148,10 @@ impl Theme {
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
     pub fn slider_track(&self) -> Color32 { Self::c32(&self.slider_track) }
+    pub fn bg_panel(&self) -> Color32 { Self::c32(&self.bg_panel) }
+    pub fn bg_sidebar(&self) -> Color32 { Self::c32(&self.bg_sidebar) }
+    pub fn bg_sidebar_dark(&self) -> Color32 { Self::c32(&self.bg_sidebar_dark) }
+    pub fn badge_padding(&self) -> Vec2 { Vec2::new(self.badge_padding_h, self.badge_padding_v) }
 
     /// Icon circle radius (half icon_size minus border padding).
     pub fn icon_radius(&self) -> f32 { self.icon_size / 2.0 - 2.0 }
@@ -283,6 +303,12 @@ fn default_slider_track_color() -> C { (0.2, 0.2, 0.25, 1.0) }
 fn default_slider_track_height() -> f32 { 4.0 }
 fn default_slider_thumb_radius() -> f32 { 7.0 }
 fn default_checkbox_size() -> f32 { 18.0 }
+fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
+fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
+fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
+fn default_badge_padding() -> f32 { 6.0 }
+fn default_badge_padding_v() -> f32 { 2.0 }
+fn default_badge_radius() -> f32 { 3.0 }
 
 fn default_theme() -> Theme {
     Theme {
@@ -348,5 +374,13 @@ fn default_theme() -> Theme {
         slider_track_height: 4.0,
         slider_thumb_radius: 7.0,
         checkbox_size: 18.0,
+        // Panel backgrounds
+        bg_panel: default_bg_panel(),
+        bg_sidebar: default_bg_sidebar(),
+        bg_sidebar_dark: default_bg_sidebar_dark(),
+        // Badge styling
+        badge_padding_h: default_badge_padding(),
+        badge_padding_v: default_badge_padding_v(),
+        badge_radius: default_badge_radius(),
     }
 }

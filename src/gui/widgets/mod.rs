@@ -1,6 +1,7 @@
 //! Reusable egui widgets styled by the HumanityOS theme.
 
 pub mod row;
+pub mod icons;
 pub mod data_table;
 pub mod search_bar;
 pub mod item_list;
@@ -118,28 +119,63 @@ pub fn custom_slider(ui: &mut Ui, theme: &Theme, value: &mut f32, range: std::op
         let center_y = rect.center().y;
         let t = if (max - min).abs() < f32::EPSILON { 0.5 } else { (*value - min) / (max - min) };
         let thumb_x = rect.left() + t * rect.width();
+        let rounding = Rounding::same((track_h / 2.0) as u8);
 
-        // Draw dim track (full width)
-        let track_rect = Rect::from_min_max(
-            egui::pos2(rect.left(), center_y - track_h / 2.0),
+        // Draw dim track (unfilled portion: thumb to right)
+        let track_right = Rect::from_min_max(
+            egui::pos2(thumb_x, center_y - track_h / 2.0),
             egui::pos2(rect.right(), center_y + track_h / 2.0),
         );
-        painter.rect_filled(track_rect, Rounding::same((track_h / 2.0) as u8), theme.slider_track());
+        painter.rect_filled(track_right, rounding, theme.slider_track());
 
-        // Draw filled portion (left to thumb)
-        let fill_rect = Rect::from_min_max(
-            egui::pos2(rect.left(), center_y - track_h / 2.0),
-            egui::pos2(thumb_x, center_y + track_h / 2.0),
-        );
-        painter.rect_filled(fill_rect, Rounding::same((track_h / 2.0) as u8), theme.accent());
+        // Draw gradient filled portion (left to thumb): blue -> green -> red
+        // Paint in thin vertical slices for smooth gradient
+        let fill_left = rect.left();
+        let fill_width = thumb_x - fill_left;
+        if fill_width > 0.5 {
+            let steps = (fill_width as usize).max(1).min(120);
+            let step_w = fill_width / steps as f32;
+            for i in 0..steps {
+                let local_t = i as f32 / steps as f32;
+                // Blue(0%) -> Green(50%) -> Red(100%)
+                let (r, g, b) = if local_t < 0.5 {
+                    let s = local_t * 2.0; // 0..1 within first half
+                    (0.0, s, 1.0 - s) // blue to green
+                } else {
+                    let s = (local_t - 0.5) * 2.0; // 0..1 within second half
+                    (s, 1.0 - s, 0.0) // green to red
+                };
+                let color = Color32::from_rgb(
+                    (r * 220.0 + 35.0) as u8,
+                    (g * 220.0 + 35.0) as u8,
+                    (b * 200.0 + 30.0) as u8,
+                );
+                let x0 = fill_left + i as f32 * step_w;
+                let x1 = x0 + step_w + 0.5; // slight overlap to avoid gaps
+                let slice = Rect::from_min_max(
+                    egui::pos2(x0, center_y - track_h / 2.0),
+                    egui::pos2(x1.min(thumb_x), center_y + track_h / 2.0),
+                );
+                // Only round the leftmost and rightmost slices
+                let slice_round = if i == 0 { rounding } else { Rounding::ZERO };
+                painter.rect_filled(slice, slice_round, color);
+            }
+        }
 
-        // Draw thumb circle
-        let thumb_color = if response.hovered() || response.dragged() {
-            theme.accent_hover()
+        // Draw thumb: filled circle with animated RGB border
+        let thumb_center = egui::pos2(thumb_x, center_y);
+        let thumb_fill = if response.hovered() || response.dragged() {
+            Color32::from_rgb(240, 240, 245)
         } else {
-            theme.accent()
+            Color32::from_rgb(210, 210, 220)
         };
-        painter.circle_filled(egui::pos2(thumb_x, center_y), thumb_r, thumb_color);
+        painter.circle_filled(thumb_center, thumb_r, thumb_fill);
+        // RGB animated border (1.5px)
+        let ctx_time = ui.ctx().input(|i| i.time);
+        let rgb_color = crate::gui::widgets::row::rgb_from_time(ctx_time);
+        painter.circle_stroke(thumb_center, thumb_r, egui::Stroke::new(1.5, rgb_color));
+        // Request repaint for animation
+        ui.ctx().request_repaint();
     }
 
     let changed = (*value - old_value).abs() > f32::EPSILON;
@@ -264,5 +300,196 @@ pub fn role_badge(ui: &mut Ui, theme: &Theme, role: &str) {
         .rounding(Rounding::same(3))
         .inner_margin(Vec2::new(4.0, 1.0))
         .show(ui, |ui| { ui.label(text); });
+}
+
+// ─────────────────────── UNIVERSAL WIDGETS ───────────────────────
+// Shared across all pages. Use these instead of building inline.
+
+/// Colored badge pill. Replaces 20+ inline badge patterns across pages.
+/// `text` is the display label, `color` is the badge background.
+pub fn badge(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
+    egui::Frame::none()
+        .fill(color)
+        .rounding(Rounding::same(theme.badge_radius as u8))
+        .inner_margin(theme.badge_padding())
+        .show(ui, |ui| {
+            ui.label(RichText::new(text).size(theme.small_size).color(Color32::WHITE));
+        });
+}
+
+/// Small badge variant (tighter padding).
+pub fn badge_sm(ui: &mut Ui, theme: &Theme, text: &str, color: Color32) {
+    egui::Frame::none()
+        .fill(color)
+        .rounding(Rounding::same(theme.badge_radius as u8))
+        .inner_margin(Vec2::new(4.0, 1.0))
+        .show(ui, |ui| {
+            ui.label(RichText::new(text).size(theme.small_size).color(Color32::WHITE));
+        });
+}
+
+/// Label: Value detail row. Used in maps, inventory, crafting detail panels.
+pub fn detail_row(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(format!("{}:", label))
+                .color(theme.text_secondary())
+                .size(theme.small_size),
+        );
+        ui.label(
+            RichText::new(value)
+                .color(theme.text_primary())
+                .size(theme.small_size),
+        );
+    });
+}
+
+/// Bold label: Value row (for headers/important stats).
+pub fn detail_row_bold(ui: &mut Ui, theme: &Theme, label: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(format!("{}:", label))
+                .color(theme.text_secondary())
+                .size(theme.body_size)
+                .strong(),
+        );
+        ui.label(
+            RichText::new(value)
+                .color(theme.text_primary())
+                .size(theme.body_size)
+                .strong(),
+        );
+    });
+}
+
+/// Search bar with label. Returns true if the text changed.
+pub fn search_bar(ui: &mut Ui, theme: &Theme, value: &mut String, hint: &str) -> bool {
+    let before = value.clone();
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Search:").color(theme.text_secondary()).size(theme.body_size));
+        ui.add(
+            egui::TextEdit::singleline(value)
+                .desired_width(200.0)
+                .hint_text(hint),
+        );
+    });
+    *value != before
+}
+
+/// Sidebar navigation with active-state highlighting.
+/// Returns Some(index) if a new item was clicked.
+pub fn sidebar_nav(
+    ui: &mut Ui,
+    theme: &Theme,
+    items: &[&str],
+    active: usize,
+) -> Option<usize> {
+    let mut clicked = None;
+    for (i, label) in items.iter().enumerate() {
+        let is_active = i == active;
+        let bg = if is_active {
+            Color32::from_rgba_unmultiplied(
+                theme.accent().r(),
+                theme.accent().g(),
+                theme.accent().b(),
+                30,
+            )
+        } else {
+            Color32::TRANSPARENT
+        };
+        let text_color = if is_active { theme.accent() } else { theme.text_secondary() };
+        let btn = egui::Button::new(
+            RichText::new(*label).size(theme.body_size).color(text_color),
+        )
+        .fill(bg)
+        .rounding(Rounding::same(4))
+        .min_size(Vec2::new(ui.available_width(), 28.0));
+        if ui.add(btn).clicked() {
+            clicked = Some(i);
+        }
+    }
+    clicked
+}
+
+/// Horizontal category filter buttons. Returns Some(new_index) if changed.
+pub fn category_filter(
+    ui: &mut Ui,
+    theme: &Theme,
+    categories: &[&str],
+    active: usize,
+) -> Option<usize> {
+    let mut clicked = None;
+    ui.horizontal_wrapped(|ui| {
+        for (i, cat) in categories.iter().enumerate() {
+            let is_active = i == active;
+            let bg = if is_active { theme.accent() } else { theme.bg_card() };
+            let text_color = if is_active { theme.text_on_accent() } else { theme.text_secondary() };
+            let btn = egui::Button::new(
+                RichText::new(*cat).size(theme.small_size).color(text_color),
+            )
+            .fill(bg)
+            .rounding(Rounding::same(theme.badge_radius as u8));
+            if ui.add(btn).clicked() {
+                clicked = Some(i);
+            }
+        }
+    });
+    clicked
+}
+
+/// Stat card for dashboards (label, big value, optional trend text, optional progress bar).
+pub fn stat_card(
+    ui: &mut Ui,
+    theme: &Theme,
+    label: &str,
+    value: &str,
+    trend: Option<&str>,
+    progress: Option<f32>,
+) {
+    card(ui, theme, |ui| {
+        ui.label(RichText::new(label).size(theme.small_size).color(theme.text_muted()));
+        ui.label(RichText::new(value).size(theme.heading_size).color(theme.text_primary()).strong());
+        if let Some(trend_text) = trend {
+            let color = if trend_text.starts_with('+') { theme.success() } else { theme.danger() };
+            ui.label(RichText::new(trend_text).size(theme.small_size).color(color));
+        }
+        if let Some(pct) = progress {
+            progress_bar(ui, theme, pct, None);
+        }
+    });
+}
+
+/// Standard page frame. Use instead of hardcoding Color32::from_rgb(20, 20, 25).
+pub fn page_frame(theme: &Theme) -> egui::Frame {
+    egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding)
+}
+
+/// Standard sidebar frame. Use instead of hardcoding Color32::from_rgb(22, 22, 28).
+pub fn sidebar_frame(theme: &Theme) -> egui::Frame {
+    egui::Frame::NONE.fill(theme.bg_sidebar()).inner_margin(theme.panel_margin)
+}
+
+/// Dark sidebar frame (for chat-style panels). Uses bg_sidebar_dark.
+pub fn sidebar_dark_frame(theme: &Theme) -> egui::Frame {
+    egui::Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(0.0)
+}
+
+/// Section header with consistent styling across all pages.
+pub fn section_header(ui: &mut Ui, theme: &Theme, text: &str) {
+    ui.add_space(theme.section_gap);
+    ui.label(
+        RichText::new(text)
+            .size(theme.heading_size)
+            .color(theme.text_primary())
+            .strong(),
+    );
+    ui.add_space(theme.row_gap);
+}
+
+/// Separator with theme-consistent spacing.
+pub fn themed_separator(ui: &mut Ui, theme: &Theme) {
+    ui.add_space(theme.section_gap);
+    ui.separator();
+    ui.add_space(theme.section_gap);
 }
 

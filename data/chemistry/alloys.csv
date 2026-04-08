@@ -58,3 +58,18 @@ german_silver,German Silver,Cu:60|Zn:20|Ni:20,8.45,1373,400,3.5,33,3.3e6,medium,
 gunmetal,Gunmetal,Cu:88|Sn:10|Zn:2,8.7,1273,300,3.5,60,5.0e6,good,Traditional cannon alloy; now used in valves and marine fittings
 type_metal,Type Metal,Pb:75|Sb:20|Sn:5,10.4,520,50,2.5,19,2.3e6,low,Expands on solidification for sharp casting; traditional printing type
 wood_metal,Woods Metal,Bi:50|Pb:25|Sn:12.5|Cd:12.5,9.67,343,20,1.5,12,2.0e6,low,Very low melting point (70C); used in fire sprinkler fusible links
+titanium_carbide,Titanium Carbide,Ti:80|C:20,4.93,3433,240,9.0,21.0,1.4e6,excellent,Extremely hard ceramic compound; used in cutting tools and wear-resistant coatings
+waspaloy,Waspaloy,Ni:58|Cr:19.5|Co:13.5|Mo:4.3|Ti:3|Al:1.4,8.19,1603,1275,5.0,11.7,8.2e5,excellent,Nickel-base superalloy for turbine discs; retains strength above 1000K
+rene_41,Rene 41,Ni:55|Cr:19|Co:11|Mo:10|Ti:3.1|Al:1.5,8.25,1588,1100,5.0,10.8,7.8e5,excellent,High-temperature superalloy; jet engine combustion chambers and afterburners
+bearing_steel,Bearing Steel (52100),Fe:97|Cr:1.5|C:1.0|Mn:0.35|Si:0.25,7.81,1697,2000,6.5,46.6,4.6e6,low,Chrome steel for ball bearings; extremely hard when heat-treated; fatigue resistant
+chromoly_4130,Chromoly 4130,Fe:97.3|Cr:1.0|Mo:0.2|C:0.3|Mn:0.5,7.85,1705,670,5.0,42.7,5.5e6,low,Aircraft tubing and roll cages; strong and weldable; bicycle frames
+d6ac_steel,D6AC Steel,Fe:93.5|Ni:0.55|Cr:1.0|Mo:1.0|V:0.1|C:0.46,7.87,1718,1520,6.0,34.0,4.2e6,low,Aerospace structural steel; used in missile casings and landing gear
+a2_tool_steel,A2 Tool Steel,Fe:92|Cr:5|Mo:1.1|C:1.0|V:0.25,7.86,1693,830,6.5,24.0,3.5e6,medium,Air-hardening tool steel; dies and punches; good toughness and wear resistance
+m50_tool_steel,M50 Tool Steel,Fe:81|Mo:4.25|Cr:4.1|V:1.0|C:0.8,8.0,1698,1250,7.0,22.0,2.0e6,medium,Jet engine bearing steel; high-temperature hardness; used in gas turbine shafts
+haynes_230,Haynes 230,Ni:57|Cr:22|W:14|Mo:2|Fe:3|Co:5,8.97,1574,860,4.5,8.9,8.7e5,excellent,High-temperature alloy for combustion cans and transition ducts; oxidation resistant
+mp35n,MP35N,Ni:35|Co:35|Cr:20|Mo:10,8.43,1608,1790,5.5,11.2,9.5e5,excellent,Ultra-high strength and corrosion resistant; pacemaker leads and fasteners
+l605,L605 (Haynes 25),Co:51|Cr:20|W:15|Ni:10|Fe:3,9.13,1583,1000,5.5,10.7,1.2e6,excellent,Cobalt superalloy for gas turbine vanes and high-temperature springs
+zircaloy_4,Zircaloy-4,Zr:98.2|Sn:1.5|Fe:0.2|Cr:0.1,6.56,2098,413,5.0,12.6,1.4e6,excellent,Nuclear fuel rod cladding; low neutron absorption; resists corrosion in reactor water
+tumbaga,Tumbaga,Au:30|Cu:70,11.0,1213,350,3.5,85,1.2e7,good,Pre-Columbian gold-copper alloy; surface-enriched gilding; ancient metalworking
+red_brass,Red Brass (C230),Cu:85|Zn:15,8.75,1273,340,3.0,159,2.0e7,good,Plumbing and decorative hardware; better corrosion resistance than yellow brass
+tin_bronze,Tin Bronze (C510),Cu:95|Sn:5,8.86,1273,550,4.0,67,7.5e6,good,Load-bearing bushings and gears; good fatigue resistance; traditional bell metal

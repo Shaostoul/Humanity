@@ -1,0 +1,429 @@
+# HumanityOS Container Schema
+# Defines storage containers: chests, backpacks, fridges, tanks, silos, and
+# any other object whose primary purpose is holding other items or fluids.
+#
+# Containers exist in three contexts:
+#   1. Furniture  -- placed in the world (chests, lockers, shelving)
+#   2. Personal   -- carried by the player (backpacks, pouches, canteens)
+#   3. Vehicle    -- cargo bays, fuel tanks, ammo bins on ships/vehicles
+#
+# Each container is also an item in data/items.csv (category = "container").
+# This schema defines the additional storage-specific fields that the
+# container system reads on top of the base item fields.
+#
+# File format: CSV or TOML (one entry per container type)
+# Hot-reloadable: Yes
+# Referenced by: data/items.csv (container items), ship layouts (RON cargo holds)
+# References: data/items.csv (allowed_item_categories filters stored items),
+#             data/recipes.csv (materials_required for crafting),
+#             data/materials.csv (via base item)
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = """
+Unique identifier for this container type. Must match the corresponding
+item id in items.csv so the game can look up both the item properties
+(weight, material, durability) and the container properties (capacity,
+temperature, locking) from a single id."""
+constraints = "snake_case, must match an id in items.csv with category='container'"
+examples = ["wooden_chest_0", "mining_backpack_0", "industrial_fridge_0", "water_tank_0"]
+
+[fields.name]
+type = "string"
+required = true
+description = "Human-readable name. Should match the name in items.csv for consistency."
+constraints = "Title Case, under 40 characters"
+examples = ["Wooden Chest", "Mining Backpack", "Industrial Fridge", "Water Tank"]
+
+[fields.category]
+type = "string"
+required = true
+description = """
+Broad classification of the container's intended use. The game uses this
+to decide placement rules, UI grouping, and physics behavior."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "personal",    # Carried on the player (backpacks, hip pouches, canteens)
+    "furniture",   # Placed in a room or base (chests, lockers, cabinets)
+    "vehicle",     # Mounted on a vehicle or ship (cargo bay, fuel tank, ammo bin)
+    "industrial",  # Large-scale storage for bases or factories (silos, hoppers, warehouses)
+    "liquid",      # Holds liquids only (water tanks, fuel drums, chemical vats)
+    "gas",         # Holds gases only (oxygen tanks, propane cylinders, atmosphere scrubbers)
+]
+
+[fields.capacity_kg]
+type = "float"
+required = true
+description = """
+Maximum total weight the container can hold, in kilograms. The game sums
+the weight of all stored items and rejects new items if they would exceed
+this limit. For liquid/gas containers, this is the mass capacity of the
+fluid at standard density."""
+constraints = "Must be > 0"
+examples = [10.0, 50.0, 200.0, 5000.0]
+
+[fields.capacity_liters]
+type = "float"
+required = true
+description = """
+Maximum total volume the container can hold, in liters. Items have a
+volume_liters field; the game sums stored item volumes and rejects inserts
+that would exceed this. For liquid/gas containers, this is the fluid volume.
+A container can be limited by EITHER weight or volume (whichever fills first)."""
+constraints = "Must be > 0"
+examples = [20.0, 60.0, 500.0, 10000.0]
+
+[fields.max_slots]
+type = "integer"
+required = true
+description = """
+Number of discrete inventory grid slots in the container UI. Each slot
+holds one item stack. A container can have unused volume/weight but no
+free slots (all slots occupied), or free slots but no remaining capacity.
+For liquid/gas containers, max_slots is typically 1 (the fluid occupies
+the entire volume as a single 'stack')."""
+constraints = "Must be >= 1"
+examples = [1, 6, 12, 24, 48]
+
+[fields.allowed_item_categories]
+type = "array of strings"
+required = false
+default = []
+description = """
+Restricts which item categories can be stored. An empty array means any
+item is accepted. If populated, only items whose category appears in this
+list can be placed inside. Used for specialized containers like fridges
+(food only), ammo crates (weapon only), or fuel tanks (material: fuel)."""
+constraints = "Each value must be a valid item category from items.csv"
+examples = [
+    [],                           # empty = accepts anything
+    ["food", "medical"],          # fridge: food and medicine only
+    ["material"],                 # ore hopper: raw materials only
+    ["tool", "weapon"],           # tool locker
+]
+
+[fields.temperature_controlled]
+type = "boolean"
+required = false
+default = false
+description = """
+Whether this container maintains an internal temperature different from
+ambient. When true, the game uses target_temperature_c instead of the
+room/environment temperature for item decay calculations. Requires power
+if the temperature delta is significant."""
+examples = [false, true]
+
+[fields.target_temperature_c]
+type = "float"
+required = false
+default = 20.0
+description = """
+The internal temperature in Celsius that this container tries to maintain
+when temperature_controlled is true. Ignored if temperature_controlled is
+false. Fridges target ~4 C, freezers target -18 C, furnaces target high
+values for smelting. The container's power_draw_watts scales with how far
+target_temperature_c is from ambient."""
+constraints = "Any float; realistic range is -200 to 2000"
+examples = [4.0, -18.0, 20.0, 1200.0]
+
+[fields.powered]
+type = "boolean"
+required = false
+default = false
+description = """
+Whether this container requires electrical power to function. Unpowered
+containers always work. Powered containers that lose power stop maintaining
+temperature and may disable locks (depending on lock_type). The container
+still physically holds items when unpowered; it just loses its special
+behaviors."""
+examples = [false, true]
+
+[fields.power_draw_watts]
+type = "float"
+required = false
+default = 0.0
+description = """
+Continuous power consumption in watts when the container is active and
+powered. The base/ship power grid subtracts this from available capacity.
+Only meaningful when powered = true. Set to 0 for unpowered containers."""
+constraints = "Must be >= 0"
+examples = [0.0, 50.0, 150.0, 500.0]
+
+[fields.lockable]
+type = "boolean"
+required = false
+default = false
+description = """
+Whether this container supports access restriction. When locked, only
+authorized players can open it. The lock_type field determines how
+authorization works."""
+examples = [false, true]
+
+[fields.lock_type]
+type = "string"
+required = false
+default = "none"
+description = """
+The mechanism used to restrict access. Only relevant when lockable = true."""
+constraints = "Must be one of the values listed below"
+valid_values = [
+    "none",       # No lock (or lockable = false)
+    "key",        # Requires a specific key item in inventory to open
+    "code",       # Requires entering a numeric code set by the owner
+    "biometric",  # Only the owner (by public key identity) can open
+]
+examples = ["none", "key", "code", "biometric"]
+
+[fields.portable]
+type = "boolean"
+required = false
+default = false
+description = """
+Whether the player can pick up this container (with its contents) and
+carry it. Personal containers are always portable. Furniture containers
+may or may not be (a small chest is portable; a bank vault is not).
+Industrial and vehicle containers are never portable."""
+examples = [false, true]
+
+[fields.weight_kg_empty]
+type = "float"
+required = true
+description = """
+The mass of the container itself when empty, in kilograms. This is
+separate from the items.csv weight_kg field, which represents the item's
+weight when in inventory (assumed empty). The game adds stored item mass
+to this value for physics calculations (e.g., carrying a loaded backpack)."""
+constraints = "Must be > 0"
+examples = [0.5, 3.0, 15.0, 200.0]
+
+[fields.preservation_multiplier]
+type = "float"
+required = false
+default = 1.0
+description = """
+Scales the decay rate of perishable items stored inside. 1.0 = normal decay
+speed. 0.5 = items last twice as long. 0.0 = no decay at all (perfect
+preservation, like a stasis pod). Values above 1.0 would accelerate decay
+(hot environments, open containers). This multiplier stacks with temperature
+effects; a fridge at 4 C already slows decay, and preservation_multiplier
+can add further reduction on top of that."""
+constraints = "Must be >= 0"
+examples = [0.0, 0.1, 0.5, 1.0, 2.0]
+
+[fields.materials_required]
+type = "string"
+required = false
+default = ""
+description = """
+Crafting cost to build this container, as pipe-separated item_id:quantity
+pairs. If empty, the container cannot be crafted (it must be found or
+purchased). This is a convenience field; the authoritative crafting data
+is in recipes.csv."""
+constraints = "Pipe-separated item_id:quantity pairs, matching items.csv ids"
+examples = [
+    "oak_plank_0:6|iron_nail_0:12",
+    "steel_sheet_0:4|copper_wire_0:2|circuit_board_0:1",
+    "",
+]
+
+[fields.model_id]
+type = "string"
+required = false
+default = ""
+description = """
+Reference to the 3D model (GLTF/GLB) used to render this container in the
+world. If empty, the game uses a fallback box mesh scaled to the container's
+volume. Model files live in data/models/."""
+constraints = "Must reference a valid model file (without extension) in data/models/"
+examples = ["wooden_chest", "industrial_fridge", "backpack_frame"]
+
+[fields.open_sound_id]
+type = "string"
+required = false
+default = "container_open_default"
+description = "Sound effect played when the container is opened. References an id in the audio system."
+constraints = "Must be a valid sound id in the audio registry"
+examples = ["chest_open_wood", "fridge_open", "hatch_open_metal"]
+
+[fields.close_sound_id]
+type = "string"
+required = false
+default = "container_close_default"
+description = "Sound effect played when the container is closed. References an id in the audio system."
+constraints = "Must be a valid sound id in the audio registry"
+examples = ["chest_close_wood", "fridge_close", "hatch_close_metal"]
+
+# ---------------------------------------------------------------------------
+# RELATIONSHIPS
+# ---------------------------------------------------------------------------
+
+[relationships]
+inventory = """
+Containers are the bridge between the player's personal inventory and the
+world. A player's backpack (personal container) adds grid slots to their
+inventory UI. Furniture containers open a separate grid window when the
+player interacts with them (E key or equivalent). Vehicle containers are
+accessed through the vehicle's cargo panel.
+
+Item transfer: drag an item from one grid to another. The game checks:
+  1. Does the item's category pass allowed_item_categories?
+  2. Is there a free slot (max_slots not exceeded)?
+  3. Is there enough remaining capacity_kg and capacity_liters?
+If all pass, the item moves. If any fail, the UI shows a rejection tooltip."""
+
+structures = """
+Furniture and industrial containers are placed in the world using the
+construction system. They snap to the room grid (1m increments). The
+container's footprint is derived from its model or volume. Containers
+placed in a powered room automatically connect to the room's power grid
+(if powered = true). Destroying a structure that contains a container
+drops all stored items as loose physics objects."""
+
+vehicles = """
+Vehicle and ship containers are defined in the vehicle's layout file (RON).
+Each cargo hold references a container id. The ship layout specifies the
+hold's position, orientation, and optional access restrictions. Fuel tanks
+are containers with category = 'liquid' and allowed_item_categories
+restricted to fuel-type materials."""
+
+decay_and_temperature = """
+Perishable items (food, certain medical supplies) have a decay_rate in
+items.csv. Each game tick, the container calculates effective decay:
+
+  effective_rate = item.decay_rate * container.preservation_multiplier
+                   * temperature_factor(container_temp)
+
+Where temperature_factor is a curve: ~0.1x at -18 C (freezer), ~0.5x at
+4 C (fridge), 1.0x at 20 C (room temp), 2.0x at 40 C (hot).
+
+When an item's remaining freshness reaches 0, it converts to a 'spoiled'
+variant or disappears."""
+
+# ---------------------------------------------------------------------------
+# CONVENTIONS
+# ---------------------------------------------------------------------------
+
+[conventions]
+capacity_balance = """
+Design containers so that EITHER weight or volume is the practical limit,
+not both simultaneously. A backpack should fill by volume before hitting
+its weight cap (you run out of space before it gets too heavy). An ore
+hopper should fill by weight first (dense metals fill the weight cap long
+before the physical space runs out). This creates interesting packing
+decisions for the player."""
+
+liquid_gas_pattern = """
+Liquid and gas containers use max_slots = 1 because fluids are a single
+continuous volume. The 'item' stored is the fluid type (water, fuel,
+oxygen). Stack size represents the quantity in liters. Mixing two different
+fluids in one container is not allowed; the player must empty it first."""
+
+nesting = """
+Containers cannot be placed inside other containers to prevent infinite
+storage exploits. A backpack in a chest is physically stored as a flat
+item (using the backpack's own weight_kg and volume_liters from items.csv),
+and the backpack's internal storage is inaccessible until the player
+equips it. Exception: the player's equipped backpack functions normally."""
+
+# ---------------------------------------------------------------------------
+# FULL EXAMPLES
+# ---------------------------------------------------------------------------
+
+[[examples]]
+description = "Basic wooden storage chest (furniture, unpowered, lockable)"
+toml = """
+id = \"wooden_chest_0\"
+name = \"Wooden Chest\"
+category = \"furniture\"
+capacity_kg = 50.0
+capacity_liters = 60.0
+max_slots = 12
+allowed_item_categories = []
+temperature_controlled = false
+powered = false
+lockable = true
+lock_type = \"key\"
+portable = true
+weight_kg_empty = 8.0
+preservation_multiplier = 1.0
+materials_required = \"oak_plank_0:6|iron_nail_0:12|iron_hinge_0:2\"
+model_id = \"wooden_chest\"
+open_sound_id = \"chest_open_wood\"
+close_sound_id = \"chest_close_wood\"
+"""
+
+[[examples]]
+description = "Industrial fridge (powered, temperature-controlled, slows food decay)"
+toml = """
+id = \"industrial_fridge_0\"
+name = \"Industrial Fridge\"
+category = \"furniture\"
+capacity_kg = 200.0
+capacity_liters = 500.0
+max_slots = 24
+allowed_item_categories = [\"food\", \"medical\"]
+temperature_controlled = true
+target_temperature_c = 4.0
+powered = true
+power_draw_watts = 150.0
+lockable = true
+lock_type = \"code\"
+portable = false
+weight_kg_empty = 85.0
+preservation_multiplier = 0.1
+materials_required = \"steel_sheet_0:8|copper_wire_0:4|compressor_0:1|circuit_board_0:1\"
+model_id = \"industrial_fridge\"
+open_sound_id = \"fridge_open\"
+close_sound_id = \"fridge_close\"
+"""
+
+[[examples]]
+description = "Mining backpack (personal, portable, high weight capacity)"
+toml = """
+id = \"mining_backpack_0\"
+name = \"Mining Backpack\"
+category = \"personal\"
+capacity_kg = 40.0
+capacity_liters = 45.0
+max_slots = 8
+allowed_item_categories = []
+temperature_controlled = false
+powered = false
+lockable = false
+lock_type = \"none\"
+portable = true
+weight_kg_empty = 2.5
+preservation_multiplier = 1.0
+materials_required = \"reinforced_canvas_0:3|steel_frame_0:1|nylon_strap_0:4\"
+model_id = \"backpack_frame\"
+open_sound_id = \"backpack_open\"
+close_sound_id = \"backpack_close\"
+"""
+
+[[examples]]
+description = "Water tank (liquid container for bases and ships)"
+toml = """
+id = \"water_tank_0\"
+name = \"Water Tank\"
+category = \"liquid\"
+capacity_kg = 1000.0
+capacity_liters = 1000.0
+max_slots = 1
+allowed_item_categories = [\"material\"]
+temperature_controlled = false
+powered = false
+lockable = false
+lock_type = \"none\"
+portable = false
+weight_kg_empty = 45.0
+preservation_multiplier = 0.0
+materials_required = \"steel_sheet_0:12|rubber_gasket_0:4|valve_0:2\"
+model_id = \"water_tank\"
+open_sound_id = \"valve_open\"
+close_sound_id = \"valve_close\"
+"""

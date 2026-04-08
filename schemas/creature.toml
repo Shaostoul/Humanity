@@ -1,0 +1,348 @@
+# HumanityOS Creature Schema
+# Defines the structure for all living entities: humans, animals, aliens, monsters, NPCs.
+#
+# Creatures are spawned as ECS entities with components derived from these fields.
+# The engine reads creature data files and attaches the appropriate components:
+#   - Transform, Velocity, PhysicsBody (from size/weight)
+#   - Health (from health_base)
+#   - AIBehavior (from ai_behavior + hostility)
+#   - Renderable (from model_id)
+#   - Faction (from faction_id)
+#   - Harvestable (from loot_table, for dead/tamed creatures)
+#   - Interactable (from domesticable/tameable/rideable)
+#
+# Connection to game systems:
+#   AI system (native/src/systems/ai/) -- reads ai_behavior + hostility to drive
+#     state machines: idle, wandering, fleeing, attacking, following, etc.
+#     Off-screen creatures still simulate via autonomy ticks.
+#   Combat system (native/src/systems/combat/) -- uses stats (strength, agility, etc.),
+#     health_base, abilities, and hostility to resolve damage, aggro, and targeting.
+#   Ecology system (native/src/systems/ecology.rs) -- uses habitat_biomes, diet, and
+#     spawn_weight to maintain population balance per biome. Predator-prey chains
+#     are derived from diet + habitat overlap. Population caps scale with biome size.
+#   ECS (native/src/ecs/) -- each creature becomes a hecs entity. Stats map to
+#     component fields. Type/species are string tags for query filtering.
+#   Farming system -- domesticable creatures can be penned, fed, and harvested
+#     (milk, wool, eggs) via the Harvestable component.
+#
+# File format: one creature per data file (TOML or RON). The schemas/ version
+# documents all valid fields. Actual creature definitions live in data/creatures/.
+# Mods can add new creatures by dropping files into that directory.
+
+# ── Field Definitions ────────────────────────────────────────────
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique identifier, snake_case. Used as the lookup key everywhere."
+constraints = "Must be unique across all creature files. Lowercase alphanumeric + underscores only."
+example = "gray_wolf"
+
+[fields.name]
+type = "string"
+required = true
+description = "Display name shown to the player in UI, tooltips, and bestiary."
+example = "Gray Wolf"
+
+[fields.type]
+type = "string"
+required = true
+description = "Broad classification of the creature. Determines which AI templates and animation rigs are available."
+valid_values = ["human", "animal", "alien", "monster", "demon", "robot", "spirit", "plant_creature"]
+example = "animal"
+
+[fields.description]
+type = "string"
+required = true
+description = "Short lore/gameplay description shown in the bestiary and tooltips."
+example = "A pack predator found in forests and tundra. Dangerous in groups, avoids fire."
+
+[fields.species]
+type = "string"
+required = true
+description = "Species name for biological or taxonomic grouping. Used by ecology system for population tracking."
+example = "canis_lupus"
+
+[fields.subspecies]
+type = "string"
+required = false
+default = ""
+description = "Subspecies or variant for finer categorization. Empty string if not applicable."
+example = "timber"
+
+[fields.health_base]
+type = "float"
+required = true
+description = "Base maximum health points. Maps directly to the Health ECS component's max field."
+constraints = "Must be > 0."
+example = 120.0
+
+[fields.stamina_base]
+type = "float"
+required = false
+default = 100.0
+description = "Base maximum stamina. Consumed by sprinting, attacking, and special abilities."
+constraints = "Must be >= 0."
+example = 80.0
+
+[fields.mana_base]
+type = "float"
+required = false
+default = 0.0
+description = "Base maximum mana for magic-capable creatures. 0 means no mana pool."
+constraints = "Must be >= 0."
+example = 0.0
+
+[fields.strength]
+type = "integer"
+required = true
+description = "Physical power. Affects melee damage, carry capacity, and breaking objects."
+constraints = "0-100. 50 is human average."
+example = 55
+
+[fields.agility]
+type = "integer"
+required = true
+description = "Speed and reflexes. Affects dodge chance, attack speed, and movement acceleration."
+constraints = "0-100."
+example = 70
+
+[fields.intelligence]
+type = "integer"
+required = true
+description = "Mental capability. Affects AI decision complexity, learning rate, and magic effectiveness."
+constraints = "0-100. Animals typically 5-30, humans 40-60, advanced aliens 70+."
+example = 15
+
+[fields.perception]
+type = "integer"
+required = true
+description = "Awareness range. Affects detection radius, tracking ability, and ambush resistance."
+constraints = "0-100."
+example = 75
+
+[fields.charisma]
+type = "integer"
+required = false
+default = 10
+description = "Social influence. Primarily relevant for NPCs and humanoid creatures. Affects trade prices and taming difficulty."
+constraints = "0-100."
+example = 10
+
+[fields.luck]
+type = "integer"
+required = false
+default = 10
+description = "Affects loot quality rolls, critical hit chance, and rare event triggers."
+constraints = "0-100."
+example = 10
+
+[fields.size_category]
+type = "string"
+required = true
+description = "Rough size bucket. Determines collision capsule defaults and interaction animations."
+valid_values = ["tiny", "small", "medium", "large", "huge", "colossal"]
+example = "medium"
+
+[fields.height_m]
+type = "float"
+required = true
+description = "Standing height in meters. Used for line-of-sight checks and model scaling."
+constraints = "Must be > 0."
+example = 0.85
+
+[fields.weight_kg]
+type = "float"
+required = true
+description = "Mass in kilograms. Affects physics knockback, carrying (if rideable), and butcher yields."
+constraints = "Must be > 0."
+example = 40.0
+
+[fields.movement_speed_mps]
+type = "float"
+required = true
+description = "Default movement speed in meters per second. Sprint multiplier is typically 1.5x."
+constraints = "Must be >= 0. 0 = stationary (turrets, plants)."
+example = 8.0
+
+[fields.movement_types]
+type = "string"
+required = true
+description = "Pipe-separated list of locomotion modes. First entry is the default."
+valid_values_per_item = ["walk", "run", "swim", "fly", "burrow", "climb", "teleport"]
+example = "walk|run"
+
+[fields.diet]
+type = "string"
+required = true
+description = "Feeding behavior. Used by ecology system to build food chains and by farming system for feed requirements."
+valid_values = ["herbivore", "carnivore", "omnivore", "photosynthetic", "energy", "none"]
+example = "carnivore"
+
+[fields.habitat_biomes]
+type = "string"
+required = true
+description = "Pipe-separated biome IDs where this creature naturally spawns. Must match biome.id values. Ecology system uses this for population distribution."
+example = "forest|taiga|tundra|steppe"
+
+[fields.hostility]
+type = "string"
+required = true
+description = "Default attitude toward the player. AI system uses this as the starting state for encounter logic."
+valid_values = ["passive", "neutral", "territorial", "aggressive", "boss"]
+notes = "passive = never attacks. neutral = attacks only if provoked. territorial = attacks if player enters range. aggressive = attacks on sight. boss = scripted encounter, does not flee."
+example = "territorial"
+
+[fields.loot_table]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated loot entries. Each entry is item_id:drop_chance:min_qty:max_qty. Rolled on death or harvest."
+constraints = "drop_chance is 0.0-1.0. min_qty <= max_qty. item_id must exist in items.csv."
+example = "raw_meat_0:1.0:1:3|wolf_pelt:0.8:1:1|wolf_fang:0.3:1:2"
+
+[fields.abilities]
+type = "string"
+required = false
+default = ""
+description = "Pipe-separated ability/spell IDs this creature can use. References spell.id values."
+example = "howl|pack_frenzy"
+
+[fields.ai_behavior]
+type = "string"
+required = true
+description = "Base AI behavior template. The AI system (native/src/systems/ai/) loads the corresponding state machine."
+valid_values = ["wander", "patrol", "guard", "hunt", "flee", "follow", "swarm", "ambush"]
+notes = "hunt = actively seeks prey based on diet. swarm = coordinates with nearby same-species. ambush = waits hidden until target is in range."
+example = "hunt"
+
+[fields.sound_set_id]
+type = "string"
+required = false
+default = ""
+description = "ID referencing a sound set in data/audio/. Contains idle, alert, attack, hurt, and death sounds."
+example = "sfx_wolf"
+
+[fields.model_id]
+type = "string"
+required = true
+description = "GLTF/GLB model ID loaded by the AssetManager. Must exist in data/models/."
+example = "mdl_gray_wolf"
+
+[fields.animation_set_id]
+type = "string"
+required = false
+default = ""
+description = "Animation set ID. If empty, uses the model's embedded animations. Otherwise references data/animations/."
+example = "anim_quadruped_medium"
+
+[fields.domesticable]
+type = "boolean"
+required = false
+default = false
+description = "Whether this creature can be penned and farmed. Domesticated creatures gain the Harvestable component for renewable resources (milk, wool, eggs)."
+example = false
+
+[fields.rideable]
+type = "boolean"
+required = false
+default = false
+description = "Whether a player can mount and ride this creature. Adds a VehicleSeat component with seat_type 'pilot'."
+example = false
+
+[fields.tameable]
+type = "boolean"
+required = false
+default = false
+description = "Whether this creature can be tamed as a companion. Tamed creatures follow the player and fight alongside them."
+example = true
+
+[fields.spawn_weight]
+type = "integer"
+required = false
+default = 100
+description = "Relative spawn frequency. Higher = more common. The ecology system normalizes weights per biome to calculate spawn probabilities."
+constraints = "Must be > 0. 100 is baseline. 10 = rare, 1 = extremely rare."
+example = 60
+
+[fields.faction_id]
+type = "string"
+required = false
+default = "wildlife"
+description = "Faction this creature belongs to. Maps to the Faction ECS component. Creatures in the same faction do not attack each other."
+example = "wildlife"
+
+
+# ── Example Entries ──────────────────────────────────────────────
+
+[[examples]]
+id = "gray_wolf"
+name = "Gray Wolf"
+type = "animal"
+description = "A pack predator found in forests and tundra. Dangerous in groups, avoids fire."
+species = "canis_lupus"
+subspecies = "timber"
+health_base = 120.0
+stamina_base = 80.0
+mana_base = 0.0
+strength = 55
+agility = 70
+intelligence = 15
+perception = 75
+charisma = 10
+luck = 10
+size_category = "medium"
+height_m = 0.85
+weight_kg = 40.0
+movement_speed_mps = 8.0
+movement_types = "walk|run|swim"
+diet = "carnivore"
+habitat_biomes = "forest|taiga|tundra|steppe"
+hostility = "territorial"
+loot_table = "raw_meat_0:1.0:1:3|wolf_pelt:0.8:1:1|wolf_fang:0.3:1:2"
+abilities = "howl|pack_frenzy"
+ai_behavior = "hunt"
+sound_set_id = "sfx_wolf"
+model_id = "mdl_gray_wolf"
+animation_set_id = "anim_quadruped_medium"
+domesticable = false
+rideable = false
+tameable = true
+spawn_weight = 60
+faction_id = "wildlife"
+
+[[examples]]
+id = "fire_imp"
+name = "Fire Imp"
+type = "demon"
+description = "A small demonic creature wreathed in flame. Hurls fireballs and flees when outnumbered."
+species = "ignis_minor"
+subspecies = ""
+health_base = 60.0
+stamina_base = 50.0
+mana_base = 120.0
+strength = 15
+agility = 65
+intelligence = 40
+perception = 50
+charisma = 5
+luck = 25
+size_category = "small"
+height_m = 0.6
+weight_kg = 12.0
+movement_speed_mps = 5.0
+movement_types = "walk|fly"
+diet = "energy"
+habitat_biomes = "volcanic"
+hostility = "aggressive"
+loot_table = "ember_shard:0.6:1:2|imp_horn:0.2:1:1"
+abilities = "fireball|flame_dash"
+ai_behavior = "ambush"
+sound_set_id = "sfx_imp"
+model_id = "mdl_fire_imp"
+animation_set_id = "anim_biped_small"
+domesticable = false
+rideable = false
+tameable = false
+spawn_weight = 30
+faction_id = "infernal"
