@@ -578,42 +578,82 @@ fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiSta
         let ui = &mut cols[0];
         let mut any_changed = false;
 
-        // Sizing card (inline Frame to avoid borrow conflict with widgets::card)
-        egui::Frame::none()
-            .fill(card_bg)
-            .rounding(Rounding::same(card_radius as u8))
-            .inner_margin(card_padding)
-            .stroke(Stroke::new(1.0, card_border))
-            .show(ui, |ui| {
-                ui.label(RichText::new("Sizing").strong().color(text_color));
-                ui.add_space(theme.section_gap);
+        let make_card = |ui: &mut egui::Ui, title: &str, content: &mut dyn FnMut(&mut egui::Ui)| {
+            egui::Frame::none()
+                .fill(card_bg)
+                .rounding(Rounding::same(card_radius as u8))
+                .inner_margin(card_padding)
+                .stroke(Stroke::new(1.0, card_border))
+                .show(ui, |ui| {
+                    ui.label(RichText::new(title).strong().color(text_color));
+                    ui.add_space(4.0);
+                    content(ui);
+                });
+        };
 
-                any_changed |= styled_slider(ui, &ss, "Icon Size", &mut theme.icon_size, 16.0..=64.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Row Height", &mut theme.row_height, 14.0..=32.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Row Gap", &mut theme.row_gap, 0.0..=8.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Header Height", &mut theme.header_height, 24.0..=64.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Border Width", &mut theme.border_width, 0.0..=4.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Status Dot", &mut theme.status_dot_size, 4.0..=16.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Panel Margin", &mut theme.panel_margin, 0.0..=16.0, label_color);
-            });
+        // Sizing card
+        make_card(ui, "Sizing", &mut |ui| {
+            any_changed |= styled_slider(ui, &ss, "Icon Size", &mut theme.icon_size, 8.0..=64.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Icon Small", &mut theme.icon_small, 8.0..=32.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Row Height", &mut theme.row_height, 12.0..=48.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Header Height", &mut theme.header_height, 16.0..=64.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Button Height", &mut theme.button_height, 16.0..=48.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Input Height", &mut theme.input_height, 16.0..=48.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Status Dot", &mut theme.status_dot_size, 2.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Checkbox Size", &mut theme.checkbox_size, 10.0..=28.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Sidebar Width", &mut theme.sidebar_width, 150.0..=400.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Settings Label Width", &mut theme.settings_label_width, 100.0..=300.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Modal Width", &mut theme.modal_width, 300.0..=800.0, label_color);
+        });
+        ui.add_space(spacing_sm);
 
+        // Spacing card
+        make_card(ui, "Spacing", &mut |ui| {
+            any_changed |= styled_slider(ui, &ss, "Row Gap", &mut theme.row_gap, 0.0..=8.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Section Gap", &mut theme.section_gap, 0.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Item Padding", &mut theme.item_padding, 0.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Panel Margin", &mut theme.panel_margin, 0.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Card Padding", &mut theme.card_padding, 0.0..=32.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Button Padding H", &mut theme.button_padding_h, 0.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Spacing XS", &mut theme.spacing_xs, 0.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Spacing SM", &mut theme.spacing_sm, 0.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Spacing MD", &mut theme.spacing_md, 0.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Spacing LG", &mut theme.spacing_lg, 0.0..=32.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Spacing XL", &mut theme.spacing_xl, 0.0..=48.0, label_color);
+        });
         ui.add_space(spacing_sm);
 
         // Fonts card
-        egui::Frame::none()
-            .fill(card_bg)
-            .rounding(Rounding::same(card_radius as u8))
-            .inner_margin(card_padding)
-            .stroke(Stroke::new(1.0, card_border))
-            .show(ui, |ui| {
-                ui.label(RichText::new("Fonts").strong().color(text_color));
-                ui.add_space(theme.section_gap);
+        make_card(ui, "Fonts", &mut |ui| {
+            any_changed |= styled_slider(ui, &ss, "Small Font", &mut theme.small_size, 8.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Body Font", &mut theme.body_size, 10.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Name Font", &mut theme.name_size, 10.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Heading Size", &mut theme.heading_size, 12.0..=32.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Title Size", &mut theme.title_size, 14.0..=48.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Font Small", &mut theme.font_size_small, 8.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Font Body", &mut theme.font_size_body, 10.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Font Heading", &mut theme.font_size_heading, 12.0..=32.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Font Title", &mut theme.font_size_title, 14.0..=48.0, label_color);
+        });
+        ui.add_space(spacing_sm);
 
-                any_changed |= styled_slider(ui, &ss, "Name Font", &mut theme.name_size, 10.0..=24.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Body Font", &mut theme.body_size, 10.0..=24.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Small Font", &mut theme.small_size, 8.0..=16.0, label_color);
-                any_changed |= styled_slider(ui, &ss, "Border Radius", &mut theme.border_radius_widget, 0.0..=12.0, label_color);
-            });
+        // Borders & Radii card
+        make_card(ui, "Borders & Radii", &mut |ui| {
+            any_changed |= styled_slider(ui, &ss, "Border Width", &mut theme.border_width, 0.0..=4.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Border Radius", &mut theme.border_radius, 0.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Border Radius LG", &mut theme.border_radius_lg, 0.0..=24.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Widget Radius", &mut theme.border_radius_widget, 0.0..=12.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Badge Radius", &mut theme.badge_radius, 0.0..=12.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Badge Pad H", &mut theme.badge_padding_h, 0.0..=16.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Badge Pad V", &mut theme.badge_padding_v, 0.0..=8.0, label_color);
+        });
+        ui.add_space(spacing_sm);
+
+        // Slider & Checkbox card
+        make_card(ui, "Controls", &mut |ui| {
+            any_changed |= styled_slider(ui, &ss, "Slider Track H", &mut theme.slider_track_height, 1.0..=12.0, label_color);
+            any_changed |= styled_slider(ui, &ss, "Slider Thumb R", &mut theme.slider_thumb_radius, 3.0..=16.0, label_color);
+        });
 
         ui.add_space(spacing_sm);
 

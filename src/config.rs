@@ -39,12 +39,22 @@ pub struct AppConfig {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub private_key_hex: String,
 
-    /// AES-256-GCM encrypted private key: base64(iv_12 + ciphertext + tag_16).
+    /// AES-256-GCM encrypted Ed25519 private key: base64(iv_12 + ciphertext + tag_16).
     #[serde(default)]
     pub encrypted_private_key: String,
     /// PBKDF2 salt: base64(random 16 bytes).
     #[serde(default)]
     pub key_salt: String,
+
+    /// ECDH P-256 private key bytes (32 bytes, hex-encoded).
+    /// Used for E2E encrypted DMs. Separate from Ed25519 identity.
+    /// Stored in plaintext alongside the encrypted identity for now;
+    /// can be encrypted later via the same passphrase flow.
+    #[serde(default)]
+    pub ecdh_private_hex: String,
+    /// ECDH P-256 public key (base64-encoded SEC1 uncompressed, 65 bytes).
+    #[serde(default)]
+    pub ecdh_public_b64: String,
 
     // Chat panel collapse state
     #[serde(default = "default_true")]
@@ -281,6 +291,8 @@ impl AppConfig {
             private_key_hex: String::new(),
             encrypted_private_key: state.encrypted_private_key.clone(),
             key_salt: state.key_salt.clone(),
+            ecdh_private_hex: state.ecdh_private_hex.clone(),
+            ecdh_public_b64: state.ecdh_public_b64.clone(),
             chat_connection_collapsed: state.chat_connection_collapsed,
             chat_dm_collapsed: state.chat_dm_collapsed,
             chat_groups_collapsed: state.chat_groups_collapsed,
@@ -350,6 +362,8 @@ impl AppConfig {
         // Store encrypted key fields so they persist through save cycles
         state.encrypted_private_key = self.encrypted_private_key.clone();
         state.key_salt = self.key_salt.clone();
+        state.ecdh_private_hex = self.ecdh_private_hex.clone();
+        state.ecdh_public_b64 = self.ecdh_public_b64.clone();
 
         // Key handling: default to limited mode (no passphrase prompt on startup).
         // Users can unlock their key later from Settings > Security.

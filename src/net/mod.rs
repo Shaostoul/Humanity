@@ -15,3 +15,5 @@ pub mod ws_client;
 pub mod identity;
 #[cfg(feature = "native")]
 pub mod bip39_wordlist;
+#[cfg(feature = "native")]
+pub mod dm_crypto;

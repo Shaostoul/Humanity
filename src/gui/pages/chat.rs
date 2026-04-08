@@ -1556,16 +1556,42 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 };
 
                                 let json_str = if channel.starts_with("dm:") {
-                                    // DM: send as type "dm" with target partner key
+                                    // DM: send as type "dm" with target partner key.
+                                    // Attempt E2E encryption if we know the peer's ECDH public key.
                                     let partner_key = &channel[3..];
-                                    serde_json::json!({
+                                    let mut dm_obj = serde_json::json!({
                                         "type": "dm",
                                         "from": state.profile_public_key,
                                         "from_name": display_name,
                                         "to": partner_key,
                                         "content": content,
                                         "timestamp": ts,
-                                    }).to_string()
+                                    });
+                                    if !state.ecdh_private_hex.is_empty() {
+                                        if let Some(peer_ecdh) = state.peer_ecdh_keys.get(partner_key) {
+                                            if let Ok(sb) = hex::decode(&state.ecdh_private_hex) {
+                                                if sb.len() == 32 {
+                                                    let mut bytes = [0u8; 32];
+                                                    bytes.copy_from_slice(&sb);
+                                                    if let Ok(kp) = crate::net::dm_crypto::DmKeypair::from_secret_bytes(&bytes) {
+                                                        match crate::net::dm_crypto::encrypt_dm(&kp, peer_ecdh, &content) {
+                                                            Ok(enc) => {
+                                                                dm_obj["content"] = serde_json::Value::String(enc.content_b64);
+                                                                dm_obj["nonce"] = serde_json::Value::String(enc.nonce_b64);
+                                                                dm_obj["encrypted"] = serde_json::Value::Bool(true);
+                                                            }
+                                                            Err(e) => {
+                                                                log::warn!("DM encryption failed for {}: {} (sending plaintext)", partner_key, e);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            log::debug!("No ECDH key for {}, sending plaintext", partner_key);
+                                        }
+                                    }
+                                    dm_obj.to_string()
                                 } else if channel.starts_with("group:") {
                                     // Group: send as type "group_msg"
                                     let group_id = &channel[6..];

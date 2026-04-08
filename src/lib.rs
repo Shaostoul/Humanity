@@ -86,6 +86,47 @@ mod native_app {
 
     /// Locate the data directory relative to the exe.
     /// Prefers a data/ with world/ subdirectory (full repo) over extracted-only data/.
+    /// Helper: decrypt an encrypted DM content if we have the keys.
+    /// Returns the decrypted plaintext, or the original content with a marker if decryption fails.
+    fn decrypt_dm_if_encrypted(
+        raw_content: &str,
+        encrypted: bool,
+        nonce: &str,
+        peer_key: &str,
+        gui_state: &GuiState,
+    ) -> String {
+        if !encrypted || nonce.is_empty() {
+            return raw_content.to_string();
+        }
+        // Need our ECDH private key and the peer's ECDH public key.
+        if gui_state.ecdh_private_hex.is_empty() {
+            return format!("[encrypted - no local ECDH key]");
+        }
+        let peer_ecdh = match gui_state.peer_ecdh_keys.get(peer_key) {
+            Some(k) => k,
+            None => return format!("[encrypted - peer ECDH key unknown]"),
+        };
+        let secret_bytes = match hex::decode(&gui_state.ecdh_private_hex) {
+            Ok(b) if b.len() == 32 => {
+                let mut arr = [0u8; 32];
+                arr.copy_from_slice(&b);
+                arr
+            }
+            _ => return format!("[encrypted - invalid local key]"),
+        };
+        let kp = match crate::net::dm_crypto::DmKeypair::from_secret_bytes(&secret_bytes) {
+            Ok(k) => k,
+            Err(_) => return format!("[encrypted - key parse failed]"),
+        };
+        match crate::net::dm_crypto::decrypt_dm(&kp, peer_ecdh, raw_content, nonce) {
+            Ok(plain) => plain,
+            Err(e) => {
+                log::warn!("DM decryption failed for {}: {}", peer_key, e);
+                format!("[encrypted - decryption failed]")
+            }
+        }
+    }
+
     fn find_data_dir() -> PathBuf {
         let exe = std::env::current_exe().unwrap_or_default();
         let exe_dir = exe.parent().unwrap_or(std::path::Path::new("."));
@@ -941,8 +982,20 @@ mod native_app {
                         } else {
                             state.gui_state.profile_public_key.clone()
                         };
+
+                        // Ensure we have an ECDH keypair for E2E encrypted DMs.
+                        // Matches the web client's ECDH P-256 + AES-256-GCM scheme.
+                        if state.gui_state.ecdh_private_hex.is_empty() {
+                            let kp = crate::net::dm_crypto::DmKeypair::generate();
+                            state.gui_state.ecdh_private_hex = hex::encode(kp.secret_bytes());
+                            state.gui_state.ecdh_public_b64 = kp.public_base64();
+                            log::info!("Generated new ECDH P-256 keypair for DMs");
+                            crate::config::AppConfig::from_gui_state(&state.gui_state).save();
+                        }
+                        let ecdh_public = state.gui_state.ecdh_public_b64.clone();
+
                         state.gui_state.ws_client = Some(
-                            crate::net::ws_client::WsClient::connect(&ws_url, &name, &pubkey),
+                            crate::net::ws_client::WsClient::connect_with_ecdh(&ws_url, &name, &pubkey, &ecdh_public),
                         );
                         state.gui_state.ws_status = "Connecting...".to_string();
                     }
@@ -1043,6 +1096,12 @@ mod native_app {
                                                     .and_then(|v| v.as_str())
                                                     .unwrap_or("online")
                                                     .to_string();
+                                                // Capture peer's ECDH public key for E2E DM encryption
+                                                if let Some(ecdh) = peer.get("ecdh_public").and_then(|v| v.as_str()) {
+                                                    if !ecdh.is_empty() && !key.is_empty() {
+                                                        state.gui_state.peer_ecdh_keys.insert(key.clone(), ecdh.to_string());
+                                                    }
+                                                }
                                                 // If this peer is us and our local name is empty, adopt the server's display_name
                                                 if key == state.gui_state.profile_public_key
                                                     && state.gui_state.user_name.is_empty()
@@ -1071,10 +1130,16 @@ mod native_app {
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("")
                                             .to_string();
+                                        // Capture peer's ECDH public key for E2E DMs
+                                        if let Some(ecdh) = val.get("ecdh_public").and_then(|v| v.as_str()) {
+                                            if !ecdh.is_empty() && !key.is_empty() {
+                                                state.gui_state.peer_ecdh_keys.insert(key.clone(), ecdh.to_string());
+                                            }
+                                        }
                                         // Add if not already present
                                         if !state.gui_state.chat_users.iter().any(|u| u.public_key == key) {
                                             state.gui_state.chat_users.push(
-                                                crate::gui::ChatUser { name, public_key: key, role, status: "online".into() },
+                                                crate::gui::ChatUser { name, public_key: key.clone(), role, status: "online".into() },
                                             );
                                         }
                                     }
@@ -1165,6 +1230,12 @@ mod native_app {
                                                 } else {
                                                     "offline".to_string()
                                                 };
+                                                // Capture peer's ECDH public key for E2E DMs
+                                                if let Some(ecdh) = user.get("ecdh_public").and_then(|v| v.as_str()) {
+                                                    if !ecdh.is_empty() && !key.is_empty() {
+                                                        state.gui_state.peer_ecdh_keys.insert(key.clone(), ecdh.to_string());
+                                                    }
+                                                }
                                                 state.gui_state.chat_users.push(
                                                     crate::gui::ChatUser { name, public_key: key, role, status },
                                                 );
@@ -1299,14 +1370,19 @@ mod native_app {
                                         // Incoming DM message
                                         let from_key = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         let from_name = val.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
-                                        let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let raw_content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                        let encrypted = val.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
+                                        let nonce = val.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         // Determine partner key: if from us, it's the "to" field; otherwise it's the sender
                                         let partner = if from_key == state.gui_state.profile_public_key {
                                             val.get("to").and_then(|v| v.as_str()).unwrap_or("").to_string()
                                         } else {
                                             from_key.clone()
                                         };
+                                        let content = decrypt_dm_if_encrypted(
+                                            &raw_content, encrypted, &nonce, &partner, &state.gui_state,
+                                        );
                                         let dm_channel = format!("dm:{}", partner);
                                         state.gui_state.chat_messages.push(crate::gui::ChatMessage {
                                             sender_name: from_name,
@@ -1326,11 +1402,28 @@ mod native_app {
                                         // Clear existing DM messages for this partner
                                         state.gui_state.chat_messages.retain(|m| m.channel != dm_channel);
                                         if let Some(msgs) = val.get("messages").and_then(|v| v.as_array()) {
+                                            let mut decrypted_count = 0;
+                                            let mut total = 0;
                                             for m in msgs {
+                                                total += 1;
                                                 let from_key = m.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                                 let from_name = m.get("from_name").and_then(|v| v.as_str()).unwrap_or("Anonymous").to_string();
-                                                let content = m.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                let raw_content = m.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                                 let ts = m.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+                                                let encrypted = m.get("encrypted").and_then(|v| v.as_bool()).unwrap_or(false);
+                                                let nonce = m.get("nonce").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                // The peer for decryption is whichever side ISN'T us
+                                                let peer_key = if from_key == state.gui_state.profile_public_key {
+                                                    partner.clone()
+                                                } else {
+                                                    from_key.clone()
+                                                };
+                                                let content = decrypt_dm_if_encrypted(
+                                                    &raw_content, encrypted, &nonce, &peer_key, &state.gui_state,
+                                                );
+                                                if encrypted && content != raw_content {
+                                                    decrypted_count += 1;
+                                                }
                                                 state.gui_state.chat_messages.push(crate::gui::ChatMessage {
                                                     sender_name: from_name,
                                                     sender_key: from_key,
@@ -1339,7 +1432,7 @@ mod native_app {
                                                     channel: dm_channel.clone(),
                                                 });
                                             }
-                                            log::info!("DM history for {}: {} messages", partner, msgs.len());
+                                            log::info!("DM history for {}: {} messages ({} decrypted)", partner, total, decrypted_count);
                                         }
                                     }
                                     Some("group_msg") => {

@@ -35,15 +35,21 @@ impl WsClient {
     /// `name` is the display name sent in the identify message.
     /// `pubkey_hex` is the Ed25519 public key hex string.
     pub fn connect(url: &str, name: &str, pubkey_hex: &str) -> Self {
+        Self::connect_with_ecdh(url, name, pubkey_hex, "")
+    }
+
+    /// Connect with an ECDH P-256 public key for E2E encrypted DMs.
+    pub fn connect_with_ecdh(url: &str, name: &str, pubkey_hex: &str, ecdh_public_b64: &str) -> Self {
         let (tx_to_net, rx_from_game) = mpsc::channel::<String>();
         let (tx_to_game, rx_from_net) = mpsc::channel::<String>();
 
         let url_owned = url.to_string();
         let name_owned = name.to_string();
         let pubkey_owned = pubkey_hex.to_string();
+        let ecdh_owned = ecdh_public_b64.to_string();
 
         thread::spawn(move || {
-            run_connection(url_owned, name_owned, pubkey_owned, rx_from_game, tx_to_game);
+            run_connection(url_owned, name_owned, pubkey_owned, ecdh_owned, rx_from_game, tx_to_game);
         });
 
         Self {
@@ -118,6 +124,7 @@ fn run_connection(
     url: String,
     name: String,
     pubkey: String,
+    ecdh_public: String,
     rx_from_game: mpsc::Receiver<String>,
     tx_to_game: mpsc::Sender<String>,
 ) {
@@ -140,12 +147,22 @@ fn run_connection(
     let _ = tx_to_game.send("__CONNECTED__".to_string());
 
     // Send identify message (matches the relay's RelayMessage::Identify).
-    // The server's RelayMessage::Identify expects: public_key, display_name (Option<String>).
-    let identify = serde_json::json!({
-        "type": "identify",
-        "public_key": pubkey,
-        "display_name": name,
-    });
+    // The server's RelayMessage::Identify expects: public_key, display_name (Option<String>),
+    // and optionally ecdh_public for E2E encrypted DMs.
+    let identify = if ecdh_public.is_empty() {
+        serde_json::json!({
+            "type": "identify",
+            "public_key": pubkey,
+            "display_name": name,
+        })
+    } else {
+        serde_json::json!({
+            "type": "identify",
+            "public_key": pubkey,
+            "display_name": name,
+            "ecdh_public": ecdh_public,
+        })
+    };
     let identify_json = identify.to_string();
     crate::debug::push_debug(format!("WS >>> {}", identify_json));
     if let Err(e) = socket.send(tungstenite::Message::Text(identify_json)) {

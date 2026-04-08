@@ -645,6 +645,13 @@ pub struct GuiState {
     pub encrypted_private_key: String,
     /// The PBKDF2 salt (base64), persisted through save cycles.
     pub key_salt: String,
+    /// ECDH P-256 private key (32 bytes, hex-encoded). For E2E encrypted DMs.
+    pub ecdh_private_hex: String,
+    /// ECDH P-256 public key (base64 SEC1 uncompressed, 65 bytes).
+    pub ecdh_public_b64: String,
+    /// Map of peer public key hex -> their ECDH public key base64.
+    /// Populated from peer_list, full_user_list, profile_data, peer_joined.
+    pub peer_ecdh_keys: std::collections::HashMap<String, String>,
 
     // ── Donation address config ──
 
@@ -912,6 +919,9 @@ impl Default for GuiState {
             passphrase_status: String::new(),
             encrypted_private_key: String::new(),
             key_salt: String::new(),
+            ecdh_private_hex: String::new(),
+            ecdh_public_b64: String::new(),
+            peer_ecdh_keys: std::collections::HashMap::new(),
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),
