@@ -106,7 +106,7 @@ impl WeatherSystem {
             target_wind_speed: weather.wind_speed,
             weather,
             next_change_timer: 60.0, // First change after 1 minute
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_os_rng(),
         }
     }
 

@@ -152,7 +152,7 @@ impl DisasterSystem {
             tick_interval: 5.0,
             elapsed: 0.0,
             active_disasters: Vec::new(),
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_os_rng(),
             pending_chains: Vec::new(),
         }
     }

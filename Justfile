@@ -63,9 +63,9 @@ sync:
         cd /opt/Humanity && \
         git fetch origin main && \
         git reset --hard origin/main && \
-        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ --exclude=crates/humanity-relay/data/ && \
+        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
         export PATH=\$HOME/.cargo/bin:\$PATH && \
-        cargo build --release -p humanity-relay 2>&1 | tail -4 && \
+        cargo build --release --features relay --no-default-features 2>&1 | tail -4 && \
         rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
         rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
@@ -91,7 +91,7 @@ sync-web:
         cd /opt/Humanity && \
         git fetch origin main && \
         git reset --hard origin/main && \
-        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ --exclude=crates/humanity-relay/data/ && \
+        git clean -fd --exclude=backups/ --exclude=data/ --exclude=target/ && \
         rsync -a --delete /opt/Humanity/web/chat/ /var/www/humanity/chat/ && \
         rsync -a /opt/Humanity/web/shared/ /var/www/humanity/shared/ && \
         rsync -a /opt/Humanity/assets/ /var/www/humanity/assets/ && \
@@ -201,17 +201,17 @@ tasks-board:
 # RUST — local build and check
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Check relay for errors (fast, no binary output)
+# Check for errors (fast, no binary output)
 check:
-    cargo check -p humanity-relay
+    cargo check --features native
 
-# Build relay binary locally
-build:
-    cargo build --release -p humanity-relay
+# Build relay-only (headless server, no GPU)
+build-relay:
+    cargo build --release --features relay --no-default-features
 
-# Run relay locally for development (uses local SQLite)
-run:
-    cargo run -p humanity-relay
+# Run relay locally for development
+run-relay:
+    cargo run --features relay --no-default-features -- --headless
 
 # Run formatter
 fmt:
@@ -219,7 +219,7 @@ fmt:
 
 # Run clippy linter
 clippy:
-    cargo clippy -p humanity-relay -- -D warnings
+    cargo clippy --features native -- -D warnings
 
 # ══════════════════════════════════════════════════════════════════════════════
 # GAME — native desktop client (Rust/wgpu/egui)
@@ -243,33 +243,9 @@ launch:
 check-game:
     cargo check --features native
 
-# ══════════════════════════════════════════════════════════════════════════════
-# DESKTOP APP — local-first Tauri wrapper (deprecated)
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Bundle web files into app/web/ (run before tauri build)
+# Bundle web files (for deploy pipeline)
 bundle-web:
     node scripts/bundle-web.js
-
-# Build the desktop app (bundles web + compiles Tauri)
-build-desktop: bundle-web
-    cd app && npx tauri build
-
-# Run the desktop app in dev mode (hot reload)
-dev-desktop:
-    cd app && npx tauri dev
-
-# Check desktop app for Rust errors
-check-desktop:
-    cd app && cargo check
-
-# Full release: bump version, bundle, build, ship
-# Usage: just release          → patch bump + build + ship
-#        just release minor    → minor bump + build + ship
-release kind="patch":
-    node scripts/bump-version.js {{kind}}
-    node scripts/bundle-web.js
-    just ship "Release v$(node -p \"require('./app/tauri.conf.json').version\")"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SHORTCUTS — convenience

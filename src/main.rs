@@ -1,27 +1,47 @@
-//! HumanityOS Native Desktop Application
+//! HumanityOS — One binary to rule them all.
 //!
-//! Entry point for the standalone desktop binary.
-//! Launches the wgpu renderer with egui GUI and all game systems.
+//! Modes:
+//!   Default (native feature):  Full desktop app (renderer + relay + game)
+//!   --headless:                Server-only mode (relay, no GPU)
 //!
-//! On startup, checks C:\binaries\ for a newer versioned exe.
-//! If one exists, launches it instead and exits immediately.
-//! This lets users pin ANY version to their taskbar and always get the latest.
+//! On desktop startup, checks for a newer versioned exe and delegates to it.
 
-// Hide the console window on Windows release builds
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Hide the console window on Windows release builds (only for GUI mode)
+#![cfg_attr(all(not(debug_assertions), feature = "native"), windows_subsystem = "windows")]
 
-#[cfg(feature = "native")]
 fn main() {
-    // Check if a newer version exists and delegate to it
-    if let Some(newer) = find_newer_exe() {
-        launch_and_exit(&newer);
+    let args: Vec<String> = std::env::args().collect();
+    let headless = args.iter().any(|a| a == "--headless");
+
+    if headless {
+        // Server-only mode: run the relay without any GPU/window
+        #[cfg(feature = "relay")]
+        {
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+            rt.block_on(humanity_engine::relay::run_relay());
+        }
+        #[cfg(not(feature = "relay"))]
+        {
+            eprintln!("Relay feature not enabled. Build with: cargo build --features relay");
+            std::process::exit(1);
+        }
+    } else {
+        // Full desktop mode: renderer + relay + game
+        #[cfg(feature = "native")]
+        {
+            // Check if a newer version exists and delegate to it
+            if let Some(newer) = find_newer_exe() {
+                launch_and_exit(&newer);
+            }
+            humanity_engine::run();
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            eprintln!("Native feature not enabled. Build with: cargo build --features native");
+            eprintln!("For server-only mode: HumanityOS --headless");
+            std::process::exit(1);
+        }
     }
-    humanity_engine::run();
-}
-
-#[cfg(not(feature = "native"))]
-fn main() {
-    eprintln!("This binary requires the 'native' feature. Build with: cargo build --features native");
 }
 
 /// Current version from Cargo.toml at compile time
@@ -29,6 +49,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Scan the binaries directory for a versioned exe newer than this one.
 /// Returns the path if a newer version is found.
+#[cfg(feature = "native")]
 fn find_newer_exe() -> Option<std::path::PathBuf> {
     let bin_dir = binaries_dir()?;
     let current = parse_version(VERSION)?;
@@ -47,7 +68,6 @@ fn find_newer_exe() -> Option<std::path::PathBuf> {
         {
             if let Some(ver) = parse_version(ver_str) {
                 let entry_path = entry.path();
-                // Skip if this IS the current exe (same file)
                 if same_file(&entry_path, &current_exe) {
                     continue;
                 }
@@ -70,6 +90,7 @@ fn parse_version(s: &str) -> Option<Vec<u32>> {
 }
 
 /// Check if two paths refer to the same file
+#[cfg(feature = "native")]
 fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
     match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
         (Ok(ca), Ok(cb)) => ca == cb,
@@ -78,8 +99,7 @@ fn same_file(a: &std::path::Path, b: &std::path::Path) -> bool {
 }
 
 /// Get the directory containing versioned exes.
-/// On Windows: C:\Humanity (repo root, exe lives next to data/).
-/// On Linux/Mac: ~/Humanity or wherever the exe lives.
+#[cfg(feature = "native")]
 fn binaries_dir() -> Option<std::path::PathBuf> {
     #[cfg(target_os = "windows")]
     {
@@ -93,12 +113,10 @@ fn binaries_dir() -> Option<std::path::PathBuf> {
 }
 
 /// Launch a newer exe and exit this process
+#[cfg(feature = "native")]
 fn launch_and_exit(path: &std::path::Path) -> ! {
     use std::process::Command;
-    // Pass along any CLI args (like --resume for hot updates later)
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let _ = Command::new(path)
-        .args(&args)
-        .spawn();
+    let _ = Command::new(path).args(&args).spawn();
     std::process::exit(0);
 }

@@ -17,6 +17,9 @@ pub mod platform;
 pub mod terrain;
 pub mod ship;
 
+#[cfg(feature = "relay")]
+pub mod relay;
+
 pub mod hot_reload;
 
 pub mod systems;
