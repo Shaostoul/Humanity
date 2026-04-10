@@ -53,14 +53,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
 
             // Search bar
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Search:").color(theme.text_muted()));
-                ui.add(
-                    egui::TextEdit::singleline(&mut state.guild_search)
-                        .desired_width(300.0)
-                        .hint_text("Search guilds by name..."),
-                );
-            });
+            widgets::search_bar(ui, theme, &mut state.guild_search, "Search guilds by name...");
 
             ui.add_space(theme.spacing_md);
 
@@ -167,20 +160,11 @@ fn draw_guild_grid(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                                 // Join / View button
                                 if guild.is_member {
-                                    let btn = egui::Button::new(
-                                        RichText::new("View").size(theme.font_size_small).color(theme.text_on_accent()),
-                                    ).fill(theme.accent()).min_size(Vec2::new(80.0, 28.0));
-                                    if ui.add(btn).clicked() {
+                                    if widgets::primary_button(ui, theme, "View") {
                                         click_idx = Some(*idx);
                                     }
                                 } else {
-                                    let btn = egui::Button::new(
-                                        RichText::new("Join").size(theme.font_size_small).color(theme.text_primary()),
-                                    )
-                                    .fill(Color32::TRANSPARENT)
-                                    .stroke(Stroke::new(1.0, theme.accent()))
-                                    .min_size(Vec2::new(80.0, 28.0));
-                                    if ui.add(btn).clicked() {
+                                    if widgets::secondary_button(ui, theme, "Join") {
                                         click_idx = Some(*idx);
                                     }
                                 }

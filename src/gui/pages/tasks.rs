@@ -4,7 +4,7 @@
 //! task cards with priority badges and labels, detail panel, new task form,
 //! filter bar with search/priority/assignee filters, task count per column.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
+use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::{GuiState, TaskPriority, TaskStatus, GuiTask};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -101,14 +101,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_xs);
 
                             // Priority badge
-                            let pc = priority_color(theme, task.priority);
-                            egui::Frame::none()
-                                .fill(pc)
-                                .rounding(Rounding::same(3))
-                                .inner_margin(Vec2::new(6.0, 2.0))
-                                .show(ui, |ui| {
-                                    ui.label(RichText::new(priority_label(task.priority)).size(theme.font_size_small).color(Color32::WHITE));
-                                });
+                            widgets::badge(ui, theme, priority_label(task.priority), priority_color(theme, task.priority));
 
                             ui.add_space(theme.spacing_sm);
 
@@ -175,13 +168,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 ui.label(RichText::new("Labels").size(theme.font_size_body).color(theme.text_secondary()));
                                 ui.horizontal_wrapped(|ui| {
                                     for label in &task.labels {
-                                        egui::Frame::none()
-                                            .fill(Theme::c32(&theme.info))
-                                            .rounding(Rounding::same(3))
-                                            .inner_margin(Vec2::new(5.0, 2.0))
-                                            .show(ui, |ui| {
-                                                ui.label(RichText::new(label).size(theme.font_size_small).color(Color32::WHITE));
-                                            });
+                                        widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
                                     }
                                 });
                             }
@@ -278,12 +265,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_xs);
 
             // Filter bar
+            widgets::search_bar(ui, theme, &mut state.task_search, "Filter tasks...");
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Search:").color(theme.text_secondary()));
-                ui.add(egui::TextEdit::singleline(&mut state.task_search)
-                    .desired_width(200.0)
-                    .hint_text("Filter tasks..."));
-                ui.add_space(theme.spacing_md);
                 ui.label(RichText::new("Priority:").color(theme.text_secondary()));
                 let current_label = state.task_filter_priority.map_or("All", priority_label);
                 egui::ComboBox::from_id_salt("priority_filter")
@@ -443,13 +426,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         // Column header with count
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(*col_name).size(theme.font_size_heading).color(theme.text_primary()));
-                            egui::Frame::none()
-                                .fill(theme.bg_secondary())
-                                .rounding(Rounding::same(8))
-                                .inner_margin(Vec2::new(6.0, 2.0))
-                                .show(ui, |ui| {
-                                    ui.label(RichText::new(col_tasks.len().to_string()).size(theme.font_size_small).color(theme.text_muted()));
-                                });
+                            widgets::badge(ui, theme, &col_tasks.len().to_string(), theme.bg_secondary());
                         });
                         ui.add_space(theme.spacing_xs);
                         ui.separator();
@@ -466,13 +443,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 widgets::card(ui, theme, |ui| {
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new(&task.title).size(theme.font_size_body).color(theme.text_primary()));
-                                        egui::Frame::none()
-                                            .fill(pc)
-                                            .rounding(Rounding::same(3))
-                                            .inner_margin(Vec2::new(4.0, 1.0))
-                                            .show(ui, |ui| {
-                                                ui.label(RichText::new(priority_label(task.priority)).size(theme.font_size_small).color(Color32::WHITE));
-                                            });
+                                        widgets::badge_sm(ui, theme, priority_label(task.priority), pc);
                                     });
                                     // Description preview (first 80 chars)
                                     if !task.description.is_empty() {
@@ -487,13 +458,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     if !task.labels.is_empty() {
                                         ui.horizontal_wrapped(|ui| {
                                             for label in &task.labels {
-                                                egui::Frame::none()
-                                                    .fill(Theme::c32(&theme.info))
-                                                    .rounding(Rounding::same(3))
-                                                    .inner_margin(Vec2::new(4.0, 1.0))
-                                                    .show(ui, |ui| {
-                                                        ui.label(RichText::new(label).size(theme.font_size_small).color(Color32::WHITE));
-                                                    });
+                                                widgets::badge_sm(ui, theme, label, Theme::c32(&theme.info));
                                             }
                                         });
                                     }

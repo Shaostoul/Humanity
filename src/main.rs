@@ -108,7 +108,7 @@ fn binaries_dir() -> Option<std::path::PathBuf> {
     }
     #[cfg(not(target_os = "windows"))]
     {
-        dirs::home_dir().map(|h| h.join("Humanity")).filter(|d| d.is_dir())
+        std::env::var("HOME").ok().map(|h| std::path::PathBuf::from(h).join("Humanity")).filter(|d| d.is_dir())
     }
 }
 

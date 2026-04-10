@@ -1,7 +1,7 @@
 //! Crafting page — full crafting interface with sidebar categories, recipe list,
 //! detail panel, and craft queue with progress bars.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::{GuiState, GuiRecipe};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -80,20 +80,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
 
             ScrollArea::vertical().show(ui, |ui| {
-                for (i, cat) in CATEGORIES.iter().enumerate() {
-                    let is_active = state.craft_category == i;
-                    let fill = if is_active { theme.accent() } else { Color32::TRANSPARENT };
-                    let text_color = if is_active { theme.text_on_accent() } else { theme.text_secondary() };
-                    let btn = egui::Button::new(
-                        RichText::new(*cat).size(theme.font_size_body).color(text_color),
-                    )
-                    .fill(fill)
-                    .rounding(Rounding::same(4))
-                    .min_size(Vec2::new(ui.available_width(), 32.0));
-                    if ui.add(btn).clicked() {
-                        state.craft_category = i;
-                        state.craft_selected = None;
-                    }
+                if let Some(new_idx) = widgets::sidebar_nav(ui, theme, CATEGORIES, state.craft_category) {
+                    state.craft_category = new_idx;
+                    state.craft_selected = None;
                 }
             });
         });
@@ -109,15 +98,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_sm);
 
             // Search bar
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Search:").color(theme.text_muted()));
-                with_local(|local| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut local.search)
-                            .desired_width(250.0)
-                            .hint_text("Filter recipes..."),
-                    );
-                });
+            with_local(|local| {
+                widgets::search_bar(ui, theme, &mut local.search, "Filter recipes...");
             });
             ui.add_space(theme.spacing_sm);
 
@@ -392,15 +374,7 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
     });
 
     ui.add_enabled_ui(can_craft, |ui| {
-        let btn = egui::Button::new(
-            RichText::new("Craft")
-                .size(theme.font_size_heading)
-                .color(if can_craft { theme.text_on_accent() } else { theme.text_muted() }),
-        )
-        .fill(if can_craft { theme.accent() } else { theme.bg_card() })
-        .min_size(Vec2::new(200.0, 48.0))
-        .rounding(Rounding::same(8));
-        if ui.add(btn).clicked() {
+        if widgets::primary_button(ui, theme, "Craft") {
             state.craft_status = format!("Started crafting {}", recipe.name);
             with_local(|local| {
                 local.queue.push(CraftQueueItem {

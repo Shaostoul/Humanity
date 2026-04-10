@@ -85,20 +85,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.separator();
             ui.add_space(theme.spacing_xs);
 
-            for &cat in CATEGORIES {
-                let is_active = (cat == "All" && state.listing_filter_category.is_empty())
-                    || state.listing_filter_category == cat;
-                let text_color = if is_active { theme.accent() } else { theme.text_secondary() };
-
-                ui.horizontal(|ui| {
-                    if cat != "All" {
-                        let (dot_rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-                        ui.painter().circle_filled(dot_rect.center(), 4.0, category_color(cat));
-                    }
-                    if ui.selectable_label(is_active, RichText::new(cat).color(text_color)).clicked() {
-                        state.listing_filter_category = if cat == "All" { String::new() } else { cat.to_string() };
-                    }
-                });
+            let active_idx = CATEGORIES.iter().position(|&c| {
+                (c == "All" && state.listing_filter_category.is_empty())
+                    || state.listing_filter_category == c
+            }).unwrap_or(0);
+            if let Some(new_idx) = widgets::sidebar_nav(ui, theme, CATEGORIES, active_idx) {
+                state.listing_filter_category = if new_idx == 0 { String::new() } else { CATEGORIES[new_idx].to_string() };
             }
         });
 
@@ -122,14 +114,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_xs);
 
                             // Category badge
-                            let cat_col = category_color(&listing.category);
-                            egui::Frame::none()
-                                .fill(cat_col)
-                                .rounding(Rounding::same(3))
-                                .inner_margin(Vec2::new(6.0, 2.0))
-                                .show(ui, |ui| {
-                                    ui.label(RichText::new(&listing.category).size(theme.font_size_small).color(Color32::WHITE));
-                                });
+                            widgets::badge(ui, theme, &listing.category, category_color(&listing.category));
 
                             ui.add_space(theme.spacing_md);
 
@@ -205,12 +190,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_sm);
 
                 // Search bar and sort
+                widgets::search_bar(ui, theme, &mut state.listing_search, "Search listings...");
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("Search:").color(theme.text_secondary()));
-                    ui.add(egui::TextEdit::singleline(&mut state.listing_search)
-                        .desired_width(250.0)
-                        .hint_text("Search listings..."));
-                    ui.add_space(theme.spacing_md);
                     ui.label(RichText::new("Sort:").color(theme.text_secondary()));
                     with_state(|ps| {
                         egui::ComboBox::from_id_salt("listing_sort")
@@ -348,14 +329,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         widgets::card(ui, theme, |ui| {
                                             ui.horizontal(|ui| {
                                                 ui.label(RichText::new(&listing.title).color(theme.text_primary()));
-                                                let cat_col = category_color(&listing.category);
-                                                egui::Frame::none()
-                                                    .fill(cat_col)
-                                                    .rounding(Rounding::same(3))
-                                                    .inner_margin(Vec2::new(4.0, 1.0))
-                                                    .show(ui, |ui| {
-                                                        ui.label(RichText::new(&listing.category).size(theme.font_size_small).color(Color32::WHITE));
-                                                    });
+                                                widgets::badge_sm(ui, theme, &listing.category, category_color(&listing.category));
                                             });
                                             ui.label(RichText::new(format!("{:.2} SOL", listing.price)).size(theme.font_size_heading).color(theme.accent()));
                                             // Short description

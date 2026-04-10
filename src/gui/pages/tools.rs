@@ -95,14 +95,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             // Search bar
             with_state(|ts| {
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Search:").color(theme.text_secondary()));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut ts.search)
-                            .desired_width(200.0)
-                            .hint_text("Filter tools..."),
-                    );
-                });
+                widgets::search_bar(ui, theme, &mut ts.search, "Filter tools...");
             });
             ui.add_space(theme.spacing_xs);
 
@@ -187,12 +180,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .spacing(Vec2::new(theme.spacing_sm, theme.spacing_sm))
                             .show(ui, |ui| {
                                 for (i, tool) in filtered.iter().enumerate() {
-                                    egui::Frame::none()
-                                        .fill(theme.bg_card())
-                                        .rounding(Rounding::same(theme.border_radius as u8))
-                                        .inner_margin(theme.card_padding)
-                                        .stroke(egui::Stroke::new(1.0, theme.border()))
-                                        .show(ui, |ui| {
+                                    widgets::card(ui, theme, |ui| {
                                             ui.set_min_width(260.0);
                                             // Name
                                             ui.label(
@@ -203,17 +191,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             );
                                             // Category badge
                                             ui.horizontal(|ui| {
-                                                egui::Frame::none()
-                                                    .fill(Theme::c32(&theme.info))
-                                                    .rounding(Rounding::same(3))
-                                                    .inner_margin(Vec2::new(6.0, 2.0))
-                                                    .show(ui, |ui| {
-                                                        ui.label(
-                                                            RichText::new(tool.category)
-                                                                .size(theme.font_size_small)
-                                                                .color(Color32::WHITE),
-                                                        );
-                                                    });
+                                                widgets::badge(ui, theme, tool.category, Theme::c32(&theme.info));
                                                 ui.label(
                                                     RichText::new(tool.license)
                                                         .size(theme.font_size_small)
@@ -233,7 +211,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                     .color(theme.text_muted()),
                                             );
                                             // Download link
-                                            if ui.small_button("Download").clicked() {
+                                            if widgets::primary_button(ui, theme, "Download") {
                                                 ui.ctx().open_url(egui::OpenUrl::new_tab(tool.url));
                                             }
                                         });

@@ -4,7 +4,7 @@
 //! Supports dynamic donation addresses from server config (funding.addresses array)
 //! with fallback to local config for offline mode.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -246,13 +246,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 for source in &sources {
                     let has_value = !source.value.is_empty();
 
-                    let frame = egui::Frame::none()
-                        .fill(theme.bg_card())
-                        .rounding(Rounding::same(theme.border_radius as u8))
-                        .stroke(Stroke::new(1.0, theme.border()))
-                        .inner_margin(theme.card_padding);
-
-                    frame.show(ui, |ui| {
+                    widgets::card(ui, theme, |ui| {
                         ui.horizontal(|ui| {
                             // Icon: colored circle with abbreviation
                             let (icon_rect, _) = ui.allocate_exact_size(Vec2::new(44.0, 44.0), egui::Sense::hover());
@@ -294,14 +288,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .color(Theme::c32(&theme.info))
                                                 .monospace(),
                                         );
-                                        let open_btn = egui::Button::new(
-                                            RichText::new("Open")
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_on_accent()),
-                                        )
-                                        .fill(theme.accent())
-                                        .min_size(Vec2::new(60.0, 24.0));
-                                        if ui.add(open_btn).clicked() {
+                                        if widgets::primary_button(ui, theme, "Open") {
                                             ui.ctx().open_url(egui::OpenUrl::new_tab(&source.value));
                                         }
                                     } else {
@@ -311,15 +298,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 .color(theme.text_primary())
                                                 .monospace(),
                                         );
-                                        let copy_btn = egui::Button::new(
-                                            RichText::new("Copy Address")
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_primary()),
-                                        )
-                                        .fill(Color32::TRANSPARENT)
-                                        .stroke(Stroke::new(1.0, theme.accent()))
-                                        .min_size(Vec2::new(100.0, 24.0));
-                                        if ui.add(copy_btn).clicked() {
+                                        if widgets::secondary_button(ui, theme, "Copy Address") {
                                             ui.output_mut(|o| {
                                                 o.copied_text = source.value.clone();
                                             });
@@ -367,13 +346,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ds.faq_open[i]
                     });
 
-                    let frame = egui::Frame::none()
-                        .fill(theme.bg_card())
-                        .rounding(Rounding::same(4))
-                        .stroke(Stroke::new(1.0, theme.border()))
-                        .inner_margin(12.0);
-
-                    frame.show(ui, |ui| {
+                    widgets::card(ui, theme, |ui| {
                         let arrow = if is_open { "v" } else { ">" };
                         let question_resp = ui.horizontal(|ui| {
                             ui.label(

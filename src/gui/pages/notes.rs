@@ -2,7 +2,7 @@
 //! toolbar with bold/italic markers, word count, auto-save indicator,
 //! delete with confirmation.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::{GuiNote, GuiState};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -63,11 +63,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             // Search notes
             with_local(|local| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut local.search)
-                        .desired_width(ui.available_width())
-                        .hint_text("Search notes..."),
-                );
+                widgets::search_bar(ui, theme, &mut local.search, "Search notes...");
             });
 
             ui.add_space(theme.spacing_sm);
@@ -196,22 +192,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     // Formatting toolbar
                     ui.horizontal(|ui| {
                         // Bold/Italic markers
-                        let bold_btn = egui::Button::new(
-                            RichText::new("B").size(theme.font_size_body).color(theme.text_primary()).strong(),
-                        )
-                        .fill(theme.bg_card())
-                        .min_size(Vec2::new(28.0, 28.0));
-                        if ui.add(bold_btn).clicked() {
+                        if widgets::secondary_button(ui, theme, "B") {
                             note.content.push_str("**");
                             note.modified = current_timestamp();
                         }
-
-                        let italic_btn = egui::Button::new(
-                            RichText::new("I").size(theme.font_size_body).color(theme.text_primary()).italics(),
-                        )
-                        .fill(theme.bg_card())
-                        .min_size(Vec2::new(28.0, 28.0));
-                        if ui.add(italic_btn).clicked() {
+                        if widgets::secondary_button(ui, theme, "I") {
                             note.content.push_str("_");
                             note.modified = current_timestamp();
                         }

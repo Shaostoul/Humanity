@@ -1,6 +1,6 @@
 //! Bug Reporter page — submit bug reports with severity and category.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Vec2};
+use egui::{Color32, Frame, RichText, ScrollArea};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -207,29 +207,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         .strong(),
                                 );
                                 // Severity badge
-                                egui::Frame::none()
-                                    .fill(severity_color(&report.severity, theme))
-                                    .rounding(Rounding::same(3))
-                                    .inner_margin(Vec2::new(6.0, 2.0))
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            RichText::new(&report.severity)
-                                                .size(theme.font_size_small)
-                                                .color(Color32::WHITE),
-                                        );
-                                    });
+                                widgets::badge(ui, theme, &report.severity, severity_color(&report.severity, theme));
                                 // Status badge
-                                egui::Frame::none()
-                                    .fill(status_color(report.status, theme))
-                                    .rounding(Rounding::same(3))
-                                    .inner_margin(Vec2::new(6.0, 2.0))
-                                    .show(ui, |ui| {
-                                        ui.label(
-                                            RichText::new(report.status)
-                                                .size(theme.font_size_small)
-                                                .color(Color32::WHITE),
-                                        );
-                                    });
+                                widgets::badge(ui, theme, report.status, status_color(report.status, theme));
                             });
                             ui.label(
                                 RichText::new(format!("{} | v{}", report.category, report.version))

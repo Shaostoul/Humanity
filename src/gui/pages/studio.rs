@@ -6,6 +6,7 @@
 use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
+use crate::gui::widgets;
 
 const LEFT_PANEL_WIDTH: f32 = 220.0;
 const RIGHT_PANEL_WIDTH: f32 = 220.0;
@@ -138,18 +139,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
 
         ui.add_space(theme.section_gap);
-        if ui
-            .add(
-                egui::Button::new(
-                    RichText::new("+ New Scene")
-                        .size(theme.font_size_small)
-                        .color(theme.accent()),
-                )
-                .fill(Color32::TRANSPARENT)
-                .stroke(Stroke::new(1.0, theme.accent())),
-            )
-            .clicked()
-        {
+        if widgets::secondary_button(ui, theme, "+ New Scene") {
             let idx = state.studio.scenes.len();
             let vis = state.studio.sources.iter().map(|s| s.visible).collect();
             state.studio.scenes.push(crate::gui::StudioScene {
@@ -245,18 +235,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
 
         ui.add_space(theme.section_gap);
-        if ui
-            .add(
-                egui::Button::new(
-                    RichText::new("+ Add Source")
-                        .size(theme.font_size_small)
-                        .color(theme.accent()),
-                )
-                .fill(Color32::TRANSPARENT)
-                .stroke(Stroke::new(1.0, theme.accent())),
-            )
-            .clicked()
-        {
+        if widgets::secondary_button(ui, theme, "+ Add Source") {
             let idx = state.studio.sources.len() as u32;
             state.studio.sources.push(crate::gui::StudioSource {
                 name: format!("Source {}", idx + 1),
@@ -398,17 +377,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 // Clicking LIVE while live does nothing (use Stop)
             }
         } else {
-            let btn = ui.add(
-                egui::Button::new(
-                    RichText::new("Go Live")
-                        .size(theme.font_size_body)
-                        .color(Color32::WHITE),
-                )
-                .fill(theme.accent())
-                .min_size(Vec2::new(70.0, 32.0))
-                .rounding(Rounding::same(6)),
-            );
-            if btn.clicked() {
+            if widgets::primary_button(ui, theme, "Go Live") {
                 state.studio.is_live = true;
                 state.studio.is_paused = false;
                 state.studio.live_start_time = ui.ctx().input(|i| i.time);
@@ -439,19 +408,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
 
         // Stop
-        if ui
-            .add(
-                egui::Button::new(
-                    RichText::new("Stop")
-                        .size(theme.font_size_small)
-                        .color(Color32::WHITE),
-                )
-                .fill(LIVE_RED)
-                .min_size(Vec2::new(45.0, 32.0))
-                .rounding(Rounding::same(6)),
-            )
-            .clicked()
-        {
+        if widgets::danger_button(ui, theme, "Stop") {
             state.studio.is_live = false;
             state.studio.is_paused = false;
             state.studio.is_afk = false;
@@ -640,21 +597,7 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.panel_margin);
 
                 // Remove source button
-                let remove_clicked;
-                {
-                    remove_clicked = ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new("Remove Source")
-                                    .size(theme.font_size_small)
-                                    .color(Color32::WHITE),
-                            )
-                            .fill(LIVE_RED)
-                            .rounding(Rounding::same(4)),
-                        )
-                        .clicked();
-                }
-                if remove_clicked {
+                if widgets::danger_button(ui, theme, "Remove Source") {
                     state.studio.sources.remove(sel);
                     state.studio.selected_source_index = None;
                 }

@@ -135,12 +135,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         );
                         ui.label(RichText::new("SOL").color(theme.text_muted()));
                         // MAX button
-                        let max_btn = egui::Button::new(
-                            RichText::new("MAX").size(theme.font_size_small).color(theme.accent()),
-                        )
-                        .fill(Color32::TRANSPARENT)
-                        .stroke(Stroke::new(1.0, theme.accent()));
-                        if ui.add(max_btn).clicked() {
+                        if widgets::secondary_button(ui, theme, "MAX") {
                             state.wallet_send_amount = format!("{:.4}", state.wallet_balance);
                         }
                     });
@@ -150,14 +145,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         && amount > 0.0
                         && amount <= state.wallet_balance;
                     ui.add_enabled_ui(can_send, |ui| {
-                        let btn = egui::Button::new(
-                            RichText::new("Send")
-                                .size(theme.font_size_body)
-                                .color(if can_send { theme.text_on_accent() } else { theme.text_muted() }),
-                        )
-                        .fill(if can_send { theme.accent() } else { theme.bg_card() })
-                        .min_size(Vec2::new(120.0, theme.button_height));
-                        if ui.add(btn).clicked() {
+                        if widgets::primary_button(ui, theme, "Send") {
                             let amount_val = state.wallet_send_amount.parse().unwrap_or(0.0);
                             let to = state.wallet_send_to.clone();
                             state.wallet_transactions.insert(0, WalletTransaction {

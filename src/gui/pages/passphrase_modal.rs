@@ -8,6 +8,7 @@
 use egui::{Align2, Color32, Frame, RichText, Rounding, Stroke, Vec2};
 use crate::gui::{GuiState, PassphraseMode};
 use crate::gui::theme::Theme;
+use crate::gui::widgets;
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Semi-transparent backdrop
@@ -73,11 +74,7 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     ui.horizontal(|ui| {
-        let encrypt_btn = egui::Button::new(
-            RichText::new("Encrypt Key").color(theme.text_on_accent()))
-            .fill(theme.accent())
-            .min_size(Vec2::new(120.0, 32.0));
-        if ui.add(encrypt_btn).clicked() {
+        if widgets::primary_button(ui, theme, "Encrypt Key") {
             if state.passphrase_input.is_empty() {
                 state.passphrase_status = "Passphrase cannot be empty.".to_string();
             } else if state.passphrase_input != state.passphrase_confirm {
@@ -104,11 +101,7 @@ fn draw_set_new(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
 
-        let skip_btn = egui::Button::new(
-            RichText::new("Skip (key unavailable)").color(theme.text_muted()))
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::new(1.0, theme.border()));
-        if ui.add(skip_btn).clicked() {
+        if widgets::secondary_button(ui, theme, "Skip (key unavailable)") {
             // User skips: key stays in memory but is not persisted encrypted
             state.passphrase_needed = false;
             state.passphrase_input.clear();
@@ -147,11 +140,7 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let enter_pressed = response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
     ui.horizontal(|ui| {
-        let unlock_btn = egui::Button::new(
-            RichText::new("Unlock").color(theme.text_on_accent()))
-            .fill(theme.accent())
-            .min_size(Vec2::new(100.0, 32.0));
-        if ui.add(unlock_btn).clicked() || enter_pressed {
+        if widgets::primary_button(ui, theme, "Unlock") || enter_pressed {
             match crate::config::decrypt_private_key(
                 &state.encrypted_private_key,
                 &state.key_salt,
@@ -170,11 +159,7 @@ fn draw_unlock(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
 
-        let skip_btn = egui::Button::new(
-            RichText::new("Skip (limited mode)").color(theme.text_muted()))
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::new(1.0, theme.border()));
-        if ui.add(skip_btn).clicked() {
+        if widgets::secondary_button(ui, theme, "Skip (limited mode)") {
             // User skips: no private key available, chat-only mode
             state.passphrase_needed = false;
             state.passphrase_input.clear();
@@ -222,11 +207,7 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     }
 
     ui.horizontal(|ui| {
-        let change_btn = egui::Button::new(
-            RichText::new("Change Passphrase").color(theme.text_on_accent()))
-            .fill(theme.accent())
-            .min_size(Vec2::new(150.0, 32.0));
-        if ui.add(change_btn).clicked() {
+        if widgets::primary_button(ui, theme, "Change Passphrase") {
             if state.passphrase_input.is_empty() {
                 state.passphrase_status = "New passphrase cannot be empty.".to_string();
             } else if state.passphrase_input != state.passphrase_confirm {
@@ -265,11 +246,7 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
 
-        let cancel_btn = egui::Button::new(
-            RichText::new("Cancel").color(theme.text_muted()))
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::new(1.0, theme.border()));
-        if ui.add(cancel_btn).clicked() {
+        if widgets::secondary_button(ui, theme, "Cancel") {
             state.passphrase_needed = false;
             state.passphrase_old_input.clear();
             state.passphrase_input.clear();

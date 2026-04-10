@@ -223,8 +223,8 @@ impl AppConfig {
         }
         #[cfg(not(target_os = "windows"))]
         {
-            if let Some(home) = dirs::home_dir() {
-                let dir = home.join(".config").join("HumanityOS");
+            if let Ok(home) = std::env::var("HOME") {
+                let dir = std::path::PathBuf::from(home).join(".config").join("HumanityOS");
                 let _ = std::fs::create_dir_all(&dir);
                 return dir.join("config.json");
             }

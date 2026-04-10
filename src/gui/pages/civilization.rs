@@ -1,7 +1,7 @@
 //! Civilization dashboard — community stats (Real) or colony stats (Sim).
 //! 3-column stats grid, trend arrows, progress bars, events timeline, charts placeholder.
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
+use egui::{Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -21,12 +21,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let mode_label = if is_real { "Real" } else { "Sim" };
-                    let mode_btn = egui::Button::new(
-                        RichText::new(mode_label).size(theme.font_size_small).color(theme.text_on_accent()),
-                    )
-                    .fill(theme.accent())
-                    .rounding(Rounding::same(4));
-                    ui.add(mode_btn);
+                    widgets::badge(ui, theme, mode_label, theme.accent());
                 });
             });
 
@@ -182,13 +177,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 /// Draw a stat card with large number, trend arrow, and optional progress bar.
 fn draw_stat_card(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str, trend: &str, progress: f32) {
-    let frame = egui::Frame::none()
-        .fill(theme.bg_card())
-        .rounding(Rounding::same(theme.border_radius as u8))
-        .stroke(Stroke::new(1.0, theme.border()))
-        .inner_margin(theme.card_padding);
-
-    frame.show(ui, |ui| {
+    widgets::card(ui, theme, |ui| {
         ui.set_min_width(180.0);
         ui.label(
             RichText::new(label)
