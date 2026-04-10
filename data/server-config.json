@@ -2,6 +2,9 @@
   "server_name": "United Humanity",
   "server_description": "Open-source cooperative platform to end poverty and unite humanity.",
   "owner_key": "",
+  "max_connections": 500,
+  "max_history": 500,
+  "broadcast_capacity": 256,
   "funding": {
     "enabled": true,
     "goal_usd": 100000,

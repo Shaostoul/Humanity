@@ -14,6 +14,23 @@ pub mod pages;
 #[cfg(feature = "native")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// A tool entry loaded from data/tools/catalog.json.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ToolEntry {
+    pub name: String,
+    pub description: String,
+    pub url: String,
+    pub license: String,
+    pub platforms: Vec<String>,
+    /// Optional download size hint (e.g. "~350MB").
+    #[serde(default)]
+    pub size: String,
+    /// Category name, populated during loading from the parent category.
+    #[serde(skip)]
+    pub category: String,
+}
+
 /// A single donation address entry (for the dynamic addresses array).
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -714,6 +731,9 @@ pub struct GuiState {
     /// Ring buffer of timestamped debug log lines for the overlay.
     pub debug_log: Vec<String>,
 
+    // ── Tools catalog (loaded from data/tools/catalog.json) ──
+    pub tools_catalog: Vec<ToolEntry>,
+
     // ── Studio state ──
     pub studio: StudioState,
 
@@ -954,6 +974,7 @@ impl Default for GuiState {
             show_help_modal: false,
             debug_console_visible: false,
             debug_log: Vec::new(),
+            tools_catalog: Vec::new(),
             studio: StudioState::default(),
 
             // Chat panel collapse state (all expanded by default except connection)
@@ -973,6 +994,53 @@ impl Default for GuiState {
             chat_right_panel_width: 220.0,
         }
     }
+}
+
+/// Load the tools catalog from data/tools/catalog.json.
+/// `data_dir` is the root data directory (e.g. from AssetManager).
+/// Returns an empty Vec on any error (graceful degradation).
+#[cfg(feature = "native")]
+pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
+    /// JSON shape for the catalog file (categories with nested tools).
+    #[derive(serde::Deserialize)]
+    struct Catalog {
+        categories: Vec<CatalogCategory>,
+    }
+    #[derive(serde::Deserialize)]
+    struct CatalogCategory {
+        name: String,
+        tools: Vec<ToolEntry>,
+        #[allow(dead_code)]
+        #[serde(default)]
+        id: String,
+        #[allow(dead_code)]
+        #[serde(default)]
+        extensions: Vec<String>,
+    }
+
+    let path = data_dir.join("tools").join("catalog.json");
+    let bytes = match std::fs::read_to_string(&path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("[tools] Failed to read {}: {}", path.display(), e);
+            return Vec::new();
+        }
+    };
+    let catalog: Catalog = match serde_json::from_str(&bytes) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[tools] Failed to parse catalog.json: {}", e);
+            return Vec::new();
+        }
+    };
+    let mut out = Vec::new();
+    for cat in catalog.categories {
+        for mut tool in cat.tools {
+            tool.category = cat.name.clone();
+            out.push(tool);
+        }
+    }
+    out
 }
 
 /// Default solar system planet data for the map viewer.

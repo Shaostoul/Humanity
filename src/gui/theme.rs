@@ -121,6 +121,30 @@ pub struct Theme {
     pub badge_padding_v: f32,
     #[serde(default = "default_badge_radius")]
     pub badge_radius: f32,
+
+    // Chat section tint colors (DMs = red, Groups = green, Servers = blue)
+    #[serde(default = "default_dm_bg")]
+    pub dm_bg: C,
+    #[serde(default = "default_dm_row_bg")]
+    pub dm_row_bg: C,
+    #[serde(default = "default_dm_row_hover")]
+    pub dm_row_hover: C,
+    #[serde(default = "default_group_bg")]
+    pub group_bg: C,
+    #[serde(default = "default_group_row_bg")]
+    pub group_row_bg: C,
+    #[serde(default = "default_group_row_hover")]
+    pub group_row_hover: C,
+    #[serde(default = "default_server_bg")]
+    pub server_bg: C,
+    #[serde(default = "default_server_row_bg")]
+    pub server_row_bg: C,
+    #[serde(default = "default_server_row_hover")]
+    pub server_row_hover: C,
+
+    // Chat buffer size
+    #[serde(default = "default_max_messages")]
+    pub max_messages: usize,
 }
 
 impl Theme {
@@ -152,6 +176,15 @@ impl Theme {
     pub fn bg_sidebar(&self) -> Color32 { Self::c32(&self.bg_sidebar) }
     pub fn bg_sidebar_dark(&self) -> Color32 { Self::c32(&self.bg_sidebar_dark) }
     pub fn badge_padding(&self) -> Vec2 { Vec2::new(self.badge_padding_h, self.badge_padding_v) }
+    pub fn dm_bg(&self) -> Color32 { Self::c32(&self.dm_bg) }
+    pub fn dm_row_bg(&self) -> Color32 { Self::c32(&self.dm_row_bg) }
+    pub fn dm_row_hover(&self) -> Color32 { Self::c32(&self.dm_row_hover) }
+    pub fn group_bg(&self) -> Color32 { Self::c32(&self.group_bg) }
+    pub fn group_row_bg(&self) -> Color32 { Self::c32(&self.group_row_bg) }
+    pub fn group_row_hover(&self) -> Color32 { Self::c32(&self.group_row_hover) }
+    pub fn server_bg(&self) -> Color32 { Self::c32(&self.server_bg) }
+    pub fn server_row_bg(&self) -> Color32 { Self::c32(&self.server_row_bg) }
+    pub fn server_row_hover(&self) -> Color32 { Self::c32(&self.server_row_hover) }
 
     /// Icon circle radius (half icon_size minus border padding).
     pub fn icon_radius(&self) -> f32 { self.icon_size / 2.0 - 2.0 }
@@ -309,6 +342,16 @@ fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 
 fn default_badge_padding() -> f32 { 6.0 }
 fn default_badge_padding_v() -> f32 { 2.0 }
 fn default_badge_radius() -> f32 { 3.0 }
+fn default_dm_bg() -> C { (0.176, 0.059, 0.059, 1.0) }
+fn default_dm_row_bg() -> C { (0.216, 0.078, 0.078, 1.0) }
+fn default_dm_row_hover() -> C { (0.275, 0.098, 0.098, 1.0) }
+fn default_group_bg() -> C { (0.059, 0.176, 0.059, 1.0) }
+fn default_group_row_bg() -> C { (0.078, 0.216, 0.078, 1.0) }
+fn default_group_row_hover() -> C { (0.098, 0.275, 0.098, 1.0) }
+fn default_server_bg() -> C { (0.059, 0.059, 0.176, 1.0) }
+fn default_server_row_bg() -> C { (0.078, 0.078, 0.216, 1.0) }
+fn default_server_row_hover() -> C { (0.098, 0.098, 0.275, 1.0) }
+fn default_max_messages() -> usize { 200 }
 
 fn default_theme() -> Theme {
     Theme {
@@ -382,5 +425,16 @@ fn default_theme() -> Theme {
         badge_padding_h: default_badge_padding(),
         badge_padding_v: default_badge_padding_v(),
         badge_radius: default_badge_radius(),
+        // Chat section tint colors
+        dm_bg: default_dm_bg(),
+        dm_row_bg: default_dm_row_bg(),
+        dm_row_hover: default_dm_row_hover(),
+        group_bg: default_group_bg(),
+        group_row_bg: default_group_row_bg(),
+        group_row_hover: default_group_row_hover(),
+        server_bg: default_server_bg(),
+        server_row_bg: default_server_row_bg(),
+        server_row_hover: default_server_row_hover(),
+        max_messages: default_max_messages(),
     }
 }

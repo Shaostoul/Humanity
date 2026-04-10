@@ -59,26 +59,26 @@
     border_radius_lg: 8.0,   // was 12.0
 
     // ── Component sizes (compact) ──
-    button_height: 24.0,     // was 36.0 — much tighter
+    button_height: 24.0,     // was 36.0 -- much tighter
     button_padding_h: 10.0,  // was 16.0
     input_height: 24.0,      // was 36.0
     sidebar_width: 240.0,    // was 280.0
-    card_padding: 8.0,       // was 16.0 — tighter cards
+    card_padding: 8.0,       // was 16.0 -- tighter cards
     modal_width: 440.0,      // was 480.0
 
     // ── Widget spacing (shared across all widgets) ──
     row_gap: 2.0,            // tight row spacing
     section_gap: 4.0,        // between sections
     item_padding: 4.0,       // inside items
-    panel_margin: 6.0,       // was 8.0 or 0.0 — small but visible
+    panel_margin: 6.0,       // was 8.0 or 0.0 -- small but visible
 
     // ── Widget sizes (match chat density) ──
-    icon_size: 14.0,         // was 31.5 — way smaller
+    icon_size: 14.0,         // was 31.5 -- way smaller
     icon_small: 12.0,        // was 16.0
-    row_height: 18.0,        // was 20.8 — chat row height
+    row_height: 18.0,        // was 20.8 -- chat row height
     header_height: 24.0,     // was 32.0
     border_width: 1.0,       // was 2.0
-    status_dot_size: 6.0,    // was 4.0 — slightly bigger for visibility
+    status_dot_size: 6.0,    // was 4.0 -- slightly bigger for visibility
 
     // ── Widget font sizes (override global) ──
     name_size: 13.0,         // was 18.0
@@ -88,8 +88,8 @@
     title_size: 20.0,        // was 24.0
 
     // ── Widget borders ──
-    border_radius_widget: 3.0,  // was 9.0 — sharper corners
-    settings_label_width: 160.0, // was 200.0 — less wasted space
+    border_radius_widget: 3.0,  // was 9.0 -- sharper corners
+    settings_label_width: 160.0, // was 200.0 -- less wasted space
 
     // ── Slider ──
     slider_track: (0.2, 0.2, 0.25, 1.0),
@@ -99,8 +99,25 @@
     // ── Checkbox ──
     checkbox_size: 14.0,        // was 18.0
 
-    // ── Badge styling (new) ──
+    // ── Badge styling ──
     badge_padding_h: 5.0,
     badge_padding_v: 1.0,
     badge_radius: 3.0,
+
+    // ── Chat section tint colors ──
+    // DMs (red tint)
+    dm_bg: (0.176, 0.059, 0.059, 1.0),
+    dm_row_bg: (0.216, 0.078, 0.078, 1.0),
+    dm_row_hover: (0.275, 0.098, 0.098, 1.0),
+    // Groups (green tint)
+    group_bg: (0.059, 0.176, 0.059, 1.0),
+    group_row_bg: (0.078, 0.216, 0.078, 1.0),
+    group_row_hover: (0.098, 0.275, 0.098, 1.0),
+    // Servers (blue tint)
+    server_bg: (0.059, 0.059, 0.176, 1.0),
+    server_row_bg: (0.078, 0.078, 0.216, 1.0),
+    server_row_hover: (0.098, 0.098, 0.275, 1.0),
+
+    // ── Chat buffer ──
+    max_messages: 200,
 )

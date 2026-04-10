@@ -8,27 +8,14 @@ use egui::{Align, Color32, Frame, Layout, RichText, Rounding, ScrollArea, Stroke
 use crate::gui::{ChatMessage, ChatUser, GuiState};
 use crate::gui::theme::Theme;
 
-/// Maximum messages kept in the local chat buffer.
-const MAX_MESSAGES: usize = 200;
+// Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
 /// Minimum panel width in points.
 const MIN_PANEL_WIDTH: f32 = 150.0;
 /// Maximum panel width in points.
 const MAX_PANEL_WIDTH: f32 = 400.0;
 
-// ── Section tint colors (matching website rgba values) ──
-
-const DM_BG: Color32 = Color32::from_rgba_premultiplied(45, 15, 15, 255);
-const DM_ROW_BG: Color32 = Color32::from_rgba_premultiplied(55, 20, 20, 255);
-const DM_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(70, 25, 25, 255);
-
-const GROUP_BG: Color32 = Color32::from_rgba_premultiplied(15, 45, 15, 255);
-const GROUP_ROW_BG: Color32 = Color32::from_rgba_premultiplied(20, 55, 20, 255);
-const GROUP_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(25, 70, 25, 255);
-
-const SERVER_BG: Color32 = Color32::from_rgba_premultiplied(15, 15, 45, 255);
-const SERVER_ROW_BG: Color32 = Color32::from_rgba_premultiplied(20, 20, 55, 255);
-const SERVER_ROW_HOVER: Color32 = Color32::from_rgba_premultiplied(25, 25, 70, 255);
+// Section tint colors now come from theme.ron (theme.dm_bg(), theme.group_bg(), theme.server_bg(), etc.)
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // ── LEFT PANEL ──
@@ -274,7 +261,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui,
         &format!("DMs ({})", dm_count),
         collapsed,
-        DM_BG,
+        theme.dm_bg(),
         |ui| {
             let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
             let cog_color = if cog_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
@@ -310,7 +297,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if !collapsed {
         Frame::NONE
-            .fill(DM_BG)
+            .fill(theme.dm_bg())
             .inner_margin(egui::Margin::symmetric(0, 1))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
@@ -347,9 +334,9 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                     if ui.is_rect_visible(full_rect) {
                         let bg = if is_active || response.hovered() {
-                            DM_ROW_HOVER
+                            theme.dm_row_hover()
                         } else {
-                            DM_ROW_BG
+                            theme.dm_row_bg()
                         };
                         ui.painter().rect_filled(full_rect, 0.0, bg);
 
@@ -433,7 +420,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui,
         &format!("Groups ({})", group_count),
         collapsed,
-        GROUP_BG,
+        theme.group_bg(),
         |ui| {
             // Cog button (group settings)
             {
@@ -499,7 +486,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if !collapsed {
         Frame::NONE
-            .fill(GROUP_BG)
+            .fill(theme.group_bg())
             .inner_margin(egui::Margin::symmetric(0, 1))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
@@ -536,10 +523,10 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let cog_click_rect;
                     if ui.is_rect_visible(hdr_rect) {
                         let hdr_bg = Color32::from_rgba_premultiplied(
-                            GROUP_BG.r().saturating_add(20),
-                            GROUP_BG.g().saturating_add(20),
-                            GROUP_BG.b().saturating_add(20),
-                            GROUP_BG.a(),
+                            theme.group_bg().r().saturating_add(20),
+                            theme.group_bg().g().saturating_add(20),
+                            theme.group_bg().b().saturating_add(20),
+                            theme.group_bg().a(),
                         );
                         ui.painter().rect_filled(hdr_rect, 0.0, hdr_bg);
 
@@ -634,7 +621,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             let base_bg = if is_active {
                                 Color32::from_rgb(accent.r() / 5 + 15, accent.g() / 5 + 15, accent.b() / 5 + 15)
                             } else {
-                                GROUP_ROW_BG
+                                theme.group_row_bg()
                             };
 
                             let row_w = ui.available_width();
@@ -645,7 +632,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
                             if ui.is_rect_visible(row_rect) {
                                 let hover = response.hovered();
-                                let fill = if hover && !is_active { GROUP_ROW_HOVER } else { base_bg };
+                                let fill = if hover && !is_active { theme.group_row_hover() } else { base_bg };
                                 ui.painter().rect_filled(row_rect, 0.0, fill);
                                 if is_active {
                                     let bar = egui::Rect::from_min_size(row_rect.min, Vec2::new(3.0, row_rect.height()));
@@ -756,7 +743,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         ui,
         &header_label,
         collapsed,
-        SERVER_BG,
+        theme.server_bg(),
         |ui| {
             let (plus_rect, plus_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
             let plus_color = if plus_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
@@ -776,7 +763,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
     if !collapsed {
         Frame::NONE
-            .fill(SERVER_BG)
+            .fill(theme.server_bg())
             .inner_margin(egui::Margin::symmetric(0, 1))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
@@ -795,10 +782,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     let mut svr_disconnect = false;
                     if ui.is_rect_visible(svr_rect) {
                         let svr_bg = Color32::from_rgba_premultiplied(
-                            SERVER_BG.r().saturating_add(20),
-                            SERVER_BG.g().saturating_add(20),
-                            SERVER_BG.b().saturating_add(20),
-                            SERVER_BG.a(),
+                            theme.server_bg().r().saturating_add(20),
+                            theme.server_bg().g().saturating_add(20),
+                            theme.server_bg().b().saturating_add(20),
+                            theme.server_bg().a(),
                         );
                         ui.painter().rect_filled(svr_rect, 0.0, svr_bg);
 
@@ -934,7 +921,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 accent.b() / 5 + 15,
                             )
                         } else {
-                            SERVER_ROW_BG
+                            theme.server_row_bg()
                         };
 
                         // Check if the edit modal is open for THIS channel (for RGB border on cog)
@@ -954,7 +941,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
 
                         if ui.is_rect_visible(row_rect) {
                             let hover = response.hovered();
-                            let fill = if hover && !is_active { SERVER_ROW_HOVER } else { bg };
+                            let fill = if hover && !is_active { theme.server_row_hover() } else { bg };
                             ui.painter().rect_filled(row_rect, 0.0, fill);
                             if is_active {
                                 let bar = egui::Rect::from_min_size(row_rect.min, Vec2::new(3.0, row_rect.height()));
@@ -1640,7 +1627,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             channel,
                         });
 
-                        while state.chat_messages.len() > MAX_MESSAGES {
+                        while state.chat_messages.len() > 200 {
                             state.chat_messages.remove(0);
                         }
 

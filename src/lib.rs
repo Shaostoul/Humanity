@@ -576,6 +576,9 @@ mod native_app {
             theme.apply_to_egui(&egui_ctx);
             let mut gui_state = GuiState::default();
 
+            // Load data-driven catalogs into GUI state
+            gui_state.tools_catalog = crate::gui::load_tools_catalog(&data_dir);
+
             // Load persistent config and apply to GUI state
             let config = crate::config::AppConfig::load();
             config.apply_to_gui_state(&mut gui_state);

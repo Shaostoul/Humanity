@@ -23,11 +23,11 @@ pub use crate::relay::handlers::start_federation_connections;
 /// Allowed emoji reactions (whitelist).
 const ALLOWED_REACTIONS: &[&str] = &["❤️", "😂", "👍", "👎", "🔥", "😮", "😢", "🎉"];
 
-/// Maximum broadcast channel capacity.
-const BROADCAST_CAPACITY: usize = 256;
+/// Default broadcast channel capacity (overridden by server-config.json "broadcast_capacity").
+const DEFAULT_BROADCAST_CAPACITY: usize = 256;
 
-/// Maximum concurrent WebSocket connections.
-const MAX_CONNECTIONS: usize = 500;
+/// Default maximum concurrent WebSocket connections (overridden by server-config.json "max_connections").
+const DEFAULT_MAX_CONNECTIONS: usize = 500;
 
 /// Timeout for the initial identify message (seconds).
 const IDENTIFY_TIMEOUT_SECS: u64 = 30;
@@ -75,8 +75,8 @@ pub struct Peer {
     pub ecdh_public: Option<String>,
 }
 
-/// Maximum message history to keep in memory.
-const MAX_HISTORY: usize = 500;
+/// Default maximum message history to keep in memory (overridden by server-config.json "max_history").
+const DEFAULT_MAX_HISTORY: usize = 500;
 
 /// Webhook configuration for notifying external services of new messages.
 #[derive(Debug, Clone)]
@@ -137,6 +137,10 @@ pub struct RelayState {
     pub server_config: serde_json::Value,
     /// Server-authoritative game world state.
     pub game_world: RwLock<GameWorld>,
+    /// Maximum concurrent WebSocket connections (from config or default).
+    pub max_connections: usize,
+    /// Maximum message history kept in memory (from config or default).
+    pub max_history: usize,
 }
 
 impl RelayState {
@@ -153,8 +157,36 @@ impl RelayState {
             info!("Webhook configured: {}", wh.url);
         }
 
+        // Load server config from data/server-config.json (or use defaults).
+        // Must happen before history load so max_history is available.
+        let server_config = std::fs::read_to_string("data/server-config.json")
+            .ok()
+            .and_then(|contents| serde_json::from_str::<serde_json::Value>(&contents).ok())
+            .unwrap_or_else(|| {
+                info!("data/server-config.json not found or invalid, using defaults");
+                serde_json::json!({
+                    "server_name": "Humanity Relay",
+                    "server_description": "",
+                    "owner_key": "",
+                    "funding": { "enabled": false }
+                })
+            });
+        info!("Server config loaded: {}", server_config.get("server_name").and_then(|v| v.as_str()).unwrap_or("unknown"));
+
+        // Read tunable limits from server-config.json (fall back to compiled defaults).
+        let max_connections = server_config.get("max_connections")
+            .and_then(|v| v.as_u64()).map(|v| v as usize)
+            .unwrap_or(DEFAULT_MAX_CONNECTIONS);
+        let max_history = server_config.get("max_history")
+            .and_then(|v| v.as_u64()).map(|v| v as usize)
+            .unwrap_or(DEFAULT_MAX_HISTORY);
+        let broadcast_capacity = server_config.get("broadcast_capacity")
+            .and_then(|v| v.as_u64()).map(|v| v as usize)
+            .unwrap_or(DEFAULT_BROADCAST_CAPACITY);
+        info!("Limits: max_connections={max_connections}, max_history={max_history}, broadcast_capacity={broadcast_capacity}");
+
         // Load recent history from database.
-        let history = db.load_recent_messages(MAX_HISTORY).unwrap_or_default();
+        let history = db.load_recent_messages(max_history).unwrap_or_default();
         let history_count = history.len();
         if history_count > 0 {
             info!("Loaded {history_count} messages from database");
@@ -183,22 +215,7 @@ impl RelayState {
             info!("Restored lockdown state from database: locked");
         }
 
-        // Load server config from data/server-config.json (or use defaults).
-        let server_config = std::fs::read_to_string("data/server-config.json")
-            .ok()
-            .and_then(|contents| serde_json::from_str::<serde_json::Value>(&contents).ok())
-            .unwrap_or_else(|| {
-                info!("data/server-config.json not found or invalid, using defaults");
-                serde_json::json!({
-                    "server_name": "Humanity Relay",
-                    "server_description": "",
-                    "owner_key": "",
-                    "funding": { "enabled": false }
-                })
-            });
-        info!("Server config loaded: {}", server_config.get("server_name").and_then(|v| v.as_str()).unwrap_or("unknown"));
-
-        let (broadcast_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
+        let (broadcast_tx, _) = broadcast::channel(broadcast_capacity);
         Self {
             peers: RwLock::new(HashMap::new()),
             broadcast_tx,
@@ -223,6 +240,8 @@ impl RelayState {
             vapid_key: None,
             server_config,
             game_world: RwLock::new(GameWorld::new()),
+            max_connections,
+            max_history,
         }
     }
 
@@ -269,8 +288,8 @@ impl RelayState {
             let mut history = self.history.write().await;
             history.push(msg.clone());
             // Trim if too long.
-            if history.len() > MAX_HISTORY {
-                let excess = history.len() - MAX_HISTORY;
+            if history.len() > self.max_history {
+                let excess = history.len() - self.max_history;
                 history.drain(..excess);
             }
         }
@@ -2019,9 +2038,9 @@ impl Drop for ConnectionGuard {
 pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>) {
     // Connection limit check: reject if at capacity.
     let prev = state.connection_count.fetch_add(1, Ordering::SeqCst);
-    if prev >= MAX_CONNECTIONS {
+    if prev >= state.max_connections {
         state.connection_count.fetch_sub(1, Ordering::SeqCst);
-        tracing::warn!("Connection rejected: at capacity ({MAX_CONNECTIONS})");
+        tracing::warn!("Connection rejected: at capacity ({})", state.max_connections);
         return;
     }
 
