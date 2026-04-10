@@ -187,6 +187,11 @@ impl Renderer {
                 light_positions: [[0.0; 4]; 8],
                 light_colors: [[0.0; 4]; 8],
                 light_count: [0.0; 4],
+                // Default directional lights (match former shader constants)
+                sun_direction: [0.3, 1.0, 0.5, 2.5],
+                sun_color: [1.0, 0.95, 0.9, 0.0],
+                fill_direction: [-0.5, 0.3, -0.3, 0.6],
+                fill_color: [0.4, 0.5, 0.7, 0.0],
             }),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
@@ -371,6 +376,44 @@ impl Renderer {
             &self.camera_buffer,
             light_data_offset + 256,
             bytemuck::cast_slice(&light_count),
+        );
+    }
+
+    /// Set the directional sun light for the next render call.
+    /// `direction` points toward the light source (will be normalized in the shader).
+    /// `color` is the RGB color, `intensity` is the brightness multiplier.
+    pub fn set_sun_light(&mut self, direction: Vec3, color: [f32; 3], intensity: f32) {
+        // sun_direction sits at byte offset 352 (after light_count at 336 + 16)
+        let sun_dir = [direction.x, direction.y, direction.z, intensity];
+        let sun_col = [color[0], color[1], color[2], 0.0_f32];
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            352,
+            bytemuck::cast_slice(&sun_dir),
+        );
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            368,
+            bytemuck::cast_slice(&sun_col),
+        );
+    }
+
+    /// Set the fill light for the next render call.
+    /// `direction` points toward the light source (will be normalized in the shader).
+    /// `color` is the RGB color, `intensity` is the brightness multiplier.
+    pub fn set_fill_light(&mut self, direction: Vec3, color: [f32; 3], intensity: f32) {
+        // fill_direction sits at byte offset 384
+        let fill_dir = [direction.x, direction.y, direction.z, intensity];
+        let fill_col = [color[0], color[1], color[2], 0.0_f32];
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            384,
+            bytemuck::cast_slice(&fill_dir),
+        );
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            400,
+            bytemuck::cast_slice(&fill_col),
         );
     }
 

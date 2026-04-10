@@ -60,6 +60,15 @@ impl SkyRenderer {
         self.sun_intensity
     }
 
+    // TODO: Wire sun direction to renderer.set_sun_light().
+    // TimeSystem already computes current_sun_direction() and current_sun_color().
+    // In the main loop, call:
+    //   let dir = time_system.current_sun_direction();
+    //   let color = time_system.current_sun_color();
+    //   let intensity = sky_renderer.sun_intensity();
+    //   renderer.set_sun_light(dir, color, intensity * 2.5);
+    // This will drive the PBR shader's directional light from the day/night cycle.
+
     /// Compute base colors from time of day (clear sky, no weather).
     fn time_of_day_colors(hour: f32) -> ([f32; 3], [f32; 3], [f32; 3], f32) {
         if hour < 5.0 {

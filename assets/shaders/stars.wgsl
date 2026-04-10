@@ -3,7 +3,7 @@
 // The vertex shader multiplies direction by a large radius and uses a
 // rotation-only view-projection matrix passed in the camera uniform.
 
-// Must match the Rust-side CameraUniforms struct exactly (352 bytes).
+// Must match the Rust-side CameraUniforms struct exactly (416 bytes).
 struct CameraUniforms {
     view_proj: mat4x4<f32>,
     view_pos: vec4<f32>,
@@ -13,6 +13,11 @@ struct CameraUniforms {
     light0_color: vec4<f32>, light1_color: vec4<f32>, light2_color: vec4<f32>, light3_color: vec4<f32>,
     light4_color: vec4<f32>, light5_color: vec4<f32>, light6_color: vec4<f32>, light7_color: vec4<f32>,
     light_count: vec4<f32>,
+    // Directional lights (unused by stars, but must match buffer layout)
+    sun_direction: vec4<f32>,
+    sun_color: vec4<f32>,
+    fill_direction: vec4<f32>,
+    fill_color: vec4<f32>,
 };
 @group(0) @binding(0)
 var<uniform> camera: CameraUniforms;

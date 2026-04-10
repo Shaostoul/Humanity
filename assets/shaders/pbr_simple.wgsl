@@ -28,6 +28,14 @@ struct CameraUniforms {
     light7_color: vec4<f32>,
     // x = number of active point lights
     light_count: vec4<f32>,
+    // Directional sun light: xyz = direction (toward light), w = intensity
+    sun_direction: vec4<f32>,
+    // Sun color: rgb, w = unused
+    sun_color: vec4<f32>,
+    // Fill light: xyz = direction, w = intensity
+    fill_direction: vec4<f32>,
+    // Fill color: rgb, w = unused
+    fill_color: vec4<f32>,
 };
 
 struct ObjectUniforms {
@@ -73,15 +81,11 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
 
 const PI: f32 = 3.14159265359;
 
-// Main directional light (warm sunlight from upper-right)
-const LIGHT_DIR: vec3<f32> = vec3<f32>(0.3, 1.0, 0.5);
-const LIGHT_COLOR: vec3<f32> = vec3<f32>(1.0, 0.95, 0.9);
-const LIGHT_INTENSITY: f32 = 2.5;
-
-// Fill light (cool, from lower-left, softer)
-const FILL_DIR: vec3<f32> = vec3<f32>(-0.5, 0.3, -0.3);
-const FILL_COLOR: vec3<f32> = vec3<f32>(0.4, 0.5, 0.7);
-const FILL_INTENSITY: f32 = 0.6;
+// Directional lights are now driven from Rust via CameraUniforms.
+// camera.sun_direction.xyz = direction, .w = intensity
+// camera.sun_color.rgb = color
+// camera.fill_direction.xyz = direction, .w = intensity
+// camera.fill_color.rgb = color
 
 // Ambient
 const AMBIENT_COLOR: vec3<f32> = vec3<f32>(0.03, 0.03, 0.05);
@@ -345,7 +349,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // Type 5: Ice -- blue-white tint, wrap lighting approx, crystalline noise
         let uv = triplanar_uv(in.world_position, normal);
         let crystal = voronoi(uv * 8.0);
-        let wrap = dot(normal, normalize(LIGHT_DIR)) * 0.5 + 0.5; // wrap lighting for SSS
+        let wrap = dot(normal, normalize(camera.sun_direction.xyz)) * 0.5 + 0.5; // wrap lighting for SSS
         albedo = mix(vec3<f32>(0.6, 0.8, 1.0), vec3<f32>(0.95, 0.98, 1.0), crystal) * (0.7 + wrap * 0.3);
         roughness = 0.1 + crystal * 0.2;
         metallic = 0.05;
@@ -412,11 +416,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Dielectrics: 0.04, metals: tinted by albedo
     let f0 = mix(vec3<f32>(0.04), albedo, metallic);
 
-    // Evaluate main directional light
-    var lo = evaluate_light(LIGHT_DIR, LIGHT_COLOR, LIGHT_INTENSITY, normal, view_dir, albedo, metallic, roughness, f0);
+    // Evaluate main directional light (from camera uniforms)
+    var lo = evaluate_light(
+        camera.sun_direction.xyz, camera.sun_color.rgb, camera.sun_direction.w,
+        normal, view_dir, albedo, metallic, roughness, f0);
 
-    // Evaluate fill light
-    lo = lo + evaluate_light(FILL_DIR, FILL_COLOR, FILL_INTENSITY, normal, view_dir, albedo, metallic, roughness, f0);
+    // Evaluate fill light (from camera uniforms)
+    lo = lo + evaluate_light(
+        camera.fill_direction.xyz, camera.fill_color.rgb, camera.fill_direction.w,
+        normal, view_dir, albedo, metallic, roughness, f0);
 
     // Point lights
     let positions = array<vec4<f32>, 8>(

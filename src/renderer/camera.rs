@@ -26,6 +26,14 @@ pub struct CameraUniforms {
     pub light_colors: [[f32; 4]; 8],
     /// x = number of active point lights, yzw = unused.
     pub light_count: [f32; 4],
+    /// Directional sun light: xyz = direction (toward light), w = intensity.
+    pub sun_direction: [f32; 4],
+    /// Sun light color: rgb, w = unused.
+    pub sun_color: [f32; 4],
+    /// Fill light: xyz = direction (toward light), w = intensity.
+    pub fill_direction: [f32; 4],
+    /// Fill light color: rgb, w = unused.
+    pub fill_color: [f32; 4],
 }
 
 // ── Camera mode enum ─────────────────────────────────────────
@@ -261,6 +269,7 @@ impl Camera {
     }
 
     /// Build GPU uniform data from current state (no point lights).
+    /// Uses default directional sun/fill lights matching the former shader constants.
     pub fn uniforms(&self) -> CameraUniforms {
         let pos = self.effective_position();
         CameraUniforms {
@@ -269,6 +278,12 @@ impl Camera {
             light_positions: [[0.0; 4]; 8],
             light_colors: [[0.0; 4]; 8],
             light_count: [0.0, 0.0, 0.0, 0.0],
+            // Default sun: warm sunlight from upper-right (same as former shader constants)
+            sun_direction: [0.3, 1.0, 0.5, 2.5],
+            sun_color: [1.0, 0.95, 0.9, 0.0],
+            // Default fill: cool, from lower-left
+            fill_direction: [-0.5, 0.3, -0.3, 0.6],
+            fill_color: [0.4, 0.5, 0.7, 0.0],
         }
     }
 
@@ -289,6 +304,12 @@ impl Camera {
             light_positions,
             light_colors,
             light_count: [count as f32, 0.0, 0.0, 0.0],
+            // Default sun: warm sunlight from upper-right (same as former shader constants)
+            sun_direction: [0.3, 1.0, 0.5, 2.5],
+            sun_color: [1.0, 0.95, 0.9, 0.0],
+            // Default fill: cool, from lower-left
+            fill_direction: [-0.5, 0.3, -0.3, 0.6],
+            fill_color: [0.4, 0.5, 0.7, 0.0],
         }
     }
 
