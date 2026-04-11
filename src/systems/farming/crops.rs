@@ -1,17 +1,9 @@
-//! Crop types and growth stages — definitions loaded from `data/crops.csv`.
+//! Crop types — definitions loaded from `data/plants.csv`.
+//!
+//! Growth stages are data-driven strings defined per plant species,
+//! so there is no hardcoded enum. See `PlantDef.growth_stages` in `mod.rs`.
 
 use serde::{Deserialize, Serialize};
-
-/// Growth stage of a crop.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub enum GrowthStage {
-    Seed,
-    Sprout,
-    Vegetative,
-    Flowering,
-    Fruiting,
-    Harvest,
-}
 
 /// A crop type definition (loaded from CSV).
 #[derive(Debug, Clone, Serialize, Deserialize)]

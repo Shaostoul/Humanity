@@ -1,0 +1,277 @@
+# HumanityOS Room Type Schema
+# Defines the format for room type entries in data/rooms.ron
+#
+# Room types describe the purpose, appearance, and requirements of each
+# distinct room that can appear in homesteads, ships, and stations.
+# The homestead layout (data/blueprints/homestead_layout.ron) and ship
+# layouts (data/ships/*.ron) reference room type ids defined here.
+#
+# File format: RON (Rusty Object Notation) -- HashMap<String, RoomDef>
+# Hot-reloadable: Yes (changes apply without restart via FileWatcher)
+# Referenced by: data/blueprints/homestead_layout.ron (room ids match keys)
+#                data/ships/*.ron (RoomDef.room_type maps to these ids)
+#                src/ship/fibonacci.rs (room_color fallback, room generation)
+#                src/ship/layout.rs (RoomType enum for ship rooms)
+# References: data/items.csv (equipment list entries)
+#             data/sounds.toml (ambient_sound ids)
+#             data/materials.csv (default_material ids)
+
+# ============================================================================
+# FIELD DEFINITIONS
+# ============================================================================
+
+[[fields]]
+name = "id"
+type = "string"
+required = true
+default = ""
+description = "Map key in the RON file. Unique identifier for this room type. Used by layout files to assign a room's functional category."
+constraints = "snake_case, unique across all room types. Must match the key used in homestead_layout.ron and ship layout room_type fields."
+examples = ["computer", "bedroom", "reactor", "airlock", "garden"]
+
+[[fields]]
+name = "name"
+type = "string"
+required = true
+default = ""
+description = "Human-readable display name shown in build menus, tooltips, and room labels."
+constraints = "Title Case, max 40 characters."
+examples = ["Computer Room", "Medical Bay", "Reactor Room", "Cargo Bay"]
+
+[[fields]]
+name = "purpose"
+type = "string"
+required = true
+default = ""
+description = "One-sentence description of what happens in this room. Shown in room info panels and the encyclopedia."
+constraints = "Max 120 characters. Starts with a capital letter."
+examples = [
+    "Personal workstation for programming, research, and communication",
+    "Pressurized chamber for EVA access and exterior egress without venting atmosphere",
+]
+
+[[fields]]
+name = "default_color"
+type = "tuple(f32, f32, f32, f32)"
+required = true
+default = "(0.3, 0.3, 0.3, 1.0)"
+description = "RGBA base color for the room's floor when no per-room color override is set in the layout file. Each component ranges 0.0-1.0."
+constraints = "Each component must be between 0.0 and 1.0. Alpha is typically 1.0 (fully opaque)."
+examples = [
+    "(0.3, 0.4, 0.5, 1.0)",
+    "(0.2, 0.45, 0.2, 1.0)",
+    "(0.55, 0.55, 0.6, 1.0)",
+]
+
+[[fields]]
+name = "default_material"
+type = "string"
+required = true
+default = "brushed_metal"
+description = "Default PBR material applied to walls and surfaces. Maps to a material definition in the rendering pipeline."
+constraints = "Must be a recognized material id. Common values listed below."
+valid_values = [
+    "brushed_metal",     # Standard metal paneling (corridors, tech rooms)
+    "polished_metal",    # Smooth reflective metal (medbay, labs, bridge)
+    "reinforced_steel",  # Heavy plating (reactor, airlock, hangar, armory)
+    "stainless_steel",   # Kitchen-grade clean metal (kitchen)
+    "wood_panel",        # Warm wood finish (bedroom, living room, study)
+    "composite_panel",   # Lightweight synthetic (hydroponics, nursery, quarters)
+    "ceramic_tile",      # Waterproof tile (wetroom, bathroom)
+    "concrete",          # Rough industrial (garage, depot, workshop, recycling)
+    "rubber_floor",      # Cushioned surface (gym)
+]
+
+[[fields]]
+name = "equipment"
+type = "list(string)"
+required = true
+default = "[]"
+description = "List of item ids that are placed in this room by default when generated. References items in data/items.csv. Used by the room generator to furnish newly built rooms."
+constraints = "Each entry should be a valid item id from items.csv. Order does not matter."
+examples = [
+    '["computer_terminal", "desk", "chair"]',
+    '["medical_bed", "surgical_table", "diagnostic_scanner"]',
+]
+
+[[fields]]
+name = "power_draw_watts"
+type = "integer"
+required = true
+default = "0"
+description = "Electrical power consumed by this room's equipment in watts. Negative values indicate power generation (reactor rooms). The power routing system sums room draws against available generation."
+constraints = "Any integer. Negative = generates power. Typical range: -10000 to 3000."
+examples = [
+    { value = -10000, note = "Reactor (generates 10kW)" },
+    { value = 50,     note = "Bedroom (minimal lighting)" },
+    { value = 500,    note = "Computer room (terminal + displays)" },
+    { value = 1200,   note = "Kitchen (stove, fridge, processors)" },
+    { value = 3000,   note = "Hangar (atmospheric shields, lighting)" },
+]
+
+[[fields]]
+name = "requires_life_support"
+type = "boolean"
+required = true
+default = "true"
+description = "Whether this room must be connected to the life support system (atmosphere, temperature, pressure) for occupants to survive. Rooms that do not require life support can operate in vacuum or with minimal atmosphere (hangars, depots, storage)."
+constraints = "true or false."
+examples = [
+    { value = true,  note = "Bedroom, kitchen, medbay (crew present)" },
+    { value = false, note = "Hangar, depot, storage, reactor (automated or sealed)" },
+]
+
+[[fields]]
+name = "ambient_sound"
+type = "string"
+required = true
+default = "ambient.space_station"
+description = "Sound id from data/sounds.toml played as a looping ambient bed when the player is in this room. Uses the category.name format from the sound catalog."
+constraints = "Must match an entry in data/sounds.toml. Common values: ambient.space_station, ambient.forest_day."
+examples = ["ambient.space_station", "ambient.forest_day"]
+
+[[fields]]
+name = "min_size_m"
+type = "tuple(f32, f32, f32)"
+required = true
+default = "(2.0, 2.5, 2.0)"
+description = "Minimum room dimensions in meters (width, height, depth). The build system prevents creating rooms smaller than this. Used for validation when players design custom layouts."
+constraints = "All components must be > 0. Height should be at least 2.5 for walkable rooms."
+examples = [
+    "(1.5, 2.5, 1.5)",
+    "(4.0, 3.0, 4.0)",
+    "(12.0, 6.0, 16.0)",
+]
+
+[[fields]]
+name = "tags"
+type = "list(string)"
+required = true
+default = "[]"
+description = "Freeform tags for filtering, AI scheduling, and gameplay queries. The NPC AI uses tags to find appropriate rooms for activities (e.g., 'food' tag for cooking, 'rest' tag for sleeping)."
+constraints = "Lowercase snake_case. No fixed vocabulary; pick clear labels."
+examples = [
+    '["work", "tech"]',
+    '["farming", "life_support", "food"]',
+    '["combat", "storage", "security"]',
+    '["infrastructure", "essential"]',
+]
+
+# ============================================================================
+# TAG VOCABULARY (recommended, not enforced)
+# ============================================================================
+# work           - Rooms where productive tasks happen (computer, study, workshop)
+# tech           - Technology-focused rooms (computer, network, server_room)
+# rest           - Sleeping and relaxation (bedroom, quarters, living room)
+# social         - Group gathering spaces (commons, living room)
+# food           - Food production or preparation (kitchen, garden, hydroponics)
+# farming        - Agricultural rooms (garden, hydroponics, nursery, ranch)
+# medical        - Health-related rooms (medbay, respawner)
+# science        - Research and analysis (laboratory, observatory)
+# combat         - Weapons and defense (armory, brig)
+# security       - Access control and containment (armory, brig, airlock)
+# storage        - General storage (storage, cargo, depot)
+# logistics      - Material movement and sorting (depot, cargo, recycling)
+# infrastructure - Core systems (reactor, life_support, engineering, network)
+# essential      - Rooms critical for homestead survival (life_support, bridge, respawner, medbay)
+# vehicles       - Vehicle-related rooms (garage, hangar)
+# docking        - External craft connection (hangar, airlock)
+# repair         - Maintenance and fixing (workshop, garage, engineering)
+# crafting       - Item fabrication (workshop)
+# power          - Electrical generation (reactor)
+# water          - Water-using rooms (wetroom, bathroom)
+# hygiene        - Personal cleanliness (wetroom, bathroom)
+# personal       - Private individual spaces (bedroom, study)
+# crew           - Shared crew spaces (quarters, commons)
+# animals        - Animal-related (ranch, nursery)
+# growth         - Growing living things (nursery)
+# life_support   - Atmosphere and environment (life_support, garden, hydroponics)
+# hazard         - Potentially dangerous (reactor)
+# containment    - Holding or isolation (brig)
+# navigation     - Steering and wayfinding (bridge, observatory)
+# command        - Leadership and control (bridge)
+# eva            - Extravehicular activity (airlock)
+# ai             - AI and computation (server_room)
+# processing     - Material transformation (recycling)
+# fitness        - Physical exercise (gym)
+# health         - Crew wellness (gym, medbay)
+# utility        - General-purpose support (recycling, kitchen)
+
+# ============================================================================
+# FILE STRUCTURE
+# ============================================================================
+# The RON file is a HashMap<String, RoomDef> where each key is the room type
+# id and each value is a struct with the fields defined above.
+#
+# Example entry:
+#
+#   "computer": (
+#       name: "Computer Room",
+#       purpose: "Personal workstation for programming, research, and communication",
+#       default_color: (0.3, 0.4, 0.5, 1.0),
+#       default_material: "brushed_metal",
+#       equipment: ["computer_terminal", "desk", "chair", "monitor_array"],
+#       power_draw_watts: 500,
+#       requires_life_support: true,
+#       ambient_sound: "ambient.space_station",
+#       min_size_m: (2.0, 2.5, 2.0),
+#       tags: ["work", "tech"],
+#   ),
+
+# ============================================================================
+# RELATIONSHIPS
+# ============================================================================
+
+[relationships]
+homestead_layout = """
+The homestead layout file (data/blueprints/homestead_layout.ron) defines
+the spatial arrangement of rooms using the HomesteadLayout struct. Each
+RoomConfig in that file has an 'id' field that should match a key in
+data/rooms.ron. The layout provides position, dimensions, and optional
+color overrides per room instance. The room type definition provides
+the functional metadata (equipment, power, tags)."""
+
+ship_layouts = """
+Ship layout files (data/ships/*.ron) use the RoomType enum in
+src/ship/layout.rs. The room type ids in data/rooms.ron should include
+entries for all ship RoomType variants (bridge, quarters, cargo,
+engineering, medbay, hydroponics, armory, hangar) so that ship rooms
+can look up their metadata from the same data file."""
+
+items = """
+The equipment list references item ids from data/items.csv. When a room
+is generated or furnished, the room generator spawns instances of these
+items at appropriate positions within the room. Equipment items should
+exist in items.csv with correct category and subcategory values."""
+
+sounds = """
+The ambient_sound field uses the category.name format from
+data/sounds.toml (e.g., 'ambient.space_station'). The audio system
+starts the referenced sound as a looping spatial bed when the player
+enters a room and crossfades to the new room's sound when they move
+to a different room."""
+
+power_system = """
+The power routing system (src/relay/storage/ and src/systems/) sums
+power_draw_watts across all rooms connected to an electrical grid.
+Negative values (reactor rooms) contribute generation capacity.
+If total draw exceeds generation, rooms are deprioritized by tag
+(non-essential rooms lose power first)."""
+
+# ============================================================================
+# MODDING GUIDE
+# ============================================================================
+# To add a new room type:
+#   1. Add a new entry to data/rooms.ron with a unique snake_case key
+#   2. Ensure equipment items exist in data/items.csv
+#   3. Ensure the ambient sound exists in data/sounds.toml
+#   4. Use the new room type id in your layout files
+#   5. Hot-reload: changes apply automatically, no restart needed
+#
+# To modify an existing room:
+#   1. Edit the entry in data/rooms.ron directly
+#   2. Changes to color, equipment, power, and tags apply on reload
+#
+# Mods: Place override files in data/mods/<mod_name>/rooms.ron.
+# The mod system merges by key (mod values override base values).
+# To add new room types from a mod, simply add new keys.

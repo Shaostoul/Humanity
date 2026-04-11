@@ -126,24 +126,23 @@ pub struct Harvestable {
 
 // ── Farming ──────────────────────────────────────────────────
 
-/// Growth stage for crops and plants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum GrowthStage {
-    Seed,
-    Sprout,
-    Vegetative,
-    Flowering,
-    Fruiting,
-    Harvest,
-    Dead,
-}
+/// Default growth stages used when a plant definition doesn't specify its own.
+pub const DEFAULT_GROWTH_STAGES: &[&str] = &[
+    "seed", "sprout", "vegetative", "flowering", "fruiting", "harvest",
+];
+
+/// Reserved stage name for dead crops (set when health reaches zero).
+pub const STAGE_DEAD: &str = "dead";
 
 /// A planted crop instance tied to a crop definition from data files.
+/// Growth stage is a String so each plant species can define its own
+/// stage names in plants.csv (e.g. "spore|mycelium|fruiting_body|spore_release").
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CropInstance {
     /// Crop definition ID from plants.csv.
     pub crop_def_id: String,
-    pub growth_stage: GrowthStage,
+    /// Current growth stage name (data-driven, from PlantDef.growth_stages).
+    pub growth_stage: String,
     /// When this crop was planted (game time seconds).
     pub planted_at: f64,
     /// Current water level (0.0 = dry, 1.0 = saturated).
