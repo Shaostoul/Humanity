@@ -161,6 +161,34 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 - **Description**: Windows OS paints new windows white before the first GPU frame renders. Briefly visible as a white flash before the chat UI appears.
 - **Fix**: Window starts hidden (`with_visible(false)`), renderer initializes, then `set_visible(true)`. Most heavy init is deferred (3D world loads lazily). A brief dark flash may still occur between window show and first egui frame on some systems.
 
+### BUG-030: name_taken error on reconnect
+- **Status**: Fixed
+- **Version Found**: v0.90.3
+- **Version Fixed**: v0.90.5
+- **Description**: When the WebSocket connection dropped and the client reconnected, the server rejected the identify message with `name_taken` because the old session was still registered. Users had to restart the app to reconnect.
+- **Fix**: Server now properly cleans up stale sessions on disconnect, and the client handles `name_taken` by retrying with the existing identity.
+
+### BUG-031: Native DM encryption not matching web client
+- **Status**: Fixed
+- **Version Found**: v0.90.3
+- **Version Fixed**: v0.90.5
+- **Description**: Native desktop client could not decrypt DMs sent from the web client. The ECDH P-256 key exchange and AES-256-GCM encryption in the native binary did not match the web client's crypto.js implementation.
+- **Fix**: Implemented matching ECDH P-256 keypair generation, storage, and announcement in the native identify flow (v0.90.4). Added ECDH key import from web client in Settings > Account (v0.90.5).
+
+### BUG-032: Cross-platform build failure (dirs:: crate)
+- **Status**: Fixed
+- **Version Found**: v0.90.5
+- **Version Fixed**: v0.90.6
+- **Description**: Build failed on some platforms because the `dirs::` crate could not determine the config directory. The crate has platform-specific behavior that does not work consistently across all environments.
+- **Fix**: Replaced all `dirs::config_dir()` calls with `std::env::var("APPDATA")` (Windows) and equivalent env vars on other platforms. Zero external dependency for path resolution.
+
+### BUG-033: Worktree context rot corrupting AI agent edits
+- **Status**: Fixed (process fix)
+- **Version Found**: v0.90.0
+- **Version Fixed**: v0.90.2
+- **Description**: Stale git worktrees from previous AI agent sessions contained old file paths (e.g., `native/src/`, `server/src/`) that no longer exist after the v0.90.0 unified binary restructure. Agents working in stale worktrees would write edits to nonexistent paths, losing all work.
+- **Fix**: Added `just clean-worktrees` recipe that removes all worktrees except main and current. Added to CLAUDE.md mandatory session start checklist. Automated hygiene prevents context rot.
+
 ## Open Bugs
 
 None currently tracked. Report bugs at https://github.com/Shaostoul/Humanity/issues

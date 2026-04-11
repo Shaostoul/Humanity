@@ -340,14 +340,14 @@
   <header class="hero">
     <div class="container">
       <h1>Wholesomely aiding<br><em>humanity's betterment</em></h1>
-      <p>Open-source tools and education to end poverty through capability. Public domain. Built by volunteers. For everyone.</p>
+      <p>One app that's both your desktop client and your server. Open-source tools and education to end poverty through capability. Public domain. Built by volunteers.</p>
       <div class="eli5-block" style="max-width:620px;margin:0 auto 32px;">
         <div class="eli5-simple">Imagine the world is a giant spaceship. If we share our skills, everyone does better. That is what we are building.</div>
-        <div class="eli5-expert">A CC0 public-domain platform combining chat, task management, encrypted notes, maps, and marketplace — all backed by Ed25519 cryptographic identity instead of accounts and passwords.</div>
+        <div class="eli5-expert">A unified Rust binary (v0.90.8) combining chat, task management, E2E encrypted DMs, 3D simulation, and marketplace. Ed25519 cryptographic identity, no accounts, no passwords. Run it as a desktop app or pass <code>--headless</code> for a server.</div>
       </div>
       <div class="hero-buttons">
         <a href="/chat" class="btn btn-primary">Open Chat</a>
-        <a href="https://github.com/Shaostoul/Humanity/releases/latest" class="btn btn-secondary" target="_blank">Download App</a>
+        <a href="https://github.com/Shaostoul/Humanity/releases/tag/v0.90.8" class="btn btn-secondary" target="_blank">Download v0.90.8</a>
         <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank">
           <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           View on GitHub
@@ -371,13 +371,13 @@
         <div class="role-card">
           <div class="role-icon">🔧</div>
           <h3>I want to build it</h3>
-          <p>Rust backend, plain JS frontend, no build step. Writers, designers, developers, educators, translators — all welcome.</p>
+          <p>One unified Rust crate, plain JS frontend, no build step. Writers, designers, developers, educators, translators — all welcome.</p>
           <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank">Explore the Code</a>
         </div>
         <div class="role-card">
           <div class="role-icon">🖥️</div>
           <h3>I want to host it</h3>
-          <p>Self-hostable, federable. Run your own relay server for your community. Connect to the wider network or stay independent.</p>
+          <p>Self-hostable, federable. Run <code>HumanityOS --headless</code> on any device to host your own server. Connect to the wider network or stay independent.</p>
           <a href="https://shaostoul.github.io/Humanity/docs" class="btn btn-secondary" target="_blank">Read the Docs</a>
         </div>
       </div>
@@ -500,40 +500,40 @@
 
       <div class="diff-grid">
         <div class="diff-item">
-          <div class="diff-badge">CC0 Public Domain</div>
-          <h3>No permission needed</h3>
-          <p>Every line of code is CC0. Fork it, modify it, sell it, teach from it. This belongs to everyone.</p>
-        </div>
-        <div class="diff-item">
-          <div class="diff-badge">No Accounts</div>
-          <h3>Cryptographic identity</h3>
-          <p>Your Ed25519 key pair is your identity. No email, no password, no personal data collected. Ever.</p>
-        </div>
-        <div class="diff-item">
-          <div class="diff-badge">E2E Encrypted</div>
-          <h3>Private by default</h3>
-          <p>DMs use ECDH key exchange with AES-256-GCM. Your notes use PBKDF2-derived keys. Only you can read your data.</p>
+          <div class="diff-badge">Decentralized</div>
+          <h3>Peer-to-peer encrypted</h3>
+          <p>E2E encrypted DMs via ECDH + AES-256-GCM. Ed25519 key pair is your identity. No accounts, no passwords, no data collected.</p>
         </div>
         <div class="diff-item">
           <div class="diff-badge">Self-Hostable</div>
-          <h3>Run your own</h3>
-          <p>Single Rust binary, SQLite storage, no external dependencies. Deploy in minutes on any Linux box.</p>
+          <h3>Run on any device</h3>
+          <p>Run <code>HumanityOS --headless</code> on any machine. Single Rust binary, SQLite storage, no external dependencies.</p>
         </div>
         <div class="diff-item">
-          <div class="diff-badge">Federable</div>
-          <h3>Connected but independent</h3>
-          <p>Relay servers can link together. Your community stays sovereign while connecting to the wider network.</p>
+          <div class="diff-badge">Moddable</div>
+          <h3>Data-driven everything</h3>
+          <p>3,000+ data entries across CSV, RON, and TOML files. 22 schema files for modders. Edit a file, the game updates live.</p>
         </div>
         <div class="diff-item">
-          <div class="diff-badge">No Build Step</div>
-          <h3>Plain JS, plain HTML</h3>
-          <p>No npm, no webpack, no React. Just script tags and CSS custom properties. Anyone can read and modify the client.</p>
+          <div class="diff-badge">Open Source</div>
+          <h3>Every line on GitHub</h3>
+          <p>CC0 public domain. Fork it, modify it, sell it, teach from it. This belongs to everyone, permanently.</p>
+        </div>
+        <div class="diff-item">
+          <div class="diff-badge">Educational</div>
+          <h3>3D simulation, real skills</h3>
+          <p>A 3D simulation that teaches real survival skills: farming, construction, crafting, ecology, and resource management.</p>
+        </div>
+        <div class="diff-item">
+          <div class="diff-badge">One Binary</div>
+          <h3>Desktop + server + engine</h3>
+          <p>One unified binary is your desktop app, your game engine, and your server. Hot-reloadable theme, tools, sounds, and game data.</p>
         </div>
       </div>
 
       <div class="eli5-block" style="margin-top:24px;">
         <div class="eli5-simple">Nobody owns this. Nobody can take it away. Your messages are locked with math only you can unlock. And you can run your own copy if you want.</div>
-        <div class="eli5-expert">Identity is Ed25519 key pairs stored in browser localStorage. DMs use X25519 ECDH for shared secrets + AES-256-GCM. Vault/notes encrypt with PBKDF2-SHA256 (600k iterations). Federation is server-to-server WebSocket relay.</div>
+        <div class="eli5-expert">Identity is Ed25519 key pairs. DMs use ECDH P-256 for shared secrets + AES-256-GCM. Vault/notes encrypt with PBKDF2-SHA256 (600k iterations). Federation is server-to-server WebSocket relay. All game data is hot-reloadable from external files.</div>
       </div>
     </div>
   </section>

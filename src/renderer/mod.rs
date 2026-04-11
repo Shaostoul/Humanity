@@ -68,6 +68,16 @@ pub struct Renderer {
     // Registered meshes and materials
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
+    // ── Off-screen render target (for bloom, shadow maps, particles) ──
+    /// Scene renders here first, then post-processing composites to swapchain.
+    scene_texture: wgpu::Texture,
+    scene_view: wgpu::TextureView,
+    /// Bloom post-processing (reads scene_texture, composites result).
+    pub bloom: Option<bloom::BloomPass>,
+    /// Bloom intensity (0.0 = off). Set > 0 to enable bloom post-process.
+    pub bloom_intensity: f32,
+    /// Brightness threshold for bloom extraction.
+    pub bloom_threshold: f32,
 }
 
 impl Renderer {
@@ -173,6 +183,10 @@ impl Renderer {
         // Depth buffer
         let (depth_texture, depth_view) = Self::create_depth_texture(&device, width, height);
 
+        // Off-screen scene texture (for post-processing: bloom, etc.)
+        let (scene_tex, scene_tex_view) = Self::create_scene_texture(&device, width, height, surface_format);
+        let bloom_pass = bloom::BloomPass::new(&device, width, height, surface_format);
+
         // Shader + pipeline
         let shader_loader = shader_loader::ShaderLoader::new();
         let shader = shader_loader.load_embedded_pbr(&device);
@@ -243,6 +257,11 @@ impl Renderer {
             object_bind_group,
             meshes: Vec::new(),
             materials: Vec::new(),
+            scene_texture: scene_tex,
+            scene_view: scene_tex_view,
+            bloom: Some(bloom_pass),
+            bloom_intensity: 0.0, // Off by default; set > 0 to enable
+            bloom_threshold: 0.8,
         }
     }
 
@@ -257,6 +276,14 @@ impl Renderer {
         let (tex, view) = Self::create_depth_texture(&self.device, width, height);
         self.depth_texture = tex;
         self.depth_view = view;
+        // Resize scene texture + bloom
+        let fmt = self.config.format;
+        let (st, sv) = Self::create_scene_texture(&self.device, width, height, fmt);
+        self.scene_texture = st;
+        self.scene_view = sv;
+        if let Some(ref mut bloom) = self.bloom {
+            bloom.resize(&self.device, width, height);
+        }
     }
 
     /// Current surface aspect ratio.
@@ -758,6 +785,27 @@ impl Renderer {
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
         Ok(())
+    }
+
+    /// Create the off-screen scene texture (same format as surface, with TEXTURE_BINDING).
+    fn create_scene_texture(
+        device: &wgpu::Device,
+        width: u32,
+        height: u32,
+        format: wgpu::TextureFormat,
+    ) -> (wgpu::Texture, wgpu::TextureView) {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Scene Texture"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        (texture, view)
     }
 
     fn create_depth_texture(

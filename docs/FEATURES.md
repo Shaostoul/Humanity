@@ -1,6 +1,6 @@
 # HumanityOS Features Directory
 
-Complete inventory of every feature, where it lives, and what it does. Updated v0.90.0.
+Complete inventory of every feature, where it lives, and what it does. Updated v0.90.8.
 
 ## How to Read This
 
@@ -272,7 +272,7 @@ Project Universe timeline (Dec 2017 ICU through Jan 2026 rename to HumanityOS).
 ## Maps
 
 ### Multi-Scale Map
-Galaxy to street level zoom on 2D canvas. Galaxy spiral, solar system, planet globe, OpenStreetMap tiles. Moon orbit fixed (v0.90.0).
+Galaxy to street level zoom on 2D canvas. Galaxy spiral, solar system, planet globe, OpenStreetMap tiles. Moon orbit fixed (v0.90.8).
 - Web: `web/pages/maps.html`, `web/activities/map.js`, `web/activities/celestial.js`
 - Data: `data/solar-system.json`, `data/stars-catalog.json`, `data/constellations.json`
 
@@ -387,6 +387,23 @@ Graphics, audio, controls, game, account categories with sliders and toggles.
 DMs (red), Groups (green cards), Servers (blue), message feed, input bar. DMs/Groups headers have settings cog menus (v0.90.0). Server header cog replaces X disconnect (v0.90.0).
 - Native: `src/gui/pages/chat.rs`
 
+### Compact Theme (v0.90.3)
+All spacing/sizes halved for actual visual density. 35+ theme variables editable in Settings > Widgets.
+- Native: `src/gui/theme.rs`
+- Data: `data/gui/theme.ron`
+
+### All Pages Refactored (v0.90.1)
+All 27 pages refactored to use theme system and universal widgets consistently.
+- Native: `src/gui/pages/*.rs`
+
+### ECDH P-256 DM Encryption (v0.90.4)
+Native ECDH keypair generation, storage, announcement in identify. Decrypt incoming DMs, encrypt outgoing. Matches web client crypto.js.
+- Native: `src/gui/pages/chat.rs`
+
+### ECDH Web Key Import (v0.90.5)
+Settings > Account imports ECDH keypair from web client for cross-platform DM compatibility.
+- Native: `src/gui/pages/settings.rs`
+
 ### HUD
 Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter.
 - Native: `src/gui/pages/hud.rs`
@@ -479,8 +496,8 @@ PBR-lite rendering with depth buffer, materials, instanced rendering.
 PBR material pipeline supports emissive strength via params.w.
 - Shaders: `assets/shaders/pbr_simple.wgsl`
 
-### 8 Procedural Materials (v0.90.0)
-Glass, ice, water, leather, crystal, rust, moss, lava added to procedural material system.
+### 12 Procedural Materials (v0.90.0)
+Glass, ice, water, leather, crystal, rust, moss, lava + original brick, metal, wood, concrete.
 - Native: `src/renderer/pipeline.rs`
 - Shaders: `assets/shaders/procedural_material.wgsl`, `assets/shaders/procedural/*.wgsl`
 - Data: `data/materials/procedural_materials.ron`
@@ -511,6 +528,19 @@ CPU-simulated, GPU-rendered billboarded point sprites. 12 data-driven emitter ty
 Half-resolution bright-pixel extraction, Gaussian blur, composite. Scaffolding built, needs render loop integration.
 - Native: `src/renderer/bloom.rs`
 - Shaders: `assets/shaders/bloom.wgsl`
+
+### Sun Direction Uniform (v0.90.8)
+Data-driven sun direction passed as shader uniform instead of hardcoded in WGSL.
+- Native: `src/renderer/pipeline.rs`
+- Shaders: `assets/shaders/pbr_simple.wgsl`
+
+### Planet Registry (v0.90.8)
+Unified celestial body management for renderer, terrain, and maps.
+- Native: `src/terrain/planet.rs`
+
+### Construction Placement (v0.90.8, partial)
+Scaffolded placement system for building in the game world. Needs full integration.
+- Native: `src/systems/construction/mod.rs`
 
 ### GLTF Model Loading
 Load .glb/.gltf models with normal and UV fallbacks. Cached by path.
@@ -567,6 +597,28 @@ Mod manifest format, directory scanning, load order, path override resolution.
 ### World Persistence
 Save and load game world state (entities, terrain, player progress).
 - Native: `src/persistence.rs`
+
+### Data-Driven Tools (v0.90.7)
+tools.rs loads tool catalog from external JSON instead of hardcoded data.
+- Native: `src/gui/pages/tools.rs`
+- Data: `data/tools/catalog.json`
+
+### Data-Driven Sounds (v0.90.7)
+sounds.rs loads sound configuration from TOML instead of hardcoded data.
+- Native: `src/audio/sounds.rs`
+- Data: `data/sounds.toml`
+
+### Chat Tint Colors in Theme (v0.90.7)
+Chat channel tint colors moved from hardcoded values to theme.ron for customization.
+- Data: `data/gui/theme.ron`
+
+### Server Config Externalized (v0.90.7)
+Server constants moved from hardcoded Rust to external JSON configuration.
+- Data: `data/server-config.json`
+
+### 8 Game System Modules (v0.90.7)
+Scaffolded system modules for expanded gameplay.
+- Native: `src/systems/`
 
 ### Shader Library
 41 WGSL shaders: planet surfaces (earth, mars, venus, mercury, jupiter, saturn, uranus, neptune, moon, pluto), sun surface/glow, PBR, procedural materials (brick, metal, wood, concrete, fabric, aperiodic), stars, constellations, orbit rings, ghost preview, particles, bloom.
@@ -768,4 +820,4 @@ Data definitions for natural science simulation.
 Platform detection icons (Steam, Epic, GOG, PlayStation, Xbox) as inline SVGs.
 - Assets: `assets/icons/platforms/`
 
-### Total: 108 data files, ~3000+ entries (v0.90.0)
+### Total: 108 data files, ~3000+ entries (v0.90.8)

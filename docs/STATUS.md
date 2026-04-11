@@ -1,6 +1,6 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-04-07 | **Version:** v0.90.0
+> **Last updated:** 2026-04-10 | **Version:** v0.90.8
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
@@ -20,6 +20,10 @@
 | Config location | ✅ | `%APPDATA%/HumanityOS/` (stable across exe versions) |
 | Versioned exe archives | ✅ | `v{version}_HumanityOS.exe` in repo root, auto-purge keeps last 5 |
 | Auto version bump | ✅ | `just build-game` bumps version automatically |
+| Auto git tagging | ✅ | `just _commit` auto-tags releases (v0.90.5) |
+| GitHub auto-publish | ✅ | Releases auto-publish on tag push via CI (v0.90.5) |
+| Cross-platform build | ✅ | Replaced dirs:: crate with std::env::var for portability (v0.90.6) |
+| Worktree hygiene | ✅ | `just clean-worktrees` prevents AI context rot (v0.90.2) |
 | Launcher scripts | ✅ | Taskbar pinning support |
 
 ---
@@ -171,10 +175,18 @@ Everything in this section is **built and working**.
 | Atmospheric system | ✅ | Gas tracking, explosions, suffocation, pressure (v0.42.0) |
 | Disaster system | ✅ | 21 disaster types, chain reactions, severity scaling (v0.42.0) |
 | World persistence | ✅ | Save/load game world state, entities, terrain (v0.42.0) |
+| Data-driven tools | ✅ | tools.rs loads from data/tools/catalog.json, not hardcoded (v0.90.7) |
+| Data-driven sounds | ✅ | sounds.rs loads from data/sounds.toml, not hardcoded (v0.90.7) |
+| Chat tint colors in theme | ✅ | Moved from hardcoded to theme.ron (v0.90.7) |
+| Server config externalized | ✅ | Constants moved to data/server-config.json (v0.90.7) |
+| 8 game system modules | ✅ | Scaffolded system modules for gameplay (v0.90.7) |
 | Emissive materials | ✅ | PBR shader emissive support (params.w = emissive_strength) (v0.90.0) |
-| 8 procedural materials | ✅ | Glass, ice, water, leather, crystal, rust, moss, lava (v0.90.0) |
+| 12 procedural materials | ✅ | Glass, ice, water, leather, crystal, rust, moss, lava + original brick, metal, wood, concrete (v0.90.0) |
 | Particle system | ✅ | particles.rs + particle.wgsl, 12 data-driven emitter types from particles.ron (v0.90.0) |
 | Bloom post-process | ⚠️ | bloom.rs + bloom.wgsl scaffolding built, needs render loop integration (v0.90.0) |
+| Sun direction uniform | ✅ | Data-driven sun direction as shader uniform, not hardcoded (v0.90.8) |
+| Planet registry | ✅ | Unified celestial body management for renderer and terrain (v0.90.8) |
+| Construction placement | ⚠️ | Placement system scaffolded, needs full integration (v0.90.8) |
 
 ---
 
@@ -234,11 +246,16 @@ Everything in this section is **built and working**.
 | Deferred 3D loading | ✅ | Chat loads instantly; 3D world loads on Enter World (v0.89.0) |
 | Zero-friction startup | ✅ | No passphrase prompt, no main menu; returning users go straight to chat (v0.89.0) |
 | Config persistence | ✅ | config.json at %APPDATA%/HumanityOS/; panel widths, collapse state, server URL, key encryption (v0.89.0, v0.90.0) |
-| 13 universal widgets | ✅ | badge, detail_row, search_bar, sidebar_nav, category_filter, stat_card, button, data_table, icons, item_list, modal, row, toolbar (v0.90.0) |
-| 6 new theme colors | ✅ | bg_panel, bg_sidebar, bg_sidebar_dark, badge styling (v0.90.0) |
-| Slider widget | ✅ | Blue-green-red gradient + animated RGB knob (v0.90.0) |
-| DMs/Groups cog menus | ✅ | Settings cog menus on DMs/Groups headers (v0.90.0) |
-| Server header cog | ✅ | Cog replaces X disconnect button (v0.90.0) |
+| 13 universal widgets | ✅ | badge, detail_row, search_bar, sidebar_nav, category_filter, stat_card, button, data_table, icons, item_list, modal, row, toolbar (v0.90.1) |
+| 6 new theme colors | ✅ | bg_panel, bg_sidebar, bg_sidebar_dark, badge styling (v0.90.1) |
+| Compact theme values | ✅ | All spacing/sizes halved for visual density (v0.90.3) |
+| 35+ theme variables | ✅ | Editable in Settings > Widgets section (v0.90.3) |
+| Slider widget | ✅ | Blue-green-red gradient + animated RGB knob (v0.90.1) |
+| DMs/Groups cog menus | ✅ | Settings cog menus on DMs/Groups headers (v0.90.1) |
+| Server header cog | ✅ | Cog replaces X disconnect button (v0.90.1) |
+| All 27 pages refactored | ✅ | Every page uses theme + universal widgets consistently (v0.90.1) |
+| ECDH P-256 DM encryption | ✅ | Native ECDH keypair generation, storage, encrypt/decrypt DMs matching web crypto.js (v0.90.4) |
+| ECDH web key import | ✅ | Settings > Account imports ECDH keypair from web client (v0.90.5) |
 
 > **Note:** Source code lives in `src/` at the repo root (unified binary). `native/` and `server/` directories no longer exist. Binary output is `target/release/HumanityOS.exe`.
 
@@ -250,7 +267,7 @@ Everything in this section is **built and working**.
 |---------|--------|---------|
 | Civilization dashboard | ✅ | Macro community/infrastructure view with live API data (v0.39.0) |
 | File browser/editor | ✅ | Browse, view, and edit files with built-in viewers (v0.39.0) |
-| Tools catalog | ✅ | 37 open-source apps across 11 categories (v0.39.0) |
+| Tools catalog | ✅ | 37 open-source apps across 11 categories, data-driven from catalog.json (v0.39.0, v0.90.7) |
 | Calculator | ✅ | Basic, scientific, and unit converter modes (v0.39.0) |
 | Calendar/planner | ✅ | Event creation, scheduling, and reminders (v0.39.0) |
 | Notes/journal | ✅ | Markdown preview, encrypted notes, daily log (v0.39.0) |
@@ -322,18 +339,18 @@ Everything in this section is **built and working**.
 
 | Category | ✅ Built | ⚠️ Partial | ❌ Missing |
 |----------|---------|-----------|-----------|
-| Architecture | 8 | 0 | 0 |
+| Architecture | 12 | 0 | 0 |
 | Communication | 15 | 0 | 0 |
 | Identity & Security | 8 | 0 | 0 |
 | Push Notifications | 7 | 0 | 0 |
 | Task Board | 6 | 0 | 0 |
 | Marketplace | 12 | 0 | 0 |
 | Wallet & Funding | 10 | 0 | 0 |
-| Game Engine | 44 | 1 | 0 |
+| Game Engine | 51 | 2 | 0 |
 | Server & Infrastructure | 17 | 0 | 0 |
 | Navigation & UX | 11 | 0 | 0 |
-| Native Desktop Client | 15 | 0 | 0 |
+| Native Desktop Client | 20 | 0 | 0 |
 | Web Tools & Utilities | 9 | 0 | 0 |
 | Local-First Storage | 6 | 0 | 0 |
 | Game Data | 26 | 0 | 0 |
-| **Total** | **194** | **1** | **0** |
+| **Total** | **210** | **2** | **0** |
