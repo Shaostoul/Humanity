@@ -53,6 +53,12 @@ pub struct Inventory {
     pub slots: Vec<Option<ItemStack>>,
     /// Maximum number of slots.
     pub max_slots: usize,
+    /// Current total weight of all items in kg (recalculated each tick).
+    pub weight_current: f32,
+    /// Maximum carry capacity in kg.
+    pub weight_capacity: f32,
+    /// True when weight_current exceeds weight_capacity (movement penalty).
+    pub encumbered: bool,
 }
 
 impl Inventory {
@@ -60,6 +66,9 @@ impl Inventory {
         Self {
             slots: vec![None; max_slots],
             max_slots,
+            weight_current: 0.0,
+            weight_capacity: 50.0,
+            encumbered: false,
         }
     }
 
@@ -199,6 +208,8 @@ pub enum InventoryOp {
 pub struct ItemDef {
     pub id: String,
     pub name: String,
+    /// Mass per unit in kilograms (from items.csv weight_kg column).
+    pub mass_kg: f32,
     pub stackable: bool,
     pub max_stack: u32,
 }
@@ -216,6 +227,14 @@ impl ItemRegistry {
             .get(item_id)
             .map(|def| def.max_stack)
             .unwrap_or(DEFAULT_MAX_STACK)
+    }
+
+    /// Look up mass in kg for one unit of an item, defaulting to 0 if unknown.
+    pub fn mass_for(&self, item_id: &str) -> f32 {
+        self.items
+            .get(item_id)
+            .map(|def| def.mass_kg)
+            .unwrap_or(0.0)
     }
 }
 
@@ -247,7 +266,7 @@ impl System for InventorySystem {
         // Drain pending operations
         let ops: Vec<_> = self.pending_ops.drain(..).collect();
 
-        // Get item registry for stack size lookups
+        // Get item registry for stack size and mass lookups
         let registry = data.get::<ItemRegistry>("item_registry");
 
         for (entity, op) in ops {
@@ -283,6 +302,38 @@ impl System for InventorySystem {
                         );
                     }
                 }
+            }
+        }
+
+        // Recalculate total weight and encumbrance for all inventories
+        for (_entity, inventory) in world.query_mut::<&mut Inventory>() {
+            let mut total_weight: f32 = 0.0;
+            for slot in &inventory.slots {
+                if let Some(stack) = slot {
+                    let unit_mass = registry
+                        .map(|r| r.mass_for(&stack.item_id))
+                        .unwrap_or(0.0);
+                    total_weight += unit_mass * stack.quantity as f32;
+                }
+            }
+            inventory.weight_current = total_weight;
+
+            let was_encumbered = inventory.encumbered;
+            inventory.encumbered = total_weight > inventory.weight_capacity;
+
+            // Log encumbrance state transitions
+            if inventory.encumbered && !was_encumbered {
+                log::debug!(
+                    "Encumbered! {:.1}/{:.1} kg",
+                    total_weight,
+                    inventory.weight_capacity
+                );
+            } else if !inventory.encumbered && was_encumbered {
+                log::debug!(
+                    "No longer encumbered: {:.1}/{:.1} kg",
+                    total_weight,
+                    inventory.weight_capacity
+                );
             }
         }
     }

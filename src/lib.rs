@@ -542,7 +542,8 @@ mod native_app {
             data_store.insert("camera_yaw", 0.0_f32);
             system_runner.register(TimeSystem::new());
             system_runner.register(PlayerControllerSystem);
-            system_runner.register(InteractionSystem);
+            data_store.insert("interaction_prompt", std::sync::Mutex::new(String::new()));
+            system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
             system_runner.register(CraftingSystem::new());
