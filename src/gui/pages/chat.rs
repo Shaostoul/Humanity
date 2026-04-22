@@ -569,7 +569,13 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         cog_click_rect = hdr_rect; // fallback
                     }
 
-                    // Collapse arrow click target
+                    // Full-header interact FIRST so later specific-region interacts (arrow, cog)
+                    // take priority for their rects. In egui, the LAST interact call wins for
+                    // overlapping rectangles, so specific targets must come after general ones.
+                    let hdr_interact = ui.interact(hdr_rect, ui.id().with("grp_ctx").with(gi), egui::Sense::click());
+                    let show_menu_rc = hdr_interact.secondary_clicked();
+
+                    // Collapse arrow click target (overrides hdr_interact in its 22px region)
                     let arrow_click = egui::Rect::from_min_size(hdr_rect.min, Vec2::new(22.0, hdr_height));
                     let arrow_resp = ui.interact(arrow_click, ui.id().with("grp_arrow").with(gi), egui::Sense::click());
                     if arrow_resp.clicked() {
@@ -580,15 +586,12 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
 
                     // Cog click target - opens settings context menu on left-click or right-click
+                    // (registered last so it takes priority in the cog rect)
                     let cog_resp = ui.interact(cog_click_rect, ui.id().with("grp_cog").with(gi), egui::Sense::click());
                     if cog_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     let show_group_menu = cog_resp.clicked() || cog_resp.secondary_clicked();
-
-                    // Also allow right-click on the full header
-                    let hdr_interact = ui.interact(hdr_rect, ui.id().with("grp_ctx").with(gi), egui::Sense::click());
-                    let show_menu_rc = hdr_interact.secondary_clicked();
 
                     // Combined menu (from cog click or right-click)
                     let menu_id = ui.id().with("grp_menu").with(gi);
@@ -615,7 +618,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Channel rows with mic/cog icons (if not collapsed)
                     if !group.collapsed {
                         let is_group_admin = true; // TODO: check actual group role
-                        for (chi, ch) in group.channels.iter().enumerate() {
+                        for (_chi, ch) in group.channels.iter().enumerate() {
                             let is_active = state.chat_active_channel == ch.id;
                             let accent = Color32::from_rgb(80, 200, 80);
                             let base_bg = if is_active {
@@ -629,6 +632,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 Vec2::new(row_w, theme.row_height),
                                 egui::Sense::click(),
                             );
+
+                            let mut voice_icon_rect = egui::Rect::NOTHING;
+                            let mut gear_icon_rect = egui::Rect::NOTHING;
 
                             if ui.is_rect_visible(row_rect) {
                                 let hover = response.hovered();
@@ -647,7 +653,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 // Voice icon
                                 if ch.voice_enabled {
                                     let icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
-                                    let mic_color = Color32::from_rgb(100, 100, 110);
+                                    voice_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
+                                    let on_voice = response.hovered() && voice_icon_rect.contains(ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()));
+                                    let mic_color = if on_voice { Color32::WHITE } else { Color32::from_rgb(100, 100, 110) };
                                     crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
                                     cx += icon_size + 2.0;
                                 }
@@ -655,7 +663,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 // Cog icon (admin)
                                 if is_group_admin {
                                     let cog_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
-                                    let cog_color = Color32::from_rgb(100, 100, 110);
+                                    gear_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
+                                    let on_gear = response.hovered() && gear_icon_rect.contains(ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()));
+                                    let cog_color = if on_gear { Color32::WHITE } else { Color32::from_rgb(100, 100, 110) };
                                     crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
                                     cx += icon_size + 2.0;
                                 }
@@ -674,16 +684,28 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
                             if response.clicked() {
-                                state.chat_active_channel = ch.id.clone();
-                                state.chat_messages.clear();
-                                state.history_fetched = false;
-                                if let Some(ref client) = state.ws_client {
-                                    if client.is_connected() {
-                                        let msg = serde_json::json!({
-                                            "type": "group_history_request",
-                                            "group_id": group.id,
-                                        });
-                                        client.send(&msg.to_string());
+                                // Dispatch based on click position: mic/cog/channel-row.
+                                let click_pos = ui.ctx().input(|i| i.pointer.interact_pos().unwrap_or_default());
+                                if voice_icon_rect.contains(click_pos) && ch.voice_enabled {
+                                    // TODO: toggle voice join for group channel
+                                } else if gear_icon_rect.contains(click_pos) && is_group_admin {
+                                    // TODO: open group channel settings modal
+                                    state.show_channel_edit_modal = true;
+                                    state.edit_channel_id = ch.id.clone();
+                                    state.edit_channel_name = ch.name.clone();
+                                    state.edit_channel_description = ch.description.clone();
+                                } else {
+                                    state.chat_active_channel = ch.id.clone();
+                                    state.chat_messages.clear();
+                                    state.history_fetched = false;
+                                    if let Some(ref client) = state.ws_client {
+                                        if client.is_connected() {
+                                            let msg = serde_json::json!({
+                                                "type": "group_history_request",
+                                                "group_id": group.id,
+                                            });
+                                            client.send(&msg.to_string());
+                                        }
                                     }
                                 }
                             }
@@ -833,7 +855,12 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         cog_click_rect = svr_rect;
                     }
 
-                    // Collapse arrow click target
+                    // Full-header interact FIRST so later specific-region interacts (arrow, cog)
+                    // take priority. Last-registered wins hit-test for overlapping rects.
+                    let hdr_interact = ui.interact(svr_rect, ui.id().with("svr_ctx"), egui::Sense::click());
+                    let show_menu_rc = hdr_interact.secondary_clicked();
+
+                    // Collapse arrow click target (overrides hdr_interact in its 22px region)
                     let arrow_click = egui::Rect::from_min_size(svr_rect.min, Vec2::new(22.0, svr_hdr_height));
                     let arrow_resp = ui.interact(arrow_click, ui.id().with("svr_arrow"), egui::Sense::click());
                     if arrow_resp.clicked() {
@@ -844,16 +871,12 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
 
-                    // Cog click target - opens settings popup
+                    // Cog click target - opens settings popup (registered last = priority)
                     let cog_resp = ui.interact(cog_click_rect, ui.id().with("svr_cog"), egui::Sense::click());
                     if cog_resp.hovered() {
                         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                     }
                     let show_svr_menu = cog_resp.clicked() || cog_resp.secondary_clicked();
-
-                    // Right-click on full header also opens menu
-                    let hdr_interact = ui.interact(svr_rect, ui.id().with("svr_ctx"), egui::Sense::click());
-                    let show_menu_rc = hdr_interact.secondary_clicked();
 
                     let menu_id = ui.id().with("svr_menu");
                     if show_svr_menu || show_menu_rc {
@@ -1310,7 +1333,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 if ac.starts_with("dm:") {
                     // DM header: back button + partner name
                     if ui.add(egui::Button::new(
-                        RichText::new("\u{2190} Back").size(theme.font_size_body).color(theme.text_secondary()),
+                        RichText::new("< Back").size(theme.font_size_body).color(theme.text_secondary()),
                     ).fill(Color32::TRANSPARENT)).clicked() {
                         state.chat_active_channel = "general".to_string();
                     }
@@ -1328,7 +1351,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 } else if ac.starts_with("group:") {
                     // Group header: back button + group name
                     if ui.add(egui::Button::new(
-                        RichText::new("\u{2190} Back").size(theme.font_size_body).color(theme.text_secondary()),
+                        RichText::new("< Back").size(theme.font_size_body).color(theme.text_secondary()),
                     ).fill(Color32::TRANSPARENT)).clicked() {
                         state.chat_active_channel = "general".to_string();
                     }
@@ -1432,7 +1455,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
                     let channeling = state.chat_user_modal_open
                         && msg.sender_key == state.chat_user_modal_key;
-                    let response = crate::gui::widgets::row::message_row(
+                    let row_resp = crate::gui::widgets::row::message_row(
                         ui,
                         theme,
                         icon_letter,
@@ -1445,7 +1468,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         channeling,
                         ctx_time,
                     );
-                    if response.clicked() && show_header {
+                    // Only open the profile modal when the userbox itself is clicked,
+                    // not when the click lands in the content area to the right.
+                    if row_resp.userbox_clicked(ui.ctx()) {
                         state.chat_user_modal_open = true;
                         state.chat_user_modal_name = msg.sender_name.clone();
                         state.chat_user_modal_key = msg.sender_key.clone();

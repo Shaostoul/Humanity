@@ -53,7 +53,7 @@ Automated scan of `src/` and `web/` for `vec![ X, Y, Z, ... ]` patterns and larg
 | `src/gui/pages/crafting.rs:11-13` | 12 hardcoded crafting categories | `data/crafting/categories.json` |
 | `src/gui/mod.rs:396-405` | 8 studio scene presets | `data/studio/scenes.json` |
 | `src/gui/mod.rs:406-411` | 4 default studio sources | `data/studio/sources.json` |
-| `src/gui/mod.rs:1048-1058` | 8-planet solar system | `data/solar_system/planets/*.json` (may already exist) |
+| ~~`src/gui/mod.rs:1048-1058`~~ | ~~8-planet solar system~~ | **Keep hardcoded.** This is *our* solar system and serves as the canonical reference for the simulation. Data-drive only when adding procedural star systems or exoplanets. |
 
 ### Medium priority
 
