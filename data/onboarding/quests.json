@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "description": "Quest chains shown on the /onboarding page. Data-driven so new quests can be added without touching the page code. Progress is tracked per step in the user's localStorage under the key 'humanity_quest_progress'.",
+  "chains": [
+    {
+      "id": "welcome",
+      "title": "Welcome Quest",
+      "description": "Your first ten minutes on HumanityOS.",
+      "steps": [
+        {
+          "id": "open-chat",
+          "title": "Open the Chat",
+          "description": "Pick a name, say hi in #welcome. Your identity key is created automatically the first time.",
+          "link": "/chat"
+        },
+        {
+          "id": "profile",
+          "title": "Fill in your Profile",
+          "description": "Add a display name and a short bio. This is how others will see you across the network.",
+          "link": "/profile"
+        },
+        {
+          "id": "backup",
+          "title": "Back up your seed phrase",
+          "description": "Write down the 24-word seed in Settings. It is the only way to recover your identity if you lose this device.",
+          "link": "/settings"
+        },
+        {
+          "id": "try-sim",
+          "title": "Try the Real / Sim toggle",
+          "description": "The pill in the top-right swaps between your real-life data and the simulation. Click it once to see the difference.",
+          "link": null
+        }
+      ]
+    },
+    {
+      "id": "explore",
+      "title": "Explore the Platform",
+      "description": "One small task for each core page. Skim-friendly, takes about fifteen minutes.",
+      "steps": [
+        {
+          "id": "create-task",
+          "title": "Create a task",
+          "description": "Open the kanban board and add one card. Real or Sim. Something you actually want to track.",
+          "link": "/tasks"
+        },
+        {
+          "id": "browse-market",
+          "title": "Browse the Marketplace",
+          "description": "See what people are offering. Check a listing, read a review, message a seller if something catches your eye.",
+          "link": "/market"
+        },
+        {
+          "id": "open-wallet",
+          "title": "Open your Wallet",
+          "description": "Your key is your wallet address. Copy it, share it, or send a small amount of SOL to a friend.",
+          "link": "/wallet"
+        },
+        {
+          "id": "check-map",
+          "title": "Check the Maps page",
+          "description": "See what is around you. Real mode shows the real world. Sim mode shows the game world.",
+          "link": "/maps"
+        },
+        {
+          "id": "write-note",
+          "title": "Write a note",
+          "description": "Notes are encrypted on your device. Useful for journals, drafts, or anything you want private.",
+          "link": "/notes"
+        }
+      ]
+    },
+    {
+      "id": "advanced",
+      "title": "Going Deeper",
+      "description": "When you are ready to get more out of the platform, or help build it.",
+      "steps": [
+        {
+          "id": "desktop-app",
+          "title": "Install the desktop app",
+          "description": "Native binary that works offline. Same identity as the web version. Syncs when you reconnect.",
+          "link": "/download"
+        },
+        {
+          "id": "join-server",
+          "title": "Join a federated server",
+          "description": "Other communities run their own servers. Your identity works on all of them. Find one whose culture fits.",
+          "link": "/chat"
+        },
+        {
+          "id": "host-server",
+          "title": "Run your own server",
+          "description": "One small binary, under ten minutes from zero to live. Your users keep their identity when they switch servers.",
+          "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md"
+        },
+        {
+          "id": "contribute",
+          "title": "Contribute to the project",
+          "description": "Code, writing, design, translation, testing, feedback. The onboarding guide shows where to start.",
+          "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md"
+        },
+        {
+          "id": "read-accord",
+          "title": "Read the Humanity Accord",
+          "description": "The philosophical foundation of the project. Short, plain-language, not a legal document.",
+          "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md"
+        }
+      ]
+    }
+  ]
+}

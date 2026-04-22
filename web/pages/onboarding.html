@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Onboarding: Getting started with HumanityOS</title>
+  <meta name="description" content="Your first steps on HumanityOS. Set up your identity, send your first message, explore the platform at your own pace.">
+
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
+
+  <style>
+    body { line-height: 1.7; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+    .onboarding-hero {
+      padding: 60px 0 40px;
+      text-align: center;
+    }
+    .onboarding-hero h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+    .onboarding-hero h1 em { font-style: normal; color: var(--accent); }
+    .onboarding-hero p {
+      color: var(--text-muted);
+      max-width: 620px;
+      margin: 0 auto 8px;
+      font-size: 1.02rem;
+    }
+
+    section { padding: 40px 0; }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    section h2 {
+      font-size: clamp(1.4rem, 3vw, 1.8rem);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    section > .container > p.section-intro {
+      color: var(--text-muted);
+      max-width: 640px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Core pages overview ── */
+    .core-pages {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .core-page {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      text-decoration: none;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .core-page:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .core-page .cp-icon { color: var(--accent); margin-bottom: 4px; height: 24px; }
+    .core-page h4 { margin: 0; font-size: 0.98rem; font-weight: 700; }
+    .core-page p { margin: 0; font-size: 0.85rem; color: var(--text-muted); }
+
+    /* ── Quest chains ── */
+    .quest-chain {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+    .quest-chain h3 {
+      margin: 0 0 4px;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+    .quest-chain .chain-desc {
+      margin: 0 0 16px;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+    .quest-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .quest-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .quest-step:hover {
+      border-color: var(--accent);
+    }
+    .quest-step.done {
+      opacity: 0.6;
+    }
+    .quest-checkbox {
+      width: 18px; height: 18px;
+      border: 1.5px solid var(--border);
+      border-radius: 4px;
+      flex-shrink: 0;
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .quest-step.done .quest-checkbox {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+    .quest-text { flex: 1; }
+    .quest-text .qs-title { font-weight: 600; font-size: 0.94rem; margin-bottom: 2px; }
+    .quest-text .qs-desc { font-size: 0.85rem; color: var(--text-muted); }
+    .quest-step .qs-action {
+      color: var(--accent);
+      font-size: 0.85rem;
+      font-weight: 600;
+      flex-shrink: 0;
+      align-self: center;
+    }
+
+    /* ── Concepts grid ── */
+    .concepts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .concept {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 18px 20px;
+    }
+    .concept h4 { margin: 0 0 6px; font-size: 0.98rem; font-weight: 700; }
+    .concept p { margin: 0; font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
+
+    /* ── CTAs ── */
+    .cta-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 22px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn:not(.btn-primary):hover { border-color: var(--accent); color: var(--accent); }
+
+    .reset-progress {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-top: 12px;
+      padding: 0;
+      font-family: inherit;
+    }
+    .reset-progress:hover { color: var(--accent); }
+
+    .loading-state {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      font-style: italic;
+      text-align: center;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
+
+  <!-- ── Hero ── -->
+  <header class="onboarding-hero">
+    <div class="container">
+      <div class="section-label">Getting Started</div>
+      <h1>Welcome. <em>Let's get you oriented.</em></h1>
+      <p>HumanityOS is a free, public-domain platform for communication, coordination, and cooperation. Your identity lives on your device. You can use it online, offline, or run your own copy.</p>
+      <p>No signup required. Your identity is created the moment you open the chat.</p>
+    </div>
+  </header>
+
+  <!-- ── The four core concepts ── -->
+  <section>
+    <div class="container">
+      <div class="section-label">Four things to know first</div>
+      <h2>The four core concepts</h2>
+      <div class="concepts">
+        <div class="concept">
+          <h4>Your key is your identity</h4>
+          <p>No username and password. A cryptographic key on your device is your login everywhere on the network. Back it up with a short word-list in Settings.</p>
+        </div>
+        <div class="concept">
+          <h4>The same key is your wallet</h4>
+          <p>That same key is also a Solana wallet address. You can send, receive, stake, and tip from inside the app. Your name and your wallet are the same thing.</p>
+        </div>
+        <div class="concept">
+          <h4>Real and Sim share the same tools</h4>
+          <p>The Real/Sim toggle in the top-right swaps which data your pages show. Real is for your actual life. Sim is a safe practice space for the same skills.</p>
+        </div>
+        <div class="concept">
+          <h4>Anyone can host a server</h4>
+          <p>The network is federated. No central owner. If one server goes down, the rest keep working. You can run your own from a single small program.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Core pages ── -->
+  <section>
+    <div class="container">
+      <div class="section-label">The Platform</div>
+      <h2>Where to go next</h2>
+      <p class="section-intro">Each page is a self-contained tool. You can use them independently or together. Open what looks useful, skip what doesn't.</p>
+      <div class="core-pages">
+        <a href="/chat" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="chat" data-size="24"></span></div>
+          <h4>Chat</h4>
+          <p>Text, voice, video. Encrypted DMs, channels, servers. Everything starts here.</p>
+        </a>
+        <a href="/profile" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="profile" data-size="24"></span></div>
+          <h4>Profile</h4>
+          <p>Your name, avatar, bio, skills. Seen by others across the network.</p>
+        </a>
+        <a href="/wallet" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="coin" data-size="24"></span></div>
+          <h4>Wallet</h4>
+          <p>Solana balance, send, receive, stake. Your key is your wallet address.</p>
+        </a>
+        <a href="/tasks" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="tasklist" data-size="24"></span></div>
+          <h4>Tasks</h4>
+          <p>Kanban boards for projects, teams, personal life. Real or Sim.</p>
+        </a>
+        <a href="/market" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="market" data-size="24"></span></div>
+          <h4>Market</h4>
+          <p>Peer-to-peer listings, reviews, buyer-seller messaging. No middleman.</p>
+        </a>
+        <a href="/maps" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="map" data-size="24"></span></div>
+          <h4>Maps</h4>
+          <p>Local to galactic scale. Real-world navigation or sim-world exploration.</p>
+        </a>
+        <a href="/settings" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="settings" data-size="24"></span></div>
+          <h4>Settings</h4>
+          <p>Identity backup, notifications, theme, accessibility. Where you fine-tune everything.</p>
+        </a>
+        <a href="/download" class="core-page">
+          <div class="cp-icon"><span class="pg-ico" data-icon="download" data-size="24"></span></div>
+          <h4>Desktop app</h4>
+          <p>Native Rust binary. Works offline. Same identity as the web version.</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Quest chains ── -->
+  <section>
+    <div class="container">
+      <div class="section-label">Quests</div>
+      <h2>Learn by doing</h2>
+      <p class="section-intro">Small tasks that teach the platform. Click any step to go there. Your progress is saved in this browser. Tick them off at your own pace.</p>
+      <div id="quest-root">
+        <div class="loading-state">Loading quest chains...</div>
+      </div>
+      <button type="button" class="reset-progress" id="reset-quests">Reset quest progress</button>
+    </div>
+  </section>
+
+  <!-- ── Next steps ── -->
+  <section>
+    <div class="container">
+      <div class="section-label">Ready?</div>
+      <h2>Start using it</h2>
+      <p class="section-intro">The fastest way to understand HumanityOS is to open the chat and say hi. If you want the longer story first, read the Humanity Accord.</p>
+      <div class="cta-row">
+        <a href="/chat" class="btn btn-primary">Open the Chat</a>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md" class="btn" target="_blank" rel="noopener">Read the Humanity Accord</a>
+        <a href="/" class="btn">Back to landing</a>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Render page icons (pg-ico pattern used across the site)
+    document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+      if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+    });
+  </script>
+
+  <script>
+    // ── Quest chain renderer ──
+    // Loads data/onboarding/quests.json, tracks progress in localStorage,
+    // re-renders on click. Data-driven so new quests can be added without
+    // touching this page.
+    (function () {
+      var STORAGE_KEY = 'humanity_quest_progress';
+      var root = document.getElementById('quest-root');
+      var resetBtn = document.getElementById('reset-quests');
+
+      function loadProgress() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+        catch (e) { return {}; }
+      }
+      function saveProgress(p) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+      }
+
+      function render(data) {
+        var progress = loadProgress();
+        var html = '';
+        data.chains.forEach(function (chain) {
+          html += '<div class="quest-chain">';
+          html += '<h3>' + chain.title + '</h3>';
+          html += '<p class="chain-desc">' + chain.description + '</p>';
+          html += '<div class="quest-steps">';
+          chain.steps.forEach(function (step) {
+            var stepKey = chain.id + ':' + step.id;
+            var done = !!progress[stepKey];
+            var tag = step.link ? 'a' : 'button';
+            var linkAttrs = step.link
+              ? 'href="' + step.link + '"' + (step.link.indexOf('http') === 0 ? ' target="_blank" rel="noopener"' : '')
+              : 'type="button"';
+            html += '<' + tag + ' class="quest-step' + (done ? ' done' : '') + '" ' + linkAttrs + ' data-step-key="' + stepKey + '">';
+            html += '<span class="quest-checkbox">' + (done ? '\u2713' : '') + '</span>';
+            html += '<span class="quest-text">';
+            html += '<div class="qs-title">' + step.title + '</div>';
+            html += '<div class="qs-desc">' + step.description + '</div>';
+            html += '</span>';
+            if (step.link) html += '<span class="qs-action">Go \u2192</span>';
+            html += '</' + tag + '>';
+          });
+          html += '</div>';
+          html += '</div>';
+        });
+        root.innerHTML = html;
+
+        // Toggle done state when a step is clicked (in addition to navigating)
+        root.querySelectorAll('.quest-step').forEach(function (el) {
+          el.addEventListener('click', function (e) {
+            // Only toggle if the checkbox itself was clicked — otherwise the
+            // click navigates (for <a>) or does nothing (for <button>).
+            var cb = e.target.closest('.quest-checkbox');
+            if (cb) {
+              e.preventDefault();
+              e.stopPropagation();
+              var key = el.dataset.stepKey;
+              progress[key] = !progress[key];
+              saveProgress(progress);
+              render(data);
+            }
+          });
+        });
+      }
+
+      fetch('/data/onboarding/quests.json')
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(render)
+        .catch(function (err) {
+          root.innerHTML =
+            '<div class="loading-state">Could not load quests (' + err.message + '). ' +
+            'Try refreshing, or start with the Chat.</div>';
+        });
+
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+          if (confirm('Clear all quest progress in this browser?')) {
+            localStorage.removeItem(STORAGE_KEY);
+            location.reload();
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

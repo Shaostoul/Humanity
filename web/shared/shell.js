@@ -39,6 +39,67 @@
     showErrorBanner();
   };
 
+  // ── Universal help modal ──
+  // Any page can call window.hosHelp.register(id, title, content) and
+  // window.hosHelp.show(id). Buttons with [data-help-id] open the modal
+  // automatically. Styling uses theme CSS vars so it themes with the rest.
+  var helpRegistry = {};
+  function showHelp(id) {
+    var entry = helpRegistry[id];
+    if (!entry) return console.warn('[HOS] No help registered for: ' + id);
+    if (!document.getElementById('hos-help-styles')) {
+      var st = document.createElement('style');
+      st.id = 'hos-help-styles';
+      st.textContent =
+        '.hos-help-backdrop{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px;animation:hos-help-fade 0.15s ease-out;}' +
+        '@keyframes hos-help-fade{from{opacity:0}to{opacity:1}}' +
+        '.hos-help-modal{background:var(--bg-card,#161616);border:1px solid var(--border,#333);border-left:3px solid var(--accent,#FF8811);border-radius:var(--radius,8px);max-width:480px;width:100%;padding:28px;color:var(--text,#e0e0e0);box-shadow:0 12px 40px rgba(0,0,0,0.5);font-family:inherit;}' +
+        '.hos-help-modal h3{margin:0 0 14px;font-size:1.15rem;font-weight:700;color:var(--text,#fff);}' +
+        '.hos-help-body{font-size:0.95rem;line-height:1.65;color:var(--text-muted,#bbb);margin-bottom:22px;}' +
+        '.hos-help-body p{margin:0 0 12px;}' +
+        '.hos-help-body p:last-child{margin-bottom:0;}' +
+        '.hos-help-body strong{color:var(--text,#fff);}' +
+        '.hos-help-close{background:var(--accent,#FF8811);color:#000;border:none;padding:10px 22px;border-radius:var(--radius,6px);font-weight:600;cursor:pointer;font-family:inherit;font-size:0.92rem;transition:filter 0.15s;}' +
+        '.hos-help-close:hover{filter:brightness(1.1);}' +
+        '.hos-help-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:transparent;border:1px solid var(--border,#333);color:var(--text-muted,#888);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:inherit;margin-left:8px;transition:all 0.15s;line-height:1;padding:0;flex-shrink:0;}' +
+        '.hos-help-btn:hover{border-color:var(--accent,#FF8811);color:var(--accent,#FF8811);}' +
+        '.context-wrap{display:inline-flex;align-items:center;}';
+      document.head.appendChild(st);
+    }
+    var existing = document.getElementById('hos-help-modal-root');
+    if (existing) existing.remove();
+    var root = document.createElement('div');
+    root.id = 'hos-help-modal-root';
+    root.className = 'hos-help-backdrop';
+    root.innerHTML =
+      '<div class="hos-help-modal" role="dialog" aria-modal="true">' +
+        '<h3>' + entry.title + '</h3>' +
+        '<div class="hos-help-body">' + entry.content + '</div>' +
+        '<button class="hos-help-close" type="button">Got it</button>' +
+      '</div>';
+    function closeHelp() {
+      root.remove();
+      document.removeEventListener('keydown', onHelpKey);
+    }
+    function onHelpKey(e) { if (e.key === 'Escape') closeHelp(); }
+    root.addEventListener('click', function(e) { if (e.target === root) closeHelp(); });
+    root.querySelector('.hos-help-close').addEventListener('click', closeHelp);
+    document.addEventListener('keydown', onHelpKey);
+    document.body.appendChild(root);
+  }
+  window.hosHelp = {
+    register: function(id, title, content) { helpRegistry[id] = { title: title, content: content }; },
+    show: showHelp
+  };
+  // Built-in help topic for the Real/Sim toggle
+  window.hosHelp.register('real-sim',
+    'Real mode vs. Sim mode',
+    '<p>HumanityOS has two contexts that swap which data your pages show.</p>' +
+    '<p><strong>Real</strong> is for your actual life. Task boards hold real projects, the marketplace shows real listings, inventory is what you actually own, maps show the real world around you.</p>' +
+    '<p><strong>Sim</strong> is for the simulation. Same pages, same tools, but the data comes from the game world. Practice farming, building, crafting, and trading before the stakes are real.</p>' +
+    '<p>The same habits and skills apply to both. Flip the toggle any time. Your identity and wallet stay the same.</p>'
+  );
+
   // ── Load shared icon system ──
   if (!window.hosIcon) {
     // Synchronous load so hosIcon() is available for nav tab rendering
@@ -502,9 +563,12 @@
 
   function buildContextToggle() {
     var ctx = window.hos_context;
-    return '<div class="context-toggle ctx-' + ctx + '" id="hos-context-toggle">' +
-      '<span class="ctx-seg' + (ctx === 'real' ? ' active' : '') + '" data-ctx="real">Real</span>' +
-      '<span class="ctx-seg' + (ctx === 'sim' ? ' active' : '') + '" data-ctx="sim">Sim</span>' +
+    return '<div class="context-wrap">' +
+      '<div class="context-toggle ctx-' + ctx + '" id="hos-context-toggle">' +
+        '<span class="ctx-seg' + (ctx === 'real' ? ' active' : '') + '" data-ctx="real">Real</span>' +
+        '<span class="ctx-seg' + (ctx === 'sim' ? ' active' : '') + '" data-ctx="sim">Sim</span>' +
+      '</div>' +
+      '<button class="hos-help-btn" type="button" aria-label="What does Real/Sim mean?" data-help-id="real-sim" title="What does this do?">?</button>' +
     '</div>';
   }
 
@@ -628,6 +692,15 @@
   mobileDrawer.addEventListener('click', function(e) {
     const link = e.target.closest('a[href]');
     if (link) closeMobileDrawer();
+  });
+
+  // ── Help button click handler ──
+  document.addEventListener('click', function(e) {
+    var helpBtn = e.target.closest('.hos-help-btn[data-help-id]');
+    if (!helpBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.hosHelp.show(helpBtn.dataset.helpId);
   });
 
   // ── Context toggle handler ──
@@ -1154,7 +1227,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.91.2';
+    var CURRENT_VERSION = '0.91.3';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
