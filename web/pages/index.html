@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HumanityOS — Open-source cooperative platform and game engine</title>
-  <meta name="description" content="Free, open-source cooperative platform with 152+ features: encrypted chat, Solana wallet, 3D game engine, marketplace, task boards. Your Ed25519 key is your identity and your wallet. No accounts, no passwords. Public domain.">
+  <title>HumanityOS: Own your tools. Own your life. Own your future.</title>
+  <meta name="description" content="A free app where people chat, plan, trade, and build together. No accounts, no owner, public domain. 150+ features live right now.">
 
   <meta property="og:type" content="website">
-  <meta property="og:title" content="HumanityOS — Open-source cooperative platform and game engine">
-  <meta property="og:description" content="152+ features built: encrypted chat, voice/video, Solana wallet, 3D game engine with planets and spaceships, marketplace, task boards. Self-custody identity. Public domain.">
+  <meta property="og:title" content="HumanityOS: Own your tools. Own your life. Own your future.">
+  <meta property="og:description" content="A free app where people chat, plan, trade, and build together. No accounts, no owner, public domain. 150+ features live right now.">
   <meta property="og:url" content="https://united-humanity.us">
   <meta property="og:image" content="https://shaostoul.github.io/Humanity/assets/img/brand/logo/logo.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="HumanityOS — Open-source cooperative platform and game engine">
-  <meta name="twitter:description" content="152+ features: encrypted chat, Solana wallet, 3D game engine, marketplace, task boards. Self-custody identity. Public domain.">
+  <meta name="twitter:title" content="HumanityOS: Own your tools. Own your life. Own your future.">
+  <meta name="twitter:description" content="A free app where people chat, plan, trade, and build together. No accounts, no owner, public domain. 150+ features live right now.">
   <meta name="twitter:image" content="https://shaostoul.github.io/Humanity/assets/img/brand/logo/logo.png">
 
   <link rel="manifest" href="/shared/manifest.json">
@@ -37,6 +37,15 @@
     .hero {
       padding: 80px 0 70px;
       text-align: center;
+    }
+    .mission-eyebrow {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      opacity: 0.9;
     }
     .hero h1 {
       font-size: clamp(2rem, 5vw, 3.2rem);
@@ -113,7 +122,10 @@
       transform: translateY(-2px);
       box-shadow: 0 4px 20px rgba(255,136,17,0.1);
     }
-    .path-card .path-icon { font-size: 1.8rem; }
+    .path-card .path-icon-wrap {
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
     .path-card .path-label {
       font-size: 0.7rem;
       font-weight: 700;
@@ -129,6 +141,35 @@
       color: var(--accent);
       margin-top: auto;
       padding-top: 8px;
+    }
+
+    /* ── Use cases ── */
+    .use-cases {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+    .use-case {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px;
+    }
+    .use-case h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0 0 8px;
+    }
+    .use-case p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+    .use-case .uc-icon-wrap {
+      color: var(--accent);
+      margin-bottom: 10px;
+      height: 28px;
     }
 
     /* ── Section headers ── */
@@ -152,97 +193,144 @@
       margin-bottom: 12px;
     }
 
-    /* ── Live banner ── */
-    .live-banner {
+    /* ── What-is-it block ── */
+    .what-block {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 32px;
-      text-align: center;
     }
-    .live-banner h3 {
-      font-size: 1.2rem;
-      font-weight: 700;
-      margin-bottom: 8px;
+    .what-block p {
+      font-size: 1.02rem;
+      color: var(--text);
+      margin: 0 0 14px;
+      max-width: none;
+    }
+    .what-block p:last-child { margin-bottom: 0; color: var(--text-muted); font-size: 0.92rem; }
+
+    /* ── Proof strip ── */
+    .proof-strip {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 14px;
+      padding: 18px 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      text-align: center;
+      flex-wrap: wrap;
     }
+    .proof-strip p {
+      margin: 0;
+      font-size: 0.92rem;
+      color: var(--text-muted);
+    }
+    .proof-strip a { color: var(--accent); text-decoration: none; }
+    .proof-strip a:hover { text-decoration: underline; }
     .pulse {
       width: 8px; height: 8px;
       border-radius: 50%;
       background: var(--success);
       display: inline-block;
       animation: pulse 2s ease-in-out infinite;
+      flex-shrink: 0;
     }
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.5; transform: scale(1.3); }
     }
-    .live-banner p { color: var(--text-muted); margin-bottom: 20px; }
-    .live-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      margin: 20px 0 28px;
-    }
-    .live-features span {
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 4px 12px;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-    }
-
-    /* ── Pages grid ── */
-    .pages-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 10px;
-      margin-top: 28px;
-    }
-    .page-link {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 14px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      text-decoration: none;
-      font-size: 0.9rem;
-      transition: all 0.15s;
-    }
-    .page-link:hover { border-color: var(--accent); color: var(--accent); }
-    .page-link .status-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .status-dot.live { background: #2a6; }
-    .status-dot.building { background: #f90; }
-    .status-dot.stub { background: var(--text-muted); }
 
     /* ── How it differs ── */
     .diff-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px;
       margin-top: 28px;
     }
     .diff-item {
-      padding: 20px;
+      padding: 22px;
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: 8px;
     }
-    .diff-item .diff-icon { font-size: 1.4rem; margin-bottom: 8px; }
-    .diff-item h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 4px; }
-    .diff-item p { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+    .diff-item .diff-icon { color: var(--accent); margin-bottom: 10px; }
+    .diff-item h4 { font-size: 0.98rem; font-weight: 700; margin-bottom: 6px; }
+    .diff-item p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
+
+    /* ── Plain-English block ── */
+    .plain-english {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 10px;
+      padding: 28px 32px;
+    }
+    .plain-english p {
+      font-size: 1rem;
+      color: var(--text);
+      margin: 0 0 14px;
+      max-width: none;
+    }
+    .plain-english p:last-child { margin-bottom: 0; }
+
+    /* ── Status split ── */
+    .status-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 24px;
+    }
+    .status-col {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 22px;
+    }
+    .status-col h4 {
+      font-size: 0.98rem;
+      font-weight: 700;
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-col.works h4 { color: var(--success); }
+    .status-col.early h4 { color: #f90; }
+    .status-col ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+    .status-col li {
+      padding: 4px 0;
+    }
+    .status-footer {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 20px;
+      font-style: italic;
+    }
+    @media (max-width: 600px) {
+      .status-split { grid-template-columns: 1fr; }
+    }
+
+    /* ── Dev spec block ── */
+    .dev-spec {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.88rem;
+      line-height: 1.7;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+    }
+    .dev-spec strong { color: var(--text); font-weight: 600; }
+    .dev-cta { display: flex; gap: 12px; flex-wrap: wrap; }
 
     /* ── Get involved ── */
     .involve-grid {
@@ -265,6 +353,21 @@
       transition: all 0.15s;
     }
     .involve-item:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+    .involve-item .ii-ico { color: var(--accent); display: inline-flex; align-items: center; }
+
+    .follow-line {
+      margin-top: 32px;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+    .follow-line strong { color: var(--text); }
+    .follow-line a {
+      color: var(--text-muted);
+      text-decoration: none;
+      margin: 0 4px;
+      border-bottom: 1px dotted var(--border);
+    }
+    .follow-line a:hover { color: var(--accent); border-color: var(--accent); }
 
     /* ── Donate ── */
     .donate-section { text-align: center; padding: 60px 0; }
@@ -274,7 +377,7 @@
     @media (max-width: 600px) {
       .hero { padding: 50px 0 40px; }
       section { padding: 44px 0; }
-      .paths { grid-template-columns: 1fr; }
+      .paths, .use-cases { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -284,127 +387,115 @@
   <script src="/shared/eli5.js"></script>
   <script src="/shared/defaults.js"></script>
   <script src="/shared/settings.js"></script>
+
   <div class="eli5-block" style="max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px;">
-    <div class="eli5-simple">Welcome to HumanityOS, a free platform and game where everyone works together to end poverty.</div>
-    <div class="eli5-expert">CC0 public domain cooperative OS + game engine. 152+ features: Rust/axum relay, Ed25519 self-custody identity (= Solana wallet), E2E encrypted chat, WebRTC voice/video, marketplace, task boards, wgpu 3D engine with planets/asteroids/physics. Federated, local-first, moddable.</div>
+    <div class="eli5-simple">A free app where people chat, plan, trade, and build together. No accounts, no owner, everyone's software.</div>
+    <div class="eli5-expert">Rust/axum relay. Ed25519 self-custody identity = Solana wallet. ECDH+AES-256-GCM E2E DMs. WebRTC voice/video. wgpu 3D engine. Federated, local-first, CC0 public domain.</div>
   </div>
 
   <!-- ── Hero ── -->
   <header class="hero">
     <div class="container">
-      <h1>End poverty.<br><em>Unite humanity.</em></h1>
+      <div class="mission-eyebrow">Our mission: End poverty. Unite humanity.</div>
+      <h1>Own your tools.<br>Own your life.<br><em>Own your future.</em></h1>
       <p class="what-is-it">
-        <strong>HumanityOS</strong> is a free, open-source cooperative platform and game engine with 152+ features built.
-        Encrypted chat, voice/video calls, Solana wallet, marketplace, task boards, and a 3D engine with planets, spaceships, farming, and crafting.
-        Your Ed25519 key is your identity AND your wallet. No accounts. No passwords. No home servers. Public domain.
+        A free app where people chat, plan, trade, and build together. No ads, no accounts, no owner. Everyone's software, forever.
       </p>
       <div class="hero-ctas">
         <a href="/chat" class="btn btn-primary"><span class="pg-ico" data-icon="chat" data-size="20"></span> Open the Chat</a>
-        <a href="/download" class="btn btn-secondary"><span class="pg-ico" data-icon="download" data-size="20"></span> Download the App</a>
+        <a href="#use-cases" class="btn btn-secondary">See What You Can Do</a>
         <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="20"></span> View on GitHub</a>
       </div>
     </div>
   </header>
 
-  <!-- ── Three Paths ── -->
+  <!-- ── What is this? ── -->
+  <section id="what">
+    <div class="container">
+      <div class="section-label">What is this?</div>
+      <h2>A shared toolkit for working together</h2>
+      <div class="what-block">
+        <p>HumanityOS is for people who want to work together on anything: a neighborhood project, a small business, a study group, a worldwide movement. It puts messaging, task boards, a marketplace, notes, a calendar, and a digital wallet into one app that anyone can run, nobody can shut down, and everyone owns.</p>
+        <p>7 years in. 150+ features live. Completely in the public domain.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── What you can do today ── -->
+  <section id="use-cases">
+    <div class="container">
+      <div class="section-label">What you can do today</div>
+      <h2>Five things, not a list of parts</h2>
+      <div class="use-cases">
+        <div class="use-case">
+          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="chat" data-size="28"></span></div>
+          <h3>Talk to anyone, privately.</h3>
+          <p>Text, voice, and video calls. Messages are locked with math only the people in the conversation can unlock. Screen share, threads, search, reactions.</p>
+        </div>
+        <div class="use-case">
+          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="tasks" data-size="28"></span></div>
+          <h3>Organize any project.</h3>
+          <p>Kanban boards, calendars, shared notes, skills tracking. Run a team, a club, or your own life from one place.</p>
+        </div>
+        <div class="use-case">
+          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="market" data-size="28"></span></div>
+          <h3>Buy, sell, and tip.</h3>
+          <p>A built-in marketplace with listings and reviews, plus a Solana wallet for payments, staking, and NFTs. Your identity is your wallet.</p>
+        </div>
+        <div class="use-case">
+          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="save" data-size="28"></span></div>
+          <h3>Work offline, own your data.</h3>
+          <p>Install the desktop app and everything keeps working without internet. When you reconnect, it syncs.</p>
+        </div>
+        <div class="use-case">
+          <div class="uc-icon-wrap"><span class="pg-ico" data-icon="globe" data-size="28"></span></div>
+          <h3>Run your own copy.</h3>
+          <p>One small program is the app, the server, and the game engine. Host it for your community, or join the shared network.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Proof of realness ── -->
+  <section id="live">
+    <div class="container">
+      <div class="proof-strip">
+        <span class="pulse" aria-hidden="true"></span>
+        <p>Live right now at <a href="/chat">united-humanity.us/chat</a>. 150+ features shipped. Every line on <a href="https://github.com/Shaostoul/Humanity" target="_blank" rel="noopener">GitHub</a>. No corporation, no VCs. Built in the open since 2019.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Where do you fit ── -->
   <section id="start">
     <div class="container">
       <div class="section-label">Get Started</div>
       <h2>Where do you fit?</h2>
       <div class="paths">
         <a href="/chat" class="path-card">
-          <div class="path-icon">💬</div>
+          <div class="path-icon-wrap"><span class="pg-ico" data-icon="chat" data-size="28"></span></div>
           <div class="path-label">I want to use it</div>
           <h3>Join the Network</h3>
-          <p>Open the chat, pick a username, and start talking. No signup form. Your cryptographic identity is created automatically.</p>
+          <p>Open the chat, pick a name, start talking. No signup form. Your identity is created for you.</p>
           <div class="path-action">Open the chat →</div>
         </a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/ONBOARDING.md" class="path-card" target="_blank" rel="noopener">
-          <div class="path-icon">🔧</div>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md" class="path-card" target="_blank" rel="noopener">
+          <div class="path-icon-wrap"><span class="pg-ico" data-icon="dev" data-size="28"></span></div>
           <div class="path-label">I want to build it</div>
-          <h3>Contribute Code</h3>
-          <p>Rust server, plain JS client, no build step. The codebase is modular and well-structured. Start with the onboarding guide.</p>
+          <h3>Contribute</h3>
+          <p>Rust on the back, plain JavaScript on the front, no build step. Writers, designers, translators, and educators are as welcome as coders.</p>
           <div class="path-action">Read the onboarding guide →</div>
         </a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/SELF-HOSTING.md" class="path-card" target="_blank" rel="noopener">
-          <div class="path-icon">🖥</div>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md" class="path-card" target="_blank" rel="noopener">
+          <div class="path-icon-wrap"><span class="pg-ico" data-icon="ops" data-size="28"></span></div>
           <div class="path-label">I want to host it</div>
           <h3>Run Your Own Server</h3>
-          <p>Single Rust binary. Under 10 minutes to production. Your users keep their identity when switching servers.</p>
+          <p>One small binary runs a whole server. Under 10 minutes from zero to live. Your users keep their identity when they move between servers.</p>
           <div class="path-action">Self-hosting guide →</div>
         </a>
       </div>
-    </div>
-  </section>
-
-  <!-- ── The Chat is Live ── -->
-  <section id="chat">
-    <div class="container">
-      <div class="live-banner">
-        <h3><span class="pulse"></span> 152+ Features Built and Live</h3>
-        <p>The platform is fully operational right now at <a href="/chat">united-humanity.us/chat</a>. Here is a sample of what is working.</p>
-        <div class="live-features">
-          <span>E2E encrypted DMs</span>
-          <span>Voice + video calls</span>
-          <span>Screen sharing + PiP</span>
-          <span>Push notifications</span>
-          <span>Solana wallet + staking</span>
-          <span>Token swaps + NFTs</span>
-          <span>Marketplace + reviews</span>
-          <span>Project boards</span>
-          <span>Threaded replies</span>
-          <span>Full-text search</span>
-          <span>BIP39 seed backup</span>
-          <span>Key rotation</span>
-          <span>Federated servers</span>
-          <span>Profile replication</span>
-          <span>Desktop app (Tauri)</span>
-          <span>Local-first storage</span>
-          <span>3D planet renderer</span>
-          <span>Voxel asteroids</span>
-          <span>Physics engine</span>
-          <span>Farming + crafting</span>
-          <span>Inventory system</span>
-          <span>Day/night cycle</span>
-          <span>30 WGSL shaders</span>
-          <span>Moddable game data</span>
-        </div>
-        <a href="/chat" class="btn btn-primary">Join the Conversation</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── All Pages ── -->
-  <section id="pages">
-    <div class="container">
-      <div class="section-label">The Platform</div>
-      <h2>Everything in one place</h2>
-      <p>HumanityOS is a cooperative platform and game engine. Chat is the foundation, and everything else builds on top of it. Pages marked in green are fully working.</p>
-
-      <div class="pages-grid">
-        <a href="/chat"      class="page-link"><span class="status-dot live"></span> Network Chat</a>
-        <a href="/home"      class="page-link"><span class="status-dot building"></span> Home</a>
-        <a href="/profile"   class="page-link"><span class="status-dot live"></span> Profile</a>
-        <a href="/dashboard" class="page-link"><span class="status-dot live"></span> Dashboard</a>
-        <a href="/inventory" class="page-link"><span class="status-dot building"></span> Inventory</a>
-        <a href="/tasks"     class="page-link"><span class="status-dot live"></span> Tasks</a>
-        <a href="/calendar"  class="page-link"><span class="status-dot building"></span> Calendar</a>
-        <a href="/notes"     class="page-link"><span class="status-dot building"></span> Notes</a>
-        <a href="/maps"      class="page-link"><span class="status-dot live"></span> Maps</a>
-        <a href="/market"    class="page-link"><span class="status-dot live"></span> Marketplace</a>
-        <a href="/wallet"    class="page-link"><span class="status-dot live"></span> Wallet</a>
-        <a href="/donate"    class="page-link"><span class="status-dot live"></span> Donate</a>
-        <a href="/web"       class="page-link"><span class="status-dot live"></span> Web Browser</a>
-        <a href="/data"      class="page-link"><span class="status-dot live"></span> Data</a>
-        <a href="/settings"  class="page-link"><span class="status-dot live"></span> Settings</a>
-        <a href="/roadmap"   class="page-link"><span class="status-dot live"></span> Roadmap</a>
-        <a href="/ops"       class="page-link"><span class="status-dot live"></span> Ops</a>
-        <a href="/download"  class="page-link"><span class="status-dot live"></span> Download</a>
-      </div>
-      <p style="margin-top: 12px; font-size: 0.82rem;">
-        <span style="color: var(--success);">●</span> Live &nbsp;
-        <span style="color: #f90;">●</span> In active development &nbsp;
-        <span style="color: var(--text-muted);">●</span> Stub
+      <p style="margin-top: 20px; font-size: 0.92rem;">
+        Prefer the desktop app? <a href="/download" style="color: var(--accent);">Download it here.</a>
       </p>
     </div>
   </section>
@@ -417,34 +508,46 @@
       <div class="diff-grid">
         <div class="diff-item">
           <div class="diff-icon"><span class="pg-ico" data-icon="key" data-size="28"></span></div>
-          <h4>Self-custody identity</h4>
-          <p>Your Ed25519 keypair IS your identity AND your Solana wallet address. No accounts, no passwords, no home servers. Back it up with a BIP39 seed phrase.</p>
+          <h4>You own your identity</h4>
+          <p>No username-and-password account a company can lock or delete. A single key, stored on your device, is your login everywhere. Back it up with a short word-list.</p>
         </div>
         <div class="diff-item">
           <div class="diff-icon"><span class="pg-ico" data-icon="lock" data-size="28"></span></div>
           <h4>Encrypted by default</h4>
-          <p>DMs use ECDH + AES-256-GCM end-to-end encryption. The server never sees plaintext. No IP logging, no analytics, no tracking.</p>
+          <p>Private messages are scrambled on your device before they leave. The server never sees what you said. No ads, no tracking, no IP logs.</p>
         </div>
         <div class="diff-item">
           <div class="diff-icon"><span class="pg-ico" data-icon="globe" data-size="28"></span></div>
-          <h4>Federated</h4>
-          <p>Run your own server. Profiles replicate across the network. Your identity works everywhere. No central authority controls access.</p>
+          <h4>No central owner</h4>
+          <p>Anyone can run a server. They all talk to each other. If one goes down, the network keeps working.</p>
         </div>
         <div class="diff-item">
           <div class="diff-icon"><span class="pg-ico" data-icon="save" data-size="28"></span></div>
-          <h4>Local-first</h4>
-          <p>Works 100% offline from first launch. The desktop app bundles everything locally. Background sync pulls updates when connected.</p>
+          <h4>Works offline</h4>
+          <p>The desktop app keeps running without internet. Catches up when you reconnect.</p>
         </div>
         <div class="diff-item">
           <div class="diff-icon"><span class="pg-ico" data-icon="games" data-size="28"></span></div>
-          <h4>3D game engine</h4>
-          <p>Rust/wgpu renderer with planets, voxel asteroids, physics, farming, crafting, quests, and a day/night cycle. All game data is in external files, fully moddable.</p>
+          <h4>A 3D world, built in</h4>
+          <p>A simulated universe for learning, playing, and prototyping: planets, farming, crafting, construction. Early, but already renders and runs.</p>
         </div>
         <div class="diff-item">
           <div class="diff-icon"><span class="pg-ico" data-icon="dev" data-size="28"></span></div>
-          <h4>Public domain (CC0)</h4>
-          <p>The entire codebase, all assets, all game data. No permission needed, no attribution required. This belongs to everyone, forever.</p>
+          <h4>Public domain</h4>
+          <p>No license fee, no attribution required, no permission to ask. Copy it, sell it, teach from it. It belongs to everyone.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Plain English ── -->
+  <section id="plain-english">
+    <div class="container">
+      <div class="section-label">Still following?</div>
+      <h2>Still not sure what this is?</h2>
+      <div class="plain-english">
+        <p>Think of it as Discord, Slack, Trello, Etsy, and a Google-Docs-style offline notebook, rolled into one app, with a video-game world attached. No company owns any of it. You run it from your phone, laptop, or your own server. Your name and your wallet are the same thing: one key on your device.</p>
+        <p>The mission is simple. Poverty is mostly a shortage of tools, knowledge, and trusted community. So we are building those, for free, forever.</p>
       </div>
     </div>
   </section>
@@ -454,12 +557,62 @@
     <div class="container">
       <div class="section-label">The Mission</div>
       <h2>Poverty is lack of capability</h2>
-      <p>Not just lack of money. People trapped in systems they can't understand, knowledge they can't access, skills they never learned.</p>
-      <p>In 2017, Michael Boisson nearly died. That experience stripped away the noise and left one clear answer: help people become capable of helping themselves. Education is the foundation. Tools are the path. Community is the engine.</p>
-      <p>Everything here is public domain, CC0. No permission needed. This belongs to everyone.</p>
+      <p>Not just lack of money. People trapped in systems they can't understand, knowledge they can't reach, skills they never had a chance to learn.</p>
+      <p>In 2017, Michael Boisson nearly died. That experience stripped away the noise and left one answer: help people become capable of helping themselves. Education is the foundation. Tools are the path. Community is the engine.</p>
+      <p>Everything here is public domain. No permission needed. This belongs to everyone.</p>
       <p style="margin-top: 24px;">
         <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md" class="btn btn-secondary" target="_blank" rel="noopener">Read the Humanity Accord</a>
       </p>
+    </div>
+  </section>
+
+  <!-- ── What works, what's early ── -->
+  <section id="status">
+    <div class="container">
+      <div class="section-label">Honest Status</div>
+      <h2>What works, what's still early</h2>
+      <div class="status-split">
+        <div class="status-col works">
+          <h4><span class="pulse" aria-hidden="true"></span> Working well today</h4>
+          <ul>
+            <li>Chat, voice, video, screen share</li>
+            <li>Tasks, calendar, notes, dashboard, skills</li>
+            <li>Marketplace and wallet</li>
+            <li>Desktop app, offline mode</li>
+            <li>Federated servers</li>
+          </ul>
+        </div>
+        <div class="status-col early">
+          <h4>Still cooking</h4>
+          <ul>
+            <li>3D multiplayer world (renders planets, no persistence yet)</li>
+            <li>Native mobile app (the web version works on phones)</li>
+            <li>Map rework</li>
+            <li>Construction and building inside the 3D world</li>
+          </ul>
+        </div>
+      </div>
+      <p class="status-footer">We would rather tell you what's half-built than pretend it's finished.</p>
+    </div>
+  </section>
+
+  <!-- ── For Developers (jargon quarantine) ── -->
+  <section id="dev">
+    <div class="container">
+      <div class="section-label">For Developers</div>
+      <h2>The technical stack</h2>
+      <div class="dev-spec">
+        <strong>Server:</strong> Rust / axum / tokio relay. SQLite storage. Federated server-to-server WebSocket relay.<br>
+        <strong>Identity:</strong> Ed25519 self-custody keys double as Solana wallet addresses. BIP39 seed backup and key rotation.<br>
+        <strong>Crypto:</strong> ECDH + AES-256-GCM for E2E DMs. WebRTC voice and video.<br>
+        <strong>Client:</strong> Plain JS frontend, no build step. Native desktop app with wgpu + WGSL 3D renderer.<br>
+        <strong>License:</strong> CC0 public domain, every commit on GitHub.
+      </div>
+      <div class="dev-cta">
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md" class="btn btn-secondary" target="_blank" rel="noopener">Onboarding Guide</a>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md" class="btn btn-secondary" target="_blank" rel="noopener">Self-Hosting Guide</a>
+        <a href="https://github.com/Shaostoul/Humanity" class="btn btn-secondary" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="18"></span> GitHub</a>
+      </div>
     </div>
   </section>
 
@@ -470,27 +623,27 @@
       <h2>This is a community project</h2>
       <p>Writers, designers, developers, educators, translators, or just someone who cares. There's a place for you here. The easiest way to start is to show up in the chat and ask what needs doing.</p>
 
-      <div class="involve-grid" style="margin-top: 28px;">
-        <a href="/chat" class="involve-item"><span>💬</span> HumanityOS Chat</a>
-        <a href="https://discord.gg/9XxmmeQnWC" class="involve-item" target="_blank" rel="noopener"><span>💜</span> Discord</a>
-        <a href="https://github.com/Shaostoul/Humanity" class="involve-item" target="_blank" rel="noopener"><span>📦</span> GitHub</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/ONBOARDING.md" class="involve-item" target="_blank" rel="noopener"><span>📖</span> Onboarding Guide</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/CONTRIBUTING.md" class="involve-item" target="_blank" rel="noopener"><span>🔧</span> Contributing</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/SELF-HOSTING.md" class="involve-item" target="_blank" rel="noopener"><span>🖥</span> Self-Hosting</a>
+      <div class="involve-grid">
+        <a href="/chat" class="involve-item"><span class="ii-ico"><span class="pg-ico" data-icon="chat" data-size="18"></span></span> HumanityOS Chat</a>
+        <a href="https://discord.gg/9XxmmeQnWC" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="chat" data-size="18"></span></span> Discord</a>
+        <a href="https://github.com/Shaostoul/Humanity" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="github" data-size="18"></span></span> GitHub</a>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="codex" data-size="18"></span></span> Onboarding Guide</a>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/CONTRIBUTING.md" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="dev" data-size="18"></span></span> Contributing</a>
+        <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="ops" data-size="18"></span></span> Self-Hosting</a>
       </div>
 
-      <h3 style="margin-top: 40px; margin-bottom: 12px; font-size: 1rem; color: var(--text-muted);">Follow Michael (project lead)</h3>
-      <div class="involve-grid">
-        <a href="https://youtube.com/@Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🎥</span> YouTube</a>
-        <a href="https://twitch.tv/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>📺</span> Twitch</a>
-        <a href="https://x.com/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>𝕏</span> X / Twitter</a>
-        <a href="https://bsky.app/profile/shaostoul.bsky.social" class="involve-item" target="_blank" rel="noopener"><span>🔵</span> Bluesky</a>
-        <a href="https://reddit.com/user/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🟠</span> Reddit</a>
-        <a href="https://instagram.com/shaostoul" class="involve-item" target="_blank" rel="noopener"><span>📷</span> Instagram</a>
-        <a href="https://rumble.com/user/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🟢</span> Rumble</a>
-        <a href="https://www.facebook.com/2571477392923654" class="involve-item" target="_blank" rel="noopener"><span>👤</span> Facebook</a>
-        <a href="https://steamcommunity.com/id/Shaostoul" class="involve-item" target="_blank" rel="noopener"><span>🎮</span> Steam</a>
-        <a href="https://shaostoul.itch.io" class="involve-item" target="_blank" rel="noopener"><span>🕹️</span> itch.io</a>
+      <div class="follow-line">
+        <strong>Follow Michael (project lead):</strong>
+        <a href="https://youtube.com/@Shaostoul" target="_blank" rel="noopener">YouTube</a>
+        <a href="https://twitch.tv/Shaostoul" target="_blank" rel="noopener">Twitch</a>
+        <a href="https://x.com/Shaostoul" target="_blank" rel="noopener">X</a>
+        <a href="https://bsky.app/profile/shaostoul.bsky.social" target="_blank" rel="noopener">Bluesky</a>
+        <a href="https://reddit.com/user/Shaostoul" target="_blank" rel="noopener">Reddit</a>
+        <a href="https://instagram.com/shaostoul" target="_blank" rel="noopener">Instagram</a>
+        <a href="https://rumble.com/user/Shaostoul" target="_blank" rel="noopener">Rumble</a>
+        <a href="https://www.facebook.com/2571477392923654" target="_blank" rel="noopener">Facebook</a>
+        <a href="https://steamcommunity.com/id/Shaostoul" target="_blank" rel="noopener">Steam</a>
+        <a href="https://shaostoul.itch.io" target="_blank" rel="noopener">itch.io</a>
       </div>
     </div>
   </section>
@@ -507,6 +660,7 @@
       </div>
     </div>
   </section>
+
   <script>
   document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
     if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
