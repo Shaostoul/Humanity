@@ -87,6 +87,9 @@ pub enum GuiPage {
     Donate,
     Tools,
     Studio,
+    /// First-run orientation plus permanent reference page.
+    /// Mirrors the web `/onboarding` page.
+    Onboarding,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.
@@ -734,6 +737,18 @@ pub struct GuiState {
     // ── Tools catalog (loaded from data/tools/catalog.json) ──
     pub tools_catalog: Vec<ToolEntry>,
 
+    // ── Universal help modal (loaded from data/help/topics.json) ──
+    /// Registry of help topics. Populated at startup from data/help/topics.json.
+    pub help_registry: crate::gui::widgets::help_modal::HelpRegistry,
+    /// ID of the currently-open help topic, if any. Setting this opens the help modal.
+    pub active_help_topic: Option<String>,
+
+    // ── Onboarding quest chains (loaded from data/onboarding/quests.json) ──
+    /// Quest chains displayed on the Onboarding page.
+    pub onboarding_quest_chains: Vec<crate::gui::pages::onboarding::QuestChain>,
+    /// Map of "chain_id:step_id" -> done?. Persisted via AppConfig for local progress.
+    pub onboarding_quest_progress: std::collections::HashMap<String, bool>,
+
     // ── Studio state ──
     pub studio: StudioState,
 
@@ -975,6 +990,10 @@ impl Default for GuiState {
             debug_console_visible: false,
             debug_log: Vec::new(),
             tools_catalog: Vec::new(),
+            help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
+            active_help_topic: None,
+            onboarding_quest_chains: Vec::new(),
+            onboarding_quest_progress: std::collections::HashMap::new(),
             studio: StudioState::default(),
 
             // Chat panel collapse state (all expanded by default except connection)

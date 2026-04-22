@@ -10,8 +10,22 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 > 2. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
 > 3. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
 > 4. Read `docs/SOP.md` for version sync, deploy, and development procedures
-> 5. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
-> 6. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo the work against the real `src/` tree.
+> 5. Read `docs/design/ui-system.md` before touching any widget, page, or visual code
+> 6. Read `docs/design/infinite-of-x.md` before writing any list-shaped literal in code
+> 7. Before proposing ANY new feature, check FEATURES.md first. If it's listed, enhance it instead.
+> 8. If agents report editing files under `native/src/`, `server/src/`, or `crates/`, those paths don't exist anymore. Run `just clean-worktrees` and redo the work against the real `src/` tree.
+
+## Non-negotiable design rules
+
+**Rust-first canonical UI.** Any new UI pattern must be implementable in native egui first. Web (HTML/CSS) mirrors it. Not the other way around. See `docs/design/ui-system.md`.
+
+**One theme source.** Design tokens (colors, spacing, radii, fonts) live in `data/gui/theme.ron`. Native reads it directly. Web's `theme.css` is regenerated from it by `node scripts/gen-theme-css.js`. Do not hand-edit color values in `theme.css` — edit the RON and regenerate.
+
+**Infinite-of-X.** Anything that can exist more than once is a data file, not code. No hardcoded arrays of domain objects. No `vec![Thing::a(), Thing::b(), Thing::c()]`. See `docs/design/infinite-of-x.md` for the checklist every new feature must pass.
+
+**Dual-UI parity.** When a web feature adds a UI pattern (modal, nav element, widget, page), ask: does native need the same? If yes, port before shipping. If no, document why in the design doc. Do not let web and native silently drift.
+
+**Universal widgets.** New widgets go in `src/gui/widgets/` (native) AND get a matching CSS class / shared JS component (web). Both must consume theme tokens, not literals, so the Settings page theme can restyle them.
 
 ## AI Participation
 

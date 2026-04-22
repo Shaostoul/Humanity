@@ -2,47 +2,92 @@
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 /* CSS Variables */
+/* =========================================================================
+ * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
+ * Regenerate with: node scripts/gen-theme-css.js
+ * ========================================================================= */
 :root {
-  --bg: #0d0d0d;
-  --bg-secondary: #1a1a1a;
-  --bg-card: #161616;
-  --bg-card-hover: #1c1c1c;
-  --bg-input: #222;
-  --bg-hover: #252525;
-  --text: #e0e0e0;
-  --text-muted: #888;
-  --accent: #FF8811;
-  --accent-hover: #e07020;
-  --accent-dim: rgba(255,136,17,0.15);
-  --border: #333;
-  --success: #4a9;
-  --danger: #c44;
-  --warning: #ca3;
-  --radius-sm: 4px;
-  --radius: 8px;
-  --radius-lg: 12px;
-  --font-size-base: 16px;
-  --icon-size: 20px;
-  --icon-weight: 3;
-  --content-width: none;
-  --line-height: 1.6;
-  /* Spacing scale */
-  --space-xs: 0.15rem;
-  --space-sm: 0.3rem;
+  /* Backgrounds */
+  --bg: #0a0a0c;
+  --bg-secondary: #141418;
+  --bg-tertiary: #252530;
+  --bg-card: #1a1a22;
+  --bg-card-hover: #252530;
+  --bg-input: #252530;
+  --bg-hover: #252530;
+  --bg-modal: rgba(0, 0, 0, 0.7);
+  --bg-panel: #141419;
+  --bg-sidebar: #16161c;
+  --bg-sidebar-dark: #1e1e24;
+
+  /* Text */
+  --text: #e8e8ea;
+  --text-secondary: #888894;
+  --text-muted: #6a6a75;
+  --text-on-accent: #0d0d0d;
+
+  /* Accent */
+  --accent: #ed8c24;
+  --accent-hover: #ffa63d;
+  --accent-pressed: #cc731a;
+  --accent-dim: rgba(237, 140, 36, 0.15);
+
+  /* Semantic */
+  --success: #33bf4d;
+  --warning: #f2bf1a;
+  --danger: #e64033;
+  --info: #3380e6;
+  --border: #2a2a35;
+  --border-focus: #ed8c24;
+
+  /* Badges */
+  --badge-admin: #e68021;
+  --badge-mod: #26ad61;
+  --badge-verified: #3394d9;
+  --badge-donor: #9c59b5;
+  --badge-live: #e64d3d;
+
+  /* Radii */
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 8px;
+  --badge-radius: 3px;
+
+  /* Spacing (derived from native tokens via x/16 rem conversion) */
+  --space-xs: 0.125rem;
+  --space-sm: 0.25rem;
   --space-md: 0.5rem;
   --space-lg: 0.75rem;
   --space-xl: 1rem;
   --space-2xl: 1.5rem;
   --space-3xl: 2rem;
-  /* Font size scale */
-  --text-xs: 0.65rem;
-  --text-sm: 0.78rem;
-  --text-base: 0.88rem;
-  --text-lg: 1rem;
-  --text-xl: 1.15rem;
-  --text-2xl: 1.4rem;
-  --text-3xl: 1.8rem;
+
+  /* Typography */
+  --text-xs: 0.625rem;
+  --text-sm: 0.6875rem;
+  --text-base: 0.8125rem;
+  --text-lg: 0.9375rem;
+  --text-xl: 1rem;
+  --text-2xl: 1.125rem;
+  --text-3xl: 1.375rem;
+  --font-size-base: 0.8125rem;
+  --line-height: 1.6;
+
+  /* Icons */
+  --icon-size: 14px;
+  --icon-small: 12px;
+  --icon-weight: 3;
+
+  /* Widget sizing */
+  --button-height: 24px;
+  --input-height: 24px;
+  --sidebar-width: 240px;
+  --modal-width: 440px;
+  --row-height: 18px;
+  --header-height: 24px;
+  --content-width: none;
 }
+/* ======================== END AUTO-GENERATED ======================== */
 
 /* ── Light theme — toggled by adding data-theme="light" to <html> ── */
 [data-theme="light"] {

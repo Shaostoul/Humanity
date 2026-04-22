@@ -8,6 +8,7 @@ pub mod item_list;
 pub mod stat_display;
 pub mod modal;
 pub mod toolbar;
+pub mod help_modal;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

@@ -91,14 +91,28 @@
     register: function(id, title, content) { helpRegistry[id] = { title: title, content: content }; },
     show: showHelp
   };
-  // Built-in help topic for the Real/Sim toggle
-  window.hosHelp.register('real-sim',
-    'Real mode vs. Sim mode',
-    '<p>HumanityOS has two contexts that swap which data your pages show.</p>' +
-    '<p><strong>Real</strong> is for your actual life. Task boards hold real projects, the marketplace shows real listings, inventory is what you actually own, maps show the real world around you.</p>' +
-    '<p><strong>Sim</strong> is for the simulation. Same pages, same tools, but the data comes from the game world. Practice farming, building, crafting, and trading before the stakes are real.</p>' +
-    '<p>The same habits and skills apply to both. Flip the toggle any time. Your identity and wallet stay the same.</p>'
-  );
+  // Load help topics from data/help/topics.json (shared with native app).
+  // This is the canonical source so both UIs show the same help content.
+  (function loadHelpTopics() {
+    fetch('/data/help/topics.json', { cache: 'no-cache' })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+      .then(function (data) {
+        if (!data || !data.topics) return;
+        Object.keys(data.topics).forEach(function (id) {
+          var entry = data.topics[id];
+          var html = (entry.body || [])
+            .map(function (p) { return '<p>' + p + '</p>'; })
+            .join('');
+          window.hosHelp.register(id, entry.title || id, html);
+        });
+      })
+      .catch(function (err) {
+        console.warn('[HOS] Could not load help topics:', err);
+        // Fallback: register a minimal real-sim topic so the ? icon still works.
+        window.hosHelp.register('real-sim', 'Real mode vs. Sim mode',
+          '<p>Real mode uses real-life data. Sim mode uses game-world data. Same tools, different context.</p>');
+      });
+  })();
 
   // ── Load shared icon system ──
   if (!window.hosIcon) {
@@ -1227,7 +1241,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.91.4';
+    var CURRENT_VERSION = '0.92.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

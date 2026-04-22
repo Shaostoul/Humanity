@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "description": "Help topics consumed by both the web (window.hosHelp) and native (HelpRegistry) UIs. Each topic has a title and a body (array of paragraphs). HTML tags in body are allowed on web; native strips them. Adding a new topic here makes it available in both UIs next time they load.",
+  "topics": {
+    "real-sim": {
+      "title": "Real mode vs. Sim mode",
+      "body": [
+        "HumanityOS has two contexts that swap which data your pages show.",
+        "<strong>Real</strong> is for your actual life. Task boards hold real projects, the marketplace shows real listings, inventory is what you actually own, maps show the real world around you.",
+        "<strong>Sim</strong> is for the simulation. Same pages, same tools, but the data comes from the game world. Practice farming, building, crafting, and trading before the stakes are real.",
+        "The same habits and skills apply to both. Flip the toggle any time. Your identity and wallet stay the same."
+      ]
+    },
+    "identity": {
+      "title": "Your identity",
+      "body": [
+        "Your identity on HumanityOS is a cryptographic keypair generated on your device the first time you open the chat. No username, no password, no account form.",
+        "The key is <strong>self-custody</strong>: only you have it. Losing it means losing access, so back it up with the 24-word seed phrase in Settings.",
+        "The same key is also your wallet address, so your identity and your money are one and the same.",
+        "You can move between servers, reinstall the app, or switch devices: enter your seed phrase and you are yourself again."
+      ]
+    },
+    "wallet": {
+      "title": "The wallet",
+      "body": [
+        "Your cryptographic key is also a Solana wallet address. You do not set one up separately.",
+        "From the Wallet page you can check your balance, send and receive payments, stake, see token swaps, and view transaction history.",
+        "Because the wallet is embedded in your identity, tipping or paying a user is as simple as knowing their name on the network.",
+        "You are responsible for your keys. Back up your seed phrase. Funds sent to a forgotten address are not recoverable."
+      ]
+    },
+    "federation": {
+      "title": "Federated servers",
+      "body": [
+        "HumanityOS is <strong>federated</strong>, meaning there is no single central server. Anyone can run their own, and they talk to each other over a shared protocol.",
+        "If one server goes down, the rest of the network keeps working. If a server refuses to carry your voice, you can move to another or start your own.",
+        "Your identity works on every server in the network. Your profile replicates so people can recognise you even if they have never shared a server with you before.",
+        "To run your own: the desktop app ships with a headless mode that works as a full server. See the self-hosting guide in the docs."
+      ]
+    },
+    "humanity-accord": {
+      "title": "The Humanity Accord",
+      "body": [
+        "The Humanity Accord is the philosophical foundation of the project: a short, plain-language statement of the values the platform is built around.",
+        "Core ideas: individual dignity, universal accountability, transparency, AI as participant rather than tool, and a commitment to ending poverty through capability rather than charity.",
+        "Every user of the platform, human or AI, is expected to act in the spirit of the Accord. It is not a legal document and has no enforcement arm other than community judgement.",
+        "Read the full text in the docs. It is worth fifteen minutes."
+      ]
+    },
+    "chat-context-menu": {
+      "title": "Right-click menu",
+      "body": [
+        "Right-click on a message or a user to see what you can do.",
+        "<strong>User actions (red)</strong> are available to everyone: copy message text, reply, quote, view profile, start a DM.",
+        "<strong>Moderator actions (green)</strong> are available if you have mod role on the current channel: delete message, mute user, pin, timeout.",
+        "<strong>Admin actions (blue)</strong> are available if you are a server admin: ban, remove from server, view audit trail.",
+        "You only see the sections your role grants. Roles are per-server: you may be an admin on one and a regular user on another."
+      ]
+    },
+    "seed-phrase": {
+      "title": "Seed phrase backup",
+      "body": [
+        "Your seed phrase is 24 words generated from your private key using the BIP39 standard.",
+        "Write it down on paper. Do not photograph it. Do not save it to cloud storage without encryption. Do not type it into a browser tab you did not open yourself.",
+        "Anyone with your seed phrase can act as you, spend your tokens, and read your DMs. Treat it with that much care.",
+        "If you lose access to this device, enter the seed phrase on a new install to recover your full identity, including message history backup if you had sync enabled."
+      ]
+    },
+    "onboarding": {
+      "title": "Getting started",
+      "body": [
+        "New to HumanityOS? The <strong>Onboarding</strong> page walks through the four core concepts (identity, wallet, Real/Sim, federation), points to each major feature, and has quest chains you can tick off as you go.",
+        "You can reach it any time from the landing page, or by opening the /onboarding link directly.",
+        "Your progress is saved in this browser. Reset it from the Onboarding page if you want a fresh pass."
+      ]
+    }
+  }
+}

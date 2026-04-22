@@ -6,7 +6,7 @@
 //! - Blue group: system/config pages
 //! Plus a Real/Sim toggle on the right.
 
-use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Stroke, Vec2};
+use egui::{Align, Color32, Frame, Layout, RichText, Rounding, Sense, Stroke, Vec2};
 use crate::gui::{GuiPage, GuiState, VERSION};
 
 // Color constants matching web theme.css
@@ -80,15 +80,43 @@ pub fn draw_nav_bar(ctx: &egui::Context, state: &mut GuiState) {
 
                 // Blue group: system
                 let blue_items = [
+                    NavItem { label: "Onboarding", page: GuiPage::Onboarding },
                     NavItem { label: "Settings", page: GuiPage::Settings },
                     NavItem { label: "Tools", page: GuiPage::Tools },
                     NavItem { label: "Bugs", page: GuiPage::BugReport },
                 ];
                 nav_group(ui, &blue_items, BLUE, state);
 
-                // Push Real/Sim toggle to the right
+                // Push Real/Sim toggle to the right.
+                // Render order in right_to_left: first = rightmost. So:
+                //   help_btn → sim → real  ⇒  visual order: [Real][Sim][?]
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 0.0;
+
+                    // Help "?" button for the Real/Sim toggle
+                    ui.add_space(4.0);
+                    let help_size = Vec2::new(18.0, 18.0);
+                    let (help_rect, help_resp) = ui.allocate_exact_size(help_size, Sense::click());
+                    if ui.is_rect_visible(help_rect) {
+                        let (stroke_color, text_color) = if help_resp.hovered() {
+                            (ACCENT, ACCENT)
+                        } else {
+                            (Color32::from_rgb(0x2a, 0x2a, 0x35), TEXT_MUTED)
+                        };
+                        let painter = ui.painter();
+                        painter.circle_stroke(help_rect.center(), 8.0, Stroke::new(1.0, stroke_color));
+                        painter.text(
+                            help_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "?",
+                            egui::FontId::proportional(10.0),
+                            text_color,
+                        );
+                    }
+                    if help_resp.clicked() {
+                        state.active_help_topic = Some("real-sim".to_string());
+                    }
+                    ui.add_space(4.0);
 
                     let sim_active = !state.context_real;
                     let real_active = state.context_real;

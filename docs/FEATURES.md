@@ -821,3 +821,40 @@ Platform detection icons (Steam, Epic, GOG, PlayStation, Xbox) as inline SVGs.
 - Assets: `assets/icons/platforms/`
 
 ### Total: 108 data files, ~3000+ entries (v0.90.8)
+
+---
+
+## UI Foundation (v0.92.0)
+
+### Design System Spec
+Canonical reference for tokens, components, and dual-UI parity rules. Must be read before any widget or page work.
+- Docs: `docs/design/ui-system.md`
+
+### Infinite-of-X Principle
+Enforced rule: anything that can exist more than once is a data file, not code. Includes a pre-ship checklist and current audit of hardcoded instances.
+- Docs: `docs/design/infinite-of-x.md`
+
+### Theme Token Pipeline
+Single source of truth for colors, spacing, radii, fonts. Native reads `data/gui/theme.ron` directly. Web's `theme.css` is regenerated from the same file by a Node script. Editing the RON updates both UIs after running the generator.
+- Data: `data/gui/theme.ron`
+- Native: `src/gui/theme.rs`
+- Web: `web/shared/theme.css` (auto-generated section marked with comments)
+- Script: `scripts/gen-theme-css.js`
+
+### Universal Help Modal
+`data/help/topics.json` is shared between web and native. Both UIs load it on startup and show the same help content. Help buttons (`?`) anywhere in the UI open a themed modal with the topic body.
+- Data: `data/help/topics.json`
+- Native: `src/gui/widgets/help_modal.rs` (help_button + draw fn + HelpRegistry loader)
+- Web: `window.hosHelp.register/show` in `web/shared/shell.js`, plus `[data-help-id]` attribute on any button
+
+### Real/Sim Help Icon
+Built-in help topic `real-sim` explains the context toggle. Rendered as a `?` next to the Real/Sim pill in both the native nav bar and the web hub nav.
+- Native: `src/gui/pages/escape_menu.rs`
+- Web: `web/shared/shell.js` (buildContextToggle)
+
+### Onboarding Page (dual UI)
+First-run orientation plus permanent reference. Four core concepts, core-pages overview, data-driven quest chains. Progress tracked locally per step.
+- Data: `data/onboarding/quests.json` (three chains, 14 steps)
+- Native: `src/gui/pages/onboarding.rs`, `GuiPage::Onboarding` enum variant
+- Web: `web/pages/onboarding.html`
+- Route: `/onboarding` (web), "Onboarding" nav tab (native)

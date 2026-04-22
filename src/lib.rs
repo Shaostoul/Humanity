@@ -60,7 +60,9 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
+        onboarding,
     };
+    use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
     use crate::hot_reload::data_store::DataStore;
     use crate::input::InputState;
@@ -579,6 +581,8 @@ mod native_app {
 
             // Load data-driven catalogs into GUI state
             gui_state.tools_catalog = crate::gui::load_tools_catalog(&data_dir);
+            gui_state.help_registry = help_modal::load_help_registry(&data_dir);
+            gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
 
             // Load persistent config and apply to GUI state
             let config = crate::config::AppConfig::load();
@@ -1906,8 +1910,18 @@ mod native_app {
                                     GuiPage::Donate => donate::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Onboarding => onboarding::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::None => {}
                                 }
+
+                                // Universal help modal overlay — draws on top of any page
+                                // when state.gui_state.active_help_topic is Some.
+                                help_modal::draw(
+                                    ctx,
+                                    &state.theme,
+                                    &state.gui_state.help_registry,
+                                    &mut state.gui_state.active_help_topic,
+                                );
 
                                 // Always draw HUD when in-game
                                 if state.gui_state.active_page == GuiPage::None && state.gui_state.show_hud {
