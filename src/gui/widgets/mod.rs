@@ -9,6 +9,8 @@ pub mod stat_display;
 pub mod modal;
 pub mod toolbar;
 pub mod help_modal;
+pub mod image_cache;
+pub mod image_cache_view;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

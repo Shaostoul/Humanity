@@ -405,6 +405,26 @@ mod native_app {
             geo_radius * lat_rad.cos() * lon_rad.sin(),
         );
 
+        // ── Sun setup ──
+        // Sun world position: 1 AU from Earth, placed along the existing
+        // shader sun_direction vector so the visible Sun disc matches where
+        // the world is being lit from. sun_direction uniform is
+        // [0.3, 1.0, 0.5] (see renderer/mod.rs:205) — the Sun sits along
+        // that ray at 1 AU (149.6 million km).
+        let sun_dir = glam::DVec3::new(0.3, 1.0, 0.5).normalize();
+        const ONE_AU_M: f64 = 149_597_870_700.0;
+        state.sun_world_pos = sun_dir * ONE_AU_M;
+        // Emissive yellow-white material so the Sun glows through tone
+        // mapping regardless of ambient light. params.w (emissive) = 5.0
+        // produces a convincingly bright disc.
+        state.sun_material = state.renderer.add_material_full(
+            [1.0, 0.95, 0.8, 1.0],
+            0.0,
+            1.0,
+            0.0,
+            5.0,
+        );
+
         // ── Load CSV game data ──
         #[derive(Debug, serde::Deserialize)]
         #[allow(dead_code)]
@@ -449,6 +469,10 @@ mod native_app {
         planet: Option<PlanetRenderer>,
         planet_mesh: Option<usize>,
         planet_material: usize,
+        /// World-space position of the Sun (Earth-centred coordinates).
+        sun_world_pos: glam::DVec3,
+        /// Emissive material index for the Sun.
+        sun_material: usize,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Homestead walls mesh + material.
@@ -624,6 +648,8 @@ mod native_app {
                 planet: None,
                 planet_mesh: None,
                 planet_material: 0,
+                sun_world_pos: glam::DVec3::ZERO,
+                sun_material: 0,
                 homestead_floors: Vec::new(),
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
@@ -923,6 +949,26 @@ mod native_app {
                             scale: Vec3::splat(scale),
                             mesh: mesh_idx,
                             material: state.planet_material,
+                        });
+
+                        // Render the Sun as a second body using the same
+                        // unit icosphere mesh. Sun's radius (6.957e8 m)
+                        // vastly exceeds Earth's (6.371e6 m). We scale
+                        // accordingly. Position is sun_world_pos offset
+                        // from the ship so parallax feels right.
+                        let sun_offset = state.sun_world_pos - state.ship_world_pos;
+                        let sun_render_pos = Vec3::new(
+                            sun_offset.x as f32,
+                            sun_offset.y as f32,
+                            sun_offset.z as f32,
+                        );
+                        let sun_radius_m = 695_700_000.0_f32;
+                        all_objects.push(RenderObject {
+                            position: sun_render_pos,
+                            rotation: Quat::IDENTITY,
+                            scale: Vec3::splat(sun_radius_m),
+                            mesh: mesh_idx,
+                            material: state.sun_material,
                         });
                     }
 
@@ -1377,7 +1423,10 @@ mod native_app {
                                                         description: String::new(),
                                                         category: "Text".to_string(),
                                                         voice_joined: false,
-                                                        voice_enabled: false,
+                                                        // Group channels are voice-capable by default,
+                                                        // matching server channels. Actual voice routing
+                                                        // still needs server multi-channel support.
+                                                        voice_enabled: true,
                                                     }],
                                                     collapsed: false,
                                                 });
@@ -1926,6 +1975,9 @@ mod native_app {
                                     GuiPage::None => {}
                                 }
 
+                                // Drain any freshly-decoded chat images into egui textures.
+                                state.gui_state.image_cache.poll(ctx);
+
                                 // Universal help modal overlay — draws on top of any page
                                 // when state.gui_state.active_help_topic is Some.
                                 help_modal::draw(
@@ -1933,6 +1985,13 @@ mod native_app {
                                     &state.theme,
                                     &state.gui_state.help_registry,
                                     &mut state.gui_state.active_help_topic,
+                                );
+
+                                // Full-screen image viewer when a chat image was clicked.
+                                crate::gui::widgets::image_cache_view::draw(
+                                    ctx,
+                                    &state.theme,
+                                    &mut state.gui_state,
                                 );
 
                                 // Always draw HUD when in-game

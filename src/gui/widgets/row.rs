@@ -130,12 +130,12 @@ pub fn message_row(
     let galley = painter.layout_job(job);
     let text_h = galley.size().y;
 
-    // Row height: at least the userbox, but grow for long wrapped text.
-    let row_h = if show_header {
-        USERBOX_SIZE.max(text_h + 2.0)
-    } else {
-        text_h + 2.0
-    };
+    // Row height = exactly what the text needs, with a tiny padding. We do NOT
+    // force a minimum row height based on USERBOX_SIZE any more — that was
+    // producing 14 px of dead space under single-line first messages, which
+    // read as an unwanted line break between the first message of a sender
+    // block and their continuations. The userbox now adapts to the row.
+    let row_h = (text_h + 2.0).max(16.0);
 
     let (full_rect, response) =
         ui.allocate_exact_size(Vec2::new(full_width, row_h), Sense::click());
@@ -159,10 +159,12 @@ pub fn message_row(
     let mut userbox_hit = Rect::NOTHING;
 
     if show_header {
-        // ── Userbox (fixed 32 px square) on the top-left ──
+        // Userbox width is fixed (USERBOX_SIZE = 32) so message indents align
+        // across all senders. Height matches the row exactly so there is no
+        // dead space under short single-line messages.
         userbox_hit = Rect::from_min_size(
             egui::pos2(hx, hy),
-            Vec2::new(USERBOX_SIZE, USERBOX_SIZE),
+            Vec2::new(USERBOX_SIZE, row_h),
         );
 
         let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
@@ -184,14 +186,18 @@ pub fn message_row(
             StrokeKind::Inside,
         );
 
-        // Filled circle with the sender's first letter.
-        let icon_r = USERBOX_SIZE * 0.35;
-        painter.circle_filled(userbox_hit.center(), icon_r, icon_color);
+        // Filled circle with the sender's first letter. Icon sizes to fit
+        // the row so short rows get a proportionally smaller icon, taller
+        // rows keep a readable icon at the top.
+        let icon_r = (row_h * 0.38).clamp(6.0, USERBOX_SIZE * 0.38);
+        let icon_y = (hy + (USERBOX_SIZE / 2.0).min(row_h / 2.0)).max(hy + icon_r + 1.0);
+        let icon_center = egui::pos2(userbox_hit.center().x, icon_y);
+        painter.circle_filled(icon_center, icon_r, icon_color);
         painter.text(
-            userbox_hit.center(),
+            icon_center,
             egui::Align2::CENTER_CENTER,
             &icon_letter.to_uppercase().to_string(),
-            egui::FontId::proportional(side_font),
+            egui::FontId::proportional(side_font.min(row_h - 4.0)),
             Color32::WHITE,
         );
 

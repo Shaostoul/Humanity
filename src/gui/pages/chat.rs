@@ -626,8 +626,10 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                     });
 
-                    // Channel rows (only when expanded)
+                    // Channel rows (only when expanded). Same layout as server
+                    // channels: voice-mic icon, settings cog, then the # name.
                     if !group.collapsed {
+                        let is_group_admin = true; // TODO: per-group role once server reports it
                         for ch in group.channels.iter() {
                             let is_active = state.chat_active_channel == ch.id;
                             let accent = Color32::from_rgb(80, 200, 80);
@@ -642,6 +644,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 egui::Sense::click(),
                             );
 
+                            let mut voice_icon_rect = egui::Rect::NOTHING;
+                            let mut gear_icon_rect = egui::Rect::NOTHING;
+
                             if ui.is_rect_visible(row_rect) {
                                 let hover = response.hovered();
                                 let fill = if hover && !is_active { theme.group_row_hover() } else { base_bg };
@@ -650,9 +655,50 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     let bar = egui::Rect::from_min_size(row_rect.min, Vec2::new(3.0, row_rect.height()));
                                     ui.painter().rect_filled(bar, 0.0, accent);
                                 }
+
                                 let text_color = if is_active { theme.text_primary() } else { theme.text_secondary() };
+                                let icon_size = 12.0;
+                                let cy = row_rect.center().y;
+                                let mut cx = row_rect.left() + theme.item_padding + 2.0;
+                                let hover_pos = ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default());
+
+                                // 1. Voice icon
+                                if ch.voice_enabled {
+                                    let icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
+                                    voice_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
+                                    if ch.voice_joined {
+                                        crate::gui::widgets::icons::paint_speaker(ui.painter(), icon_rect, theme.success());
+                                    } else {
+                                        let on_voice = response.hovered() && voice_icon_rect.contains(hover_pos);
+                                        let mic_color = if on_voice { Color32::WHITE } else { Color32::from_rgb(100, 100, 110) };
+                                        crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
+                                    }
+                                    cx += icon_size + 2.0;
+                                }
+
+                                // 2. Cog icon (admin only)
+                                if is_group_admin {
+                                    let cog_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - icon_size * 0.5), Vec2::splat(icon_size));
+                                    gear_icon_rect = egui::Rect::from_min_size(egui::pos2(cx - 2.0, row_rect.top()), Vec2::new(icon_size + 4.0, row_rect.height()));
+                                    let on_gear = response.hovered() && gear_icon_rect.contains(hover_pos);
+                                    let cog_color = if on_gear { theme.accent() } else { Color32::from_rgb(100, 100, 110) };
+                                    crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
+                                    if on_gear {
+                                        let rgb = crate::gui::widgets::row::rgb_from_time(ctx_time);
+                                        ui.painter().rect_stroke(
+                                            cog_rect.expand(2.0),
+                                            Rounding::same(2),
+                                            Stroke::new(1.0, rgb),
+                                            egui::StrokeKind::Outside,
+                                        );
+                                        ui.ctx().request_repaint();
+                                    }
+                                    cx += icon_size + 2.0;
+                                }
+
+                                // 3. # channel name
                                 ui.painter().text(
-                                    egui::pos2(row_rect.left() + 20.0, row_rect.center().y),
+                                    egui::pos2(cx + 2.0, cy),
                                     egui::Align2::LEFT_CENTER,
                                     &format!("# {}", ch.name),
                                     egui::FontId::proportional(theme.body_size),
@@ -664,16 +710,26 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                             }
                             if response.clicked() {
-                                state.chat_active_channel = ch.id.clone();
-                                state.chat_messages.clear();
-                                state.history_fetched = false;
-                                if let Some(ref client) = state.ws_client {
-                                    if client.is_connected() {
-                                        let msg = serde_json::json!({
-                                            "type": "group_history_request",
-                                            "group_id": group.id,
-                                        });
-                                        client.send(&msg.to_string());
+                                let click_pos = ui.ctx().input(|i| i.pointer.interact_pos().unwrap_or_default());
+                                if voice_icon_rect.contains(click_pos) && ch.voice_enabled {
+                                    // TODO: wire group voice join/leave through the relay
+                                } else if gear_icon_rect.contains(click_pos) && is_group_admin {
+                                    state.show_channel_edit_modal = true;
+                                    state.edit_channel_id = ch.id.clone();
+                                    state.edit_channel_name = ch.name.clone();
+                                    state.edit_channel_description = ch.description.clone();
+                                } else {
+                                    state.chat_active_channel = ch.id.clone();
+                                    state.chat_messages.clear();
+                                    state.history_fetched = false;
+                                    if let Some(ref client) = state.ws_client {
+                                        if client.is_connected() {
+                                            let msg = serde_json::json!({
+                                                "type": "group_history_request",
+                                                "group_id": group.id,
+                                            });
+                                            client.send(&msg.to_string());
+                                        }
                                     }
                                 }
                             }
@@ -1451,25 +1507,122 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let icon_letter = msg.sender_name.chars().next().unwrap_or('?');
                     let channeling = state.chat_user_modal_open
                         && msg.sender_key == state.chat_user_modal_key;
-                    let row_resp = crate::gui::widgets::row::message_row(
-                        ui,
-                        theme,
-                        icon_letter,
-                        icon_color,
-                        &msg.sender_name,
-                        &msg.timestamp,
-                        &msg.content,
-                        show_header,
-                        row_bg,
-                        channeling,
-                        ctx_time,
-                    );
-                    // Only open the profile modal when the userbox itself is clicked,
-                    // not when the click lands in the content area to the right.
-                    if row_resp.userbox_clicked(ui.ctx()) {
-                        state.chat_user_modal_open = true;
-                        state.chat_user_modal_name = msg.sender_name.clone();
-                        state.chat_user_modal_key = msg.sender_key.clone();
+                    // Extract image URLs from the message so we can render them
+                    // as inline thumbnails instead of raw /uploads/... text.
+                    let image_urls = crate::gui::widgets::image_cache::extract_image_urls(&msg.content);
+                    let display_text = if image_urls.is_empty() {
+                        msg.content.clone()
+                    } else {
+                        crate::gui::widgets::image_cache::strip_image_urls(&msg.content)
+                    };
+
+                    // Only call message_row if there's something to show — an
+                    // image-only message should not produce an empty text row
+                    // unless it needs the sender header.
+                    let need_text_row = show_header || !display_text.trim().is_empty();
+                    if need_text_row {
+                        let row_resp = crate::gui::widgets::row::message_row(
+                            ui,
+                            theme,
+                            icon_letter,
+                            icon_color,
+                            &msg.sender_name,
+                            &msg.timestamp,
+                            &display_text,
+                            show_header,
+                            row_bg,
+                            channeling,
+                            ctx_time,
+                        );
+                        if row_resp.userbox_clicked(ui.ctx()) {
+                            state.chat_user_modal_open = true;
+                            state.chat_user_modal_name = msg.sender_name.clone();
+                            state.chat_user_modal_key = msg.sender_key.clone();
+                        }
+                    }
+
+                    // Render each attached image as a clickable thumbnail
+                    // indented under the message text.
+                    if !image_urls.is_empty() {
+                        let server_url = state.server_url.clone();
+                        const THUMB_INDENT: f32 = 40.0;
+                        const THUMB_W: f32 = 240.0;
+                        for raw_url in image_urls {
+                            let url = crate::gui::widgets::image_cache::resolve_url(&raw_url, &server_url);
+                            state.image_cache.request(&url);
+                            let status = state.image_cache.status(&url);
+
+                            match status {
+                                crate::gui::widgets::image_cache::ImageStatus::Ready { width, height } => {
+                                    let aspect = width as f32 / height.max(1) as f32;
+                                    let thumb_h = (THUMB_W / aspect.max(0.1)).min(360.0).max(60.0);
+                                    let row_w = ui.available_width();
+                                    let (row_rect, resp) = ui.allocate_exact_size(
+                                        Vec2::new(row_w, thumb_h + 4.0),
+                                        egui::Sense::click(),
+                                    );
+                                    ui.painter().rect_filled(row_rect, 0.0, row_bg);
+                                    if let Some(tex) = state.image_cache.get_texture(&url) {
+                                        let img_rect = egui::Rect::from_min_size(
+                                            egui::pos2(row_rect.left() + THUMB_INDENT, row_rect.top() + 2.0),
+                                            Vec2::new(THUMB_W, thumb_h),
+                                        );
+                                        let mut mesh = egui::Mesh::with_texture(tex.id());
+                                        mesh.add_rect_with_uv(
+                                            img_rect,
+                                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                                            Color32::WHITE,
+                                        );
+                                        ui.painter().add(egui::Shape::mesh(mesh));
+                                        // Faint border
+                                        ui.painter().rect_stroke(
+                                            img_rect,
+                                            Rounding::same(3),
+                                            Stroke::new(1.0, theme.border()),
+                                            egui::StrokeKind::Inside,
+                                        );
+                                    }
+                                    if resp.hovered() {
+                                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                    }
+                                    if resp.clicked() {
+                                        state.image_viewer_url = Some(url.clone());
+                                    }
+                                }
+                                crate::gui::widgets::image_cache::ImageStatus::Fetching
+                                | crate::gui::widgets::image_cache::ImageStatus::Idle => {
+                                    let row_w = ui.available_width();
+                                    let (row_rect, _) = ui.allocate_exact_size(
+                                        Vec2::new(row_w, 20.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.painter().rect_filled(row_rect, 0.0, row_bg);
+                                    ui.painter().text(
+                                        egui::pos2(row_rect.left() + THUMB_INDENT, row_rect.center().y),
+                                        egui::Align2::LEFT_CENTER,
+                                        &format!("Loading image… {}", crate::gui::widgets::image_cache::filename_from_url(&url)),
+                                        egui::FontId::proportional(theme.font_size_small),
+                                        theme.text_muted(),
+                                    );
+                                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+                                }
+                                crate::gui::widgets::image_cache::ImageStatus::Failed(err) => {
+                                    let row_w = ui.available_width();
+                                    let (row_rect, _) = ui.allocate_exact_size(
+                                        Vec2::new(row_w, 20.0),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.painter().rect_filled(row_rect, 0.0, row_bg);
+                                    ui.painter().text(
+                                        egui::pos2(row_rect.left() + THUMB_INDENT, row_rect.center().y),
+                                        egui::Align2::LEFT_CENTER,
+                                        &format!("Image failed: {err}"),
+                                        egui::FontId::proportional(theme.font_size_small),
+                                        theme.danger(),
+                                    );
+                                }
+                            }
+                        }
                     }
                 }
 

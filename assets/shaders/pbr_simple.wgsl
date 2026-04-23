@@ -455,13 +455,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    // Ambient (simple hemisphere: warm from above, cool from below)
-    let sky_factor = normal.y * 0.5 + 0.5;
-    let ambient = albedo * mix(
-        vec3<f32>(0.02, 0.02, 0.03),  // ground ambient
-        vec3<f32>(0.06, 0.06, 0.08),  // sky ambient
-        sky_factor,
-    );
+    // Ambient (near-zero so space is truly black and the sun is the only
+    // light source). A thin floor prevents absolute black so unlit faces
+    // still have a subtle silhouette against the starfield instead of
+    // vanishing into artefacts from tone mapping.
+    let ambient = albedo * vec3<f32>(0.005, 0.005, 0.006);
 
     var color = ambient + lo;
 

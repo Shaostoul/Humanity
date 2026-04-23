@@ -142,7 +142,12 @@ impl Camera {
             fov_degrees: 90.0,
             aspect: 16.0 / 9.0,
             near: 0.1,
-            far: 1_000_000_000.0, // 1 billion meters = 1 million km
+            // Far plane pushed well past Sun distance (~1.496e11 m) so the
+            // Sun and other inner-system bodies can be rendered from GEO
+            // without being clipped. The previous 1e9 m value clipped at
+            // about 1 million km, hiding everything beyond the Moon's
+            // orbit. 1e12 m = 1 trillion metres, comfortably past Jupiter.
+            far: 1_000_000_000_000.0,
             projection: Projection::Perspective,
 
             mode: CameraMode::FirstPerson,

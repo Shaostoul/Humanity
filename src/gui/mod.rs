@@ -752,6 +752,14 @@ pub struct GuiState {
     /// Map of "chain_id:step_id" -> done?. Persisted via AppConfig for local progress.
     pub onboarding_quest_progress: std::collections::HashMap<String, bool>,
 
+    // ── Inline image cache (for chat attachments) ──
+    /// Fetches, decodes, and caches images referenced in chat messages so
+    /// they render inline instead of as raw /uploads/... text.
+    pub image_cache: crate::gui::widgets::image_cache::ImageCache,
+    /// URL of the image currently shown full-screen in the viewer modal.
+    /// `None` means the modal is closed.
+    pub image_viewer_url: Option<String>,
+
     // ── Studio state ──
     pub studio: StudioState,
 
@@ -998,6 +1006,8 @@ impl Default for GuiState {
             active_help_topic: None,
             onboarding_quest_chains: Vec::new(),
             onboarding_quest_progress: std::collections::HashMap::new(),
+            image_cache: crate::gui::widgets::image_cache::ImageCache::new(),
+            image_viewer_url: None,
             studio: StudioState::default(),
 
             // Chat panel collapse state (all expanded by default except connection)
