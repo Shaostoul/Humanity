@@ -20,20 +20,19 @@ const HOVER_BLUE: Color32 = Color32::from_rgb(52, 152, 219);
 /// Kept as a single-character constant so it is easy to change globally.
 pub const INTERPUNCT: &str = " \u{00B7} "; // ` · ` with spaces either side
 
-/// Fixed width of the userbox column so all messages in a channel align.
-/// Based on icon size + name column + border stroke + gap.
-fn userbox_column_width(theme: &Theme) -> f32 {
-    let icon = theme.header_height;             // square icon area
-    let name_col = 84.0;                        // fixed name column width
-    icon + name_col + theme.border_width + 2.0  // + thin vertical separator
-}
-
-/// The clickable area of the userbox (for opening profile modal).
-/// Returns the rect relative to the row origin.
-fn userbox_rect(row_origin: egui::Pos2, theme: &Theme) -> Rect {
-    let w = userbox_column_width(theme);
-    let h = theme.header_height;
-    Rect::from_min_size(row_origin, Vec2::new(w, h))
+/// Measure the userbox width for a given sender name. The userbox is:
+///   [icon square] [ vertical separator ] [name with side padding]
+/// Width adjusts to the actual name length (with a minimum so very short
+/// names still have a reasonable hit-area for the profile click).
+fn measure_userbox_width(painter: &egui::Painter, theme: &Theme, name: &str) -> f32 {
+    let icon = theme.header_height; // square icon area
+    let name_galley = painter.layout_no_wrap(
+        name.to_string(),
+        egui::FontId::proportional(theme.name_size),
+        Color32::WHITE,
+    );
+    let name_w = name_galley.size().x.max(40.0); // minimum 40px so the hit area is reasonable
+    icon + 6.0 + name_w + 6.0 // icon + pad + name + trailing pad
 }
 
 /// Render a universal row with optional userbox and word-wrapped content.
@@ -71,12 +70,15 @@ pub fn message_row(
     let header_h = theme.header_height;
     let side_font = theme.name_size;
     let below_font = theme.body_size;
-    let ts_font = theme.small_size;
     let painter = ui.painter();
 
-    let ubox_w = userbox_column_width(theme);
-    let content_left_offset = ubox_w + 4.0;
-    let content_width = (full_width - content_left_offset - 2.0).max(60.0);
+    // Userbox width adapts to the actual sender name length so short names
+    // produce a tight layout with no dead horizontal space before the
+    // message text. Same width is used for continuation rows (same sender,
+    // no userbox drawn) so those rows align under the first message's text.
+    let ubox_w = measure_userbox_width(&painter, theme, name);
+    let content_left_offset = ubox_w + 6.0;
+    let narrow_width = (full_width - content_left_offset - 2.0).max(80.0);
 
     // ── Build the message text: "<timestamp> · <content>" ──
     // Strip " UTC" suffix if present so it fits in the line.
@@ -87,20 +89,73 @@ pub fn message_row(
         format!("{}{}{}", ts_clean, INTERPUNCT, content)
     };
 
-    let content_galley = painter.layout(
+    // ── Wrap-around layout: content flows beside userbox, then under it ──
+    //
+    // 1. Layout at narrow width (beside userbox).
+    // 2. If the galley is shorter than the userbox, we are done — fits next
+    //    to it. row height = max(userbox, galley).
+    // 3. If taller, split the text roughly at the line where it overflows
+    //    the userbox bottom, re-layout part 1 narrow (beside box) and part
+    //    2 full-width (below box). Simple word-boundary split.
+    let narrow_galley = painter.layout(
         message_text.clone(),
         egui::FontId::proportional(below_font),
         text_color,
-        content_width,
+        narrow_width,
     );
-    let content_h = content_galley.size().y.max(header_h) + 4.0;
 
-    // Row height is at least the userbox height if we're drawing one, else
-    // just the content height.
-    let row_h = if show_header {
-        header_h.max(content_h)
+    let line_h = if narrow_galley.rows.is_empty() {
+        below_font + 2.0
     } else {
-        content_galley.size().y + 4.0
+        narrow_galley.size().y / narrow_galley.rows.len() as f32
+    };
+    let lines_that_fit_beside =
+        ((header_h / line_h).floor() as usize).max(1);
+
+    // Decide whether we need the wrap-under split.
+    let needs_split = show_header
+        && narrow_galley.rows.len() > lines_that_fit_beside
+        && narrow_galley.size().y > header_h + 0.5;
+
+    // If splitting, compute a char-boundary split point around the line that
+    // overflows the userbox bottom. We use the character index of the first
+    // glyph in that row, falling back to a word-boundary split if rows are
+    // unavailable.
+    let (beside_text, below_text) = if needs_split {
+        split_at_row(&message_text, &narrow_galley, lines_that_fit_beside)
+    } else {
+        (message_text.clone(), String::new())
+    };
+
+    let beside_galley = if needs_split {
+        painter.layout(
+            beside_text.clone(),
+            egui::FontId::proportional(below_font),
+            text_color,
+            narrow_width,
+        )
+    } else {
+        narrow_galley
+    };
+
+    let below_galley = if !below_text.is_empty() {
+        Some(painter.layout(
+            below_text.clone(),
+            egui::FontId::proportional(below_font),
+            text_color,
+            (full_width - 4.0).max(120.0),
+        ))
+    } else {
+        None
+    };
+
+    let beside_h = beside_galley.size().y;
+    let below_h = below_galley.as_ref().map_or(0.0, |g| g.size().y);
+
+    let row_h = if show_header {
+        header_h.max(beside_h) + below_h + 2.0
+    } else {
+        beside_h + 2.0
     };
 
     // ── Allocate + interact ──
@@ -126,8 +181,8 @@ pub fn message_row(
     let mut userbox_hit = Rect::NOTHING;
 
     if show_header {
-        // ── Userbox: icon + name/timestamp, left-anchored, top of row ──
-        userbox_hit = userbox_rect(egui::pos2(hx, hy), theme);
+        // ── Userbox: icon + name, left-anchored, top of row ──
+        userbox_hit = Rect::from_min_size(egui::pos2(hx, hy), Vec2::new(ubox_w, header_h));
 
         let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
         let userbox_hovered = pointer_pos
@@ -173,21 +228,27 @@ pub fn message_row(
             egui::Stroke::new(bw, border_color),
         );
 
-        // Name (truncate if too long)
-        let name_x = sep_x + 4.0;
-        let name_y = hy + 2.0;
+        // Name (shown at vertical centre of userbox)
         let name_galley = painter.layout_no_wrap(
             name.to_string(),
             egui::FontId::proportional(side_font),
             Color32::WHITE,
         );
+        let name_x = sep_x + 6.0;
+        let name_y = hy + (header_h - name_galley.size().y) / 2.0;
         painter.galley(egui::pos2(name_x, name_y), name_galley, Color32::WHITE);
     }
 
-    // ── Content column: always present, always offset by userbox width ──
+    // ── Content beside userbox (first N lines) ──
     let content_x = hx + content_left_offset;
     let content_y = hy + 2.0;
-    painter.galley(egui::pos2(content_x, content_y), content_galley, text_color);
+    painter.galley(egui::pos2(content_x, content_y), beside_galley, text_color);
+
+    // ── Content below userbox (wrap-under remainder) ──
+    if let Some(bg) = below_galley {
+        let below_y = hy + header_h.max(beside_h) + 2.0;
+        painter.galley(egui::pos2(hx + 2.0, below_y), bg, text_color);
+    }
 
     if channeling {
         ui.ctx().request_repaint();
@@ -197,6 +258,39 @@ pub fn message_row(
         response,
         userbox_rect: userbox_hit,
     }
+}
+
+/// Split `text` near the end of row `max_rows_before_split` in `galley`.
+/// Falls back to a word-boundary split at the proportional character offset.
+fn split_at_row(text: &str, galley: &egui::Galley, max_rows_before_split: usize) -> (String, String) {
+    let total_rows = galley.rows.len();
+    if total_rows <= max_rows_before_split {
+        return (text.to_string(), String::new());
+    }
+    // Approximate split: character count * (rows_beside / total_rows).
+    let ratio = max_rows_before_split as f32 / total_rows as f32;
+    let approx_byte = ((text.len() as f32) * ratio) as usize;
+    // Find nearest whitespace boundary at or before approx_byte to avoid
+    // splitting a word in half.
+    let mut split_at = approx_byte.min(text.len());
+    if split_at > 0 && split_at < text.len() {
+        while split_at > 0 && !text.is_char_boundary(split_at) {
+            split_at -= 1;
+        }
+        // Walk back to whitespace if possible
+        let bytes = text.as_bytes();
+        while split_at > 0 && !(bytes[split_at - 1] as char).is_whitespace() {
+            split_at -= 1;
+        }
+        if split_at == 0 {
+            split_at = approx_byte;
+            while split_at < text.len() && !text.is_char_boundary(split_at) {
+                split_at += 1;
+            }
+        }
+    }
+    let (a, b) = text.split_at(split_at);
+    (a.trim_end().to_string(), b.trim_start().to_string())
 }
 
 /// Response bundle for `message_row`.

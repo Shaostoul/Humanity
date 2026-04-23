@@ -60,7 +60,7 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
-        onboarding,
+        onboarding, server_settings,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -583,6 +583,13 @@ mod native_app {
             gui_state.tools_catalog = crate::gui::load_tools_catalog(&data_dir);
             gui_state.help_registry = help_modal::load_help_registry(&data_dir);
             gui_state.onboarding_quest_chains = onboarding::load_quest_chains(&data_dir);
+            gui_state.map_planets = crate::gui::load_planets(&data_dir);
+            // Default to Earth if present.
+            gui_state.map_selected_planet = gui_state
+                .map_planets
+                .iter()
+                .position(|p| p.name == "Earth")
+                .or(if gui_state.map_planets.is_empty() { None } else { Some(0) });
 
             // Load persistent config and apply to GUI state
             let config = crate::config::AppConfig::load();
@@ -1355,15 +1362,19 @@ mod native_app {
                                             for g in groups {
                                                 let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                                 let id = g.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                let group_id = id.clone();
+                                                // Match web behaviour: the group itself is the chat target,
+                                                // no nested "#general" channel. The active-channel id
+                                                // "group:<id>" is what the send path expects, so we keep
+                                                // a single channel entry with that exact id for routing.
+                                                let active_id = format!("group:{}", id);
                                                 state.gui_state.chat_groups.push(crate::gui::ChatGroup {
-                                                    name,
-                                                    id,
+                                                    name: name.clone(),
+                                                    id: id.clone(),
                                                     member_count: 0,
                                                     channels: vec![crate::gui::ChatChannel {
-                                                        id: format!("group:{}:general", group_id),
-                                                        name: "general".to_string(),
-                                                        description: "General discussion".to_string(),
+                                                        id: active_id,
+                                                        name: name.clone(),
+                                                        description: String::new(),
                                                         category: "Text".to_string(),
                                                         voice_joined: false,
                                                         voice_enabled: false,
@@ -1911,6 +1922,7 @@ mod native_app {
                                     GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Onboarding => onboarding::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::None => {}
                                 }
 

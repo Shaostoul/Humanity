@@ -27,3 +27,4 @@ pub mod tools;
 pub mod studio;
 pub mod passphrase_modal;
 pub mod onboarding;
+pub mod server_settings;

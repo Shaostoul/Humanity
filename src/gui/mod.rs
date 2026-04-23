@@ -90,6 +90,9 @@ pub enum GuiPage {
     /// First-run orientation plus permanent reference page.
     /// Mirrors the web `/onboarding` page.
     Onboarding,
+    /// Server / group administration settings page. Opened from the cog
+    /// menu on the server or group row in the chat sidebar.
+    ServerSettings,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.
@@ -868,9 +871,10 @@ impl Default for GuiState {
             profile_streaming_url: String::new(),
             profile_streaming_live: false,
 
-            // Map defaults
-            map_planets: default_planets(),
-            map_selected_planet: Some(2), // Earth
+            // Map defaults: populated from data/solar_system/bodies.json at
+            // startup in lib.rs (see `load_planets`). Empty at construction.
+            map_planets: Vec::new(),
+            map_selected_planet: None,
             map_zoom: 1.0,
 
             // Market defaults
@@ -1062,19 +1066,120 @@ pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
     out
 }
 
-/// Default solar system planet data for the map viewer.
+/// Load solar system planets from `data/solar_system/bodies.json`.
+/// Falls back to an empty Vec if the file is missing or malformed so the
+/// game still boots (the map page will show a "no planets loaded" state).
 #[cfg(feature = "native")]
-fn default_planets() -> Vec<GuiPlanet> {
-    vec![
-        GuiPlanet { name: "Mercury".into(), planet_type: "Rocky".into(), radius_km: 2439.7, gravity: 3.7, atmosphere: "None".into(), moons: 0, orbit_radius_au: 0.39 },
-        GuiPlanet { name: "Venus".into(), planet_type: "Rocky".into(), radius_km: 6051.8, gravity: 8.87, atmosphere: "CO2, N2 (dense)".into(), moons: 0, orbit_radius_au: 0.72 },
-        GuiPlanet { name: "Earth".into(), planet_type: "Rocky".into(), radius_km: 6371.0, gravity: 9.81, atmosphere: "N2, O2".into(), moons: 1, orbit_radius_au: 1.0 },
-        GuiPlanet { name: "Mars".into(), planet_type: "Rocky".into(), radius_km: 3389.5, gravity: 3.72, atmosphere: "CO2 (thin)".into(), moons: 2, orbit_radius_au: 1.52 },
-        GuiPlanet { name: "Jupiter".into(), planet_type: "Gas Giant".into(), radius_km: 69911.0, gravity: 24.79, atmosphere: "H2, He".into(), moons: 95, orbit_radius_au: 5.2 },
-        GuiPlanet { name: "Saturn".into(), planet_type: "Gas Giant".into(), radius_km: 58232.0, gravity: 10.44, atmosphere: "H2, He".into(), moons: 146, orbit_radius_au: 9.54 },
-        GuiPlanet { name: "Uranus".into(), planet_type: "Ice Giant".into(), radius_km: 25362.0, gravity: 8.87, atmosphere: "H2, He, CH4".into(), moons: 28, orbit_radius_au: 19.2 },
-        GuiPlanet { name: "Neptune".into(), planet_type: "Ice Giant".into(), radius_km: 24622.0, gravity: 11.15, atmosphere: "H2, He, CH4".into(), moons: 16, orbit_radius_au: 30.06 },
-    ]
+pub fn load_planets(data_dir: &std::path::Path) -> Vec<GuiPlanet> {
+    #[derive(serde::Deserialize)]
+    struct Bodies {
+        bodies: Vec<Body>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Body {
+        #[serde(default)]
+        name: String,
+        #[serde(default, rename = "type")]
+        type_: String,
+        #[serde(default)]
+        physical: Option<Physical>,
+        #[serde(default)]
+        orbit: Option<Orbit>,
+        #[serde(default)]
+        atmosphere: Option<Atmosphere>,
+        #[serde(default)]
+        moons: Vec<serde_json::Value>,
+    }
+    #[derive(serde::Deserialize, Default)]
+    struct Physical {
+        #[serde(default)]
+        radius_km: f64,
+        #[serde(default)]
+        surface_gravity_ms2: f64,
+    }
+    #[derive(serde::Deserialize, Default)]
+    struct Orbit {
+        #[serde(default)]
+        semi_major_axis_au: f64,
+    }
+    #[derive(serde::Deserialize, Default)]
+    struct Atmosphere {
+        #[serde(default)]
+        composition: std::collections::BTreeMap<String, f64>,
+        #[serde(default)]
+        surface_pressure_atm: Option<f64>,
+    }
+
+    let path = data_dir.join("solar_system").join("bodies.json");
+    let bytes = match std::fs::read_to_string(&path) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("[planets] Could not read {}: {}", path.display(), e);
+            return Vec::new();
+        }
+    };
+    let parsed: Bodies = match serde_json::from_str(&bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("[planets] Could not parse bodies.json: {}", e);
+            return Vec::new();
+        }
+    };
+
+    parsed
+        .bodies
+        .into_iter()
+        .filter(|b| {
+            // Show real planets and dwarf planets. Stars have no orbit_au,
+            // moons have a parent != "sun". We display the simple solar
+            // system view so we skip the Sun itself.
+            matches!(
+                b.type_.as_str(),
+                "terrestrial" | "gas_giant" | "ice_giant" | "dwarf_planet"
+            )
+        })
+        .map(|b| {
+            let phys = b.physical.unwrap_or_default();
+            let orbit = b.orbit.unwrap_or_default();
+            let atm = b.atmosphere.unwrap_or_default();
+            let atm_str = if atm.composition.is_empty() {
+                if atm.surface_pressure_atm.map_or(true, |p| p < 0.001) {
+                    "None".to_string()
+                } else {
+                    "Trace".to_string()
+                }
+            } else {
+                // Join top 3 components by percentage, descending.
+                let mut pairs: Vec<(String, f64)> =
+                    atm.composition.into_iter().collect();
+                pairs.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                pairs
+                    .into_iter()
+                    .take(3)
+                    .map(|(k, _)| k)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let planet_type = match b.type_.as_str() {
+                "terrestrial" => "Rocky",
+                "gas_giant" => "Gas Giant",
+                "ice_giant" => "Ice Giant",
+                "dwarf_planet" => "Dwarf",
+                other => other,
+            }
+            .to_string();
+
+            GuiPlanet {
+                name: b.name,
+                planet_type,
+                radius_km: phys.radius_km,
+                gravity: phys.surface_gravity_ms2,
+                atmosphere: atm_str,
+                moons: b.moons.len() as u32,
+                orbit_radius_au: orbit.semi_major_axis_au,
+            }
+        })
+        .collect()
 }
 
 #[cfg(feature = "native")]
