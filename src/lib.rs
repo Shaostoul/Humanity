@@ -874,11 +874,13 @@ mod native_app {
                         state.targeted_planet = closest_hit.map(|(_, name)| name);
                     }
 
-                    // Planet disabled for now - focusing on homestead gameplay first
-                    // TODO: Re-enable with proper multi-scale rendering
+                    // Render Earth relative to the player's GEO-orbit position.
+                    // The player spawns inside their homestead which sits at the ship's
+                    // world position (state.ship_world_pos) ~42,164 km from Earth's
+                    // centre. Earth itself lives at world origin; we render it as a
+                    // single giant object offset by -ship_world_pos so it appears
+                    // below the player as expected for geostationary orbit.
                     let elapsed = (now - state.start_time).as_secs_f32();
-                    let _ = elapsed; // suppress unused warning
-                    if false {
                     if let (Some(ref mut planet), Some(mesh_idx)) = (&mut state.planet, state.planet_mesh) {
                         // Earth position relative to ship (ship at GEO, Earth at world origin)
                         let earth_offset = -state.ship_world_pos;
@@ -890,7 +892,6 @@ mod native_app {
                         let dist_to_earth = (earth_offset - cam_world).length();
 
                         // Update LOD based on distance
-                        // Trick: set planet world_position to earth_offset for LOD calc
                         planet.world_position = earth_offset;
                         if planet.update_lod(cam_world) {
                             let ico = planet.icosphere();
@@ -899,7 +900,6 @@ mod native_app {
                         }
 
                         // Render position: Earth center relative to camera
-                        // Since camera is near origin (inside ship), this is approximately earth_offset
                         let render_pos = Vec3::new(
                             earth_offset.x as f32,
                             earth_offset.y as f32,
@@ -907,7 +907,7 @@ mod native_app {
                         );
                         let scale = planet.def.radius as f32;
 
-                        // Log once
+                        // One-shot debug line so we can see render params in the console.
                         static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
                         if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
                             crate::debug::push_debug(format!(
@@ -925,7 +925,6 @@ mod native_app {
                             material: state.planet_material,
                         });
                     }
-                    } // end disabled planet block
 
                     // Update FPS counter
                     state.gui_state.fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
@@ -1362,10 +1361,11 @@ mod native_app {
                                             for g in groups {
                                                 let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                                 let id = g.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                                                // Match web behaviour: the group itself is the chat target,
-                                                // no nested "#general" channel. The active-channel id
-                                                // "group:<id>" is what the send path expects, so we keep
-                                                // a single channel entry with that exact id for routing.
+                                                // Groups render like servers: an expandable header with
+                                                // nested channels. The channel id is `group:<id>` so the
+                                                // send path routes correctly (see chat.rs ~1609). When
+                                                // server-side multi-channel support for groups lands,
+                                                // additional channels get ids like `group:<id>:<name>`.
                                                 let active_id = format!("group:{}", id);
                                                 state.gui_state.chat_groups.push(crate::gui::ChatGroup {
                                                     name: name.clone(),
@@ -1373,7 +1373,7 @@ mod native_app {
                                                     member_count: 0,
                                                     channels: vec![crate::gui::ChatChannel {
                                                         id: active_id,
-                                                        name: name.clone(),
+                                                        name: "general".to_string(),
                                                         description: String::new(),
                                                         category: "Text".to_string(),
                                                         voice_joined: false,

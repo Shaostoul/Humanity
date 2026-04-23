@@ -1,13 +1,20 @@
 //! Universal message/item row widget.
 //!
-//! Layout (per user feedback, v0.92.1):
-//!   <userbox (first of sender-group only)>  <timestamp> · <content>
-//!   The userbox anchors to the top-left. Message content wraps inside the
-//!   right column. Each message gets a `timestamp · content` prefix even on
-//!   continuation rows (same sender sending multiple short messages).
+//! Layout (v0.95 — consistent-indent Discord-style):
 //!
-//! All sizing, spacing, and font values come from `Theme` widget variables
-//! so changing one value affects the entire UI consistently.
+//!   [ICON] **Shaostoul** 12:34 · first message text
+//!          12:35 · continuation (same sender, no name, same indent)
+//!          12:36 · another continuation
+//!   [ICON] **Other**      12:40 · new sender starts here
+//!
+//! The icon square is a fixed 32 px for every sender so all message text
+//! aligns vertically at the same x for every user and every line. No
+//! wrap-around-the-userbox — every line starts at one indent and wraps at
+//! the right edge of the column. Continuation rows draw no icon but keep
+//! the same indent so they align with the first message above.
+//!
+//! All sizing and fonts come from `Theme` so changes in theme.ron restyle
+//! the whole chat at once.
 
 use egui::{Color32, Rect, Rounding, Sense, Vec2};
 use egui::epaint::StrokeKind;
@@ -17,38 +24,24 @@ use crate::gui::theme::Theme;
 const HOVER_BLUE: Color32 = Color32::from_rgb(52, 152, 219);
 
 /// Interpunct separator between timestamp and message content.
-/// Kept as a single-character constant so it is easy to change globally.
-pub const INTERPUNCT: &str = " \u{00B7} "; // ` · ` with spaces either side
+pub const INTERPUNCT: &str = " \u{00B7} "; // ` · `
 
-/// Measure the userbox width for a given sender name. The userbox is:
-///   [icon square] [ vertical separator ] [name with side padding]
-/// Width adjusts to the actual name length (with a minimum so very short
-/// names still have a reasonable hit-area for the profile click).
-fn measure_userbox_width(painter: &egui::Painter, theme: &Theme, name: &str) -> f32 {
-    let icon = theme.header_height; // square icon area
-    let name_galley = painter.layout_no_wrap(
-        name.to_string(),
-        egui::FontId::proportional(theme.name_size),
-        Color32::WHITE,
-    );
-    let name_w = name_galley.size().x.max(40.0); // minimum 40px so the hit area is reasonable
-    icon + 6.0 + name_w + 6.0 // icon + pad + name + trailing pad
-}
+/// Fixed size of the icon/userbox column, used for every message in every
+/// channel so all users' text aligns. Changing this number shifts every
+/// message's indent consistently.
+const USERBOX_SIZE: f32 = 32.0;
+
+/// Horizontal gap between userbox and message text.
+const USERBOX_GAP: f32 = 8.0;
 
 /// Render a universal row with optional userbox and word-wrapped content.
 ///
-/// `show_header` true = first message of a sender group; draws the userbox.
-/// `show_header` false = continuation from same sender; indents content into
-/// the right column but draws no userbox.
+/// `show_header` true  = first message of a sender group; draws userbox.
+/// `show_header` false = continuation from same sender; no userbox but
+///                       text starts at the same x offset so it aligns.
 ///
-/// Every message, regardless of `show_header`, gets `timestamp · content`.
-///
-/// When `channeling` is true, the userbox border animates through the RGB
-/// spectrum (used when the profile modal for this sender is open).
-///
-/// Returns the Response for the whole row. To find out whether the click
-/// was on the userbox specifically (profile open) vs on the content area,
-/// use `userbox_hit_rect()` with the response's interact pointer.
+/// First row includes the sender's name in bold before the timestamp.
+/// Continuation rows just show `timestamp · content`.
 pub fn message_row(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -66,99 +59,84 @@ pub fn message_row(
     let border_color = theme.border();
     let text_color = theme.text_primary();
     let bw = theme.border_width;
-    let icon_sz = theme.icon_size;
-    let header_h = theme.header_height;
     let side_font = theme.name_size;
-    let below_font = theme.body_size;
+    let body_font = theme.body_size;
     let painter = ui.painter();
 
-    // Userbox width adapts to the actual sender name length so short names
-    // produce a tight layout with no dead horizontal space before the
-    // message text. Same width is used for continuation rows (same sender,
-    // no userbox drawn) so those rows align under the first message's text.
-    let ubox_w = measure_userbox_width(&painter, theme, name);
-    let content_left_offset = ubox_w + 6.0;
-    let narrow_width = (full_width - content_left_offset - 2.0).max(80.0);
+    // Constant content offset for every sender, every line — this is the
+    // alignment invariant that keeps the channel visually tidy.
+    let content_left_offset = USERBOX_SIZE + USERBOX_GAP;
+    let content_width = (full_width - content_left_offset - 4.0).max(100.0);
 
-    // ── Build the message text: "<timestamp> · <content>" ──
-    // Strip " UTC" suffix if present so it fits in the line.
+    // Strip " UTC" so timestamps are tight.
     let ts_clean = timestamp.trim().trim_end_matches(" UTC").trim().to_string();
-    let message_text = if ts_clean.is_empty() {
-        content.to_string()
-    } else {
-        format!("{}{}{}", ts_clean, INTERPUNCT, content)
-    };
 
-    // ── Wrap-around layout: content flows beside userbox, then under it ──
-    //
-    // 1. Layout at narrow width (beside userbox).
-    // 2. If the galley is shorter than the userbox, we are done — fits next
-    //    to it. row height = max(userbox, galley).
-    // 3. If taller, split the text roughly at the line where it overflows
-    //    the userbox bottom, re-layout part 1 narrow (beside box) and part
-    //    2 full-width (below box). Simple word-boundary split.
-    let narrow_galley = painter.layout(
-        message_text.clone(),
-        egui::FontId::proportional(below_font),
-        text_color,
-        narrow_width,
+    // Build the text galley using a LayoutJob so we can bold the name only
+    // on header rows and keep the rest at the normal weight.
+    use egui::text::LayoutJob;
+    let mut job = LayoutJob::default();
+    job.wrap.max_width = content_width;
+
+    if show_header && !name.is_empty() {
+        job.append(
+            name,
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(side_font),
+                color: Color32::WHITE,
+                ..Default::default()
+            },
+        );
+        job.append(
+            "  ",
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(body_font),
+                color: theme.text_muted(),
+                ..Default::default()
+            },
+        );
+    }
+    if !ts_clean.is_empty() {
+        job.append(
+            &ts_clean,
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(theme.small_size),
+                color: theme.text_muted(),
+                ..Default::default()
+            },
+        );
+        job.append(
+            INTERPUNCT,
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(body_font),
+                color: theme.text_muted(),
+                ..Default::default()
+            },
+        );
+    }
+    job.append(
+        content,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(body_font),
+            color: text_color,
+            ..Default::default()
+        },
     );
 
-    let line_h = if narrow_galley.rows.is_empty() {
-        below_font + 2.0
-    } else {
-        narrow_galley.size().y / narrow_galley.rows.len() as f32
-    };
-    let lines_that_fit_beside =
-        ((header_h / line_h).floor() as usize).max(1);
+    let galley = painter.layout_job(job);
+    let text_h = galley.size().y;
 
-    // Decide whether we need the wrap-under split.
-    let needs_split = show_header
-        && narrow_galley.rows.len() > lines_that_fit_beside
-        && narrow_galley.size().y > header_h + 0.5;
-
-    // If splitting, compute a char-boundary split point around the line that
-    // overflows the userbox bottom. We use the character index of the first
-    // glyph in that row, falling back to a word-boundary split if rows are
-    // unavailable.
-    let (beside_text, below_text) = if needs_split {
-        split_at_row(&message_text, &narrow_galley, lines_that_fit_beside)
-    } else {
-        (message_text.clone(), String::new())
-    };
-
-    let beside_galley = if needs_split {
-        painter.layout(
-            beside_text.clone(),
-            egui::FontId::proportional(below_font),
-            text_color,
-            narrow_width,
-        )
-    } else {
-        narrow_galley
-    };
-
-    let below_galley = if !below_text.is_empty() {
-        Some(painter.layout(
-            below_text.clone(),
-            egui::FontId::proportional(below_font),
-            text_color,
-            (full_width - 4.0).max(120.0),
-        ))
-    } else {
-        None
-    };
-
-    let beside_h = beside_galley.size().y;
-    let below_h = below_galley.as_ref().map_or(0.0, |g| g.size().y);
-
+    // Row height: at least the userbox, but grow for long wrapped text.
     let row_h = if show_header {
-        header_h.max(beside_h) + below_h + 2.0
+        USERBOX_SIZE.max(text_h + 2.0)
     } else {
-        beside_h + 2.0
+        text_h + 2.0
     };
 
-    // ── Allocate + interact ──
     let (full_rect, response) =
         ui.allocate_exact_size(Vec2::new(full_width, row_h), Sense::click());
 
@@ -181,15 +159,18 @@ pub fn message_row(
     let mut userbox_hit = Rect::NOTHING;
 
     if show_header {
-        // ── Userbox: icon + name, left-anchored, top of row ──
-        userbox_hit = Rect::from_min_size(egui::pos2(hx, hy), Vec2::new(ubox_w, header_h));
+        // ── Userbox (fixed 32 px square) on the top-left ──
+        userbox_hit = Rect::from_min_size(
+            egui::pos2(hx, hy),
+            Vec2::new(USERBOX_SIZE, USERBOX_SIZE),
+        );
 
         let pointer_pos = ui.ctx().input(|i| i.pointer.hover_pos());
         let userbox_hovered = pointer_pos
             .map(|p| userbox_hit.contains(p))
             .unwrap_or(false);
 
-        let btn_border_color = if channeling {
+        let border_stroke = if channeling {
             rgb_from_time(ctx_time)
         } else if userbox_hovered {
             HOVER_BLUE
@@ -199,60 +180,30 @@ pub fn message_row(
         painter.rect_stroke(
             userbox_hit,
             theme.border_radius_widget,
-            egui::Stroke::new(bw, btn_border_color),
+            egui::Stroke::new(bw, border_stroke),
             StrokeKind::Inside,
         );
 
-        // Icon circle + letter
-        let pad = (header_h - icon_sz) / 2.0;
-        let icon_inner = Rect::from_min_size(
-            egui::pos2(hx + pad, hy + pad),
-            Vec2::new(icon_sz, icon_sz),
-        );
-        painter.circle_filled(icon_inner.center(), theme.icon_radius(), icon_color);
+        // Filled circle with the sender's first letter.
+        let icon_r = USERBOX_SIZE * 0.35;
+        painter.circle_filled(userbox_hit.center(), icon_r, icon_color);
         painter.text(
-            icon_inner.center(),
+            userbox_hit.center(),
             egui::Align2::CENTER_CENTER,
             &icon_letter.to_uppercase().to_string(),
             egui::FontId::proportional(side_font),
             Color32::WHITE,
         );
 
-        // Vertical separator between icon and name
-        let sep_x = hx + header_h;
-        painter.line_segment(
-            [
-                egui::pos2(sep_x - 0.5, hy + pad),
-                egui::pos2(sep_x - 0.5, hy + header_h - pad),
-            ],
-            egui::Stroke::new(bw, border_color),
-        );
-
-        // Name (shown at vertical centre of userbox)
-        let name_galley = painter.layout_no_wrap(
-            name.to_string(),
-            egui::FontId::proportional(side_font),
-            Color32::WHITE,
-        );
-        let name_x = sep_x + 6.0;
-        let name_y = hy + (header_h - name_galley.size().y) / 2.0;
-        painter.galley(egui::pos2(name_x, name_y), name_galley, Color32::WHITE);
+        if channeling {
+            ui.ctx().request_repaint();
+        }
     }
 
-    // ── Content beside userbox (first N lines) ──
+    // Text content — fixed x offset for everyone so alignment is consistent.
     let content_x = hx + content_left_offset;
     let content_y = hy + 2.0;
-    painter.galley(egui::pos2(content_x, content_y), beside_galley, text_color);
-
-    // ── Content below userbox (wrap-under remainder) ──
-    if let Some(bg) = below_galley {
-        let below_y = hy + header_h.max(beside_h) + 2.0;
-        painter.galley(egui::pos2(hx + 2.0, below_y), bg, text_color);
-    }
-
-    if channeling {
-        ui.ctx().request_repaint();
-    }
+    painter.galley(egui::pos2(content_x, content_y), galley, text_color);
 
     MessageRowResponse {
         response,
@@ -260,51 +211,14 @@ pub fn message_row(
     }
 }
 
-/// Split `text` near the end of row `max_rows_before_split` in `galley`.
-/// Falls back to a word-boundary split at the proportional character offset.
-fn split_at_row(text: &str, galley: &egui::Galley, max_rows_before_split: usize) -> (String, String) {
-    let total_rows = galley.rows.len();
-    if total_rows <= max_rows_before_split {
-        return (text.to_string(), String::new());
-    }
-    // Approximate split: character count * (rows_beside / total_rows).
-    let ratio = max_rows_before_split as f32 / total_rows as f32;
-    let approx_byte = ((text.len() as f32) * ratio) as usize;
-    // Find nearest whitespace boundary at or before approx_byte to avoid
-    // splitting a word in half.
-    let mut split_at = approx_byte.min(text.len());
-    if split_at > 0 && split_at < text.len() {
-        while split_at > 0 && !text.is_char_boundary(split_at) {
-            split_at -= 1;
-        }
-        // Walk back to whitespace if possible
-        let bytes = text.as_bytes();
-        while split_at > 0 && !(bytes[split_at - 1] as char).is_whitespace() {
-            split_at -= 1;
-        }
-        if split_at == 0 {
-            split_at = approx_byte;
-            while split_at < text.len() && !text.is_char_boundary(split_at) {
-                split_at += 1;
-            }
-        }
-    }
-    let (a, b) = text.split_at(split_at);
-    (a.trim_end().to_string(), b.trim_start().to_string())
-}
-
 /// Response bundle for `message_row`.
-/// - `response` is the full-row response (useful for right-click menus).
-/// - `userbox_rect` is the exact hit area of the userbox button (empty when
-///   show_header is false). Use `userbox_rect.contains(click_pos)` to tell
-///   whether a click was on the userbox (open profile) or elsewhere.
 pub struct MessageRowResponse {
     pub response: egui::Response,
     pub userbox_rect: Rect,
 }
 
 impl MessageRowResponse {
-    /// Convenience: true if this frame had a click on the userbox specifically.
+    /// True if this frame had a click landing on the userbox specifically.
     pub fn userbox_clicked(&self, ctx: &egui::Context) -> bool {
         if !self.response.clicked() {
             return false;

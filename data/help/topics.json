@@ -73,6 +73,16 @@
         "You can reach it any time from the landing page, or by opening the /onboarding link directly.",
         "Your progress is saved in this browser. Reset it from the Onboarding page if you want a fresh pass."
       ]
+    },
+    "groups-vs-servers": {
+      "title": "Groups vs. Servers",
+      "body": [
+        "Both are places to chat with people. They differ in <strong>who keeps the data flowing</strong>.",
+        "<strong>Groups</strong> are peer-to-peer (P2P). There is no always-on relay behind them. Messages move when members are online together. A group is lightweight, quick to create, and good for small circles: family, a guild, a study group. The downside: if nobody is online, nobody gets the message until someone comes back.",
+        "<strong>Servers</strong> are backed by a relay. A relay is just another HumanityOS client, but installed on a machine that stays on all the time (usually a small VPS) and tied to a URL. The relay holds messages and passes them along even when members are offline. This site (united-humanity.us) is an example relay-backed server.",
+        "Rule of thumb: a handful of friends, use a group. A community that needs 24/7 presence, run a server. You can do both from the same identity. Admins still run groups, servers still have owners, the difference is just where the bits live when you are asleep.",
+        "Running your own server is about ten minutes of setup. See the self-hosting guide on GitHub."
+      ]
     }
   }
 }
