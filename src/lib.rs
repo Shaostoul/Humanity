@@ -414,15 +414,25 @@ mod native_app {
         let sun_dir = glam::DVec3::new(0.3, 1.0, 0.5).normalize();
         const ONE_AU_M: f64 = 149_597_870_700.0;
         state.sun_world_pos = sun_dir * ONE_AU_M;
-        // Emissive yellow-white material so the Sun glows through tone
-        // mapping regardless of ambient light. params.w (emissive) = 5.0
-        // produces a convincingly bright disc.
+        // Emissive yellow-white core. params.w (emissive) cranked high so
+        // tone mapping still leaves the Sun near-white on screen.
         state.sun_material = state.renderer.add_material_full(
-            [1.0, 0.95, 0.8, 1.0],
+            [1.0, 0.98, 0.85, 1.0],
             0.0,
             1.0,
             0.0,
-            5.0,
+            10.0,
+        );
+        // Halo material — warmer orange, lower emissive. Rendered at a
+        // larger scale in the scene to suggest a corona around the core.
+        // A true bloom post-process would do this properly, but the
+        // halo mesh is a cheap approximation that works without one.
+        state.sun_halo_material = state.renderer.add_material_full(
+            [1.0, 0.75, 0.4, 1.0],
+            0.0,
+            1.0,
+            0.0,
+            1.5,
         );
 
         // ── Load CSV game data ──
@@ -471,8 +481,11 @@ mod native_app {
         planet_material: usize,
         /// World-space position of the Sun (Earth-centred coordinates).
         sun_world_pos: glam::DVec3,
-        /// Emissive material index for the Sun.
+        /// Emissive material index for the Sun core.
         sun_material: usize,
+        /// Emissive material index for the Sun halo (larger sphere, warmer,
+        /// lower emissive — gives the Sun a faked corona without bloom).
+        sun_halo_material: usize,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Homestead walls mesh + material.
@@ -650,6 +663,7 @@ mod native_app {
                 planet_material: 0,
                 sun_world_pos: glam::DVec3::ZERO,
                 sun_material: 0,
+                sun_halo_material: 0,
                 homestead_floors: Vec::new(),
                 homestead_walls: None,
                 hologram_objects: Vec::new(),
@@ -951,11 +965,19 @@ mod native_app {
                             material: state.planet_material,
                         });
 
-                        // Render the Sun as a second body using the same
-                        // unit icosphere mesh. Sun's radius (6.957e8 m)
-                        // vastly exceeds Earth's (6.371e6 m). We scale
-                        // accordingly. Position is sun_world_pos offset
-                        // from the ship so parallax feels right.
+                        // Render the Sun as a second body. Without a bloom
+                        // post-process the physical sun radius produces
+                        // only a ~0.5° disc from 1 AU which reads as a
+                        // faint white dot. Multiply by a visual-scale
+                        // factor so the Sun actually registers as a sun
+                        // against the starfield. Real physics is still
+                        // represented by sun_world_pos and the lighting
+                        // direction; only the disc size is exaggerated.
+                        //
+                        // Concentric "halo" spheres don't work without
+                        // alpha blending — the outer sphere's front face
+                        // occludes the inner. TODO: wire the already-built
+                        // BloomPass for a real corona effect.
                         let sun_offset = state.sun_world_pos - state.ship_world_pos;
                         let sun_render_pos = Vec3::new(
                             sun_offset.x as f32,
@@ -963,10 +985,13 @@ mod native_app {
                             sun_offset.z as f32,
                         );
                         let sun_radius_m = 695_700_000.0_f32;
+                        // ~12× visual scale → ~6° on screen, similar to
+                        // how stars are rendered in Elite / Kerbal.
+                        let sun_visual_scale = sun_radius_m * 12.0;
                         all_objects.push(RenderObject {
                             position: sun_render_pos,
                             rotation: Quat::IDENTITY,
-                            scale: Vec3::splat(sun_radius_m),
+                            scale: Vec3::splat(sun_visual_scale),
                             mesh: mesh_idx,
                             material: state.sun_material,
                         });

@@ -98,14 +98,25 @@ impl PlanetLod {
     }
 
     /// Icosphere subdivision level for this LOD.
+    ///
+    /// Raised from the original (1/3/4/5/6) because at GEO altitude the
+    /// LowPoly level of 80 faces reads as a visibly faceted blob rather
+    /// than a planet. 3→5 subdivision levels (1,280 → 20,480 faces) give
+    /// a visually round sphere at the distances players will encounter
+    /// most often. Face counts:
+    ///   level 0: 20 faces (base icosahedron)
+    ///   level 3: 1,280 faces
+    ///   level 5: 20,480 faces
+    ///   level 6: 81,920 faces
+    ///   level 7: 327,680 faces
     pub fn subdivision_level(&self) -> u32 {
         match self {
             PlanetLod::Billboard => 0,
-            PlanetLod::LowPoly => 1,
-            PlanetLod::MidDetail => 3,
-            PlanetLod::HighDetail => 4,
-            PlanetLod::SurfaceApproach => 5,
-            PlanetLod::Surface => 6, // further detail via heightmap within faces
+            PlanetLod::LowPoly => 3,
+            PlanetLod::MidDetail => 4,
+            PlanetLod::HighDetail => 5,
+            PlanetLod::SurfaceApproach => 6,
+            PlanetLod::Surface => 7,
         }
     }
 }
