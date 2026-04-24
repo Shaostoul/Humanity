@@ -124,6 +124,9 @@ pub use signed_profiles::SignedProfileRecord;
 /// A generic signed object record from the Phase 0 PQ substrate.
 pub use signed_objects::{SignedObjectRecord, author_fingerprint, compute_object_id};
 
+/// Crypto migration handler: bridges Ed25519 → Dilithium3 identities.
+pub use migration::{MigrationOutcome, validate_migration_object};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1233,6 +1236,7 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+mod migration;
 mod signed_objects;
 mod signed_profiles;
 mod notification_prefs;
