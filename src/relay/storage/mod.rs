@@ -124,8 +124,8 @@ pub use signed_profiles::SignedProfileRecord;
 /// A generic signed object record from the Phase 0 PQ substrate.
 pub use signed_objects::{SignedObjectRecord, author_fingerprint, compute_object_id};
 
-/// Crypto migration handler: bridges Ed25519 → Dilithium3 identities.
-pub use migration::{MigrationOutcome, validate_migration_object};
+/// DID resolution: DID → current Dilithium3 pubkey + first/last-seen metadata.
+pub use dids::DidResolution;
 
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
@@ -1024,16 +1024,7 @@ impl Storage {
                 ON signed_objects(author_fp);
 
             CREATE INDEX IF NOT EXISTS idx_signed_objects_received_at
-                ON signed_objects(received_at);
-
-            -- Sealed history of the one-time Ed25519 → Dilithium3 migration of pre-PQ users.
-            -- After Phase 0 PR 3 ships, no new entries are written; reads are audit-only.
-            CREATE TABLE IF NOT EXISTS legacy_ed25519_history (
-                did                  TEXT PRIMARY KEY,
-                legacy_pubkey        BLOB NOT NULL,
-                migration_object_id  TEXT NOT NULL,
-                archived_at          INTEGER NOT NULL
-            );"
+                ON signed_objects(received_at);"
         )?;
 
         // Migration: add origin_server column to messages for federated message persistence.
@@ -1236,7 +1227,7 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
-mod migration;
+mod dids;
 mod signed_objects;
 mod signed_profiles;
 mod notification_prefs;

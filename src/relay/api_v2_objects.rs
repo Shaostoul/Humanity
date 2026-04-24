@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use crate::relay::core::object::Object;
 use crate::relay::relay::RelayState;
-use crate::relay::storage::{SignedObjectRecord, validate_migration_object};
+use crate::relay::storage::SignedObjectRecord;
 
 /// JSON shape submitted by clients to `POST /api/v2/objects`. Binary fields are base64.
 #[derive(Debug, Deserialize)]
@@ -159,76 +159,24 @@ pub async fn post_object(
         }
     };
 
-    // Special-case: crypto_migration_v1 needs the inner Ed25519 signature validated
-    // before persistence — the outer Dilithium3 sig alone doesn't prove the legacy
-    // keyholder authorized the rotation.
-    if object.object_type == "crypto_migration_v1" {
-        let outcome = match validate_migration_object(&object) {
-            Ok(o) => o,
-            Err(e) => {
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({
-                        "error": format!("migration validation failed: {e}")
-                    })),
-                )
-                    .into_response();
-            }
-        };
-
-        // Persist the signed_object first (so its id is queryable), then record the migration.
-        let stored = match state.db.put_signed_object(&object, None) {
-            Ok(s) => s,
-            Err(e) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": format!("storage error: {e}")})),
-                )
-                    .into_response();
-            }
-        };
-        match state.db.record_crypto_migration(&outcome) {
-            Ok(_) => (
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "object_id": object_id,
-                    "stored": stored,
-                    "migration": {
-                        "legacy_pubkey_hex": outcome.legacy_pubkey_hex,
-                        "new_pubkey_hex": outcome.new_pubkey_hex,
-                        "migration_object_id": outcome.migration_object_id,
-                        "timestamp": outcome.migration_timestamp,
-                    },
-                    "message": "migration recorded; legacy Ed25519 key archived"
-                })),
-            )
-                .into_response(),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": format!("migration record failed: {e}")})),
-            )
-                .into_response(),
-        }
-    } else {
-        match state.db.put_signed_object(&object, None) {
-            Ok(stored) => (
-                StatusCode::OK,
-                Json(serde_json::to_value(ObjectAcceptResponse {
-                    object_id,
-                    stored,
-                    message: if stored {
-                        "object stored".into()
-                    } else {
-                        "object already known (no-op)".into()
-                    },
-                }).unwrap_or_default()),
-            )
-                .into_response(),
-            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
-                "error": format!("storage error: {e}")
-            })))
-                .into_response(),
-        }
+    match state.db.put_signed_object(&object, None) {
+        Ok(stored) => (
+            StatusCode::OK,
+            Json(serde_json::to_value(ObjectAcceptResponse {
+                object_id,
+                stored,
+                message: if stored {
+                    "object stored".into()
+                } else {
+                    "object already known (no-op)".into()
+                },
+            }).unwrap_or_default()),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
+            "error": format!("storage error: {e}")
+        })))
+            .into_response(),
     }
 }
 

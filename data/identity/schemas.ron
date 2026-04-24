@@ -58,18 +58,6 @@
             accord_constraints: ["consent", "transparency", "repair_first"],
         ),
         (
-            id: "crypto_migration_v1",
-            version: 1,
-            description: "One-time bridge: migrates an Ed25519 identity to Dilithium3. Dual-signed by both keys.",
-            required_payload_fields: ["legacy_pubkey", "new_dilithium_pubkey", "legacy_sig", "timestamp"],
-            optional_payload_fields: [],
-            issuer_constraint: "self",
-            subject_field: "",
-            zk_disclosable_fields: [],
-            civilization_scope: true,
-            accord_constraints: ["consent", "transparency", "non_domination"],
-        ),
-        (
             id: "key_rotation_v1",
             version: 1,
             description: "Rotates a Dilithium3 identity to a new Dilithium3 key. Dual-signed by old+new.",

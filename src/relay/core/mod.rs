@@ -11,6 +11,7 @@
 //! This crate has no network code and no storage code.
 //! It is the foundation that all other Humanity crates build on.
 
+pub mod did;
 pub mod encoding;
 pub mod error;
 pub mod hash;
