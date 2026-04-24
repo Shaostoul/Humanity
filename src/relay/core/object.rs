@@ -1,27 +1,33 @@
-//! The Humanity Network object model.
+//! The Humanity Network object model (post-quantum).
 //!
 //! All shareable content is represented as immutable signed objects.
-//! See `design/network/object_format.md` for the full specification.
+//! See `docs/network/object_format.md` for the canonical format spec.
+//!
+//! As of Phase 0, all object signing uses **ML-DSA-65 (Dilithium3)**, FIPS 204.
+//! Ed25519 is only retained for the one-time legacy migration bridge and the
+//! optional Solana wallet module — neither of which use this Object type.
 //!
 //! An object is a CBOR map with these fields:
 //! - protocol_version: integer
 //! - object_type: text
 //! - space_id: optional text
 //! - channel_id: optional text
-//! - author_public_key: bytes (32 bytes, Ed25519)
+//! - author_public_key: bytes (1952 bytes, Dilithium3)
 //! - created_at: optional integer (informational only)
 //! - references: array of text (object_id hex strings)
 //! - payload_schema_version: integer
 //! - payload_encoding: text
 //! - payload: bytes
-//! - signature: bytes (64 bytes, Ed25519)
+//! - signature: bytes (3309 bytes, Dilithium3)
 
 use ciborium::Value;
 
 use crate::relay::core::encoding::{cbor_bytes, cbor_int, cbor_text, to_canonical_bytes};
 use crate::relay::core::error::Result;
 use crate::relay::core::hash::Hash;
-use crate::relay::core::signing;
+use crate::relay::core::pq_crypto::{
+    self, DILITHIUM_PK_LEN, DILITHIUM_SIG_LEN, DilithiumKeypair,
+};
 
 /// Current protocol version.
 pub const PROTOCOL_VERSION: u64 = 1;
@@ -33,18 +39,22 @@ pub const PAYLOAD_ENCODING_PLAINTEXT: &str = "cbor_canonical_v1";
 pub const PAYLOAD_ENCODING_ENCRYPTED: &str = "xchacha20poly1305_v1";
 
 /// A signed, immutable Humanity Network object.
+///
+/// Signature uses ML-DSA-65 (Dilithium3). The 1952-byte public key and 3309-byte
+/// signature are stored as `Vec<u8>` because they are too large to be ergonomic
+/// as fixed-size arrays.
 #[derive(Debug, Clone)]
 pub struct Object {
     /// Protocol version (currently 1).
     pub protocol_version: u64,
-    /// The type of this object (e.g., "thread_create", "post", "moderation_action").
+    /// The type of this object (e.g., "thread_create", "post", "vc", "vouch_v1").
     pub object_type: String,
     /// Space this object belongs to (optional).
     pub space_id: Option<String>,
     /// Channel within the space (optional).
     pub channel_id: Option<String>,
-    /// Author's Ed25519 public key (32 bytes).
-    pub author_public_key: [u8; 32],
+    /// Author's Dilithium3 public key (1952 bytes).
+    pub author_public_key: Vec<u8>,
     /// Informational timestamp (not trusted for ordering).
     pub created_at: Option<u64>,
     /// References to other objects by object_id hex.
@@ -55,8 +65,8 @@ pub struct Object {
     pub payload_encoding: String,
     /// Payload bytes (plaintext CBOR or ciphertext).
     pub payload: Vec<u8>,
-    /// Ed25519 signature (64 bytes).
-    pub signature: [u8; 64],
+    /// Dilithium3 signature (3309 bytes).
+    pub signature: Vec<u8>,
 }
 
 impl Object {
@@ -111,14 +121,16 @@ impl Object {
     /// This is the canonical encoding with an empty signature field.
     fn signable_bytes(&self) -> Result<Vec<u8>> {
         let mut unsigned = self.clone();
-        unsigned.signature = [0u8; 64];
+        // Empty signature for canonical encoding pre-sig; same length placeholder
+        // ensures the field is present in the map.
+        unsigned.signature = vec![0u8; DILITHIUM_SIG_LEN];
         unsigned.to_canonical_bytes()
     }
 
     /// Verify this object's signature against its author_public_key.
     pub fn verify_signature(&self) -> Result<()> {
         let message = self.signable_bytes()?;
-        signing::verify(&self.author_public_key, &message, &self.signature)
+        pq_crypto::verify_dilithium(&self.author_public_key, &message, &self.signature)
     }
 }
 
@@ -197,11 +209,12 @@ impl ObjectBuilder {
         Ok(self)
     }
 
-    /// Sign and build the final Object.
-    pub fn sign(self, signing_key: &ed25519_dalek::SigningKey) -> Result<Object> {
-        let author_public_key = signing_key.verifying_key().to_bytes();
+    /// Sign and build the final Object using a Dilithium3 keypair.
+    pub fn sign(self, keypair: &DilithiumKeypair) -> Result<Object> {
+        let author_public_key = keypair.public_key();
+        debug_assert_eq!(author_public_key.len(), DILITHIUM_PK_LEN);
 
-        // Build object with empty signature first
+        // Build object with placeholder signature first
         let mut obj = Object {
             protocol_version: PROTOCOL_VERSION,
             object_type: self.object_type,
@@ -213,12 +226,13 @@ impl ObjectBuilder {
             payload_schema_version: self.payload_schema_version,
             payload_encoding: self.payload_encoding,
             payload: self.payload,
-            signature: [0u8; 64],
+            signature: vec![0u8; DILITHIUM_SIG_LEN],
         };
 
-        // Sign the canonical bytes (with empty signature)
+        // Sign the canonical bytes (with placeholder signature)
         let signable = obj.signable_bytes()?;
-        obj.signature = signing::sign(signing_key, &signable);
+        obj.signature = keypair.sign(&signable);
+        debug_assert_eq!(obj.signature.len(), DILITHIUM_SIG_LEN);
 
         Ok(obj)
     }
@@ -228,11 +242,10 @@ impl ObjectBuilder {
 mod tests {
     use super::*;
     use crate::relay::core::encoding::{cbor_map, cbor_text};
-    use crate::relay::core::identity::Keypair;
 
     #[test]
     fn create_sign_verify() {
-        let kp = Keypair::generate();
+        let kp = DilithiumKeypair::generate().unwrap();
 
         let payload = cbor_map(vec![
             ("title", cbor_text("Hello")),
@@ -244,20 +257,21 @@ mod tests {
             .created_at(0)
             .payload_cbor(&payload)
             .unwrap()
-            .sign(kp.signing_key())
+            .sign(&kp)
             .unwrap();
 
         assert_eq!(obj.protocol_version, PROTOCOL_VERSION);
         assert_eq!(obj.object_type, "thread_create");
-        assert_eq!(obj.author_public_key, kp.public_key_bytes());
+        assert_eq!(obj.author_public_key, kp.public_key());
+        assert_eq!(obj.signature.len(), DILITHIUM_SIG_LEN);
 
         // Signature should verify
-        assert!(obj.verify_signature().is_ok());
+        obj.verify_signature().expect("signature must verify");
     }
 
     #[test]
     fn tampered_object_fails_verification() {
-        let kp = Keypair::generate();
+        let kp = DilithiumKeypair::generate().unwrap();
 
         let payload = cbor_map(vec![("title", cbor_text("Hello"))]);
 
@@ -265,7 +279,7 @@ mod tests {
             .space_id("space_example")
             .payload_cbor(&payload)
             .unwrap()
-            .sign(kp.signing_key())
+            .sign(&kp)
             .unwrap();
 
         // Tamper with the object
@@ -277,7 +291,7 @@ mod tests {
 
     #[test]
     fn object_id_is_deterministic() {
-        let kp = Keypair::generate();
+        let kp = DilithiumKeypair::generate().unwrap();
 
         let payload = cbor_map(vec![("title", cbor_text("Test"))]);
 
@@ -286,7 +300,7 @@ mod tests {
             .created_at(1000)
             .payload_cbor(&payload)
             .unwrap()
-            .sign(kp.signing_key())
+            .sign(&kp)
             .unwrap();
 
         let id1 = obj.object_id().unwrap();
@@ -296,18 +310,44 @@ mod tests {
 
     #[test]
     fn canonical_bytes_are_stable() {
-        let kp = Keypair::generate();
+        let kp = DilithiumKeypair::generate().unwrap();
 
         let payload = cbor_map(vec![("msg", cbor_text("hi"))]);
 
         let obj = ObjectBuilder::new("message")
             .payload_cbor(&payload)
             .unwrap()
-            .sign(kp.signing_key())
+            .sign(&kp)
             .unwrap();
 
         let bytes1 = obj.to_canonical_bytes().unwrap();
         let bytes2 = obj.to_canonical_bytes().unwrap();
         assert_eq!(bytes1, bytes2, "canonical bytes must be identical across calls");
+    }
+
+    #[test]
+    fn deterministic_object_with_same_seed_and_inputs() {
+        // ML-DSA in deterministic mode produces identical signatures for identical inputs.
+        let seed = [9u8; 32];
+        let kp1 = DilithiumKeypair::from_seed(&seed);
+        let kp2 = DilithiumKeypair::from_seed(&seed);
+
+        let payload = cbor_map(vec![("msg", cbor_text("deterministic"))]);
+
+        let obj1 = ObjectBuilder::new("message")
+            .created_at(100)
+            .payload_cbor(&payload)
+            .unwrap()
+            .sign(&kp1)
+            .unwrap();
+        let obj2 = ObjectBuilder::new("message")
+            .created_at(100)
+            .payload_cbor(&payload)
+            .unwrap()
+            .sign(&kp2)
+            .unwrap();
+
+        assert_eq!(obj1.signature, obj2.signature);
+        assert_eq!(obj1.object_id().unwrap(), obj2.object_id().unwrap());
     }
 }

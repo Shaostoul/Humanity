@@ -6,6 +6,7 @@
 
 pub mod relay;
 pub mod api;
+pub mod api_v2_objects;
 pub mod storage;
 pub mod handlers;
 pub mod core;
@@ -387,6 +388,10 @@ pub async fn run_relay() {
         .route("/api/admin/stats", get(api::get_admin_stats))
         .route("/api/asset-manifest", get(api::get_asset_manifest))
         .route("/api/web-manifest", get(api::get_web_manifest))
+        // === API v2: signed objects substrate (Phase 0 PR 2) ===
+        .route("/api/v2/objects", get(api_v2_objects::list_objects).post(api_v2_objects::post_object))
+        .route("/api/v2/objects/count", get(api_v2_objects::count_objects))
+        .route("/api/v2/objects/{object_id}", get(api_v2_objects::get_object_by_id))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)

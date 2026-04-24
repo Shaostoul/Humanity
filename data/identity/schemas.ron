@@ -1,0 +1,112 @@
+// Object-type schema registry (Phase 0 minimum).
+//
+// This RON file is the data-driven (infinite-of-X) registry of every object type
+// the network knows how to interpret. It is hot-reloadable and authoritative.
+//
+// Server-side schema enforcement is added in Phase 1 (DID/VC). Phase 0 only requires
+// that this file parses and the schemas listed here exist by name — actual payload
+// validation comes when the schema registry loader is wired into put_signed_object.
+//
+// Conventions:
+//   id: stable identifier; new versions add a new entry, never edit existing ones
+//   version: integer that matches the leading number after the underscore in id
+//   description: 1-line human summary
+//   required_payload_fields: list of field names that MUST appear in payload (CBOR)
+//   optional_payload_fields: list of field names that MAY appear in payload
+//   issuer_constraint: who is allowed to author this object_type
+//     "self" — only subject themselves (e.g. signed_profile)
+//     "any" — anyone with a valid Dilithium3 key
+//     "server" — only a server's identity key (its own DID)
+//     "vc_issuer" — any DID with a valid `issuer_v1` VC for this schema
+//   subject_field: which payload field carries the DID this object is ABOUT
+//                  (for VCs this is `credential_subject.id`; for self-objects, the
+//                  author IS the subject)
+//   zk_disclosable_fields: for VC types, which fields support selective disclosure
+//                          via zk-STARK presentations (Phase 6)
+//   civilization_scope: if true, this schema is registered federation-wide and may
+//                       only be added/removed via accord_amendment proposals
+//   accord_constraints: list of Accord constraint categories this schema must
+//                       respect (see docs/design/accord_constraints.md)
+
+(
+    schemas: [
+        // ---------------------------------------------------------------------
+        // Phase 0: backwards-compatible projections of existing tables
+        // ---------------------------------------------------------------------
+        (
+            id: "signed_profile_v1",
+            version: 1,
+            description: "User profile (name, bio, avatar, socials), self-signed; latest timestamp wins",
+            required_payload_fields: ["name", "timestamp"],
+            optional_payload_fields: ["bio", "avatar_url", "banner_url", "socials", "pronouns", "location", "website"],
+            issuer_constraint: "self",
+            subject_field: "",  // author IS subject
+            zk_disclosable_fields: [],
+            civilization_scope: true,
+            accord_constraints: ["consent", "transparency"],
+        ),
+        (
+            id: "vouch_v1",
+            version: 1,
+            description: "One DID vouches for another (skill, identity, character); replaces skill_verifications",
+            required_payload_fields: ["subject_did", "vouch_kind", "timestamp"],
+            optional_payload_fields: ["note", "expires_at"],
+            issuer_constraint: "any",
+            subject_field: "subject_did",
+            zk_disclosable_fields: [],
+            civilization_scope: true,
+            accord_constraints: ["consent", "transparency", "repair_first"],
+        ),
+        (
+            id: "crypto_migration_v1",
+            version: 1,
+            description: "One-time bridge: migrates an Ed25519 identity to Dilithium3. Dual-signed by both keys.",
+            required_payload_fields: ["legacy_pubkey", "new_dilithium_pubkey", "legacy_sig", "timestamp"],
+            optional_payload_fields: [],
+            issuer_constraint: "self",
+            subject_field: "",
+            zk_disclosable_fields: [],
+            civilization_scope: true,
+            accord_constraints: ["consent", "transparency", "non_domination"],
+        ),
+        (
+            id: "key_rotation_v1",
+            version: 1,
+            description: "Rotates a Dilithium3 identity to a new Dilithium3 key. Dual-signed by old+new.",
+            required_payload_fields: ["old_pubkey", "new_pubkey", "old_sig", "timestamp"],
+            optional_payload_fields: [],
+            issuer_constraint: "self",
+            subject_field: "",
+            zk_disclosable_fields: [],
+            civilization_scope: true,
+            accord_constraints: ["consent", "transparency", "non_domination"],
+        ),
+    ],
+    // Schemas listed here but unimplemented are reserved names — Phase 1+ will populate them.
+    reserved_ids: [
+        "vc",                       // generic VC envelope (Phase 1)
+        "verified_human_v1",        // proof-of-personhood VC (Phase 1+)
+        "member_v1",                // server membership VC (Phase 1)
+        "role_v1",                  // moderator/admin role VC (Phase 1)
+        "account_age_v1",           // auto-issued account age VC (Phase 1)
+        "skill_endorsement_v1",     // VC projection of skill_verifications (Phase 1)
+        "graduation_v1",            // institutional credential example (Phase 1)
+        "employment_v1",            // institutional credential example (Phase 1)
+        "revocation_v1",            // issuer-initiated VC revocation (Phase 1)
+        "withdrawal_v1",            // subject-initiated VC withdrawal (Phase 1)
+        "controlled_by_v1",         // AI agent operator binding (Phase 8)
+        "ai_introduction_v1",       // mandatory AI self-disclosure (Phase 8)
+        "subject_class_v1",         // human/ai_agent/institution classifier (Phase 8)
+        "dispute_v1",               // dispute against issuer or VC (Phase 3)
+        "issuer_trust_update_v1",   // peer-observed issuer trust delta (Phase 3)
+        "trust_score_v1",           // signed multi-layer trust score (Phase 2)
+        "recovery_share_v1",        // encrypted Shamir share to a guardian (Phase 4)
+        "recovery_request_v1",      // request to use recovery shares (Phase 4)
+        "proposal_v1",              // governance proposal (Phase 5)
+        "vote_v1",                  // governance vote (Phase 5)
+        "juror_v1",                 // juror VC for dispute resolution (Phase 5)
+        "stark_presentation_v1",    // zk-STARK selective disclosure (Phase 6)
+        "attested_session_v1",      // WebRTC liveness watermark VC (Phase 6)
+        "liveness_v1",              // accredited liveness attestation (Phase 6)
+    ],
+)

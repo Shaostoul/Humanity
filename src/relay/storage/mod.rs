@@ -121,6 +121,9 @@ pub use members::MemberRecord;
 /// A signed profile record (re-exported from signed_profiles.rs).
 pub use signed_profiles::SignedProfileRecord;
 
+/// A generic signed object record from the Phase 0 PQ substrate.
+pub use signed_objects::{SignedObjectRecord, author_fingerprint, compute_object_id};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -987,6 +990,49 @@ impl Storage {
                 ON signed_profiles(timestamp);"
         )?;
 
+        // Phase 0 substrate: generic post-quantum signed objects.
+        // Every higher-level domain (signed_profiles, vouches, VCs, governance proposals,
+        // recovery shares, etc.) is a projection of this table.
+        // Format: see docs/network/object_format.md and src/relay/core/object.rs
+        // Crypto: ML-DSA-65 (Dilithium3) — 1952-byte pubkey, 3309-byte signature.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS signed_objects (
+                object_id              TEXT PRIMARY KEY,
+                protocol_version       INTEGER NOT NULL,
+                object_type            TEXT NOT NULL,
+                space_id               TEXT,
+                channel_id             TEXT,
+                author_fp              TEXT NOT NULL,
+                author_pubkey          BLOB NOT NULL,
+                created_at             INTEGER,
+                payload_schema_version INTEGER NOT NULL,
+                payload_encoding       TEXT NOT NULL,
+                payload                BLOB NOT NULL,
+                signature              BLOB NOT NULL,
+                references_json        TEXT NOT NULL DEFAULT '[]',
+                source_server          TEXT,
+                received_at            INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_signed_objects_type_space
+                ON signed_objects(object_type, space_id);
+
+            CREATE INDEX IF NOT EXISTS idx_signed_objects_author_fp
+                ON signed_objects(author_fp);
+
+            CREATE INDEX IF NOT EXISTS idx_signed_objects_received_at
+                ON signed_objects(received_at);
+
+            -- Sealed history of the one-time Ed25519 → Dilithium3 migration of pre-PQ users.
+            -- After Phase 0 PR 3 ships, no new entries are written; reads are audit-only.
+            CREATE TABLE IF NOT EXISTS legacy_ed25519_history (
+                did                  TEXT PRIMARY KEY,
+                legacy_pubkey        BLOB NOT NULL,
+                migration_object_id  TEXT NOT NULL,
+                archived_at          INTEGER NOT NULL
+            );"
+        )?;
+
         // Migration: add origin_server column to messages for federated message persistence.
         if conn.prepare("SELECT origin_server FROM messages LIMIT 0").is_err() {
             let _ = conn.execute(
@@ -1187,6 +1233,7 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+mod signed_objects;
 mod signed_profiles;
 mod notification_prefs;
 mod trading;
