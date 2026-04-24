@@ -6,6 +6,7 @@
 
 pub mod relay;
 pub mod api;
+pub mod api_v2_credentials;
 pub mod api_v2_did;
 pub mod api_v2_objects;
 pub mod storage;
@@ -395,6 +396,9 @@ pub async fn run_relay() {
         .route("/api/v2/objects/{object_id}", get(api_v2_objects::get_object_by_id))
         // === API v2: DID resolver (Phase 1 PR 1) ===
         .route("/api/v2/did/{did}", get(api_v2_did::resolve_did))
+        // === API v2: Verifiable Credentials (Phase 1 PR 2) ===
+        .route("/api/v2/credentials", get(api_v2_credentials::list_credentials))
+        .route("/api/v2/credentials/{vc_object_id}", get(api_v2_credentials::get_credential))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)

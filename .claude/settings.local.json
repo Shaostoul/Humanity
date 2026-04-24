@@ -1,5 +1,10 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(just clean-worktrees *)",
+      "Bash(node -p \"require\\('fs'\\).readFileSync\\('Cargo.toml','utf8'\\).match\\(/^version\\\\s*=\\\\s*\\\\\"\\(.+?\\)\\\\\"/m\\)[1]\")",
+      "Bash(gh release *)"
+    ],
     "deny": [
       "mcp__Claude_Preview__preview_start",
       "mcp__Claude_Preview__preview_stop",

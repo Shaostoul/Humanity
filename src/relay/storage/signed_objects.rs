@@ -96,7 +96,7 @@ impl Storage {
             .unwrap_or_else(|_| "[]".to_string());
         let received_at = current_unix_millis();
 
-        self.with_conn(|conn| {
+        let inserted = self.with_conn(|conn| {
             // Idempotent insert; if already present, this is a no-op.
             let rows = conn.execute(
                 "INSERT OR IGNORE INTO signed_objects (
@@ -123,8 +123,40 @@ impl Storage {
                     received_at,
                 ],
             )?;
-            Ok(rows > 0)
-        })
+            Ok::<bool, rusqlite::Error>(rows > 0)
+        })?;
+
+        // Side-effects only on a fresh insert (not duplicate).
+        if inserted {
+            // Auto-index VCs.
+            let _ = self.index_credential(object);
+            // Revocations: only the issuer of the target VC may revoke it.
+            if object.object_type == "revocation_v1" {
+                if let Some(target_id) = first_reference(object) {
+                    let author_did =
+                        crate::relay::core::did::did_for_pubkey(&object.author_public_key);
+                    if let Ok(Some(vc)) = self.get_credential(&target_id) {
+                        if vc.issuer_did == author_did {
+                            let _ = self.revoke_credential(&target_id, &object_id_hex);
+                        }
+                    }
+                }
+            }
+            // Withdrawals: only the subject of the target VC may withdraw it.
+            if object.object_type == "withdrawal_v1" {
+                if let Some(target_id) = first_reference(object) {
+                    let author_did =
+                        crate::relay::core::did::did_for_pubkey(&object.author_public_key);
+                    if let Ok(Some(vc)) = self.get_credential(&target_id) {
+                        if vc.subject_did == author_did {
+                            let _ = self.withdraw_credential(&target_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(inserted)
     }
 
     /// Fetch a signed object by its hex `object_id`.
@@ -248,6 +280,12 @@ fn current_unix_millis() -> i64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// Return the first object_id in this object's `references` array, if any.
+/// Used by revocation/withdrawal flows to find the VC being targeted.
+fn first_reference(object: &Object) -> Option<String> {
+    object.references.first().cloned()
 }
 
 /// Wrapper error to thread our crypto/encoding errors through rusqlite's Error::ToSqlConversionFailure.

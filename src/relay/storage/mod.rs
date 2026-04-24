@@ -127,6 +127,9 @@ pub use signed_objects::{SignedObjectRecord, author_fingerprint, compute_object_
 /// DID resolution: DID → current Dilithium3 pubkey + first/last-seen metadata.
 pub use dids::DidResolution;
 
+/// Verifiable Credential index row (Phase 1 PR 2).
+pub use credentials::{CredentialIndex, extract_subject_did};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1024,7 +1027,25 @@ impl Storage {
                 ON signed_objects(author_fp);
 
             CREATE INDEX IF NOT EXISTS idx_signed_objects_received_at
-                ON signed_objects(received_at);"
+                ON signed_objects(received_at);
+
+            -- Phase 1 PR 2: Verifiable Credentials fast-lookup index.
+            -- Auto-populated when a known VC schema is stored. The credential itself
+            -- (signed authority) lives in signed_objects keyed by vc_object_id.
+            CREATE TABLE IF NOT EXISTS vc_index (
+                vc_object_id          TEXT PRIMARY KEY,
+                issuer_did            TEXT NOT NULL,
+                subject_did           TEXT NOT NULL,
+                schema_id             TEXT NOT NULL,
+                issued_at             INTEGER NOT NULL,
+                expires_at            INTEGER,
+                revoked_by_object_id  TEXT,
+                withdrawn             INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_vc_subject ON vc_index(subject_did);
+            CREATE INDEX IF NOT EXISTS idx_vc_issuer  ON vc_index(issuer_did);
+            CREATE INDEX IF NOT EXISTS idx_vc_schema  ON vc_index(schema_id);"
         )?;
 
         // Migration: add origin_server column to messages for federated message persistence.
@@ -1227,6 +1248,7 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+mod credentials;
 mod dids;
 mod signed_objects;
 mod signed_profiles;
