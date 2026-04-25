@@ -130,6 +130,9 @@ pub use dids::DidResolution;
 /// Verifiable Credential index row (Phase 1 PR 2).
 pub use credentials::{CredentialIndex, extract_subject_did};
 
+/// Multi-layer trust score (Phase 2 PR 1).
+pub use trust_score::{SubScores, TrustInputs, TrustScore};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1045,7 +1048,17 @@ impl Storage {
 
             CREATE INDEX IF NOT EXISTS idx_vc_subject ON vc_index(subject_did);
             CREATE INDEX IF NOT EXISTS idx_vc_issuer  ON vc_index(issuer_did);
-            CREATE INDEX IF NOT EXISTS idx_vc_schema  ON vc_index(schema_id);"
+            CREATE INDEX IF NOT EXISTS idx_vc_schema  ON vc_index(schema_id);
+
+            -- Phase 2 PR 1: Multi-layer trust score cache.
+            CREATE TABLE IF NOT EXISTS trust_scores (
+                did                TEXT PRIMARY KEY,
+                total              REAL NOT NULL,
+                sub_scores_json    TEXT NOT NULL,
+                inputs_json        TEXT NOT NULL,
+                weights_version    INTEGER NOT NULL,
+                computed_at        INTEGER NOT NULL
+            );"
         )?;
 
         // Migration: add origin_server column to messages for federated message persistence.
@@ -1252,6 +1265,7 @@ mod credentials;
 mod dids;
 mod signed_objects;
 mod signed_profiles;
+mod trust_score;
 mod notification_prefs;
 mod trading;
 mod vault_sync;

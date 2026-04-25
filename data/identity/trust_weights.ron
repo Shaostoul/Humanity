@@ -1,0 +1,61 @@
+// Multi-layer trust score weights (Phase 2).
+//
+// Each sub-score is in [0, 1]. The total is a weighted sum, also clamped to [0, 1].
+// Weights can be tuned per server via local governance proposals (Phase 5).
+// The Accord floor for any human-or-AI-identity weight is 0.0 (you can't gate
+// life-essentials), but server-specific actions (marketplace high-value listings,
+// governance vote weight) may apply higher minimum thresholds locally.
+//
+// Hot-reloadable: edit this file; relay reloads on next request.
+
+(
+    // Schema version. Increment when the structure changes.
+    version: 1,
+
+    // Sub-score weights. Should sum to ~1.0 but the engine normalizes anyway.
+    weights: {
+        // VC count + diversity. Each non-revoked VC about a DID contributes
+        // weight × log(1 + issuer_trust). Capped at 1.0 after sum.
+        "vcs": 0.30,
+
+        // Vouching graph entropy. Many distinct vouchers from many distinct
+        // communities → high; many vouchers from the same cluster → low.
+        "vouching_graph": 0.25,
+
+        // Distinct activity types in last 90 days, scaled.
+        "activity_diversity": 0.15,
+
+        // Account age, bounded log scale.
+        "age": 0.10,
+
+        // Economic skin-in-game (marketplace listings × seller_rating, plus
+        // optional Solana stake from Phase 6). Currently 0 for non-marketplace users.
+        "economic_stake": 0.10,
+
+        // Legacy reputation events (helpful_message, task_completed, etc.).
+        // Currently keyed on hex pubkey — bridges via did→pubkey lookup once
+        // legacy reputation is plumbed through Phase 2.5.
+        "reputation": 0.10,
+    },
+
+    // Per-VC schema importance. Higher → more contribution to vcs sub-score.
+    // Schemas not listed default to 1.0.
+    vc_schema_weights: {
+        "verified_human_v1": 5.0,
+        "vouch_v1": 1.0,
+        "skill_endorsement_v1": 1.0,
+        "graduation_v1": 3.0,
+        "employment_v1": 2.0,
+        "member_v1": 0.5,
+        "role_v1": 2.0,
+        "controlled_by_v1": 0.0,           // AI-operator binding doesn't add trust
+        "subject_class_v1": 0.0,           // Just a class declaration, no trust value
+        "ai_introduction_v1": 0.0,         // First-message disclosure, no trust value
+        "account_age_v1": 0.5,
+        "trust_score_v1": 0.0,             // Self-referential — would create loops
+        "juror_v1": 1.5,
+        "ai_consent_v1": 0.0,
+        "attested_session_v1": 0.5,
+        "liveness_v1": 3.0,
+    },
+)
