@@ -15,9 +15,11 @@ pub mod api_v2_objects;
 pub mod api_v2_recovery;
 pub mod api_v2_solana;
 pub mod api_v2_trust;
+pub mod api_v2_zk;
 pub mod storage;
 pub mod handlers;
 pub mod core;
+pub mod transport;
 
 use axum::{
     Router,
@@ -421,6 +423,9 @@ pub async fn run_relay() {
         .route("/api/v2/solana/balance/{address}", get(api_v2_solana::get_solana_balance))
         // === API v2: Liveness / anti-deepfake schema docs (Phase 6c) ===
         .route("/api/v2/liveness/schema", get(api_v2_liveness::get_liveness_schema))
+        // === API v2: zk-STARK selective disclosure (Phase 6b) ===
+        .route("/api/v2/zk/schema", get(api_v2_zk::get_zk_schema))
+        .route("/api/v2/zk/verify", post(api_v2_zk::verify_presentation))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)
