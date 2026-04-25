@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.111.0"
+version = "0.112.0"
 edition = "2021"
 
 [[bin]]
@@ -11,6 +11,7 @@ path = "src/main.rs"
 default = ["native"]
 native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
+mesh = ["relay", "dep:serialport"]
 wasm = [
     "dep:web-sys", "dep:js-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures",
     "dep:console_error_panic_hook", "dep:console_log",
@@ -109,6 +110,11 @@ rand_core_06 = { package = "rand_core", version = "0.6", optional = true, featur
 ml-dsa = { version = "0.1.0-rc.8", optional = true }
 ml-kem = { version = "0.3.0-rc.2", optional = true, features = ["getrandom"] }
 argon2 = { version = "0.6.0-rc.8", optional = true }
+
+# === LoRa mesh transport (Phase 7b — feature `mesh`) ===
+# Cross-platform pure-Rust serial port access. The LoRa radio modules we
+# target (RFM95W, SX1262, etc.) expose a UART, so this is the canonical path.
+serialport = { version = "4.9", optional = true }
 
 [build-dependencies]
 winres = "0.1"

@@ -192,36 +192,136 @@
     return { did, resolution, trust, aiStatus, credentials };
   }
 
-  /* ─── PQ keygen + signing — TODO marker ────────────────────────────── */
+  /* ─── PQ keygen + signing (via @noble/post-quantum) ────────────────── */
+
+  // Lazy-loaded module references. We dynamic-import on first use so pages
+  // that never need PQ crypto don't pay the bundle cost.
+  // Override _PQ_NOBLE_BASE before any pq* call to use a vendored copy
+  // instead of the public CDN.
+  let _PQ_NOBLE_BASE = (window.HUM_PQ_NOBLE_BASE || 'https://esm.sh/@noble/post-quantum');
+  let _PQ_HASHES_BASE = (window.HUM_PQ_HASHES_BASE || 'https://esm.sh/@noble/hashes');
+  let _ml_dsa65 = null;
+  let _ml_kem768 = null;
+  let _blake3 = null;
+
+  async function _loadNoble() {
+    if (!_ml_dsa65) {
+      const m = await import(/* @vite-ignore */ `${_PQ_NOBLE_BASE}/ml-dsa`);
+      _ml_dsa65 = m.ml_dsa65;
+    }
+    if (!_ml_kem768) {
+      const m = await import(/* @vite-ignore */ `${_PQ_NOBLE_BASE}/ml-kem`);
+      _ml_kem768 = m.ml_kem768;
+    }
+    if (!_blake3) {
+      const m = await import(/* @vite-ignore */ `${_PQ_HASHES_BASE}/blake3`);
+      _blake3 = m.blake3;
+    }
+  }
+
+  // Domain separators MUST match server-side derivation in
+  // src/relay/core/pq_crypto.rs so the same BIP39 seed produces identical keys
+  // on both sides.
+  const DOMAIN_DILITHIUM = 'hum/dilithium3/v1';
+  const DOMAIN_KYBER = 'hum/kyber768/v1';
 
   /**
-   * STUB: full PQ key derivation and signing requires the @noble/post-quantum
-   * library (Dilithium3 + Kyber768). When that lands as a vendored UMD bundle
-   * or CDN load, the implementation will be:
+   * Derive a 32-byte Dilithium3 seed from any high-entropy source
+   * (typically the 64-byte BIP39 PBKDF2 seed).
    *
-   *   import { ml_dsa65 } from '@noble/post-quantum/ml-dsa';
-   *   import { ml_kem768 } from '@noble/post-quantum/ml-kem';
-   *   const seed = bip39ToSeed(mnemonic);  // existing crypto.js helper
-   *   const dilithiumSeed = blake3DeriveKey(seed, "hum/dilithium3/v1");
-   *   const { secretKey, publicKey } = ml_dsa65.keygen(dilithiumSeed);
-   *   const sig = ml_dsa65.sign(secretKey, canonicalCborBytes);
-   *
-   * For now, this throws so callers know the gap.
+   * Uses BLAKE3 keyed-derivation with `hum/dilithium3/v1` so the same input
+   * yields the same key as the server's pq_crypto::derive_dilithium_seed.
    */
-  function pqKeygenFromSeed(_seedBytes32) {
-    throw new Error(
-      'PQ keygen not yet wired in JS. ' +
-      'Track plan: ~/.claude/plans/okay-claude-here-s-a-floating-wozniak.md ' +
-      '(Phase 0 PR 3b — pending @noble/post-quantum bundle integration).'
-    );
+  async function deriveDilithiumSeed(masterSeedBytes) {
+    await _loadNoble();
+    return _blake3.create({ dkLen: 32, context: DOMAIN_DILITHIUM })
+      .update(masterSeedBytes)
+      .digest();
   }
 
-  function pqSign(_signingKey, _message) {
-    throw new Error('PQ sign not yet wired in JS. See pqKeygenFromSeed for status.');
+  /** Derive a 64-byte Kyber768 seed via BLAKE3 keyed-derivation. */
+  async function deriveKyberSeed(masterSeedBytes) {
+    await _loadNoble();
+    return _blake3.create({ dkLen: 64, context: DOMAIN_KYBER })
+      .update(masterSeedBytes)
+      .digest();
   }
 
-  function pqVerify(_publicKey, _message, _signature) {
-    throw new Error('PQ verify not yet wired in JS. See pqKeygenFromSeed for status.');
+  /**
+   * Generate a Dilithium3 keypair from a 32-byte seed.
+   * Returns { secretKey, publicKey } as Uint8Arrays.
+   *
+   * publicKey is 1952 bytes, secretKey is 4032 bytes (or use the seed as the
+   * canonical short-form private key — see deriveDilithiumSeed).
+   */
+  async function pqKeygenFromSeed(seedBytes32) {
+    await _loadNoble();
+    if (!seedBytes32 || seedBytes32.length !== 32) {
+      throw new Error('seed must be 32 bytes');
+    }
+    return _ml_dsa65.keygen(seedBytes32);
+  }
+
+  /** Sign a message with a Dilithium3 secretKey. Returns 3309-byte signature. */
+  async function pqSign(secretKey, message) {
+    await _loadNoble();
+    return _ml_dsa65.sign(secretKey, message);
+  }
+
+  /** Verify a Dilithium3 signature. Returns true/false. */
+  async function pqVerify(publicKey, message, signature) {
+    await _loadNoble();
+    return _ml_dsa65.verify(publicKey, message, signature);
+  }
+
+  /**
+   * Generate a Kyber768 keypair from a 64-byte seed.
+   * Returns { secretKey, publicKey } as Uint8Arrays.
+   */
+  async function pqKemKeygenFromSeed(seedBytes64) {
+    await _loadNoble();
+    if (!seedBytes64 || seedBytes64.length !== 64) {
+      throw new Error('seed must be 64 bytes');
+    }
+    return _ml_kem768.keygen(seedBytes64);
+  }
+
+  /** Encapsulate a shared secret to a Kyber768 public key. */
+  async function pqKemEncapsulate(publicKey) {
+    await _loadNoble();
+    return _ml_kem768.encapsulate(publicKey);
+  }
+
+  /** Decapsulate a Kyber768 ciphertext using the secret key. */
+  async function pqKemDecapsulate(secretKey, ciphertext) {
+    await _loadNoble();
+    return _ml_kem768.decapsulate(secretKey, ciphertext);
+  }
+
+  /** Hex helper for Dilithium3 fingerprints (matches server's author_fp). */
+  async function did_for_pubkey(publicKey) {
+    await _loadNoble();
+    const hash = _blake3(publicKey);
+    const fp = hash.slice(0, 16);
+    return 'did:hum:' + _base58Encode(fp);
+  }
+
+  // Inline base58 encoder (Bitcoin alphabet) — small enough not to warrant
+  // another dependency.
+  const _BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  function _base58Encode(bytes) {
+    let n = 0n;
+    for (const b of bytes) n = (n << 8n) | BigInt(b);
+    let out = '';
+    while (n > 0n) {
+      out = _BASE58_ALPHABET[Number(n % 58n)] + out;
+      n /= 58n;
+    }
+    for (const b of bytes) {
+      if (b !== 0) break;
+      out = '1' + out;
+    }
+    return out || '1';
   }
 
   /* ─── Public API ───────────────────────────────────────────────────── */
@@ -256,9 +356,15 @@
     getLivenessSchema,
     // Convenience
     enrichDid,
-    // PQ crypto stubs (TODO)
+    // PQ crypto (Dilithium3 + Kyber768 via @noble/post-quantum)
+    deriveDilithiumSeed,
+    deriveKyberSeed,
     pqKeygenFromSeed,
     pqSign,
     pqVerify,
+    pqKemKeygenFromSeed,
+    pqKemEncapsulate,
+    pqKemDecapsulate,
+    did_for_pubkey,
   };
 })();

@@ -17,6 +17,7 @@ pub mod error;
 pub mod hash;
 pub mod identity;
 pub mod kdf;
+pub mod merkle_disclosure;
 pub mod object;
 pub mod pq_crypto;
 pub mod signing;
