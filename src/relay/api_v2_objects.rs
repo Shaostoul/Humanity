@@ -170,6 +170,7 @@ pub async fn post_object(
                     crate::relay::handlers::federation::gossip_signed_object(
                         &state_clone,
                         &object_clone,
+                        None, // locally submitted — no peer to exclude
                     )
                     .await;
                 });

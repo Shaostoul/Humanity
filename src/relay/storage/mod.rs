@@ -142,6 +142,9 @@ pub use ai_status::{AiStatus, SubjectClass};
 /// Social key recovery — Shamir share index (Phase 4 PR 1).
 pub use recovery::{RecoveryShareIndex, RecoverySetup};
 
+/// Per-observer per-issuer continuous trust (Phase 3 PR 2).
+pub use issuer_trust::{IssuerTrustRow, NEUTRAL_TRUST, MAX_DELTA};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1121,7 +1124,21 @@ impl Storage {
                 created_at       INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_recovery_holder   ON recovery_shares(holder_did);
-            CREATE INDEX IF NOT EXISTS idx_recovery_guardian ON recovery_shares(guardian_did);"
+            CREATE INDEX IF NOT EXISTS idx_recovery_guardian ON recovery_shares(guardian_did);
+
+            -- Phase 3 PR 2: per-observer per-issuer continuous trust matrix.
+            -- Each server tracks how much it trusts each issuer DID it has seen.
+            -- Disputes drop trust; valid VCs raise it. Caps in [0, 1].
+            CREATE TABLE IF NOT EXISTS issuer_trust (
+                observer_server  TEXT NOT NULL,
+                issuer_did       TEXT NOT NULL,
+                trust            REAL NOT NULL,
+                good_count       INTEGER NOT NULL DEFAULT 0,
+                bad_count        INTEGER NOT NULL DEFAULT 0,
+                last_event_at    INTEGER NOT NULL,
+                PRIMARY KEY (observer_server, issuer_did)
+            );
+            CREATE INDEX IF NOT EXISTS idx_issuer_trust_did ON issuer_trust(issuer_did);"
         )?;
 
         // Migration: add origin_server column to messages for federated message persistence.
@@ -1328,6 +1345,7 @@ mod ai_status;
 mod credentials;
 mod dids;
 mod governance;
+mod issuer_trust;
 mod recovery;
 mod signed_objects;
 mod signed_profiles;

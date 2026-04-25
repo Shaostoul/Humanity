@@ -138,6 +138,26 @@ impl Storage {
             let _ = self.index_controlled_by(object);
             // Auto-index social recovery shares.
             let _ = self.index_recovery_share(object);
+            // Auto-process disputes: lower the disputed issuer's trust score from
+            // this observer's perspective. We use source_server as the observer key
+            // (or "self" for locally-submitted disputes).
+            if object.object_type == "dispute_v1" {
+                let observer = source_server.unwrap_or("self");
+                let _ = self.index_dispute(object, observer);
+            }
+            // Reward issuers when their VCs are accepted (good signal).
+            // Only count "real" credential schemas, not infrastructure types.
+            if matches!(
+                object.object_type.as_str(),
+                "vouch_v1" | "verified_human_v1" | "skill_endorsement_v1"
+                | "graduation_v1" | "employment_v1" | "role_v1"
+                | "member_v1" | "account_age_v1"
+            ) {
+                let issuer_did =
+                    crate::relay::core::did::did_for_pubkey(&object.author_public_key);
+                let observer = source_server.unwrap_or("self");
+                let _ = self.issuer_trust_good(observer, &issuer_did, 0.005);
+            }
             // Revocations: only the issuer of the target VC may revoke it.
             if object.object_type == "revocation_v1" {
                 if let Some(target_id) = first_reference(object) {

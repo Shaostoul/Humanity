@@ -273,7 +273,6 @@ pub async fn federation_connect_loop(
                                         };
 
                                         // put_signed_object verifies the Dilithium3 signature.
-                                        // source_server tag ensures we don't re-gossip (loop prevention).
                                         let source = Some(_sid_for_read.as_str());
                                         match state_for_read.db.put_signed_object(&object, source) {
                                             Ok(true) => {
@@ -281,9 +280,23 @@ pub async fn federation_connect_loop(
                                                     "Federation: accepted {} object {} from {}",
                                                     object_type, object_id, _sid_for_read
                                                 );
+                                                // Phase 3 PR 2: multi-hop gossip — re-emit to peers
+                                                // OTHER than the source. INSERT OR IGNORE on the
+                                                // receiving side breaks any cycles.
+                                                let state_for_gossip = state_for_read.clone();
+                                                let object_for_gossip = object.clone();
+                                                let exclude = _sid_for_read.clone();
+                                                tokio::spawn(async move {
+                                                    gossip_signed_object(
+                                                        &state_for_gossip,
+                                                        &object_for_gossip,
+                                                        Some(&exclude),
+                                                    )
+                                                    .await;
+                                                });
                                             }
                                             Ok(false) => {
-                                                // Already had this object — gossip convergence.
+                                                // Already had this object — gossip convergence; do not re-emit.
                                             }
                                             Err(e) => {
                                                 tracing::warn!(
@@ -347,13 +360,18 @@ pub async fn broadcast_federation_status(state: &Arc<RelayState>) {
 }
 
 /// Gossip a post-quantum signed object to all connected federated servers
-/// (Phase 3 PR 1). Called from the API after a local user submits a new
-/// signed_object. Receiving servers re-verify and run the same auto-indexing.
+/// (Phase 3 PR 1+2). Called from the API after a local user submits a new
+/// signed_object, AND from the federation receiver after accepting a peer's
+/// gossip (multi-hop propagation, Phase 3 PR 2).
 ///
-/// Loop prevention: only call this for objects with `source_server = None`
-/// (locally submitted). Federation-received objects are tagged with their
-/// origin server and not re-gossiped from this hop.
-pub async fn gossip_signed_object(state: &Arc<RelayState>, object: &Object) {
+/// `exclude_server_id`: skip this peer when re-gossiping. Used to avoid
+/// echoing back to the source. Loops are also broken by `INSERT OR IGNORE`
+/// dedup on object_id — a peer that has already seen the object discards it.
+pub async fn gossip_signed_object(
+    state: &Arc<RelayState>,
+    object: &Object,
+    exclude_server_id: Option<&str>,
+) {
     let object_id = match object.object_id() {
         Ok(h) => h.to_hex(),
         Err(_) => return,
@@ -379,7 +397,13 @@ pub async fn gossip_signed_object(state: &Arc<RelayState>, object: &Object) {
     };
 
     let connections = state.federation_connections.read().await;
+    let mut sent = 0;
     for conn in connections.values() {
+        if let Some(exclude) = exclude_server_id {
+            if conn.server_id == exclude {
+                continue;
+            }
+        }
         // Per-peer rate limit: max 50 gossiped objects per second.
         let allow = {
             let mut rate = state.federation_rate.lock().unwrap();
@@ -395,13 +419,16 @@ pub async fn gossip_signed_object(state: &Arc<RelayState>, object: &Object) {
         };
         if allow {
             let _ = conn.tx.send(json.clone());
+            sent += 1;
         }
     }
     tracing::debug!(
-        "Federation: gossiped {} object {} to {} peer(s)",
+        "Federation: gossiped {} object {} to {}/{} peer(s) (excluded={:?})",
         object.object_type,
         object_id,
-        connections.len()
+        sent,
+        connections.len(),
+        exclude_server_id
     );
 }
 
