@@ -66,6 +66,10 @@ pub enum ButtonSize {
 
 /// Universal button builder. Construct via `Button::new`, `Button::primary`,
 /// `Button::secondary`, `Button::danger`, `Button::ghost`, or `Button::icon_only`.
+///
+/// **Tab / nav buttons** use `.active(bool)` to flip into Primary styling when
+/// selected — this is how `tab_bar`, `sidebar_nav`, `category_filter`, and the
+/// header menu all share the same button look.
 #[derive(Debug, Clone)]
 pub struct Button<'a> {
     label: &'a str,
@@ -75,6 +79,9 @@ pub struct Button<'a> {
     size: ButtonSize,
     full_width: bool,
     disabled: bool,
+    /// When true, the button visually represents a current/selected/active state.
+    /// Overrides the variant fill: any non-Primary variant flips to filled-accent.
+    active: bool,
     tooltip: Option<&'a str>,
     /// Override the min-height. Rare — prefer `size`.
     min_height: Option<f32>,
@@ -92,9 +99,16 @@ impl<'a> Button<'a> {
             size: ButtonSize::Medium,
             full_width: false,
             disabled: false,
+            active: false,
             tooltip: None,
             min_height: None,
         }
+    }
+
+    /// Tab / nav button: starts as Ghost, flips to filled-accent when active.
+    /// Used by `tab_bar`, `sidebar_nav`, `category_filter`, and the app header.
+    pub fn tab(label: &'a str, is_active: bool) -> Self {
+        Self::new(label).variant(ButtonVariant::Ghost).active(is_active)
     }
 
     /// Filled accent button — primary call-to-action.
@@ -166,6 +180,14 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// Mark this button as the current/selected/active one. Overrides the
+    /// variant fill: any non-Primary variant flips to filled-accent. Used for
+    /// tabs, nav items, category filters, and the app header.
+    pub fn active(mut self, active: bool) -> Self {
+        self.active = active;
+        self
+    }
+
     /// Show a tooltip on hover.
     pub fn tooltip(mut self, text: &'a str) -> Self {
         self.tooltip = Some(text);
@@ -200,7 +222,16 @@ impl<'a> Button<'a> {
             (None, None) => self.label.to_string(),
         };
 
-        let (text_color, fill, stroke) = match self.variant {
+        // Active state overrides variant: any button that's "selected" looks
+        // like Primary. This is how tabs, nav items, and category filters
+        // visually mark the current page/tab/category.
+        let effective_variant = if self.active {
+            ButtonVariant::Primary
+        } else {
+            self.variant
+        };
+
+        let (text_color, fill, stroke) = match effective_variant {
             ButtonVariant::Primary => (
                 theme.text_on_accent(),
                 theme.accent(),

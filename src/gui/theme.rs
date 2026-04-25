@@ -217,6 +217,34 @@ impl Theme {
         }
     }
 
+    /// Reset only the color tokens to canonical HumanityOS dark defaults.
+    /// Widget sizing/spacing/fonts are unchanged. Used by the Settings color editor.
+    pub fn reset_color_defaults(&mut self) {
+        self.bg_primary = (0.039, 0.039, 0.047, 1.0);     // #0a0a0c
+        self.bg_secondary = (0.078, 0.078, 0.094, 1.0);   // #141418
+        self.bg_tertiary = (0.145, 0.145, 0.188, 1.0);    // #252530
+        self.bg_card = (0.102, 0.102, 0.133, 1.0);        // #1a1a22
+        self.bg_modal = (0.0, 0.0, 0.0, 0.7);
+        self.accent = (0.929, 0.549, 0.141, 1.0);         // #ED8C24
+        self.accent_hover = (1.0, 0.651, 0.239, 1.0);     // #FFA63D
+        self.accent_pressed = (0.8, 0.451, 0.098, 1.0);   // #CC7319
+        self.text_primary = (0.910, 0.910, 0.918, 1.0);   // #e8e8ea
+        self.text_secondary = (0.533, 0.533, 0.580, 1.0); // #888894
+        self.text_muted = (0.416, 0.416, 0.459, 1.0);     // #6a6a75
+        self.text_on_accent = (1.0, 1.0, 1.0, 1.0);
+        self.success = (0.165, 0.722, 0.439, 1.0);        // #2AB870
+        self.warning = (0.961, 0.722, 0.231, 1.0);        // #F5B83B
+        self.danger = (0.937, 0.310, 0.310, 1.0);         // #EF4F4F
+        self.info = (0.310, 0.667, 0.937, 1.0);           // #4FAAEF
+        self.border = (0.165, 0.165, 0.208, 1.0);         // #2a2a35
+        self.border_focus = (0.929, 0.549, 0.141, 1.0);
+        self.badge_admin = (0.937, 0.310, 0.310, 1.0);
+        self.badge_mod = (0.310, 0.667, 0.937, 1.0);
+        self.badge_verified = (0.165, 0.722, 0.439, 1.0);
+        self.badge_donor = (0.929, 0.549, 0.141, 1.0);
+        self.badge_live = (0.937, 0.310, 0.310, 1.0);
+    }
+
     /// Reset only the widget variables to their defaults while keeping colors.
     pub fn reset_widget_defaults(&mut self) {
         self.row_gap = 2.0;

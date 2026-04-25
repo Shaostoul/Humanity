@@ -624,7 +624,7 @@ fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     });
 }
 
-fn draw_appearance_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         if widgets::toggle(ui, theme, "Dark Mode", &mut state.settings.dark_mode) {
             state.settings_dirty = true;
@@ -636,6 +636,124 @@ fn draw_appearance_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
             state.settings_dirty = true;
         }
     });
+
+    ui.add_space(theme.spacing_md);
+
+    // ── Theme Colors: live-edit every color token; saves to data/gui/theme.ron ──
+    let mut any_color_changed = false;
+    let card_bg = theme.bg_card();
+    let card_border = theme.border();
+    let card_radius = theme.border_radius;
+    let card_padding = theme.card_padding;
+    let label_color = theme.text_secondary();
+    let header_color = theme.text_primary();
+    let heading_size = theme.font_size_heading;
+
+    egui::Frame::none()
+        .fill(card_bg)
+        .rounding(Rounding::same(card_radius as u8))
+        .inner_margin(card_padding)
+        .stroke(Stroke::new(1.0, card_border))
+        .show(ui, |ui| {
+            ui.label(
+                RichText::new("Theme Colors")
+                    .size(heading_size)
+                    .color(header_color)
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(
+                    "Live-edit every color token. Click a swatch to open the picker. \
+                     Changes apply instantly across every page; click Save to persist.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+
+            ui.columns(2, |cols| {
+                let labels_left = [
+                    ("Background (primary)", &mut theme.bg_primary as *mut _),
+                    ("Background (secondary)", &mut theme.bg_secondary as *mut _),
+                    ("Background (tertiary)", &mut theme.bg_tertiary as *mut _),
+                    ("Background (card)", &mut theme.bg_card as *mut _),
+                    ("Accent", &mut theme.accent as *mut _),
+                    ("Accent (hover)", &mut theme.accent_hover as *mut _),
+                    ("Accent (pressed)", &mut theme.accent_pressed as *mut _),
+                    ("Text on accent", &mut theme.text_on_accent as *mut _),
+                    ("Border", &mut theme.border as *mut _),
+                    ("Border (focus)", &mut theme.border_focus as *mut _),
+                ];
+                for (label, ptr) in labels_left {
+                    let ui_l = &mut cols[0];
+                    // SAFETY: we hold &mut theme; the pointer is valid for the
+                    // duration of this scope and not aliased.
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_l, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+                let labels_right = [
+                    ("Text (primary)", &mut theme.text_primary as *mut _),
+                    ("Text (secondary)", &mut theme.text_secondary as *mut _),
+                    ("Text (muted)", &mut theme.text_muted as *mut _),
+                    ("Success", &mut theme.success as *mut _),
+                    ("Warning", &mut theme.warning as *mut _),
+                    ("Danger", &mut theme.danger as *mut _),
+                    ("Info", &mut theme.info as *mut _),
+                    ("Badge: admin", &mut theme.badge_admin as *mut _),
+                    ("Badge: mod", &mut theme.badge_mod as *mut _),
+                    ("Badge: verified", &mut theme.badge_verified as *mut _),
+                ];
+                for (label, ptr) in labels_right {
+                    let ui_r = &mut cols[1];
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_r, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+            });
+
+            ui.add_space(theme.spacing_md);
+            ui.horizontal(|ui| {
+                if widgets::Button::primary("Save Theme").show(ui, theme) {
+                    theme.save();
+                }
+                if widgets::Button::secondary("Reset Colors").show(ui, theme) {
+                    theme.reset_color_defaults();
+                    any_color_changed = true;
+                }
+            });
+        });
+
+    if any_color_changed {
+        // Apply visuals immediately so the rest of the UI re-renders with new colors.
+        theme.apply_to_egui(ui.ctx());
+    }
+}
+
+/// One row of the color-picker grid: a label and a swatch button that opens
+/// egui's color picker. Returns true if the color changed.
+fn color_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    color_tuple: &mut (f32, f32, f32, f32),
+    label_color: Color32,
+) -> bool {
+    let mut rgba = [color_tuple.0, color_tuple.1, color_tuple.2, color_tuple.3];
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(label).color(label_color).size(13.0));
+        ui.add_space(4.0);
+        if ui.color_edit_button_rgba_unmultiplied(&mut rgba).changed() {
+            color_tuple.0 = rgba[0];
+            color_tuple.1 = rgba[1];
+            color_tuple.2 = rgba[2];
+            color_tuple.3 = rgba[3];
+            changed = true;
+        }
+    });
+    changed
 }
 
 fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: &mut GuiState) {

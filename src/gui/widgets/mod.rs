@@ -244,21 +244,17 @@ pub fn progress_bar(ui: &mut Ui, theme: &Theme, progress: f32, label: Option<&st
 }
 
 /// Tab bar. Updates active index, returns true if changed.
+///
+/// Uses the universal `Button` builder under the hood — every tab/nav button
+/// across the app flows through the same widget. Edit `Button::show` once and
+/// every tab updates: header menu, settings categories, marketplace filters,
+/// chat channel switcher, all of them.
 pub fn tab_bar(ui: &mut Ui, theme: &Theme, tabs: &[&str], active: &mut usize) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
         for (i, tab) in tabs.iter().enumerate() {
             let is_active = i == *active;
-            let text = if is_active {
-                RichText::new(*tab).color(theme.text_on_accent()).size(theme.font_size_body)
-            } else {
-                RichText::new(*tab).color(theme.text_secondary()).size(theme.font_size_body)
-            };
-            let fill = if is_active { theme.accent() } else { Color32::TRANSPARENT };
-            let btn = egui::Button::new(text)
-                .fill(fill)
-                .rounding(Rounding::same(theme.border_radius as u8));
-            if ui.add(btn).clicked() && !is_active {
+            if Button::tab(tab, is_active).show(ui, theme) && !is_active {
                 *active = i;
                 changed = true;
             }
@@ -360,6 +356,9 @@ pub fn search_bar(ui: &mut Ui, theme: &Theme, value: &mut String, hint: &str) ->
 
 /// Sidebar navigation with active-state highlighting.
 /// Returns Some(index) if a new item was clicked.
+///
+/// Uses the universal `Button` builder — same styling rules as tabs and the
+/// header menu. Active item flips to filled-accent automatically.
 pub fn sidebar_nav(
     ui: &mut Ui,
     theme: &Theme,
@@ -369,24 +368,7 @@ pub fn sidebar_nav(
     let mut clicked = None;
     for (i, label) in items.iter().enumerate() {
         let is_active = i == active;
-        let bg = if is_active {
-            Color32::from_rgba_unmultiplied(
-                theme.accent().r(),
-                theme.accent().g(),
-                theme.accent().b(),
-                30,
-            )
-        } else {
-            Color32::TRANSPARENT
-        };
-        let text_color = if is_active { theme.accent() } else { theme.text_secondary() };
-        let btn = egui::Button::new(
-            RichText::new(*label).size(theme.body_size).color(text_color),
-        )
-        .fill(bg)
-        .rounding(Rounding::same(4))
-        .min_size(Vec2::new(ui.available_width(), 28.0));
-        if ui.add(btn).clicked() {
+        if Button::tab(label, is_active).full_width().show(ui, theme) {
             clicked = Some(i);
         }
     }
@@ -394,6 +376,9 @@ pub fn sidebar_nav(
 }
 
 /// Horizontal category filter buttons. Returns Some(new_index) if changed.
+///
+/// Uses the universal `Button` builder with `Small` size and `active` state —
+/// same look as tabs and the header menu but at filter-pill size.
 pub fn category_filter(
     ui: &mut Ui,
     theme: &Theme,
@@ -404,14 +389,10 @@ pub fn category_filter(
     ui.horizontal_wrapped(|ui| {
         for (i, cat) in categories.iter().enumerate() {
             let is_active = i == active;
-            let bg = if is_active { theme.accent() } else { theme.bg_card() };
-            let text_color = if is_active { theme.text_on_accent() } else { theme.text_secondary() };
-            let btn = egui::Button::new(
-                RichText::new(*cat).size(theme.small_size).color(text_color),
-            )
-            .fill(bg)
-            .rounding(Rounding::same(theme.badge_radius as u8));
-            if ui.add(btn).clicked() {
+            if Button::tab(cat, is_active)
+                .size(ButtonSize::Small)
+                .show(ui, theme)
+            {
                 clicked = Some(i);
             }
         }

@@ -74,8 +74,11 @@ mod tests {
 
     #[test]
     fn test_mnemonic_roundtrip() {
-        // Generate a random mnemonic and verify we can derive a keypair
-        let mnemonic = bip39::Mnemonic::generate(24)
+        // Generate a random mnemonic and verify we can derive a keypair.
+        // bip39 0.7+ requires explicit entropy: 32 bytes = 256 bits = 24 words.
+        let mut entropy = [0u8; 32];
+        getrandom::getrandom(&mut entropy).expect("OS RNG failed");
+        let mnemonic = bip39::Mnemonic::from_entropy(&entropy)
             .expect("Failed to generate mnemonic");
         let phrase = mnemonic.to_string();
 
