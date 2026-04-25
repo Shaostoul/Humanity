@@ -4,8 +4,10 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use base64::{Engine, engine::general_purpose::STANDARD as B64};
 use futures::{SinkExt, StreamExt};
 
+use crate::relay::core::object::Object;
 use crate::relay::relay::{FederatedConnection, FederationServerStatus, RelayMessage, RelayState};
 use crate::relay::storage::Storage;
 
@@ -230,6 +232,67 @@ pub async fn federation_connect_loop(
                                             &signature,
                                         );
                                     }
+                                    // Generic post-quantum signed-object gossip (Phase 3 PR 1).
+                                    RelayMessage::SignedObjectGossip {
+                                        object_id, protocol_version, object_type,
+                                        space_id, channel_id, author_public_key_b64,
+                                        created_at, references, payload_schema_version,
+                                        payload_encoding, payload_b64, signature_b64,
+                                    } => {
+                                        let author_public_key = match B64.decode(&author_public_key_b64) {
+                                            Ok(b) => b,
+                                            Err(_) => {
+                                                tracing::warn!(
+                                                    "Federation: invalid base64 in author_public_key_b64 from {}",
+                                                    _sid_for_read
+                                                );
+                                                continue;
+                                            }
+                                        };
+                                        let payload = match B64.decode(&payload_b64) {
+                                            Ok(b) => b,
+                                            Err(_) => continue,
+                                        };
+                                        let signature = match B64.decode(&signature_b64) {
+                                            Ok(b) => b,
+                                            Err(_) => continue,
+                                        };
+
+                                        let object = Object {
+                                            protocol_version,
+                                            object_type: object_type.clone(),
+                                            space_id,
+                                            channel_id,
+                                            author_public_key,
+                                            created_at,
+                                            references,
+                                            payload_schema_version,
+                                            payload_encoding,
+                                            payload,
+                                            signature,
+                                        };
+
+                                        // put_signed_object verifies the Dilithium3 signature.
+                                        // source_server tag ensures we don't re-gossip (loop prevention).
+                                        let source = Some(_sid_for_read.as_str());
+                                        match state_for_read.db.put_signed_object(&object, source) {
+                                            Ok(true) => {
+                                                tracing::debug!(
+                                                    "Federation: accepted {} object {} from {}",
+                                                    object_type, object_id, _sid_for_read
+                                                );
+                                            }
+                                            Ok(false) => {
+                                                // Already had this object — gossip convergence.
+                                            }
+                                            Err(e) => {
+                                                tracing::warn!(
+                                                    "Federation: rejected {} object from {}: {}",
+                                                    object_type, _sid_for_read, e
+                                                );
+                                            }
+                                        }
+                                    }
                                     _ => {} // Ignore other message types from federation.
                                 }
                             }
@@ -281,6 +344,65 @@ pub async fn broadcast_federation_status(state: &Arc<RelayState>) {
     }).collect();
 
     let _ = state.broadcast_tx.send(RelayMessage::FederationStatus { servers: statuses });
+}
+
+/// Gossip a post-quantum signed object to all connected federated servers
+/// (Phase 3 PR 1). Called from the API after a local user submits a new
+/// signed_object. Receiving servers re-verify and run the same auto-indexing.
+///
+/// Loop prevention: only call this for objects with `source_server = None`
+/// (locally submitted). Federation-received objects are tagged with their
+/// origin server and not re-gossiped from this hop.
+pub async fn gossip_signed_object(state: &Arc<RelayState>, object: &Object) {
+    let object_id = match object.object_id() {
+        Ok(h) => h.to_hex(),
+        Err(_) => return,
+    };
+    let msg = RelayMessage::SignedObjectGossip {
+        object_id: object_id.clone(),
+        protocol_version: object.protocol_version,
+        object_type: object.object_type.clone(),
+        space_id: object.space_id.clone(),
+        channel_id: object.channel_id.clone(),
+        author_public_key_b64: B64.encode(&object.author_public_key),
+        created_at: object.created_at,
+        references: object.references.clone(),
+        payload_schema_version: object.payload_schema_version,
+        payload_encoding: object.payload_encoding.clone(),
+        payload_b64: B64.encode(&object.payload),
+        signature_b64: B64.encode(&object.signature),
+    };
+
+    let json = match serde_json::to_string(&msg) {
+        Ok(j) => j,
+        Err(_) => return,
+    };
+
+    let connections = state.federation_connections.read().await;
+    for conn in connections.values() {
+        // Per-peer rate limit: max 50 gossiped objects per second.
+        let allow = {
+            let mut rate = state.federation_rate.lock().unwrap();
+            let times = rate.entry(format!("{}:obj", conn.server_id)).or_default();
+            let now = Instant::now();
+            times.retain(|t| now.duration_since(*t).as_secs() < 1);
+            if times.len() < 50 {
+                times.push(now);
+                true
+            } else {
+                false
+            }
+        };
+        if allow {
+            let _ = conn.tx.send(json.clone());
+        }
+    }
+    tracing::debug!(
+        "Federation: gossiped {} object {} to {} peer(s)",
+        object.object_type,
+        object_id,
+        connections.len()
+    );
 }
 
 /// Gossip a profile update to all connected federated servers.

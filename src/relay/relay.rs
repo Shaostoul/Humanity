@@ -1490,6 +1490,39 @@ pub enum RelayMessage {
         signature: String,
     },
 
+    /// Generic signed-object gossip (Phase 3 PR 1).
+    ///
+    /// Used to federate any post-quantum signed object — VCs, governance proposals,
+    /// votes, recovery shares, AI status declarations, etc. The receiver re-verifies
+    /// the Dilithium3 signature, then `put_signed_object` auto-populates every
+    /// derived index (vc_index, proposals, votes, ai_status, recovery_shares).
+    ///
+    /// Currently 1-hop propagation: only objects locally submitted by users (not
+    /// already received from federation) are re-gossiped, preventing loops. Phase 3
+    /// PR 2 will add multi-hop propagation with TTL.
+    #[serde(rename = "signed_object_gossip")]
+    SignedObjectGossip {
+        object_id: String,
+        protocol_version: u64,
+        object_type: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        space_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_id: Option<String>,
+        /// Base64-encoded 1952-byte Dilithium3 public key.
+        author_public_key_b64: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        created_at: Option<u64>,
+        #[serde(default)]
+        references: Vec<String>,
+        payload_schema_version: u64,
+        payload_encoding: String,
+        /// Base64-encoded payload bytes.
+        payload_b64: String,
+        /// Base64-encoded 3309-byte Dilithium3 signature.
+        signature_b64: String,
+    },
+
     // ── Streaming messages ──
 
     /// Admin starts a stream session.

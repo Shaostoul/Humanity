@@ -160,19 +160,34 @@ pub async fn post_object(
     };
 
     match state.db.put_signed_object(&object, None) {
-        Ok(stored) => (
-            StatusCode::OK,
-            Json(serde_json::to_value(ObjectAcceptResponse {
-                object_id,
-                stored,
-                message: if stored {
-                    "object stored".into()
-                } else {
-                    "object already known (no-op)".into()
-                },
-            }).unwrap_or_default()),
-        )
-            .into_response(),
+        Ok(stored) => {
+            // Phase 3 PR 1: gossip newly-stored locally-submitted objects to peers.
+            // Already-known objects (stored == false) are not re-gossiped.
+            if stored {
+                let state_clone = state.clone();
+                let object_clone = object.clone();
+                tokio::spawn(async move {
+                    crate::relay::handlers::federation::gossip_signed_object(
+                        &state_clone,
+                        &object_clone,
+                    )
+                    .await;
+                });
+            }
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(ObjectAcceptResponse {
+                    object_id,
+                    stored,
+                    message: if stored {
+                        "object stored".into()
+                    } else {
+                        "object already known (no-op)".into()
+                    },
+                }).unwrap_or_default()),
+            )
+                .into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({
             "error": format!("storage error: {e}")
         })))
