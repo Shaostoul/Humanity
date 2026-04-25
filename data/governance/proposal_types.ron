@@ -1,0 +1,92 @@
+// Governance proposal types (Phase 5 PR 1).
+//
+// Each entry defines a proposal kind: scope (local vs civilization), quorum
+// threshold (min fraction of weighted-voting electorate), pass threshold (min
+// approval ratio of cast votes), default duration in milliseconds.
+//
+// Local proposals run on a single server. Civilization proposals propagate via
+// federation gossip (Phase 3) and require federation-wide quorum.
+//
+// Hot-reloadable: edit this file; the relay re-reads on next request.
+
+(
+    version: 1,
+    types: [
+        // === LOCAL SCOPE ===
+        (
+            id: "parameter_change",
+            scope: "local",
+            description: "Change a server policy value (rate limits, content rules, etc.)",
+            quorum_fraction: 0.05,
+            pass_threshold: 0.50,
+            default_duration_ms: 604800000,  // 7 days
+        ),
+        (
+            id: "schema_add",
+            scope: "local",
+            description: "Register a new local-only VC schema",
+            quorum_fraction: 0.05,
+            pass_threshold: 0.50,
+            default_duration_ms: 604800000,
+        ),
+        (
+            id: "treasury_grant",
+            scope: "local",
+            description: "Fund a contributor from the server's treasury",
+            quorum_fraction: 0.10,
+            pass_threshold: 0.50,
+            default_duration_ms: 604800000,
+        ),
+        (
+            id: "juror_pool_lottery",
+            scope: "local",
+            description: "Periodic re-draw of dispute juror pool",
+            quorum_fraction: 0.05,
+            pass_threshold: 0.50,
+            default_duration_ms: 259200000,  // 3 days
+        ),
+        (
+            id: "local_rule",
+            scope: "local",
+            description: "Community rule layered on top of Accord (must be at least as strict)",
+            quorum_fraction: 0.10,
+            pass_threshold: 0.66,
+            default_duration_ms: 1209600000,  // 14 days
+        ),
+
+        // === CIVILIZATION SCOPE ===
+        // Federation-wide; require Phase 3 federation v2 to propagate fully.
+        (
+            id: "accord_amendment",
+            scope: "civilization",
+            description: "Proposes an update to the Humanity Accord. Highest threshold.",
+            quorum_fraction: 0.25,
+            pass_threshold: 0.75,
+            default_duration_ms: 5184000000,  // 60 days
+        ),
+        (
+            id: "accord_interpretation",
+            scope: "civilization",
+            description: "Clarifies application of an existing Accord article",
+            quorum_fraction: 0.10,
+            pass_threshold: 0.66,
+            default_duration_ms: 2592000000,  // 30 days
+        ),
+        (
+            id: "federation_floor_policy",
+            scope: "civilization",
+            description: "Defines minimum standards across federation (e.g. issuer process requirements)",
+            quorum_fraction: 0.15,
+            pass_threshold: 0.66,
+            default_duration_ms: 2592000000,
+        ),
+        (
+            id: "schema_civilization_register",
+            scope: "civilization",
+            description: "Promotes a VC schema to federation-canonical status",
+            quorum_fraction: 0.10,
+            pass_threshold: 0.66,
+            default_duration_ms: 1814400000,  // 21 days
+        ),
+    ],
+)

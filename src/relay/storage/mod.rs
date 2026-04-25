@@ -133,6 +133,9 @@ pub use credentials::{CredentialIndex, extract_subject_did};
 /// Multi-layer trust score (Phase 2 PR 1).
 pub use trust_score::{SubScores, TrustInputs, TrustScore};
 
+/// Governance: proposals + votes + tally (Phase 5 PR 1).
+pub use governance::{ProposalIndex, ProposalTally, MAX_VOTE_WEIGHT};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1058,7 +1061,37 @@ impl Storage {
                 inputs_json        TEXT NOT NULL,
                 weights_version    INTEGER NOT NULL,
                 computed_at        INTEGER NOT NULL
-            );"
+            );
+
+            -- Phase 5 PR 1: Governance proposals fast-lookup index.
+            CREATE TABLE IF NOT EXISTS proposals (
+                proposal_object_id  TEXT PRIMARY KEY,
+                proposer_did        TEXT NOT NULL,
+                proposal_type       TEXT NOT NULL,
+                scope               TEXT NOT NULL,
+                space_id            TEXT,
+                opens_at            INTEGER NOT NULL,
+                closes_at           INTEGER NOT NULL,
+                created_at          INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_proposals_scope ON proposals(scope);
+            CREATE INDEX IF NOT EXISTS idx_proposals_type  ON proposals(proposal_type);
+            CREATE INDEX IF NOT EXISTS idx_proposals_space ON proposals(space_id);
+
+            -- Phase 5 PR 1: Vote records. UNIQUE on (proposal, voter) prevents
+            -- double-voting at the index level even if multiple distinct vote
+            -- objects from the same voter survive deduplication.
+            CREATE TABLE IF NOT EXISTS votes (
+                vote_object_id      TEXT PRIMARY KEY,
+                proposal_object_id  TEXT NOT NULL,
+                voter_did           TEXT NOT NULL,
+                choice              TEXT NOT NULL,
+                weight_at_vote      REAL NOT NULL,
+                cast_at             INTEGER NOT NULL,
+                UNIQUE(proposal_object_id, voter_did)
+            );
+            CREATE INDEX IF NOT EXISTS idx_votes_proposal ON votes(proposal_object_id);
+            CREATE INDEX IF NOT EXISTS idx_votes_voter    ON votes(voter_did);"
         )?;
 
         // Migration: add origin_server column to messages for federated message persistence.
@@ -1263,6 +1296,7 @@ mod reviews;
 mod members;
 mod credentials;
 mod dids;
+mod governance;
 mod signed_objects;
 mod signed_profiles;
 mod trust_score;

@@ -8,6 +8,7 @@ pub mod relay;
 pub mod api;
 pub mod api_v2_credentials;
 pub mod api_v2_did;
+pub mod api_v2_governance;
 pub mod api_v2_objects;
 pub mod api_v2_trust;
 pub mod storage;
@@ -402,6 +403,10 @@ pub async fn run_relay() {
         .route("/api/v2/credentials/{vc_object_id}", get(api_v2_credentials::get_credential))
         // === API v2: Trust score (Phase 2 PR 1) ===
         .route("/api/v2/trust/{did}", get(api_v2_trust::get_trust_score))
+        // === API v2: Governance (Phase 5 PR 1) ===
+        .route("/api/v2/proposals", get(api_v2_governance::list_proposals))
+        .route("/api/v2/proposals/{id}", get(api_v2_governance::get_proposal))
+        .route("/api/v2/proposals/{id}/tally", get(api_v2_governance::tally_proposal))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)

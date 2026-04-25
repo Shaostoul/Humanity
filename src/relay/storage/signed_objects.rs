@@ -130,6 +130,9 @@ impl Storage {
         if inserted {
             // Auto-index VCs.
             let _ = self.index_credential(object);
+            // Auto-index governance proposals + votes.
+            let _ = self.index_proposal(object);
+            let _ = self.index_vote(object);
             // Revocations: only the issuer of the target VC may revoke it.
             if object.object_type == "revocation_v1" {
                 if let Some(target_id) = first_reference(object) {
