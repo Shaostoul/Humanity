@@ -65,3 +65,44 @@ pub async fn get_shares_held_by(
             .into_response(),
     }
 }
+
+/// `GET /api/v2/recovery/request/{request_object_id}` — fetch a recovery request
+/// with its approval count and status.
+pub async fn get_recovery_request(
+    State(state): State<Arc<RelayState>>,
+    Path(request_object_id): Path<String>,
+) -> impl IntoResponse {
+    let req = match state.db.get_recovery_request(&request_object_id) {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "recovery request not found"})),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": format!("storage: {e}")})),
+            )
+                .into_response();
+        }
+    };
+    let approvals = state
+        .db
+        .list_recovery_approvals(&request_object_id)
+        .unwrap_or_default();
+    use base64::{Engine, engine::general_purpose::STANDARD as B64};
+    let body = serde_json::json!({
+        "request_object_id": req.request_object_id,
+        "holder_did": req.holder_did,
+        "new_pubkey_b64": B64.encode(&req.new_pubkey),
+        "threshold_required": req.threshold_required,
+        "approvals_count": req.approvals_count,
+        "status": req.status,
+        "created_at": req.created_at,
+        "approvals": approvals,
+    });
+    (StatusCode::OK, Json(body)).into_response()
+}

@@ -139,8 +139,8 @@ pub use governance::{ProposalIndex, ProposalTally, MAX_VOTE_WEIGHT};
 /// AI-as-citizen status (Phase 8 PR 1).
 pub use ai_status::{AiStatus, SubjectClass};
 
-/// Social key recovery — Shamir share index (Phase 4 PR 1).
-pub use recovery::{RecoveryShareIndex, RecoverySetup};
+/// Social key recovery — Shamir share index + request + approval flow (Phase 4 PR 1+2).
+pub use recovery::{RecoveryShareIndex, RecoverySetup, RecoveryRequestRecord, RecoveryApprovalRecord};
 
 /// Per-observer per-issuer continuous trust (Phase 3 PR 2).
 pub use issuer_trust::{IssuerTrustRow, NEUTRAL_TRUST, MAX_DELTA};
@@ -1125,6 +1125,33 @@ impl Storage {
             );
             CREATE INDEX IF NOT EXISTS idx_recovery_holder   ON recovery_shares(holder_did);
             CREATE INDEX IF NOT EXISTS idx_recovery_guardian ON recovery_shares(guardian_did);
+
+            -- Phase 4 PR 2: Recovery request + approval tracking. Holder publishes
+            -- a recovery_request_v1 signed by their NEW key; guardians publish
+            -- recovery_approval_v1 referencing the request. When approvals_count
+            -- reaches threshold_required, status flips to 'ready' and the holder's
+            -- client can reassemble shares via Shamir and publish a key_rotation_v1.
+            CREATE TABLE IF NOT EXISTS recovery_requests (
+                request_object_id    TEXT PRIMARY KEY,
+                holder_did           TEXT NOT NULL,
+                new_pubkey           BLOB NOT NULL,
+                threshold_required   INTEGER NOT NULL,
+                approvals_count      INTEGER NOT NULL DEFAULT 0,
+                status               TEXT NOT NULL DEFAULT 'open',
+                created_at           INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_recovery_requests_holder ON recovery_requests(holder_did);
+            CREATE INDEX IF NOT EXISTS idx_recovery_requests_status ON recovery_requests(status);
+
+            CREATE TABLE IF NOT EXISTS recovery_approvals (
+                approval_object_id   TEXT PRIMARY KEY,
+                request_object_id    TEXT NOT NULL,
+                guardian_did         TEXT NOT NULL,
+                submitted_at         INTEGER NOT NULL,
+                UNIQUE(request_object_id, guardian_did)
+            );
+            CREATE INDEX IF NOT EXISTS idx_recovery_approvals_request
+                ON recovery_approvals(request_object_id);
 
             -- Phase 3 PR 2: per-observer per-issuer continuous trust matrix.
             -- Each server tracks how much it trusts each issuer DID it has seen.

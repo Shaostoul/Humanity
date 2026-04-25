@@ -136,8 +136,10 @@ impl Storage {
             // Auto-index AI status declarations.
             let _ = self.index_subject_class(object);
             let _ = self.index_controlled_by(object);
-            // Auto-index social recovery shares.
+            // Auto-index social recovery: shares (Phase 4 PR 1), requests + approvals (PR 2).
             let _ = self.index_recovery_share(object);
+            let _ = self.index_recovery_request(object);
+            let _ = self.index_recovery_approval(object);
             // Auto-process disputes: lower the disputed issuer's trust score from
             // this observer's perspective. We use source_server as the observer key
             // (or "self" for locally-submitted disputes).
