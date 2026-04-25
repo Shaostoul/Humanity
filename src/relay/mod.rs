@@ -6,6 +6,7 @@
 
 pub mod relay;
 pub mod api;
+pub mod api_v2_ai;
 pub mod api_v2_credentials;
 pub mod api_v2_did;
 pub mod api_v2_governance;
@@ -407,6 +408,8 @@ pub async fn run_relay() {
         .route("/api/v2/proposals", get(api_v2_governance::list_proposals))
         .route("/api/v2/proposals/{id}", get(api_v2_governance::get_proposal))
         .route("/api/v2/proposals/{id}/tally", get(api_v2_governance::tally_proposal))
+        // === API v2: AI-as-citizen status (Phase 8 PR 1) ===
+        .route("/api/v2/ai-status/{did}", get(api_v2_ai::get_ai_status))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)

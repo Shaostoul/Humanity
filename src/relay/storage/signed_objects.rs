@@ -133,6 +133,9 @@ impl Storage {
             // Auto-index governance proposals + votes.
             let _ = self.index_proposal(object);
             let _ = self.index_vote(object);
+            // Auto-index AI status declarations.
+            let _ = self.index_subject_class(object);
+            let _ = self.index_controlled_by(object);
             // Revocations: only the issuer of the target VC may revoke it.
             if object.object_type == "revocation_v1" {
                 if let Some(target_id) = first_reference(object) {

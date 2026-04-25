@@ -136,6 +136,9 @@ pub use trust_score::{SubScores, TrustInputs, TrustScore};
 /// Governance: proposals + votes + tally (Phase 5 PR 1).
 pub use governance::{ProposalIndex, ProposalTally, MAX_VOTE_WEIGHT};
 
+/// AI-as-citizen status (Phase 8 PR 1).
+pub use ai_status::{AiStatus, SubjectClass};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1091,7 +1094,17 @@ impl Storage {
                 UNIQUE(proposal_object_id, voter_did)
             );
             CREATE INDEX IF NOT EXISTS idx_votes_proposal ON votes(proposal_object_id);
-            CREATE INDEX IF NOT EXISTS idx_votes_voter    ON votes(voter_did);"
+            CREATE INDEX IF NOT EXISTS idx_votes_voter    ON votes(voter_did);
+
+            -- Phase 8 PR 1: AI-as-citizen status. Tracks subject_class declarations
+            -- and controlled_by_v1 operator bindings per DID. AI agents must have
+            -- a non-NULL operator_did to interact (enforced in put_signed_object).
+            CREATE TABLE IF NOT EXISTS ai_status (
+                did             TEXT PRIMARY KEY,
+                subject_class   TEXT NOT NULL,
+                operator_did    TEXT,
+                last_updated    INTEGER NOT NULL
+            );"
         )?;
 
         // Migration: add origin_server column to messages for federated message persistence.
@@ -1294,6 +1307,7 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+mod ai_status;
 mod credentials;
 mod dids;
 mod governance;

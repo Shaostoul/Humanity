@@ -130,11 +130,19 @@ impl Storage {
 
     /// Index a vote_v1 object after it has been stored. Idempotent.
     /// Returns Ok(true) if a new vote row was inserted.
+    ///
+    /// **AI agents are silently excluded from governance voting** (Accord — votes
+    /// require sentient consent; AI authority must not exceed humans). The vote
+    /// signed_object is still stored as audit trail, but no row hits the votes
+    /// table, so it doesn't affect the tally.
     pub fn index_vote(&self, object: &Object) -> Result<bool, rusqlite::Error> {
         if object.object_type != "vote_v1" {
             return Ok(false);
         }
         let voter_did = did_for_pubkey(&object.author_public_key);
+        if self.is_ai_agent(&voter_did) {
+            return Ok(false);
+        }
         let proposal_object_id = match object.references.first() {
             Some(id) => id.clone(),
             None => return Ok(false),
@@ -409,6 +417,32 @@ mod tests {
 
         let tally = db.tally_proposal(&p_id).unwrap();
         assert_eq!(tally.vote_count, 1, "second vote from same voter must be ignored");
+    }
+
+    #[test]
+    fn ai_agent_vote_is_excluded() {
+        let db = make_test_storage();
+        let proposer = DilithiumKeypair::generate().unwrap();
+        let p = make_proposal(&proposer, "parameter_change", "local");
+        db.put_signed_object(&p, None).unwrap();
+        let p_id = p.object_id().unwrap().to_hex();
+
+        // Declare voter as ai_agent
+        let ai_voter = DilithiumKeypair::generate().unwrap();
+        let class_decl = ObjectBuilder::new("subject_class_v1")
+            .created_at(1)
+            .payload_cbor(&cbor_map(vec![("class", cbor_text("ai_agent"))]))
+            .unwrap()
+            .sign(&ai_voter)
+            .unwrap();
+        db.put_signed_object(&class_decl, None).unwrap();
+
+        // AI tries to vote
+        let v = make_vote(&ai_voter, &p_id, "yes");
+        db.put_signed_object(&v, None).unwrap();
+
+        let tally = db.tally_proposal(&p_id).unwrap();
+        assert_eq!(tally.vote_count, 0, "AI vote must not count");
     }
 
     #[test]
