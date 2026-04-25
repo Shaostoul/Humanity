@@ -139,6 +139,9 @@ pub use governance::{ProposalIndex, ProposalTally, MAX_VOTE_WEIGHT};
 /// AI-as-citizen status (Phase 8 PR 1).
 pub use ai_status::{AiStatus, SubjectClass};
 
+/// Social key recovery — Shamir share index (Phase 4 PR 1).
+pub use recovery::{RecoveryShareIndex, RecoverySetup};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1104,7 +1107,21 @@ impl Storage {
                 subject_class   TEXT NOT NULL,
                 operator_did    TEXT,
                 last_updated    INTEGER NOT NULL
-            );"
+            );
+
+            -- Phase 4 PR 1: Social key recovery — opaque Shamir share index.
+            -- The encrypted share ciphertext lives in signed_objects (payload);
+            -- this table is just a fast-lookup index for the recovery flow.
+            CREATE TABLE IF NOT EXISTS recovery_shares (
+                share_object_id  TEXT PRIMARY KEY,
+                holder_did       TEXT NOT NULL,
+                guardian_did     TEXT NOT NULL,
+                threshold        INTEGER NOT NULL,
+                total_shares     INTEGER NOT NULL,
+                created_at       INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_recovery_holder   ON recovery_shares(holder_did);
+            CREATE INDEX IF NOT EXISTS idx_recovery_guardian ON recovery_shares(guardian_did);"
         )?;
 
         // Migration: add origin_server column to messages for federated message persistence.
@@ -1311,6 +1328,7 @@ mod ai_status;
 mod credentials;
 mod dids;
 mod governance;
+mod recovery;
 mod signed_objects;
 mod signed_profiles;
 mod trust_score;

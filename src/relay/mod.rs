@@ -11,6 +11,7 @@ pub mod api_v2_credentials;
 pub mod api_v2_did;
 pub mod api_v2_governance;
 pub mod api_v2_objects;
+pub mod api_v2_recovery;
 pub mod api_v2_trust;
 pub mod storage;
 pub mod handlers;
@@ -410,6 +411,9 @@ pub async fn run_relay() {
         .route("/api/v2/proposals/{id}/tally", get(api_v2_governance::tally_proposal))
         // === API v2: AI-as-citizen status (Phase 8 PR 1) ===
         .route("/api/v2/ai-status/{did}", get(api_v2_ai::get_ai_status))
+        // === API v2: Social key recovery (Phase 4 PR 1) ===
+        .route("/api/v2/recovery/setup/{holder_did}", get(api_v2_recovery::get_recovery_setup))
+        .route("/api/v2/recovery/shares-held-by/{guardian_did}", get(api_v2_recovery::get_shares_held_by))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)

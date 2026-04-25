@@ -136,6 +136,8 @@ impl Storage {
             // Auto-index AI status declarations.
             let _ = self.index_subject_class(object);
             let _ = self.index_controlled_by(object);
+            // Auto-index social recovery shares.
+            let _ = self.index_recovery_share(object);
             // Revocations: only the issuer of the target VC may revoke it.
             if object.object_type == "revocation_v1" {
                 if let Some(target_id) = first_reference(object) {
