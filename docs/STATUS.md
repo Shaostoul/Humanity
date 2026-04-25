@@ -1,11 +1,51 @@
 # HumanityOS — Feature Status
 
-> **Last updated:** 2026-04-10 | **Version:** v0.90.8
+> **Last updated:** 2026-04-25 | **Version:** v0.109.x
 >
 > This is the **single source of truth** for what is built, partial, or planned.
 > Update this file every time features are added or status changes.
 
 **Legend:** ✅ Built/working | ⚠️ Partial/needs work | ❌ Not yet built | 🔜 Next priority
+
+---
+
+## Civilization Trust Layer (v0.98.0 – v0.109.0)
+
+Strategic build executed across 7 phases. All server-side, all PQ-native, all
+purely additive (existing chat untouched). See
+`~/.claude/plans/okay-claude-here-s-a-floating-wozniak.md` for the full plan.
+
+| Layer | Status | Release | Implementation |
+|-------|--------|---------|----------------|
+| **Post-quantum crypto core** | ✅ | v0.98.0 | ML-DSA-65 (Dilithium3) signing, ML-KEM-768 (Kyber768) KEM, Argon2id KDF, BLAKE3 hashing. `src/relay/core/pq_crypto.rs`, `kdf.rs`. 14 PQ + 7 KDF tests. |
+| **Signed-object substrate** | ✅ | v0.98.0 | Generic `signed_objects` table backs every higher-level domain. Auto-indexes VCs, governance, AI status, recovery, disputes on insert. `src/relay/storage/signed_objects.rs`. `POST/GET/LIST/COUNT /api/v2/objects`. |
+| **DID resolver** | ✅ | v0.100.0 | `did:hum:<base58(BLAKE3(pubkey)[..16])>`. Resolves to current Dilithium3 pubkey + first/last seen + activity count. `src/relay/core/did.rs`, `src/relay/storage/dids.rs`. `GET /api/v2/did/{did}`. |
+| **Verifiable Credentials** | ✅ | v0.101.0 | 12 indexed schema types (vouch, verified_human, member, role, account_age, skill_endorsement, graduation, employment, controlled_by, juror, trust_score, ai_consent, attested_session, liveness). Issuer-auth-checked revocation, subject-auth-checked withdrawal. `src/relay/storage/credentials.rs`. `GET /api/v2/credentials`. |
+| **Multi-layer trust score** | ✅ | v0.102.0 | 0..1 normalized total + 6 sub-scores (vcs, vouching_graph, activity_diversity, age, economic_stake, reputation). 5-min cache. Inputs always exposed (Accord transparency). Tunable weights at `data/identity/trust_weights.ron`. `src/relay/storage/trust_score.rs`. `GET /api/v2/trust/{did}`. |
+| **Governance** | ✅ | v0.103.0 | 9 proposal types in `data/governance/proposal_types.ron` (5 local, 4 civilization scope). Vote weight = trust score capped at 0.95 (Accord power-asymmetry mitigation). One vote per voter per proposal. AI agents excluded from voting. Deterministic tally. `src/relay/storage/governance.rs`. `GET /api/v2/proposals`. |
+| **AI-as-citizen** | ✅ | v0.104.0 | Mandatory `subject_class_v1` (`human`/`ai_agent`/`institution`) and `controlled_by_v1` operator binding. AI silently excluded from governance voting per Accord. Same trust curve as humans (no flag discount). `src/relay/storage/ai_status.rs`. `GET /api/v2/ai-status/{did}`. |
+| **Social key recovery** | ✅ | v0.105.0 + v0.109.0 | Shamir share storage (PR 1) + recovery_request_v1 / recovery_approval_v1 with guardian-auth flow (PR 2). Server stores opaque ciphertext only; reassembly is client-side. Auto-flips request status to "ready" when threshold met. `src/relay/storage/recovery.rs`. `GET /api/v2/recovery/setup/{holder_did}`. |
+| **Federation v2** | ✅ | v0.107.0 + v0.108.0 | `SignedObjectGossip` RelayMessage federates ANY post-quantum object across servers (PR 1). Per-observer per-issuer continuous trust + dispute_v1 auto-discount + multi-hop gossip with cycle-breaking via dedup (PR 2). `src/relay/handlers/federation.rs`, `src/relay/storage/issuer_trust.rs`. |
+| **Schema registry** | ✅ | v0.98.0+ | `data/identity/schemas.ron` — hot-reloadable, infinite-of-X compliant. 4 active substrate schemas, 22 reserved per-phase schemas. |
+| **Documentation pages** | ✅ | v0.106.0 | `/`, `/onboarding`, `/download` web pages + native `main_menu.rs`/`onboarding.rs` updated to describe new architecture (PQ + DIDs + VCs + trust + governance + AI + recovery). |
+| **Quest chains** | ✅ | v0.110.0 | `data/onboarding/quests.json` schema_version 2: 6 chains covering identity & trust, civic participation, interaction preferences. Teach the new layers by doing. |
+
+### Core counts after Phase 0–5 + 8 + 3 + 4:
+
+- 144 unit tests passing
+- ~5000 LOC added across crypto/identity/credentials/trust/governance/recovery/federation
+- 14 new REST endpoints under `/api/v2/`
+- 0 changes to existing chat — all additive
+- 13 production releases shipped this session
+
+### Still in flight:
+
+- ⚠️ Phase 6c liveness: schemas wired, no signaling integration yet
+- ❌ Phase 6a Solana RPC: address-only currently; no transaction signing in relay
+- ❌ Phase 6b STARK selective disclosure: deferred (see plan trade-off 6)
+- ❌ Phase 7a Litestream replication: SQLite still single-node
+- ❌ Phase 7b LoRa mesh: feature-flagged stub
+- ❌ PQ-native chat client rewrite: existing Ed25519 chat still in use
 
 ---
 

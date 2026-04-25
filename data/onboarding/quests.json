@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "description": "Quest chains shown on the /onboarding page. Data-driven so new quests can be added without touching the page code. Progress is tracked per step in the user's localStorage under the key 'humanity_quest_progress'.",
+  "version": 2,
+  "description": "Quest chains shown on the /onboarding page. Data-driven so new quests can be added without touching the page code. Progress is tracked per step in the user's localStorage under the key 'humanity_quest_progress'. Updated for v0.105+ post-quantum architecture: DIDs, Verifiable Credentials, multi-layer trust score, social key recovery, governance, and AI-as-citizen.",
   "chains": [
     {
       "id": "welcome",
@@ -10,19 +10,19 @@
         {
           "id": "open-chat",
           "title": "Open the Chat",
-          "description": "Pick a name, say hi in #welcome. Your identity key is created automatically the first time.",
+          "description": "Pick a display name, say hi in #welcome. A post-quantum cryptographic identity (Dilithium3) is created on your device automatically.",
           "link": "/chat"
         },
         {
           "id": "profile",
           "title": "Fill in your Profile",
-          "description": "Add a display name and a short bio. This is how others will see you across the network.",
+          "description": "Add a display name, bio, and avatar. This is how others see you across the network. Your DID stays the same regardless.",
           "link": "/profile"
         },
         {
           "id": "backup",
-          "title": "Back up your seed phrase",
-          "description": "Write down the 24-word seed in Settings. It is the only way to recover your identity if you lose this device.",
+          "title": "Back up your 24-word seed phrase",
+          "description": "Write the seed down in Settings. It deterministically derives both your post-quantum identity AND your optional Solana wallet. Lose your phone, recover everything.",
           "link": "/settings"
         },
         {
@@ -30,6 +30,43 @@
           "title": "Try the Real / Sim toggle",
           "description": "The pill in the top-right swaps between your real-life data and the simulation. Click it once to see the difference.",
           "link": null
+        }
+      ]
+    },
+    {
+      "id": "identity-trust",
+      "title": "Identity & Trust",
+      "description": "Build out your identity. Earn vouches. See how the multi-layer trust score works. Anti-Sybil math is transparent — every input visible.",
+      "steps": [
+        {
+          "id": "view-did",
+          "title": "Find your DID",
+          "description": "In Settings, find your did:hum:<base58> identifier. Short enough to share via QR. Resolves to your current Dilithium3 public key on any federated server.",
+          "link": "/settings"
+        },
+        {
+          "id": "vouch-friend",
+          "title": "Vouch for a friend",
+          "description": "Open someone's profile and click 'Vouch'. This issues a vouch_v1 Verifiable Credential — they hold it, choose when to share it. Vouching from many distinct communities raises their trust score with anti-farm math.",
+          "link": "/chat"
+        },
+        {
+          "id": "browse-credentials",
+          "title": "Browse your credentials",
+          "description": "See every Verifiable Credential about you: vouches, server membership, skills, account age. You can withdraw any one to hide it from display without invalidating the record.",
+          "link": "/profile"
+        },
+        {
+          "id": "check-trust-score",
+          "title": "Check your trust score",
+          "description": "A 0..1 score combining vouches, credentials, activity diversity, and account age. Inputs are always visible — no black-box reputation. Hover over each sub-score to see exactly what fed it.",
+          "link": "/profile"
+        },
+        {
+          "id": "setup-recovery",
+          "title": "Set up social key recovery",
+          "description": "Pick 3 to 5 trusted contacts as guardians. Your seed is split via Shamir secret sharing, encrypted to each guardian's Kyber768 key, stored opaquely on the relay. Lose your device, recover by getting M-of-N guardians to send their shares.",
+          "link": "/settings"
         }
       ]
     },
@@ -47,13 +84,13 @@
         {
           "id": "browse-market",
           "title": "Browse the Marketplace",
-          "description": "See what people are offering. Check a listing, read a review, message a seller if something catches your eye.",
+          "description": "See what people are offering. Trust score gates high-value listings (anti-fraud) but anyone can browse. Check a listing, read a review, message a seller.",
           "link": "/market"
         },
         {
           "id": "open-wallet",
-          "title": "Open your Wallet",
-          "description": "Your key is your wallet address. Copy it, share it, or send a small amount of SOL to a friend.",
+          "title": "Open your Wallet (optional)",
+          "description": "If you want to use Solana for payments or tips, your wallet is derived from the same 24-word seed via a separate path. Skip if you never want to use blockchain — HumanityOS works without it.",
           "link": "/wallet"
         },
         {
@@ -65,8 +102,64 @@
         {
           "id": "write-note",
           "title": "Write a note",
-          "description": "Notes are encrypted on your device. Useful for journals, drafts, or anything you want private.",
+          "description": "Notes are encrypted on your device with AES-256-GCM and an Argon2id-derived key. Useful for journals, drafts, or anything you want private.",
           "link": "/notes"
+        }
+      ]
+    },
+    {
+      "id": "governance",
+      "title": "Civic Participation",
+      "description": "How decisions get made. Local server rules, civilization-wide Accord changes, weighted voting capped to prevent any single voice from dominating.",
+      "steps": [
+        {
+          "id": "read-proposals",
+          "title": "Read open proposals",
+          "description": "Every server has its own proposal space. Civilization-scope proposals (Accord amendments, federation floor policy) federate to all servers. Browse what's open right now.",
+          "link": "/governance"
+        },
+        {
+          "id": "cast-vote",
+          "title": "Cast a vote",
+          "description": "Pick yes / no / abstain. Your vote weight is your trust score at vote time, capped at 0.95. The cap prevents any single high-trust voter from dominating — Accord power-asymmetry protection.",
+          "link": "/governance"
+        },
+        {
+          "id": "watch-tally",
+          "title": "Watch a tally update",
+          "description": "Tallies are deterministic given the vote set. You can replay any past proposal's outcome from the signed-object record and verify the result yourself.",
+          "link": "/governance"
+        },
+        {
+          "id": "ai-vote-filter",
+          "title": "Note: AI agents cannot vote",
+          "description": "Per the Accord, votes require sentient consent. AI agents (declared via subject_class_v1) are silently excluded from governance — they can advise their human operator, but cannot themselves vote.",
+          "link": null
+        }
+      ]
+    },
+    {
+      "id": "interaction-preferences",
+      "title": "Choose Who You Interact With",
+      "description": "AI agents are first-class citizens of HumanityOS, but humans always retain the right to refuse AI interaction. Configure your preferences here.",
+      "steps": [
+        {
+          "id": "ai-badge",
+          "title": "Spot the AI badge",
+          "description": "AI agents always render with a persistent 'AI' tag next to their display name. They must declare their subject_class_v1 and link to a human operator via controlled_by_v1.",
+          "link": "/chat"
+        },
+        {
+          "id": "set-filter",
+          "title": "Set your interaction filter",
+          "description": "In Profile settings, choose: any (default — see everyone), human_only (filter AI from your view, with count of hidden items shown), or ai_disclosed_ok (allow AI when introduced, hide silent ones).",
+          "link": "/profile"
+        },
+        {
+          "id": "ai-introduction",
+          "title": "AI must announce itself",
+          "description": "When an AI starts a new conversation with you, its first message must be an ai_introduction_v1 declaring itself. Failing to do so is grounds for trust penalty.",
+          "link": null
         }
       ]
     },
@@ -78,19 +171,25 @@
         {
           "id": "desktop-app",
           "title": "Install the desktop app",
-          "description": "Native binary that works offline. Same identity as the web version. Syncs when you reconnect.",
+          "description": "Native Rust binary that works offline. Same DID as the web version. Syncs when you reconnect. wgpu 3D engine bundled.",
           "link": "/download"
         },
         {
           "id": "join-server",
           "title": "Join a federated server",
-          "description": "Other communities run their own servers. Your identity works on all of them. Find one whose culture fits.",
+          "description": "Other communities run their own servers. Your DID works on all of them. VCs you hold travel with you. Find one whose culture fits.",
+          "link": "/chat"
+        },
+        {
+          "id": "issue-credential",
+          "title": "Issue a credential",
+          "description": "Anyone can be an issuer. Schools, employers, communities, individuals. Issue a vouch_v1, role_v1, skill_endorsement_v1, or any other supported schema. The receiver decides if and when to share it.",
           "link": "/chat"
         },
         {
           "id": "host-server",
           "title": "Run your own server",
-          "description": "One small binary, under ten minutes from zero to live. Your users keep their identity when they switch servers.",
+          "description": "One small binary. Under ten minutes from zero to live. Your users keep their DID when they switch servers. You become an issuer too.",
           "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md"
         },
         {
@@ -102,7 +201,7 @@
         {
           "id": "read-accord",
           "title": "Read the Humanity Accord",
-          "description": "The philosophical foundation of the project. Short, plain-language, not a legal document.",
+          "description": "The philosophical foundation of the project. Defines the constraints every system must respect: dignity, non-domination, consent, transparency, repair-first, power-asymmetry mitigation. Short, plain-language, not a legal document.",
           "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md"
         }
       ]
