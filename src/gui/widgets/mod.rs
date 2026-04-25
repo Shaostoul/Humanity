@@ -1,5 +1,10 @@
 //! Reusable egui widgets styled by the HumanityOS theme.
+//!
+//! **For buttons, prefer `widgets::button::Button` (builder API).** The free
+//! functions below (`primary_button`, `secondary_button`, `danger_button`)
+//! are kept as thin wrappers for existing call sites.
 
+pub mod button;
 pub mod row;
 pub mod icons;
 pub mod data_table;
@@ -15,39 +20,13 @@ pub mod image_cache_view;
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;
 
-/// Orange accent button. Returns true if clicked.
-pub fn primary_button(ui: &mut Ui, theme: &Theme, label: &str) -> bool {
-    let btn = egui::Button::new(
-        RichText::new(label).color(theme.text_on_accent()).size(theme.font_size_body),
-    )
-    .fill(theme.accent())
-    .min_size(Vec2::new(0.0, theme.button_height))
-    .rounding(Rounding::same(theme.border_radius as u8));
-    ui.add(btn).clicked()
-}
+// Re-export the universal button builder + variant enums so call sites only
+// need `use crate::gui::widgets;` and then write `widgets::Button::primary(…)`.
+pub use button::{Button, ButtonSize, ButtonVariant};
 
-/// Outline button. Returns true if clicked.
-pub fn secondary_button(ui: &mut Ui, theme: &Theme, label: &str) -> bool {
-    let btn = egui::Button::new(
-        RichText::new(label).color(theme.text_primary()).size(theme.font_size_body),
-    )
-    .fill(Color32::TRANSPARENT)
-    .stroke(Stroke::new(1.0, theme.border()))
-    .min_size(Vec2::new(0.0, theme.button_height))
-    .rounding(Rounding::same(theme.border_radius as u8));
-    ui.add(btn).clicked()
-}
-
-/// Red danger button. Returns true if clicked.
-pub fn danger_button(ui: &mut Ui, theme: &Theme, label: &str) -> bool {
-    let btn = egui::Button::new(
-        RichText::new(label).color(Color32::WHITE).size(theme.font_size_body),
-    )
-    .fill(theme.danger())
-    .min_size(Vec2::new(0.0, theme.button_height))
-    .rounding(Rounding::same(theme.border_radius as u8));
-    ui.add(btn).clicked()
-}
+// Legacy free-function aliases now delegate to the universal Button builder.
+// New code should prefer `Button::primary(label).show(ui, theme)`.
+pub use button::{primary_button, secondary_button, danger_button};
 
 /// Styled card container with background.
 pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {

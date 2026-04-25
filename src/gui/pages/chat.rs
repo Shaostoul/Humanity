@@ -7,6 +7,7 @@
 use egui::{Align, Color32, Frame, Layout, RichText, Rounding, ScrollArea, Stroke, Vec2};
 use crate::gui::{ChatMessage, ChatUser, GuiState};
 use crate::gui::theme::Theme;
+use crate::gui::widgets;
 
 // Maximum messages kept in the local chat buffer (was hardcoded, now uses theme.max_messages if needed).
 
@@ -1135,9 +1136,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         ui.add_space(1.0);
                         ui.horizontal(|ui| {
                             ui.add_space(theme.item_padding + 2.0);
-                            if ui.add(egui::Button::new(
-                                RichText::new("+ Create Channel").size(theme.font_size_small).color(theme.text_muted()),
-                            ).fill(Color32::TRANSPARENT)).clicked() {
+                            if widgets::Button::ghost("+ Create Channel")
+                                .size(widgets::ButtonSize::Small)
+                                .show(ui, theme)
+                            {
                                 state.show_create_channel_modal = true;
                                 state.new_channel_name.clear();
                                 state.new_channel_description.clear();
@@ -1384,9 +1386,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 let ac = state.chat_active_channel.clone();
                 if ac.starts_with("dm:") {
                     // DM header: back button + partner name
-                    if ui.add(egui::Button::new(
-                        RichText::new("< Back").size(theme.font_size_body).color(theme.text_secondary()),
-                    ).fill(Color32::TRANSPARENT)).clicked() {
+                    if widgets::Button::ghost("\u{2190} Back").show(ui, theme) {
                         state.chat_active_channel = "general".to_string();
                     }
                     let partner_key = &ac[3..];
@@ -1402,9 +1402,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     );
                 } else if ac.starts_with("group:") {
                     // Group header: back button + group name
-                    if ui.add(egui::Button::new(
-                        RichText::new("< Back").size(theme.font_size_body).color(theme.text_secondary()),
-                    ).fill(Color32::TRANSPARENT)).clicked() {
+                    if widgets::Button::ghost("\u{2190} Back").show(ui, theme) {
                         state.chat_active_channel = "general".to_string();
                     }
                     let group_id = &ac[6..];

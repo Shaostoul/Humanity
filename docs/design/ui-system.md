@@ -2,7 +2,7 @@
 
 Canonical design system spec. Read this before adding a widget, page, or visual element to either the native desktop app or the web frontend. The rules here protect dual-UI parity and prevent the "CSS magic that can't port" trap.
 
-Last updated: v0.91.5 (2026-04-22).
+Last updated: v0.113.0 (2026-04-25).
 
 ## Principles
 
@@ -127,9 +127,10 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 
 | Widget | Native fn | Web class | Tokens consumed |
 |--------|-----------|-----------|-----------------|
-| Primary button | `primary_button` | `.btn.btn-primary` | `accent`, `text_on_accent`, `border_radius`, `button_height`, `font_size_body` |
-| Secondary button | `secondary_button` | `.btn.btn-secondary` | `border`, `text_primary`, `border_radius`, `button_height` |
-| Danger button | `danger_button` | `.btn.btn-danger` (web TBD) | `danger`, `border_radius`, `button_height` |
+| **Universal button** (preferred) | `widgets::Button::new(...)` builder | `.btn.btn-{primary,secondary,danger,success,ghost}` | `accent`, `text_on_accent`, `text_primary`, `text_secondary`, `border`, `border_radius`, `button_height`, `font_size_*`, `danger`, `success` |
+| Primary button (legacy fn) | `primary_button` → wraps `Button::primary` | `.btn.btn-primary` | tokens above |
+| Secondary button (legacy fn) | `secondary_button` → wraps `Button::secondary` | `.btn.btn-secondary` | tokens above |
+| Danger button (legacy fn) | `danger_button` → wraps `Button::danger` | `.btn.btn-danger` | tokens above |
 | Card | `card` | `.card` (inline in most pages) | `bg_card`, `border`, `border_radius`, `card_padding` |
 | Card with header | `card_with_header` | `.card.card-header` | as above + `heading_size` |
 | Collapsible section | `collapsible_section` | `<details>` styled via `.details` | `text_primary`, `section_gap` |
@@ -173,6 +174,43 @@ Each widget below must exist in both native (`src/gui/widgets/`) and web (CSS cl
 - Service worker integration.
 
 These do not need native equivalents until there is a clear user benefit. When one is requested, it promotes to the shared list.
+
+## The universal button (v0.113.0)
+
+Every button across the app — chat back-arrows, marketplace Buy, settings Cancel, governance Vote, recovery Approve, the entire desktop nav, even the small inline `+ Create Channel` ghost links — should go through `widgets::Button`. **One source of truth.** Edit the builder once, every site updates.
+
+```rust
+use crate::gui::widgets::{self, Button, ButtonSize, ButtonVariant};
+
+// Five variant shortcuts:
+Button::primary("Save").show(ui, theme);
+Button::secondary("Cancel").show(ui, theme);
+Button::danger("Delete").show(ui, theme);
+Button::success("Confirm").show(ui, theme);
+Button::ghost("\u{2190} Back").show(ui, theme);  // transparent, used for nav
+
+// Modifiers (any combination):
+Button::primary("Sign in").icon("\u{1F511}").full_width().show(ui, theme);
+Button::secondary("Submit").size(ButtonSize::Large).show(ui, theme);
+Button::danger("Delete").icon("\u{1F5D1}").disabled(no_selection).show(ui, theme);
+Button::icon_only("\u{2699}").tooltip("Settings").show(ui, theme);
+Button::primary("Save").icon_trailing("\u{2192}").show(ui, theme);
+```
+
+**Five variants:**
+- `Primary` — filled accent, primary CTA
+- `Secondary` — outlined, secondary action
+- `Danger` — red filled, destructive
+- `Success` — green filled, confirm
+- `Ghost` — transparent, inline links / nav back / icon-only
+
+**Three sizes:** `Small`, `Medium` (default), `Large` — drives both font size and min-height from theme tokens.
+
+**No literal colors, no magic numbers.** All styling derives from `Theme`. Want different button corners app-wide? Edit `border_radius` in `data/gui/theme.ron`. Want all primaries to be tighter? Adjust `button_height`. Settings-page theming works for free.
+
+**Icon support** is unicode glyphs in the `label` text run (e.g., `\u{2190}` for `←`, `\u{2699}` for `⚙`). For painted icons, compose your own horizontal layout using `widgets::icons::paint_*`.
+
+**Backward compatibility:** the older free functions `primary_button(ui, theme, "Save")`, `secondary_button(...)`, `danger_button(...)`, `btn_primary(...)`, etc. are preserved as thin wrappers and will keep working forever. New code should prefer `Button::primary("Save").show(ui, theme)` for the more flexible builder API. The duplication that previously existed between `widgets/mod.rs` and `widgets/button.rs` is gone — there's one definition now.
 
 ## How to add a new widget
 
