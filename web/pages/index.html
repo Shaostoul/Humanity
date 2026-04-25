@@ -390,7 +390,7 @@
 
   <div class="eli5-block" style="max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px;">
     <div class="eli5-simple">A free app where people chat, plan, trade, and build together. No accounts, no owner, everyone's software.</div>
-    <div class="eli5-expert">Rust/axum relay. Ed25519 self-custody identity = Solana wallet. ECDH+AES-256-GCM E2E DMs. WebRTC voice/video. wgpu 3D engine. Federated, local-first, CC0 public domain.</div>
+    <div class="eli5-expert">Rust/axum relay. Post-quantum self-custody identity (ML-DSA-65 / Dilithium3). DIDs + Verifiable Credentials. Multi-layer trust score. Local+civilization governance. Social key recovery. ML-KEM-768 + AES-256-GCM E2E. WebRTC voice/video. wgpu 3D engine. Federated, local-first, CC0 public domain.</div>
   </div>
 
   <!-- ── Hero ── -->
@@ -443,7 +443,7 @@
         <div class="use-case">
           <div class="uc-icon-wrap"><span class="pg-ico" data-icon="market" data-size="28"></span></div>
           <h3>Buy, sell, and tip.</h3>
-          <p>A built-in marketplace with listings and reviews, plus a Solana wallet for payments, staking, and NFTs. Your identity is your wallet.</p>
+          <p>A built-in marketplace with listings, reviews, and a multi-layer trust score that fights bots and fake reviews without surveillance. Optional Solana wallet for payments, staking, and tips.</p>
         </div>
         <div class="use-case">
           <div class="uc-icon-wrap"><span class="pg-ico" data-icon="save" data-size="28"></span></div>
@@ -549,7 +549,7 @@
       <div class="section-label">Still following?</div>
       <h2>Still not sure what this is?</h2>
       <div class="plain-english">
-        <p>Think of it as Discord, Slack, Trello, Etsy, and a Google-Docs-style offline notebook, rolled into one app, with a video-game world attached. No company owns any of it. You run it from your phone, laptop, or your own server. Your name and your wallet are the same thing: one key on your device.</p>
+        <p>Think of it as Discord, Slack, Trello, Etsy, and a Google-Docs-style offline notebook, rolled into one app, with a video-game world attached. No company owns any of it. You run it from your phone, laptop, or your own server. Your identity is a post-quantum cryptographic key on your device — recoverable through trusted friends if you lose your phone.</p>
         <p>The mission is simple. Poverty is mostly a shortage of tools, knowledge, and trusted community. So we are building those, for free, forever.</p>
       </div>
     </div>
@@ -580,9 +580,13 @@
           <ul>
             <li>Chat, voice, video, screen share</li>
             <li>Tasks, calendar, notes, dashboard, skills</li>
-            <li>Marketplace and wallet</li>
+            <li>Marketplace, reviews, optional Solana wallet</li>
             <li>Desktop app, offline mode</li>
             <li>Federated servers</li>
+            <li>Post-quantum identity, DIDs, Verifiable Credentials</li>
+            <li>Multi-layer trust score, local + civilization governance</li>
+            <li>Social key recovery via trusted guardians</li>
+            <li>AI-as-citizen with mandatory transparency</li>
           </ul>
         </div>
         <div class="status-col early">
@@ -606,8 +610,10 @@
       <h2>The technical stack</h2>
       <div class="dev-spec">
         <strong>Server:</strong> Rust / axum / tokio relay. SQLite storage. Federated server-to-server WebSocket relay.<br>
-        <strong>Identity:</strong> Ed25519 self-custody keys double as Solana wallet addresses. BIP39 seed backup and key rotation.<br>
-        <strong>Crypto:</strong> ECDH + AES-256-GCM for E2E DMs. WebRTC voice and video.<br>
+        <strong>Identity:</strong> Post-quantum ML-DSA-65 (Dilithium3) self-custody keys. DID format <code>did:hum:&lt;base58&gt;</code>. BIP39 seed backup with deterministic PQ key derivation. Optional Solana wallet derived from the same seed via separate path.<br>
+        <strong>Crypto:</strong> ML-KEM-768 (Kyber768) KEM for key exchange. AES-256-GCM and XChaCha20-Poly1305 for symmetric. Argon2id for password KDF. BLAKE3 for hashing. WebRTC voice and video.<br>
+        <strong>Trust layer:</strong> W3C Verifiable Credentials over a canonical-CBOR signed-object substrate. Multi-layer trust score (vouches, VCs, activity, age, stake). Local + civilization governance with weighted voting. Social key recovery via Shamir-shared guardians.<br>
+        <strong>AI participation:</strong> First-class agents with mandatory <code>subject_class_v1</code> + <code>controlled_by_v1</code> declarations. Same trust curve as humans, no governance vote, full transparency.<br>
         <strong>Client:</strong> Plain JS frontend, no build step. Native desktop app with wgpu + WGSL 3D renderer.<br>
         <strong>License:</strong> CC0 public domain, every commit on GitHub.
       </div>

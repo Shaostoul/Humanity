@@ -58,8 +58,8 @@ fn draw_step_welcome(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(12.0);
 
         ui.label(RichText::new(
-            "Your identity is a cryptographic key. No accounts,\n\
-             no passwords, no tracking. You own your data."
+            "Your identity is a post-quantum cryptographic key.\n\
+             No accounts, no passwords, no tracking. You own your data."
         ).size(13.0).color(theme.text_muted()));
 
         ui.add_space(30.0);
@@ -156,8 +156,8 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new("Your Identity").size(24.0).color(theme.accent()));
         ui.add_space(8.0);
         ui.label(RichText::new(
-            "Choose a display name. Your cryptographic identity\n\
-             (Ed25519 key) is generated automatically."
+            "Choose a display name. Your post-quantum cryptographic\n\
+             identity (Dilithium3 key) is generated automatically."
         ).size(13.0).color(theme.text_secondary()));
         ui.add_space(16.0);
     });

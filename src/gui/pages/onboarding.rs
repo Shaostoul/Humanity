@@ -68,20 +68,20 @@ struct Concept {
 
 const CORE_CONCEPTS: &[Concept] = &[
     Concept {
-        title: "Your key is your identity",
-        body: "No username and password. A cryptographic key on your device is your login everywhere. Back it up with a short word-list in Settings.",
+        title: "Your DID is your identity",
+        body: "A post-quantum cryptographic key on your device. No username, no password. Backup is a 24-word phrase in Settings. Lose your phone? Recover through guardians you pick \u{2014} friends and family who hold encrypted shares.",
     },
     Concept {
-        title: "The same key is your wallet",
-        body: "That key is also a Solana wallet address. Send, receive, stake, tip from inside the app. Your name and your wallet are the same thing.",
+        title: "Credentials prove what's true about you",
+        body: "Schools, employers, communities, even individual humans can issue Verifiable Credentials. You hold them, you choose when to share. No central registry, no single point of revocation.",
     },
     Concept {
-        title: "Real and Sim share the same tools",
-        body: "The Real/Sim toggle swaps which data your pages show. Real is for your actual life. Sim is a safe practice space for the same skills.",
+        title: "Trust grows from what you do",
+        body: "A multi-layer trust score combines your vouches, credentials, activity, and age. Anti-Sybil math makes farms count for less. Inputs are always visible \u{2014} no black-box reputation.",
     },
     Concept {
         title: "Anyone can host a server",
-        body: "The network is federated. No central owner. If one server goes down, the rest keep working. You can run your own from a single small program.",
+        body: "The network is federated. No central owner. If one server goes down, the rest keep working. Each server runs local governance; civilization-scope changes need federation-wide quorum.",
     },
 ];
 
@@ -95,7 +95,7 @@ struct CorePage {
 const CORE_PAGES: &[CorePage] = &[
     CorePage { label: "Chat", description: "Text, voice, video. Encrypted DMs, channels, servers.", page: GuiPage::Chat },
     CorePage { label: "Profile", description: "Your name, avatar, bio, skills. Seen by others across the network.", page: GuiPage::Profile },
-    CorePage { label: "Wallet", description: "Solana balance, send, receive, stake. Your key is your wallet.", page: GuiPage::Wallet },
+    CorePage { label: "Wallet", description: "Optional Solana wallet derived from your seed. Send, receive, stake, tip. Decoupled from identity \u{2014} not required to use HumanityOS.", page: GuiPage::Wallet },
     CorePage { label: "Tasks", description: "Kanban boards for projects, teams, personal life.", page: GuiPage::Tasks },
     CorePage { label: "Market", description: "Peer-to-peer listings, reviews, buyer-seller messaging.", page: GuiPage::Market },
     CorePage { label: "Maps", description: "Local to galactic scale. Real navigation or sim exploration.", page: GuiPage::Maps },
