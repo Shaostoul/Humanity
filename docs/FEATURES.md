@@ -1,6 +1,6 @@
 # HumanityOS Features Directory
 
-Complete inventory of every feature, where it lives, and what it does. Updated v0.90.8.
+Complete inventory of every feature, where it lives, and what it does. Updated v0.109.x.
 
 ## How to Read This
 
@@ -15,6 +15,61 @@ Each feature lists:
 > Everything is a single binary from `src/`. Server relay code is at `src/relay/`.
 > Game/renderer/GUI code is at `src/renderer/`, `src/gui/`, `src/systems/`, etc.
 > Run `HumanityOS --headless` for server-only mode (VPS, Raspberry Pi).
+
+---
+
+## Civilization Trust Layer (v0.98.0 – v0.109.0)
+
+### Post-Quantum Crypto Core
+ML-DSA-65 (Dilithium3) + ML-KEM-768 (Kyber768) + Argon2id + BLAKE3.
+- Native: `src/relay/core/pq_crypto.rs`, `src/relay/core/kdf.rs`, `src/relay/core/canonical.rs`, `src/relay/core/object.rs`
+- Tests: 14 PQ + 7 KDF + 5 object roundtrip
+- Cargo deps: `ml-dsa = 0.1.0-rc.8`, `ml-kem = 0.3.0-rc.2` (with `getrandom` feature), `argon2 = 0.6.0-rc.8`
+
+### Signed-Object Substrate
+Generic SQLite-backed table that every higher-level domain (VCs, governance, recovery, AI status, disputes) projects from. Auto-indexes derived domains on insert.
+- Storage: `src/relay/storage/signed_objects.rs`
+- API: `POST/GET/LIST/COUNT /api/v2/objects` in `src/relay/api_v2_objects.rs`
+- Schema registry: `data/identity/schemas.ron`
+
+### DID Resolver
+`did:hum:<base58(BLAKE3(pubkey)[..16])>` format. Short enough for QR codes.
+- Core: `src/relay/core/did.rs` (parse, format, fingerprint, hex conversion)
+- Storage: `src/relay/storage/dids.rs` (resolve to current pubkey + activity metadata)
+- API: `GET /api/v2/did/{did}` in `src/relay/api_v2_did.rs`
+
+### Verifiable Credentials
+W3C-style VCs over the signed-object substrate. 12 indexed schemas. Issuer-auth-checked revocation, subject-auth-checked withdrawal.
+- Storage: `src/relay/storage/credentials.rs`
+- API: `GET /api/v2/credentials`, `GET /api/v2/credentials/{vc_object_id}` in `src/relay/api_v2_credentials.rs`
+
+### Multi-Layer Trust Score
+0..1 normalized total + 6 transparent sub-scores. Sybil-farm-resistant via graph entropy.
+- Storage: `src/relay/storage/trust_score.rs`
+- API: `GET /api/v2/trust/{did}` in `src/relay/api_v2_trust.rs`
+- Weights: `data/identity/trust_weights.ron`
+
+### Governance
+9 proposal types — 5 local-scope, 4 civilization-scope. Vote weight = trust score capped at 0.95.
+- Storage: `src/relay/storage/governance.rs`
+- API: `/api/v2/proposals`, `/api/v2/proposals/{id}`, `/api/v2/proposals/{id}/tally` in `src/relay/api_v2_governance.rs`
+- Types: `data/governance/proposal_types.ron`
+
+### AI-as-Citizen
+Mandatory `subject_class_v1` declaration + `controlled_by_v1` operator binding. AI excluded from governance voting per Accord.
+- Storage: `src/relay/storage/ai_status.rs`
+- API: `GET /api/v2/ai-status/{did}` in `src/relay/api_v2_ai.rs`
+
+### Social Key Recovery
+Shamir-shared seed via guardians. Server stores opaque ciphertext only.
+- Storage: `src/relay/storage/recovery.rs`
+- API: `/api/v2/recovery/setup/{holder_did}`, `/api/v2/recovery/shares-held-by/{guardian_did}`, `/api/v2/recovery/request/{request_object_id}` in `src/relay/api_v2_recovery.rs`
+
+### Federation v2
+Generic signed-object gossip + per-issuer continuous trust + dispute objects + multi-hop with cycle-breaking via dedup.
+- Handler: `src/relay/handlers/federation.rs` (`SignedObjectGossip`, `gossip_signed_object`)
+- Storage: `src/relay/storage/issuer_trust.rs`
+- Wire format: `RelayMessage::SignedObjectGossip` in `src/relay/relay.rs`
 
 ---
 

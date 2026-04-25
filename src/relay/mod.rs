@@ -10,8 +10,10 @@ pub mod api_v2_ai;
 pub mod api_v2_credentials;
 pub mod api_v2_did;
 pub mod api_v2_governance;
+pub mod api_v2_liveness;
 pub mod api_v2_objects;
 pub mod api_v2_recovery;
+pub mod api_v2_solana;
 pub mod api_v2_trust;
 pub mod storage;
 pub mod handlers;
@@ -415,6 +417,10 @@ pub async fn run_relay() {
         .route("/api/v2/recovery/setup/{holder_did}", get(api_v2_recovery::get_recovery_setup))
         .route("/api/v2/recovery/shares-held-by/{guardian_did}", get(api_v2_recovery::get_shares_held_by))
         .route("/api/v2/recovery/request/{request_object_id}", get(api_v2_recovery::get_recovery_request))
+        // === API v2: Solana balance proxy (Phase 6a) ===
+        .route("/api/v2/solana/balance/{address}", get(api_v2_solana::get_solana_balance))
+        // === API v2: Liveness / anti-deepfake schema docs (Phase 6c) ===
+        .route("/api/v2/liveness/schema", get(api_v2_liveness::get_liveness_schema))
         .route("/api/me/system",
             get(api::system_profile_get)
             .put(api::system_profile_put)

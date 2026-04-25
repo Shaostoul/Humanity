@@ -20,3 +20,4 @@ pub mod kdf;
 pub mod object;
 pub mod pq_crypto;
 pub mod signing;
+pub mod solana_rpc;
