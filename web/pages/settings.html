@@ -922,14 +922,14 @@
     <!-- Wallet -->
     <section class="settings-section" id="sec-wallet">
       <h1>Wallet</h1>
-      <p class="section-desc">Your Solana wallet is derived from your identity key. Same key, same seed phrase, zero extra setup.</p>
+      <p class="section-desc">Optional Solana wallet, derived from the same BIP39 seed phrase as your post-quantum identity but via a separate KDF path. Decoupled from identity — using HumanityOS doesn't require any blockchain.</p>
 
       <div class="settings-group">
         <div class="settings-group-title">Address</div>
         <div class="setting-row">
           <div class="setting-label">
             <strong>Solana Address</strong>
-            <span>Derived from your Ed25519 identity key</span>
+            <span>Derived from your seed via path hum/solana/v1 (separate from your PQ identity)</span>
           </div>
           <div style="display:flex;align-items:center;gap:var(--space-md);">
             <span id="wallet-sol-address" style="font-family:monospace;font-size:0.82rem;color:var(--text);">—</span>
@@ -1195,7 +1195,7 @@
         <div class="setting-row">
           <div class="setting-label">
             <strong>Public Key</strong>
-            <span>Your Ed25519 identity key (read-only)</span>
+            <span>Your post-quantum (Dilithium3) identity key — base64, read-only</span>
           </div>
           <span id="pubkey-display" style="font-family:monospace;font-size:0.72rem;color:var(--text-muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Not connected</span>
         </div>
@@ -1457,7 +1457,7 @@
     <!-- Security -->
     <section class="settings-section" id="sec-security">
       <h1>Security</h1>
-      <p class="section-desc">Protect your identity and manage your devices. Your Ed25519 key is your passport — keep it safe.</p>
+      <p class="section-desc">Protect your identity and manage your devices. Your Dilithium3 key (post-quantum) is your passport — keep its 24-word seed safe and consider setting up social key recovery via guardians at /recovery.</p>
 
       <div id="backup-warning" class="settings-group" style="background:rgba(229,85,85,0.08);border:1px solid rgba(229,85,85,0.3);border-radius:10px;padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-2xl);">
         <div style="display:flex;align-items:flex-start;gap:var(--space-lg);">

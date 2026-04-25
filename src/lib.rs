@@ -60,7 +60,7 @@ mod native_app {
         main_menu, escape_menu, settings, inventory, chat, hud, placeholder,
         tasks, profile, maps, market, calculator, calendar, notes, civilization,
         wallet, crafting, guilds, trade, files, bugs, resources, donate, tools, studio,
-        onboarding, server_settings,
+        onboarding, server_settings, identity, governance, recovery,
     };
     use crate::gui::widgets::help_modal;
     use crate::hot_reload::HotReloadCoordinator;
@@ -1997,6 +1997,9 @@ mod native_app {
                                     GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Onboarding => onboarding::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Recovery => recovery::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::None => {}
                                 }
 

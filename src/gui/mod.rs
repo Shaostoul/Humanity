@@ -93,6 +93,15 @@ pub enum GuiPage {
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
     ServerSettings,
+    /// Identity hub: DID, Verifiable Credentials, trust score, AI status.
+    /// Mirrors the web `/identity` page.
+    Identity,
+    /// Local + civilization-scope governance: proposals, votes, tally.
+    /// Mirrors the web `/governance` page.
+    Governance,
+    /// Social key recovery setup + active recovery requests.
+    /// Mirrors the web `/recovery` page.
+    Recovery,
 }
 
 /// Item slot data bridged from ECS Inventory for GUI display.
@@ -779,6 +788,24 @@ pub struct GuiState {
     pub chat_right_panel_locked: bool,
     pub chat_left_panel_width: f32,
     pub chat_right_panel_width: f32,
+
+    // ── Identity / Governance / Recovery page state (v0.115.0) ──
+    /// DID being looked up on the Identity page.
+    pub identity_lookup_did: String,
+    /// Set to true when the Identity page wants to issue a fresh fetch.
+    pub identity_lookup_pending: bool,
+    /// Active scope tab on the Governance page (0=All, 1=Local, 2=Civilization).
+    pub governance_scope_tab: usize,
+    /// Active filter tab on the Governance page (0=Open, 1=All).
+    pub governance_filter_tab: usize,
+    /// DID being looked up on the Recovery page.
+    pub recovery_lookup_did: String,
+    /// Set to true when the Recovery page wants to fetch a setup.
+    pub recovery_lookup_pending: bool,
+    /// Guardian DID being looked up on the Recovery page.
+    pub recovery_guardian_did: String,
+    /// Set to true when the Recovery page wants to fetch held shares.
+    pub recovery_guardian_pending: bool,
 }
 
 #[cfg(feature = "native")]
@@ -1025,6 +1052,16 @@ impl Default for GuiState {
             chat_right_panel_locked: false,
             chat_left_panel_width: 220.0,
             chat_right_panel_width: 220.0,
+
+            // Identity / Governance / Recovery page state (v0.115.0)
+            identity_lookup_did: String::new(),
+            identity_lookup_pending: false,
+            governance_scope_tab: 0,
+            governance_filter_tab: 0,
+            recovery_lookup_did: String::new(),
+            recovery_lookup_pending: false,
+            recovery_guardian_did: String::new(),
+            recovery_guardian_pending: false,
         }
     }
 }

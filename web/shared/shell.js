@@ -154,6 +154,9 @@
     else if (p.startsWith('/activities/game')) active = 'games';
     else if (p.startsWith('/dashboard')) active = 'dashboard';
     else if (p.startsWith('/profile'))   active = 'profile';
+    else if (p.startsWith('/identity'))   active = 'identity';
+    else if (p.startsWith('/governance')) active = 'governance';
+    else if (p.startsWith('/recovery'))   active = 'recovery';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
     else if (p.startsWith('/tasks'))     active = 'tasks';
@@ -662,6 +665,9 @@
       mobileLink('/donate',    'Donate') +
     '</div>' +
     '<div class="mobile-hub-group group-green"><h4>Activities</h4>' +
+      mobileLink('/identity',  'Identity') +
+      mobileLink('/governance', 'Governance') +
+      mobileLink('/recovery',  'Recovery') +
       mobileLink('/civilization', 'Civilization') +
       mobileLink('/tasks',     'Tasks') +
       mobileLink('/inventory', 'Inventory') +
@@ -1241,7 +1247,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.114.0';
+    var CURRENT_VERSION = '0.115.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS — Social Key Recovery</title>
+  <meta name="description" content="Set up Shamir-secret-shared key recovery via trusted guardians. Lose your phone, recover with M-of-N shares.">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+
+    .rec-hero { padding: 36px 0 16px; }
+    .rec-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 8px; }
+    .rec-hero h1 em { font-style: normal; color: var(--accent); }
+
+    .explainer {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 22px; margin-bottom: 18px;
+    }
+    .explainer h3 { font-size: 0.95rem; color: var(--accent); margin: 0 0 8px; }
+    .explainer ol { padding-left: 1.4rem; color: var(--text-muted); font-size: 0.92rem; }
+    .explainer code { background: var(--bg); padding: 1px 6px; border-radius: 3px; }
+
+    .lookup-row { display: flex; gap: 8px; margin-bottom: 18px; }
+    .lookup-row input {
+      flex: 1; padding: 10px 14px; border-radius: var(--radius);
+      background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+      font-family: ui-monospace, monospace; font-size: 0.85rem;
+    }
+    .lookup-row button {
+      padding: 10px 22px; border-radius: var(--radius);
+      background: var(--accent); color: #000; border: none;
+      font-weight: 700; cursor: pointer;
+    }
+
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 22px; margin-bottom: 16px;
+    }
+    .card h3 { font-size: 1rem; color: var(--accent); margin: 0 0 12px; }
+    .kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 0.88rem; }
+    .kv .k { color: var(--text-muted); }
+    .kv .v { color: var(--text); font-family: ui-monospace, monospace; word-break: break-all; text-align: right; }
+
+    .threshold-display {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; font-weight: 700; color: var(--accent);
+      margin: 12px 0;
+    }
+    .guardian-list { display: flex; flex-direction: column; gap: 6px; }
+    .guardian-row {
+      padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); font-family: ui-monospace, monospace;
+      font-size: 0.8rem; word-break: break-all;
+    }
+
+    .status-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 12px;
+      font-size: 0.75rem; font-weight: 700; margin-left: 6px;
+    }
+    .status-badge.open { background: rgba(245,184,59,0.2); color: #f5b83b; }
+    .status-badge.ready { background: rgba(42,184,112,0.2); color: #2ab870; }
+    .status-badge.expired { background: rgba(239,79,79,0.2); color: #ef4f4f; }
+
+    .empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: 0.88rem; }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/pq-identity.js"></script>
+
+  <div class="container">
+    <header class="rec-hero">
+      <h1>Social Key <em>Recovery</em></h1>
+      <p style="color: var(--text-muted);">Lose your device, recover your identity. Your BIP39 seed splits via Shamir secret sharing across trusted guardians, encrypted to each guardian's Kyber768 key. The relay stores only opaque ciphertext.</p>
+    </header>
+
+    <div class="explainer">
+      <h3>How it works</h3>
+      <ol>
+        <li>Pick <strong>N</strong> trusted guardians (friends, family, partner servers). Decide a threshold <strong>M</strong> (e.g., 3 of 5).</li>
+        <li>Your client splits your seed into N Shamir shares, encrypts each to a guardian's Kyber768 pubkey, and posts <code>recovery_share_v1</code> signed objects.</li>
+        <li>If you lose your device, generate a new Dilithium3 keypair and post a <code>recovery_request_v1</code> signed by the new key.</li>
+        <li>Guardians review the request and post <code>recovery_approval_v1</code>. When M approvals arrive, the request flips to <code>ready</code>.</li>
+        <li>Your client collects the M decrypted shares (out-of-band, e.g. via DM), reassembles the seed via Shamir, and posts a <code>key_rotation_v1</code>. Done.</li>
+      </ol>
+    </div>
+
+    <div class="lookup-row">
+      <input type="text" id="did-input" placeholder="did:hum:... \u2014 your DID, or someone whose recovery you're checking" />
+      <button id="lookup-btn">Look up setup</button>
+    </div>
+
+    <div id="setup-area"></div>
+
+    <h2 style="font-size: 1.1rem; margin-top: 32px; color: var(--text);">Are you a guardian?</h2>
+    <div class="lookup-row">
+      <input type="text" id="guardian-input" placeholder="did:hum:... \u2014 enter your DID to see what shares you hold" />
+      <button id="guardian-btn">Show shares I hold</button>
+    </div>
+
+    <div id="guardian-area"></div>
+  </div>
+
+  <script>
+    'use strict';
+    document.getElementById('lookup-btn').addEventListener('click', loadSetup);
+    document.getElementById('guardian-btn').addEventListener('click', loadGuardianShares);
+
+    async function loadSetup() {
+      var did = document.getElementById('did-input').value.trim();
+      var area = document.getElementById('setup-area');
+      if (!did) { area.innerHTML = ''; return; }
+      area.innerHTML = '<div class="empty">Loading\u2026</div>';
+      try {
+        var setup = await window.HumOS.pq.getRecoverySetup(did);
+        if (!setup || setup.error) {
+          area.innerHTML = '<div class="card"><div class="empty">No recovery setup for this DID. Set one up by posting <code>recovery_share_v1</code> signed_objects, one per guardian.</div></div>';
+          return;
+        }
+        area.innerHTML =
+          '<div class="card">' +
+            '<h3>Recovery Setup</h3>' +
+            '<div class="kv"><span class="k">Holder DID</span><span class="v">' + escapeHtml(setup.holder_did) + '</span></div>' +
+            '<div class="threshold-display">' + setup.threshold + ' of ' + setup.total_shares + ' shares required</div>' +
+            '<div style="margin-top:8px;">' +
+              '<div class="kv"><span class="k">Guardian count</span><span class="v">' + setup.guardians.length + '</span></div>' +
+              '<div class="guardian-list" style="margin-top:8px;">' +
+                setup.guardians.map(function(g){ return '<div class="guardian-row">' + escapeHtml(g) + '</div>'; }).join('') +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      } catch (err) {
+        area.innerHTML = '<div class="card"><div class="empty">Lookup failed: ' + escapeHtml(String(err && err.message || err)) + '</div></div>';
+      }
+    }
+
+    async function loadGuardianShares() {
+      var gid = document.getElementById('guardian-input').value.trim();
+      var area = document.getElementById('guardian-area');
+      if (!gid) { area.innerHTML = ''; return; }
+      area.innerHTML = '<div class="empty">Loading\u2026</div>';
+      try {
+        var shares = await window.HumOS.pq.getSharesHeldBy(gid);
+        if (!shares || !shares.length) {
+          area.innerHTML = '<div class="card"><div class="empty">You hold no recovery shares for any DID.</div></div>';
+          return;
+        }
+        area.innerHTML =
+          '<div class="card">' +
+            '<h3>Shares You Hold (' + shares.length + ')</h3>' +
+            shares.map(function(s){
+              return '<div class="guardian-row" style="margin-bottom:6px;">' +
+                'Holder: ' + escapeHtml(s.holder_did) + '<br>' +
+                'Threshold: ' + s.threshold + ' of ' + s.total_shares +
+              '</div>';
+            }).join('') +
+          '</div>';
+      } catch (err) {
+        area.innerHTML = '<div class="card"><div class="empty">Lookup failed: ' + escapeHtml(String(err && err.message || err)) + '</div></div>';
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(c){
+        return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS — Governance</title>
+  <meta name="description" content="Local + civilization-scope governance. Propose, vote, see tallies. Vote weight derives from trust score, capped at 0.95.">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    .gov-hero { padding: 40px 0 24px; }
+    .gov-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 8px; }
+    .gov-hero h1 em { font-style: normal; color: var(--accent); }
+    .gov-hero p { color: var(--text-muted); max-width: 720px; }
+
+    .scope-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+    .scope-tab {
+      padding: 8px 18px; border-radius: var(--radius);
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text); font-weight: 600; font-size: 0.9rem;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .scope-tab:hover { border-color: var(--accent); }
+    .scope-tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    .filter-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px;
+      font-size: 0.85rem;
+    }
+    .filter-pill {
+      padding: 4px 12px; border-radius: 20px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer;
+    }
+    .filter-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    .proposal-list { display: flex; flex-direction: column; gap: 12px; }
+    .proposal-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 22px;
+    }
+    .proposal-card h3 { font-size: 1.05rem; font-weight: 700; margin: 0 0 4px; }
+    .proposal-meta { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; }
+    .proposal-meta .scope-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 4px;
+      font-size: 0.72rem; font-weight: 600; margin-right: 6px;
+    }
+    .scope-badge.local { background: rgba(74,158,255,0.15); color: #4a9eff; }
+    .scope-badge.civilization { background: rgba(255,136,17,0.15); color: var(--accent); }
+    .proposal-body { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px; }
+
+    .tally-bar {
+      display: flex; height: 8px; border-radius: 4px; overflow: hidden;
+      background: var(--bg); margin-bottom: 8px;
+    }
+    .tally-bar .yes { background: #2ab870; }
+    .tally-bar .no { background: #ef4f4f; }
+    .tally-bar .abstain { background: var(--text-muted); }
+    .tally-numbers {
+      display: flex; gap: 16px; font-size: 0.78rem;
+      color: var(--text-muted); margin-bottom: 12px;
+    }
+    .tally-numbers .yes { color: #2ab870; }
+    .tally-numbers .no { color: #ef4f4f; }
+
+    .vote-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn-vote {
+      padding: 7px 16px; border-radius: var(--radius);
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text); font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-vote:hover { border-color: var(--accent); }
+    .btn-vote.voted-yes { background: rgba(42,184,112,0.2); border-color: #2ab870; color: #2ab870; }
+    .btn-vote.voted-no { background: rgba(239,79,79,0.2); border-color: #ef4f4f; color: #ef4f4f; }
+
+    .empty-state {
+      padding: 40px 24px; text-align: center;
+      background: var(--bg-card); border: 1px dashed var(--border);
+      border-radius: var(--radius); color: var(--text-muted);
+    }
+
+    .accord-callout {
+      background: rgba(255,136,17,0.08); border: 1px solid rgba(255,136,17,0.25);
+      border-radius: var(--radius); padding: 16px 20px; margin-bottom: 24px;
+      font-size: 0.88rem; color: var(--text);
+    }
+    .accord-callout strong { color: var(--accent); }
+    .accord-callout a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/pq-identity.js"></script>
+
+  <div class="container">
+    <header class="gov-hero">
+      <h1>Civic <em>Participation</em></h1>
+      <p>Local-scope proposals run on this server. Civilization-scope proposals (Accord amendments, federation floor policy) federate to all servers and need federation-wide quorum to pass.</p>
+    </header>
+
+    <div class="accord-callout">
+      <strong>Accord power-asymmetry mitigation.</strong>
+      Vote weight equals your trust score at vote time, <strong>capped at 0.95</strong>. No single high-trust voter can dominate. AI agents are excluded from voting per Accord — votes require sentient consent. See the
+      <a href="https://github.com/Shaostoul/Humanity/blob/main/docs/accord/humanity_accord.md" target="_blank" rel="noopener">Humanity Accord</a>.
+    </div>
+
+    <div class="scope-tabs" id="scope-tabs">
+      <button class="scope-tab active" data-scope="">All scopes</button>
+      <button class="scope-tab" data-scope="local">Local (this server)</button>
+      <button class="scope-tab" data-scope="civilization">Civilization-wide</button>
+    </div>
+
+    <div class="filter-row">
+      <button class="filter-pill active" data-filter="open">Open</button>
+      <button class="filter-pill" data-filter="all">All</button>
+    </div>
+
+    <div class="proposal-list" id="proposal-list">
+      <div class="empty-state">Loading proposals...</div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+    let activeScope = '';
+    let activeFilter = 'open';
+
+    document.querySelectorAll('.scope-tab').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        document.querySelectorAll('.scope-tab').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        activeScope = btn.dataset.scope;
+        loadProposals();
+      });
+    });
+
+    document.querySelectorAll('.filter-pill').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        document.querySelectorAll('.filter-pill').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        activeFilter = btn.dataset.filter;
+        loadProposals();
+      });
+    });
+
+    function fmtTime(ms) {
+      try { return new Date(ms).toLocaleString(); } catch(_) { return String(ms); }
+    }
+
+    async function loadProposals() {
+      var list = document.getElementById('proposal-list');
+      list.innerHTML = '<div class="empty-state">Loading proposals...</div>';
+      try {
+        var opts = { limit: 100 };
+        if (activeScope) opts.scope = activeScope;
+        if (activeFilter === 'open') opts.onlyOpen = true;
+        var props = await window.HumOS.pq.listProposals(opts);
+        if (!props || !props.length) {
+          list.innerHTML = '<div class="empty-state">No proposals match these filters. Be the first to propose something \u2014 see the API docs at <code>POST /api/v2/objects</code> with object_type <code>proposal_v1</code>.</div>';
+          return;
+        }
+        list.innerHTML = '';
+        for (const p of props) {
+          let tally = { yes_weight: 0, no_weight: 0, abstain_weight: 0, total_weight: 0, vote_count: 0 };
+          try { tally = await window.HumOS.pq.getProposalTally(p.proposal_object_id); } catch(_) {}
+          const total = tally.total_weight || 1;
+          const card = document.createElement('div');
+          card.className = 'proposal-card';
+          card.innerHTML =
+            '<h3>' + escapeHtml(p.proposal_type) + '</h3>' +
+            '<div class="proposal-meta">' +
+              '<span class="scope-badge ' + p.scope + '">' + p.scope + '</span>' +
+              ' Proposer: <code>' + escapeHtml(p.proposer_did.slice(0, 24)) + '...</code>' +
+              ' \u2022 Closes: ' + fmtTime(p.closes_at) +
+            '</div>' +
+            '<div class="proposal-body">' +
+              'object_id: <code>' + escapeHtml(p.proposal_object_id.slice(0, 16)) + '...</code>' +
+            '</div>' +
+            '<div class="tally-bar">' +
+              '<div class="yes" style="width:' + (tally.yes_weight / total * 100) + '%"></div>' +
+              '<div class="no" style="width:' + (tally.no_weight / total * 100) + '%"></div>' +
+              '<div class="abstain" style="width:' + (tally.abstain_weight / total * 100) + '%"></div>' +
+            '</div>' +
+            '<div class="tally-numbers">' +
+              '<span class="yes">Yes: ' + tally.yes_weight.toFixed(2) + '</span>' +
+              '<span class="no">No: ' + tally.no_weight.toFixed(2) + '</span>' +
+              '<span>Abstain: ' + tally.abstain_weight.toFixed(2) + '</span>' +
+              '<span>(' + tally.vote_count + ' voter' + (tally.vote_count === 1 ? '' : 's') + ')</span>' +
+            '</div>' +
+            '<div class="vote-actions">' +
+              '<button class="btn-vote" data-choice="yes" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote Yes</button>' +
+              '<button class="btn-vote" data-choice="no" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote No</button>' +
+              '<button class="btn-vote" data-choice="abstain" data-id="' + escapeHtml(p.proposal_object_id) + '">Abstain</button>' +
+            '</div>';
+          list.appendChild(card);
+        }
+        // Wire vote buttons (signing requires a Dilithium3 key in pq-identity.js;
+        // until the chat client lands, this surfaces the pending state).
+        list.querySelectorAll('.btn-vote').forEach(function(b){
+          b.addEventListener('click', function(){
+            alert('Voting requires a Dilithium3 identity. The PQ JS keygen lands in a follow-up; for now, post a vote_v1 signed_object via POST /api/v2/objects (see /api/v2/zk/schema for the wire format).');
+          });
+        });
+      } catch (err) {
+        list.innerHTML = '<div class="empty-state">Could not load proposals: ' + escapeHtml(String(err && err.message || err)) + '</div>';
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function(c){
+        return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+      });
+    }
+
+    loadProposals();
+  </script>
+</body>
+</html>

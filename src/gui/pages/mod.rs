@@ -25,6 +25,11 @@ pub mod resources;
 pub mod donate;
 pub mod tools;
 pub mod studio;
-pub mod passphrase_modal;
+// passphrase_modal moved to widgets/ in v0.115.0 (it's a modal, not a page).
+// Re-export from its new location to keep callers compiling.
+pub use crate::gui::widgets::passphrase_modal;
 pub mod onboarding;
 pub mod server_settings;
+pub mod identity;
+pub mod governance;
+pub mod recovery;
