@@ -13,8 +13,23 @@ const { execSync } = require("child_process");
 
 // Repo root — exe lives next to data/ so no duplication
 const BINDIR = path.join(__dirname, "..");
-const EXE_PATTERN = /^v[\d.]+_HumanityOS\.exe$/;
+const EXE_PATTERN = /^v(\d+)\.(\d+)\.(\d+)_HumanityOS\.exe$/;
 const MAX_VERSIONS = 5;
+
+// Semver-aware comparison for filenames like "v0.105.1_HumanityOS.exe".
+// Lexicographic sort is wrong for multi-digit components: "v0.105.1" < "v0.97.0"
+// alphabetically because '1' < '9'. Compare numeric components instead.
+function compareSemverDesc(a, b) {
+  const ma = a.match(EXE_PATTERN);
+  const mb = b.match(EXE_PATTERN);
+  if (!ma || !mb) return a < b ? 1 : a > b ? -1 : 0;
+  for (let i = 1; i <= 3; i++) {
+    const da = parseInt(ma[i], 10);
+    const db = parseInt(mb[i], 10);
+    if (da !== db) return db - da; // newest first
+  }
+  return 0;
+}
 
 function getVersion() {
   const cargo = fs.readFileSync(path.join(BINDIR, "Cargo.toml"), "utf8");
@@ -27,8 +42,7 @@ function listExes() {
   return fs
     .readdirSync(BINDIR)
     .filter((f) => EXE_PATTERN.test(f))
-    .sort()
-    .reverse(); // newest first
+    .sort(compareSemverDesc); // newest first by semver, not lexicographic
 }
 
 function getLatestExe() {
