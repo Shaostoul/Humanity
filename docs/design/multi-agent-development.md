@@ -1,8 +1,49 @@
 # Multi-Agent Development System
 
+> **Last updated:** v0.116.0 (2026-04-25). Agent coordination now has a runtime
+> SQLite layer (`agent_sessions` table) backing the design below. See
+> `data/coordination/agent_registry.ron` for the canonical scope assignments.
+
 ## Overview
 
-Architecture for automated, parallelized development using specialized AI agents coordinated through documentation as the single source of truth. Designed to survive across chat sessions, enabling any new AI session to pick up where others left off.
+Architecture for automated, parallelized development using specialized AI agents coordinated through:
+
+1. **Static registry** (`data/coordination/agent_registry.ron`) — declares who
+   owns what, what they must NOT touch, and how to detect "no work to do"
+2. **Runtime state** (`agent_sessions` SQLite table) — live claim / heartbeat /
+   release of scopes so multiple AI sessions don't trample each other
+3. **Documentation** (this dir + STATUS.md + FEATURES.md) — the long-term
+   memory that survives across sessions
+
+Designed to survive across chat sessions, enabling any new AI session to pick up where others left off without nuking work or missing context.
+
+---
+
+## Coordination protocol (the safe-startup checklist)
+
+Every freshly spun-up AI session, before touching any code, MUST:
+
+1. **Read `agent_registry.ron`** — find the entry matching its assigned scope.
+2. **Check `agent_sessions` row** for that scope_id:
+   - `GET /api/v2/agents/sessions/{scope_id}` (when the API endpoint ships) OR
+   - direct SQLite query during local dev
+3. **Decide:**
+   - If another agent's `last_heartbeat` is < `CLAIM_TIMEOUT_SECS` (30 min)
+     and `state = working` → **yield**, do not touch the scope
+   - If `state = completed` and `completion_check` says "no new input" →
+     **passive mode**, signal coordinator that there's nothing to do
+   - Otherwise → **claim the scope** via `agent_claim_scope`, set initial
+     state notes describing the planned work
+4. **Heartbeat every 5–10 minutes** with progress notes via `agent_heartbeat`
+5. **On exit** — call `agent_release_scope` with one of:
+   - `paused` — work in progress, will resume later
+   - `completed` — scope at its stop state for now (e.g., elements DB has all
+     ~118 elements, no new work until a new element is discovered)
+   - `blocked` — waiting on input or another agent
+
+The coordinator (the human-talking-to-AI middleman) sees aggregated status by
+listing `agent_sessions` and only dispatches work to scopes that are not
+actively claimed.
 
 ---
 

@@ -1,0 +1,186 @@
+// Agent coordination registry (v0.116.0).
+//
+// Single source of truth for which AI agents work on which scope. Hot-reloadable
+// (infinite-of-X compliant). The runtime tracks live status in SQLite via the
+// agent_sessions table; this file declares the canonical scope assignments.
+//
+// Each entry tells a freshly-spun-up Claude Code session:
+//   1. What it owns
+//   2. What it MUST NOT touch
+//   3. Where to check whether there's actual work to do (data file count, schema gaps, etc.)
+//   4. What "passive mode" looks like (when its scope is complete)
+//
+// Coordinator (the human-talking-to-AI) sees aggregated status here and only
+// dispatches work when an agent has "active" status. Passive agents are skipped.
+//
+// Conventions:
+//   id: kebab-case, stable
+//   owns: glob patterns relative to repo root
+//   must_not_touch: glob patterns the agent is forbidden from editing
+//   completion_check: a hint to the agent for how to detect "no work to do"
+//                     (free-text, the agent applies judgment)
+//   default_status: "active" | "passive" | "blocked"
+//                   active = work needs to be done, agent should pick something up
+//                   passive = scope is at a stop state, only resume if input arrives
+//                   blocked = waiting on another agent or external decision
+
+(
+    agents: [
+        // ── Identity / trust / governance substrate ──────────────────────
+        (
+            id: "pq-substrate",
+            owns: ["src/relay/storage/signed_objects.rs", "src/relay/core/pq_crypto.rs", "src/relay/core/canonical.rs", "src/relay/core/object.rs", "src/relay/core/did.rs"],
+            must_not_touch: ["src/gui/", "src/systems/", "data/"],
+            completion_check: "Substrate stable since v0.98.0. Only resume if a new schema needs auto-indexing or a crypto primitive needs adding.",
+            default_status: "passive",
+        ),
+        (
+            id: "credentials",
+            owns: ["src/relay/storage/credentials.rs", "src/relay/api_v2_credentials.rs"],
+            must_not_touch: ["src/gui/", "src/systems/"],
+            completion_check: "Index covers 12 schemas. New schema additions require updating extract_subject_did. Otherwise passive.",
+            default_status: "passive",
+        ),
+        (
+            id: "trust-score",
+            owns: ["src/relay/storage/trust_score.rs", "src/relay/api_v2_trust.rs", "data/identity/trust_weights.ron"],
+            must_not_touch: ["src/gui/", "src/systems/"],
+            completion_check: "6 sub-scores wired. Resume only if new sub-score added or weight tuning requested.",
+            default_status: "passive",
+        ),
+        (
+            id: "governance",
+            owns: ["src/relay/storage/governance.rs", "src/relay/api_v2_governance.rs", "data/governance/proposal_types.ron"],
+            must_not_touch: ["src/gui/", "src/systems/"],
+            completion_check: "9 proposal types defined. Juror/dispute arbitration is the next gap if any.",
+            default_status: "passive",
+        ),
+        (
+            id: "recovery",
+            owns: ["src/relay/storage/recovery.rs", "src/relay/api_v2_recovery.rs"],
+            must_not_touch: ["src/gui/", "src/systems/"],
+            completion_check: "Share storage + request/approval flow shipped. Threshold-met automatic key rotation is the next gap if any.",
+            default_status: "passive",
+        ),
+        (
+            id: "federation",
+            owns: ["src/relay/handlers/federation.rs", "src/relay/storage/issuer_trust.rs"],
+            must_not_touch: ["src/gui/"],
+            completion_check: "Multi-hop gossip + per-issuer trust shipped. Add features only if the federation v3 plan calls for it.",
+            default_status: "passive",
+        ),
+
+        // ── Game / world content ─────────────────────────────────────────
+        (
+            id: "elements",
+            owns: ["data/chemistry/elements.csv"],
+            must_not_touch: ["src/", "data/chemistry/compounds.csv", "data/chemistry/alloys.csv"],
+            completion_check: "Periodic table has ~118 known elements. If elements.csv has 118 rows or close, scope is complete — passive until new element discovered.",
+            default_status: "passive",
+        ),
+        (
+            id: "compounds",
+            owns: ["data/chemistry/compounds.csv"],
+            must_not_touch: ["src/", "data/chemistry/elements.csv"],
+            completion_check: "Currently 166 compounds. Active until coverage reaches common-life-chemistry milestone (~5000 known compounds).",
+            default_status: "active",
+        ),
+        (
+            id: "toxins",
+            owns: ["data/chemistry/toxins.csv"],
+            must_not_touch: ["src/", "data/chemistry/compounds.csv"],
+            completion_check: "Currently 52 toxins. Cover known biological + chemical + heavy-metal toxins (~500 commonly-encountered).",
+            default_status: "active",
+        ),
+        (
+            id: "items-foods",
+            owns: ["data/items/foods/"],
+            must_not_touch: ["src/", "data/chemistry/"],
+            completion_check: "Real-world food/drink items with ingredient lists + species toxicology. Active until top-1000 grocery items covered. References ingredients.csv + chemistry/compounds.csv.",
+            default_status: "active",
+        ),
+        (
+            id: "plants",
+            owns: ["data/plants.csv"],
+            must_not_touch: ["src/"],
+            completion_check: "Garden + agriculture + medicinal + decorative plants. Currently small set; active until major species covered.",
+            default_status: "active",
+        ),
+        (
+            id: "items-game",
+            owns: ["data/items.csv", "data/recipes.csv"],
+            must_not_touch: ["src/", "data/chemistry/"],
+            completion_check: "Game items + crafting recipes. Active until 500+ items and 200+ recipes.",
+            default_status: "active",
+        ),
+        (
+            id: "quests",
+            owns: ["data/quests/"],
+            must_not_touch: ["src/"],
+            completion_check: "Quest chains for tutorials, civic onboarding, skill progression. Active.",
+            default_status: "active",
+        ),
+        (
+            id: "solar-system",
+            owns: ["data/solar_system/"],
+            must_not_touch: ["src/"],
+            completion_check: "Sol bodies (Sun + 8 planets + major moons + Pluto + asteroid belt). Currently 70+ bodies. Passive after named-body coverage.",
+            default_status: "passive",
+        ),
+
+        // ── UI ──────────────────────────────────────────────────────────
+        (
+            id: "widgets",
+            owns: ["src/gui/widgets/", "data/gui/theme.ron"],
+            must_not_touch: ["src/relay/", "src/systems/"],
+            completion_check: "Universal Button + tab unification shipped (v0.114). Active until all 18 raw egui::Button usages migrated to widgets::Button.",
+            default_status: "active",
+        ),
+        (
+            id: "pages-native",
+            owns: ["src/gui/pages/"],
+            must_not_touch: ["src/gui/widgets/", "src/relay/"],
+            completion_check: "27 native pages ship. Active for content updates + new page parity.",
+            default_status: "active",
+        ),
+        (
+            id: "pages-web",
+            owns: ["web/pages/", "web/shared/"],
+            must_not_touch: ["src/", "data/"],
+            completion_check: "32 web pages ship. Active for content updates + new page parity.",
+            default_status: "active",
+        ),
+
+        // ── Render / engine ─────────────────────────────────────────────
+        (
+            id: "renderer",
+            owns: ["src/renderer/", "assets/shaders/"],
+            must_not_touch: ["src/gui/", "src/relay/", "src/systems/"],
+            completion_check: "wgpu PBR + bloom + particles + hologram shipped. Active for shadow mapping, frustum culling, post-processing improvements.",
+            default_status: "active",
+        ),
+        (
+            id: "physics",
+            owns: ["src/physics/"],
+            must_not_touch: ["src/gui/", "src/relay/"],
+            completion_check: "rapier3d wrapped. Active for fluid sim, collision events, soft-body.",
+            default_status: "active",
+        ),
+        (
+            id: "terrain",
+            owns: ["src/terrain/", "src/ship/"],
+            must_not_touch: ["src/gui/", "src/relay/"],
+            completion_check: "Icosphere planets + voxel asteroids + ship interiors shipped. Active for streaming, materials, biome variety.",
+            default_status: "active",
+        ),
+
+        // ── Game systems ────────────────────────────────────────────────
+        (
+            id: "game-systems",
+            owns: ["src/systems/", "src/ecs/"],
+            must_not_touch: ["src/gui/", "src/relay/"],
+            completion_check: "15 systems registered. Active for combat, economy, logistics fill-in.",
+            default_status: "active",
+        ),
+    ],
+)

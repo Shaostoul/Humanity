@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how multiple independently-operated servers form the Humanity Network. Servers are meeting places, not gatekeepers. Identity is portable — the same Ed25519 key works on any server. Users choose which servers to join; servers choose which servers to trust.
+Define how multiple independently-operated servers form the Humanity Network. Servers are meeting places, not gatekeepers. Identity is portable — the same Dilithium3 (`did:hum:`) key works on any server. Users choose which servers to join; servers choose which servers to trust.
 
 **Key principle: No home servers.** Identity lives in the cryptographic key, not on any server. Signed profiles replicate across every server a user touches. See `docs/design/identity.md` for the full identity architecture.
 
@@ -189,7 +189,7 @@ Clicking a server switches the WebSocket connection and loads that server's chan
 
 ### Identity Across Servers
 
-- Same Ed25519 keypair used everywhere.
+- Same Dilithium3 keypair used everywhere; same DID (`did:hum:<base58(BLAKE3(pubkey)[..16])>`) resolves on every federated server.
 - Signed profile sent on each connect — server caches and gossips it.
 - Name uniqueness: per-server reservation + optional on-chain global names (see `docs/design/identity.md`).
 - Block list is client-side and applies across all servers.
@@ -274,4 +274,4 @@ accord_url = ""
 - **Voice/Video** (`voice_video_streaming.md`): WebRTC signaling goes through the current server. Cross-server calls require Phase 3.
 - **File Sharing** (`file_sharing.md`): P2P file transfer works across servers since it's direct between clients.
 - **Realtime Protocol** (`realtime_relay_protocol.md`): Each server runs the same protocol independently.
-- **Wallet** (`design/wallet.md`): Same Ed25519 key is both identity and Solana wallet.
+- **Wallet** (`design/wallet.md`): Identity key (Dilithium3) is decoupled from the optional Solana wallet (Ed25519, derived from the same BIP39 seed via path `hum/solana/v1`).

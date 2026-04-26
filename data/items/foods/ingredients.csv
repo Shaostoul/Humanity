@@ -1,0 +1,34 @@
+id,name,category,chemistry_compound_id,common_use,allergen_class,description
+sugar,Sugar (Sucrose),sweetener,sucrose,Primary sweetener in processed foods.,,Sucrose disaccharide (glucose+fructose). Refined from cane or beet.
+high_fructose_corn_syrup,High Fructose Corn Syrup,sweetener,,Cheap liquid sweetener typically 55% fructose 45% glucose.,,Industrial corn-derived sweetener; cheaper than sucrose.
+honey,Honey,sweetener,,Natural sweetener; primarily glucose+fructose plus trace enzymes.,,Bee-produced. Botulism risk in infants under 12 months.
+salt,Salt (Sodium Chloride),seasoning,sodium_chloride,Flavor enhancer and preservative.,,Mineral salt NaCl. Toxic to most species in excess (cats especially sensitive).
+wheat_flour_unbleached,Wheat Flour (unbleached),flour,,Base flour for baked goods.,wheat,Ground wheat endosperm. Contains gluten.
+wheat_flour_bleached,Wheat Flour (bleached),flour,,Same as unbleached but chemically whitened.,wheat,Bleached with chlorine gas or benzoyl peroxide.
+corn_starch,Corn Starch,starch,,Thickener and anti-caking agent.,,Pure starch from corn endosperm.
+palm_and_canola_oil,Palm and Canola Oil Blend,fat,,Industrial shortening blend.,,Palm oil + canola oil. Sustainability concerns with palm.
+butter,Butter,fat,,Dairy fat from cream.,milk,Dairy product. Contains casein and lactose.
+soy_lecithin,Soy Lecithin,emulsifier,,Stabilizes oil-water mixtures.,soy,Phospholipid extracted from soybeans.
+vanillin_artificial,Vanillin (artificial),flavoring,vanillin,Synthetic vanilla flavor.,,Single compound; cheaper alternative to natural vanilla extract.
+vanilla_extract_natural,Natural Vanilla Extract,flavoring,,Aged ethanol extract of vanilla beans.,,Contains vanillin plus 200+ trace compounds.
+cocoa_alkalized,Cocoa (Dutch-processed),flavoring,,Dark cocoa powder treated with alkali.,,Contains theobromine — toxic to dogs and cats.
+chocolate,Chocolate,confection,,Mixture of cocoa solids cocoa butter sugar.,,Contains theobromine. Darker = more toxic to pets.
+caffeine,Caffeine,stimulant,caffeine,CNS stimulant.,,Methylxanthine. Toxic to dogs and cats.
+caramel_color,Caramel Color,colorant,,Brown food coloring made by heating sugars.,,Class IV caramel may contain 4-MEI which is a possible carcinogen.
+phosphoric_acid,Phosphoric Acid,acidulant,phosphoric_acid,Acidulant in cola beverages.,,Adds tartness. Linked to bone density loss in heavy consumers.
+citric_acid,Citric Acid,acidulant,citric_acid,Tartness and preservative.,,Naturally in citrus; commercially produced via Aspergillus niger fermentation.
+carbon_dioxide,Carbon Dioxide (carbonation),carbonation,carbon_dioxide,Provides fizz in carbonated drinks.,,Pressurized gas dissolved in liquid.
+caffeine_natural,Caffeine (natural),stimulant,caffeine,Naturally extracted from coffee/tea/kola nut.,,Same compound as synthetic; same pet toxicity.
+natural_flavors,Natural Flavors,flavoring,,Proprietary plant-derived flavor blends; FDA permits this catch-all.,,Composition usually undisclosed; allergen risk variable.
+artificial_flavors,Artificial Flavors,flavoring,,Synthetic flavor compounds.,,Composition usually undisclosed.
+leavening_baking_soda,Sodium Bicarbonate (Baking Soda),leavening,sodium_bicarbonate,Leavening + alkaline buffer.,,NaHCO3. Releases CO2 when heated or with acid.
+leavening_baking_powder,Baking Powder,leavening,,Sodium bicarbonate + acid salt + starch.,,Self-acting leavening.
+yeast,Yeast,leavening,,Saccharomyces cerevisiae ferments sugars to CO2 + ethanol.,,Live fungus. Toxic to dogs and cats if eaten raw (rising dough = ethanol + GI rupture).
+xanthan_gum,Xanthan Gum,thickener,,Polysaccharide from Xanthomonas campestris fermentation.,,Used as thickener in gluten-free baking.
+ascorbic_acid,Ascorbic Acid (Vitamin C),preservative,ascorbic_acid,Antioxidant and vitamin C source.,,Generally safe.
+sodium_benzoate,Sodium Benzoate,preservative,,Antimicrobial preservative.,,Safe at typical levels; can form benzene with vitamin C in heat/light.
+potassium_sorbate,Potassium Sorbate,preservative,,Mold + yeast inhibitor.,,Safe at typical levels.
+ethanol,Ethanol,solvent,ethanol,Solvent and vehicle for vanilla extract etc.,,Highly toxic to dogs cats and birds.
+xylitol,Xylitol,sweetener,xylitol,Sugar alcohol used as low-calorie sweetener.,,EXTREMELY toxic to dogs (insulin response + hypoglycemia + liver failure). Lethal at 0.1g/kg.
+artificial_color_red40,Red 40 (Allura Red AC),colorant,,Synthetic red food dye.,,FDA approved; some countries restrict in foods marketed to children.
+artificial_color_yellow5,Yellow 5 (Tartrazine),colorant,,Synthetic yellow food dye.,,Some allergic reactions reported; banned in some EU contexts.

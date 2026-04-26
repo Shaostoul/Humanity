@@ -1,0 +1,85 @@
+// Sample real-world item — Oreo Original Sandwich Cookies.
+// Demonstrates the schema in data/items/foods/SCHEMA.md.
+// Sources cited; last_verified is the date the ingredient list was checked.
+
+(
+    id: "oreos_original",
+    name: "Oreo Original Sandwich Cookies",
+    brand: "Mondelēz International (Nabisco)",
+    category: "food/cookies",
+    description: "Chocolate sandwich cookies with cream filling. Iconic American snack since 1912.",
+    serving_size_g: 34.0,
+    sources: [
+        "https://www.oreo.com/products/original",
+        "https://www.mondelezinternational.com/",
+        "USDA FoodData Central FDC ID 392880",
+    ],
+    last_verified: "2026-04-25",
+
+    ingredients: [
+        ( id: "sugar",                       note: "primary sweetener; ~14g per 3-cookie serving" ),
+        ( id: "wheat_flour_unbleached",      note: "primary structural ingredient" ),
+        ( id: "palm_and_canola_oil",         note: "shortening; sustainability concerns with palm" ),
+        ( id: "cocoa_alkalized",             note: "Dutch-process; source of theobromine" ),
+        ( id: "high_fructose_corn_syrup",    note: "" ),
+        ( id: "leavening_baking_soda",       note: "" ),
+        ( id: "salt",                        note: "" ),
+        ( id: "soy_lecithin",                note: "emulsifier" ),
+        ( id: "vanillin_artificial",         note: "synthetic vanilla flavor" ),
+        ( id: "chocolate",                   note: "" ),
+    ],
+
+    toxicology: {
+        "human_adult": {
+            "ingested": (
+                verdict: "safe_in_moderation",
+                details: "Standard processed cookie. High refined-carb load; no acute toxicity at normal serving size (3 cookies = ~160 kcal, 14g sugar). Chronic overconsumption contributes to metabolic disease.",
+                lethal_dose_mg_kg: None,
+                notes: ["allergens: wheat, soy", "may contain milk traces", "vegan-friendly per current label but produced on shared equipment"],
+            ),
+            "topical": ( verdict: "safe", details: "No skin reaction expected.", lethal_dose_mg_kg: None, notes: [] ),
+            "inhaled": ( verdict: "caution", details: "Choking hazard for crumbs; aspiration risk if cookie pieces inhaled.", lethal_dose_mg_kg: None, notes: [] ),
+        },
+        "human_child": {
+            "ingested": (
+                verdict: "safe_in_moderation",
+                details: "Same as adult; sugar load proportionally larger relative to body weight. Whole-cookie choking risk for children under 4.",
+                lethal_dose_mg_kg: None,
+                notes: ["age 4+ for whole cookies", "split into smaller pieces for younger children"],
+            ),
+        },
+        "dog": {
+            "ingested": (
+                verdict: "toxic",
+                details: "Cocoa contains theobromine, which dogs metabolize 4x slower than humans. A 3-cookie serving has ~50-100mg theobromine. Mildly toxic to a 10kg dog (vomiting, restlessness, panting), potentially lethal to a 5kg dog. Sugar + fat content separately risks pancreatitis. Wheat is generally tolerated. Get pet to vet within 6 hours of suspected ingestion.",
+                lethal_dose_mg_kg: Some(100.0),
+                notes: [
+                    "theobromine LD50 in dogs ~100-200 mg/kg body weight",
+                    "darker chocolate = more theobromine = more dangerous",
+                    "ASPCA Animal Poison Control: 1-888-426-4435",
+                ],
+            ),
+        },
+        "cat": {
+            "ingested": (
+                verdict: "toxic",
+                details: "Same theobromine toxicity as dogs but cats are MORE sensitive due to slower hepatic glucuronyl transferase activity. Even one cookie is dangerous for an average 4kg cat. Symptoms: hyperactivity, tremors, seizures, cardiac arrhythmias. Treat as veterinary emergency.",
+                lethal_dose_mg_kg: Some(80.0),
+                notes: [
+                    "cats also lack the enzyme to taste sweetness, so they're less likely to seek out cookies — but exposure still happens",
+                    "ASPCA Animal Poison Control: 1-888-426-4435",
+                ],
+            ),
+        },
+        "bird_pet": {
+            "ingested": (
+                verdict: "toxic",
+                details: "Theobromine toxicity is well-documented in pet birds. Even a small piece is dangerous. Avoid all chocolate-containing items.",
+                lethal_dose_mg_kg: Some(50.0),
+                notes: ["parrots, cockatiels, budgies all at risk"],
+            ),
+        },
+    },
+
+    accord_constraints: ["transparency", "epistemic_integrity", "harm_minimization"],
+)

@@ -28,10 +28,10 @@
       title: '2. Your HumanityOS Wallet',
       content: function () {
         return '<p>Here is the good news: <strong>you already have a wallet.</strong></p>' +
-          '<p>When you created your HumanityOS identity, the system generated an Ed25519 key pair for you. This is the same type of cryptography that Solana (a major cryptocurrency network) uses.</p>' +
-          '<p>That means your HumanityOS identity key <strong>is</strong> your Solana wallet address. No extra setup, no additional accounts, no third-party apps needed.</p>' +
+          '<p>Your HumanityOS identity uses post-quantum cryptography (Dilithium3). For optional crypto payments, the system can derive a separate Solana wallet (Ed25519) from the same 24-word BIP39 seed phrase, via a distinct KDF path (<code>hum/solana/v1</code>).</p>' +
+          '<p>That means one seed phrase backs up <strong>both</strong> your identity AND your wallet — with no coupling between them. You can ignore Solana entirely if you never want to use blockchain.</p>' +
           '<ul>' +
-          '<li>Your identity key = your Solana wallet</li>' +
+          '<li>Your seed phrase derives both your DID and (optionally) your Solana wallet</li>' +
           '<li>Your 24-word seed phrase backs up both your identity AND your wallet</li>' +
           '<li>You can send and receive SOL (Solana\'s currency) and any Solana-based tokens (like USDC)</li>' +
           '</ul>' +

@@ -145,6 +145,9 @@ pub use recovery::{RecoveryShareIndex, RecoverySetup, RecoveryRequestRecord, Rec
 /// Per-observer per-issuer continuous trust (Phase 3 PR 2).
 pub use issuer_trust::{IssuerTrustRow, NEUTRAL_TRUST, MAX_DELTA};
 
+/// Multi-AI agent coordination tracking (v0.116.0).
+pub use agent_sessions::{AgentSessionRow, CLAIM_TIMEOUT_SECS};
+
 /// A marketplace listing record from the database.
 #[derive(Debug, Clone)]
 pub struct MarketplaceListing {
@@ -1153,6 +1156,22 @@ impl Storage {
             CREATE INDEX IF NOT EXISTS idx_recovery_approvals_request
                 ON recovery_approvals(request_object_id);
 
+            -- v0.116.0: multi-AI agent coordination — claim/heartbeat/release a scope.
+            -- Lets multiple Claude Code sessions check in / out of specific scopes
+            -- without trampling each other. agent_registry.ron declares canonical
+            -- scopes; this table is the live runtime state.
+            CREATE TABLE IF NOT EXISTS agent_sessions (
+                scope_id            TEXT PRIMARY KEY,
+                agent_id            TEXT NOT NULL,
+                state               TEXT NOT NULL DEFAULT 'working',
+                last_state_notes    TEXT NOT NULL DEFAULT '',
+                claimed_at          INTEGER NOT NULL,
+                last_heartbeat      INTEGER NOT NULL,
+                completion_estimate REAL
+            );
+            CREATE INDEX IF NOT EXISTS idx_agent_sessions_heartbeat
+                ON agent_sessions(last_heartbeat);
+
             -- Phase 3 PR 2: per-observer per-issuer continuous trust matrix.
             -- Each server tracks how much it trusts each issuer DID it has seen.
             -- Disputes drop trust; valid VCs raise it. Caps in [0, 1].
@@ -1368,6 +1387,7 @@ mod system;
 mod uploads;
 mod reviews;
 mod members;
+mod agent_sessions;
 mod ai_status;
 mod credentials;
 mod dids;
